@@ -21,6 +21,9 @@ import {
   resizeCard,
   setCardPosition,
   updateCardTitle,
+  addCanvasCard,
+  findCardByNormalizedUrl,
+  selectCard,
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
@@ -132,7 +135,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const canvasEntryAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
-  const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("move");
+  const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
+  const rendererInteractionsEnabled = interactionTool !== "select";
+  const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
 
   useLayoutEffect(() => {
@@ -282,6 +287,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     iframe: HTMLIFrameElement,
     cardId: string,
     open: boolean,
+    interactionsEnabled: boolean,
   ) => {
     iframe.contentWindow?.postMessage({
       type: "inspector-interaction-state",
@@ -290,7 +296,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       open,
-      interactionsEnabled: true,
+      interactionsEnabled,
+    }, window.location.origin);
+  }, []);
+
+  const sendLinkTargetState = useCallback((iframe: HTMLIFrameElement, cardId: string, openInCard: boolean) => {
+    iframe.contentWindow?.postMessage({
+      type: "link-target-state",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      cardId,
+      openInCard,
     }, window.location.origin);
   }, []);
 
@@ -307,10 +324,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
-      sendInspectorInteractionState(iframe, cardId, inspectorOpen);
+      sendInspectorInteractionState(iframe, cardId, inspectorOpen, rendererInteractionsEnabled);
       sendBoardGestureState(iframe, cardId, presentation === "canvas");
+      sendLinkTargetState(iframe, cardId, linksOpenInCards);
     }
-  }, [inspectorOpen, presentation, sendBoardGestureState, sendInspectorInteractionState]);
+  }, [inspectorOpen, linksOpenInCards, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState]);
 
   const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -434,7 +452,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     if (!sketchActive && interactionTool === "sketch") {
-      setInteractionTool("move");
+      setInteractionTool("design");
     }
   }, [interactionTool, sketchActive]);
 
@@ -524,8 +542,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
         sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);
-        sendInspectorInteractionState(frame.iframe, frame.cardId, inspectorOpen);
+        sendInspectorInteractionState(frame.iframe, frame.cardId, inspectorOpen, rendererInteractionsEnabled);
         sendBoardGestureState(frame.iframe, frame.cardId, presentation === "canvas");
+        sendLinkTargetState(frame.iframe, frame.cardId, linksOpenInCards);
       }
       if (msg.type === "pan-modifier") {
         if (presentation !== "canvas") return;
@@ -582,10 +601,15 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
 
+      if (msg.openInCard === true) {
+        const card = findCardByNormalizedUrl(normalized) ?? addCanvasCard(msg.url);
+        selectCard(card.id);
+        return;
+      }
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, movePanning, presentation, sendBoardGestureState, sendInspectorInteractionState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {

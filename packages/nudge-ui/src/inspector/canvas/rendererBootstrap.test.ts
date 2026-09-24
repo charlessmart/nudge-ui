@@ -214,3 +214,49 @@ describe("bootstrapRenderer teardown", () => {
     expect(messages(postMessage).some((message) => message.type === "external-navigation")).toBe(false);
   });
 });
+
+describe("bootstrapRenderer link targets", () => {
+  function sendLinkTargetState(openInCard: boolean): void {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "link-target-state", protocolVersion: PROTOCOL_VERSION, openInCard, ...identity },
+      origin: window.location.origin,
+      source: window,
+    }));
+  }
+
+  function clickLink() {
+    const link = document.createElement("a");
+    link.href = "/pricing";
+    document.body.append(link);
+    let reachedApp = false;
+    let defaultPreventedBeforeApp = false;
+    // jsdom cannot navigate, so the stand-in app handler records then cancels it.
+    link.addEventListener("click", (event) => {
+      reachedApp = true;
+      defaultPreventedBeforeApp = event.defaultPrevented;
+      event.preventDefault();
+    });
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(click);
+    return { reachedApp, defaultPrevented: reachedApp ? defaultPreventedBeforeApp : click.defaultPrevented };
+  }
+
+  it("keeps the card's route and asks for a new card while links open in cards", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+    dispatchParentReady();
+
+    sendLinkTargetState(true);
+    const cardClick = clickLink();
+    sendLinkTargetState(false);
+    const frameClick = clickLink();
+
+    const intents = messages(postMessage).filter((message) => message.type === "navigation-intent");
+    expect(cardClick).toEqual({ reachedApp: false, defaultPrevented: true });
+    expect(frameClick).toEqual({ reachedApp: true, defaultPrevented: false });
+    expect(intents).toEqual([
+      expect.objectContaining({ url: `${window.location.origin}/pricing`, openInCard: true }),
+      expect.not.objectContaining({ openInCard: true }),
+    ]);
+  });
+});

@@ -1,7 +1,9 @@
-export type CanvasInteractionTool = "move" | "pan" | "sketch";
+/** `select` leaves the application interactive; `design` turns clicks into inspector selection. */
+export type CanvasInteractionTool = "select" | "design" | "pan" | "sketch";
 
 export function canvasToolForCode(code: string): CanvasInteractionTool | null {
-  if (code === "KeyV") return "move";
+  if (code === "KeyI") return "select";
+  if (code === "KeyV") return "design";
   if (code === "KeyH") return "pan";
   if (code === "KeyP") return "sketch";
   return null;

@@ -125,6 +125,14 @@ export interface TextProjectionReportMessage extends RendererMessage {
 export interface NavigationIntentMessage extends RendererMessage {
   type: "navigation-intent";
   url: string;
+  /** The renderer kept its own route and asks the controller for a card instead. */
+  openInCard?: boolean;
+}
+
+/** Tells a renderer whether ordinary link clicks open a new canvas card. */
+export interface LinkTargetStateMessage extends RendererMessage {
+  type: "link-target-state";
+  openInCard: boolean;
 }
 
 export interface ElementHoverMessage extends RendererMessage {
@@ -235,7 +243,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 /** Forwards controller-owned keyboard shortcuts from an iframe document. */
@@ -297,6 +305,7 @@ export type FrameProtocolMessage =
   | RenderedInstanceProjectionReportMessage
   | TextProjectionReportMessage
   | NavigationIntentMessage
+  | LinkTargetStateMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
   | ElementClickMessage
@@ -346,7 +355,12 @@ export function isRendererMessageFor(
 }
 
 export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcutCode {
-  return value === "Backslash" || value === "KeyV" || value === "KeyH" || value === "KeyP" || value === "KeyS";
+  return value === "Backslash"
+    || value === "KeyI"
+    || value === "KeyV"
+    || value === "KeyH"
+    || value === "KeyP"
+    || value === "KeyS";
 }
 
 /** Strict JSON-only schema for renderer-originated global keyboard shortcuts. */

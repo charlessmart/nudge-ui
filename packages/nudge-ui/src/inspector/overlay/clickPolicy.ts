@@ -5,9 +5,12 @@ export function isDeepSelectionClick(event: ClickModifiers): boolean {
   return (event.ctrlKey || event.metaKey) && !event.shiftKey;
 }
 
-/** Command/Ctrl+Shift-click intentionally lets the application receive its click. */
-export function isApplicationActivationClick(event: ClickModifiers): boolean {
-  return (event.ctrlKey || event.metaKey) && event.shiftKey;
+/**
+ * Only clicks from a person become inspector selections. Script clicks such
+ * as `element.click()` keep reaching the application.
+ */
+export function isUserClick(event: Pick<Event, "isTrusted">): boolean {
+  return event.isTrusted;
 }
 
 /** Prevent an inspected application click from reaching the host application. */

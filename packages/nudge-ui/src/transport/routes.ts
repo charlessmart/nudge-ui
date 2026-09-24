@@ -19,7 +19,11 @@ export const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 export const NUDGE_UI_EDITOR_QUERY_PARAM = "nudge-ui";
 export const NUDGE_UI_EDITOR_QUERY_VALUE = "editor";
 
-/** Query parameter that opens an application document without the editor. */
+/** Public `nudge-ui` values that turn the inspector off or on for one browser tab. */
+export const NUDGE_UI_OFF_QUERY_VALUE = "off";
+export const NUDGE_UI_ON_QUERY_VALUE = "on";
+
+/** Internal alias of `nudge-ui=off` kept for existing direct-view links. */
 export const NUDGE_UI_DIRECT_QUERY_PARAM = "__nudge_ui_direct";
 
 export function isReservedNudgeUiRoute(pathname: string): boolean {

@@ -5,6 +5,7 @@ import type { ComponentModuleProtocols } from "../../compiler/componentPolicyRes
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
+import { isNudgeUiEnabled } from "../environment.ts";
 import {
   NUDGE_UI_EDITOR_QUERY_PARAM,
   NUDGE_UI_EDITOR_QUERY_VALUE,
@@ -42,6 +43,8 @@ export interface NudgeUiNextConfig {
 
 /** Host-specific policy additions passed to the shared source compiler. */
 export interface NudgeUiNextOptions {
+  /** `false` returns the configuration untouched. `NUDGE_UI=0` has the same effect for one run. */
+  readonly enabled?: boolean;
   readonly componentProtocols?: ComponentModuleProtocols;
   /** Authored workspace directories outside the Next.js application root. */
   readonly sourceRoots?: readonly string[];
@@ -215,7 +218,7 @@ export function withNudgeUi<T extends object>(
     : () => config;
   return (phase: string): T => {
     const resolved = factory(phase);
-    if (!isDevelopmentEvaluation(phase)) return resolved;
+    if (!isDevelopmentEvaluation(phase) || !isNudgeUiEnabled(options.enabled)) return resolved;
     return instrumentConfig(resolved, options);
   };
 }

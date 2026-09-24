@@ -3,6 +3,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
 import { buildSelector, installRendererElementSelector } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
+
+// jsdom marks every dispatched event untrusted; tests choose which clicks count as a person's.
+const clickPolicy = { userClick: true };
+const acceptsClick = (): boolean => clickPolicy.userClick;
 
 const identity = {
   projectId: "project-a",
@@ -62,7 +67,7 @@ beforeAll(() => {
 beforeEach(() => {
   setRendererIdentity(identity);
   scheduled.length = 0;
-  disposeRendererElementSelector = installRendererElementSelector();
+  disposeRendererElementSelector = installRendererElementSelector(acceptsClick);
 });
 
 afterEach(() => {
@@ -79,7 +84,21 @@ afterEach(() => {
     delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
   }
   document.body.innerHTML = "";
+  clickPolicy.userClick = true;
 });
+
+function sendInteractionState(state: { open: boolean; interactionsEnabled?: boolean }): void {
+  window.dispatchEvent(new MessageEvent("message", {
+    origin: window.location.origin,
+    source: window.parent,
+    data: {
+      type: "inspector-interaction-state",
+      protocolVersion: PROTOCOL_VERSION,
+      ...state,
+      ...identity,
+    },
+  }));
+}
 
 afterAll(() => {
   window.requestAnimationFrame = originalRequestAnimationFrame;
@@ -562,6 +581,55 @@ describe("renderer hover scheduling", () => {
   });
 });
 
+describe("renderer Select tool", () => {
+  it("hands the page back to the application and restores Design on resume", () => {
+    const button = trackedElement("select-tool-target");
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue({
+      left: 1, top: 2, width: 3, height: 4,
+    } as DOMRect);
+    const onApplicationClick = vi.fn();
+    button.addEventListener("click", onApplicationClick);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    dispatchMouseOver(button);
+    runScheduledFrame();
+
+    sendInteractionState({ open: true, interactionsEnabled: false });
+
+    expect(hoverMessages(postMessage).at(-1)).toMatchObject({ cid: "select-tool-target", rect: null });
+    expect(isInteractionStylesInstalled()).toBe(false);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    expect(onApplicationClick).toHaveBeenCalledOnce();
+
+    sendInteractionState({ open: true, interactionsEnabled: true });
+
+    expect(isInteractionStylesInstalled()).toBe(true);
+    const designClick = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(designClick);
+    expect(designClick.defaultPrevented).toBe(true);
+    expect(onApplicationClick).toHaveBeenCalledOnce();
+  });
+
+  it("lets script clicks reach the application in the Design tool", () => {
+    clickPolicy.userClick = false;
+    const button = trackedElement("script-click-target");
+    const onApplicationClick = vi.fn();
+    button.addEventListener("click", onApplicationClick);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(onApplicationClick).toHaveBeenCalledOnce();
+    expect(postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "element-click" }),
+      window.location.origin,
+    );
+  });
+});
+
 describe("renderer selector lifecycle", () => {
   it("cancels an active drag before renderer teardown", () => {
     const element = trackedElement("teardown-spacing");
@@ -641,7 +709,7 @@ describe("renderer selector lifecycle", () => {
   it("can install again after disposal", () => {
     disposeRendererElementSelector();
     scheduled.length = 0;
-    disposeRendererElementSelector = installRendererElementSelector();
+    disposeRendererElementSelector = installRendererElementSelector(acceptsClick);
 
     const button = trackedElement("reinstalled");
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);

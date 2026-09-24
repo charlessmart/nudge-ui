@@ -46,6 +46,7 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "Report completed, failed, or interrupted status with nudge_report_status before listening again.",
   "When the user asks to stop listening, call nudge_release when that tool is available so another agent can claim the project session.",
   "Canvas tools operate only on same-origin routes from the paired project.",
+  "Automated browsers such as Playwright and headless Chrome get the plain app without the Nudge editor; add ?nudge-ui=on to a URL only when testing Nudge itself.",
   "No request, prompt, or browser state is persisted by this companion.",
 ].join(" ");
 

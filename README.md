@@ -118,6 +118,44 @@ The standalone host serves the directory on loopback, instruments HTML in
 memory, watches source files, and reloads the browser after changes. It does
 not serve dot-prefixed files or directories, including `.env` files.
 
+## Use the editor
+
+Opening any page of the development server loads it in the Nudge editor. The
+canvas toolbar has these tools:
+
+| Tool | Shortcut | Behavior |
+| --- | --- | --- |
+| Select | `I` | Use the app normally. Nudge doesn't intercept clicks. In Canvas view, links open in a new card. |
+| Design | `V` | Click elements to inspect and edit them. The app doesn't receive the click. |
+| Pan | `H` | Drag the canvas. |
+| Sketch | `P` | Draw on the page. |
+
+In Design, clicks made by scripts, such as `element.click()`, still reach the
+app. Only clicks from a person become selections.
+
+## Turn Nudge off
+
+Nudge is on by default in development. To see the plain app:
+
+- **One tab:** add `?nudge-ui=off` to the URL. The tab stays off as you
+  navigate. Add `?nudge-ui=on` to turn it back on.
+- **One run:** start the development server with `NUDGE_UI=0`, for example
+  `NUDGE_UI=0 pnpm dev`.
+- **Permanently:** pass `enabled: false`. For example,
+  `withNudgeUi(config, { enabled: false })` or `nudgeUiAstro({ enabled: false })`.
+
+## Screenshots and end-to-end tests
+
+Automated browsers get the plain app. When `navigator.webdriver` is `true`, as
+in Playwright, Puppeteer, Selenium, and headless Chrome, Nudge doesn't load the
+editor or intercept clicks, so screenshots and tests see the app at its real
+URL. The browser console logs one line saying so.
+
+To test with Nudge in an automated browser, use either of these:
+
+- Add `?nudge-ui=on` to the first URL the test opens.
+- Start the development server with `NUDGE_UI=1`.
+
 ## Connect a coding agent
 
 > **Early alpha:** The MCP integration is still under heavy testing. Expect

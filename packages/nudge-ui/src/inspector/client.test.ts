@@ -125,44 +125,58 @@ describe("subscribeToManifestReloads", () => {
 });
 
 describe("resolveNudgeUiClientEntry", () => {
+  const application = { editorDocument: false, canvasRenderer: false };
+
   it("sends a top-level app into the editor while bootstrapping shell and renderer documents", () => {
     expect(resolveNudgeUiClientEntry(
       "https://example.test/catalog?category=chairs#oak",
-      false,
-      false,
+      application,
     )).toEqual({
       kind: "redirect",
       href: createExpectedEditorUrl("/catalog?category=chairs#oak"),
     });
     expect(resolveNudgeUiClientEntry(
       "https://example.test/__nudge_ui__/editor?url=%2Fcatalog",
-      true,
-      false,
+      { editorDocument: true, canvasRenderer: false },
     )).toEqual({ kind: "bootstrap" });
     expect(resolveNudgeUiClientEntry(
       "https://example.test/catalog",
-      false,
-      true,
+      { editorDocument: false, canvasRenderer: true },
     )).toEqual({ kind: "bootstrap" });
     expect(resolveNudgeUiClientEntry(
       "https://example.test/catalog?__nudge_ui_direct=1",
-      false,
-      true,
+      { editorDocument: false, canvasRenderer: true, automated: true },
     )).toEqual({ kind: "bootstrap" });
   });
 
   it("leaves an explicitly direct application view unmounted", () => {
     expect(resolveNudgeUiClientEntry(
       "https://example.test/catalog?__nudge_ui_direct=1",
-      false,
-      false,
+      application,
+    )).toEqual({ kind: "direct" });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog?nudge-ui=off",
+      application,
     )).toEqual({ kind: "direct" });
     expect(resolveNudgeUiClientEntry(
       "https://example.test/another-route",
-      false,
-      false,
-      true,
+      { ...application, directTab: true },
     )).toEqual({ kind: "direct" });
+  });
+
+  it("keeps automated browsers on the plain app unless the tab or URL turns the editor on", () => {
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog",
+      { ...application, automated: true },
+    )).toEqual({ kind: "automated", href: createExpectedEditorUrl("/catalog") });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog?nudge-ui=on",
+      { ...application, automated: true, directTab: true },
+    )).toEqual({ kind: "redirect", href: createExpectedEditorUrl("/catalog") });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog",
+      { ...application, automated: true, forcedTab: true },
+    )).toEqual({ kind: "redirect", href: createExpectedEditorUrl("/catalog") });
   });
 });
 

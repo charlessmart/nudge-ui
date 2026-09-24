@@ -9,8 +9,9 @@ import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStyle
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import {
   hasNudgeUiDirectTabIntent,
-  isNudgeUiDirectUrl,
-  rememberNudgeUiDirectTabIntent,
+  hasNudgeUiForcedTabIntent,
+  readNudgeUiQuerySwitch,
+  rememberNudgeUiTabSwitch,
   resolveNudgeUiClientEntry,
 } from "../transport/editor.ts";
 import { resetAgentClients } from "./agent/client.ts";
@@ -31,21 +32,40 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
     "script[data-nudge-ui-client]",
   );
   const editorDocument = document.documentElement.hasAttribute("data-nudge-ui-editor");
-  const explicitDirect = isNudgeUiDirectUrl(window.location.href);
-  if (explicitDirect) rememberNudgeUiDirectTabIntent();
-  const entry = resolveNudgeUiClientEntry(
-    window.location.href,
+  const canvasRenderer = isCanvasRenderer();
+  const urlSwitch = readNudgeUiQuerySwitch(window.location.href);
+  if (urlSwitch) rememberNudgeUiTabSwitch(urlSwitch);
+  const entry = resolveNudgeUiClientEntry(window.location.href, {
     editorDocument,
-    isCanvasRenderer(),
-    hasNudgeUiDirectTabIntent(),
-  );
+    canvasRenderer,
+    directTab: hasNudgeUiDirectTabIntent(),
+    forcedTab: hasNudgeUiForcedTabIntent(),
+    automated: navigator.webdriver === true,
+  });
+  const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
   if (entry.kind === "direct") return;
+  if (entry.kind === "automated") {
+    if ((await fetchManifest(manifestUrl)).inspectAutomatedBrowsers === true) {
+      window.location.replace(entry.href);
+      return;
+    }
+    console.info(
+      "[nudge-ui] Automated browser detected; the inspector is off. "
+        + "Add ?nudge-ui=on to the URL or start the dev server with NUDGE_UI=1 to use it.",
+    );
+    return;
+  }
   if (entry.kind === "redirect") {
     window.location.replace(entry.href);
     return;
   }
-  const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
   const payload = await fetchManifest(manifestUrl);
+  if (editorDocument && !canvasRenderer) {
+    console.info(
+      "[nudge-ui] Editor active. For the plain app, add ?nudge-ui=off to the URL "
+        + "or start the dev server with NUDGE_UI=0.",
+    );
+  }
 
   applyAgentBridge(payload, false);
   const runtimeDocument = editorDocument ? findEditorPreviewDocument : () => document;

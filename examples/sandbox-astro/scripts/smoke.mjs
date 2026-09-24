@@ -24,7 +24,8 @@ function assert(condition, name, detail) {
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
-  await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+  // Automated browsers get the plain app unless the URL turns the editor on.
+  await page.goto(`${BASE_URL}/?nudge-ui=on`, { waitUntil: "domcontentloaded" });
 
   // The bootstrap module must have executed and mounted the inspector.
   await page.waitForSelector("#nudge-ui-root", { timeout: 30_000 });

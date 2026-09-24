@@ -117,12 +117,20 @@ test("dev: ordinary canvas clicks select without triggering and Command-click ch
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
 });
 
-test("dev: Command+Shift-click triggers the canvas application action", async ({ page }) => {
+test("dev: the Select tool lets canvas clicks reach the application", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator("button.btn").first();
   await button.click({ modifiers: ["Meta", "Shift"] });
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
+
+  await page.locator('[data-test="canvas-tool-select"]').click();
+  await button.click();
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+
+  await page.locator('[data-test="canvas-tool-design"]').click();
+  await button.click();
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
 });
 

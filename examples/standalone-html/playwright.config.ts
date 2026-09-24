@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+// Automated browsers get the plain app unless the dev server opts in.
+process.env.NUDGE_UI ??= "1";
+
 const port = process.env.NUDGE_UI_STANDALONE_PORT ?? "4177";
 const temporaryProjectRoot = join(tmpdir(), `nudge-ui-standalone-e2e-${port}`);
 

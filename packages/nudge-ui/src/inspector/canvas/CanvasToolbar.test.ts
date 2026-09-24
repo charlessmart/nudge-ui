@@ -18,7 +18,8 @@ describe("canvas toolbar zoom presets", () => {
 
 describe("canvas toolbar keyboard shortcuts", () => {
   it.each([
-    ["KeyV", "move"],
+    ["KeyI", "select"],
+    ["KeyV", "design"],
     ["KeyH", "pan"],
     ["KeyP", "sketch"],
   ])("maps %s to the corresponding tool", (code, tool) => {

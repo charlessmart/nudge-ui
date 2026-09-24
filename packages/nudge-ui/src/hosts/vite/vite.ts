@@ -53,6 +53,7 @@ import {
   startOptionalProjectBridge,
   type ProjectBridgeBrowserConfig,
 } from "../projectBridge.ts";
+import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -76,6 +77,7 @@ export interface VanillaExtractOptions {
 }
 
 export interface NudgeUiOptions extends ReactOptions {
+  /** `false` registers nothing. `NUDGE_UI=0` has the same effect for one run. */
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
@@ -214,7 +216,7 @@ export function createVitePlugins(
   options: NudgeUiOptions = {},
   createFramework: ((options: NudgeUiOptions, host: FrameworkHost) => FrameworkSupport) | null = null,
 ): Plugin[] {
-  const enabled = options.enabled ?? true;
+  const enabled = isNudgeUiEnabled(options.enabled);
   let root: string | undefined;
   let buildOutputDirectory: string | undefined;
   let command: "serve" | "build" = "serve";
@@ -608,6 +610,7 @@ export function createVitePlugins(
       revision: 0,
       runtime: buildRuntimeSnapshot(),
       ...(projectBridge ? { agentBridge: projectBridge.browser } : {}),
+      ...automationManifestFields(),
     };
   }
 

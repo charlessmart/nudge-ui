@@ -30,6 +30,8 @@ export interface NudgeUiClientManifest {
     readonly strategy: "refresh-manifest" | "reload-document";
     readonly events?: readonly string[];
   };
+  /** Set by `NUDGE_UI=1`: automated browsers open the editor instead of the plain app. */
+  readonly inspectAutomatedBrowsers?: true;
 }
 
 /** Parses and normalizes an external manifest before it replaces inspector state. */
@@ -53,6 +55,7 @@ export function parseNudgeUiClientManifest(
       ...(isAgentBridge(value.agentBridge) ? { agentBridge: value.agentBridge } : {}),
       ...(value.document === undefined ? {} : { document: value.document }),
       ...(value.reload === undefined ? {} : { reload: value.reload }),
+      ...(value.inspectAutomatedBrowsers === true ? { inspectAutomatedBrowsers: true } : {}),
     };
   } catch {
     return null;
@@ -66,6 +69,7 @@ interface CandidateManifest {
   readonly document?: unknown;
   readonly reload?: unknown;
   readonly agentBridge?: unknown;
+  readonly inspectAutomatedBrowsers?: unknown;
 }
 
 function isAgentBridge(value: unknown): value is NudgeUiClientManifest["agentBridge"] {

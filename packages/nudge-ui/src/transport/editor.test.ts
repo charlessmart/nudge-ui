@@ -4,9 +4,12 @@ import {
   createNudgeUiEditorDocument,
   createNudgeUiEditorUrl,
   hasNudgeUiDirectTabIntent,
+  hasNudgeUiForcedTabIntent,
   isNudgeUiDirectUrl,
   isNudgeUiEditorDocumentRequest,
+  readNudgeUiQuerySwitch,
   rememberNudgeUiDirectTabIntent,
+  rememberNudgeUiTabSwitch,
   readNudgeUiEditorTarget,
 } from "./editor.ts";
 
@@ -35,6 +38,22 @@ describe("editor transport", () => {
     expect(createNudgeUiEditorUrl(
       "https://example.test/products?q=linen%20shirt&__nudge_ui_direct=1&flag=%2F#details",
     )).toBe("https://example.test/products?q=linen%20shirt&flag=%2F&nudge-ui=editor#details");
+  });
+
+  it("drops the public on/off switch from editor URLs", () => {
+    expect(createNudgeUiEditorUrl("https://example.test/products?nudge-ui=on&q=linen")).toBe(
+      "https://example.test/products?q=linen&nudge-ui=editor",
+    );
+    expect(createNudgeUiEditorUrl("https://example.test/products?nudge-ui=off")).toBe(
+      "https://example.test/products?nudge-ui=editor",
+    );
+  });
+
+  it("reads the public switch and treats the legacy direct marker as off", () => {
+    expect(readNudgeUiQuerySwitch("https://example.test/?nudge-ui=off")).toBe("off");
+    expect(readNudgeUiQuerySwitch("https://example.test/?__nudge_ui_direct=1")).toBe("off");
+    expect(readNudgeUiQuerySwitch("https://example.test/?nudge-ui=on")).toBe("on");
+    expect(readNudgeUiQuerySwitch("https://example.test/?nudge-ui=editor")).toBeNull();
   });
 
   it("recognizes only marked document GET and HEAD requests", () => {
@@ -80,6 +99,23 @@ describe("editor transport", () => {
     expect(hasNudgeUiDirectTabIntent()).toBe(false);
     rememberNudgeUiDirectTabIntent();
     expect(hasNudgeUiDirectTabIntent()).toBe(true);
+    delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+  });
+
+  it("lets a later switch in the same tab replace the earlier one", () => {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+    rememberNudgeUiTabSwitch("off");
+    rememberNudgeUiTabSwitch("on");
+    expect(hasNudgeUiDirectTabIntent()).toBe(false);
+    expect(hasNudgeUiForcedTabIntent()).toBe(true);
     delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
   });
 });

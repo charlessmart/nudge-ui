@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Automated browsers get the plain app unless the dev server opts in.
+process.env.NUDGE_UI ??= "1";
+
 const PORT = process.env.NUDGE_UI_COMPAT_PORT ?? "5176";
 const URL = `http://127.0.0.1:${PORT}`;
 

@@ -1,6 +1,7 @@
 import type { NudgeUiClientManifest } from "../../inspector/clientManifest.ts";
 import type { ProjectTokenSnapshot } from "../../project/tokens.ts";
 import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
+import { automationManifestFields } from "../environment.ts";
 
 export {
   NUDGE_UI_CLIENT_PATH,
@@ -57,6 +58,7 @@ export function createStandaloneRuntimeManifest(
       strategy: "reload-document",
       events: ["ready", "reload"],
     },
+    ...automationManifestFields(),
   };
 }
 

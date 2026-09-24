@@ -5,6 +5,7 @@ import {
   createAstroClientTransportPlugin,
 } from "./clientTransport.ts";
 import { createProjectContextPlugin } from "./projectContext.ts";
+import { isNudgeUiEnabled } from "../environment.ts";
 
 export type { NudgeUiOptions };
 
@@ -40,8 +41,8 @@ const MIDDLEWARE_ENTRYPOINT = new URL(
 /**
  * Nudge UI host Adapter for Astro dev servers (ADR-0011).
  *
- * Dev-only by contract (ADR-0002): unless `command === "dev"` and
- * `enabled !== false`, the integration registers nothing at all — no Vite
+ * Dev-only by contract (ADR-0002): unless `command === "dev"`,
+ * `enabled !== false`, and `NUDGE_UI` is not `0`, the integration registers nothing at all — no Vite
  * plugins, no injected scripts, no middleware — so `astro build` output is
  * byte-identical to a project without the integration.
  *
@@ -54,7 +55,7 @@ const MIDDLEWARE_ENTRYPOINT = new URL(
  *    identity Module.
  */
 export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegration {
-  const enabled = options.enabled ?? true;
+  const enabled = isNudgeUiEnabled(options.enabled);
   const sharedOptions: NudgeUiOptions = { ...options };
 
   return {

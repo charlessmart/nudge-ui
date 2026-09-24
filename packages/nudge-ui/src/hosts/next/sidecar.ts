@@ -24,6 +24,7 @@ import {
   isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { startOptionalProjectBridge } from "../projectBridge.ts";
+import { automationManifestFields } from "../environment.ts";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
@@ -609,7 +610,11 @@ function respond(
   if (url === NUDGE_UI_MANIFEST_PATH) {
     // The served snapshot carries its revision so clients can reconcile
     // against SSE notifications instead of guessing.
-    const body = `${JSON.stringify({ ...currentManifest(), revision: currentGeneration() })}\n`;
+    const body = `${JSON.stringify({
+      ...currentManifest(),
+      revision: currentGeneration(),
+      ...automationManifestFields(),
+    })}\n`;
     res.writeHead(200, {
       "content-type": "application/json",
       "cache-control": "no-store",

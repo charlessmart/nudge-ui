@@ -15,6 +15,7 @@ import {
   isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { startOptionalProjectBridge } from "../projectBridge.ts";
+import { automationManifestFields } from "../environment.ts";
 
 const serveClient = createAstroClientAssetHandler();
 
@@ -117,6 +118,7 @@ async function createManifest(
     revision: 0,
     runtime,
     ...(bridge ? { agentBridge: bridge.browser } : {}),
+    ...automationManifestFields(),
   };
 }
 

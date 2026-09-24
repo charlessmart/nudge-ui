@@ -7,9 +7,12 @@ import {
   type InlineTextInteractionDisposition,
 } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
-import { blockApplicationClick, isApplicationActivationClick } from "./clickPolicy.ts";
+import { blockApplicationClick, isUserClick } from "./clickPolicy.ts";
 
-export function installElementSelector(inspectorHost: HTMLElement): () => void {
+export function installElementSelector(
+  inspectorHost: HTMLElement,
+  acceptsClick: (event: MouseEvent) => boolean = isUserClick,
+): () => void {
   function applyInlineTextDisposition(
     event: MouseEvent,
     disposition: InlineTextInteractionDisposition,
@@ -47,7 +50,7 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
   }
 
   function onClick(e: MouseEvent): void {
-    if (!getOpen()) return;
+    if (!getOpen() || !acceptsClick(e)) return;
     if (isInsideInspectorUi(e)) {
       // The selector guards the inspected application only. Clicks on the
       // inspector's own controls must keep their native behavior, so they
@@ -64,13 +67,11 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       blockApplicationClick(e);
       return;
     }
-    if (isApplicationActivationClick(e)) return;
 
     // The inspector is an editing surface while open. Capture every ordinary
     // application click so buttons, links, and untracked controls cannot run
     // alongside selection. Shift-click toggles the primary target in the
-    // ordered group; Command/Ctrl-click still selects the deepest tracked
-    // element, and Command/Ctrl+Shift-click remains the activation escape hatch.
+    // ordered group; Command/Ctrl-click selects the deepest tracked element.
     const sel = resolveSelectionFromEvent(e, inspectorHost);
     blockApplicationClick(e);
     if (sel) {

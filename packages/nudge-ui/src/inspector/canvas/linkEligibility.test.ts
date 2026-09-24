@@ -157,9 +157,9 @@ describe("shouldPreserveNativeLinkActivation", () => {
     expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ shiftKey: true }))).toBe(false);
   });
 
-  it("preserves Command+Shift-click as explicit application activation", () => {
+  it("consumes Command+Shift-click as a selection gesture", () => {
     const anchor = createAnchor(sameOriginUrl("/about"));
-    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true, shiftKey: true }))).toBe(true);
+    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true, shiftKey: true }))).toBe(false);
   });
 
   it("preserves native behavior for same-document hash links", () => {

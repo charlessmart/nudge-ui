@@ -45,12 +45,13 @@ test("dev: Command-click selects a conformance link without navigating", async (
   expect(context.pages()).toHaveLength(1);
 });
 
-test("dev: Command+Shift-click follows a conformance link", async ({ page, context }) => {
+test("dev: the Select tool leaves Command-click on a link to the browser", async ({ page, context }) => {
   await page.goto("/playground");
   await expect(appLocator(page, ".site-shell")).toBeVisible();
 
+  await page.locator('[data-test="canvas-tool-select"]').click();
   const destinationPage = context.waitForEvent("page");
-  await appLocator(page, '[data-conformance-route="/conformance"]').click({ modifiers: ["Meta", "Shift"] });
+  await appLocator(page, '[data-conformance-route="/conformance"]').click({ modifiers: ["Meta"] });
   const destination = await destinationPage;
 
   await expect(destination).toHaveURL(/\/conformance\?nudge-ui=editor(?:&|#|$)/);

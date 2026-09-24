@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
 import {
   IconHandStop,
-  IconPointer2,
+  IconMarquee2,
+  IconPointer,
   IconSketching,
 } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -36,12 +37,14 @@ function ToolButton({
   active,
   disabled,
   label,
+  description,
   icon,
   onClick,
 }: {
   readonly active: boolean;
   readonly disabled?: boolean;
   readonly label: string;
+  readonly description?: string;
   readonly icon: ReactElement;
   readonly onClick: () => void;
 }): ReactElement {
@@ -51,7 +54,7 @@ function ToolButton({
       size="large"
       className="canvas-toolbar__tool"
       label={label}
-      title={label}
+      title={description ?? label}
       aria-pressed={active}
       data-test={`canvas-tool-${label.toLowerCase()}`}
       data-active={active ? "true" : "false"}
@@ -72,10 +75,18 @@ export function CanvasToolbar({
     <div className="canvas-toolbar" data-test="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
       <div className="canvas-toolbar__tools" role="group" aria-label="Interaction tools">
         <ToolButton
-          active={tool === "move"}
-          label="Move"
-          icon={<IconPointer2 size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("move")}
+          active={tool === "select"}
+          label="Select"
+          description="Select (I): use the app normally"
+          icon={<IconPointer size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          onClick={() => onToolChange("select")}
+        />
+        <ToolButton
+          active={tool === "design"}
+          label="Design"
+          description="Design (V): click elements to inspect and edit them"
+          icon={<IconMarquee2 size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          onClick={() => onToolChange("design")}
         />
         <ToolButton
           active={tool === "pan"}

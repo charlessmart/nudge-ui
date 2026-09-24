@@ -12,6 +12,7 @@ import type {
   FrameMetadataMessage,
   FrameReadyMessage,
   FrameRuntimeMessage,
+  LinkTargetStateMessage,
   NavigationIntentMessage,
   PanEndMessage,
   PanModifierMessage,
@@ -207,6 +208,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
     if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
     installRendererPanProxy(owner);
 
+    let openLinksInCards = false;
     const onClick = (event: MouseEvent): void => {
       if (!ownsRendererBootstrap(owner)) return;
       const anchor = findClosestAnchor(event.target);
@@ -217,10 +219,16 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
       const identity = getRendererIdentity();
       if (!identity) return;
 
+      if (openLinksInCards) {
+        // Capture on document runs before framework routers, so the card keeps its route.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
       const msg: NavigationIntentMessage = {
         type: "navigation-intent",
         protocolVersion: PROTOCOL_VERSION,
         url: anchor.href,
+        ...(openLinksInCards ? { openInCard: true } : {}),
         ...identity,
       };
       sendToParent(msg);
@@ -243,6 +251,13 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
           cardId: pr.cardId,
         });
         sendFrameReady(owner);
+        return;
+      }
+
+      const frameIdentity = getRendererIdentity();
+      if (frameIdentity && isRendererMessageFor(msg, frameIdentity) && msg.type === "link-target-state") {
+        // SAFETY: the identity check proves a protocol message; the discriminator selects this shape.
+        openLinksInCards = (msg as LinkTargetStateMessage).openInCard === true;
         return;
       }
 

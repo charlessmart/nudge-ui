@@ -32,7 +32,7 @@ import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isEditableEvent, isInspectorToggleShortcut, isSendPromptShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { escapeCssString } from "../projection/cssEscapes.ts";
-import { blockApplicationClick, isApplicationActivationClick } from "../overlay/clickPolicy.ts";
+import { blockApplicationClick, isUserClick } from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import {
   getSpacingAffordanceAtPoint,
@@ -114,11 +114,13 @@ export function buildSelector(el: HTMLElement): string {
 let installed = false;
 const noopDisposal = (): void => undefined;
 
-export function installRendererElementSelector(): () => void {
+export function installRendererElementSelector(
+  acceptsClick: (event: MouseEvent) => boolean = isUserClick,
+): () => void {
   if (!isNudgeUiDev()) return noopDisposal;
   if (installed) return noopDisposal;
   installed = true;
-  const removeInteractionStyles = installInteractionStyles();
+  let removeInteractionStyles: (() => void) | null = installInteractionStyles();
   const listenerCleanup: Array<() => void> = [];
   let disposed = false;
   let interactionsSuspended = false;
@@ -366,13 +368,15 @@ export function installRendererElementSelector(): () => void {
     }
     if (interactionsSuspended) {
       cancelActiveDrag();
-      hoverUpdate.cancel();
-      clearSpacingCursor();
+      clearActiveHover();
       if (scrollSettleTimer !== null) window.clearTimeout(scrollSettleTimer);
       scrollSettleTimer = null;
       scrolling = false;
-      activeHoverElement = null;
       updateMeasureState(false, false);
+      removeInteractionStyles?.();
+      removeInteractionStyles = null;
+    } else {
+      removeInteractionStyles ??= installInteractionStyles();
     }
   });
 
@@ -663,7 +667,7 @@ export function installRendererElementSelector(): () => void {
     document,
     "click",
     (event: MouseEvent) => {
-      if (interactionsSuspended) return;
+      if (interactionsSuspended || !acceptsClick(event)) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
 
@@ -676,11 +680,8 @@ export function installRendererElementSelector(): () => void {
         return;
       }
 
-      // Command/Ctrl+Shift-click is the deliberate escape hatch for running
-      // the application action. All other selected canvas clicks are editing
-      // gestures and must not reach the rendered application.
-      if (isApplicationActivationClick(event)) return;
-
+      // Design-tool clicks are editing gestures and must not reach the
+      // rendered application; the Select tool is how the app receives them.
       const preserveNativeLink = anchor
         ? shouldPreserveNativeLinkActivation(anchor, event)
         : false;
@@ -729,7 +730,8 @@ export function installRendererElementSelector(): () => void {
     scrollSettleTimer = null;
     for (const cleanup of listenerCleanup) cleanup();
     listenerCleanup.length = 0;
-    removeInteractionStyles();
+    removeInteractionStyles?.();
+    removeInteractionStyles = null;
     lastSelected = null;
     activeHoverElement = null;
     lastHoverPoint = null;

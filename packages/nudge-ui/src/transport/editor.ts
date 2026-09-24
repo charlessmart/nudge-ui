@@ -6,11 +6,14 @@ import {
   NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_MOUNT_ID,
+  NUDGE_UI_OFF_QUERY_VALUE,
+  NUDGE_UI_ON_QUERY_VALUE,
   isReservedNudgeUiRoute,
 } from "./routes.ts";
 
 const TARGET_QUERY_PARAM = "url";
 const DIRECT_TAB_SESSION_KEY = "nudge-ui:direct-tab";
+const FORCED_TAB_SESSION_KEY = "nudge-ui:forced-tab";
 
 /** Returns the editor URL for one same-origin application location. */
 export function createNudgeUiEditorUrl(applicationHref: string): string {
@@ -18,7 +21,10 @@ export function createNudgeUiEditorUrl(applicationHref: string): string {
   assertApplicationUrl(applicationUrl);
   const retainedSegments = applicationUrl.search.slice(1).split("&").filter((segment) => {
     const entry = new URLSearchParams(segment);
-    return entry.get(NUDGE_UI_DIRECT_QUERY_PARAM) !== "1";
+    const value = entry.get(NUDGE_UI_EDITOR_QUERY_PARAM);
+    return entry.get(NUDGE_UI_DIRECT_QUERY_PARAM) !== "1"
+      && value !== NUDGE_UI_OFF_QUERY_VALUE
+      && value !== NUDGE_UI_ON_QUERY_VALUE;
   });
   applicationUrl.search = retainedSegments.join("&");
   if (applicationUrl.searchParams.getAll(NUDGE_UI_EDITOR_QUERY_PARAM).includes(NUDGE_UI_EDITOR_QUERY_VALUE)) {
@@ -87,25 +93,49 @@ export function createNudgeUiDirectUrl(applicationHref: string): string {
   return url.href;
 }
 
+/** Reads the public `nudge-ui=off` / `nudge-ui=on` switch from an application URL. */
+export function readNudgeUiQuerySwitch(href: string): "off" | "on" | null {
+  const url = new URL(href);
+  const values = url.searchParams.getAll(NUDGE_UI_EDITOR_QUERY_PARAM);
+  if (values.includes(NUDGE_UI_OFF_QUERY_VALUE) || url.searchParams.get(NUDGE_UI_DIRECT_QUERY_PARAM) === "1") {
+    return "off";
+  }
+  return values.includes(NUDGE_UI_ON_QUERY_VALUE) ? "on" : null;
+}
+
 /** Returns whether this application location explicitly bypasses editor entry. */
 export function isNudgeUiDirectUrl(href: string): boolean {
-  const url = new URL(href);
-  return url.searchParams.get(NUDGE_UI_DIRECT_QUERY_PARAM) === "1";
+  return readNudgeUiQuerySwitch(href) === "off";
 }
 
 /** Remembers that this browser tab was explicitly opened outside the editor. */
 export function rememberNudgeUiDirectTabIntent(): void {
+  rememberNudgeUiTabSwitch("off");
+}
+
+/** Remembers an explicit URL switch so later navigations in this tab keep it. */
+export function rememberNudgeUiTabSwitch(value: "off" | "on"): void {
   try {
-    sessionStorage.setItem(DIRECT_TAB_SESSION_KEY, "1");
+    sessionStorage.setItem(value === "off" ? DIRECT_TAB_SESSION_KEY : FORCED_TAB_SESSION_KEY, "1");
+    sessionStorage.removeItem(value === "off" ? FORCED_TAB_SESSION_KEY : DIRECT_TAB_SESSION_KEY);
   } catch {
-    // Storage denial must not prevent a one-page direct application view.
+    // Storage denial must not prevent the current page from honoring the switch.
   }
 }
 
 /** Returns whether this browser tab should remain outside the editor. */
 export function hasNudgeUiDirectTabIntent(): boolean {
+  return readTabFlag(DIRECT_TAB_SESSION_KEY);
+}
+
+/** Returns whether this browser tab explicitly asked for the editor with `nudge-ui=on`. */
+export function hasNudgeUiForcedTabIntent(): boolean {
+  return readTabFlag(FORCED_TAB_SESSION_KEY);
+}
+
+function readTabFlag(key: string): boolean {
   try {
-    return sessionStorage.getItem(DIRECT_TAB_SESSION_KEY) === "1";
+    return sessionStorage.getItem(key) === "1";
   } catch {
     return false;
   }
@@ -114,18 +144,32 @@ export function hasNudgeUiDirectTabIntent(): boolean {
 export type NudgeUiClientEntry =
   | { readonly kind: "bootstrap" }
   | { readonly kind: "direct" }
-  | { readonly kind: "redirect"; readonly href: string };
+  | { readonly kind: "redirect"; readonly href: string }
+  /** An automated browser that enters the editor only when the host opts in. */
+  | { readonly kind: "automated"; readonly href: string };
+
+export interface NudgeUiClientEntryContext {
+  readonly editorDocument: boolean;
+  readonly canvasRenderer: boolean;
+  readonly directTab?: boolean;
+  readonly forcedTab?: boolean;
+  /** `navigator.webdriver`: Playwright, Puppeteer, Selenium, and headless Chrome. */
+  readonly automated?: boolean;
+}
 
 /** Chooses the browser-client role before any runtime manifest is fetched. */
 export function resolveNudgeUiClientEntry(
   href: string,
-  editorDocument: boolean,
-  canvasRenderer: boolean,
-  directTab = false,
+  context: NudgeUiClientEntryContext,
 ): NudgeUiClientEntry {
-  if (editorDocument || canvasRenderer) return { kind: "bootstrap" };
-  if (isNudgeUiDirectUrl(href) || directTab) return { kind: "direct" };
-  return { kind: "redirect", href: createNudgeUiEditorUrl(href) };
+  if (context.editorDocument || context.canvasRenderer) return { kind: "bootstrap" };
+  const urlSwitch = readNudgeUiQuerySwitch(href);
+  if (urlSwitch === "off") return { kind: "direct" };
+  const forced = urlSwitch === "on" || context.forcedTab === true;
+  if (!forced && context.directTab === true) return { kind: "direct" };
+  const editorHref = createNudgeUiEditorUrl(href);
+  if (context.automated === true && !forced) return { kind: "automated", href: editorHref };
+  return { kind: "redirect", href: editorHref };
 }
 
 function isApplicationUrl(url: URL): boolean {

@@ -45,12 +45,9 @@ export function shouldPreserveNativeLinkActivation(
   anchor: HTMLAnchorElement,
   event: MouseEvent,
 ): boolean {
-  // Command/Ctrl-click is the deep-selection gesture. Shift makes it the
-  // explicit application-activation gesture instead.
-  if (event.metaKey || event.ctrlKey) return event.shiftKey;
-  // Shift-click is the additive inspector-selection gesture. Do not let a
-  // link navigate or preserve its native activation in that mode.
-  if (event.shiftKey) return false;
+  // Command/Ctrl-click is the deep-selection gesture and Shift-click is the
+  // additive selection gesture. Neither may navigate or activate the link.
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return false;
 
   if (anchor.hasAttribute("download")) return true;
   if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return true;

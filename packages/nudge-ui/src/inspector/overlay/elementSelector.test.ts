@@ -18,6 +18,9 @@ import {
 } from "../inline-text/inlineTextEditor.ts";
 import { clearWorkspace } from "../changes/changesLog.ts";
 
+// jsdom marks every dispatched event untrusted; tests choose which clicks count as a person's.
+const clickPolicy = { userClick: true };
+
 function dispatchClick(target: EventTarget, init: MouseEventInit = {}): MouseEvent {
   const event = new MouseEvent("click", {
     bubbles: true,
@@ -199,7 +202,7 @@ describe("installElementSelector", () => {
     host.id = "nudge-ui-root";
     document.body.appendChild(host);
     setInspectorOpen(true);
-    uninstall = installElementSelector(host);
+    uninstall = installElementSelector(host, () => clickPolicy.userClick);
   });
   afterEach(() => {
     cancelInlineTextEdit();
@@ -208,6 +211,7 @@ describe("installElementSelector", () => {
     document.body.innerHTML = "";
     setSelectedElement(null);
     setInspectorOpen(true);
+    clickPolicy.userClick = true;
   });
 
   it("selects on click of a host element with data-cid", () => {
@@ -440,7 +444,7 @@ describe("installElementSelector", () => {
   it.each([
     { name: "Command", init: { metaKey: true, shiftKey: true } },
     { name: "Ctrl", init: { ctrlKey: true, shiftKey: true } },
-  ])("lets $name+Shift-click trigger the application", ({ init }) => {
+  ])("blocks $name+Shift-click from triggering the application", ({ init }) => {
     const button = makeHostElement({
       "data-cid": "Button",
       "data-src": "Button.tsx:1:1",
@@ -450,6 +454,22 @@ describe("installElementSelector", () => {
     document.body.appendChild(button);
 
     const event = dispatchClick(button, init);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationClick).not.toHaveBeenCalled();
+  });
+
+  it("lets script clicks reach the application without selecting", () => {
+    clickPolicy.userClick = false;
+    const button = makeHostElement({
+      "data-cid": "Button",
+      "data-src": "Button.tsx:1:1",
+    });
+    const onApplicationClick = vi.fn();
+    button.addEventListener("click", onApplicationClick);
+    document.body.appendChild(button);
+
+    const event = dispatchClick(button);
 
     expect(getSelectedElement()).toBeNull();
     expect(event.defaultPrevented).toBe(false);

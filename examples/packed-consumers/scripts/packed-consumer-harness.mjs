@@ -244,7 +244,8 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   const server = spawn(command, args, {
     cwd: serverDirectory,
     detached: true,
-    env: { ...process.env, NODE_ENV: "development" },
+    // The smoke browser is automated, so the server opts it into the editor.
+    env: { ...process.env, NODE_ENV: "development", NUDGE_UI: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (chunk) => {
