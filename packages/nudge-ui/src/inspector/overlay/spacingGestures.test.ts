@@ -70,11 +70,22 @@ describe("spacing gestures", () => {
     // visible handle, so it is not a direct-manipulation target.
     expect(getSpacingAffordanceAtPoint(document, 100, 12)).toBeNull();
     expect(getSpacingAffordanceAtPoint(document, 20, 34)).toBeNull();
-    expect(getSpacingAffordanceAtPoint(document, 100, 22)).toMatchObject({
+    expect(getSpacingAffordanceAtPoint(document, 100, 24)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 100, 30)).toMatchObject({
       kind: "padding",
       property: "padding-top",
-      hit: { left: 90, top: 22, width: 40, height: 24 },
+      hit: { left: 90, top: 26, width: 40, height: 16 },
     });
+  });
+
+  it("does not expose zero-sized padding as a drag affordance", () => {
+    const element = trackedElement();
+    element.style.padding = "0";
+    Object.defineProperty(element, "getBoundingClientRect", { value: () => rect(10, 10, 200, 120) });
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+
+    expect(getSpacingAffordanceAtPoint(document, 100, 10)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 10, 70)).toBeNull();
   });
 
   it("finds a column gap in a flex row and uses the gap property instead of padding", () => {
@@ -129,10 +140,11 @@ describe("spacing gestures", () => {
     // The 48px gap runs from x=40 through x=88. Its guide is centred at x=64.
     expect(getSpacingAffordanceAtPoint(document, 42, 50)).toBeNull();
     expect(getSpacingAffordanceAtPoint(document, 64, 8)).toBeNull();
-    expect(getSpacingAffordanceAtPoint(document, 52, 50)).toMatchObject({
+    expect(getSpacingAffordanceAtPoint(document, 52, 50)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 60, 50)).toMatchObject({
       kind: "gap",
       property: "column-gap",
-      hit: { left: 52, top: 30, width: 24, height: 40 },
+      hit: { left: 56, top: 30, width: 16, height: 40 },
     });
   });
 

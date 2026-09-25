@@ -109,6 +109,7 @@ async function createManifest(
       appRoot: server.config.root,
       projectId: runtime.projectId,
       origin,
+      info: (message) => server.config.logger.info(message),
       warn: (message) => server.config.logger.warn(message),
     })
     : null;

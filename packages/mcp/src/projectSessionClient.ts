@@ -20,6 +20,17 @@ export interface SessionHealth {
   readonly status: AgentStatusSnapshot;
 }
 
+/** Represents an HTTP response from a project bridge that could be classified. */
+export class ProjectSessionResponseError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ProjectSessionResponseError";
+    this.status = status;
+  }
+}
+
 interface RequestOptions {
   readonly signal?: AbortSignal;
   /** Null allows a listener to wait until a prompt arrives or its signal aborts. */
@@ -43,7 +54,12 @@ async function requestJson<T>(
     },
   });
   const body = await response.json().catch(() => undefined) as { error?: { message?: string } } | undefined;
-  if (!response.ok) throw new Error(body?.error?.message ?? `Nudge project bridge returned ${response.status}.`);
+  if (!response.ok) {
+    throw new ProjectSessionResponseError(
+      response.status,
+      body?.error?.message ?? `Nudge project bridge returned ${response.status}.`,
+    );
+  }
   return body as T;
 }
 

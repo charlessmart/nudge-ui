@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
-import { HttpAgentBridgeTransport, shouldAutoConnectAgentBridge } from "./httpTransport.ts";
+import {
+  AgentBridgeHttpError,
+  HttpAgentBridgeTransport,
+  shouldAutoConnectAgentBridge,
+} from "./httpTransport.ts";
 import {
   AGENT_PROTOCOL_VERSION,
   type AgentBridgeEvent,
@@ -19,6 +23,7 @@ import {
   type AgentStatusSnapshot,
   type CanvasCommand,
   type AgentCanvasAcknowledgementRequest,
+  type PairingResponse,
   type PromptDispatchResponse,
 } from "./protocol.ts";
 
@@ -52,6 +57,8 @@ export interface AgentClientSnapshot {
   /** Whether the last valid discovery response came from the local companion. */
   readonly companionReachable: boolean;
   readonly paired: boolean;
+  /** Whether another browser currently owns this project's pairing. */
+  readonly pairedElsewhere: boolean;
   readonly request: AgentRequestSnapshot | null;
   readonly error?: string;
 }
@@ -62,6 +69,7 @@ const DISABLED_SNAPSHOT: AgentClientSnapshot = Object.freeze({
   listenerActive: false,
   companionReachable: false,
   paired: false,
+  pairedElsewhere: false,
   request: null,
 });
 
@@ -225,6 +233,7 @@ export class AgentClient {
   private listenerActive = false;
   private companionReachable = false;
   private paired = false;
+  private pairedElsewhere = false;
   private lastError: string | undefined;
   private readonly autoConnect: boolean;
   private autoConnectSuppressed = false;
@@ -286,6 +295,7 @@ export class AgentClient {
     this.listenerActive = false;
     this.companionReachable = false;
     this.paired = false;
+    this.pairedElsewhere = false;
     this.publish();
   }
 
@@ -359,6 +369,7 @@ export class AgentClient {
     this.listenerActive = false;
     this.companionReachable = false;
     this.paired = false;
+    this.pairedElsewhere = false;
     this.lastError = undefined;
     this.publish();
     void this.restoreOrDiscover();
@@ -366,6 +377,21 @@ export class AgentClient {
 
   /** Pairs the browser with a reachable companion, including an idle agent. */
   async connect(): Promise<boolean> {
+    return this.pairWith((request, signal) => this.transport.pair(request, signal));
+  }
+
+  /** Replaces an existing browser pairing after an explicit user action. */
+  async takeOver(): Promise<boolean> {
+    if (!this.transport.takeOver) return false;
+    return this.pairWith((request, signal) => this.transport.takeOver!(request, signal));
+  }
+
+  private async pairWith(
+    pair: (
+      request: AgentPairRequest,
+      signal?: AbortSignal,
+    ) => Promise<PairingResponse>,
+  ): Promise<boolean> {
     if (!this.enabled || !this.started || this.pairingAbort || this.paired || !this.companionReachable) return false;
     this.autoConnectSuppressed = false;
     setAutoConnectDisabled(this.projectId, false);
@@ -384,7 +410,7 @@ export class AgentClient {
     this.discoveryAbort?.abort();
     this.pairingAbort = abortController;
     try {
-      const pairing = await this.transport.pair(request, abortController.signal);
+      const pairing = await pair(request, abortController.signal);
       if (!this.started || abortController.signal.aborted) return false;
       if (pairing.protocolVersion !== undefined && pairing.protocolVersion !== AGENT_PROTOCOL_VERSION) {
         throw new Error("Agent bridge protocol version is not supported.");
@@ -398,6 +424,7 @@ export class AgentClient {
       this.connection = "paired";
       this.listenerActive = pairing.status.listenerActive;
       this.paired = true;
+      this.pairedElsewhere = false;
       if (this.discoveryTimer !== null) {
         clearTimeout(this.discoveryTimer);
         this.discoveryTimer = null;
@@ -414,6 +441,9 @@ export class AgentClient {
       this.listenerActive = idleListenerActive;
       this.connection = idleListenerActive ? "listening" : "offline";
       this.paired = false;
+      this.pairedElsewhere = error instanceof AgentBridgeHttpError
+        && error.status === 409
+        && error.code === "already_paired";
       this.publish(idleListenerActive ? "available" : "disconnected");
       return false;
     } finally {
@@ -528,6 +558,7 @@ export class AgentClient {
     this.connection = "offline";
     this.listenerActive = false;
     this.paired = false;
+    this.pairedElsewhere = false;
     this.lastError = reason === "reconnect" || reason === "browser_disconnected" ? undefined : reason;
     this.publish();
     if (token) {
@@ -562,12 +593,13 @@ export class AgentClient {
             // pairing, so do not adopt `paired` until this tab restores the
             // shared token. The next poll runs restore first in case a sibling
             // tab has just stored that token.
+            const pairedElsewhere = status.paired && !this.sessionToken;
             this.applyStatus(status.paired ? {
               ...status,
               connection: status.listenerActive ? "listening" : "offline",
               paired: false,
               request: null,
-            } : status);
+            } : status, pairedElsewhere);
             if (this.autoConnect
               && !status.paired
               && !this.autoConnectSuppressed
@@ -579,6 +611,7 @@ export class AgentClient {
         this.listenerActive = false;
         this.companionReachable = false;
         this.paired = false;
+        this.pairedElsewhere = false;
         this.lastError = undefined;
         this.publish();
       }
@@ -588,6 +621,7 @@ export class AgentClient {
         this.listenerActive = false;
         this.companionReachable = false;
         this.paired = false;
+        this.pairedElsewhere = false;
         // Discovery failures are expected while the companion is not running;
         // retain a quiet disconnected state rather than flashing an error.
         this.lastError = undefined;
@@ -677,11 +711,12 @@ export class AgentClient {
     }
   }
 
-  private applyStatus(status: AgentStatusSnapshot): void {
+  private applyStatus(status: AgentStatusSnapshot, pairedElsewhere = false): void {
     this.companionReachable = true;
     this.lastError = undefined;
     this.listenerActive = status.listenerActive;
     this.paired = status.paired;
+    this.pairedElsewhere = pairedElsewhere;
     this.connection = statusForConnection(status);
     if (status.paired && this.discoveryTimer !== null) {
       clearTimeout(this.discoveryTimer);
@@ -721,6 +756,7 @@ export class AgentClient {
     this.listenerActive = false;
     this.companionReachable = false;
     this.paired = false;
+    this.pairedElsewhere = false;
     this.publish();
   }
 
@@ -778,7 +814,14 @@ export class AgentClient {
     this.listenerActive = false;
     this.companionReachable = false;
     this.paired = false;
+    this.pairedElsewhere = false;
     this.lastError = reason;
+    if (reason === "browser_disconnected") {
+      // A remote takeover deliberately invalidates this browser's token. Do
+      // not immediately race the new browser by auto-pairing again.
+      this.autoConnectSuppressed = true;
+      if (this.autoConnect) setAutoConnectDisabled(this.projectId, true);
+    }
     this.publish();
     this.scheduleReconnect();
   }
@@ -792,6 +835,7 @@ export class AgentClient {
       listenerActive: this.listenerActive,
       companionReachable: this.companionReachable,
       paired: this.paired,
+      pairedElsewhere: this.pairedElsewhere,
       request: request ? {
         requestId: request.requestId,
         ...(request.changeRevision === undefined ? {} : { changeRevision: request.changeRevision }),

@@ -1,4 +1,5 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { verifyAgentServer } from "./agent-verification.ts";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { basename, relative } from "node:path";
@@ -31,6 +32,8 @@ import {
 
 export interface RunAgentSetupOptions {
   readonly agents?: readonly string[];
+  /** Optional package specifier or tarball used for both bridge and adapter testing. */
+  readonly mcpPackageSpecifier?: string;
   readonly dryRun?: boolean;
   readonly nudgeUiVersion?: string;
   readonly packageManager?: PackageManager;
@@ -50,6 +53,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   if (options.agentOnly) {
     await runAgentSetup(projectRoot, {
       agents: options.agents,
+      mcpPackageSpecifier: options.mcpPackageSpecifier,
       dryRun: options.dryRun,
       packageManager,
       yes: options.yes,
@@ -74,6 +78,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
     if (await shouldConfigureAgent(options.mcp, options.agents.length > 0, options.yes)) {
       await runAgentSetup(projectRoot, {
         agents: options.agents,
+        mcpPackageSpecifier: options.mcpPackageSpecifier,
         dryRun: true,
         nudgeUiVersion: initializerVersion(),
         packageManager,
@@ -102,6 +107,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   if (await shouldConfigureAgent(options.mcp, options.agents.length > 0, options.yes)) {
     await runAgentSetup(projectRoot, {
       agents: options.agents,
+      mcpPackageSpecifier: options.mcpPackageSpecifier,
       nudgeUiVersion: initializerVersion(),
       packageManager,
       yes: options.yes,
@@ -109,14 +115,14 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   }
 }
 
-/** Installs and configures the project-local MCP companion. Safe to rerun for repairs. */
+/** Installs and configures the reusable MCP adapter and project bridge dependency. Safe to rerun for repairs. */
 export async function runAgentSetup(
   projectRoot = process.cwd(),
   options: RunAgentSetupOptions = {},
 ): Promise<void> {
   const manifest = readProjectManifest(projectRoot);
   const packageManager = options.packageManager ?? detectPackageManager(projectRoot, manifest);
-  const plan = planAgentSetup(projectRoot, packageManager, options.nudgeUiVersion);
+  const plan = planAgentSetup(projectRoot, packageManager, options.nudgeUiVersion, undefined, options.mcpPackageSpecifier);
   const detected = await detectProjectAgentCandidates(plan.projectRoot);
   const selected = options.agents && options.agents.length > 0
     ? options.agents
@@ -126,8 +132,9 @@ export async function runAgentSetup(
 
   if (options.dryRun) {
     stdout.write(`Would run: ${formatCommand(plan.installCommand)}\n`);
+    stdout.write(`Would run: ${formatCommand(plan.adapterInstallCommand)}\n`);
     if (selected.length > 0) {
-      stdout.write(`Would configure project MCP for: ${selected.join(", ")}\n`);
+      stdout.write(`Would configure global MCP and migrate this project override for: ${selected.join(", ")}\n`);
     } else {
       stdout.write("No coding agent was detected. Use --agent <id> or add the configuration below manually.\n");
       writeManualInstructions(plan);
@@ -136,9 +143,29 @@ export async function runAgentSetup(
   }
 
   installPackage(plan.installCommand, plan.projectRoot);
+  try {
+    mkdirSync(plan.adapterRoot, { recursive: true });
+    installPackage(plan.adapterInstallCommand, plan.adapterRoot);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    stdout.write(`Could not install the reusable MCP adapter: ${message}\n`);
+    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
+    stdout.write("The coding-agent configuration was not changed. After the adapter install succeeds, rerun with --agent-only.\n");
+    return;
+  }
   if (!isAgentServerAvailable(plan)) {
-    stdout.write(`Installed ${plan.packageSpecifier}, but its local MCP executable was not found at ${plan.serverEntry}.\n`);
+    stdout.write(`Installed ${plan.packageSpecifier}, but its reusable MCP executable was not found at ${plan.serverEntry}.\n`);
+    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
     stdout.write("The coding-agent configuration was not changed. Check the package-manager install output, then rerun with --agent-only.\n");
+    return;
+  }
+  try {
+    await verifyAgentServer(plan.serverConfig);
+    stdout.write("Verified MCP initialization and tool discovery with a fresh client.\n");
+  } catch (error) {
+    stdout.write(`MCP verification failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
+    stdout.write("The coding-agent configuration was not changed. After repairing the adapter install, rerun with --agent-only.\n");
     return;
   }
   if (selected.length === 0) {
@@ -149,7 +176,7 @@ export async function runAgentSetup(
 
   let outcomes;
   try {
-    outcomes = configureProjectAgents(plan, selected);
+    outcomes = await configureProjectAgents(plan, selected);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     stdout.write(`Could not update the coding-agent configuration: ${message}\n`);
@@ -160,7 +187,12 @@ export async function runAgentSetup(
   let configured = 0;
   for (const outcome of outcomes) {
     if (outcome.unsupported) {
-      stdout.write(`${outcome.displayName} is not supported for automatic project setup.\n`);
+      stdout.write(`${outcome.displayName} is not supported for automatic global setup.\n`);
+      continue;
+    }
+    for (const backup of outcome.backups ?? []) stdout.write(`Saved previous MCP configuration: ${backup}\n`);
+    if (outcome.migrationError) {
+      stdout.write(`Global adapter configured, but project override migration failed: ${outcome.migrationError}\n`);
       continue;
     }
     if (outcome.result?.success) {
@@ -172,7 +204,7 @@ export async function runAgentSetup(
   }
   if (configured !== outcomes.length) writeManualInstructions(plan);
   if (configured > 0) {
-    stdout.write("Coding-agent setup is ready. Reload the agent if it is already open, then ask it to listen to Nudge.\n");
+    stdout.write("Adapter configuration is ready. Fully restart the agent host to load it, then ask it to listen to Nudge in the current workspace. Existing overrides in other projects require one setup rerun there.\n");
   }
 }
 
@@ -225,7 +257,7 @@ async function selectAgents(detected: Awaited<ReturnType<typeof detectProjectAge
 }
 
 function writeManualInstructions(plan: AgentSetupPlan): void {
-  stdout.write("Add this project-scoped stdio server to your agent's MCP settings:\n");
+  stdout.write("Add this global stdio server to your agent's MCP settings:\n");
   stdout.write(`${manualAgentConfiguration(plan)}\n`);
 }
 

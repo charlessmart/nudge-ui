@@ -71,6 +71,7 @@ export type {
 export const BRIDGE_ENDPOINTS = {
   health: "/health",
   pair: "/pair",
+  takeover: "/takeover",
   events: "/events",
   prompt: "/prompt",
   status: "/status",

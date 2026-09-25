@@ -632,6 +632,7 @@ export function createVitePlugins(
       projectId: options.projectId ?? basename(root),
       origin,
       ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
+      info: (message) => server.config.logger.info(message),
       warn: (message) => server.config.logger.warn(message),
     }).then((bridge) => {
       projectBridge = bridge;

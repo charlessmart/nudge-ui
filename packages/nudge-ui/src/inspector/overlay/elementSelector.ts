@@ -7,11 +7,17 @@ import {
   type InlineTextInteractionDisposition,
 } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
-import { blockApplicationClick, isUserClick } from "./clickPolicy.ts";
+import {
+  APPLICATION_GESTURE_EVENTS,
+  blockApplicationClick,
+  blockApplicationGesture,
+  isInlineEditorTarget,
+  isUserClick,
+} from "./clickPolicy.ts";
 
 export function installElementSelector(
   inspectorHost: HTMLElement,
-  acceptsClick: (event: MouseEvent) => boolean = isUserClick,
+  acceptsClick: (event: Event) => boolean = isUserClick,
 ): () => void {
   function applyInlineTextDisposition(
     event: MouseEvent,
@@ -91,12 +97,25 @@ export function installElementSelector(
     }));
   }
 
+  function onApplicationGesture(e: Event): void {
+    if (!getOpen() || !acceptsClick(e) || isInlineEditorTarget(e.target)) return;
+    if (e.target instanceof Element
+      && (e.target === inspectorHost || inspectorHost.contains(e.target))) return;
+    blockApplicationGesture(e);
+  }
+
   document.addEventListener("mousedown", onMouseDown, true);
   document.addEventListener("dblclick", onDoubleClick, true);
   document.addEventListener("click", onClick, true);
+  for (const type of APPLICATION_GESTURE_EVENTS) {
+    document.addEventListener(type, onApplicationGesture, true);
+  }
   return () => {
     document.removeEventListener("mousedown", onMouseDown, true);
     document.removeEventListener("dblclick", onDoubleClick, true);
     document.removeEventListener("click", onClick, true);
+    for (const type of APPLICATION_GESTURE_EVENTS) {
+      document.removeEventListener(type, onApplicationGesture, true);
+    }
   };
 }

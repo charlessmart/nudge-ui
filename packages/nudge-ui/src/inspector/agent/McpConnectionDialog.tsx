@@ -29,6 +29,7 @@ export interface McpConnectionContentProps {
   readonly origin: string;
   readonly snapshot: AgentClientSnapshot;
   readonly onConnect: () => Promise<boolean> | boolean | void;
+  readonly onTakeOver: () => Promise<boolean> | boolean | void;
   readonly onDisconnect: () => void;
   readonly onCheckAgain: () => Promise<void>;
 }
@@ -78,6 +79,7 @@ export function McpConnectionContent({
   origin,
   snapshot,
   onConnect,
+  onTakeOver,
   onDisconnect,
   onCheckAgain,
 }: McpConnectionContentProps): ReactElement {
@@ -101,10 +103,16 @@ export function McpConnectionContent({
   const status = getAgentConnectionStatus(snapshot);
   const canConnect = snapshot.companionReachable
     && !snapshot.paired
+    && !snapshot.pairedElsewhere
     && snapshot.state !== "pairing"
     && snapshot.state !== "working"
     && snapshot.request?.status !== "working";
   const canDisconnect = snapshot.paired || snapshot.request?.status === "working";
+  const canTakeOver = snapshot.companionReachable
+    && snapshot.pairedElsewhere
+    && snapshot.state !== "pairing"
+    && snapshot.state !== "working"
+    && snapshot.request?.status !== "working";
 
   async function handleCheckAgain(): Promise<void> {
     if (checking) return;
@@ -260,6 +268,17 @@ export function McpConnectionContent({
             </div>
           </dl>
           <div className="mcp-connection__actions">
+            {canTakeOver ? (
+              <Button
+                variant="primary"
+                data-test="mcp-takeover"
+                type="button"
+                onClick={() => void onTakeOver()}
+              >
+                <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                Take over
+              </Button>
+            ) : null}
             {canConnect ? (
               <Button
                 variant="primary"
@@ -326,6 +345,7 @@ export function McpConnectionDialog({
   snapshot,
   onOpenChange,
   onConnect,
+  onTakeOver,
   onDisconnect,
   onCheckAgain,
 }: McpConnectionDialogProps): ReactElement {
@@ -362,6 +382,7 @@ export function McpConnectionDialog({
             origin={origin}
             snapshot={snapshot}
             onConnect={onConnect}
+            onTakeOver={onTakeOver}
             onDisconnect={onDisconnect}
             onCheckAgain={onCheckAgain}
           />

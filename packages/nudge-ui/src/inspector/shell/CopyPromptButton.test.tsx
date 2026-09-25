@@ -59,6 +59,7 @@ class ButtonTransport implements AgentBridgeTransport {
   rejectDispatch = false;
   discoveredStatus: AgentStatusSnapshot | null = listeningStatus();
   pairingStatus: AgentStatusSnapshot = listeningStatus({ connection: "paired", paired: true });
+  takeOvers = 0;
 
   async discover(): Promise<AgentStatusSnapshot | null> { return this.discoveredStatus; }
 
@@ -68,6 +69,17 @@ class ButtonTransport implements AgentBridgeTransport {
       projectId: "handoff-project",
       origin: window.location.origin,
       sessionToken: "button-session",
+      status: this.pairingStatus,
+    };
+  }
+
+  async takeOver(): Promise<PairingResponse> {
+    this.takeOvers += 1;
+    return {
+      protocolVersion: 2,
+      projectId: "handoff-project",
+      origin: window.location.origin,
+      sessionToken: "replacement-session",
       status: this.pairingStatus,
     };
   }
@@ -159,6 +171,25 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
   });
 
+  it("offers takeover inline when another browser owns the MCP pairing", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = listeningStatus({ connection: "paired", paired: true });
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
+    expect(status?.textContent).toContain("MCP active in another tab or window");
+    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.textContent)
+      .toContain("Take over");
+
+    await act(async () => {
+      status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click();
+    });
+    expect(transport.takeOvers).toBe(1);
+    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
+  });
+
   it("shows the current change count on the prompt button", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = null;
@@ -178,7 +209,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
-  it("shows setup for a paired page whose agent is not listening", async () => {
+  it("shows the connected status without a setup action when the agent is not listening", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
     transport.pairingStatus = listeningStatus({ connection: "paired", listenerActive: false, paired: true });
@@ -194,9 +225,8 @@ describe("CopyPromptButton agent handoff", () => {
 
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
     expect(status?.textContent).toContain("Project connected · Ask agent to listen");
-    expect(status?.textContent).toContain("Set up");
-    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.dataset.action)
-      .toBe("setup");
+    expect(status?.textContent).not.toContain("Set up");
+    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')).toBeNull();
   });
 
   it("shows a listening indicator on the primary button", async () => {

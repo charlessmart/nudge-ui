@@ -7,6 +7,7 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
+import { undo, redo } from "../changes/changesLog.ts";
 import {
   makeSelected,
   mount,
@@ -40,6 +41,8 @@ function pointerEvent(
 ): Event {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
+    button: { configurable: true, value: 0 },
+    pointerType: { configurable: true, value: "mouse" },
     clientX: { configurable: true, value: clientX },
     pointerId: { configurable: true, value: pointerId },
     shiftKey: { configurable: true, value: shiftKey },
@@ -326,6 +329,31 @@ describe("TokenField", () => {
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
   });
 
+  it("undoes a complete field drag and redoes its final value", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+      leading: createElement("span", null, "↔"),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    mockPointerCapture(dragHandle);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 120 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 120 })));
+    expect(sheetText()).toContain("padding-top: 26px;");
+
+    act(() => { expect(undo()).toBe(true); });
+    expect(getChangeRecords()).toEqual([]);
+    expect(sheetText()).not.toContain("padding-top:");
+    act(() => { expect(redo()).toBe(true); });
+    expect(sheetText()).toContain("padding-top: 26px;");
+  });
+
   it("overrides a token with a raw value when dragging its leading handle", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "padding-top": "16px" });
@@ -347,7 +375,7 @@ describe("TokenField", () => {
     expect(sheetText()).toContain("padding-top: 18px;");
   });
 
-  it("keeps the native cursor while dragging", () => {
+  it("keeps dragging when pointer lock is unavailable", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "padding-top": "16px" });
     handle = mount(createElement(TokenField, {

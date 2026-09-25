@@ -37,6 +37,7 @@ export async function startOptionalProjectBridge(input: {
   readonly projectId: string;
   readonly origin: string;
   readonly allowedOrigins?: readonly string[];
+  readonly info?: (message: string) => void;
   readonly warn?: (message: string) => void;
 }): Promise<{ browser: ProjectBridgeBrowserConfig; close(): Promise<void> } | null> {
   const key = `${input.appRoot}\u0000${input.origin}`;
@@ -56,6 +57,7 @@ async function launchOptionalProjectBridge(
     readonly projectId: string;
     readonly origin: string;
     readonly allowedOrigins?: readonly string[];
+    readonly info?: (message: string) => void;
     readonly warn?: (message: string) => void;
   },
   key: string,
@@ -87,6 +89,7 @@ async function launchOptionalProjectBridge(
       await runtime.close().catch(() => undefined);
       throw new Error("the project bridge returned a different project or origin");
     }
+    input.info?.(`[nudge-ui] project bridge ready for ${input.projectId}`);
     let closed = false;
     return {
       browser: { baseUrl: runtime.browser.bridgeUrl, autoConnect: true },

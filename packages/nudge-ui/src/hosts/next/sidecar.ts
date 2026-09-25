@@ -331,6 +331,7 @@ export async function ensureSidecar(
         ...(options.projectBridgeAllowedOrigins
           ? { allowedOrigins: options.projectBridgeAllowedOrigins }
           : {}),
+        info: (message) => console.info(message),
         warn: (message) => console.warn(message),
       }).then((bridge) => {
         projectBridge = bridge;

@@ -1,4 +1,6 @@
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { copyFileSync, existsSync, readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   agents,
@@ -6,6 +8,8 @@ import {
   detectProjectAgents,
   getAgentTypes,
   upsertServer,
+  listInstalledServers,
+  removeServer,
   type AgentType,
   type InstallResult,
   type McpServerConfig,
@@ -19,8 +23,10 @@ export interface AgentSetupPlan {
   readonly projectRoot: string;
   readonly packageSpecifier: string;
   readonly installCommand: InstallCommand;
+  readonly adapterRoot: string;
+  readonly adapterInstallCommand: InstallCommand;
   readonly serverConfig: McpServerConfig;
-  readonly serverEntry?: string;
+  readonly serverEntry: string;
 }
 
 export interface AgentInstallOutcome {
@@ -28,49 +34,51 @@ export interface AgentInstallOutcome {
   readonly displayName: string;
   readonly result?: InstallResult;
   readonly unsupported: boolean;
+  readonly migrationError?: string;
+  readonly backups?: readonly string[];
 }
 
-/** Builds the reproducible, project-local MCP installation and launch plan. */
+/** Plans the project bridge dependency and an independent, versioned adapter installation. */
 export function planAgentSetup(
   projectRoot: string,
   packageManager: PackageManager,
   nudgeUiVersion?: string,
+  adapterDirectory = join(homedir(), ".nudge-ui", "adapters"),
+  mcpPackageSpecifier?: string,
 ): AgentSetupPlan {
   const canonicalRoot = realpathSync.native(projectRoot);
-  const packageSpecifier = `@nudge-ui/mcp@${
+  const packageSpecifier = mcpPackageSpecifier ?? `@nudge-ui/mcp@${
     nudgeUiVersion ?? installedNudgeUiVersion(canonicalRoot) ?? initializerVersion()
   }`;
-  const serverEntry = join(canonicalRoot, "node_modules", "@nudge-ui", "mcp", "dist", "cli.mjs");
-  const usesPlugAndPlay = packageManager === "yarn";
-  const serverConfig: McpServerConfig = usesPlugAndPlay
-    ? {
-        command: "yarn",
-        args: ["--cwd", canonicalRoot, "exec", "nudge-mcp", "--workspace-root", canonicalRoot],
-      }
-    : {
-        command: "node",
-        args: [serverEntry, "--workspace-root", canonicalRoot],
-      };
+  const adapterPackageSpecifier = mcpPackageSpecifier ?? `@nudge-ui/mcp@${initializerVersion()}`;
+  const adapterRoot = join(adapterDirectory, initializerVersion());
+  const serverEntry = join(adapterRoot, "node_modules", "@nudge-ui", "mcp", "dist", "cli.mjs");
+  const serverConfig: McpServerConfig = { command: process.execPath, args: [serverEntry] };
   return {
     projectRoot: canonicalRoot,
     packageSpecifier,
     installCommand: installCommand(packageManager, packageSpecifier),
     serverConfig,
-    serverEntry: usesPlugAndPlay ? undefined : serverEntry,
+    adapterRoot,
+    adapterInstallCommand: {
+      executable: "npm",
+      args: ["install", "--prefix", adapterRoot, "--no-save", "--package-lock=false", adapterPackageSpecifier],
+    },
+    serverEntry,
   };
 }
 
 /** Checks that a node_modules based install produced the configured executable. */
 export function isAgentServerAvailable(plan: AgentSetupPlan): boolean {
-  return plan.serverEntry === undefined || existsSync(plan.serverEntry);
+  return existsSync(plan.serverEntry);
 }
 
-/** Returns agents that can store an MCP configuration in this project. */
+/** Returns agents that support a reusable stdio MCP configuration. */
 export function projectAgentTypes(): AgentType[] {
-  return getAgentTypes().filter((agent) => agents[agent].localConfigPath !== undefined);
+  return getAgentTypes().filter((agent) => agents[agent].supportedTransports.includes("stdio"));
 }
 
-/** Detects installed or already configured agents while preserving project scope. */
+/** Detects installed or already configured agents. */
 export async function detectProjectAgentCandidates(projectRoot: string): Promise<AgentType[]> {
   const supported = new Set(projectAgentTypes());
   const detected = [
@@ -80,28 +88,47 @@ export async function detectProjectAgentCandidates(projectRoot: string): Promise
   return [...new Set(detected)];
 }
 
-/** Adds or repairs Nudge's project-scoped MCP entry without replacing other servers. */
-export function configureProjectAgents(
+/** Registers the reusable adapter and removes the current project's overriding entry. */
+export async function configureProjectAgents(
   plan: AgentSetupPlan,
   selectedAgents: readonly string[],
-): AgentInstallOutcome[] {
+): Promise<AgentInstallOutcome[]> {
   const supported = new Set(projectAgentTypes());
-  return [...new Set(selectedAgents)].map((agent) => {
+  const outcomes: AgentInstallOutcome[] = [];
+  for (const agent of new Set(selectedAgents)) {
     if (!supported.has(agent as AgentType)) {
-      return { agent, displayName: agent, unsupported: true };
+      outcomes.push({ agent, displayName: agent, unsupported: true });
+      continue;
     }
     const agentType = agent as AgentType;
-    const result = upsertServer(agentType, nudgeServerName, plan.serverConfig, {
-      cwd: plan.projectRoot,
-      local: true,
+    const global = await listInstalledServers({ agents: [agentType], global: true, cwd: plan.projectRoot });
+    const local = agents[agentType].localConfigPath
+      ? await listInstalledServers({ agents: [agentType], global: false, cwd: plan.projectRoot })
+      : [];
+    const configurations = [...global, ...local];
+    const invalid = configurations.find((configuration) => configuration.error);
+    if (invalid) {
+      outcomes.push({ agent, displayName: agents[agentType].displayName, unsupported: false,
+        result: { success: false, path: invalid.configPath, error: invalid.error } });
+      continue;
+    }
+    const backups: string[] = [];
+    for (const configuration of configurations) {
+      if (!configuration.servers.some((server) => server.serverName === nudgeServerName)) continue;
+      const backup = `${configuration.configPath}.nudge-backup-${randomUUID()}`;
+      copyFileSync(configuration.configPath, backup);
+      backups.push(backup);
+    }
+    const result = upsertServer(agentType, nudgeServerName, plan.serverConfig, { local: false, cwd: plan.projectRoot });
+    const removal = result.success && agents[agentType].localConfigPath
+      ? removeServer(agentType, nudgeServerName, { local: true, cwd: plan.projectRoot })
+      : undefined;
+    outcomes.push({
+      agent, displayName: agents[agentType].displayName, result, unsupported: false, backups,
+      ...(removal && !removal.success ? { migrationError: removal.error ?? "Could not remove the project override." } : {}),
     });
-    return {
-      agent,
-      displayName: agents[agentType].displayName,
-      result,
-      unsupported: false,
-    };
-  });
+  }
+  return outcomes;
 }
 
 /** Formats a complete stdio entry for agents that add-mcp cannot configure. */

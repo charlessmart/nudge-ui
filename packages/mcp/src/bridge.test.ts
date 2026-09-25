@@ -119,6 +119,43 @@ describe("loopback browser bridge", () => {
     }
   });
 
+  it("replaces an existing browser pairing only through the explicit takeover endpoint", async () => {
+    let tokenNumber = 0;
+    const bridge = createLoopbackBridge({
+      projectId: "takeover",
+      origin: "http://localhost:5173",
+      port: 0,
+      tokenFactory: () => `session-${++tokenNumber}`,
+    });
+    await bridge.start();
+    const request = (path: string, body: Record<string, unknown>): Promise<Response> => fetch(bridgeUrl(bridge, path), {
+      method: "POST",
+      headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const body = {
+      projectId: "takeover",
+      origin: "http://localhost:5173",
+      pageUrl: "http://localhost:5173/fixture",
+    };
+    try {
+      const first = await request("/pair", body);
+      expect(first.status).toBe(200);
+      expect((await json(first)).sessionToken).toBe("session-1");
+
+      const replacement = await request("/takeover", body);
+      expect(replacement.status).toBe(200);
+      expect((await json(replacement)).sessionToken).toBe("session-2");
+      expect(bridge.sessionToken).toBe("session-2");
+
+      const ordinaryPair = await request("/pair", body);
+      expect(ordinaryPair.status).toBe(409);
+      expect((await json(ordinaryPair)).error.code).toBe("already_paired");
+    } finally {
+      await bridge.close();
+    }
+  });
+
   it("rejects a hostile first connection before pairing a configured browser origin", async () => {
     const bridge = createLoopbackBridge({
       projectId: "sandbox",

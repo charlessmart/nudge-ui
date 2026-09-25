@@ -295,6 +295,14 @@ export function CopyPromptButton({
     openSettings("mcp");
   }
 
+  async function handleAgentStatusAction(): Promise<void> {
+    if (statusAction?.kind === "takeover") {
+      await agentClient.takeOver();
+      return;
+    }
+    openMcpConnection();
+  }
+
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
       <Button
@@ -327,7 +335,7 @@ export function CopyPromptButton({
         ) : null}
       </Button>
       <SketchLayersPanel />
-      {statusAction ? (
+      {statusAction || agentStatus.kind === "connected-not-listening" ? (
         <StatusCallout
           className="copy-prompt__agent-status"
           tone={agentStatus.tone}
@@ -335,16 +343,18 @@ export function CopyPromptButton({
         >
           <div className="copy-prompt__agent-status-content">
             <span role="status">{agentStatus.label}</span>
-            <Button
-              size="compact"
-              variant="quiet"
-              data-test="agent-status-action"
-              data-action={statusAction.kind}
-              type="button"
-              onClick={openMcpConnection}
-            >
-              {statusAction.label}
-            </Button>
+            {statusAction ? (
+              <Button
+                size="compact"
+                variant="quiet"
+                data-test="agent-status-action"
+                data-action={statusAction.kind}
+                type="button"
+                onClick={() => void handleAgentStatusAction()}
+              >
+                {statusAction.label}
+              </Button>
+            ) : null}
           </div>
         </StatusCallout>
       ) : null}
@@ -389,6 +399,7 @@ export function CopyPromptButton({
         origin={window.location.origin}
         snapshot={agent}
         onConnect={() => agentClient.connect()}
+        onTakeOver={() => agentClient.takeOver()}
         onDisconnect={() => agentClient.disconnect()}
         onCheckAgain={() => agentClient.checkConnection()}
       />

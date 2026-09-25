@@ -18,12 +18,6 @@ import {
   type ElementDragStartMessage,
   type InlineTextIntentMessage,
 } from "./frameProtocol.ts";
-import {
-  findClosestAnchor,
-  isEligibleNavigation,
-  hasDifferentRoute,
-  shouldPreserveNativeLinkActivation,
-} from "./linkEligibility.ts";
 import { readBorderWidths, readMargins } from "../overlay/overlayGeometry.ts";
 import { installInteractionStyles } from "../overlay/interactionStyles.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
@@ -32,7 +26,13 @@ import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isEditableEvent, isInspectorToggleShortcut, isSendPromptShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { escapeCssString } from "../projection/cssEscapes.ts";
-import { blockApplicationClick, isUserClick } from "../overlay/clickPolicy.ts";
+import {
+  APPLICATION_GESTURE_EVENTS,
+  blockApplicationClick,
+  blockApplicationGesture,
+  isInlineEditorTarget,
+  isUserClick,
+} from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import {
   getSpacingAffordanceAtPoint,
@@ -115,7 +115,7 @@ let installed = false;
 const noopDisposal = (): void => undefined;
 
 export function installRendererElementSelector(
-  acceptsClick: (event: MouseEvent) => boolean = isUserClick,
+  acceptsClick: (event: Event) => boolean = isUserClick,
 ): () => void {
   if (!isNudgeUiDev()) return noopDisposal;
   if (installed) return noopDisposal;
@@ -449,6 +449,13 @@ export function installRendererElementSelector(
     lastDragPoint = { x: event.clientX, y: event.clientY };
   }, true);
 
+  for (const type of APPLICATION_GESTURE_EVENTS) {
+    trackListener<Event>(document, type, (event: Event) => {
+      if (interactionsSuspended || !acceptsClick(event) || isInlineEditorTarget(event.target)) return;
+      blockApplicationGesture(event);
+    }, true);
+  }
+
   trackListener<MouseEvent>(document, "mousemove", (event: MouseEvent) => {
     if (!pendingDrag) {
       if (interactionsSuspended) return;
@@ -525,7 +532,10 @@ export function installRendererElementSelector(
     return phase === "keydown";
   }
 
-  trackListener<KeyboardEvent>(document, "keydown", (event: KeyboardEvent) => {
+  // Global tool shortcuts need to run before application capture handlers on
+  // the iframe document. A page-level window handler can otherwise stop the
+  // event before it reaches the document listener.
+  trackListener<KeyboardEvent>(window, "keydown", (event: KeyboardEvent) => {
     if (isEditableEvent(event)) return;
     if (forwardKeyboardShortcut(event, "keydown")) event.preventDefault();
     if (isInspectorToggleShortcut(event)) {
@@ -599,7 +609,7 @@ export function installRendererElementSelector(
     sendToParent(msg);
   }, true);
 
-  trackListener<KeyboardEvent>(document, "keyup", (event: KeyboardEvent) => {
+  trackListener<KeyboardEvent>(window, "keyup", (event: KeyboardEvent) => {
     forwardKeyboardShortcut(event, "keyup");
     if (event.key === "Alt") updateMeasureState(false, measurePointerOverPage);
   }, true);
@@ -671,29 +681,16 @@ export function installRendererElementSelector(
       const target = event.target;
       if (!(target instanceof Element)) return;
 
-      // Defer to navigation-intent when the user clicked a navigable same-origin
-      // anchor that points to a different route. The later listener reports the
-      // intent to the controller while leaving native or framework navigation in
-      // charge of the live application document.
-      const anchor = findClosestAnchor(target);
-      if (anchor && isEligibleNavigation(anchor, event) && hasDifferentRoute(anchor)) {
-        return;
-      }
-
       // Design-tool clicks are editing gestures and must not reach the
       // rendered application; the Select tool is how the app receives them.
-      const preserveNativeLink = anchor
-        ? shouldPreserveNativeLinkActivation(anchor, event)
-        : false;
-
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) {
-        if (!preserveNativeLink) blockApplicationClick(event);
+        blockApplicationClick(event);
         return;
       }
       lastSelected = el;
 
-      if (!preserveNativeLink) blockApplicationClick(event);
+      blockApplicationClick(event);
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);

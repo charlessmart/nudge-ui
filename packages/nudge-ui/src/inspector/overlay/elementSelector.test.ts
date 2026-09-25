@@ -459,6 +459,23 @@ describe("installElementSelector", () => {
     expect(onApplicationClick).not.toHaveBeenCalled();
   });
 
+  it("keeps press gestures from the application but not from the inspector", () => {
+    const trigger = makeHostElement({ "data-cid": "Menu", "data-src": "Menu.tsx:1:1" });
+    const openMenu = vi.fn();
+    trigger.addEventListener("pointerdown", openMenu);
+    document.body.appendChild(trigger);
+    const inspectorControl = document.createElement("button");
+    const onInspectorPress = vi.fn();
+    inspectorControl.addEventListener("pointerdown", onInspectorPress);
+    host.appendChild(inspectorControl);
+
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, composed: true }));
+    inspectorControl.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, composed: true }));
+
+    expect(openMenu).not.toHaveBeenCalled();
+    expect(onInspectorPress).toHaveBeenCalledOnce();
+  });
+
   it("lets script clicks reach the application without selecting", () => {
     clickPolicy.userClick = false;
     const button = makeHostElement({

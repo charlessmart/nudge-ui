@@ -72,6 +72,7 @@ export function SettingsDialog({
   origin,
   snapshot,
   onConnect,
+  onTakeOver,
   onDisconnect,
   onCheckAgain,
 }: SettingsDialogProps): ReactElement {
@@ -165,6 +166,7 @@ export function SettingsDialog({
                       origin={origin}
                       snapshot={snapshot}
                       onConnect={onConnect}
+                      onTakeOver={onTakeOver}
                       onDisconnect={onDisconnect}
                       onCheckAgain={onCheckAgain}
                     />

@@ -471,7 +471,11 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     }, incomingOrigin);
   };
 
-  const handlePair = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+  const readPairRequest = async (request: IncomingMessage): Promise<{
+    readonly body: Record<string, unknown>;
+    readonly incomingOrigin: string;
+    readonly requestedPageUrl?: string;
+  }> => {
     if (!loopbackAddress(request.socket.remoteAddress)) {
       throw new BridgeRequestError(403, "loopback_only", "The browser bridge accepts loopback connections only.");
     }
@@ -493,6 +497,11 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       }
       requestedPageUrl = new URL(body.pageUrl, requestedOrigin).href;
     }
+    return { body, incomingOrigin, requestedPageUrl };
+  };
+
+  const handlePair = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const { body, incomingOrigin, requestedPageUrl } = await readPairRequest(request);
     if (sessionToken) {
       if (body.sessionToken !== sessionToken) {
         throw new BridgeRequestError(409, "already_paired", "A browser is already paired with this project.");
@@ -527,6 +536,15 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     };
     sendJson(response, 200, result, incomingOrigin);
     broadcastStatus();
+  };
+
+  const handleTakeover = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const { incomingOrigin, requestedPageUrl } = await readPairRequest(request);
+    // Takeover is intentionally separate from normal pairing. The caller has
+    // made an explicit UI choice to revoke the existing browser session.
+    if (sessionToken) disconnectBrowser(sessionToken);
+    const pairing = pairBrowser(options.projectId, incomingOrigin, requestedPageUrl);
+    sendJson(response, 200, pairing, incomingOrigin);
   };
 
   const handleEvents = (request: IncomingMessage, response: ServerResponse, url: URL): void => {
@@ -829,6 +847,10 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       }
       if (request.method === "POST" && url.pathname === BRIDGE_ENDPOINTS.pair) {
         await handlePair(request, response);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === BRIDGE_ENDPOINTS.takeover) {
+        await handleTakeover(request, response);
         return;
       }
       if (request.method === "GET" && url.pathname === BRIDGE_ENDPOINTS.events) {

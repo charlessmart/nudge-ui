@@ -19,7 +19,7 @@ export interface SpacingGuideData {
   guide: Rect;
   affectedGuides: Rect[];
   affectedAreas: Rect[];
-  /** A 24px-thick pointer target centred on the visible, up-to-40px guide handle. */
+  /** A 16px-thick pointer target centred on the visible, up-to-40px guide handle. */
   hit: Rect;
 }
 
@@ -54,7 +54,7 @@ interface GapSegment {
   crossEnd: number;
 }
 
-const SPACING_DRAG_TARGET_SIZE = 24;
+const SPACING_DRAG_TARGET_SIZE = 16;
 export const SPACING_GUIDE_HANDLE_LENGTH = 40;
 const EPSILON = 0.01;
 
@@ -162,12 +162,11 @@ const PADDING_CONFIG = {
 function paddingAffordanceForSide(
   element: HTMLElement,
   side: PaddingSide,
-  allowZero: boolean,
   model = boxModel(element),
 ): SpacingAffordance | null {
   const { inner, content, padding } = model;
   const value = padding[side];
-  if (!allowZero && value <= EPSILON) return null;
+  if (value <= EPSILON) return null;
   const config = PADDING_CONFIG[side];
   const width = Math.max(0, inner.right - inner.left);
   const height = Math.max(0, inner.bottom - inner.top);
@@ -219,13 +218,12 @@ function paddingAffordanceAtPoint(
   element: HTMLElement,
   x: number,
   y: number,
-  allowZero: boolean,
 ): SpacingAffordance | null {
   const model = boxModel(element);
   if (!containsPoint(model.outer, x, y)) return null;
   const sides: PaddingSide[] = ["top", "right", "bottom", "left"];
   for (const side of sides) {
-    const affordance = paddingAffordanceForSide(element, side, allowZero, model);
+    const affordance = paddingAffordanceForSide(element, side, model);
     if (affordance && containsRectPoint(affordance.hit, x, y)) return affordance;
   }
   return null;
@@ -389,18 +387,12 @@ function trackedElementsAtPoint(doc: Document, x: number, y: number): HTMLElemen
 export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number): SpacingAffordance | null {
   const candidates = trackedElementsAtPoint(doc, x, y);
   for (const element of candidates) {
-    const padding = paddingAffordanceAtPoint(element, x, y, false);
+    const padding = paddingAffordanceAtPoint(element, x, y);
     if (padding) return padding;
   }
   for (const element of candidates) {
     const gap = gapAffordanceAtPoint(element, x, y);
     if (gap) return gap;
-  }
-  // A zero-sized padding region still needs a small draggable edge so users
-  // can establish padding without first typing a value in the inspector.
-  for (const element of candidates) {
-    const padding = paddingAffordanceAtPoint(element, x, y, true);
-    if (padding) return padding;
   }
   return null;
 }
@@ -413,7 +405,7 @@ export function getSpacingAffordanceForDescriptor(
   if (descriptor.kind === "padding") {
     const side = descriptor.side;
     if (!side || descriptor.property !== `padding-${side}`) return null;
-    return paddingAffordanceForSide(element, side, true);
+    return paddingAffordanceForSide(element, side);
   }
   if (descriptor.property !== "row-gap" && descriptor.property !== "column-gap") return null;
   const segment = gapSegments(element).find((candidate) => candidate.property === descriptor.property);

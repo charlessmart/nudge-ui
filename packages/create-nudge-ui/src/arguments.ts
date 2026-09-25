@@ -5,6 +5,7 @@ export interface CliOptions {
   readonly packageManager?: PackageManager;
   readonly agentOnly: boolean;
   readonly agents: readonly string[];
+  readonly mcpPackageSpecifier?: string;
   readonly mcp?: boolean;
   readonly yes: boolean;
   readonly dryRun: boolean;
@@ -17,6 +18,7 @@ export function parseArguments(args: readonly string[]): CliOptions {
   let packageManager: PackageManager | undefined;
   let agentOnly = false;
   const agents: string[] = [];
+  let mcpPackageSpecifier: string | undefined;
   let mcp: boolean | undefined;
   let yes = false;
   let dryRun = false;
@@ -37,6 +39,8 @@ export function parseArguments(args: readonly string[]): CliOptions {
     else if (argument === "--no-mcp") mcp = setMcpPreference(mcp, false);
     else if (argument === "--agent") agents.push(requiredValue(args, ++index, argument));
     else if (argument.startsWith("--agent=")) agents.push(requiredValue([argument.slice("--agent=".length)], 0, "--agent"));
+    else if (argument === "--mcp-package") mcpPackageSpecifier = requiredValue(args, ++index, argument);
+    else if (argument.startsWith("--mcp-package=")) mcpPackageSpecifier = requiredValue([argument.slice("--mcp-package=".length)], 0, "--mcp-package");
     else if (argument === "--help" || argument === "-h") help = true;
     else if (argument === "--framework") framework = parseFramework(requiredValue(args, ++index, argument));
     else if (argument.startsWith("--framework=")) framework = parseFramework(argument.slice("--framework=".length));
@@ -49,7 +53,7 @@ export function parseArguments(args: readonly string[]): CliOptions {
   }
   if (agents.length > 0 && mcp === false) throw new Error("--agent cannot be combined with --no-mcp.");
   if (agentOnly && mcp === false) throw new Error("--agent-only cannot be combined with --no-mcp.");
-  return { framework, packageManager, agentOnly, agents, mcp, yes, dryRun, help };
+  return { framework, packageManager, agentOnly, agents, mcpPackageSpecifier, mcp, yes, dryRun, help };
 }
 
 function setMcpPreference(current: boolean | undefined, next: boolean): boolean {
@@ -70,9 +74,10 @@ Usage: npm create nudge-ui@latest -- [options]
 Options:
   --framework <nextjs|astro|vite-react|standalone>
   --package-manager <pnpm|npm|yarn|bun>
-  --mcp                         Configure the local Nudge MCP server
+  --mcp                         Configure the reusable Nudge MCP adapter
   --no-mcp                      Skip coding-agent setup
   --agent <id>                  Configure a supported agent (repeatable)
+  --mcp-package <path|package> Use this MCP package for the project and adapter
   --agent-only                  Install or repair only the agent integration
   -y, --yes                     Accept defaults without prompting
   --dry-run

@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "add-mcp": "^2.4.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "devDependencies": {
     "vitest": "^2.1.9"

@@ -1,3 +1,4 @@
+import { DRAG_CURSOR_STYLES } from "./dragCursor.ts";
 import fieldRowStyles from "./FieldRow.css?inline";
 import atRuleContextStyles from "./AtRuleContext.css?inline";
 import foundationStyles from "./Foundation.css?inline";
@@ -34,6 +35,7 @@ import settingsStyles from "../settings/SettingsDialog.css?inline";
 import sketchStyles from "../sketch/Sketch.css?inline";
 
 export const UI_STYLES = [
+  DRAG_CURSOR_STYLES,
   foundationStyles,
   controlSurfaceStyles,
   atRuleContextStyles,

@@ -1,8 +1,8 @@
 import type { ReactElement } from "react";
 import {
   IconHandStop,
-  IconMarquee2,
-  IconPointer,
+  IconPlayerPlay,
+  IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -75,17 +75,10 @@ export function CanvasToolbar({
     <div className="canvas-toolbar" data-test="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
       <div className="canvas-toolbar__tools" role="group" aria-label="Interaction tools">
         <ToolButton
-          active={tool === "select"}
-          label="Select"
-          description="Select (I): use the app normally"
-          icon={<IconPointer size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("select")}
-        />
-        <ToolButton
           active={tool === "design"}
           label="Design"
           description="Design (V): click elements to inspect and edit them"
-          icon={<IconMarquee2 size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          icon={<IconPointer2 size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
           onClick={() => onToolChange("design")}
         />
         <ToolButton
@@ -100,6 +93,16 @@ export function CanvasToolbar({
           disabled={!sketchEnabled}
           icon={<IconSketching size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
           onClick={() => onToolChange("sketch")}
+        />
+      </div>
+      <div className="canvas-toolbar__divider" aria-hidden="true" />
+      <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
+        <ToolButton
+          active={tool === "select"}
+          label="Select"
+          description="Select (I): use the app normally"
+          icon={<IconPlayerPlay size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          onClick={() => onToolChange("select")}
         />
       </div>
     </div>

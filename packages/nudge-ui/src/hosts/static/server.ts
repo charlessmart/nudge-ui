@@ -231,6 +231,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
                 appRoot: rootDirectory,
                 projectId,
                 origin: address.url.replace(/\/$/, ""),
+                info: (message) => console.info(message),
                 warn: (message) => console.warn(message),
               }).then((bridge) => {
                 projectBridge = bridge;

@@ -1,7 +1,7 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import { AGENT_PROTOCOL_VERSION } from "@nudge-ui/agent-protocol";
-import { readSessionHealth, type SessionHealth } from "./projectSessionClient.ts";
+import { AGENT_PROTOCOL_VERSION, type AgentStatusSnapshot } from "@nudge-ui/agent-protocol";
+import { ProjectSessionResponseError, readSessionHealth, type SessionHealth } from "./projectSessionClient.ts";
 import type { StoredProjectSession } from "./project.ts";
 
 const PROBE_TIMEOUT_MS = 750;
@@ -12,14 +12,34 @@ export interface LiveProjectSession {
   readonly health: SessionHealth;
 }
 
-/** Reads private registry records and keeps only bridges that answer authenticated probes. */
+export interface SessionInspection {
+  readonly descriptorCount: number;
+  readonly invalidCount: number;
+  readonly incompatibleCount: number;
+  readonly unreachable: readonly Pick<StoredProjectSession, "workspaceRoot" | "appRoot" | "sessionId">[];
+  readonly live: LiveProjectSession[];
+}
+
+/** Separates absent, invalid, incompatible, and unreachable registrations. */
+export async function inspectProjectSessions(registryRoot: string): Promise<SessionInspection> {
+  const names = (await readRegistryDirectory(registryRoot)).filter((name) => name.endsWith(".json"));
+  const records = await Promise.all(names.map((name) => readDescriptor(resolve(registryRoot, name))));
+  const descriptors = records.filter((record): record is StoredProjectSession => typeof record === "object");
+  const probes = await Promise.all(descriptors.map(probeSession));
+  return {
+    descriptorCount: names.length,
+    invalidCount: records.filter((record) => record === undefined).length
+      + probes.filter((probe) => probe.kind === "invalid").length,
+    incompatibleCount: records.filter((record) => record === "incompatible").length,
+    unreachable: descriptors.filter((_, index) => probes[index]?.kind === "unreachable")
+      .map(({ workspaceRoot, appRoot, sessionId }) => ({ workspaceRoot, appRoot, sessionId })),
+    live: probes.flatMap((probe) => probe.kind === "live" ? [probe.session] : []),
+  };
+}
+
+/** Keeps only compatible bridges that answer authenticated probes. */
 export async function readLiveProjectSessions(registryRoot: string): Promise<LiveProjectSession[]> {
-  const names = await readRegistryDirectory(registryRoot);
-  const descriptors = await Promise.all(
-    names.filter((name) => name.endsWith(".json")).map((name) => readDescriptor(resolve(registryRoot, name))),
-  );
-  const live = await Promise.all(descriptors.filter(isPresent).map(probeSession));
-  return live.filter(isPresent);
+  return (await inspectProjectSessions(registryRoot)).live;
 }
 
 async function readRegistryDirectory(registryRoot: string): Promise<string[]> {
@@ -31,7 +51,7 @@ async function readRegistryDirectory(registryRoot: string): Promise<string[]> {
   }
 }
 
-async function readDescriptor(path: string): Promise<StoredProjectSession | undefined> {
+async function readDescriptor(path: string): Promise<StoredProjectSession | "incompatible" | undefined> {
   try {
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_DESCRIPTOR_BYTES) return undefined;
@@ -40,27 +60,49 @@ async function readDescriptor(path: string): Promise<StoredProjectSession | unde
 
     const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
     if (!isStoredSession(parsed)) return undefined;
+    if (parsed.protocolVersion !== AGENT_PROTOCOL_VERSION) return "incompatible";
     const [workspaceRoot, appRoot] = await Promise.all([realpath(parsed.workspaceRoot), realpath(parsed.appRoot)]);
-    return { ...parsed, workspaceRoot, appRoot };
+    return { ...parsed, protocolVersion: AGENT_PROTOCOL_VERSION, workspaceRoot, appRoot };
   } catch {
     // Records can disappear during shutdown or refer to a removed worktree.
     return undefined;
   }
 }
 
-async function probeSession(descriptor: StoredProjectSession): Promise<LiveProjectSession | undefined> {
+type SessionProbe =
+  | { readonly kind: "live"; readonly session: LiveProjectSession }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "unreachable" };
+
+async function probeSession(descriptor: StoredProjectSession): Promise<SessionProbe> {
   try {
-    const health = await readSessionHealth(descriptor, PROBE_TIMEOUT_MS);
-    if (health.projectId !== descriptor.projectId || health.available !== true) return undefined;
-    return { descriptor, health };
-  } catch {
-    // A stale or unreachable bridge is not a selectable session.
-    return undefined;
+    const health: unknown = await readSessionHealth(descriptor, PROBE_TIMEOUT_MS);
+    if (!isSessionHealth(health) || health.projectId !== descriptor.projectId) return { kind: "invalid" };
+    return { kind: "live", session: { descriptor, health } };
+  } catch (error) {
+    // An HTTP response proves that the endpoint exists. Network and timeout errors are unreachable.
+    return { kind: error instanceof ProjectSessionResponseError ? "invalid" : "unreachable" };
   }
 }
 
-function isPresent<T>(value: T | undefined): value is T {
-  return value !== undefined;
+function isSessionHealth(value: unknown): value is SessionHealth {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const health = value as Record<string, unknown>;
+  return typeof health.projectId === "string"
+    && health.available === true
+    && typeof health.claimed === "boolean"
+    && isAgentStatusSnapshot(health.status);
+}
+
+function isAgentStatusSnapshot(value: unknown): value is AgentStatusSnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const status = value as Record<string, unknown>;
+  return status.protocolVersion === AGENT_PROTOCOL_VERSION
+    && typeof status.projectId === "string"
+    && (status.connection === "offline" || status.connection === "listening" || status.connection === "paired" || status.connection === "working")
+    && typeof status.listenerActive === "boolean"
+    && typeof status.paired === "boolean"
+    && (status.request === null || (typeof status.request === "object" && !Array.isArray(status.request)));
 }
 
 function isLoopbackEndpoint(value: unknown): value is string {
@@ -75,11 +117,13 @@ function isLoopbackEndpoint(value: unknown): value is string {
   }
 }
 
-function isStoredSession(value: unknown): value is StoredProjectSession {
+type RegisteredSession = Omit<StoredProjectSession, "protocolVersion"> & { readonly protocolVersion: number };
+
+function isStoredSession(value: unknown): value is RegisteredSession {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const session = value as Record<string, unknown>;
   return session.schemaVersion === 1
-    && session.protocolVersion === AGENT_PROTOCOL_VERSION
+    && typeof session.protocolVersion === "number" && Number.isSafeInteger(session.protocolVersion)
     && typeof session.sessionId === "string" && session.sessionId.length > 0
     && typeof session.projectId === "string" && session.projectId.length > 0
     && typeof session.workspaceRoot === "string" && session.workspaceRoot.length > 0

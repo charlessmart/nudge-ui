@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { startOptionalProjectBridge } from "./projectBridge.ts";
 
 describe("startOptionalProjectBridge", () => {
@@ -39,16 +39,20 @@ describe("startOptionalProjectBridge", () => {
       }
     `);
 
+    const info = vi.fn();
     const bridge = await startOptionalProjectBridge({
       appRoot,
       projectId: "worktree-app",
       origin: "http://localhost:5173",
+      info,
     });
 
     expect(bridge?.browser).toEqual({
       baseUrl: "http://127.0.0.1:43123",
       autoConnect: true,
     });
+    expect(info).toHaveBeenCalledOnce();
+    expect(info).toHaveBeenCalledWith("[nudge-ui] project bridge ready for worktree-app");
     await bridge?.close();
   });
 

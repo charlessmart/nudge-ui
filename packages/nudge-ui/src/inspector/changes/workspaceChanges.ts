@@ -16,6 +16,7 @@ export interface WorkspaceChangesSnapshot extends WorkspaceContents {
 }
 
 interface HistoryEntry {
+  readonly group?: symbol;
   readonly before: WorkspaceContents;
   readonly after: WorkspaceContents;
 }
@@ -47,6 +48,7 @@ let contents: WorkspaceContents = { changes: [], structuralChanges: [] };
 let revision = 0;
 let undoStack: HistoryEntry[] = [];
 let redoStack: HistoryEntry[] = [];
+let activeHistoryGroup: symbol | undefined;
 let snapshot = createSnapshot();
 const listeners = new Set<() => void>();
 
@@ -102,10 +104,33 @@ function commit(next: WorkspaceContents): boolean {
   if (!canWriteWorkspace()) return false;
   const before = cloneContents(contents);
   contents = cloneContents(next);
-  undoStack.push({ before, after: cloneContents(contents) });
+  const previous = undoStack.at(-1);
+  const entry: HistoryEntry = {
+    before: activeHistoryGroup && previous?.group === activeHistoryGroup ? previous.before : before,
+    after: cloneContents(contents),
+    group: activeHistoryGroup,
+  };
+  if (activeHistoryGroup && previous?.group === activeHistoryGroup) undoStack.pop();
+  if (!sameWorkspaceContents(entry.before, entry.after)) undoStack.push(entry);
   redoStack = [];
   publish();
   return true;
+}
+
+/** Groups consecutive synchronous updates from one gesture into one undo step.
+ * Updates outside the callback keep their own history entries.
+ */
+export function createChangeHistoryGroup(): (update: () => void) => void {
+  const group = Symbol("change-history-group");
+  return (update) => {
+    const previous = activeHistoryGroup;
+    activeHistoryGroup = group;
+    try {
+      update();
+    } finally {
+      activeHistoryGroup = previous;
+    }
+  };
 }
 
 function getSnapshot(): WorkspaceChangesSnapshot {
@@ -175,7 +200,7 @@ function reconcileWorkspaceChangesImpl(
   if (removed === 0) return 0;
   contents = next;
   const prune = (entries: readonly HistoryEntry[]): HistoryEntry[] => entries
-    .map((entry) => ({ before: retain(entry.before), after: retain(entry.after) }))
+    .map((entry) => ({ group: entry.group, before: retain(entry.before), after: retain(entry.after) }))
     .filter((entry) => !sameWorkspaceContents(entry.before, entry.after));
   undoStack = prune(undoStack);
   redoStack = prune(redoStack);
@@ -214,7 +239,7 @@ function redoWorkspaceChangeImpl(): boolean {
   if (!entry) return false;
   redoStack.pop();
   contents = cloneContents(entry.after);
-  undoStack.push(entry);
+  undoStack.push({ before: entry.before, after: entry.after });
   publish();
   return true;
 }

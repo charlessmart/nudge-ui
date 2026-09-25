@@ -5,6 +5,7 @@ import type { StructuralDelete } from "./structuralTypes.ts";
 import * as workspaceLease from "../canvas/workspaceLease.ts";
 import {
   commitChangeRecords,
+  createChangeHistoryGroup,
   commitStructuralChange,
   getWorkspaceChanges,
   redoWorkspaceChange,
@@ -43,6 +44,39 @@ const structuralDelete: StructuralDelete = {
 
 describe("WorkspaceChanges", () => {
   beforeEach(() => resetWorkspaceChanges());
+
+  it("keeps separate drags and unrelated edits as separate undo steps", () => {
+    const firstDrag = createChangeHistoryGroup();
+    firstDrag(() => commitChangeRecords([styleChange("padding", "8px")], project));
+    firstDrag(() => commitChangeRecords([styleChange("padding", "16px")], project));
+    commitChangeRecords([styleChange("color", "red")], project);
+    const secondDrag = createChangeHistoryGroup();
+    secondDrag(() => commitChangeRecords([styleChange("padding", "20px")], project));
+    secondDrag(() => commitChangeRecords([styleChange("padding", "24px")], project));
+
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(getWorkspaceChanges().changes).toMatchObject([
+      { property: "padding", rawValue: "16px" },
+      { property: "color", rawValue: "red" },
+    ]);
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(getWorkspaceChanges().changes).toMatchObject([{ property: "padding", rawValue: "16px" }]);
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(getWorkspaceChanges().changes).toEqual([]);
+    expect(undoWorkspaceChange(project)).toBe(false);
+  });
+
+  it("does not group an unrelated edit made between gesture updates", () => {
+    const drag = createChangeHistoryGroup();
+    drag(() => commitChangeRecords([styleChange("padding", "8px")], project));
+    commitChangeRecords([styleChange("color", "red")], project);
+    drag(() => commitChangeRecords([styleChange("padding", "16px")], project));
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(getWorkspaceChanges().changes).toMatchObject([
+      { property: "padding", rawValue: "8px" },
+      { property: "color", rawValue: "red" },
+    ]);
+  });
 
   it("undoes mixed intent in commit order", () => {
     commitChangeRecords([styleChange("color", "red")], project);

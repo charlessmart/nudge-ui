@@ -44,6 +44,7 @@ class FakeTransport implements AgentBridgeTransport {
   pairingResult: Promise<PairingResponse> | null = null;
   discoverCalls = 0;
   pairCalls = 0;
+  takeOverCalls = 0;
 
   async discover(): Promise<AgentStatusSnapshot> {
     this.discoverCalls += 1;
@@ -59,6 +60,17 @@ class FakeTransport implements AgentBridgeTransport {
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",
+      status: this.pairingStatus,
+    };
+  }
+
+  async takeOver(): Promise<PairingResponse> {
+    this.takeOverCalls += 1;
+    return {
+      protocolVersion: 2,
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      sessionToken: "takeover-session",
       status: this.pairingStatus,
     };
   }
@@ -231,10 +243,31 @@ describe("AgentClient", () => {
     expect(client.getSnapshot()).toMatchObject({
       state: "available",
       paired: false,
+      pairedElsewhere: true,
       listenerActive: true,
       request: null,
     });
     expect(transport.pairCalls).toBe(0);
+  });
+
+  it("takes over a pairing owned by another browser after explicit confirmation", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "paired", paired: true });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    expect(client.getSnapshot().pairedElsewhere).toBe(true);
+
+    await expect(client.takeOver()).resolves.toBe(true);
+    expect(transport.takeOverCalls).toBe(1);
+    expect(client.getSnapshot()).toMatchObject({ paired: true, pairedElsewhere: false });
   });
 
   it("honors another browser tab's explicit disconnect before auto-connecting", async () => {

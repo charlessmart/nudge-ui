@@ -4,7 +4,6 @@ import {
   findClosestAnchor,
   isEligibleNavigation,
   hasDifferentRoute,
-  shouldPreserveNativeLinkActivation,
 } from "./linkEligibility.ts";
 
 function createAnchor(href: string, attrs: Record<string, string> = {}): HTMLAnchorElement {
@@ -143,29 +142,5 @@ describe("hasDifferentRoute", () => {
     a.setAttribute("href", "");
     document.body.appendChild(a);
     expect(hasDifferentRoute(a)).toBe(false);
-  });
-});
-
-describe("shouldPreserveNativeLinkActivation", () => {
-  it("consumes Command-click as deep selection", () => {
-    const anchor = createAnchor(sameOriginUrl("/about"));
-    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true }))).toBe(false);
-  });
-
-  it("consumes plain Shift-click as additive inspector selection", () => {
-    const anchor = createAnchor(sameOriginUrl("/about"));
-    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ shiftKey: true }))).toBe(false);
-  });
-
-  it("consumes Command+Shift-click as a selection gesture", () => {
-    const anchor = createAnchor(sameOriginUrl("/about"));
-    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true, shiftKey: true }))).toBe(false);
-  });
-
-  it("preserves native behavior for same-document hash links", () => {
-    const anchor = createAnchor(
-      window.location.origin + window.location.pathname + window.location.search + "#section",
-    );
-    expect(shouldPreserveNativeLinkActivation(anchor, createEvent())).toBe(true);
   });
 });

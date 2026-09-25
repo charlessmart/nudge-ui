@@ -22,14 +22,6 @@ function addCss(css: string): void {
   getBrowserCssInspection().notifyStylesheetChange();
 }
 
-function pointer(type: string, x: number): Event {
-  const event = new Event(type, { bubbles: true });
-  Object.defineProperties(event, {
-    clientX: { value: x }, pointerId: { value: 1 }, shiftKey: { value: false },
-  });
-  return event;
-}
-
 afterEach(() => {
   handle?.unmount();
   handle = undefined;
@@ -41,24 +33,6 @@ afterEach(() => {
 });
 
 describe("inspector field visibility", () => {
-  it("keeps the same drag control through zero when source evidence is unavailable", () => {
-    const { selected } = makeSelected();
-    addCss('* { padding: 0; } [data-cid="Button"] { padding-top: 8px; padding-bottom: 8px; }');
-    const render = () => createElement(SpacingBox, {
-      element: selected,
-      onAfterEdit: () => handle!.root.render(render()),
-    });
-    handle = mount(render());
-    const control = handle.host.querySelector<HTMLElement>('[data-property="padding-vertical"] [data-test="nudge-handle"]')!;
-    act(() => control.dispatchEvent(pointer("pointerdown", 100)));
-    act(() => control.dispatchEvent(pointer("pointermove", 84)));
-    expect(sheetText()).toContain("padding-top: 0px;");
-    expect(handle.host.querySelector('[data-property="padding-vertical"] [data-test="nudge-handle"]')).toBe(control);
-    act(() => control.dispatchEvent(pointer("pointermove", 92)));
-    act(() => control.dispatchEvent(pointer("pointerup", 92)));
-    expect(sheetText()).toContain("padding-top: 4px;");
-  });
-
   it("keeps added spacing open after returning to zero and resets for another selection", () => {
     const { selected } = makeSelected();
     const other = makeSelected("Other").selected;

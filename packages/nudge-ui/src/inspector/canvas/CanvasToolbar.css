@@ -36,6 +36,14 @@
   gap: var(--space-4);
 }
 
+.canvas-toolbar__divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: var(--control-height-small);
+  margin-inline: var(--space-4);
+  background: var(--border-subtle);
+}
+
 .canvas-toolbar__tool[data-active="true"] {
   background: var(--accent-surface);
   color: var(--accent);

@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { isAbsolute } from "node:path";
 import { z } from "zod";
 import type {
   AgentDeliveredPrompt,
@@ -18,7 +20,8 @@ import {
   type BrowserBridgeOptions,
   type BridgeAddress,
 } from "./bridge.ts";
-import { DiscoveredProjectRouter, type DiscoveredProjectSession } from "./discovery.ts";
+import { AdapterRouting, type ProjectTarget } from "./adapterRouting.ts";
+import { DiscoveredProjectRouter, diagnoseProjectSessions, discoverProjectSessions, type DiscoveredProjectSession } from "./discovery.ts";
 
 export const MCP_SERVER_NAME = "nudge-ui";
 export const MCP_SERVER_VERSION = readPackageVersion();
@@ -39,7 +42,7 @@ function readPackageVersion(): string {
 /** Instructions are sent through MCP initialization for every host. */
 export const MCP_SERVER_INSTRUCTIONS = [
   "Nudge UI is a local browser companion for one exact project workspace or Git worktree.",
-  "Before listening, compare each session's workspaceRoot and appRoot with the checkout and application you will edit; if they differ, rerun Nudge agent setup in the intended checkout.",
+  "Supply workspaceRoot with the absolute checkout or application path you are editing on every tool call. Listing and selecting sessions requires this explicit scope; repeat the same workspaceRoot and sessionId for status, Canvas, and release calls. Never use the MCP process working directory to infer the task workspace.",
   "When the user asks to listen to Nudge, call nudge_list_sessions when that tool is available; if several apps are running, select only a session marked matchesApplication.",
   "Call nudge_listen (or nudge_connect) and keep the call open while waiting for a browser request; the bridge may be running before a listener exists.",
   "After a prompt is delivered, edit the project source using the host's normal approval flow.",
@@ -133,18 +136,33 @@ interface AgentToolTarget {
   release?(): Promise<void>;
 }
 
-function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
-  const listen = async (args: { sessionId?: string }, extra: { signal: AbortSignal }) => {
+function installTools(mcpServer: McpServer, bridge: AgentToolTarget | undefined, routing?: AdapterRouting): void {
+  const target = async (args: ProjectTarget): Promise<AgentToolTarget> => {
+    if (routing) return await routing.target(args);
+    if (bridge instanceof DiscoveredProjectRouter && args.workspaceRoot !== undefined
+      && await realpath(args.workspaceRoot) !== bridge.applicationRoot) {
+      throw new Error("This legacy MCP configuration is restricted to another application. Rerun agent setup to migrate it to the reusable adapter.");
+    }
+    return bridge!;
+  };
+  const workspaceInput = z.string().min(1).max(4096)
+    .refine(isAbsolute, "workspaceRoot must be an absolute path.")
+    .describe("Absolute path of the checkout or application being edited.");
+  const scopeInput = {
+    workspaceRoot: routing ? workspaceInput : workspaceInput.optional(),
+    sessionId: z.string().uuid().optional(),
+  };
+  const listen = async (args: ProjectTarget, extra: { signal: AbortSignal }) => {
     try {
-      return promptResult(await bridge.waitForPrompt(extra.signal, args.sessionId));
+      return promptResult(await (await target(args)).waitForPrompt(extra.signal, args.sessionId));
     } catch (error) {
       return errorResult(error);
     }
   };
 
   const listenDescription = "When the user asks to listen to Nudge, wait for one browser prompt. Keep this standard MCP call open, then call nudge_report_status and listen again after the request ends.";
-  const emptyInput = {} as const;
-  const listenInput = bridge.listSessions ? { sessionId: z.string().uuid().optional() } : emptyInput;
+  const emptyInput = scopeInput;
+  const listenInput = scopeInput;
   mcpServer.registerTool("nudge_listen", {
     title: "Listen for Nudge requests",
     description: listenDescription,
@@ -163,26 +181,38 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     description: "Read the in-memory browser pairing and request status for this project.",
     inputSchema: emptyInput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  }, async () => textResult(await bridge.getStatus()));
+  }, async (args) => {
+    try { return textResult(await (await target(args)).getStatus()); }
+    catch (error) { return errorResult(error); }
+  });
 
-  if (bridge.listSessions) {
+  if (routing || bridge?.listSessions) {
     mcpServer.registerTool("nudge_list_sessions", {
       title: "List Nudge project sessions",
-      description: "List live local Nudge sessions. Only sessions marked matchesApplication can be selected by an application-scoped adapter.",
+      description: "List live local Nudge sessions for the supplied checkout or application path. The workspaceRoot value is required so the adapter can select only sessions in that explicit scope.",
       inputSchema: emptyInput,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async () => textResult(await bridge.listSessions!()));
+    }, async (args) => textResult(routing ? await discoverProjectSessions(args.workspaceRoot!, routing.registryRoot) : await bridge!.listSessions!()));
   }
 
-  if (bridge.release) {
+  if (routing) {
+    mcpServer.registerTool("nudge_diagnose", {
+      title: "Diagnose Nudge discovery",
+      description: "Diagnose Nudge discovery for the supplied checkout or application path. The result includes the resolved registry, workspace, and application scope plus counts for missing registrations, invalid descriptors or health responses, unreachable loopback endpoints, and incompatible bridge protocols; credentials are never exposed.",
+      inputSchema: scopeInput,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async (args) => textResult(await diagnoseProjectSessions(args.workspaceRoot, routing.registryRoot)));
+  }
+
+  if (routing || bridge?.release) {
     mcpServer.registerTool("nudge_release", {
       title: "Release Nudge session",
       description: "Stop listening and release this adapter's project-session claim so another agent can connect.",
       inputSchema: emptyInput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async () => {
+    }, async (args) => {
       try {
-        await bridge.release!();
+        await (await target(args)).release!();
         return textResult({ released: true });
       } catch (error) {
         return errorResult(error);
@@ -194,6 +224,7 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     title: "Report Nudge request status",
     description: "Report working, completed, failed, or interrupted status for the prompt currently being handled. Report completed only after implementing the request; the browser removes its submitted sketches if their revisions are unchanged.",
     inputSchema: {
+      ...scopeInput,
       requestId: z.string().min(1).max(256),
       status: z.enum(["working", "completed", "failed", "interrupted"]),
       summary: z.string().max(32_000).optional(),
@@ -208,8 +239,8 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
       ...(args.error === undefined ? {} : { error: args.error }),
     };
     try {
-      const updated = await bridge.updateRequestStatus(update);
-      return textResult(updated ?? await bridge.getStatus());
+      const updated = await (await target(args)).updateRequestStatus(update);
+      return textResult(updated ?? await (await target(args)).getStatus());
     } catch (error) {
       return errorResult(error);
     }
@@ -220,9 +251,9 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     description: "Read the paired browser's current Canvas groups and focus.",
     inputSchema: emptyInput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  }, async () => {
+  }, async (args) => {
     try {
-      return commandResult(await bridge.dispatchCanvasCommand({ type: "read-state" }));
+      return commandResult(await (await target(args)).dispatchCanvasCommand({ type: "read-state" }));
     } catch (error) {
       return errorResult(error);
     }
@@ -232,6 +263,7 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     title: "Present routes in Canvas",
     description: "Append or focus an agent-owned, labeled comparison group of same-origin project routes in Canvas.",
     inputSchema: {
+      ...scopeInput,
       label: z.string().min(1).max(160),
       groupId: z.string().min(1).max(256).regex(/^agent-[A-Za-z0-9._:-]+$/).optional(),
       routes: z.array(z.object({
@@ -243,7 +275,7 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async (args) => {
     try {
-      return commandResult(await bridge.dispatchCanvasCommand({
+      return commandResult(await (await target(args)).dispatchCanvasCommand({
         type: "present-routes",
         groupId: args.groupId ?? `agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
         label: args.label,
@@ -257,11 +289,11 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
   mcpServer.registerTool("nudge_focus_canvas_group", {
     title: "Focus Canvas group",
     description: "Focus an existing Canvas comparison group by its stable group ID.",
-    inputSchema: { groupId: z.string().min(1).max(256) },
+    inputSchema: { ...scopeInput, groupId: z.string().min(1).max(256) },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, async (args) => {
     try {
-      return commandResult(await bridge.dispatchCanvasCommand({ type: "focus-group", groupId: args.groupId }));
+      return commandResult(await (await target(args)).dispatchCanvasCommand({ type: "focus-group", groupId: args.groupId }));
     } catch (error) {
       return errorResult(error);
     }
@@ -272,9 +304,9 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
     description: "Fit all current Canvas cards into the browser board.",
     inputSchema: emptyInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  }, async () => {
+  }, async (args) => {
     try {
-      return commandResult(await bridge.dispatchCanvasCommand({ type: "fit-all" }));
+      return commandResult(await (await target(args)).dispatchCanvasCommand({ type: "fit-all" }));
     } catch (error) {
       return errorResult(error);
     }
@@ -283,11 +315,11 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
   mcpServer.registerTool("nudge_remove_canvas_group", {
     title: "Remove agent Canvas group",
     description: "Remove an agent-owned Canvas comparison group. The browser refuses removal of user-owned groups.",
-    inputSchema: { groupId: z.string().min(1).max(256).regex(/^agent-[A-Za-z0-9._:-]+$/) },
+    inputSchema: { ...scopeInput, groupId: z.string().min(1).max(256).regex(/^agent-[A-Za-z0-9._:-]+$/) },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   }, async (args) => {
     try {
-      return commandResult(await bridge.dispatchCanvasCommand({ type: "remove-group", groupId: args.groupId }));
+      return commandResult(await (await target(args)).dispatchCanvasCommand({ type: "remove-group", groupId: args.groupId }));
     } catch (error) {
       return errorResult(error);
     }
@@ -356,19 +388,22 @@ export function createAgentCompanion(options: AgentCompanionOptions): AgentCompa
 
 export interface DiscoveredAgentAdapter {
   readonly mcpServer: McpServer;
-  readonly router: DiscoveredProjectRouter;
+  readonly router: DiscoveredProjectRouter | AdapterRouting;
   start(transport?: Transport): Promise<void>;
   close(): Promise<void>;
 }
 
 /** Creates a stdio MCP adapter that discovers project-owned bridges. */
 export async function createDiscoveredAgentAdapter(options: {
-  readonly workspaceRoot: string;
+  readonly workspaceRoot?: string;
   readonly registryRoot?: string;
   readonly serverName?: string;
   readonly serverVersion?: string;
 }): Promise<DiscoveredAgentAdapter> {
-  const router = await DiscoveredProjectRouter.create(options.workspaceRoot, options.registryRoot);
+  const routing = options.workspaceRoot === undefined ? new AdapterRouting(options.registryRoot) : undefined;
+  const router = options.workspaceRoot === undefined
+    ? undefined
+    : await DiscoveredProjectRouter.create(options.workspaceRoot, options.registryRoot);
   const mcpServer = new McpServer(
     {
       name: options.serverName ?? MCP_SERVER_NAME,
@@ -376,13 +411,13 @@ export async function createDiscoveredAgentAdapter(options: {
     },
     { instructions: MCP_SERVER_INSTRUCTIONS },
   );
-  installTools(mcpServer, router);
+  installTools(mcpServer, router, routing);
   let transport: Transport | null = null;
   let started = false;
   let closePromise: Promise<void> | null = null;
   return {
     mcpServer,
-    router,
+    router: (router ?? routing)!,
     async start(providedTransport?: Transport): Promise<void> {
       if (started) return;
       if (closePromise) throw new Error("The Nudge MCP adapter is closing.");
@@ -393,7 +428,7 @@ export async function createDiscoveredAgentAdapter(options: {
     close(): Promise<void> {
       if (closePromise) return closePromise;
       closePromise = (async () => {
-        await router.close();
+        await (router ?? routing)!.close();
         if (transport) await mcpServer.close().catch(() => undefined);
       })();
       return closePromise;

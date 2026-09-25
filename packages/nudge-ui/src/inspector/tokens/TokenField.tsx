@@ -27,6 +27,8 @@ import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { TokenChip } from "./TokenChip.tsx";
+import { startDragPointerLock } from "./dragPointerLock.ts";
+import { createChangeHistoryGroup } from "../changes/workspaceChanges.ts";
 import { isMultiTarget, type EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 
@@ -140,6 +142,8 @@ function stripCssUnit(value: string): string {
 }
 
 interface DragNudgeState {
+  commit: ReturnType<typeof createChangeHistoryGroup>;
+  pointerLock?: ReturnType<typeof startDragPointerLock>;
   handle: HTMLSpanElement;
   pointerId: number;
   lastClientX: number;
@@ -455,8 +459,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const stopDragNudge = useCallback(() => {
     const drag = dragNudgeRef.current;
     if (!drag) return;
-    releasePointerCapture(drag);
     dragNudgeRef.current = null;
+    drag.pointerLock?.stop();
+    releasePointerCapture(drag);
     setIsDraggingNudge(false);
   }, []);
 
@@ -470,12 +475,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }, [stopDragNudge]);
 
   function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
+    if (event.button !== 0) return;
     if (disabled || !supportsDragNudge(property)) return;
     if (!canNudgeCssValueByDrag(property, rawValue)) return;
 
     stopDragNudge();
     const handle = event.currentTarget;
     const drag: DragNudgeState = {
+      commit: createChangeHistoryGroup(),
       handle,
       pointerId: event.pointerId,
       lastClientX: event.clientX,
@@ -487,6 +494,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     };
     dragNudgeRef.current = drag;
     if (typeof handle.setPointerCapture === "function") handle.setPointerCapture(event.pointerId);
+    if (event.pointerType === "mouse") {
+      drag.pointerLock = startDragPointerLock(handle, { x: event.clientX, y: event.clientY }, (mouseEvent) => {
+        updateDragNudge(mouseEvent, mouseEvent.movementX);
+      }, stopDragNudge);
+    }
     setIsDraggingNudge(true);
     event.preventDefault();
     event.stopPropagation();
@@ -495,9 +507,16 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function handleDragNudgePointerMove(event: React.PointerEvent<HTMLSpanElement>): void {
     const drag = dragNudgeRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.pointerLock?.isLocked()) return;
 
     const movementX = event.clientX - drag.lastClientX;
     drag.lastClientX = event.clientX;
+    updateDragNudge(event, movementX);
+  }
+
+  function updateDragNudge(event: MouseEvent | React.PointerEvent<HTMLSpanElement>, movementX: number): void {
+    const drag = dragNudgeRef.current;
+    if (!drag) return;
     if (event.shiftKey !== drag.shiftActive) {
       drag.shiftActive = event.shiftKey;
       drag.startValue = drag.lastValue;
@@ -523,7 +542,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     event.stopPropagation();
     setRawValue(next);
     setActiveTokenName(null);
-    onCommitRaw(next);
+    drag.commit(() => onCommitRaw(next));
   }
 
   function handleDragNudgePointerEnd(event: React.PointerEvent<HTMLSpanElement>): void {

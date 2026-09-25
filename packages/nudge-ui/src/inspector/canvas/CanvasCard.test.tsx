@@ -443,7 +443,6 @@ describe("CanvasCard renderer handshake", () => {
     if (!(resizeHandle instanceof HTMLElement)) throw new Error("left resize handle did not mount");
     const capture = mockPointerCapture(resizeHandle);
 
-    expect(resizeHandle.style.cursor).toBe("ew-resize");
     act(() => {
       resizeHandle.dispatchEvent(pointerEvent("pointerdown", 100, 200));
       window.dispatchEvent(pointerEvent("pointermove", 60, 200));
@@ -478,7 +477,6 @@ describe("CanvasCard renderer handshake", () => {
     if (!(resizeHandle instanceof HTMLElement)) throw new Error("top resize handle did not mount");
     mockPointerCapture(resizeHandle);
 
-    expect(resizeHandle.style.cursor).toBe("ns-resize");
     act(() => {
       resizeHandle.dispatchEvent(pointerEvent("pointerdown", 400, 80));
       window.dispatchEvent(pointerEvent("pointermove", 400, 50));
@@ -507,7 +505,6 @@ describe("CanvasCard renderer handshake", () => {
     if (!(resizeHandle instanceof HTMLElement)) throw new Error("top-left resize handle did not mount");
     mockPointerCapture(resizeHandle);
 
-    expect(resizeHandle.style.cursor).toBe("nwse-resize");
     act(() => {
       resizeHandle.dispatchEvent(pointerEvent("pointerdown", 100, 80));
       window.dispatchEvent(pointerEvent("pointermove", 60, 50));

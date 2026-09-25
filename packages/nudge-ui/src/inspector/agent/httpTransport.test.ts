@@ -73,6 +73,42 @@ it("does not borrow bridge configuration from an unrelated preview", () => {
   expect(getConfiguredAgentBridgeEndpoint()).toBeUndefined();
 });
 
+it("uses the deliberate takeover endpoint without sending another browser token", async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    protocolVersion: AGENT_PROTOCOL_VERSION,
+    projectId: "takeover-project",
+    origin: window.location.origin,
+    sessionToken: "replacement-session",
+    status: {
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      projectId: "takeover-project",
+      connection: "listening",
+      listenerActive: true,
+      paired: true,
+      request: null,
+    },
+  })));
+  vi.stubGlobal("fetch", fetch);
+
+  await new HttpAgentBridgeTransport({ baseUrl: "http://127.0.0.1:4567" }).takeOver({
+    projectId: "takeover-project",
+    origin: window.location.origin,
+    pageUrl: `${window.location.origin}/fixture`,
+  });
+
+  expect(fetch).toHaveBeenCalledOnce();
+  const [url, options] = fetch.mock.calls[0] ?? [];
+  expect(url).toEqual(new URL("http://127.0.0.1:4567/takeover"));
+  expect(options).toMatchObject({
+    method: "POST",
+    body: JSON.stringify({
+      projectId: "takeover-project",
+      origin: window.location.origin,
+      pageUrl: `${window.location.origin}/fixture`,
+    }),
+  });
+});
+
 it("reads agent bridge configuration from a registered shadow-mounted preview", async () => {
   const host = document.createElement("div");
   const iframe = document.createElement("iframe");

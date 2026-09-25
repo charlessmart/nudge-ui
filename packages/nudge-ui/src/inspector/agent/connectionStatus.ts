@@ -5,6 +5,7 @@ export type AgentConnectionStatusKind =
   | "connecting"
   | "working-disconnected"
   | "working"
+  | "paired-elsewhere"
   | "not-found"
   | "ready-to-connect"
   | "connected-not-listening"
@@ -15,8 +16,8 @@ export interface AgentConnectionStatus {
   readonly label: string;
   readonly tone: "neutral" | "accent" | "warning" | "danger";
   readonly action?: {
-    readonly kind: "connect" | "setup";
-    readonly label: "Connect" | "Set up";
+    readonly kind: "connect" | "takeover";
+    readonly label: "Connect" | "Take over";
   };
 }
 
@@ -27,6 +28,14 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
   }
   if (snapshot.state === "pairing") {
     return { kind: "connecting", label: "Connecting…", tone: "accent" };
+  }
+  if (snapshot.pairedElsewhere) {
+    return {
+      kind: "paired-elsewhere",
+      label: "MCP active in another tab or window",
+      tone: "warning",
+      action: { kind: "takeover", label: "Take over" },
+    };
   }
   if (!snapshot.paired && (snapshot.state === "working" || snapshot.request?.status === "working")) {
     return { kind: "working-disconnected", label: "Disconnected · Last work status unknown", tone: "warning" };
@@ -39,7 +48,6 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
       kind: "connected-not-listening",
       label: "Project connected · Ask agent to listen",
       tone: "accent",
-      action: { kind: "setup", label: "Set up" },
     };
   }
   if (!snapshot.companionReachable) {

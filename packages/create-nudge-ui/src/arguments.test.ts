@@ -9,6 +9,7 @@ describe("parseArguments", () => {
       packageManager: "pnpm",
       agentOnly: false,
       agents: [],
+      mcpPackageSpecifier: undefined,
       mcp: undefined,
       yes: false,
       dryRun: true,
@@ -38,10 +39,12 @@ describe("parseArguments", () => {
       "--agent=codex",
       "--agent",
       "cursor",
+      "--mcp-package=/tmp/@nudge-ui-mcp-0.2.1.tgz",
       "--yes",
     ])).toMatchObject({
       agentOnly: true,
       agents: ["codex", "cursor"],
+      mcpPackageSpecifier: "/tmp/@nudge-ui-mcp-0.2.1.tgz",
       mcp: true,
       yes: true,
     });

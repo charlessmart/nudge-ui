@@ -46,6 +46,7 @@ function endpointValue(value: unknown): AgentBridgeEndpointConfig | undefined {
     statusUrl: stringValue(value.statusUrl),
     canvasAckUrl: stringValue(value.canvasAckUrl),
     disconnectUrl: stringValue(value.disconnectUrl),
+    takeoverUrl: stringValue(value.takeoverUrl),
     ...(value.autoConnect === true ? { autoConnect: true } : {}),
   };
   return Object.values(config).some((entry) => entry !== undefined) ? config : undefined;
@@ -130,6 +131,18 @@ function headers(): HeadersInit {
   };
 }
 
+export class AgentBridgeHttpError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.name = "AgentBridgeHttpError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   let payload: unknown;
   try {
@@ -140,7 +153,12 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   if (!response.ok) {
     const error = isRecord(payload) && isRecord(payload.error) ? payload.error : payload;
     const message = isRecord(error) ? stringValue(error.message) : undefined;
-    throw new Error(message ?? `Agent bridge request failed (${response.status}).`);
+    const code = isRecord(error) ? stringValue(error.code) : undefined;
+    throw new AgentBridgeHttpError(
+      response.status,
+      message ?? `Agent bridge request failed (${response.status}).`,
+      code,
+    );
   }
   return isRecord(payload) ? payload : {};
 }
@@ -270,6 +288,33 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
       || payload.origin !== request.origin
       || typeof payload.sessionToken !== "string") {
       throw new Error("Agent bridge returned an invalid pairing response.");
+    }
+    const status = statusPayload(payload.status);
+    if (!status) throw new Error("Agent bridge returned an invalid status.");
+    return {
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      projectId: request.projectId,
+      origin: request.origin,
+      sessionToken: payload.sessionToken,
+      status,
+    };
+  }
+
+  async takeOver(request: AgentPairRequest, signal?: AbortSignal): Promise<PairingResponse> {
+    const url = endpointUrl(this.config, request.projectId, "takeoverUrl", "/takeover", pageOrigin());
+    if (!url || typeof fetch !== "function") throw new Error("Agent bridge is unavailable.");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    });
+    const payload = await readJson(response);
+    if (payload.protocolVersion !== AGENT_PROTOCOL_VERSION
+      || payload.projectId !== request.projectId
+      || payload.origin !== request.origin
+      || typeof payload.sessionToken !== "string") {
+      throw new Error("Agent bridge returned an invalid takeover response.");
     }
     const status = statusPayload(payload.status);
     if (!status) throw new Error("Agent bridge returned an invalid status.");

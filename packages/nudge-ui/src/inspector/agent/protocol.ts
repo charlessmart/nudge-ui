@@ -90,6 +90,7 @@ export interface AgentBridgeEndpointConfig {
   readonly statusUrl?: string;
   readonly canvasAckUrl?: string;
   readonly disconnectUrl?: string;
+  readonly takeoverUrl?: string;
   /** Pair automatically when this endpoint came from the trusted dev host. */
   readonly autoConnect?: boolean;
 }
@@ -180,6 +181,11 @@ export interface AgentBridgeTransport {
     request: AgentDisconnectRequest,
     signal?: AbortSignal,
   ) => Promise<void>;
+  /** Deliberately revokes another browser pairing before pairing this page. */
+  readonly takeOver?: (
+    request: AgentPairRequest,
+    signal?: AbortSignal,
+  ) => Promise<PairingResponse>;
   readonly acknowledgeCanvasCommand?: (
     request: AgentCanvasAcknowledgementRequest,
     signal?: AbortSignal,

@@ -171,9 +171,10 @@ npm create nudge-ui@latest
 ```
 
 Choose **Connect a coding agent**, then select your agent. The initializer
-installs the compatible local MCP package and registers its executable for this
-project. Start the application with its usual development command. Reload the
-agent after changing its configuration, then ask it to **listen to Nudge**.
+installs the local bridge dependency and a reusable adapter outside your repositories.
+It registers the adapter globally and migrates the current project's old override,
+with configuration backups. Start the application with its usual development
+command. Fully restart the agent after migration, then ask it to **listen to Nudge**.
 
 For an existing Nudge installation, run:
 
@@ -190,21 +191,65 @@ npm create nudge-ui@latest -- --agent-only
 Use `--agent <agent-id>` to select an agent without the interactive selection,
 `--no-mcp` to skip agent setup during initialization, and `--dry-run` to inspect
 planned changes. Package installation itself does not prompt or modify agent
-configuration. Registration uses the locally installed executable, so package
-upgrades and the lockfile determine the MCP version.
+configuration. Setup verifies MCP initialization and tool discovery before
+changing agent settings. The adapter is versioned under `~/.nudge-ui/adapters/`;
+it does not depend on the repository where setup was run.
+
+When testing a local `@nudge-ui/mcp` tarball, pass it explicitly so the project
+bridge and reusable adapter use the same build:
+
+```sh
+npx nudge-ui agent setup --mcp-package /absolute/path/to/nudge-ui-mcp.tgz
+```
+
+This option is intended for local package testing. Omit it for normal setup so
+the adapter is installed from the published registry.
 
 ### Using MCP
+
+MCP (Model Context Protocol) lets a coding agent receive a design request from
+the browser and send status, Canvas, and route commands back to the running
+development server. Nudge keeps the bridge in the application and the reusable
+agent adapter separate, so one agent registration can serve multiple checkouts.
+See the [MCP integration guide](packages/mcp/README.md) for host setup,
+diagnostics, and migration details.
 
 When `@nudge-ui/mcp` is installed, the development integration starts a local
 browser bridge. The agent's MCP process discovers that bridge using a private
 local session registry. 
 
 
-Ask agent to call nudge_listen to wait for prompts from UI.
+Ask the agent to call `nudge_listen` with `workspaceRoot` set to the absolute
+checkout or application path. It must repeat that scope on status and Canvas
+calls. If several sessions match, it must also supply the selected `sessionId`.
 
 Agents can also push to the canvas e.g. to create variations of different pages, or show a page in different states. Ask the agent to create variations and push them to canvas as different frames
 
-For worktrees run agent setup once in each checkout or worktree. 
+New checkouts and worktrees share the adapter registration. Each application
+still needs its bridge dependency. Run setup once in any existing project that
+has a legacy MCP override to migrate that override.
+
+### Migrating from `--origin`
+
+Older registrations started the browser bridge inside the MCP process with
+`--origin`. Run setup from the application to install the project-owned bridge,
+migrate the agent entry, and create the reusable adapter:
+
+```sh
+npx nudge-ui agent setup
+```
+
+Fully quit and restart the agent host after setup. Then ask it to list or listen
+for Nudge using the absolute checkout or application path on every call:
+
+```json
+{
+  "workspaceRoot": "/absolute/path/to/the-application"
+}
+```
+
+Existing `--origin` entries remain supported for custom integrations, but new
+setup should use the project-owned bridge.
 
 ### Diagnose a connection
 
@@ -214,10 +259,15 @@ Run diagnostics from the application directory:
 npx nudge-ui agent doctor
 ```
 
+The doctor prints the resolved session-registry path and the workspace and
+application scope before reporting session counts. The same fields are
+available from the adapter's `nudge_diagnose` tool, including when no sessions
+are registered.
+
 The inspector's connection panel provides status and recovery instructions.
 Disconnecting explicitly revokes the browser connection. Legacy configurations
-with `--project-id`, `--origin`, and `--workspace-root` remain supported; see the
-[MCP package documentation](packages/mcp/README.md).
+with `--project-id`, `--origin`, and `--workspace-root` remain supported during
+migration; see the [MCP package documentation](packages/mcp/README.md).
 
 
 ## Implementation

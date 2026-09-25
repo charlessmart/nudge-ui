@@ -21,10 +21,14 @@ describe("nudge-mcp CLI", () => {
 
     expect(options).toMatchObject({
       projectId: "product-site",
-      workspaceRoot: "/workspace/product-site",
+      workspaceRoot: undefined,
       origin: "http://localhost:5173",
       port: defaultBridgePort("product-site"),
     });
+  });
+
+  it("does not bind a reusable adapter to the host working directory", () => {
+    expect(parseCliArguments([], { INIT_CWD: "/unrelated/checkout" }).workspaceRoot).toBeUndefined();
   });
 
   it("opens a reachable page through the platform URL handler", async () => {

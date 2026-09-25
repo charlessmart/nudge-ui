@@ -582,6 +582,36 @@ describe("renderer hover scheduling", () => {
 });
 
 describe("renderer Select tool", () => {
+  it("blocks application links in Design and restores them in Select", () => {
+    const link = document.createElement("a");
+    link.dataset.cid = "service-link";
+    link.dataset.src = "src/garage/BikeDetails.tsx:184:23";
+    link.href = "/garage/bike-1/service/task-1";
+    document.body.append(link);
+    const defaultPreventedAtApplication: boolean[] = [];
+    link.addEventListener("click", (event) => {
+      defaultPreventedAtApplication.push(event.defaultPrevented);
+      event.preventDefault();
+    });
+
+    link.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    }));
+
+    expect(defaultPreventedAtApplication).toEqual([]);
+
+    sendInteractionState({ open: true, interactionsEnabled: false });
+    link.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    }));
+
+    expect(defaultPreventedAtApplication).toEqual([false]);
+  });
+
   it("hands the page back to the application and restores Design on resume", () => {
     const button = trackedElement("select-tool-target");
     vi.spyOn(button, "getBoundingClientRect").mockReturnValue({
@@ -609,6 +639,30 @@ describe("renderer Select tool", () => {
     button.dispatchEvent(designClick);
     expect(designClick.defaultPrevented).toBe(true);
     expect(onApplicationClick).toHaveBeenCalledOnce();
+  });
+
+  it("keeps press gestures from opening application widgets in the Design tool", () => {
+    const trigger = trackedElement("menu-trigger");
+    const openMenu = vi.fn();
+    for (const type of ["pointerdown", "mousedown", "pointerup", "contextmenu"]) {
+      trigger.addEventListener(type, openMenu);
+    }
+    const editorHost = trackedElement("inline-editor");
+    editorHost.setAttribute("data-inline-editor", "true");
+    const placeCaret = vi.fn();
+    editorHost.addEventListener("mousedown", placeCaret);
+
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    editorHost.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(openMenu).not.toHaveBeenCalled();
+    expect(placeCaret).toHaveBeenCalledOnce();
+
+    sendInteractionState({ open: true, interactionsEnabled: false });
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(openMenu).toHaveBeenCalledOnce();
   });
 
   it("lets script clicks reach the application in the Design tool", () => {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { basename, resolve } from "node:path";
 import { defaultBridgePort } from "@nudge-ui/agent-protocol";
-import { discoverProjectSessions } from "./discovery.ts";
+import { diagnoseProjectSessions, discoverProjectSessions } from "./discovery.ts";
 import {
   createAgentCompanion,
   createDiscoveredAgentAdapter,
@@ -13,7 +13,7 @@ export interface CliOptions {
   readonly command: "serve" | "doctor";
   readonly projectId: string;
   readonly origin?: string;
-  readonly workspaceRoot: string;
+  readonly workspaceRoot?: string;
   readonly host: "127.0.0.1" | "::1" | "localhost";
   readonly port: number;
   readonly commandTimeoutMs: number;
@@ -118,7 +118,7 @@ export function parseCliArguments(
   let commandTimeoutMs = environment.NUDGE_UI_COMMAND_TIMEOUT_MS === undefined
     ? DEFAULT_COMMAND_TIMEOUT_MS
     : parseInteger(environment.NUDGE_UI_COMMAND_TIMEOUT_MS, "NUDGE_UI_COMMAND_TIMEOUT_MS", 60_000);
-  let workspaceRoot = root;
+  let workspaceRoot = environment.NUDGE_UI_WORKSPACE_ROOT === undefined ? undefined : root;
   let help = false;
   let explicitPort = environment.NUDGE_UI_BRIDGE_PORT !== undefined;
 
@@ -177,7 +177,7 @@ running project unless --origin selects the legacy coupled mode.
 Options:
   --project-id <id>             Stable project pairing identity
   --origin <origin>             Exact app origin required for browser pairing
-  --workspace-root <path>       Project root supplied to the agent
+  --workspace-root <path>       Optional legacy project restriction; omitted for reusable adapters
   --host <loopback>             127.0.0.1, ::1, or localhost
   --port <port>                 Bridge port; default is deterministic per project, 0 is ephemeral
   --command-timeout-ms <ms>     Canvas acknowledgement timeout
@@ -196,13 +196,19 @@ export async function runCli(
   }
   if (options.command === "doctor") {
     const sessions = await discoverProjectSessions(options.workspaceRoot);
-    const matches = sessions.filter((session) => session.matchesApplication);
+    const matches = sessions.filter((session) => options.workspaceRoot === undefined || session.matchesApplication);
+    const diagnostics = await diagnoseProjectSessions(options.workspaceRoot);
     process.stdout.write([
-      `[nudge-ui] workspace: ${options.workspaceRoot}`,
+      `[nudge-ui] registry: ${diagnostics.registryRoot}`,
+      `[nudge-ui] workspace: ${diagnostics.workspaceRoot ?? "all projects"}`,
+      `[nudge-ui] application: ${diagnostics.applicationRoot ?? "all applications"}`,
+      `[nudge-ui] descriptors: ${diagnostics.descriptorCount}; invalid: ${diagnostics.invalidCount}; incompatible: ${diagnostics.incompatibleCount}`,
+      `[nudge-ui] matching unreachable descriptors: ${diagnostics.matchingUnreachableCount}`,
+      ...diagnostics.guidance.map((message) => `[nudge-ui] ${message}`),
       `[nudge-ui] live sessions: ${sessions.length}`,
       `[nudge-ui] matching sessions: ${matches.length}`,
       ...(matches.length === 0
-        ? ["[nudge-ui] no matching project bridge is running; start the development server to make Nudge available"]
+        ? ["[nudge-ui] no reachable compatible bridge matches; inspect the diagnostics above or start the development server"]
         : matches.map((session) => {
           const state = session.status.connection === "working"
             ? "working"
@@ -241,8 +247,10 @@ export async function runCli(
     }
     return;
   }
+  process.stderr.write("[nudge-ui] --origin uses deprecated coupled mode. Rerun agent setup to use project-owned bridges and avoid port collisions.\n");
   const companion: AgentCompanion = createAgentCompanion({
     ...options,
+    workspaceRoot: options.workspaceRoot ?? resolve(environment.INIT_CWD ?? process.cwd()),
     onControllerUnavailable: (pageUrl) => openPairedPage(pageUrl).then(() => undefined),
   });
   let stopping = false;

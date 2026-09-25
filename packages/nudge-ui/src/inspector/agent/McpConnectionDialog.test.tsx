@@ -17,6 +17,7 @@ function snapshot(overrides: Partial<AgentClientSnapshot> = {}): AgentClientSnap
     listenerActive: false,
     companionReachable: false,
     paired: false,
+    pairedElsewhere: false,
     request: null,
     ...overrides,
   };
@@ -56,6 +57,7 @@ describe("McpConnectionDialog", () => {
           snapshot={snapshot({ paired: true, connection: "paired" })}
           onOpenChange={() => undefined}
           onConnect={() => undefined}
+          onTakeOver={() => undefined}
           onDisconnect={() => undefined}
           onCheckAgain={async () => undefined}
         />,
@@ -104,6 +106,7 @@ describe("McpConnectionDialog", () => {
           })}
           onOpenChange={() => undefined}
           onConnect={onConnect}
+          onTakeOver={() => undefined}
           onDisconnect={onDisconnect}
           onCheckAgain={onCheckAgain}
         />,
@@ -143,6 +146,7 @@ describe("McpConnectionDialog", () => {
           snapshot={snapshot({ paired: true, connection: "paired" })}
           onOpenChange={() => undefined}
           onConnect={onConnect}
+          onTakeOver={() => undefined}
           onDisconnect={onDisconnect}
           onCheckAgain={onCheckAgain}
         />,
@@ -150,5 +154,33 @@ describe("McpConnectionDialog", () => {
     });
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-disconnect"]')!.click());
     expect(onDisconnect).toHaveBeenCalledOnce();
+  });
+
+  it("offers takeover when another browser owns the pairing", async () => {
+    const onTakeOver = vi.fn(() => Promise.resolve(true));
+
+    act(() => {
+      root.render(
+        <McpConnectionDialog
+          open
+          projectId="fixture-project"
+          origin="http://localhost:5173"
+          snapshot={snapshot({ companionReachable: true, listenerActive: true, pairedElsewhere: true })}
+          onOpenChange={() => undefined}
+          onConnect={() => undefined}
+          onTakeOver={onTakeOver}
+          onDisconnect={() => undefined}
+          onCheckAgain={async () => undefined}
+        />,
+      );
+    });
+
+    expect(document.body.querySelector('[data-test="mcp-connection-status"]')?.textContent)
+      .toContain("MCP active in another tab or window");
+    expect(document.body.querySelector('[data-test="mcp-connect"]')).toBeNull();
+    const takeover = document.body.querySelector<HTMLButtonElement>('[data-test="mcp-takeover"]');
+    expect(takeover).not.toBeNull();
+    act(() => takeover!.click());
+    expect(onTakeOver).toHaveBeenCalledOnce();
   });
 });

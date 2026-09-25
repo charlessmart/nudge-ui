@@ -2,7 +2,7 @@
 
 `create-nudge-ui` detects an application's host framework, installs the
 corresponding Nudge UI adapter, and updates the host configuration. The guided
-setup can also connect a coding agent to the project-local Nudge MCP server.
+setup can also connect a coding agent to Nudge.
 
 Run the initializer from the application root:
 
@@ -16,12 +16,13 @@ with React islands receives `nudge-ui/astro`, not `nudge-ui/vite`.
 
 In an interactive terminal, the initializer asks whether to connect a coding
 agent. It detects installed agents, installs the matching `@nudge-ui/mcp`
-version in the project, and adds a project-scoped MCP entry. The entry launches
-the package from this project's `node_modules` directory and passes the
-canonical workspace path, so different Git worktrees do not share a server
-configuration.
+version in the project, and installs a versioned reusable adapter under
+`~/.nudge-ui/adapters/`. The adapter is independent of the application and
+does not contain a project path, so different Git worktrees can use the same
+global MCP registration. Existing project-scoped Nudge entries are backed up
+and removed when the host supports that migration.
 
-Reload an agent that was already running, then ask it to “listen to Nudge.”
+Fully restart the agent host, then ask it to “listen to Nudge.”
 
 Use an explicit framework when automatic detection is ambiguous:
 
@@ -51,6 +52,13 @@ framework configuration:
 
 ```sh
 npm create nudge-ui@latest -- --agent-only --agent codex --yes
+```
+
+For local MCP package testing, pass a tarball with `--mcp-package`. Setup uses
+that artifact for both the project bridge and reusable adapter:
+
+```sh
+npx nudge-ui agent setup --mcp-package /absolute/path/to/nudge-ui-mcp.tgz
 ```
 
 Agent configuration is best-effort. If an agent is not supported or its native
