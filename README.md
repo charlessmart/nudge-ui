@@ -358,6 +358,4 @@ git push origin v0.2.0
 
 ## License
 
-Nudge UI is available under the [MIT License](LICENSE). See [Contributing](CONTRIBUTING.md),
-[Security](SECURITY.md), and [Code of Conduct](CODE_OF_CONDUCT.md) for
-community guidance.
+Nudge UI is available under the [MIT License](LICENSE).
