@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { agents } from "add-mcp";
@@ -7,10 +7,12 @@ import { configureProjectAgents, manualAgentConfiguration, planAgentSetup } from
 
 const temporaryDirectories: string[] = [];
 const originalCodexPath = agents.codex.configPath;
+const originalCodexDetectGlobalInstall = agents.codex.detectGlobalInstall;
 const originalOpenCodeResolver = agents.opencode.resolveConfigPath;
 const originalOpenCodeDetect = agents.opencode.detectGlobalInstall;
 afterEach(() => {
   agents.codex.configPath = originalCodexPath;
+  agents.codex.detectGlobalInstall = originalCodexDetectGlobalInstall;
   agents.opencode.resolveConfigPath = originalOpenCodeResolver;
   agents.opencode.detectGlobalInstall = originalOpenCodeDetect;
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
@@ -23,6 +25,7 @@ function fixture() {
   mkdirSync(join(projectRoot, ".codex"), { recursive: true });
   writeFileSync(join(projectRoot, "package.json"), "{}");
   agents.codex.configPath = join(root, "global.toml");
+  agents.codex.detectGlobalInstall = async () => existsSync(agents.codex.configPath);
   return { projectRoot, globalPath: agents.codex.configPath, localPath: join(projectRoot, ".codex", "config.toml"), adapterDirectory: join(root, "adapters") };
 }
 
