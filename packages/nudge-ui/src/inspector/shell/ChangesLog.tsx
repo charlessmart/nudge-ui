@@ -1,10 +1,10 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconChevronDown } from "@tabler/icons-react";
 import { isElementChange, useChanges, revertChange } from "../changes/changesLog.ts";
 import type { ChangeRecord } from "../changes/changesLog.ts";
 import { StaleChangeIndicator } from "../canvas/StaleChangeIndicator.tsx";
 import { Button } from "../ui/Button.tsx";
+import { Disclosure } from "../ui/Disclosure.tsx";
 import { presentChange } from "../changes/presentation.ts";
 import {
   getStructuralChanges,
@@ -129,13 +129,14 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
 
   return (
     <>
-      <details className="changes" data-test="changes-log">
-        <summary className="changes__title" data-test="changes-toggle">
-          <span className="changes__title-label">Changes</span>
-          {total > 0 ? <span className="changes__count">{total}</span> : null}
-          <IconChevronDown className="changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
-        </summary>
-        <div className="changes__content">
+      <Disclosure
+        className="changes"
+        data-test="changes-log"
+        triggerDataTest="changes-toggle"
+        title="Changes"
+        badge={total > 0 ? <span className="changes__count">{total}</span> : null}
+        panelClassName="changes__content"
+      >
           {groups.length === 0 && structuralChanges.length === 0 && sketches.length === 0 && sketchStore.error === null ? (
             <div className="changes__empty" data-test="changes-empty">
               No changes yet
@@ -263,8 +264,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               <SketchChanges />
             </>
           )}
-        </div>
-      </details>
+      </Disclosure>
       {onClearSession ? (
         <div className="changes__session-action" data-test="session-actions">
           <Button

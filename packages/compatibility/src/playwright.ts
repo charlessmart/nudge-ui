@@ -112,8 +112,9 @@ async function selectToken(page: Page, property: string, token: string): Promise
 
 async function revertProperty(page: Page, property: string): Promise<void> {
   const changes = page.locator('[data-test="changes-log"]');
-  const open = await changes.evaluate((element) => (element as HTMLDetailsElement).open);
-  if (!open) await changes.locator('[data-test="changes-toggle"]').click();
+  const toggle = changes.locator('[data-test="changes-toggle"]');
+  const open = await toggle.evaluate((element) => element.getAttribute("aria-expanded") === "true");
+  if (!open) await toggle.click();
   const revert = page.locator(`[data-test="change-row"][data-property="${property}"] [data-test="change-revert"]`);
   await expect(revert).toBeAttached();
   await revert.click();

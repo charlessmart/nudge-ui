@@ -6,6 +6,8 @@ import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
+// v20 adds Shift state to element drag messages so spacing handles can snap
+// changes to 8px increments.
 // v19 adds spacing drag gestures (hover point, spacing descriptor, start
 // point, and cancelled drag-end) plus renderer-to-controller keyboard shortcut
 // forwarding for Canvas frames.
@@ -20,7 +22,7 @@ import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
 
 export interface FrameMessage {
   type: string;
@@ -198,16 +200,22 @@ export interface ElementDragStartMessage extends RendererMessage {
   startPoint?: { x: number; y: number };
   /** Spacing affordance captured at pointer-down, if this is a spacing drag. */
   spacing?: SpacingDescriptor | null;
+  /** True while Shift is held; spacing drags use this to snap by 8px steps. */
+  shiftKey?: boolean;
 }
 
 export interface ElementDragMoveMessage extends RendererMessage {
   type: "element-drag-move";
   point: { x: number; y: number };
+  /** True while Shift is held; spacing drags use this to snap by 8px steps. */
+  shiftKey?: boolean;
 }
 
 export interface ElementDragEndMessage extends RendererMessage {
   type: "element-drag-end";
   point: { x: number; y: number };
+  /** True while Shift is held; spacing drags use this to snap by 8px steps. */
+  shiftKey?: boolean;
   /** True when the renderer lost the gesture before the pointer was released. */
   cancelled?: boolean;
 }

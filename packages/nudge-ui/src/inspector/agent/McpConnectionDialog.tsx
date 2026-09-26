@@ -14,6 +14,7 @@ import type { AgentClientSnapshot } from "./client.ts";
 import { getAgentConnectionStatus } from "./connectionStatus.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { Button } from "../ui/Button.tsx";
+import { Disclosure } from "../ui/Disclosure.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 
@@ -254,8 +255,7 @@ export function McpConnectionContent({
         </TimelineStep>
       </ol>
 
-      <details className="mcp-connection__details">
-        <summary>Connection details and recovery</summary>
+      <Disclosure className="mcp-connection__details" title="Connection details and recovery">
         <p className="mcp-connection__copy">The page connects automatically when the development integration is available. To diagnose setup, run <code>nudge-ui agent doctor</code> from the application directory.</p>
           <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
             <div className="mcp-connection__diagnostic">
@@ -312,7 +312,7 @@ export function McpConnectionContent({
               </Button>
             ) : null}
           </div>
-      </details>
+      </Disclosure>
 
 
 

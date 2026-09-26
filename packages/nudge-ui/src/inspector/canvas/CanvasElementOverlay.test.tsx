@@ -107,7 +107,7 @@ describe("CanvasElementOverlay", () => {
     postMessage.mockRestore();
   });
 
-  it("projects the hovered padding guide into the board viewport", () => {
+  it("projects the hovered padding guide and redraws it during a preview", () => {
     const frameDocument = iframe.contentDocument!;
     const card = frameDocument.createElement("section");
     card.setAttribute("data-cid", "Card");
@@ -126,6 +126,10 @@ describe("CanvasElementOverlay", () => {
     Object.defineProperty(frameDocument, "elementFromPoint", {
       configurable: true,
       value: () => card,
+    });
+
+    act(() => {
+      setSelectedElement(resolveSelectionFromElement(card));
     });
 
     act(() => {
@@ -165,6 +169,47 @@ describe("CanvasElementOverlay", () => {
     expect(fill?.style.top).toBe("50px");
     expect(fill?.style.width).toBe("200px");
     expect(fill?.style.height).toBe("20px");
+    expect(host.querySelector('[data-test="canvas-hover-outline"]')).toBeNull();
+    expect(host.querySelectorAll('[data-test="canvas-selected-outline"]')).toHaveLength(1);
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+
+    const updatedFill = host.querySelector<HTMLElement>('[data-test="canvas-spacing-fill"]');
+    const updatedGuide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
+    expect(updatedFill?.style.top).toBe("50px");
+    expect(updatedFill?.style.height).toBe("32px");
+    expect(updatedGuide?.style.top).toBe("65px");
+
+    dispatch({
+      type: "element-drag-end",
+      point: { x: 100, y: 32 },
+      cancelled: true,
+    });
   });
 
   it("does not render margin guides because margins are not directly draggable", () => {
@@ -234,11 +279,19 @@ describe("CanvasElementOverlay", () => {
     });
     Object.defineProperty(second, "getBoundingClientRect", {
       configurable: true,
-      value: () => ({ left: 0, top: 52, width: 160, height: 40, right: 160, bottom: 92 } as DOMRect),
+      value: () => {
+        const gap = Number.parseFloat(card.style.rowGap) || 12;
+        const top = 40 + gap;
+        return { left: 0, top, width: 160, height: 40, right: 160, bottom: top + 40 } as DOMRect;
+      },
     });
     Object.defineProperty(third, "getBoundingClientRect", {
       configurable: true,
-      value: () => ({ left: 0, top: 104, width: 160, height: 40, right: 160, bottom: 144 } as DOMRect),
+      value: () => {
+        const gap = Number.parseFloat(card.style.rowGap) || 12;
+        const top = 80 + gap * 2;
+        return { left: 0, top, width: 160, height: 40, right: 160, bottom: top + 40 } as DOMRect;
+      },
     });
     Object.defineProperty(frameDocument, "elementFromPoint", {
       configurable: true,
@@ -278,6 +331,42 @@ describe("CanvasElementOverlay", () => {
     const fills = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-fill"]'));
     expect(fills).toHaveLength(2);
     expect(fills.every((fill) => fill.dataset.kind === "gap")).toBe(true);
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "GridCard",
+      src: "/src/GridCard.tsx:12:3",
+      elementId: "r1",
+      point: { x: 80, y: 46 },
+      startPoint: { x: 80, y: 46 },
+      spacing: { kind: "gap", property: "row-gap", side: null },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 80, y: 58 } });
+
+    const updatedFills = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-fill"]'));
+    expect(updatedFills.map((fill) => fill.style.height)).toEqual(["24px", "24px"]);
+
+    dispatch({
+      type: "element-drag-end",
+      point: { x: 80, y: 58 },
+      cancelled: true,
+    });
   });
 
   it("records the same actionable rejection for an unsupported Canvas edit", () => {
@@ -393,16 +482,16 @@ describe("CanvasElementOverlay", () => {
       startPoint: { x: 100, y: 20 },
       spacing: { kind: "padding", property: "padding-top", side: "top" },
     });
-    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
-    expect(card.style.paddingTop).toBe("32px");
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 }, shiftKey: true });
+    expect(card.style.paddingTop).toBe("28px");
 
-    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 }, shiftKey: true });
 
     expect(getChangesList()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         property: "padding-top",
         oldRawValue: "20px",
-        rawValue: "32px",
+        rawValue: "28px",
       }),
     ]));
     clearWorkspace();

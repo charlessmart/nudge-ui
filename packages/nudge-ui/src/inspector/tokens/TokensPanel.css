@@ -49,14 +49,6 @@
   margin-top: 8px;
 }
 
-.token-variants summary {
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: var(--font-weight-label);
-  user-select: none;
-}
-
 .token-variants__list {
   margin-top: 7px;
   padding-left: 10px;

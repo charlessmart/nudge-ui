@@ -3,6 +3,8 @@ import { valuePolicyFor } from "./valuePolicy.ts";
 
 const CSS_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
 const CSS_NUMERIC_LITERAL = new RegExp(`^(${CSS_NUMBER_SOURCE})(px|rem|em|%)?$`, "i");
+const DRAG_PIXELS_PER_STEP = 4;
+const LARGE_DRAG_PIXELS_PER_STEP = 2;
 
 export type NudgeDirection = -1 | 1;
 
@@ -41,10 +43,10 @@ export function supportsDragNudge(property: string): boolean {
 }
 
 /**
- * Applies one nudge per two horizontal pointer pixels. Large nudges still use
- * one 8px step per pointer pixel. When a large drag starts from an off-grid
- * value, the first step snaps to the next large-step boundary in the drag
- * direction.
+ * Applies one regular nudge per four horizontal pointer pixels and one large
+ * nudge per two horizontal pointer pixels. When a large drag starts from an
+ * off-grid value, the first step snaps to the next large-step boundary in the
+ * drag direction.
  */
 export function nudgeCssValueByDrag(
   property: string,
@@ -53,7 +55,7 @@ export function nudgeCssValueByDrag(
   large = false,
   snapToLargeStep = false,
 ): string | null {
-  const steps = Math.trunc(Math.abs(deltaX) / (large ? 1 : 2));
+  const steps = Math.trunc(Math.abs(deltaX) / (large ? LARGE_DRAG_PIXELS_PER_STEP : DRAG_PIXELS_PER_STEP));
   if (steps === 0) return null;
 
   const direction: NudgeDirection = deltaX < 0 ? -1 : 1;
@@ -75,8 +77,8 @@ export function nudgeCssValueByDrag(
 
 /** Returns whether a field has a numeric value that can respond to dragging. */
 export function canNudgeCssValueByDrag(property: string, rawValue: string): boolean {
-  return nudgeCssValueByDrag(property, rawValue, 2) !== null
-    || nudgeCssValueByDrag(property, rawValue, -2) !== null;
+  return nudgeCssValueByDrag(property, rawValue, DRAG_PIXELS_PER_STEP) !== null
+    || nudgeCssValueByDrag(property, rawValue, -DRAG_PIXELS_PER_STEP) !== null;
 }
 
 /** Returns a clamped opacity percentage nudged by 1%, or 10% with Shift. */

@@ -47,6 +47,7 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     expect(host.shadowRoot).not.toBeNull();
+    expect(getNudgeUiRuntimeConfig().capabilities.domNavigation).toBe(true);
   });
 
   it.each([
@@ -76,76 +77,6 @@ describe("InspectorShell", () => {
       parent.remove();
     }
   });
-
-
-
-  it("shows two tracked parents and two tracked descendants for the selected element", () => {
-    const previousConfig = getNudgeUiRuntimeConfig();
-    const grandparent = document.createElement("div");
-    grandparent.dataset.cid = "Grandparent";
-    grandparent.dataset.src = "fixtures/grandparent.tsx:1:1";
-    const parent = document.createElement("div");
-    parent.dataset.cid = "Parent";
-    parent.dataset.src = "fixtures/parent.tsx:1:1";
-    const selected = document.createElement("button");
-    selected.dataset.cid = "Selected";
-    selected.dataset.src = "fixtures/selected.tsx:1:1";
-    const child = document.createElement("span");
-    child.dataset.cid = "Child";
-    child.dataset.src = "fixtures/child.tsx:1:1";
-    const grandchild = document.createElement("span");
-    grandchild.dataset.cid = "Grandchild";
-    grandchild.dataset.src = "fixtures/grandchild.tsx:1:1";
-    child.appendChild(grandchild);
-    selected.appendChild(child);
-    parent.appendChild(selected);
-    grandparent.appendChild(parent);
-    document.body.appendChild(grandparent);
-
-    try {
-      configureNudgeUiRuntime({
-        ...previousConfig,
-        capabilities: { ...previousConfig.capabilities, domNavigation: false },
-      });
-      host.dataset.nudgeUiDebug = "true";
-      act(() => {
-        setSelectedElement(resolveSelectionFromElement(selected));
-        mountInspector(host);
-      });
-
-      const shadow = host.shadowRoot!;
-      expect(getNudgeUiRuntimeConfig().capabilities.domNavigation).toBe(true);
-      expect(shadow.querySelector('[data-test="dom-navigation"]')).not.toBeNull();
-      expect([...shadow.querySelectorAll<HTMLButtonElement>('[data-test="dom-parent-step"]')].map((step) => step.dataset.cid)).toEqual([
-        "Parent",
-        "Grandparent",
-      ]);
-      expect([...shadow.querySelectorAll<HTMLButtonElement>('[data-test="dom-child-step"]')].map((step) => step.dataset.cid)).toEqual([
-        "Child",
-        "Grandchild",
-      ]);
-      expect(getSelectedElement()?.cid).toBe("Selected");
-
-      act(() => {
-        shadow.querySelector<HTMLButtonElement>('[data-test="dom-parent-step"][data-depth="2"]')!.click();
-      });
-      expect(getSelectedElement()?.cid).toBe("Grandparent");
-
-      act(() => {
-        setSelectedElement(resolveSelectionFromElement(selected));
-      });
-      act(() => {
-        shadow.querySelector<HTMLButtonElement>('[data-test="dom-child-step"][data-cid="Grandchild"]')!.click();
-      });
-      expect(getSelectedElement()?.cid).toBe("Grandchild");
-    } finally {
-      setSelectedElement(null);
-      grandparent.remove();
-      delete host.dataset.nudgeUiDebug;
-      configureNudgeUiRuntime(previousConfig);
-    }
-  });
-
   it("removes the source-site scope section for a uniquely mounted element", () => {
     const selected = document.createElement("button");
     selected.dataset.cid = "Selected";
@@ -246,7 +177,6 @@ describe("InspectorShell", () => {
       const shadow = host.shadowRoot!;
       expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
         .toContain("2 elements selected");
-      expect(shadow.querySelector('[data-test="dom-navigation"]')).toBeNull();
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
       expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
@@ -285,34 +215,6 @@ describe("InspectorShell", () => {
     } finally {
       setSelectedElement(null);
       elements.forEach((element) => element.remove());
-    }
-  });
-
-  it("hides DOM navigation unless the debug capability is enabled", () => {
-    const previousConfig = getNudgeUiRuntimeConfig();
-    const selected = document.createElement("button");
-    selected.dataset.cid = "Selected";
-    selected.dataset.src = "fixtures/selected.tsx:1:1";
-    const child = document.createElement("span");
-    child.dataset.cid = "Child";
-    child.dataset.src = "fixtures/child.tsx:1:1";
-    selected.appendChild(child);
-    document.body.appendChild(selected);
-
-    try {
-      configureNudgeUiRuntime({
-        ...previousConfig,
-        capabilities: { ...previousConfig.capabilities, domNavigation: false },
-      });
-      act(() => {
-        setSelectedElement(resolveSelectionFromElement(selected));
-        mountInspector(host);
-      });
-      expect(host.shadowRoot?.querySelector('[data-test="dom-navigation"]')).toBeNull();
-    } finally {
-      setSelectedElement(null);
-      selected.remove();
-      configureNudgeUiRuntime(previousConfig);
     }
   });
 

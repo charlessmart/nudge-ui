@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { computeDescendants, computeHierarchy } from "./hierarchy.ts";
+import { computeDescendants, computeHierarchy, computeNavigationNodes } from "./hierarchy.ts";
 
 describe("computeHierarchy", () => {
   let host: HTMLDivElement;
@@ -113,6 +113,51 @@ describe("computeHierarchy", () => {
       { element: first, depth: 1 },
       { element: second, depth: 1 },
       { element: firstChild, depth: 2 },
+    ]);
+  });
+
+  it("uses two parents and two descendants when both directions exist", () => {
+    const grandparent = document.createElement("div");
+    grandparent.dataset.cid = "Grandparent";
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("div");
+    selected.dataset.cid = "Selected";
+    const child = document.createElement("div");
+    child.dataset.cid = "Child";
+    const grandchild = document.createElement("div");
+    grandchild.dataset.cid = "Grandchild";
+    grandparent.append(parent);
+    parent.append(selected);
+    selected.append(child);
+    child.append(grandchild);
+    document.body.append(grandparent);
+
+    expect(computeNavigationNodes(selected, [selected, parent, grandparent])).toEqual([
+      { element: parent, direction: "up", depth: 1 },
+      { element: grandparent, direction: "up", depth: 2 },
+      { element: child, direction: "down", depth: 1 },
+      { element: grandchild, direction: "down", depth: 2 },
+    ]);
+  });
+
+  it("uses four parents when there are no descendants", () => {
+    const nodes = Array.from({ length: 5 }, (_, index) => {
+      const node = document.createElement("div");
+      node.dataset.cid = `Node${index}`;
+      return node;
+    });
+    nodes.slice(1).reduce((child, parent) => {
+      parent.append(child);
+      return parent;
+    }, nodes[0]!);
+    document.body.append(nodes.at(-1)!);
+
+    expect(computeNavigationNodes(nodes[0]!, nodes)).toEqual([
+      { element: nodes[1], direction: "up", depth: 1 },
+      { element: nodes[2], direction: "up", depth: 2 },
+      { element: nodes[3], direction: "up", depth: 3 },
+      { element: nodes[4], direction: "up", depth: 4 },
     ]);
   });
 });

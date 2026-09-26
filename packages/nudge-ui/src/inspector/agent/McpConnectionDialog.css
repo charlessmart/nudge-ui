@@ -70,6 +70,10 @@
   overflow-wrap: anywhere;
 }
 
+.mcp-connection__details .disclosure__trigger {
+  padding: var(--space-4) 0;
+}
+
 .mcp-connection__diagnostics {
   display: grid;
   gap: var(--space-8);

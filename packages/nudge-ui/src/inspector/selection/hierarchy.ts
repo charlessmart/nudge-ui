@@ -24,6 +24,12 @@ export interface DescendantNode {
   depth: number;
 }
 
+export interface NavigationNode {
+  element: HTMLElement;
+  direction: "up" | "down";
+  depth: number;
+}
+
 /** Returns the nearest tracked descendants, breadth-first and document-ordered. */
 export function computeDescendants(
   el: HTMLElement,
@@ -44,4 +50,16 @@ export function computeDescendants(
     .filter((node): node is DescendantNode & { order: number } => node !== null && node.depth <= maxDepth)
     .sort((left, right) => left.depth - right.depth || left.order - right.order);
   return descendants.slice(0, maxNodes).map(({ element, depth }) => ({ element, depth }));
+}
+
+export function computeNavigationNodes(
+  el: HTMLElement,
+  hierarchy: HTMLElement[] = computeHierarchy(el),
+): NavigationNode[] {
+  const children = computeDescendants(el, 2, 2);
+  const parents = hierarchy.slice(1, (children.length > 0 ? 2 : 4) + 1);
+  return [
+    ...parents.map((element, index) => ({ element, direction: "up" as const, depth: index + 1 })),
+    ...children.map(({ element, depth }) => ({ element, direction: "down" as const, depth })),
+  ];
 }

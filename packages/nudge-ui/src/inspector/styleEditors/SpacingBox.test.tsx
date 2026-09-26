@@ -488,6 +488,45 @@ describe("SpacingBox", () => {
     expect(rawInput("padding-horizontal").value).toBe("clamp(8px, 2vw, 24px)");
   });
 
+  it("resolves calc spacing consistently in grouped and individual fields", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "12px",
+      "padding-right": "10px",
+      "padding-bottom": "16px",
+      "padding-left": "10px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    const calcRow = (property: string, resolvedValue: string): ResolvedProperty => ({
+      property,
+      tokenName: "--space-4",
+      declaredValue: "calc(var(--space-4) * 2)",
+      authored: "calc(var(--space-4) * 2)",
+      resolvedValue,
+      computed: resolvedValue,
+      capability: "raw",
+      confidence: "probable",
+      evidence: { reason: "numeric calc spacing fixture" },
+    });
+    handle = mount(createElement(SpacingBox, {
+      element: selected,
+      tokenRows: [
+        calcRow("padding-top", "12px"),
+        calcRow("padding-right", "10px"),
+        calcRow("padding-bottom", "16px"),
+        calcRow("padding-left", "10px"),
+      ],
+    }));
+
+    expect(rawInput("padding-horizontal").value).toBe("10px");
+    showIndividualSides("padding");
+    expect(rawInput("padding-right").value).toBe("10px");
+    expect(rawInput("padding-left").value).toBe("10px");
+  });
+
   it("shows authored auto in a grouped horizontal margin field", () => {
     const { selected } = makeSelected();
     mockComputedStyle({

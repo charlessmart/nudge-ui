@@ -36,7 +36,7 @@ export interface NudgeUiRuntimeCapabilities {
   readonly canvas: boolean;
   /** Whether framework component inspection and prop overrides are available. */
   readonly componentSemantics: boolean;
-  /** Whether the experimental DOM navigation section is available. */
+  /** Whether the DOM navigator overlay is available. */
   readonly domNavigation?: boolean;
   /**
    * Source-coordinate precision policy for prompts; every source site is

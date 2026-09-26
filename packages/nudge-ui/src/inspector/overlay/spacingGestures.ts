@@ -56,6 +56,7 @@ interface GapSegment {
 
 const SPACING_DRAG_TARGET_SIZE = 16;
 export const SPACING_GUIDE_HANDLE_LENGTH = 40;
+const SPACING_SHIFT_STEP = 8;
 const EPSILON = 0.01;
 
 function rightOf(rect: DOMRect): number {
@@ -419,14 +420,19 @@ export function getSpacingAffordanceForDescriptor(
   );
 }
 
-/** Calculates the pixel value represented by a direct-manipulation drag. */
+/** Calculates a direct-manipulation value, optionally stepping changes by 8px. */
 export function spacingValueForDrag(
   affordance: Pick<SpacingAffordance, "dragAxis" | "direction" | "value">,
   start: { x: number; y: number },
   point: { x: number; y: number },
+  shiftKey = false,
 ): number {
   const delta = affordance.dragAxis === "x" ? point.x - start.x : point.y - start.y;
-  return Math.max(0, Math.round(affordance.value + delta * affordance.direction));
+  const signedDelta = delta * affordance.direction;
+  const adjustedDelta = shiftKey
+    ? Math.trunc(signedDelta / SPACING_SHIFT_STEP) * SPACING_SHIFT_STEP
+    : signedDelta;
+  return Math.max(0, Math.round(affordance.value + adjustedDelta));
 }
 
 export function spacingValueCss(value: number): string {

@@ -18,13 +18,7 @@ const manualSetupCode = [
   "Astro         nudge-ui/astro",
   "Static HTML   nudge-ui/static",
 ].join(String.fromCharCode(10));
-const agentSetupCode = [
-  "pnpm add -D @nudge-ui/mcp",
-  "pnpm exec nudge-mcp \\",
-  "  --project-id my-app \\",
-  "  --origin http://localhost:5173 \\",
-  "  --workspace-root /path/to/my-app",
-].join(String.fromCharCode(10));
+const agentSetupCode = "npx nudge-ui agent setup";
 
 const showcaseVideos = [
   {
@@ -547,10 +541,10 @@ export function App(): ReactNode {
 
               <div className="landing-setup-step">
                 <p className="landing-setup-lead">Connect your coding agent:</p>
-                <pre className="landing-setup-code"><code>{agentSetupCode}</code></pre>
+                <pre className="landing-setup-code landing-setup-code--command"><code>{agentSetupCode}</code></pre>
               </div>
 
-              <p className="landing-setup-note">Configure the agent&apos;s MCP host to run this command, reload it, then ask the agent to call <code>nudge_listen</code> and keep the listener active. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
+              <p className="landing-setup-note">Run this from your application directory, select your coding agent, then start your app normally. Fully restart the agent host and ask it to listen to Nudge. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
             </div>
           </section>
 

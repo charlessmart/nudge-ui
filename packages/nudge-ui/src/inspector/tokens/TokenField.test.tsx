@@ -321,8 +321,8 @@ describe("TokenField", () => {
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 7 })));
 
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
-    expect(sheetText()).toContain("padding-top: 18px;");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
+    expect(sheetText()).toContain("padding-top: 17px;");
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 7 })));
     expect(dragHandle.getAttribute("data-dragging")).toBeNull();
@@ -345,13 +345,13 @@ describe("TokenField", () => {
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 120 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 120 })));
-    expect(sheetText()).toContain("padding-top: 26px;");
+    expect(sheetText()).toContain("padding-top: 21px;");
 
     act(() => { expect(undo()).toBe(true); });
     expect(getChangeRecords()).toEqual([]);
     expect(sheetText()).not.toContain("padding-top:");
     act(() => { expect(redo()).toBe(true); });
-    expect(sheetText()).toContain("padding-top: 26px;");
+    expect(sheetText()).toContain("padding-top: 21px;");
   });
 
   it("overrides a token with a raw value when dragging its leading handle", () => {
@@ -370,9 +370,9 @@ describe("TokenField", () => {
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 14 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 14 })));
 
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
-    expect(sheetText()).toContain("padding-top: 18px;");
+    expect(sheetText()).toContain("padding-top: 17px;");
   });
 
   it("keeps dragging when pointer lock is unavailable", () => {
@@ -392,7 +392,7 @@ describe("TokenField", () => {
     // Pointer capture keeps the drag attached to the handle while the native
     // cursor remains visible and reports its normal client position.
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 12 })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 12 })));
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(12);
@@ -416,12 +416,12 @@ describe("TokenField", () => {
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 13 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 110, pointerId: 13 })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("21px");
-
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 111, pointerId: 13, shiftKey: true })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("24px");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 112, pointerId: 13, shiftKey: true })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("24px");
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 114, pointerId: 13, shiftKey: true })));
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
   });
 
@@ -442,7 +442,7 @@ describe("TokenField", () => {
     mockPointerCapture(dragHandle);
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 9 })));
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 102, pointerId: 9, shiftKey: true })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 9, shiftKey: true })));
 
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
     expect(onCommitRaw).toHaveBeenLastCalledWith("32px");

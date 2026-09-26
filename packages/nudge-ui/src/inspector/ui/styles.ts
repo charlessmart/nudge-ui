@@ -9,6 +9,7 @@ import buttonStyles from "./Button.css?inline";
 import segmentedControlStyles from "./SegmentedControl.css?inline";
 import iconButtonStyles from "./IconButton.css?inline";
 import toggleButtonStyles from "./ToggleButton.css?inline";
+import disclosureStyles from "./Disclosure.css?inline";
 import statusCalloutStyles from "./StatusCallout.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
@@ -28,7 +29,6 @@ import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
-import domNavigationStyles from "../shell/DomNavigation.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
 import settingsStyles from "../settings/SettingsDialog.css?inline";
@@ -46,6 +46,7 @@ export const UI_STYLES = [
   toggleButtonStyles,
   segmentedControlStyles,
   iconButtonStyles,
+  disclosureStyles,
   statusCalloutStyles,
   colorSwatchStyles,
   popoverListboxStyles,
@@ -65,7 +66,6 @@ export const UI_STYLES = [
   tokenDropdownStyles,
   tokensPanelStyles,
   changesLogStyles,
-  domNavigationStyles,
   promptSettingsStyles,
   mcpConnectionStyles,
   settingsStyles,

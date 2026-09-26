@@ -8,6 +8,7 @@ import { FieldRow } from "./FieldRow.tsx";
 import { TextInput } from "./TextInput.tsx";
 import { Select } from "./Select.tsx";
 import { Button } from "./Button.tsx";
+import { Disclosure } from "./Disclosure.tsx";
 import { IconButton } from "./IconButton.tsx";
 import { StatusCallout } from "./StatusCallout.tsx";
 import { ColorSwatch } from "./ColorSwatch.tsx";
@@ -170,6 +171,29 @@ describe("shared inspector UI", () => {
       option.click();
     });
     expect(onValueChange).toHaveBeenCalledWith("blue");
+  });
+
+  it("toggles a disclosure with label semantics", () => {
+    act(() => {
+      root.render(createElement(Disclosure, {
+        title: "Connection details",
+        badge: createElement("span", { "data-test": "disclosure-count" }, "2"),
+        "data-test": "disclosure",
+        triggerDataTest: "disclosure-toggle",
+        children: "Recovery content",
+      }));
+    });
+
+    const disclosure = host.querySelector('[data-test="disclosure"]') as HTMLElement;
+    const trigger = host.querySelector('[data-test="disclosure-toggle"]') as HTMLButtonElement;
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.querySelector(".disclosure__chevron")).not.toBeNull();
+    expect(disclosure.textContent).toContain("Recovery content");
+
+    act(() => trigger.click());
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.getAttribute("data-panel-open")).not.toBeNull();
   });
 
   it("gives actions and statuses semantic attributes", () => {

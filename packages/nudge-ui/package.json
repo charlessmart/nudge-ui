@@ -1,6 +1,6 @@
 {
   "name": "nudge-ui",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Development-only visual UI inspector. One package, one subpath per host.",
   "license": "MIT",
   "repository": {

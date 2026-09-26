@@ -5,7 +5,6 @@ import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore
 import {
   useSelectedElement,
   useSelectedElements,
-  useHierarchy,
   setSelectedElement,
   removeSelectedElement,
 } from "../selection/selectionStore.ts";
@@ -64,7 +63,6 @@ import {
 } from "../inline-text/inlineTextEditor.ts";
 import { getInlineTextFeedback } from "../inline-text/inlineTextFeedback.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
-import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
@@ -119,7 +117,6 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
-  const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
   const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
@@ -127,7 +124,6 @@ export function InspectorShell(): ReactElement {
   const sketchHost = selectedCardId || focusedCardId ? getActiveCanvasFrame() : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
-  const hierarchy = useHierarchy();
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
@@ -339,7 +335,6 @@ export function InspectorShell(): ReactElement {
           ) : null}
           {selected ? (
             <>
-              {domNavigationEnabled && !isMultiSelection ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
               {isMultiSelection || showInteractionState || hasEditScopeCallout ? (
                 <div
                   className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}

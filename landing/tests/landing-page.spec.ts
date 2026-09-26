@@ -34,7 +34,8 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(setup.getByText("npm create nudge-ui@latest", { exact: true })).toBeVisible();
   await expect(setup.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
   await expect(setup.locator("pre").filter({ hasText: "nudge-ui/astro" })).toBeVisible();
-  await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
+  await expect(setup.getByText("npx nudge-ui agent setup", { exact: true })).toBeVisible();
+  await expect(setup.getByText("Fully restart the agent host and ask it to listen to Nudge.", { exact: false })).toBeVisible();
   const openSource = app.getByRole("region", { name: "Open source" });
   await expect(openSource).toBeVisible();
   await expect(openSource.getByText("Open source because there are more front-end frameworks and libraries than atoms in the universe. If your project setup isn't supported yet, you can customise and extend to your needs - DIY your own Figma in the browser.", { exact: true })).toBeVisible();

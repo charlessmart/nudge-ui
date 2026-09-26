@@ -6,7 +6,7 @@ import {
 } from "./frameProtocol.ts";
 import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
-import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, useHierarchy, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
   readBorderWidths,
   toRect,
@@ -41,6 +41,8 @@ import {
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
+import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
+import { DomNavigator } from "../overlay/DomNavigator.tsx";
 
 interface ElementIdentity {
   elementId: string;
@@ -167,8 +169,9 @@ function clearSpacingDrag(ref: { current: CanvasSpacingDragState | null }): void
 function applySpacingPreview(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
+  shiftKey = false,
 ): void {
-  const value = spacingValueForDrag(drag.affordance, drag.start, point);
+  const value = spacingValueForDrag(drag.affordance, drag.start, point, shiftKey);
   drag.currentValue = value;
   beginLayoutPreview(drag.element, drag.affordance.property);
   drag.element.style.setProperty(drag.affordance.property, spacingValueCss(value));
@@ -217,6 +220,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
+  const hierarchy = useHierarchy();
+  const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
   const inlineTextSession = useInlineTextSession();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
@@ -312,6 +317,36 @@ export function CanvasElementOverlay(): ReactElement | null {
   }, [selected?.domElement]);
 
   useEffect(() => {
+    const refreshSpacingPreviewOverlay = (drag: CanvasSpacingDragState): void => {
+      const descriptor: SpacingDescriptor = {
+        kind: drag.affordance.kind,
+        property: drag.affordance.property,
+        side: drag.affordance.side,
+      };
+      const affordance = getSpacingAffordanceForDescriptor(drag.element, descriptor);
+      const rect = toRect(drag.element.getBoundingClientRect());
+      const borders = readBorderWidths(drag.element);
+      const elementId = drag.element.getAttribute(RENDERER_ELEMENT_ID_ATTR);
+      setHover((current) => {
+        if (!current
+          || current.iframe !== drag.iframe
+          || current.identity.elementId !== elementId
+          || !current.spacing
+          || current.spacing.kind !== descriptor.kind
+          || current.spacing.property !== descriptor.property
+          || current.spacing.side !== descriptor.side) {
+          return current;
+        }
+        return {
+          ...current,
+          rect,
+          borders,
+          spacingGuides: affordance?.affectedGuides ?? [],
+          spacingAreas: affordance?.affectedAreas ?? [],
+        };
+      });
+    };
+
     const unsubscribe = subscribeCanvasRendererMessages(({
       cardId: sourceCardId,
       iframe: sourceIframe,
@@ -418,7 +453,8 @@ export function CanvasElementOverlay(): ReactElement | null {
           };
           const selectedElement = resolveSelectionFromElement(element);
           if (selectedElement) setSelectedElement(selectedElement);
-          applySpacingPreview(spacingDragRef.current, msg.point);
+          applySpacingPreview(spacingDragRef.current, msg.point, msg.shiftKey === true);
+          refreshSpacingPreviewOverlay(spacingDragRef.current);
           return;
         }
         dragRef.current = { iframe: sourceIframe, element };
@@ -428,7 +464,8 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (data.type === "element-drag-move") {
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === sourceIframe) {
-          applySpacingPreview(spacing, data.point);
+          applySpacingPreview(spacing, data.point, data.shiftKey === true);
+          refreshSpacingPreviewOverlay(spacing);
           return;
         }
         updateDropGuide(data.point, sourceIframe);
@@ -439,9 +476,11 @@ export function CanvasElementOverlay(): ReactElement | null {
           spacingDragRef.current = null;
           if (msg.cancelled) {
             restoreSpacingPreview(spacing);
+            refreshSpacingPreviewOverlay(spacing);
           } else {
-            applySpacingPreview(spacing, msg.point);
+            applySpacingPreview(spacing, msg.point, msg.shiftKey === true);
             commitSpacingDrag(spacing);
+            refreshSpacingPreviewOverlay(spacing);
           }
           clearDropGuide("canvas");
           if (!msg.cancelled) {
@@ -527,6 +566,9 @@ export function CanvasElementOverlay(): ReactElement | null {
     && selectedIdentity
     && hoverInSelectedFrame.identity.elementId === selectedIdentity.elementId,
   );
+  // Selected elements already have a live geometry outline. The hover outline
+  // is based on a cached renderer message and can lag during spacing previews.
+  const showHoverOutline = Boolean(projectedHoverRect && !isSelfHover);
   const showMeasurement = Boolean(
     showGuideOverlay
     && selectedLocalRect
@@ -572,7 +614,9 @@ export function CanvasElementOverlay(): ReactElement | null {
               aria-hidden="true"
             />
           )) : null}
-          <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+          {showHoverOutline ? (
+            <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+          ) : null}
           {hoverSpacing ? projectedSpacingGuides.map((guide, index) => (
             <div
               key={`${hoverSpacing.property}-${index}`}
@@ -600,6 +644,16 @@ export function CanvasElementOverlay(): ReactElement | null {
           aria-hidden="true"
         />
       ))}
+      {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrame instanceof HTMLIFrameElement ? (
+        <DomNavigator
+          selected={selected}
+          hierarchy={hierarchy}
+          anchor={selectedRect}
+          project={(element) => element.ownerDocument === selected.domElement.ownerDocument
+            ? projectRect(selectedFrame, toRect(element.getBoundingClientRect()), projectionZoom)
+            : null}
+        />
+      ) : null}
       <DropGuideOverlay
         guide={projectedDropGuide}
         lineClassName="canvas-dom-drop-line"

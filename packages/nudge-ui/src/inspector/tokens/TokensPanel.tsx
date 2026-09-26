@@ -5,6 +5,7 @@ import { isTokenChange, useChanges } from "../changes/changesLog.ts";
 import type { TokenChangeRecord } from "../changes/changesLog.ts";
 import { TextInput } from "../ui/TextInput.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { Disclosure } from "../ui/Disclosure.tsx";
 import { TokenValueField } from "./TokenField.tsx";
 import {
   TOKEN_GROUP_LABELS,
@@ -131,18 +132,20 @@ function TokenCatalogItem({
       </div>
 
       {variants.length > 0 ? (
-        <details className="token-variants" data-test="token-variants">
-          <summary>Variants ({variants.length})</summary>
-          <div className="token-variants__list">
-            {variants.map((declaration) => (
-              <div className="token-variant" key={`${declaration.source}-${contextLabel(declaration.context)}`}>
-                <span className="token-variant__context">{contextLabel(declaration.context)}</span>
-                <code>{declaration.value}</code>
-                <span>{declaration.source}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+        <Disclosure
+          className="token-variants"
+          data-test="token-variants"
+          title={`Variants (${variants.length})`}
+          panelClassName="token-variants__list"
+        >
+          {variants.map((declaration) => (
+            <div className="token-variant" key={`${declaration.source}-${contextLabel(declaration.context)}`}>
+              <span className="token-variant__context">{contextLabel(declaration.context)}</span>
+              <code>{declaration.value}</code>
+              <span>{declaration.source}</span>
+            </div>
+          ))}
+        </Disclosure>
       ) : null}
     </article>
   );

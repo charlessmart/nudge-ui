@@ -37,7 +37,7 @@ describe("reusable agent setup", () => {
     expect(JSON.stringify(a.serverConfig)).not.toContain(second.projectRoot);
     expect(JSON.stringify(a.serverConfig)).not.toContain("--workspace-root");
     expect(a.packageSpecifier).toBe("@nudge-ui/mcp@0.1.9");
-    expect(a.adapterInstallCommand.args).toContain("@nudge-ui/mcp@0.2.1");
+    expect(a.adapterInstallCommand.args).toContain("@nudge-ui/mcp@0.2.2");
   });
 
   it("uses a local MCP tarball for both the project bridge and reusable adapter", () => {

@@ -248,14 +248,12 @@ function mountLockedNotice(host: HTMLElement): void {
 export function mountInspector(host: HTMLElement): void {
   const demo = isDemoRuntime();
   if (!demo && !hasWriteLease()) return;
-  if (host.dataset.nudgeUiDebug === "true") {
-    const runtimeConfig = getNudgeUiRuntimeConfig();
-    if (runtimeConfig.capabilities.domNavigation !== true) {
-      configureNudgeUiRuntime({
-        ...runtimeConfig,
-        capabilities: { ...runtimeConfig.capabilities, domNavigation: true },
-      });
-    }
+  const runtimeConfig = getNudgeUiRuntimeConfig();
+  if (runtimeConfig.capabilities.domNavigation !== true) {
+    configureNudgeUiRuntime({
+      ...runtimeConfig,
+      capabilities: { ...runtimeConfig.capabilities, domNavigation: true },
+    });
   }
   if (lockedRoot) {
     lockedRoot.unmount();

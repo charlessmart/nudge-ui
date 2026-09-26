@@ -126,6 +126,7 @@ export function SpacingField({
   const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => {
     const icon = property === "padding" ? <PaddingSideIndicator side={side} /> : <MarginSideIndicator side={side} />;
     const sideName = sideProperty(property, side);
+    const field = spacingProjection.fields[side];
     return {
       side,
       icon: null,
@@ -138,6 +139,7 @@ export function SpacingField({
           editTarget={editTarget}
           entries={entries}
           suggestions={suggestions}
+          displayValue={isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
@@ -316,7 +318,8 @@ function PairedTokenField({
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
-  const activeTokenName = !valuesMatch || expression || /\bcalc\s*\(/i.test(calcAuthored) ? null : row.tokenName;
+  const isCalcAuthored = isCalcValue(calcAuthored);
+  const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
   // Some browsers expose the used pixel size for horizontal auto margins.
   // Keep the authored keyword visible because replacing it with that transient
   // size would misrepresent the declaration and change the edit semantics.
@@ -325,7 +328,7 @@ function PairedTokenField({
     : valuesMatch
     ? calcAuthored.trim().toLowerCase() === "auto"
       ? calcAuthored.trim()
-      : expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue
+      : isCalcAuthored ? row.resolvedValue : expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue
     : axisProjection.fields.map(fieldDisplayValue).join(", ");
   const resolvedValue = valuesMatch
     ? row.resolvedValue
@@ -377,7 +380,11 @@ function PairedTokenField({
 }
 
 function fieldDisplayValue(field: InspectorFieldProjection): string {
-  return field.authoredValue.trim() || field.value;
+  return isCalcValue(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
+}
+
+function isCalcValue(value: string): boolean {
+  return /\bcalc\s*\(/i.test(value);
 }
 
 function splitAxisValue(value: string): readonly [string, string] | null {

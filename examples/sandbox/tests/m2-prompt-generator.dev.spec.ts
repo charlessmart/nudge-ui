@@ -66,9 +66,9 @@ async function changeCount(page: import("@playwright/test").Page): Promise<numbe
 async function openChangesLog(page: import("@playwright/test").Page): Promise<void> {
   const changes = page.locator('[data-test="changes-log"]');
   await expect(changes).toBeAttached();
-  const isOpen = await changes.evaluate((element) => (element as HTMLDetailsElement).open);
+  const isOpen = await changes.evaluate((element) => element.querySelector('[data-test="changes-toggle"]')?.getAttribute("aria-expanded") === "true");
   if (!isOpen) await changes.locator('[data-test="changes-toggle"]').click();
-  await expect.poll(() => changes.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(true);
+  await expect.poll(() => changes.evaluate((element) => element.querySelector('[data-test="changes-toggle"]')?.getAttribute("aria-expanded"))).toBe("true");
 }
 
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {

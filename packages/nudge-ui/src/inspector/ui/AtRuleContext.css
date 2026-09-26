@@ -44,7 +44,7 @@
 
 .at-rule-tooltip-positioner {
   /* The portal is a sibling of the panel in the inspector shadow root. */
-  z-index: 3;
+  z-index: 35;
   pointer-events: auto;
 }
 
@@ -72,10 +72,6 @@
   min-width: 0;
   padding: 5px 6px;
   border-radius: var(--radius-4);
-}
-
-.at-rule-tooltip__rule--active {
-  background: var(--accent-surface);
 }
 
 .at-rule-tooltip code {

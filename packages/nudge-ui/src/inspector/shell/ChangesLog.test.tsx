@@ -58,15 +58,16 @@ describe("ChangesLog", () => {
       });
     });
 
-    const details = container.querySelector("details")!;
-    expect(details.hasAttribute("open")).toBe(false);
-    expect(details.querySelector('[data-test="change-row"]')).not.toBeNull();
-    expect(details.querySelector('[data-test="change-row"]')?.querySelector(".changes__value")).not.toBeNull();
+    const root_ = container.querySelector('[data-test="changes-log"]')!;
+    const toggle = root_.querySelector('[data-test="changes-toggle"]') as HTMLElement;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(root_.querySelector('[data-test="change-row"]')).not.toBeNull();
+    expect(root_.querySelector('[data-test="change-row"]')?.querySelector(".changes__value")).not.toBeNull();
 
     act(() => {
-      (details.querySelector('[data-test="changes-toggle"]') as HTMLElement).click();
+      toggle.click();
     });
-    expect(details.hasAttribute("open")).toBe(true);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("renders the clear-session action below the accordion", () => {
@@ -90,9 +91,9 @@ describe("ChangesLog", () => {
       root.render(<ChangesLog onClearSession={onClearSession} />);
     });
 
-    const details = container.querySelector("details")!;
+    const root_ = container.querySelector('[data-test="changes-log"]')!;
     const actions = container.querySelector('[data-test="session-actions"]')!;
-    expect(actions.previousElementSibling).toBe(details);
+    expect(actions.previousElementSibling).toBe(root_);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--secondary");
   });

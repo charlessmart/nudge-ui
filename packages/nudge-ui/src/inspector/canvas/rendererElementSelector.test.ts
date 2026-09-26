@@ -262,18 +262,37 @@ describe("renderer hover scheduling", () => {
       button: 0,
       clientX: 100,
       clientY: 34,
+      shiftKey: true,
     }));
+    const child = trackedElement("spacing-child");
+    element.append(child);
+    const unrelated = trackedElement("unrelated-target");
+    postMessage.mockClear();
     document.dispatchEvent(new MouseEvent("mousemove", {
       bubbles: true,
       cancelable: true,
       clientX: 100,
       clientY: 46,
+      shiftKey: true,
     }));
+    child.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    unrelated.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(scheduled).toHaveLength(0);
+    expect(hoverMessages(postMessage)).toHaveLength(0);
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 50,
+      shiftKey: true,
+    }));
+    runScheduledFrame();
     document.dispatchEvent(new MouseEvent("mouseup", {
       bubbles: true,
       cancelable: true,
       clientX: 100,
-      clientY: 46,
+      clientY: 50,
+      shiftKey: true,
     }));
 
     expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
@@ -281,8 +300,10 @@ describe("renderer hover scheduling", () => {
         type: "element-drag-start",
         startPoint: { x: 100, y: 34 },
         spacing: { kind: "padding", property: "padding-top", side: "top" },
+        shiftKey: true,
       }),
-      expect.objectContaining({ type: "element-drag-end", point: { x: 100, y: 46 } }),
+      expect.objectContaining({ type: "element-drag-end", point: { x: 100, y: 50 }, shiftKey: true }),
+      expect.objectContaining({ type: "element-drag-move", point: { x: 100, y: 50 }, shiftKey: true }),
     ]));
     expect(postMessage.mock.calls.map(([message]) => message)
       .some((message) => typeof message === "object"

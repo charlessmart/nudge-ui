@@ -127,6 +127,7 @@ export function installRendererElementSelector(
   let scrolling = false;
   let scrollSettleTimer: number | null = null;
   let activeHoverElement: HTMLElement | null = null;
+  let suppressHoverDuringSpacingDrag = false;
   let lastHoverPoint: {
     x: number;
     y: number;
@@ -249,7 +250,7 @@ export function installRendererElementSelector(
     clear: boolean;
     point: { x: number; y: number } | null;
   }) => {
-    if (disposed || scrolling) return;
+    if (disposed || scrolling || suppressHoverDuringSpacingDrag) return;
     reportHover(pending);
   });
 
@@ -264,7 +265,7 @@ export function installRendererElementSelector(
   function resumeHoverAfterScroll(): void {
     scrollSettleTimer = null;
     scrolling = false;
-    if (disposed || interactionsSuspended || !lastHoverPoint) return;
+    if (disposed || interactionsSuspended || suppressHoverDuringSpacingDrag || !lastHoverPoint) return;
     const target = document.elementFromPoint?.(lastHoverPoint.x, lastHoverPoint.y);
     const element = resolveSelectionTarget(target, lastHoverPoint.mode);
     if (!element) return;
@@ -309,6 +310,7 @@ export function installRendererElementSelector(
     (event: MouseEvent) => {
       if (interactionsSuspended) return;
       updateMeasureState(event.altKey, true);
+      if (suppressHoverDuringSpacingDrag) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
@@ -380,15 +382,21 @@ export function installRendererElementSelector(
     }
   });
 
-  const dragMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
+  const dragMoveUpdate = createFrameThrottle((drag: { point: { x: number; y: number }; shiftKey: boolean }) => {
     if (disposed) return;
     const identity = getRendererIdentity();
-    if (!point || !identity) return;
-    const msg: ElementDragMoveMessage = { type: "element-drag-move", protocolVersion: PROTOCOL_VERSION, point, ...identity };
+    if (!drag || !identity) return;
+    const msg: ElementDragMoveMessage = {
+      type: "element-drag-move",
+      protocolVersion: PROTOCOL_VERSION,
+      point: drag.point,
+      shiftKey: drag.shiftKey,
+      ...identity,
+    };
     sendToParent(msg);
   });
 
-  function sendDragEnd(point: { x: number; y: number } | null, cancelled: boolean): void {
+  function sendDragEnd(point: { x: number; y: number } | null, cancelled: boolean, shiftKey = false): void {
     if (!dragging || !point) return;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -396,6 +404,7 @@ export function installRendererElementSelector(
       type: "element-drag-end",
       protocolVersion: PROTOCOL_VERSION,
       point,
+      shiftKey,
       ...(cancelled ? { cancelled: true } : {}),
       ...identity,
     };
@@ -407,6 +416,7 @@ export function installRendererElementSelector(
     sendDragEnd(lastDragPoint, true);
     pendingDrag = null;
     dragging = false;
+    suppressHoverDuringSpacingDrag = false;
   }
 
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
@@ -418,6 +428,11 @@ export function installRendererElementSelector(
     const spacing = spacingAffordance?.element === element
       ? toSpacingDescriptor(spacingAffordance)
       : null;
+    if (spacing) {
+      suppressHoverDuringSpacingDrag = true;
+      hoverUpdate.cancel();
+      lastHoverPoint = null;
+    }
     const identity = getRendererIdentity();
     // A spacing drag owns the pointer gesture. Do not start an inline-text
     // attempt for the same down event; padding and gaps are intentionally not
@@ -485,11 +500,12 @@ export function installRendererElementSelector(
         elementId: cidIndex.elementId(pendingDrag.element), point,
         startPoint: pendingDrag.point,
         spacing: pendingDrag.spacing,
+        shiftKey: event.shiftKey,
         ...identity,
       };
       sendToParent(msg);
     } else {
-      dragMoveUpdate.schedule(point);
+      dragMoveUpdate.schedule({ point, shiftKey: event.shiftKey });
     }
   }, true);
 
@@ -499,10 +515,11 @@ export function installRendererElementSelector(
       event.preventDefault();
       const point = { x: event.clientX, y: event.clientY };
       lastDragPoint = point;
-      sendDragEnd(point, false);
+      sendDragEnd(point, false, event.shiftKey);
     }
     pendingDrag = null;
     dragging = false;
+    suppressHoverDuringSpacingDrag = false;
   }
   trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
@@ -733,6 +750,7 @@ export function installRendererElementSelector(
     activeHoverElement = null;
     lastHoverPoint = null;
     scrolling = false;
+    suppressHoverDuringSpacingDrag = false;
     measurePointerOverPage = false;
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");

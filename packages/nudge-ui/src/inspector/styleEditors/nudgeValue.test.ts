@@ -38,18 +38,18 @@ describe("nudgeCssValue", () => {
     expect(nudgeCssValue(property, value, 1)).toBeNull();
   });
 
-  it("maps horizontal drag distance at half speed", () => {
-    expect(nudgeCssValueByDrag("padding-top", "16px", 1)).toBeNull();
-    expect(nudgeCssValueByDrag("padding-top", "16px", 4)).toBe("18px");
-    expect(nudgeCssValueByDrag("border-radius", "16px", -2, true)).toBe("0px");
-    expect(nudgeCssValueByDrag("margin-top", "1rem", 2, true)).toBe("3rem");
-    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 2)).toBe("9px, 17px");
+  it("maps horizontal drag distance at reduced speed", () => {
+    expect(nudgeCssValueByDrag("padding-top", "16px", 2)).toBeNull();
+    expect(nudgeCssValueByDrag("padding-top", "16px", 4)).toBe("17px");
+    expect(nudgeCssValueByDrag("border-radius", "16px", -2, true)).toBe("8px");
+    expect(nudgeCssValueByDrag("margin-top", "1rem", 2, true)).toBe("2rem");
+    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 4)).toBe("9px, 17px");
   });
 
   it("snaps to the next large-step boundary when Shift starts mid-drag", () => {
-    expect(nudgeCssValueByDrag("padding-top", "21px", 1, true, true)).toBe("24px");
-    expect(nudgeCssValueByDrag("padding-top", "24px", 1, true)).toBe("32px");
-    expect(nudgeCssValueByDrag("padding-top", "21px", -1, true, true)).toBe("16px");
+    expect(nudgeCssValueByDrag("padding-top", "21px", 2, true, true)).toBe("24px");
+    expect(nudgeCssValueByDrag("padding-top", "24px", 2, true)).toBe("32px");
+    expect(nudgeCssValueByDrag("padding-top", "21px", -2, true, true)).toBe("16px");
   });
 
   it.each([

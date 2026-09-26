@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useInspectorOpen } from "../shell/openStore.ts";
-import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, useHierarchy, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import { installElementSelector } from "./elementSelector.ts";
 import {
   getMarginFills,
@@ -26,6 +26,8 @@ import { MeasurementGuideOverlay } from "./MeasurementGuideOverlay.tsx";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
+import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
+import { DomNavigator } from "./DomNavigator.tsx";
 
 export {
   getMarginFills,
@@ -50,6 +52,8 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
   const open = useInspectorOpen();
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
+  const hierarchy = useHierarchy();
+  const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
   const inlineTextSession = useInlineTextSession();
   const [hoverRect, setHoverRect] = useState<Rect | null>(null);
   const [hoverMargins, setHoverMargins] = useState<Margins | null>(null);
@@ -376,6 +380,14 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           aria-hidden="true"
         />
       )) : null}
+      {open && domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect ? (
+        <DomNavigator
+          selected={selected}
+          hierarchy={hierarchy}
+          anchor={selectedRect}
+          project={(element) => toRect(element.getBoundingClientRect())}
+        />
+      ) : null}
       {open && selectedElements.length === 1 ? <DropGuideOverlay
         guide={dropGuide?.document === document
           ? { orientation: dropGuide.orientation, line: dropGuide.line, target: dropGuide.target }

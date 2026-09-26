@@ -197,4 +197,13 @@ describe("spacing gestures", () => {
     expect(right?.property).toBe("padding-right");
     expect(spacingValueForDrag(right!, { x: 200, y: 70 }, { x: 208, y: 70 })).toBe(28);
   });
+
+  it("moves spacing in 8px increments while Shift is held", () => {
+    const affordance = { dragAxis: "y" as const, direction: 1 as const, value: 20 };
+
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 27 }, true)).toBe(20);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 28 }, true)).toBe(28);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 44 }, true)).toBe(44);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 12 }, true)).toBe(12);
+  });
 });
