@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
+import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown, IconCopy } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
@@ -27,12 +27,20 @@ import {
   resizeCanvasRect,
   type CanvasResizeDirection,
 } from "./canvasResize.ts";
+import {
+  getCheckpointView,
+  readHistoryImage,
+  removeCardHistory,
+  showLiveFrame,
+  useFrameContent,
+} from "../history/store.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
   onShowFocus?: (cardId: string) => void;
+  onDuplicate?: (cardId: string) => void;
   documentOwner?: InspectorSession;
 }
 
@@ -62,7 +70,7 @@ function resizeHandleTransform(direction: CanvasResizeDirection, scale: number):
   return `scale(${scale})`;
 }
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onShowFocus, onDuplicate, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(card.navigationUrl ?? card.url);
   const navigationUrlRef = useRef(card.navigationUrl);
@@ -78,6 +86,30 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const isFocusPresentationCard = presentation === "focus" && presentationCard;
   const toolbarScale = getCanvasToolbarScale(camera.zoom);
   const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
+  const frameContent = useFrameContent(card.id);
+  const snapshotView = frameContent?.kind === "snapshot"
+    ? getCheckpointView(frameContent.checkpointId, frameContent.viewId)
+    : null;
+  const snapshotImageId = snapshotView?.image.id ?? null;
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!snapshotView || !snapshotImageId) {
+      setSnapshotUrl(null);
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    void readHistoryImage(snapshotImageId).then((blob) => {
+      if (!active || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSnapshotUrl(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [snapshotImageId]);
 
   const disposeDocumentSession = useCallback((): void => {
     documentSessionRef.current?.session.dispose();
@@ -126,6 +158,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   function handleRemove(): void {
     if (getSelectedCardId() === card.id) setSelectedElement(null);
     removeCanvasCard(card.id);
+    removeCardHistory(card.id);
   }
 
   function updateFrameTitle(title: string | undefined): void {
@@ -402,7 +435,6 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         >
           {onShowFocus ? (
             <Button
-              title="Focus"
               variant="primary"
               size="default"
               data-test={`canvas-card-focus-${card.id}`}
@@ -414,6 +446,29 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             >
               <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
               Focus
+            </Button>
+          ) : null}
+          {onDuplicate && frameContent?.kind !== "snapshot" ? (
+            <Button
+              variant="secondary"
+              size="default"
+              data-test={`canvas-card-duplicate-${card.id}`}
+              style={{ transform: `scale(${toolbarScale})`, transformOrigin: "left bottom" }}
+              onClick={() => onDuplicate(card.id)}
+            >
+              <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+              Duplicate
+            </Button>
+          ) : null}
+          {frameContent?.kind === "snapshot" ? (
+            <Button
+              variant="secondary"
+              size="default"
+              data-test={`canvas-card-show-live-${card.id}`}
+              style={{ transform: `scale(${toolbarScale})`, transformOrigin: "left bottom" }}
+              onClick={() => showLiveFrame(card.id)}
+            >
+              Show live app
             </Button>
           ) : null}
           <span
@@ -451,7 +506,14 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
-        <SketchFrameOverlay iframe={iframeRef.current} cardUrl={card.url} ready={loadState === "ready"} />
+        {snapshotView ? (
+          <div className="canvas-card__snapshot" data-test={`canvas-card-snapshot-${card.id}`}>
+            {snapshotUrl ? <img src={snapshotUrl} alt={`${snapshotView.title || card.title || "Preview"} snapshot`} /> : null}
+            <span>Snapshot</span>
+          </div>
+        ) : (
+          <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={card.url} ready={loadState === "ready"} />
+        )}
       </div>
       {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
         <div

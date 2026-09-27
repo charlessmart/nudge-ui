@@ -7,6 +7,8 @@ import { copyImageToClipboard } from "./raster.ts";
 import { closeSketchNote } from "./sketchNote.ts";
 import { removeSketch, useSketchStore } from "./store.ts";
 import type { SketchQueueItem } from "./model.ts";
+import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
 
 function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactElement {
   const [url, setUrl] = useState<string | null>(null);
@@ -96,11 +98,16 @@ function SketchLayer({ item, index }: { readonly item: SketchQueueItem; readonly
 
 export function SketchLayersPanel(): ReactElement | null {
   const { items } = useSketchStore();
-  if (items.length === 0) return null;
+  useVersionHistory();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const cardId = selectedCardId ?? focusedCardId;
+  const visibleItems = items.filter((item) => sketchBelongsToCard(item.document.id, cardId));
+  if (visibleItems.length === 0) return null;
 
   return (
     <section className="sketch-layers" data-test="sketch-layers" aria-label="Sketch layers">
-      {items.map((item, index) => (
+      {visibleItems.map((item, index) => (
         <SketchLayer key={`${item.document.id}:${item.document.revision}`} item={item} index={index} />
       ))}
       <p className="sketch-layers__hint" data-test="sketch-copy-helper">Copy prompt and sketch individually into agent</p>

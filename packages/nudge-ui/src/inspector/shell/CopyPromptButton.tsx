@@ -42,6 +42,10 @@ import {
 } from "../sketch/handoff.ts";
 import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
+import { getFocusedCardId, getSelectedCardId, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+import { captureImplementationHistory, completeHandoffHistory, getLiveCardId, getWorkspaceForCard, prepareHandoffHistory, sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
+import { VersionHistoryPanel } from "../history/VersionHistoryPanel.tsx";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -57,8 +61,13 @@ export function CopyPromptButton({
   onSettingsOpenChange,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
+  useVersionHistory();
   const sketches = useSketches();
-  const pendingSketches = sketches.filter((item) => item.status === "pending");
+  const selectedHistoryCardId = useSelectedCardId();
+  const focusedHistoryCardId = useFocusedCardId();
+  const activeHistoryCardId = getLiveCardId(selectedHistoryCardId, focusedHistoryCardId);
+  const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document.id, activeHistoryCardId));
+  const pendingSketches = visibleSketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -71,6 +80,7 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [historyMessage, setHistoryMessage] = useState<string | null>(null);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{
     readonly prompt: string;
@@ -90,9 +100,10 @@ export function CopyPromptButton({
   );
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const agentRef = useRef(agent);
+  const historyHandoffByRevisionRef = useRef(new Map<number, { handoffId: string; cardId: string }>());
   agentRef.current = agent;
   const hasChanges = changes.length + structuralChanges.length + pendingSketches.length > 0;
-  const changeCount = changes.length + structuralChanges.length + sketches.length;
+  const changeCount = changes.length + structuralChanges.length + visibleSketches.length;
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -120,6 +131,15 @@ export function CopyPromptButton({
         const latest = agentRef.current;
         if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
         setAgentCompletionStatus(removed > 0 ? "verified" : null);
+        const handoff = historyHandoffByRevisionRef.current.get(revision);
+        if (handoff) {
+          historyHandoffByRevisionRef.current.delete(revision);
+          void captureImplementationHistory({
+            handoffId: handoff.handoffId,
+            activeCardId: handoff.cardId,
+            verified: removed > 0,
+          }).catch(() => undefined);
+        }
       })
       .catch(() => {
         if (!active) return;
@@ -185,14 +205,44 @@ export function CopyPromptButton({
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
     };
+    const activeCardId = getLiveCardId(getSelectedCardId(), getFocusedCardId());
+    // Pin the prompt to the active draft's workspace so a duplicate's prompt
+    // contains only that version's edits. The global change log mirrors the
+    // active draft, but reading through the draft makes the ownership explicit
+    // and keeps inactive alternatives out of the export.
+    const draftWorkspace = activeCardId ? getWorkspaceForCard(activeCardId) : null;
+    const promptChanges = draftWorkspace ? [...draftWorkspace.changes] : changes;
+    const promptStructural = draftWorkspace ? [...draftWorkspace.structuralChanges] : structuralChanges;
     const sketchHandoff = createSketchHandoffSnapshot(pendingSketches);
     const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
-    const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata);
+    const text = generatePrompt(promptChanges, hints, promptStructural, customInstructions, sketchMetadata);
+    const history = activeCardId && getRegisteredFrames().has(activeCardId)
+      ? await prepareHandoffHistory({
+        activeCardId,
+        prompt: text,
+        transport: canSend ? "agent" : "clipboard",
+      })
+      : null;
+    if (history && !history.ok) {
+      // A revision conflict means the draft changed while its version was
+      // being saved; abort rather than exporting a stale prompt. Capture or
+      // storage failures still allow an explicit export without history.
+      if (history.code === "revision-conflict") {
+        setHistoryMessage("The design changed while saving. Review your edits and try again.");
+        return;
+      }
+      setHistoryMessage(history.message);
+    } else {
+      setHistoryMessage(null);
+    }
     setAgentCompletionStatus(null);
     setSketchFallback(null);
     if (canSend) {
-      const revision = createPromptRevision(changes, structuralChanges, sketchMetadata);
-      recordAgentDispatch(revision, changes, structuralChanges);
+      const revision = createPromptRevision(promptChanges, promptStructural, sketchMetadata);
+      if (history?.ok && activeCardId) {
+        historyHandoffByRevisionRef.current.set(revision, { handoffId: history.value.id, cardId: activeCardId });
+      }
+      recordAgentDispatch(revision, promptChanges, promptStructural);
       const clientDispatchId = sketchHandoff?.localBatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let attachments = undefined;
       try {
@@ -217,6 +267,7 @@ export function CopyPromptButton({
               response.request.requestId,
             );
           }
+          if (history?.ok) completeHandoffHistory(history.value.id, response.request.requestId);
           return;
         }
         if (sketchHandoff) {
@@ -245,8 +296,12 @@ export function CopyPromptButton({
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
-    if (changes.length > 0 || structuralChanges.length > 0) {
-      recordClipboardHandoff(changes, structuralChanges);
+    if (promptChanges.length > 0 || promptStructural.length > 0) {
+      recordClipboardHandoff(promptChanges, promptStructural);
+    }
+    if (history?.ok) {
+      completeHandoffHistory(history.value.id);
+      setHistoryMessage("Version saved. The comparison is preserved as a snapshot.");
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
@@ -303,38 +358,33 @@ export function CopyPromptButton({
     openMcpConnection();
   }
 
+  const promptButton = (
+    <Button
+      variant="primary"
+      className="copy-prompt__main"
+      data-test="copy-prompt"
+      type="button"
+      disabled={disabled}
+      data-copied={copied ? "true" : "false"}
+      data-agent-state={agent.state}
+      aria-busy={working || connecting ? "true" : undefined}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+      {changeCount > 0 ? (
+        <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
+          {changeCount}
+        </span>
+      ) : null}
+    </Button>
+  );
+
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      <Button
-        variant="primary"
-        className="copy-prompt__main"
-        data-test="copy-prompt"
-        type="button"
-        disabled={disabled}
-        data-copied={copied ? "true" : "false"}
-        data-agent-state={agent.state}
-        data-agent-listening={agentStatus.kind === "listening" ? "true" : undefined}
-        aria-busy={working || connecting ? "true" : undefined}
-        title={agent.error}
-        onClick={onClick}
-      >
-        {icon}
-        {label}
-        {changeCount > 0 ? (
-          <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
-            {changeCount}
-          </span>
-        ) : null}
-        {agentStatus.kind === "listening" ? (
-          <span
-            className="copy-prompt__agent-listening"
-            data-test="agent-listening-indicator"
-            role="status"
-            aria-label="Agent listening"
-          />
-        ) : null}
-      </Button>
+      {promptButton}
       <SketchLayersPanel />
+      <VersionHistoryPanel />
       {statusAction || agentStatus.kind === "connected-not-listening" ? (
         <StatusCallout
           className="copy-prompt__agent-status"
@@ -361,6 +411,11 @@ export function CopyPromptButton({
       {reconciledCount > 0 ? (
         <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="clipboard-reconciled-hint" role="status">
           {reconciledCount} Implemented changes
+        </p>
+      ) : null}
+      {historyMessage ? (
+        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="version-history-hint" role="status">
+          {historyMessage}
         </p>
       ) : null}
       {agentCompletionStatus === "verified" ? (

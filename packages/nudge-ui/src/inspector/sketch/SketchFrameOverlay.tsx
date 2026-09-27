@@ -4,9 +4,11 @@ import { SketchSvgLayer } from "./freehand.tsx";
 import { useSketchStore } from "./store.ts";
 import type { SketchAnnotation, SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
 import { getSketchScrollPosition } from "./capture.ts";
+import { sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
 
 interface SketchFrameOverlayProps {
   readonly iframe: HTMLIFrameElement | null;
+  readonly cardId?: string;
   readonly cardUrl: string;
   readonly ready: boolean;
 }
@@ -49,8 +51,8 @@ export function projectSketchPoint(
   height: number,
 ): SketchPoint {
   const capture = document.capture;
-  const imageWidth = Math.max(1, document.imageWidth);
-  const imageHeight = Math.max(1, document.imageHeight);
+  const imageWidth = Math.max(1, document.capture.imageWidth);
+  const imageHeight = Math.max(1, document.capture.imageHeight);
   const viewportWidth = Math.max(1, frameWindow.innerWidth || width);
   const viewportHeight = Math.max(1, frameWindow.innerHeight || height);
   const scroll = getSketchScrollPosition(frameWindow);
@@ -74,7 +76,7 @@ function visibleStroke(
   width: number,
   height: number,
 ): SketchStroke {
-  const captureScale = document.capture.viewportWidth / Math.max(1, document.imageWidth);
+  const captureScale = document.capture.viewportWidth / Math.max(1, document.capture.imageWidth);
   const currentScale = width / Math.max(1, frameWindow.innerWidth || width);
   return {
     ...stroke,
@@ -83,14 +85,16 @@ function visibleStroke(
   };
 }
 
-export function SketchFrameOverlay({ iframe, cardUrl, ready }: SketchFrameOverlayProps): ReactElement | null {
+export function SketchFrameOverlay({ cardId, iframe, cardUrl, ready }: SketchFrameOverlayProps): ReactElement | null {
   const { items } = useSketchStore();
+  useVersionHistory();
   const [revision, setRevision] = useState(0);
   const documents = useMemo(
     () => ready && iframe
-      ? items.map((item) => item.document).filter((document) => sameFrame(document, iframe, cardUrl))
+      ? items.map((item) => item.document).filter((document) =>
+        sketchBelongsToCard(document.id, cardId ?? null) && sameFrame(document, iframe, cardUrl))
       : [],
-    [cardUrl, iframe, items, ready],
+    [cardId, cardUrl, iframe, items, ready],
   );
 
   useEffect(() => {

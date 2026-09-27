@@ -24,13 +24,29 @@ import {
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
-export const PROJECT_ID = window.location.origin;
+/** Per-card workspace lookup registered by the history module's owner.
+ * This indirection keeps canvas projection importable in unit tests and
+ * avoids a static cycle between projection and version history. */
+let cardWorkspaceProvider: ((cardId: string) => WorkspaceContents | null) | null = null;
 
-export const WORKSPACE_ID = crypto.randomUUID?.() ?? `ws-${Date.now()}`;
+export function registerCardWorkspaceProvider(
+  provider: ((cardId: string) => WorkspaceContents | null) | null,
+): void {
+  cardWorkspaceProvider = provider;
+}
+
+export const PROJECT_ID = typeof window !== "undefined" && window.location?.origin
+  ? window.location.origin
+  : "";
+
+export const WORKSPACE_ID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+  ? crypto.randomUUID()
+  : `ws-${Date.now()}`;
 
 let revision = 0;
 let lastRulesKey: string | null = null;
 let lastPeekActive = false;
+const cardProjectionKeys = new Map<string, string>();
 
 interface FrameProjectionState {
   iframe: HTMLIFrameElement;
@@ -121,10 +137,23 @@ export function computeProjection() {
   return { ...plan, css: plan.managedStyles.css, revision };
 }
 
+function computeProjectionForCard(cardId: string) {
+  if (isOriginalPreviewActive()) return computeProjection();
+  const workspace = cardWorkspaceProvider?.(cardId) ?? getWorkspaceChanges();
+  const plan = compileWorkspaceProjection({ ...workspace, revision: 0 });
+  const key = projectionKey(plan);
+  if (cardProjectionKeys.get(cardId) !== key) {
+    cardProjectionKeys.set(cardId, key);
+    revision += 1;
+  }
+  return { ...plan, css: plan.managedStyles.css, revision };
+}
+
 export function resetProjectionRevision(): void {
   revision = 0;
   lastRulesKey = null;
   lastPeekActive = false;
+  cardProjectionKeys.clear();
   for (const state of frameProjectionStates.values()) {
     state.sentRevision = -1;
     state.appliedRevision = -1;
@@ -140,7 +169,7 @@ export function sendProjectionToCard(
 ): void {
   const win = iframe.contentWindow;
   if (!win) return;
-  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjection();
+  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjectionForCard(card.id);
   sendProjectionMessage(card.id, iframe, rev, css, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, true);
 }
 
@@ -375,8 +404,8 @@ function notifyFrameRegistryListeners(): void {
 
 export function projectToAllReadyCards(): void {
   if (getCanvasMode() !== "canvas") return;
-  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjection();
   for (const [cardId, iframe] of frameRegistry) {
+    const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjectionForCard(cardId);
     sendProjectionMessage(
       cardId,
       iframe,

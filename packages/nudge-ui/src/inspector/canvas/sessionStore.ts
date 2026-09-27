@@ -39,6 +39,7 @@ import {
   isClipboardHandoffSnapshot,
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
+import { clearVersionHistory } from "../history/store.ts";
 
 // v12 is the first durable-session schema after the edit model and preview
 // diagnostic split. Previous session shapes are intentionally incompatible.
@@ -488,6 +489,7 @@ export function clearSession(): void {
 
   clearWorkspaceLog();
   clearClipboardHandoff();
+  clearVersionHistory();
   resetStructuralDeleteProjection();
   removeManagedSheet();
   setSelectedElement(null);

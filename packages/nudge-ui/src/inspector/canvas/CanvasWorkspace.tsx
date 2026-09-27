@@ -27,6 +27,7 @@ import {
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
+  duplicateCard,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -82,6 +83,21 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { DESIGN_SELECT_CURSOR, DRAG_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
+import {
+  activateDraftForCard,
+  forkDraftForCard,
+  getWorkspaceForCard,
+  initializeVersionHistory,
+  registerHistoryFrameLookup,
+  removeCardHistory,
+} from "../history/store.ts";
+import { registerCardWorkspaceProvider } from "./projection.ts";
+
+// Breaks the static cycle between projection and history: projection asks
+// this provider for per-card workspaces, while history captures through the
+// registered frame lookup. Both stay importable in Node unit tests.
+registerCardWorkspaceProvider((cardId) => getWorkspaceForCard(cardId));
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
@@ -137,8 +153,28 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
   const rendererInteractionsEnabled = interactionTool !== "select";
+  const rendererCursor: RendererCursor = interactionTool === "pan" ? "drag" : "design";
+  const boardCursor = interactionTool === "pan" || boardCursorClass !== ""
+    ? DRAG_CURSOR
+    : interactionTool === "design"
+      ? DESIGN_SELECT_CURSOR
+      : undefined;
   const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
+
+  useEffect(() => {
+    registerHistoryFrameLookup(() => getRegisteredFrames());
+    return () => registerHistoryFrameLookup(null);
+  }, []);
+
+  useEffect(() => {
+    initializeVersionHistory(runtimeConfig.projectId, cards.map((card) => card.id));
+  }, [cards, runtimeConfig.projectId]);
+
+  useEffect(() => {
+    const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
+    if (activeCardId) activateDraftForCard(activeCardId);
+  }, [cards, focusedCardId, selectedCardId]);
 
   useLayoutEffect(() => {
     const board = boardRef.current;
@@ -280,6 +316,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       spaceHeld,
+      cursor: spaceHeld ? "drag" : "design",
     }, window.location.origin);
   }, []);
 
@@ -288,6 +325,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     cardId: string,
     open: boolean,
     interactionsEnabled: boolean,
+    cursor: RendererCursor,
   ) => {
     iframe.contentWindow?.postMessage({
       type: "inspector-interaction-state",
@@ -297,6 +335,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       cardId,
       open,
       interactionsEnabled,
+      cursor,
     }, window.location.origin);
   }, []);
 
@@ -324,11 +363,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
-      sendInspectorInteractionState(iframe, cardId, inspectorOpen, rendererInteractionsEnabled);
+      sendInspectorInteractionState(iframe, cardId, inspectorOpen, rendererInteractionsEnabled, rendererCursor);
       sendBoardGestureState(iframe, cardId, presentation === "canvas");
       sendLinkTargetState(iframe, cardId, linksOpenInCards);
     }
-  }, [inspectorOpen, linksOpenInCards, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState]);
+  }, [inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState]);
 
   const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -450,6 +489,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setCanvasPresentation("focus");
   }, []);
 
+  const duplicateDesign = useCallback((cardId: string) => {
+    const duplicate = duplicateCard(cardId);
+    if (!duplicate) return;
+    forkDraftForCard(cardId, duplicate.id);
+    selectCard(duplicate.id);
+    setCanvasPresentation("canvas");
+  }, []);
+
   useEffect(() => {
     if (!sketchActive && interactionTool === "sketch") {
       setInteractionTool("design");
@@ -542,7 +589,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
         sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);
-        sendInspectorInteractionState(frame.iframe, frame.cardId, inspectorOpen, rendererInteractionsEnabled);
+        sendInspectorInteractionState(
+          frame.iframe,
+          frame.cardId,
+          inspectorOpen,
+          rendererInteractionsEnabled,
+          spaceHeldRef.current ? "drag" : rendererCursor,
+        );
         sendBoardGestureState(frame.iframe, frame.cardId, presentation === "canvas");
         sendLinkTargetState(frame.iframe, frame.cardId, linksOpenInCards);
       }
@@ -609,7 +662,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -631,6 +684,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (!selectedCardId) return;
         e.preventDefault();
         removeCanvasCard(selectedCardId);
+        removeCardHistory(selectedCardId);
         return;
       }
       if (e.code === "Space" && !e.repeat) {
@@ -720,6 +774,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           className={`canvas-workspace__board ${boardCursorClass}`.trim()}
           data-test="canvas-board"
           ref={boardRef}
+          style={{ cursor: boardCursor }}
           onPointerDown={handleBoardPointerDown}
         >
           {!primaryUrl ? (
@@ -755,6 +810,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
                 onShowFocus={showFocus}
+                onDuplicate={duplicateDesign}
                 documentOwner={inspectorSession}
               />
             ))}
