@@ -101,7 +101,6 @@ export function SideValuesField({
               size="default"
               data-test="add-value"
               label={`Add ${labelText}`}
-              title={`Add ${labelText}`}
               onClick={onAdd}
             >
               <IconPlus size={16} aria-hidden="true" />
@@ -122,12 +121,11 @@ export function SideValuesField({
               <div className="side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
                 {orderedPairedControls.map(({ axis, control, icon }) => (
                   <ControlSurface
+                    key={axis}
                     className="side-values__side"
                     data-test={`pair-value-${axis}`}
                     data-axis={axis}
                     aria-label={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
-                    title={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
-                    key={axis}
                   >
                     {icon !== undefined ? icon : <AxisIndicator axis={axis} />}
                     <div className="side-values__control">{control}</div>
@@ -140,7 +138,6 @@ export function SideValuesField({
               size="default"
               data-test="individual-sides"
               label={isExpanded ? `Collapse ${labelText} Sides` : `Expand ${labelText} Sides`}
-              title={isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               pressed={isExpanded}
               onPressedChange={toggleExpanded}
             >
@@ -182,11 +179,11 @@ export function SideControls({
     <div className="side-values__grid" data-layout={layout} role="group" aria-label={`${labelText} ${itemGroupLabel}`}>
       {orderedSides.map(({ side, control, icon, sideLabel }) => (
         <ControlSurface
+          key={side}
           className="side-values__side"
           data-test={`side-value-${side}`}
           data-side={side}
           aria-label={`${labelText} ${sideLabel ?? formatInspectorLabel(side)}`}
-          key={side}
         >
           {icon !== undefined ? icon : <SideIndicator side={side} />}
           <div className="side-values__control">{control}</div>

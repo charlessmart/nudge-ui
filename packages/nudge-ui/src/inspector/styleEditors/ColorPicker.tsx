@@ -8,12 +8,15 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { setStyle } from "../tokens/editActions.ts";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { hasAuthoredProperty, isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
+import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
 
 export interface ColorPickerProps {
   element: SelectedElement;
@@ -47,6 +50,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   const el = element.domElement;
   const selectedElements = selection?.domElements ?? [el];
   const target: EditTarget = selection?.target ?? el;
+  const blockedBy = inlineBlockedBy(selectedElements, property);
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const hasColor = hasAuthoredProperty(selection, property, tokenRow)
     || selectedElements.some((selected) => !isEmptyColorValue(getStateStyleValue(selected, property)));
@@ -54,6 +58,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   const showTokenField = visibility.visible;
 
   function handleRemoveColor(): void {
+    if (blockedBy) return;
     setStyle(target, property, "transparent");
     visibility.hide();
     onAfterEdit?.();
@@ -64,15 +69,18 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
       <div className="editor__title-row">
         <div className="editor__title">{colorSectionTitle(property)}</div>
         {showTokenField ? (
-          <IconButton
-            variant="quiet"
-            label={`Remove ${colorSectionTitle(property)}`}
-            data-test="remove-color"
-            className="color__remove"
-            onClick={handleRemoveColor}
-          >
-            <IconMinus size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
-          </IconButton>
+          <Tooltip content={inlineStyleWarningContent(blockedBy)}>
+            <IconButton
+              variant="quiet"
+              label={`Remove ${colorSectionTitle(property)}`}
+              data-test="remove-color"
+              className="color__remove"
+              disabled={blockedBy !== null}
+              onClick={handleRemoveColor}
+            >
+              <IconMinus size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
         ) : (
           <IconButton
             variant="quiet"

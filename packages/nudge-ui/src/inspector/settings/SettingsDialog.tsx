@@ -20,6 +20,7 @@ import { useSelectedElement } from "../selection/selectionStore.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { portalContainer } from "../ui/portalContainer.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
 
@@ -32,7 +33,7 @@ interface SettingsSectionDefinition {
 const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   {
     id: "instructions",
-    label: "Custom instructions",
+    label: "Instructions",
     icon: <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
   {
@@ -53,12 +54,6 @@ export interface SettingsDialogProps extends McpConnectionContentProps {
   readonly value: string;
   readonly onValueChange: (value: string) => void;
   readonly onOpenChange: (open: boolean) => void;
-}
-
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 }
 
 /** Provides one settings surface for prompt, MCP, and token configuration. */
@@ -145,7 +140,7 @@ export function SettingsDialog({
                   data-test="prompt-settings-dialog"
                   data-settings-section="instructions"
                 >
-                  <h2 className="settings__section-title">{activeDefinition.label}</h2>
+                  <h2 className="settings__section-title">Custom instructions</h2>
                   <p className="settings__section-description">
                     These instructions are added to the end of every copied prompt.
                   </p>

@@ -1,5 +1,7 @@
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { ReactElement, ReactNode } from "react";
+import { Tooltip } from "./Tooltip.tsx";
+import { portalContainer } from "./portalContainer.ts";
 
 export interface InspectorPopoverProps {
   triggerElement: ReactElement;
@@ -9,6 +11,7 @@ export interface InspectorPopoverProps {
   side?: "top" | "bottom" | "left" | "right";
   align?: "start" | "center" | "end";
   sideOffset?: number;
+  triggerTooltip?: ReactNode;
   "data-test"?: string;
 }
 
@@ -25,16 +28,15 @@ export function InspectorPopover({
   side = "bottom",
   align = "center",
   sideOffset = 6,
+  triggerTooltip,
   "data-test": dataTest,
 }: InspectorPopoverProps): ReactElement {
-  const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
-
   return (
     <BasePopover.Root open={open} onOpenChange={onOpenChange}>
-      <BasePopover.Trigger render={triggerElement} data-test={dataTest} />
-      <BasePopover.Portal container={portalContainer}>
+      <Tooltip content={triggerTooltip} disabled={triggerTooltip === undefined}>
+        <BasePopover.Trigger render={triggerElement} data-test={dataTest} />
+      </Tooltip>
+      <BasePopover.Portal container={portalContainer()}>
         <BasePopover.Positioner
           className="inspector-popover__positioner"
           side={side}

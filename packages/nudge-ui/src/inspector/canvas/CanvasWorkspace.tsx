@@ -82,6 +82,8 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
@@ -137,6 +139,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
   const rendererInteractionsEnabled = interactionTool !== "select";
+  const rendererCursor: RendererCursor = interactionTool === "pan" ? "drag" : "design";
+  const boardCursor = boardCursorClass === "is-grabbing"
+    ? "grabbing"
+    : interactionTool === "pan" || boardCursorClass !== ""
+      ? PAN_CURSOR
+    : interactionTool === "design"
+      ? DESIGN_SELECT_CURSOR
+      : undefined;
   const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
 
@@ -280,6 +290,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       spaceHeld,
+      cursor: spaceHeld ? "drag" : "design",
     }, window.location.origin);
   }, []);
 
@@ -288,6 +299,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     cardId: string,
     open: boolean,
     interactionsEnabled: boolean,
+    cursor: RendererCursor,
   ) => {
     iframe.contentWindow?.postMessage({
       type: "inspector-interaction-state",
@@ -297,6 +309,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       cardId,
       open,
       interactionsEnabled,
+      cursor,
     }, window.location.origin);
   }, []);
 
@@ -324,11 +337,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
-      sendInspectorInteractionState(iframe, cardId, inspectorOpen, rendererInteractionsEnabled);
+      sendInspectorInteractionState(iframe, cardId, inspectorOpen, rendererInteractionsEnabled, rendererCursor);
       sendBoardGestureState(iframe, cardId, presentation === "canvas");
       sendLinkTargetState(iframe, cardId, linksOpenInCards);
     }
-  }, [inspectorOpen, linksOpenInCards, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState]);
+  }, [inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState]);
 
   const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -386,6 +399,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
+    if (nextTool === "select") {
+      setSelectedElement(null);
+    }
+
     if (nextTool === "sketch") {
       if (!sketchEnabled) return;
       const hostElement = getActiveCanvasFrame();
@@ -542,7 +559,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
         sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);
-        sendInspectorInteractionState(frame.iframe, frame.cardId, inspectorOpen, rendererInteractionsEnabled);
+        sendInspectorInteractionState(
+          frame.iframe,
+          frame.cardId,
+          inspectorOpen,
+          rendererInteractionsEnabled,
+          spaceHeldRef.current ? "drag" : rendererCursor,
+        );
         sendBoardGestureState(frame.iframe, frame.cardId, presentation === "canvas");
         sendLinkTargetState(frame.iframe, frame.cardId, linksOpenInCards);
       }
@@ -609,7 +632,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -720,6 +743,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           className={`canvas-workspace__board ${boardCursorClass}`.trim()}
           data-test="canvas-board"
           ref={boardRef}
+          style={{ cursor: boardCursor }}
           onPointerDown={handleBoardPointerDown}
         >
           {!primaryUrl ? (

@@ -124,8 +124,10 @@ test("dev: the Select tool lets canvas clicks reach the application", async ({ p
   const button = frame.locator("button.btn").first();
   await button.click({ modifiers: ["Meta", "Shift"] });
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
   await page.locator('[data-test="canvas-tool-select"]').click();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).not.toBeAttached();
   await button.click();
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
 

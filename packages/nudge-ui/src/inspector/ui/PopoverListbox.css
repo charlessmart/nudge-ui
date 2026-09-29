@@ -79,7 +79,7 @@
   gap: 8px;
   min-width: 0;
   min-height: 34px;
-  padding: 6px 9px;
+  padding: var(--space-8) 9px;
   border-radius: var(--radius-4);
   color: var(--text-primary);
   cursor: pointer;

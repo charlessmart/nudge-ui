@@ -42,7 +42,7 @@ export function createStandaloneRuntimeManifest(
       // Canvas shares the Vite host's controller/renderer runtime (ADR-0012):
       // every served document carries the bootstrap, so card iframes boot as
       // renderers without host-specific code.
-      capabilities: { canvas: true, componentSemantics: false },
+      capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
       tokenCatalog: tokenSnapshot.tokenCatalog,
       tokens: tokenSnapshot.tokens,
       tokenDiagnostics: tokenSnapshot.tokenDiagnostics,

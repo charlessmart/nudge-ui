@@ -2,6 +2,7 @@ import { useRef } from "react";
 import type { ReactElement, RefObject } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { IconX } from "@tabler/icons-react";
+import { portalContainer } from "../ui/portalContainer.ts";
 
 export interface PromptSettingsDialogProps {
   open: boolean;
@@ -14,12 +15,6 @@ export interface PromptSettingsFieldsProps {
   value: string;
   onChange: (value: string) => void;
   instructionsRef?: RefObject<HTMLTextAreaElement | null>;
-}
-
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 }
 
 /** Edits the instructions appended to every generated prompt. */

@@ -1,11 +1,14 @@
 import type { ReactElement } from "react";
-import {
-  IconHandStop,
-  IconPlayerPlay,
-  IconPointer2,
-  IconSketching,
-} from "@tabler/icons-react";
+import { IconHandStop, IconPointer2, IconSketching } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import {
+  DesignPointerFilledIcon,
+  PanHandFilledIcon,
+  SelectPlayFilledIcon,
+  SelectPlayOutlineIcon,
+  SketchThickIcon,
+} from "./CanvasToolIcons.tsx";
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
@@ -33,36 +36,44 @@ export interface CanvasToolbarProps {
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
 }
 
+const ICON_SIZE = "var(--icon-size-large)";
+
 function ToolButton({
-  active,
+  tool,
+  activeTool,
   disabled,
   label,
-  description,
+  shortcut,
   icon,
-  onClick,
+  activeIcon,
+  onToolChange,
 }: {
-  readonly active: boolean;
+  readonly tool: CanvasInteractionTool;
+  readonly activeTool: CanvasInteractionTool;
   readonly disabled?: boolean;
   readonly label: string;
-  readonly description?: string;
+  readonly shortcut: string;
   readonly icon: ReactElement;
-  readonly onClick: () => void;
+  readonly activeIcon: ReactElement;
+  readonly onToolChange: (tool: CanvasInteractionTool) => void;
 }): ReactElement {
+  const active = tool === activeTool;
   return (
-    <IconButton
-      variant="quiet"
-      size="large"
-      className="canvas-toolbar__tool"
-      label={label}
-      title={description ?? label}
-      aria-pressed={active}
-      data-test={`canvas-tool-${label.toLowerCase()}`}
-      data-active={active ? "true" : "false"}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {icon}
-    </IconButton>
+    <Tooltip content={label} shortcut={shortcut} stableTrigger>
+      <IconButton
+        variant="quiet"
+        size="large"
+        className="canvas-toolbar__tool"
+        label={label}
+        aria-pressed={active}
+        data-test={`canvas-tool-${tool}`}
+        data-active={active ? "true" : "false"}
+        disabled={disabled}
+        onClick={() => onToolChange(tool)}
+      >
+        {active ? activeIcon : icon}
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -75,34 +86,44 @@ export function CanvasToolbar({
     <div className="canvas-toolbar" data-test="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
       <div className="canvas-toolbar__tools" role="group" aria-label="Interaction tools">
         <ToolButton
-          active={tool === "design"}
-          label="Design"
-          description="Design (V): click elements to inspect and edit them"
-          icon={<IconPointer2 size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("design")}
+          tool="design"
+          activeTool={tool}
+          label="Select"
+          shortcut="V"
+          icon={<IconPointer2 size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<DesignPointerFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          onToolChange={onToolChange}
         />
         <ToolButton
-          active={tool === "pan"}
+          tool="pan"
+          activeTool={tool}
           label="Pan"
-          icon={<IconHandStop size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("pan")}
+          shortcut="H"
+          icon={<IconHandStop size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<PanHandFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          onToolChange={onToolChange}
         />
         <ToolButton
-          active={tool === "sketch"}
-          label="Sketch"
+          tool="sketch"
+          activeTool={tool}
+          label="Pencil"
+          shortcut="P"
           disabled={!sketchEnabled}
-          icon={<IconSketching size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("sketch")}
+          icon={<IconSketching size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<SketchThickIcon size={ICON_SIZE} aria-hidden="true" />}
+          onToolChange={onToolChange}
         />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
         <ToolButton
-          active={tool === "select"}
-          label="Select"
-          description="Select (I): use the app normally"
-          icon={<IconPlayerPlay size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          onClick={() => onToolChange("select")}
+          tool="select"
+          activeTool={tool}
+          label="Use app normally"
+          shortcut="I"
+          icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
+          activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          onToolChange={onToolChange}
         />
       </div>
     </div>

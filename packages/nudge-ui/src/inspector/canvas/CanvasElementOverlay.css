@@ -32,6 +32,24 @@
   background: #ec4899;
 }
 
+.canvas-spacing-value-badge {
+  position: fixed;
+  z-index: 2;
+  transform: translate(-50%, calc(-100% - var(--space-8)));
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .canvas-selected-outline {
   position: fixed;
   pointer-events: none;

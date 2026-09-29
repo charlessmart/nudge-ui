@@ -62,7 +62,7 @@
   min-height: 136px;
   padding: var(--space-8) var(--space-12);
   resize: vertical;
-  border: 1px solid var(--border-subtle);
+  border: 0;
   border-radius: var(--radius-control);
   outline: 0;
   background: var(--surface-control);
@@ -79,7 +79,6 @@
 }
 
 .prompt-settings__textarea:focus-visible {
-  border-color: var(--accent);
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -87,5 +86,5 @@
 .prompt-settings__actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--space-20);
+  margin-top: var(--space-8);
 }

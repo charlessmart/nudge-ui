@@ -313,9 +313,7 @@ export function CopyPromptButton({
         disabled={disabled}
         data-copied={copied ? "true" : "false"}
         data-agent-state={agent.state}
-        data-agent-listening={agentStatus.kind === "listening" ? "true" : undefined}
         aria-busy={working || connecting ? "true" : undefined}
-        title={agent.error}
         onClick={onClick}
       >
         {icon}
@@ -324,14 +322,6 @@ export function CopyPromptButton({
           <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
             {changeCount}
           </span>
-        ) : null}
-        {agentStatus.kind === "listening" ? (
-          <span
-            className="copy-prompt__agent-listening"
-            data-test="agent-listening-indicator"
-            role="status"
-            aria-label="Agent listening"
-          />
         ) : null}
       </Button>
       <SketchLayersPanel />

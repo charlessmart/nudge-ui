@@ -5,8 +5,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
-import { inlineAuthoredValue, meaningfulLayoutValue } from "./layoutValue.ts";
-import { LayoutBlockedIndicator } from "./LayoutBlockedIndicator.tsx";
+import { meaningfulLayoutValue } from "./layoutValue.ts";
 
 export const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
 
@@ -33,11 +32,9 @@ export function GapField({
   onAfterEdit,
 }: GapFieldProps): ReactElement {
   const tokenRow = tokenRows.find((row) => row.property === property) ?? null;
-  const blockedBy = inlineAuthoredValue(el, property);
-
   return (
     <span
-      className={`layout-combo${blockedBy ? " layout-combo--blocked" : ""}`}
+      className="layout-combo"
       data-test="layout-combo"
       data-property={property}
     >
@@ -54,10 +51,10 @@ export function GapField({
         inputDataTest={`layout-combo-input-${property}`}
         label={formatInspectorLabel(property)}
         chipVariant="small"
-        disabled={blockedBy !== null}
+        inlineWarningDataTest="layout-combo-blocked"
+        inlineWarningTooltipDataTest="layout-combo-blocked-tooltip"
         onAfterEdit={onAfterEdit}
       />
-      {blockedBy ? <LayoutBlockedIndicator blockedBy={blockedBy} /> : null}
     </span>
   );
 }

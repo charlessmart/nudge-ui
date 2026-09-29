@@ -33,6 +33,9 @@ import type { SketchEntryTool } from "./interaction.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { useInspectorOpen } from "../shell/openStore.ts";
+import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { portalContainer } from "../ui/portalContainer.ts";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
 
@@ -56,12 +59,6 @@ export interface SketchOverlayProps {
   readonly initialTool?: SketchEntryTool;
   readonly onCancel: () => void;
   readonly onDone: (draft: SketchLiveDraft) => Promise<void>;
-}
-
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 }
 
 function clamp(value: number, maximum: number): number {
@@ -518,6 +515,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
               viewBox={`0 0 ${viewport.width} ${viewport.height}`}
               preserveAspectRatio="none"
               pointerEvents="all"
+              style={{ cursor: tool === "move" ? DRAG_CURSOR : SKETCH_CURSOR }}
               tabIndex={0}
               aria-label="Sketch over the live interface"
               onPointerDown={onPointerDown}
@@ -551,15 +549,17 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
                   onChange={(event) => setAnnotationDraft(event.target.value)}
                   onKeyDown={onAnnotationKeyDown}
                 />
-                <IconButton
-                  label="Cancel annotation"
-                  variant="quiet"
-                  size="compact"
-                  data-test="sketch-live-annotation-cancel"
-                  onClick={cancelActiveAnnotation}
-                >
-                  <IconX size="var(--icon-size-small)" aria-hidden="true" />
-                </IconButton>
+                <Tooltip>
+                  <IconButton
+                    label="Cancel annotation"
+                    variant="quiet"
+                    size="compact"
+                    data-test="sketch-live-annotation-cancel"
+                    onClick={cancelActiveAnnotation}
+                  >
+                    <IconX size="var(--icon-size-small)" aria-hidden="true" />
+                  </IconButton>
+                </Tooltip>
                 <Button
                   variant="primary"
                   size="compact"

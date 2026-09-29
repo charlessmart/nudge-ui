@@ -49,8 +49,8 @@ export function projectSketchPoint(
   height: number,
 ): SketchPoint {
   const capture = document.capture;
-  const imageWidth = Math.max(1, document.imageWidth);
-  const imageHeight = Math.max(1, document.imageHeight);
+  const imageWidth = Math.max(1, document.capture.imageWidth);
+  const imageHeight = Math.max(1, document.capture.imageHeight);
   const viewportWidth = Math.max(1, frameWindow.innerWidth || width);
   const viewportHeight = Math.max(1, frameWindow.innerHeight || height);
   const scroll = getSketchScrollPosition(frameWindow);
@@ -74,7 +74,7 @@ function visibleStroke(
   width: number,
   height: number,
 ): SketchStroke {
-  const captureScale = document.capture.viewportWidth / Math.max(1, document.imageWidth);
+  const captureScale = document.capture.viewportWidth / Math.max(1, document.capture.imageWidth);
   const currentScale = width / Math.max(1, frameWindow.innerWidth || width);
   return {
     ...stroke,

@@ -3,12 +3,12 @@ import { valuePolicyFor } from "./valuePolicy.ts";
 
 const CSS_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
 const CSS_NUMERIC_LITERAL = new RegExp(`^(${CSS_NUMBER_SOURCE})(px|rem|em|%)?$`, "i");
-const DRAG_PIXELS_PER_STEP = 4;
-const LARGE_DRAG_PIXELS_PER_STEP = 2;
+const DRAG_PIXELS_PER_STEP = 16;
+const LARGE_DRAG_PIXELS_PER_STEP = 8;
 
 export type NudgeDirection = -1 | 1;
 
-const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
+const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|(?:font-size|letter-spacing|line-height|opacity)|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
 
 interface ParsedNumericLiteral {
   number: number;
@@ -25,6 +25,8 @@ export function nudgeCssValue(
   direction: NudgeDirection,
   large = false,
 ): string | null {
+  if (property === "opacity") return nudgeOpacityValue(rawValue, direction, large);
+
   const normalised = normaliseForNudge(property, rawValue);
   const parsed = parseNumericLiteral(normalised);
   if (!parsed) return null;
@@ -43,8 +45,8 @@ export function supportsDragNudge(property: string): boolean {
 }
 
 /**
- * Applies one regular nudge per four horizontal pointer pixels and one large
- * nudge per two horizontal pointer pixels. When a large drag starts from an
+ * Applies one regular nudge per sixteen horizontal pointer pixels and one large
+ * nudge per eight horizontal pointer pixels. When a large drag starts from an
  * off-grid value, the first step snaps to the next large-step boundary in the
  * drag direction.
  */
@@ -87,11 +89,11 @@ export function nudgeOpacityValue(
   direction: NudgeDirection,
   large = false,
 ): string | null {
-  const parsed = parseNumericLiteral(rawValue);
-  if (!parsed || parsed.unit !== "%") return null;
+  const percent = parseOpacityPercent(rawValue);
+  if (percent === null) return null;
 
   const step = large ? 10 : 1;
-  const next = Math.min(100, Math.max(0, parsed.number + direction * step));
+  const next = Math.min(100, Math.max(0, percent + direction * step));
   return `${formatNumber(next)}%`;
 }
 
@@ -153,6 +155,8 @@ function snapNumericValueToLargeStep(
   rawValue: string,
   direction: NudgeDirection,
 ): string | null {
+  if (property === "opacity") return snapOpacityValueToLargeStep(rawValue, direction);
+
   const normalised = normaliseForNudge(property, rawValue);
   const parsed = parseNumericLiteral(normalised);
   if (!parsed) return null;
@@ -168,6 +172,29 @@ function snapNumericValueToLargeStep(
   }
   next = clampNudgeNumber(property, next);
   return `${formatNumber(next)}${parsed.unit}`;
+}
+
+function snapOpacityValueToLargeStep(rawValue: string, direction: NudgeDirection): string | null {
+  const percent = parseOpacityPercent(rawValue);
+  if (percent === null) return null;
+
+  const step = 10;
+  let next = direction > 0
+    ? Math.ceil(percent / step) * step
+    : Math.floor(percent / step) * step;
+  if ((direction > 0 && next <= percent) || (direction < 0 && next >= percent)) {
+    next += direction * step;
+  }
+  next = Math.min(100, Math.max(0, next));
+  return `${formatNumber(next)}%`;
+}
+
+function parseOpacityPercent(rawValue: string): number | null {
+  const parsed = parseNumericLiteral(rawValue);
+  if (!parsed) return null;
+  if (parsed.unit === "%") return parsed.number;
+  if (parsed.unit === "" && parsed.number >= 0 && parsed.number <= 1) return parsed.number * 100;
+  return null;
 }
 
 function isLineHeight(property: string): boolean {

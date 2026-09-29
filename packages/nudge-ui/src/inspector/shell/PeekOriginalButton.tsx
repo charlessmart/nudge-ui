@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore, type ReactElement } from "react";
 import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { PeekOriginalIcon } from "./PeekOriginalIcon.tsx";
 import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
 import {
@@ -46,36 +47,41 @@ export function PeekOriginalButton(): ReactElement {
   }, []);
 
   return (
-    <IconButton
-      variant="quiet"
-      data-test="peek-original-button"
-      label="Hold to view original"
-      title={disabled ? "No changes to preview" : "Hold to view original"}
-      aria-pressed={active}
-      data-active={active ? "true" : "false"}
-      disabled={disabled}
-      onPointerDown={(event) => {
-        if (disabled) return;
-        if (event.pointerType === "mouse" && event.button !== 0) return;
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        setOriginalPreviewActive(true);
-      }}
-      onPointerUp={() => setOriginalPreviewActive(false)}
-      onPointerCancel={() => setOriginalPreviewActive(false)}
-      onLostPointerCapture={() => setOriginalPreviewActive(false)}
-      onKeyDown={(event) => {
-        if (disabled || event.repeat) return;
-        if (event.key === " " || event.key === "Enter") setOriginalPreviewActive(true);
-      }}
-      onKeyUp={(event) => {
-        if (event.key === " " || event.key === "Enter") setOriginalPreviewActive(false);
-      }}
-      onBlur={() => setOriginalPreviewActive(false)}
-      onContextMenu={(event) => {
-        if (active) event.preventDefault();
-      }}
+    <Tooltip
+      content={disabled ? "No changes to preview" : "Hold to view original"}
+      shortcut={disabled ? undefined : "\\"}
+      stableTrigger
     >
-      <PeekOriginalIcon />
-    </IconButton>
+      <IconButton
+        variant="quiet"
+        data-test="peek-original-button"
+        label="Hold to view original"
+        aria-pressed={active}
+        data-active={active ? "true" : "false"}
+        disabled={disabled}
+        onPointerDown={(event) => {
+          if (disabled) return;
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          setOriginalPreviewActive(true);
+        }}
+        onPointerUp={() => setOriginalPreviewActive(false)}
+        onPointerCancel={() => setOriginalPreviewActive(false)}
+        onLostPointerCapture={() => setOriginalPreviewActive(false)}
+        onKeyDown={(event) => {
+          if (disabled || event.repeat) return;
+          if (event.key === " " || event.key === "Enter") setOriginalPreviewActive(true);
+        }}
+        onKeyUp={(event) => {
+          if (event.key === " " || event.key === "Enter") setOriginalPreviewActive(false);
+        }}
+        onBlur={() => setOriginalPreviewActive(false)}
+        onContextMenu={(event) => {
+          if (active) event.preventDefault();
+        }}
+      >
+        <PeekOriginalIcon />
+      </IconButton>
+    </Tooltip>
   );
 }

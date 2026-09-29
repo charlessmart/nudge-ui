@@ -9,6 +9,11 @@ import {
 import { sketchStrokeOutline } from "./freehand.tsx";
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+const SKETCH_NOTE_PADDING = 24;
+const SKETCH_NOTE_TITLE_HEIGHT = 34;
+const SKETCH_NOTE_LINE_HEIGHT = 32;
+const SKETCH_NOTE_FONT = "24px system-ui, sans-serif";
+const SKETCH_NOTE_TITLE_FONT = "600 24px system-ui, sans-serif";
 
 export interface PngDimensions {
   readonly width: number;
@@ -178,13 +183,71 @@ function canvasPng(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-/** Renders the immutable screenshot and committed strokes into one PNG. */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/** Wraps the description and numbered annotation notes to the panel width. */
+function wrapSketchNotes(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  description: string,
+  annotations: readonly SketchAnnotation[],
+): string[] {
+  const notes = [
+    description.trim(),
+    ...annotations.map((annotation) => {
+      const text = annotation.description.trim();
+      return text ? `${annotation.number}. ${text}` : "";
+    }),
+  ].filter(Boolean);
+  ctx.font = SKETCH_NOTE_FONT;
+  const textWidth = Math.max(1, width - SKETCH_NOTE_PADDING * 2);
+  return notes.flatMap((note) => wrapText(ctx, note, textWidth));
+}
+
+function sketchNotePanelHeight(lineCount: number): number {
+  if (lineCount === 0) return 0;
+  return SKETCH_NOTE_PADDING * 2 + SKETCH_NOTE_TITLE_HEIGHT + lineCount * SKETCH_NOTE_LINE_HEIGHT;
+}
+
+function drawSketchNotes(ctx: CanvasRenderingContext2D, width: number, top: number, lines: readonly string[]): void {
+  ctx.save();
+  ctx.fillStyle = SKETCH_STROKE_COLOR;
+  ctx.fillRect(0, top, width, sketchNotePanelHeight(lines.length));
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.font = SKETCH_NOTE_TITLE_FONT;
+  ctx.fillText("Sketch notes", SKETCH_NOTE_PADDING, top + SKETCH_NOTE_PADDING);
+  ctx.font = SKETCH_NOTE_FONT;
+  let y = top + SKETCH_NOTE_PADDING + SKETCH_NOTE_TITLE_HEIGHT;
+  for (const line of lines) {
+    ctx.fillText(line, SKETCH_NOTE_PADDING, y);
+    y += SKETCH_NOTE_LINE_HEIGHT;
+  }
+  ctx.restore();
+}
+
 export async function renderAnnotatedPng(
   originalImage: Blob,
   imageWidth: number,
   imageHeight: number,
   strokes: readonly SketchStroke[],
   annotations: readonly SketchAnnotation[] = [],
+  description = "",
 ): Promise<{ readonly blob: Blob; readonly width: number; readonly height: number }> {
   await validatePngBlob(originalImage, { width: imageWidth, height: imageHeight });
   if (typeof document === "undefined") throw new Error("Sketch rendering requires a browser document.");
@@ -192,17 +255,24 @@ export async function renderAnnotatedPng(
   try {
     const canvas = document.createElement("canvas");
     canvas.width = imageWidth;
-    canvas.height = imageHeight;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("The browser could not create a sketch canvas.");
+    const noteLines = wrapSketchNotes(context, imageWidth, description, annotations);
+    const outputHeight = imageHeight + sketchNotePanelHeight(noteLines.length);
+    if (outputHeight > SKETCH_LIMITS.imageEdge) {
+      throw new Error("Sketch notes are too long to fit below the captured image.");
+    }
+    // Resizing clears the canvas and resets context state; the context stays valid.
+    canvas.height = outputHeight;
     context.drawImage(image.source, 0, 0, imageWidth, imageHeight);
     drawSketchStrokes(context, strokes);
     drawSketchAnnotations(context, annotations);
+    if (noteLines.length > 0) drawSketchNotes(context, imageWidth, imageHeight, noteLines);
     const result = await canvasPng(canvas);
     if (result.size > SKETCH_LIMITS.imageBytes) {
       throw new Error("This sketch is too detailed to save within the 2 MiB image limit.");
     }
-    return { blob: result, width: imageWidth, height: imageHeight };
+    return { blob: result, width: imageWidth, height: outputHeight };
   } finally {
     image.close();
   }

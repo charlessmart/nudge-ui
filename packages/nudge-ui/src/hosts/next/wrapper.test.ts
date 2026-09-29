@@ -405,7 +405,7 @@ describe("manifest builder", () => {
 
     // Canvas shares the Vite host's controller/renderer runtime; semantic
     // component props cover client components only.
-    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true });
+    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true, domNavigation: true });
     expect(manifest.runtime.tokenCatalog).toEqual([]);
     expect(manifest.runtime.componentContracts).toEqual([]);
     expect(manifest.runtime.framework).toBe("React");

@@ -1,0 +1,27 @@
+.inline-style-warning {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--warning, #b45309);
+  color: var(--surface-raised-2x);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.inline-style-warning:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.inline-style-warning__symbol {
+  display: block;
+  line-height: 1;
+}

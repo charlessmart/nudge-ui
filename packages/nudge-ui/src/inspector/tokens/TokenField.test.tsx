@@ -116,6 +116,23 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
+  it("blocks a font-size field when the value is authored inline", () => {
+    const { selected } = makeSelected();
+    selected.domElement.style.setProperty("font-size", "24px");
+    mockComputedStyle({ "font-size": "24px" });
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      domElement: selected.domElement,
+      entries: [],
+      label: "Font size",
+    }));
+
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect(handle.host.querySelector('[data-test="inline-style-warning"]')?.getAttribute("aria-label"))
+      .toContain("font-size: 24px");
+  });
+
   it("offers raw CSS suggestions in the same dropdown as token suggestions", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
@@ -319,12 +336,12 @@ describe("TokenField", () => {
     expect(dragHandle.getAttribute("data-dragging")).toBe("true");
     expect(capture.setPointerCapture).toHaveBeenCalledWith(7);
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 7 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 7 })));
 
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
     expect(sheetText()).toContain("padding-top: 17px;");
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 7 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 116, pointerId: 7 })));
     expect(dragHandle.getAttribute("data-dragging")).toBeNull();
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
   });
@@ -345,13 +362,13 @@ describe("TokenField", () => {
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 120 })));
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 120 })));
-    expect(sheetText()).toContain("padding-top: 21px;");
+    expect(sheetText()).toContain("padding-top: 17px;");
 
     act(() => { expect(undo()).toBe(true); });
     expect(getChangeRecords()).toEqual([]);
     expect(sheetText()).not.toContain("padding-top:");
     act(() => { expect(redo()).toBe(true); });
-    expect(sheetText()).toContain("padding-top: 21px;");
+    expect(sheetText()).toContain("padding-top: 17px;");
   });
 
   it("overrides a token with a raw value when dragging its leading handle", () => {
@@ -368,7 +385,7 @@ describe("TokenField", () => {
     mockPointerCapture(dragHandle);
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 14 })));
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 14 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 14 })));
 
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
@@ -391,10 +408,10 @@ describe("TokenField", () => {
 
     // Pointer capture keeps the drag attached to the handle while the native
     // cursor remains visible and reports its normal client position.
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 12 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 12 })));
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 12 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 116, pointerId: 12 })));
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(12);
   });
 
@@ -415,13 +432,16 @@ describe("TokenField", () => {
     mockPointerCapture(dragHandle);
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 13 })));
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 110, pointerId: 13 })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 13 })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 112, pointerId: 13, shiftKey: true })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 118, pointerId: 13, shiftKey: true })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 124, pointerId: 13, shiftKey: true })));
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("24px");
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 114, pointerId: 13, shiftKey: true })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 132, pointerId: 13, shiftKey: true })));
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
   });
 
@@ -442,7 +462,7 @@ describe("TokenField", () => {
     mockPointerCapture(dragHandle);
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 9 })));
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 9, shiftKey: true })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 9, shiftKey: true })));
 
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
     expect(onCommitRaw).toHaveBeenLastCalledWith("32px");
@@ -562,11 +582,10 @@ describe("TokenField", () => {
     const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     expect(chip).not.toBeNull();
     expect(chip.textContent).toContain("--font-size-base");
-    expect((handle.host.querySelector(".token-chip__label") as HTMLElement).title).toBe(FONT_SIZE.name);
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 
-  it("renders a compact numeric token value while keeping the token name in the tooltip", () => {
+  it("renders a compact numeric token value", () => {
     const { selected } = makeSelected();
     const radiusToken: TokenEntry = {
       name: "--radius-card",
@@ -593,7 +612,8 @@ describe("TokenField", () => {
     const label = chip.querySelector(".token-chip__label") as HTMLElement;
     expect(chip.classList).toContain("token-chip--small");
     expect(label.textContent).toBe("12");
-    expect(label.title).toBe(radiusToken.name);
+    expect(label.getAttribute("title")).toBeNull();
+    expect(label.getAttribute("data-base-ui-tooltip-trigger")).toBe("");
   });
 
   it("renders a separable color token and alpha as a chip plus opacity", () => {

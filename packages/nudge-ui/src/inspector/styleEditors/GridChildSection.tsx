@@ -14,6 +14,7 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import {
   commitGridAxisPlacement,
   commitGridChildAlignment,
@@ -22,7 +23,8 @@ import {
   type GridAxis,
   type GridAxisPlacement,
 } from "./gridChildModel.ts";
-import type { EditTarget } from "../selection/editTarget.ts";
+import { targetElements, type EditTarget } from "../selection/editTarget.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 export interface GridChildSectionProps {
   domElement: HTMLElement;
@@ -43,10 +45,12 @@ interface AxisPlacementRowProps {
   axis: GridAxis;
   label: string;
   state: AxisState;
+  elements: readonly HTMLElement[];
   onStart: (start: string) => void;
 }
 
-function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps): ReactElement {
+function AxisPlacementRow({ axis, label, state, elements, onStart }: AxisPlacementRowProps): ReactElement {
+  const blockedBy = inlineBlockedBy(elements, `grid-${axis}-start`, `grid-${axis}-end`);
   const [draft, setDraft] = useState(state.placement.start);
   const draftRef = useRef(draft);
 
@@ -61,6 +65,7 @@ function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps
   }
 
   function commit(): void {
+    if (blockedBy) return;
     const next = draftRef.current.trim() || "auto";
     updateDraft(next);
     if (next !== state.placement.start) onStart(next);
@@ -86,6 +91,7 @@ function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps
           value={draft}
           data-test={`layout-grid-child-${axis}-start`}
           aria-label={label}
+          disabled={blockedBy !== null}
           onChange={(event) => updateDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
@@ -99,6 +105,7 @@ function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps
             }
           }}
         />
+        <InlineStyleWarning blockedBy={blockedBy} />
       </ControlSurface>
     </FieldRow>
   );
@@ -107,11 +114,14 @@ function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps
 interface AlignmentControlProps {
   axis: "h" | "v";
   value: string;
+  elements: readonly HTMLElement[];
   onChange: (value: string) => void;
 }
 
-function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): ReactElement {
+function AlignmentControl({ axis, value, elements, onChange }: AlignmentControlProps): ReactElement {
   const horizontal = axis === "h";
+  const property = horizontal ? "justify-self" : "align-self";
+  const blockedBy = inlineBlockedBy(elements, property);
   const options = horizontal
     ? [
       { value: "start", label: "Align left", icon: <IconAlignBoxLeftMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
@@ -136,8 +146,9 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
       <SegmentedControl
         value={value === "auto" ? null : value}
         aria-label={horizontal ? "Horizontal alignment" : "Vertical alignment"}
-        data-test={`layout-grid-child-select-${horizontal ? "justify-self" : "align-self"}`}
+        data-test={`layout-grid-child-select-${property}`}
         className="layout__grid-child-alignment-control"
+        disabled={blockedBy !== null}
         options={options.map((option) => ({
           ...option,
           testId: `layout-grid-child-align-${axis}-${option.value}`,
@@ -146,6 +157,7 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
         allowDeselect
         onDeselect={() => onChange("auto")}
       />
+      <InlineStyleWarning blockedBy={blockedBy} />
     </FieldRow>
   );
 }
@@ -162,6 +174,7 @@ export function GridChildSection({
   onAfterEdit,
 }: GridChildSectionProps): ReactElement {
   const target = editTarget ?? el;
+  const elements = targetElements(target);
   const [column, setColumn] = useState<AxisState>(() => readAxis(el, "column"));
   const [row, setRow] = useState<AxisState>(() => readAxis(el, "row"));
   const [alignH, setAlignH] = useState(() => readGridChildAlignment(el, "h"));
@@ -190,10 +203,10 @@ export function GridChildSection({
     <div className="layout__group layout__grid-child" data-test="layout-grid-child">
       <div className="editor__title">Grid Child</div>
       <div className="layout__grid-child-fields" data-test="layout-grid-child-fields">
-        <AxisPlacementRow axis="column" label="Column" state={column} onStart={(start) => handleStart("column", start)} />
-        <AxisPlacementRow axis="row" label="Row" state={row} onStart={(start) => handleStart("row", start)} />
-        <AlignmentControl axis="v" value={alignV} onChange={(value) => handleAlignment("v", value)} />
-        <AlignmentControl axis="h" value={alignH} onChange={(value) => handleAlignment("h", value)} />
+        <AxisPlacementRow axis="column" label="Column" state={column} elements={elements} onStart={(start) => handleStart("column", start)} />
+        <AxisPlacementRow axis="row" label="Row" state={row} elements={elements} onStart={(start) => handleStart("row", start)} />
+        <AlignmentControl axis="v" value={alignV} elements={elements} onChange={(value) => handleAlignment("v", value)} />
+        <AlignmentControl axis="h" value={alignH} elements={elements} onChange={(value) => handleAlignment("h", value)} />
       </div>
     </div>
   );

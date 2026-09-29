@@ -112,7 +112,6 @@ describe("BorderEditor", () => {
     ) as HTMLElement;
     expect(chip.classList).toContain("token-chip--small");
     expect(chip.querySelector(".token-chip__label")?.textContent).toBe("1");
-    expect(chip.querySelector(".token-chip__label")?.getAttribute("title")).toBe(borderWidthToken.name);
   });
 
   it("uses the decomposed border component in a structured field", () => {

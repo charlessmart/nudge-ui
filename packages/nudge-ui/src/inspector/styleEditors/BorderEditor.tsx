@@ -30,6 +30,9 @@ import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { hasAuthoredProperty, hasAuthoredStyle, isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -240,12 +243,14 @@ function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [bool
 export function BorderEditor(props: BorderEditorProps): ReactElement {
   const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const selectedElements = selection?.domElements ?? [el];
   const editTarget: EditTarget = selection?.target ?? el;
   const isGroup = Boolean(selection && selection.elements.length > 1);
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const borderWidthProperties = BORDER_SIDES.map((side) => `${side}-width`);
   const borderStyleProperties = BORDER_SIDES.map((side) => `${side}-style`);
   const borderColorProperties = BORDER_SIDES.map((side) => `${side}-color`);
+  const borderBlockedBy = inlineBlockedBy(selectedElements, "border", "border-width", "border-style", "border-color");
 
   const borderWidthDataLinked = valuesAreLinked(el, tokenRows, "border-width", borderWidthProperties);
   const borderStyleDataLinked = valuesAreLinked(el, tokenRows, "border-style", borderStyleProperties);
@@ -268,12 +273,14 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const showBorderControls = visibility.visible;
 
   function handleAddBorder(): void {
+    if (borderBlockedBy) return;
     setStyle(editTarget, "border", "1px solid");
     visibility.show();
     onAfterEdit?.();
   }
 
   function handleRemoveBorder(): void {
+    if (borderBlockedBy) return;
     setStyle(editTarget, "border", "0 solid");
     visibility.hide();
     onAfterEdit?.();
@@ -284,6 +291,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   }
 
   function handleCollapse(): void {
+    if (borderBlockedBy) return;
     setBorderLinked(true);
     const declarations = [
       borderLinkDeclaration(el, tokenRows, "border-style", borderStyleProperties),
@@ -343,21 +351,25 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
       <div className="editor__title-row">
         <div className="editor__title">Border</div>
         {showBorderControls ? (
-          <IconButton
-            variant="quiet"
-            label="Remove Border"
-            data-test="remove-border"
-            className="border__remove"
-            onClick={handleRemoveBorder}
-          >
-            <IconMinus size={16} aria-hidden="true" />
-          </IconButton>
+          <Tooltip content={inlineStyleWarningContent(borderBlockedBy)}>
+            <IconButton
+              variant="quiet"
+              label="Remove Border"
+              data-test="remove-border"
+              className="border__remove"
+              disabled={borderBlockedBy !== null}
+              onClick={handleRemoveBorder}
+            >
+              <IconMinus size={16} aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
         ) : (
           <IconButton
             variant="quiet"
             label="Add Border"
             data-test="add-border"
             className="border__add"
+            disabled={borderBlockedBy !== null}
             onClick={handleAddBorder}
           >
             <IconPlus size={16} aria-hidden="true" />
@@ -426,7 +438,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 size="default"
                 data-test="border-expand"
                 label="Edit Individual Border Sides"
-                title="Edit Individual Border Sides"
                 pressed={!borderLinked}
                 onPressedChange={(pressed) => {
                   if (pressed) handleExpand();
@@ -444,8 +455,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                   size="default"
                   data-test="border-collapse"
                   label="Link All Border Sides"
-                  title="Link All Border Sides"
                   pressed={!borderLinked}
+                  disabled={borderBlockedBy !== null}
                   onPressedChange={(pressed) => {
                     if (!pressed) handleCollapse();
                   }}
@@ -506,6 +517,7 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarge
   const selectedValue = selection?.getProperty(property)?.value;
   const mixed = selectedValue?.kind === "mixed";
   const commonValue = selectedValue?.kind === "common" ? selectedValue.value : "";
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
   const initial = mixed ? "Mixed" : commonValue || structured || getStateStyleValue(el, property, "none") || "none";
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
@@ -515,6 +527,7 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarge
   }, [commonValue, el, mixed, property, structured]);
 
   function handleChange(next: string): void {
+    if (blockedBy) return;
     if (!BORDER_STYLES.includes(next)) return;
     setValue(next);
     setStyle(editTarget ?? el, property, next);
@@ -540,6 +553,8 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarge
       )}
       triggerDataTest={dataTest}
       triggerAriaLabel="Border style settings"
+      triggerTooltip={inlineStyleWarningContent(blockedBy)}
+      disabled={blockedBy !== null}
       items={BORDER_STYLES.map((style) => ({
         value: style,
         label: formatInspectorLabel(style),

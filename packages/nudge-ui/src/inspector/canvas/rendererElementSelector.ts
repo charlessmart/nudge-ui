@@ -36,9 +36,11 @@ import {
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import {
   getSpacingAffordanceAtPoint,
+  getSpacingHoverAtPoint,
   toSpacingDescriptor,
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
+import { INTERACTION_CURSOR_PROPERTY, rendererCursorValue, type RendererCursor } from "../ui/customCursors.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -148,6 +150,9 @@ export function installRendererElementSelector(
   const cidIndex = createCidIndex(document);
   const initialCursor = document.documentElement.style.getPropertyValue("cursor");
   const initialCursorPriority = document.documentElement.style.getPropertyPriority("cursor");
+  const initialInteractionCursor = document.documentElement.style.getPropertyValue(INTERACTION_CURSOR_PROPERTY);
+  const initialInteractionCursorPriority = document.documentElement.style.getPropertyPriority(INTERACTION_CURSOR_PROPERTY);
+  let appliedInteractionCursor = rendererCursorValue("design");
   let appliedRootCursor: string | null = null;
   let spacingCursor: {
     element: HTMLElement;
@@ -155,6 +160,26 @@ export function installRendererElementSelector(
     previousPriority: string;
     appliedValue: string;
   } | null = null;
+
+  function setInteractionCursor(cursor: RendererCursor): void {
+    appliedInteractionCursor = rendererCursorValue(cursor);
+    document.documentElement.style.setProperty(INTERACTION_CURSOR_PROPERTY, appliedInteractionCursor);
+  }
+
+  function restoreInteractionCursor(): void {
+    if (document.documentElement.style.getPropertyValue(INTERACTION_CURSOR_PROPERTY) !== appliedInteractionCursor) return;
+    if (initialInteractionCursor) {
+      document.documentElement.style.setProperty(
+        INTERACTION_CURSOR_PROPERTY,
+        initialInteractionCursor,
+        initialInteractionCursorPriority,
+      );
+    } else {
+      document.documentElement.style.removeProperty(INTERACTION_CURSOR_PROPERTY);
+    }
+  }
+
+  setInteractionCursor("design");
 
   function clearSpacingCursor(): void {
     const active = spacingCursor;
@@ -192,7 +217,7 @@ export function installRendererElementSelector(
       spacingCursor.appliedValue = cursor;
     }
     element.style.setProperty("cursor", cursor, "important");
-    document.documentElement.style.setProperty("cursor", cursor);
+    document.documentElement.style.setProperty("cursor", cursor, "important");
     appliedRootCursor = cursor;
   }
 
@@ -209,10 +234,16 @@ export function installRendererElementSelector(
     const selector = buildSelector(element);
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
+    // The handle hit is the only target that starts a drag, so it is the only
+    // one that changes the cursor. The area-wide match is purely visual.
     const rawSpacing = !clear && pending.point
       ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
       : null;
     const spacing = rawSpacing && rawSpacing.element === element ? rawSpacing : null;
+    const rawHoverSpacing = !clear && pending.point
+      ? getSpacingHoverAtPoint(document, pending.point.x, pending.point.y)
+      : null;
+    const hoverSpacing = rawHoverSpacing && rawHoverSpacing.element === element ? rawHoverSpacing : null;
     if (spacing) {
       setSpacingCursor(spacing.element, spacing.cursor);
     } else {
@@ -239,6 +270,7 @@ export function installRendererElementSelector(
       borders: rect ? readBorderWidths(element) : null,
       point: pending.point,
       spacing: spacing ? toSpacingDescriptor(spacing) : null,
+      hoverSpacing: hoverSpacing ? toSpacingDescriptor(hoverSpacing) : null,
       ...identity,
     };
 
@@ -358,7 +390,12 @@ export function installRendererElementSelector(
       updateMeasureState(message.altKey, measurePointerOverPage);
       return;
     }
+    if (message.type === "pan-modifier" && typeof message.spaceHeld === "boolean") {
+      setInteractionCursor(message.spaceHeld ? "drag" : "design");
+      return;
+    }
     if (message.type !== "inspector-interaction-state" || typeof message.open !== "boolean") return;
+    setInteractionCursor(message.cursor === "drag" ? "drag" : "design");
     const interactionsEnabled = message.interactionsEnabled === undefined
       ? message.open
       : message.interactionsEnabled === true;
@@ -755,5 +792,6 @@ export function installRendererElementSelector(
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");
     clearSpacingCursor();
+    restoreInteractionCursor();
   };
 }

@@ -1,14 +1,10 @@
 import type { ReactElement } from "react";
 import gridIllustration from "../ui/assets/grid.svg";
-
-function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
-}
+import { getPlatformModifierKey, isMacPlatform } from "./shortcuts.ts";
 
 export function EmptyState(): ReactElement {
   const macPlatform = isMacPlatform();
-  const modifierKey = macPlatform ? "⌘" : "Ctrl";
+  const modifierKey = getPlatformModifierKey();
   const modifierName = macPlatform ? "Command" : "Control";
   const optionKey = macPlatform ? "⌥" : "Alt";
   const optionName = macPlatform ? "Option" : "Alt";

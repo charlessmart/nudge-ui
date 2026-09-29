@@ -26,11 +26,15 @@ import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { cx } from "../ui/classNames.ts";
 import { TokenChip } from "./TokenChip.tsx";
 import { startDragPointerLock } from "./dragPointerLock.ts";
 import { createChangeHistoryGroup } from "../changes/workspaceChanges.ts";
 import { isMultiTarget, type EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { inlineBlockedBy } from "../styleEditors/inlineAuthored.ts";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -61,6 +65,9 @@ export interface TokenValueFieldProps {
   onCommitOpacity?(value: string): boolean | void;
   atRules?: readonly AtRuleContext[];
   chipVariant?: "default" | "small";
+  blockedBy?: string | null;
+  inlineWarningDataTest?: string;
+  inlineWarningTooltipDataTest?: string;
 }
 
 export interface TokenFieldProps {
@@ -90,6 +97,8 @@ export interface TokenFieldProps {
   mixed?: boolean;
   /** Referenced tokens used for raw color-field behavior; not rendered inline. */
   attributionTokens?: string[];
+  inlineWarningDataTest?: string;
+  inlineWarningTooltipDataTest?: string;
 }
 
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
@@ -292,7 +301,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     onCommitOpacity,
     atRules,
     chipVariant = "default",
+    blockedBy = null,
+    inlineWarningDataTest,
+    inlineWarningTooltipDataTest,
   } = props;
+  const fieldDisabled = disabled || blockedBy !== null;
   const inheritedAtRules = useFieldAtRules(property);
   const fieldAtRules = atRules ?? inheritedAtRules;
   const controlledToken = controlledTokenName ? entries.find((entry) => entry.name === controlledTokenName) : null;
@@ -382,6 +395,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function commitRawValue(value = rawValue): void {
+    if (fieldDisabled) return;
     if (mixed && value.trim().toLowerCase() === "mixed") return;
     const formatted = formatRawValue(value);
     if (!formatted) {
@@ -476,7 +490,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
     if (event.button !== 0) return;
-    if (disabled || !supportsDragNudge(property)) return;
+    if (fieldDisabled || !supportsDragNudge(property)) return;
     if (!canNudgeCssValueByDrag(property, rawValue)) return;
 
     stopDragNudge();
@@ -552,7 +566,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   function renderLeading(): ReactElement | null {
     if (!leading) return null;
-    const canDrag = !disabled
+    const canDrag = !fieldDisabled
       && supportsDragNudge(property)
       && canNudgeCssValueByDrag(property, rawValue);
     if (!canDrag) return <span className="token-field__leading">{leading}</span>;
@@ -561,7 +575,6 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         className="token-field__leading token-field__leading--nudge"
         data-test="nudge-handle"
         data-dragging={isDraggingNudge ? "true" : undefined}
-        title={`Drag to adjust ${label ?? property}`}
         onPointerDown={handleDragNudgePointerDown}
         onPointerMove={handleDragNudgePointerMove}
         onPointerUp={handleDragNudgePointerEnd}
@@ -574,7 +587,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function commitOpacityValue(value = opacityValue): void {
-    if (!showOpacity || !onCommitOpacity) return;
+    if (fieldDisabled || !showOpacity || !onCommitOpacity) return;
     const normalized = normalizeOpacityPercent(value);
     if (normalized === null) {
       setOpacityValue(opacity?.value ?? "100%");
@@ -594,7 +607,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       type="text"
       inputMode="decimal"
       value={opacityValue}
-      disabled={disabled || !onCommitOpacity}
+      disabled={fieldDisabled || !onCommitOpacity}
       aria-label={`Opacity for ${property}`}
       onChange={(event) => setOpacityValue(event.target.value)}
       onBlur={() => commitOpacityValue()}
@@ -626,7 +639,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const colorControlEl = isColor ? (
     <NativeColorSwatch
       value={colorPreview}
-      disabled={disabled}
+      disabled={fieldDisabled}
       onChange={(value) => commitRawValue(value)}
     />
   ) : null;
@@ -638,11 +651,17 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     const embedColorSwatch = isColor && chipVariant !== "small";
     return (
       <span
-        className={`token-field${isColor ? " token-field--color" : ""}${embedColorSwatch ? " token-field--color-chip" : ""}${className ? ` ${className}` : ""}`}
+        className={cx(
+          "token-field",
+          isColor && "token-field--color",
+          embedColorSwatch && "token-field--color-chip",
+          blockedBy !== null && "token-field--blocked",
+          className,
+        )}
         data-test="token-field"
         data-property={property}
+        aria-disabled={fieldDisabled || undefined}
         aria-label={label}
-        title={label}
       >
         {renderLeading()}
         {embedColorSwatch ? null : colorControlEl}
@@ -654,7 +673,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             trigger={(
               <TokenChip.Picker>
                 {embedColorSwatch ? colorControlEl : null}
-                <TokenChip.Label title={activeToken.name}>{chipValue}</TokenChip.Label>
+                <TokenChip.Label title={chipVariant === "small" ? activeToken.name : undefined}>
+                  {chipValue}
+                </TokenChip.Label>
               </TokenChip.Picker>
             )}
             triggerClassName="token-chip__trigger"
@@ -666,28 +687,35 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             items={[...rawSuggestionItems, ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName))]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}
-            disabled={disabled}
+            disabled={fieldDisabled}
             onSelect={(value) => {
               handleSuggestionSelect(value);
             }}
           />
           <TokenChip.Action>
-            <IconButton
-              variant="quiet"
-              size="compact"
-              style={{ borderRadius: "var(--radius-4)" }}
-              label="Replace with raw value"
-              data-test="delink-btn"
-              disabled={disabled}
-              onClick={handleDelink}
-            >
-              <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
-            </IconButton>
+            <Tooltip stableTrigger>
+              <IconButton
+                variant="quiet"
+                size="compact"
+                style={{ borderRadius: "var(--radius-4)" }}
+                label="Replace with raw value"
+                data-test="delink-btn"
+                disabled={fieldDisabled}
+                onClick={handleDelink}
+              >
+                <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
+              </IconButton>
+            </Tooltip>
           </TokenChip.Action>
         </TokenChip>
         {opacityControl}
         <AtRuleIndicator atRules={fieldAtRules} />
         {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
+        <InlineStyleWarning
+          blockedBy={blockedBy}
+          dataTest={inlineWarningDataTest}
+          tooltipDataTest={inlineWarningTooltipDataTest}
+        />
       </span>
     );
   }
@@ -695,11 +723,17 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0);
   return (
     <span
-      className={`token-field token-field--raw${isColor ? " token-field--color" : ""}${className ? ` ${className}` : ""}`}
+      className={cx(
+        "token-field",
+        "token-field--raw",
+        isColor && "token-field--color",
+        blockedBy !== null && "token-field--blocked",
+        className,
+      )}
       data-test="token-field"
       data-property={property}
+      aria-disabled={fieldDisabled || undefined}
       aria-label={label}
-      title={label}
     >
       {renderLeading()}
       {colorControlEl}
@@ -726,7 +760,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           setRawValue(value);
         }}
         onOpenChange={setIsFocused}
-        disabled={disabled}
+        disabled={fieldDisabled}
         onSelect={(value) => {
           handleSuggestionSelect(value);
         }}
@@ -734,6 +768,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       {opacityControl}
       <AtRuleIndicator atRules={fieldAtRules} />
       {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
+      <InlineStyleWarning
+        blockedBy={blockedBy}
+        dataTest={inlineWarningDataTest}
+        tooltipDataTest={inlineWarningTooltipDataTest}
+      />
     </span>
   );
 }
@@ -768,6 +807,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     disabled = false,
     mixed = false,
     attributionTokens,
+    inlineWarningDataTest,
+    inlineWarningTooltipDataTest,
   } = props;
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
@@ -778,6 +819,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     ? selectedProperty.value.value
     : undefined;
   const effectiveMetadata = editTarget && isMultiTarget(editTarget) ? undefined : editMetadata;
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
@@ -843,6 +885,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       suggestions={suggestions}
       inputDataTest={inputDataTest}
       disabled={disabled}
+      blockedBy={blockedBy}
       mixed={effectiveMixed}
       isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
       formatRawValue={(value) => {
@@ -888,6 +931,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       className={className}
       label={label}
       chipVariant={chipVariant}
+      inlineWarningDataTest={inlineWarningDataTest}
+      inlineWarningTooltipDataTest={inlineWarningTooltipDataTest}
     />
   );
 }

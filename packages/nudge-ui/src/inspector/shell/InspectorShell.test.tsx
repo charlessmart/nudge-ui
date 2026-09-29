@@ -476,11 +476,8 @@ describe("InspectorShell", () => {
     });
     const shadow = host.shadowRoot!;
     const panel = shadow.querySelector(".panel")!;
-    const header = shadow.querySelector('[data-test="inspect-tab"]') as HTMLElement;
     const collapse = shadow.querySelector('[data-test="collapse-inspector"]') as HTMLButtonElement;
     expect(collapse.getAttribute("aria-label")).toBe("Collapse inspector");
-    expect(header.style.marginLeft).toBe("");
-    expect(collapse.style.marginLeft).toBe("-8px");
 
     act(() => collapse.click());
     expect(panel.getAttribute("data-open")).toBe("false");

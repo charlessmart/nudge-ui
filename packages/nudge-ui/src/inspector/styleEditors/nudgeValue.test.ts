@@ -39,17 +39,22 @@ describe("nudgeCssValue", () => {
   });
 
   it("maps horizontal drag distance at reduced speed", () => {
-    expect(nudgeCssValueByDrag("padding-top", "16px", 2)).toBeNull();
-    expect(nudgeCssValueByDrag("padding-top", "16px", 4)).toBe("17px");
-    expect(nudgeCssValueByDrag("border-radius", "16px", -2, true)).toBe("8px");
-    expect(nudgeCssValueByDrag("margin-top", "1rem", 2, true)).toBe("2rem");
-    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 4)).toBe("9px, 17px");
+    expect(nudgeCssValueByDrag("padding-top", "16px", 8)).toBeNull();
+    expect(nudgeCssValueByDrag("padding-top", "16px", 16)).toBe("17px");
+    expect(nudgeCssValueByDrag("font-size", "16px", 16)).toBe("17px");
+    expect(nudgeCssValueByDrag("letter-spacing", "-0.02em", 16)).toBe("0.105em");
+    expect(nudgeCssValueByDrag("line-height", "1.5", 16)).toBe("160%");
+    expect(nudgeCssValueByDrag("opacity", "50%", 16)).toBe("51%");
+    expect(nudgeCssValueByDrag("opacity", "0.5", 16)).toBe("51%");
+    expect(nudgeCssValueByDrag("border-radius", "16px", -8, true)).toBe("8px");
+    expect(nudgeCssValueByDrag("margin-top", "1rem", 8, true)).toBe("2rem");
+    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 16)).toBe("9px, 17px");
   });
 
   it("snaps to the next large-step boundary when Shift starts mid-drag", () => {
-    expect(nudgeCssValueByDrag("padding-top", "21px", 2, true, true)).toBe("24px");
-    expect(nudgeCssValueByDrag("padding-top", "24px", 2, true)).toBe("32px");
-    expect(nudgeCssValueByDrag("padding-top", "21px", -2, true, true)).toBe("16px");
+    expect(nudgeCssValueByDrag("padding-top", "21px", 8, true, true)).toBe("24px");
+    expect(nudgeCssValueByDrag("padding-top", "24px", 8, true)).toBe("32px");
+    expect(nudgeCssValueByDrag("padding-top", "21px", -8, true, true)).toBe("16px");
   });
 
   it.each([
@@ -59,13 +64,17 @@ describe("nudgeCssValue", () => {
     "inset-horizontal",
     "row-gap",
     "column-gap",
+    "font-size",
+    "letter-spacing",
+    "line-height",
+    "opacity",
     "border-radius",
     "border-bottom-left-radius",
   ])("supports drag nudging for %s", (property) => {
     expect(supportsDragNudge(property)).toBe(true);
   });
 
-  it.each(["width", "font-size", "box-shadow", "color"])("does not expose drag nudging for %s", (property) => {
+  it.each(["width", "box-shadow", "color"])("does not expose drag nudging for %s", (property) => {
     expect(supportsDragNudge(property)).toBe(false);
   });
 });

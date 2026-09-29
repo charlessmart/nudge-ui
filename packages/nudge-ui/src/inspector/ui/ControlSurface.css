@@ -8,7 +8,7 @@
 .select {
   --control-surface-height: var(--control-height-large);
   --control-surface-padding: 2px 8px;
-  --control-surface-gap: 6px;
+  --control-surface-gap: var(--space-8);
   box-sizing: border-box;
   min-width: 0;
   height: var(--control-surface-height);
@@ -40,7 +40,7 @@
 .text-input--compact,
 .select--compact {
   --control-surface-height: var(--control-height-small);
-  --control-surface-padding: 0 6px;
+  --control-surface-padding: 0 var(--space-8);
 }
 
 .control-surface:hover:not(:focus-within),

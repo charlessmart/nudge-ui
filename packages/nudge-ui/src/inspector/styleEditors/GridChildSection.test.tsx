@@ -74,8 +74,6 @@ describe("GridChildSection", () => {
       .toBe("true");
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-h-"]')).toHaveLength(4);
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-v-"]')).toHaveLength(4);
-    expect(handle!.host.querySelector('[data-test="layout-grid-child-align-v-start"]')?.getAttribute("title"))
-      .toBe("Align top");
     const alignmentIcons = handle!.host.querySelectorAll(".layout__grid-child-alignment-control svg");
     expect(alignmentIcons).toHaveLength(8);
     for (const icon of alignmentIcons) {

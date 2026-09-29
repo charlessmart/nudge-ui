@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
+import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -20,6 +20,7 @@ declare global {
 
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { AgentStatusButton } from "./AgentStatusButton.tsx";
 import { SpacingBox } from "../styleEditors/SpacingBox.tsx";
 import { Typography } from "../styleEditors/Typography.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
@@ -41,7 +42,7 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
-import { isEditableEvent } from "./shortcuts.ts";
+import { getInspectorToggleShortcutLabel, isEditableEvent } from "./shortcuts.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
@@ -73,6 +74,7 @@ import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/i
 import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
 import { clearSketchesForProject } from "../sketch/store.ts";
 import { closeSketchNote } from "../sketch/sketchNote.ts";
+import { Tooltip } from "../ui/Tooltip.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -285,30 +287,24 @@ export function InspectorShell(): ReactElement {
             className="panel__header-row"
             data-test="inspect-tab"
           >
-            <IconButton
-              variant="quiet"
-              label="Collapse inspector"
-              data-test="collapse-inspector"
-              disabled={sketchActive}
-              style={{ marginLeft: "-8px" }}
-              onClick={() => {
-                cancelInlineTextEdit();
-                setInspectorOpen(false);
-              }}
-            >
-              <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            </IconButton>
-            <div className="panel__header-actions">
-              <PeekOriginalButton />
+            <Tooltip content="Hide inspector" shortcut={getInspectorToggleShortcutLabel()} stableTrigger>
               <IconButton
                 variant="quiet"
-                label="Settings"
-                title="Settings"
-                data-test="settings-button"
-                onClick={() => openSettings("instructions")}
+                label="Collapse inspector"
+                data-test="collapse-inspector"
+                disabled={sketchActive}
+                style={{ marginLeft: "calc(var(--space-8) * -1)" }}
+                onClick={() => {
+                  cancelInlineTextEdit();
+                  setInspectorOpen(false);
+                }}
               >
-                <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
+            </Tooltip>
+            <div className="panel__header-actions">
+              <PeekOriginalButton />
+              <AgentStatusButton onOpenSettings={openSettings} />
             </div>
           </div>
           <div className="panel__copy-row">
@@ -449,15 +445,17 @@ export function InspectorShell(): ReactElement {
       ) : null}
       {!isOpen ? (
         <div className="panel__restore">
-          <IconButton
-            variant="quiet"
-            label="Show inspector"
-            className="panel__restore-button"
-            data-test="show-inspector"
-            onClick={() => setInspectorOpen(true)}
-          >
-            <IconLayoutSidebarRight size={16} stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
-          </IconButton>
+          <Tooltip>
+            <IconButton
+              variant="quiet"
+              label="Show inspector"
+              className="panel__restore-button"
+              data-test="show-inspector"
+              onClick={() => setInspectorOpen(true)}
+            >
+              <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
         </div>
       ) : null}
     </>

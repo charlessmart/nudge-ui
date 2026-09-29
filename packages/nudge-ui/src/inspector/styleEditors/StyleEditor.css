@@ -18,7 +18,7 @@
 .appearance__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--space-12);
+  gap: var(--space-8);
 }
 
 .appearance__field {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createTokenInventory } from "../../css/token-inventory/index.ts";
-import { mergeConfig } from "vite";
+import { createServer, mergeConfig } from "vite";
 import {
   nudgeUi as createNudgeUiPlugins,
   extractViteModuleCss,
@@ -135,7 +135,16 @@ describe("transformIndexHtmlHtml", () => {
 });
 
 describe("nudgeUi client transport", () => {
-  it("serves a pure editor document", async () => {
+  it("serves an editor document with Vite HMR and one inspector bootstrap", async ({ onTestFinished }) => {
+    const vite = await createServer({
+      configFile: false,
+      server: { middlewareMode: true, ws: false, watch: null, preTransformRequests: false },
+      plugins: [{
+        name: "inspector-bootstrap",
+        transformIndexHtml: (html) => transformIndexHtmlHtml(html, "serve") ?? html,
+      }],
+    });
+    onTestFinished(() => vite.close());
     type Middleware = (
       request: { url: string; method: string; headers?: Record<string, string> },
       response: { statusCode: number; setHeader(name: string, value: string): void; end(body?: string): void },
@@ -149,6 +158,7 @@ describe("nudgeUi client transport", () => {
     plugin.configResolved({ root: "/project", command: "serve" });
     plugin.configureServer({
       middlewares: { use: (handler: Middleware) => { middleware = handler; } },
+      transformIndexHtml: vite.transformIndexHtml,
       watcher: { on: () => undefined },
     });
     let body = "";
@@ -164,6 +174,8 @@ describe("nudgeUi client transport", () => {
     expect(body).toContain("data-nudge-ui-editor");
     expect(body).toContain('<div id="nudge-ui-root"></div>');
     expect(body).not.toContain("products");
+    expect(body).toContain('src="/@vite/client"');
+    expect(body.match(/data-nudge-ui-client/g)).toHaveLength(1);
 
     body = "";
     await middleware!({
@@ -246,7 +258,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code).toContain("demo: true");
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
     expect(code).toContain('demoCardLabels: ["V1","Final"]');
-    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
+    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true, domNavigation: true }");
     expect(code).toContain('window.addEventListener("nudge-ui:open"');
     expect(code).toContain("window.location.assign(createNudgeUiEditorUrl(window.location.href))");
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();

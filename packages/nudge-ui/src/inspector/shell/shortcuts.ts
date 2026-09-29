@@ -16,6 +16,19 @@ export function isEditableEvent(event: KeyboardEvent): boolean {
   return event.composedPath().some(isEditableTarget) || isEditableTarget(deeplyFocusedElement());
 }
 
+export function isMacPlatform(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+}
+
+export function getPlatformModifierKey(): "⌘" | "Ctrl" {
+  return isMacPlatform() ? "⌘" : "Ctrl";
+}
+
+export function getInspectorToggleShortcutLabel(): string {
+  return `${getPlatformModifierKey()}\\`;
+}
+
 export const SEND_PROMPT_HOTKEY_EVENT = "nudge-ui-send-prompt-hotkey";
 
 export function isSendPromptShortcut(event: KeyboardEvent): boolean {

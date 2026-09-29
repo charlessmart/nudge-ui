@@ -62,12 +62,12 @@ export function GridSection({
                 data-test="layout-grid-settings"
                 side="bottom"
                 align="end"
+                triggerTooltip="Grid settings"
                 triggerElement={(
                   <IconButton
                     variant="quiet"
                     size="default"
                     label="Grid settings"
-                    title="Grid settings"
                     data-active={advancedOpen}
                     data-test="layout-grid-settings"
                   >
@@ -142,7 +142,9 @@ export function GridSection({
             <GridPicker domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
           <div className="layout__grid-gap" data-test="layout-grid-gap">
-            <div className="editor__title">Gap</div>
+            <div className="layout__grid-heading" data-test="layout-grid-gap-heading" aria-hidden="true">
+              <div className="editor__title" />
+            </div>
             <div className="layout__grid-gap-fields">
               <ControlSurface className="layout__spacing-field" data-test="layout-grid-row-gap">
                 <GapField

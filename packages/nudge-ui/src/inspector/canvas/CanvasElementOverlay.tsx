@@ -15,12 +15,14 @@ import {
 } from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
 import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
-import { redo, undo } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import { getChanges, redo, subscribeChanges, undo, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../overlay/dropGuide.ts";
 import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOverlay.tsx";
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
+import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
 import { getRegisteredFrames, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -34,6 +36,7 @@ import { setStyles } from "../tokens/editActions.ts";
 import {
   getSpacingAffordanceAtPoint,
   getSpacingAffordanceForDescriptor,
+  getSpacingHoverAtPoint,
   SPACING_GUIDE_HANDLE_LENGTH,
   spacingValueCss,
   spacingValueForDrag,
@@ -81,6 +84,25 @@ interface CanvasSpacingDragState {
   originalInlinePriority: string;
 }
 
+interface CanvasSpacingBadgeState {
+  iframe: HTMLIFrameElement;
+  point: { x: number; y: number };
+  value: number;
+}
+
+/** A committed spacing drag whose preview inline is held until the renderer
+ * applies the projected managed rule, so the authored value never flashes. */
+interface PendingSpacingCommit {
+  iframe: HTMLIFrameElement;
+  element: HTMLElement;
+  property: string;
+  committedValue: string;
+  /** Change keys created by the commit; gone once the rule is undone/reverted. */
+  keys: string[];
+  originalInlineValue: string;
+  originalInlinePriority: string;
+}
+
 function projectRect(iframe: HTMLIFrameElement, rect: Rect, zoom: number): Rect {
   const frameRect = iframe.getBoundingClientRect();
   return {
@@ -88,6 +110,25 @@ function projectRect(iframe: HTMLIFrameElement, rect: Rect, zoom: number): Rect 
     top: frameRect.top + rect.top * zoom,
     width: rect.width * zoom,
     height: rect.height * zoom,
+  };
+}
+
+function projectPoint(iframe: HTMLIFrameElement, x: number, y: number, zoom: number) {
+  const frameRect = iframe.getBoundingClientRect();
+  return {
+    x: frameRect.left + x * zoom,
+    y: frameRect.top + y * zoom,
+  };
+}
+
+function spacingBadgeForDrag(
+  drag: CanvasSpacingDragState,
+  point: { x: number; y: number },
+): CanvasSpacingBadgeState {
+  return {
+    iframe: drag.iframe,
+    point: { x: point.x, y: point.y },
+    value: drag.currentValue,
   };
 }
 
@@ -190,17 +231,100 @@ function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
   endLayoutPreview(drag.element, drag.affordance.property);
 }
 
-function commitSpacingDrag(drag: CanvasSpacingDragState): void {
-  // Restore the authored declaration before committing the managed rule. The
-  // captured start value is the baseline because the pointer remains hovered
-  // and CSS inspection can still report the transient preview value.
-  restoreSpacingPreview(drag);
-  if (drag.currentValue === drag.startValue) return;
-  setStyles(drag.element, [{
+/**
+ * Commits a managed rule for the drag's final value. Returns the created change
+ * records (empty for a no-op drag). The preview inline is intentionally left
+ * applied at the committed value once a record exists; the caller must register
+ * a PendingSpacingCommit and release it after the renderer acknowledges the
+ * projected sheet. Restoring the authored declaration first would flash the old
+ * value for the postMessage round trip the sheet takes.
+ */
+function commitSpacingDrag(drag: CanvasSpacingDragState): ElementChangeRecord[] {
+  if (drag.currentValue === drag.startValue) {
+    restoreSpacingPreview(drag);
+    return [];
+  }
+  return setStyles(drag.element, [{
     property: drag.affordance.property,
     value: spacingValueCss(drag.currentValue),
     oldRawValue: spacingValueCss(drag.startValue),
   }]);
+}
+
+/** Removes a deferred preview inline as soon as the projected sheet alone
+ * reproduces the committed value; keeps it otherwise and retries on the next
+ * projection acknowledgement from that frame. */
+function tryReleasePendingSpacingCommit(commit: PendingSpacingCommit): boolean {
+  const { element, property, committedValue } = commit;
+  if (!element.isConnected) return true;
+  element.style.removeProperty(property);
+  const computed = getElementComputedStyle(element).getPropertyValue(property).trim();
+  if (computed === committedValue) {
+    endLayoutPreview(element, property);
+    return true;
+  }
+  element.style.setProperty(property, committedValue);
+  return false;
+}
+
+function releasePendingSpacingCommits(
+  pending: PendingSpacingCommit[],
+  iframe: HTMLIFrameElement,
+): void {
+  if (pending.length === 0) return;
+  let write = 0;
+  for (const commit of pending) {
+    if (commit.iframe !== iframe || !tryReleasePendingSpacingCommit(commit)) {
+      pending[write] = commit;
+      write += 1;
+    }
+  }
+  pending.length = write;
+}
+
+/** Restores any held preview inline whose committed rule was undone, reverted,
+ * or cleared before its sheet landed. Runs synchronously with the workspace
+ * change, so the inline never outlives the intent behind it. */
+function reconcilePendingSpacingCommits(pending: PendingSpacingCommit[]): void {
+  if (pending.length === 0) return;
+  const survivingKeys = new Set(getChanges().map(changeKey));
+  let write = 0;
+  for (const commit of pending) {
+    if (commit.keys.some((key) => survivingKeys.has(key))) {
+      pending[write] = commit;
+      write += 1;
+      continue;
+    }
+    const { element, property, originalInlineValue, originalInlinePriority } = commit;
+    if (originalInlineValue) {
+      element.style.setProperty(property, originalInlineValue, originalInlinePriority);
+    } else {
+      element.style.removeProperty(property);
+    }
+    endLayoutPreview(element, property);
+  }
+  pending.length = write;
+}
+
+/** Registers a held preview inline, folding an older unapplied commit for the
+ * same element and property into the newest one so the held value and the
+ * authored baseline both stay coherent across rapid successive drags. */
+function pushPendingSpacingCommit(
+  pending: PendingSpacingCommit[],
+  next: PendingSpacingCommit,
+): void {
+  const existing = pending.findIndex((commit) => commit.iframe === next.iframe
+    && commit.element === next.element
+    && commit.property === next.property);
+  if (existing === -1) {
+    pending.push(next);
+    return;
+  }
+  pending[existing] = {
+    ...next,
+    originalInlineValue: pending[existing]!.originalInlineValue,
+    originalInlinePriority: pending[existing]!.originalInlinePriority,
+  };
 }
 
 function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
@@ -233,6 +357,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
   const spacingDragRef = useRef<CanvasSpacingDragState | null>(null);
+  const pendingSpacingCommitsRef = useRef<PendingSpacingCommit[]>([]);
+  const [spacingDragBadge, setSpacingDragBadge] = useState<CanvasSpacingBadgeState | null>(null);
   const measureAltKeyRef = useRef(false);
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide, projectionZoom);
@@ -316,6 +442,15 @@ export function CanvasElementOverlay(): ReactElement | null {
     return elementId ? { elementId } : null;
   }, [selected?.domElement]);
 
+  // A held spacing preview inline must not outlive the committed rule behind
+  // it: undo/redo/revert/clear remove the record synchronously, so restore the
+  // authored declaration before the renderer's next replace-styles lands.
+  useEffect(() => {
+    return subscribeChanges(() => {
+      reconcilePendingSpacingCommits(pendingSpacingCommitsRef.current);
+    });
+  }, []);
+
   useEffect(() => {
     const refreshSpacingPreviewOverlay = (drag: CanvasSpacingDragState): void => {
       const descriptor: SpacingDescriptor = {
@@ -358,6 +493,11 @@ export function CanvasElementOverlay(): ReactElement | null {
       }
       if (data.type === "renderer-hello") return;
 
+      if (data.type === "projection-applied") {
+        releasePendingSpacingCommits(pendingSpacingCommitsRef.current, sourceIframe);
+        return;
+      }
+
       if (data.type === "element-hover") {
         const msg = data;
         if (!msg.cid) return;
@@ -365,7 +505,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           setHover((current) => current?.cardId === sourceCardId ? null : current);
           return;
         }
-        const spacingDescriptor = msg.spacing ?? null;
+        const spacingDescriptor = msg.hoverSpacing ?? msg.spacing ?? null;
         const hoverPoint = msg.point ?? null;
         const hoverElement = spacingDescriptor
           ? findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src)
@@ -373,7 +513,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         const hoverAffordance = spacingDescriptor && hoverElement
           ? getSpacingAffordanceForDescriptor(hoverElement, spacingDescriptor)
           : spacingDescriptor && hoverPoint && sourceIframe.contentDocument
-            ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
+            ? getSpacingHoverAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
             : null;
         const matchingAffordance = spacingDescriptorMatches(hoverAffordance, spacingDescriptor)
           ? hoverAffordance
@@ -421,6 +561,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           });
       } else if (data.type === "element-deselect") {
         clearSpacingDrag(spacingDragRef);
+        setSpacingDragBadge(null);
         dragRef.current = null;
         clearDropGuide("canvas");
         setSelectedElement(null);
@@ -454,6 +595,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           const selectedElement = resolveSelectionFromElement(element);
           if (selectedElement) setSelectedElement(selectedElement);
           applySpacingPreview(spacingDragRef.current, msg.point, msg.shiftKey === true);
+          setSpacingDragBadge(spacingBadgeForDrag(spacingDragRef.current, msg.point));
           refreshSpacingPreviewOverlay(spacingDragRef.current);
           return;
         }
@@ -465,6 +607,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === sourceIframe) {
           applySpacingPreview(spacing, data.point, data.shiftKey === true);
+          setSpacingDragBadge(spacingBadgeForDrag(spacing, data.point));
           refreshSpacingPreviewOverlay(spacing);
           return;
         }
@@ -474,12 +617,24 @@ export function CanvasElementOverlay(): ReactElement | null {
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === sourceIframe) {
           spacingDragRef.current = null;
+          setSpacingDragBadge(null);
           if (msg.cancelled) {
             restoreSpacingPreview(spacing);
             refreshSpacingPreviewOverlay(spacing);
           } else {
             applySpacingPreview(spacing, msg.point, msg.shiftKey === true);
-            commitSpacingDrag(spacing);
+            const records = commitSpacingDrag(spacing);
+            if (records.length > 0) {
+              pushPendingSpacingCommit(pendingSpacingCommitsRef.current, {
+                iframe: sourceIframe,
+                element: spacing.element,
+                property: spacing.affordance.property,
+                committedValue: spacingValueCss(spacing.currentValue),
+                keys: records.map((record) => changeKey(record)),
+                originalInlineValue: spacing.originalInlineValue,
+                originalInlinePriority: spacing.originalInlinePriority,
+              });
+            }
             refreshSpacingPreviewOverlay(spacing);
           }
           clearDropGuide("canvas");
@@ -541,6 +696,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       unsubscribe();
       clearSpacingDrag(spacingDragRef);
       dragRef.current = null;
+      pendingSpacingCommitsRef.current = [];
       clearDropGuide("canvas");
     };
   }, []);
@@ -551,6 +707,9 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
   const projectedSpacingGuides = hover?.spacingGuides.map((guide) => projectRect(hover.iframe, guide, projectionZoom)) ?? [];
   const projectedSpacingAreas = hover?.spacingAreas.map((area) => projectRect(hover.iframe, area, projectionZoom)) ?? [];
+  const projectedSpacingBadge = spacingDragBadge
+    ? projectPoint(spacingDragBadge.iframe, spacingDragBadge.point.x, spacingDragBadge.point.y, projectionZoom)
+    : null;
   const hoverSpacing = hover?.spacing ?? null;
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
   const hoverInSelectedFrame = hover?.iframe === selectedFrame ? hover : null;
@@ -644,6 +803,16 @@ export function CanvasElementOverlay(): ReactElement | null {
           aria-hidden="true"
         />
       ))}
+      {projectedSpacingBadge && spacingDragBadge ? (
+        <div
+          className="canvas-spacing-value-badge"
+          data-test="canvas-spacing-value-badge"
+          style={{ left: projectedSpacingBadge.x, top: projectedSpacingBadge.y }}
+          aria-hidden="true"
+        >
+          {spacingValueCss(spacingDragBadge.value)}
+        </div>
+      ) : null}
       {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrame instanceof HTMLIFrameElement ? (
         <DomNavigator
           selected={selected}

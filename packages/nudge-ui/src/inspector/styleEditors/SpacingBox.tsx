@@ -29,6 +29,7 @@ import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 export interface SpacingBoxProps {
   element: SelectedElement;
@@ -164,6 +165,7 @@ export function SpacingField({
         sideProperties={sideProperties}
         domElement={el}
         editTarget={editTarget}
+        selection={selection}
         axisProjection={spacingProjection.axes[axis]}
         entries={entries}
         suggestions={suggestions}
@@ -190,7 +192,6 @@ export function SpacingField({
           size="default"
           data-test="add-inset"
           label="Add Inset Values"
-          title="Add Inset Values"
           onClick={visibility.show}
         >
           <IconPlus size={16} aria-hidden="true" />
@@ -292,6 +293,7 @@ interface PairedTokenFieldProps {
   sideProperties: readonly [string, string];
   domElement: HTMLElement;
   editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   axisProjection: InspectorAxisProjection;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
@@ -305,6 +307,7 @@ function PairedTokenField({
   sideProperties,
   domElement: el,
   editTarget,
+  selection,
   axisProjection,
   entries,
   suggestions,
@@ -336,6 +339,7 @@ function PairedTokenField({
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], ...sideProperties);
 
   function commitAxisValue(value: string): void {
     const pair = splitAxisValue(value);
@@ -352,6 +356,7 @@ function PairedTokenField({
   return (
     <TokenValueField
       property={displayProperty}
+      domElement={el}
       committedValue={committedValue}
       resolvedValue={resolvedValue}
       activeTokenName={activeTokenName}
@@ -375,6 +380,7 @@ function PairedTokenField({
       }}
       onUnlink={commitAxisValue}
       leading={leading}
+      blockedBy={blockedBy}
     />
   );
 }

@@ -297,6 +297,26 @@ describe("SpacingBox", () => {
     expect(sheetText()).toContain("padding-right: 24px;");
   });
 
+  it("blocks grouped spacing fields when padding is authored inline", () => {
+    const { selected } = makeSelected();
+    selected.domElement.style.setProperty("padding", "8px");
+    mockComputedStyle({
+      "padding-top": "8px",
+      "padding-right": "8px",
+      "padding-bottom": "8px",
+      "padding-left": "8px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    handle = mount(createElement(SpacingBox, { element: selected }));
+
+    const grouped = handle.host.querySelector('[data-test="token-field"][data-property="padding-horizontal"]') as HTMLElement;
+    expect(grouped.querySelector('[data-test="raw-input"]')).toHaveProperty("disabled", true);
+    expect(grouped.querySelector('[data-test="inline-style-warning"]')).not.toBeNull();
+  });
+
   it("shows asymmetric pairs as comma-separated values", () => {
     const { selected } = makeSelected();
     mockComputedStyle({

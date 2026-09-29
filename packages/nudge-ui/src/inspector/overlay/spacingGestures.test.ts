@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   getSpacingAffordanceAtPoint,
+  getSpacingHoverAtPoint,
   spacingValueForDrag,
   toSpacingDescriptor,
 } from "./spacingGestures.ts";
@@ -76,6 +77,18 @@ describe("spacing gestures", () => {
       property: "padding-top",
       hit: { left: 90, top: 26, width: 40, height: 16 },
     });
+
+    // The same off-handle points still light up the hover overlay, because
+    // hover previews match the whole padding bar rather than the handle.
+    expect(getSpacingHoverAtPoint(document, 100, 12)).toMatchObject({
+      kind: "padding",
+      property: "padding-top",
+      side: "top",
+      value: 48,
+    });
+    expect(getSpacingHoverAtPoint(document, 20, 34)).toMatchObject({ kind: "padding", property: "padding-top" });
+    expect(getSpacingHoverAtPoint(document, 100, 24)).toMatchObject({ kind: "padding", property: "padding-top" });
+    expect(getSpacingHoverAtPoint(document, 100, 60)).toBeNull();
   });
 
   it("does not expose zero-sized padding as a drag affordance", () => {
@@ -146,6 +159,16 @@ describe("spacing gestures", () => {
       property: "column-gap",
       hit: { left: 56, top: 30, width: 16, height: 40 },
     });
+
+    // Anywhere inside the gap is a hover preview target, but not a drag one.
+    expect(getSpacingHoverAtPoint(document, 42, 50)).toMatchObject({
+      kind: "gap",
+      property: "column-gap",
+      value: 48,
+    });
+    expect(getSpacingHoverAtPoint(document, 64, 8)).toMatchObject({ kind: "gap", property: "column-gap" });
+    expect(getSpacingHoverAtPoint(document, 52, 50)).toMatchObject({ kind: "gap", property: "column-gap" });
+    expect(getSpacingHoverAtPoint(document, 60, 50)).toMatchObject({ kind: "gap", property: "column-gap" });
   });
 
   it("keeps vertical gap drags on the row-gap axis", () => {
@@ -198,12 +221,22 @@ describe("spacing gestures", () => {
     expect(spacingValueForDrag(right!, { x: 200, y: 70 }, { x: 208, y: 70 })).toBe(28);
   });
 
-  it("moves spacing in 8px increments while Shift is held", () => {
+  it("moves spacing in 8px steps anchored on the nearest step while Shift is held", () => {
     const affordance = { dragAxis: "y" as const, direction: 1 as const, value: 20 };
 
-    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 27 }, true)).toBe(20);
-    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 28 }, true)).toBe(28);
-    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 44 }, true)).toBe(44);
-    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 12 }, true)).toBe(12);
+    // The first displacement snaps to the nearest multiple of 8 in the drag
+    // direction instead of stepping the raw delta from the authored value.
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 21 }, true)).toBe(24);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 27 }, true)).toBe(24);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 19 }, true)).toBe(16);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 12 }, true)).toBe(8);
+    // Larger displacements step by whole 8px from the snapped anchor.
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 28 }, true)).toBe(32);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 44 }, true)).toBe(48);
+    // The exact start point keeps the authored value and a later snap re-anchors.
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 20 }, true)).toBe(20);
+    // An already-multiples value anchors on itself.
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 30 }, true)).toBe(32);
+    expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 22 }, true)).toBe(24);
   });
 });

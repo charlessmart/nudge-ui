@@ -37,11 +37,11 @@ test("dev: spacing stays editable through zero and videos omit inherited text co
   expect(cursorBox?.height).toBe(9.5);
   expect(cursorBox?.x).toBeCloseTo(x - 9, 0);
   expect(cursorBox?.y).toBeCloseTo(y - 4, 0);
-  await page.mouse.move(x - 16, y);
+  await page.mouse.move(x - 64, y);
   expect(await cursor.boundingBox()).toEqual(cursorBox);
   await expect(input).toHaveValue("0px");
   await expect.poll(() => app.locator(".hero h1").evaluate((element) => getComputedStyle(element).paddingLeft)).toBe("0px");
-  await page.mouse.move(x - 8, y);
+  await page.mouse.move(x - 32, y);
   await page.mouse.up();
   await expect.poll(() => page.evaluate(() => document.pointerLockElement === null)).toBe(true);
   await expect(cursor).toHaveCount(0);

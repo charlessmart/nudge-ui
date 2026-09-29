@@ -12,6 +12,7 @@ import { AspectRatioField } from "./AspectRatioField.tsx";
 import { PositionInsets } from "./PositionInsets.tsx";
 import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
@@ -22,6 +23,8 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
@@ -173,13 +176,9 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
         {isFlexContainer ? (
           <div className="layout__group" data-test="layout-flex-container">
-            <div className="editor__title">Flex</div>
-            <div className="layout__flex-toolbar">
-              <div className="layout__direction-tools">
-                <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-              </div>
+            <div className="layout__flex-heading">
+              <div className="editor__title">Flex</div>
+              <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
             </div>
             <div className="layout__flex-lower">
               {mixedFlexDirection ? (
@@ -190,6 +189,10 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
               )}
               <div className="layout__gap-column" data-test="layout-gap">
+                <div className="layout__direction-tools">
+                  <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
+                  <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
+                </div>
                 <div className="layout__gap-fields">
                   <div className="layout__spacing-primary">
                     <FlexGapField
@@ -352,22 +355,23 @@ function SizeSection({ domElement: el, editTarget, selection, entries, tokenRows
         <FieldRow label="Height" hideLabel data-test="layout-size-height" className="layout__size-cell layout__size-cell--height">
           {renderTokenField("height", SIZE_PRESETS)}
         </FieldRow>
-        <IconButton
-          className="layout__size-cell layout__size-cell--toggle"
-          variant="quiet"
-          size="default"
-          data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
-          aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
-          label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
-          title={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? (
-            <IconArrowsMinimize size={16} stroke={1.8} aria-hidden="true" />
-          ) : (
-            <IconArrowsMaximize size={16} stroke={1.8} aria-hidden="true" />
-          )}
-        </IconButton>
+        <Tooltip>
+          <IconButton
+            className="layout__size-cell layout__size-cell--toggle"
+            variant="quiet"
+            size="default"
+            data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
+            aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
+            label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <IconArrowsMinimize size={16} stroke={1.8} aria-hidden="true" />
+            ) : (
+              <IconArrowsMaximize size={16} stroke={1.8} aria-hidden="true" />
+            )}
+          </IconButton>
+        </Tooltip>
         {expanded && fields.slice(2).map(({ property, presets }) => (
           <FieldRow
             key={property}
@@ -435,12 +439,12 @@ function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0
       data-test="layout-flex-child-settings"
       side="left"
       align="start"
+      triggerTooltip="Flex child settings"
       triggerElement={(
         <IconButton
           variant="quiet"
           size="default"
           label="Flex child settings"
-          title="Flex child settings"
           data-test="layout-flex-child-settings"
         >
           <IconSettings size={16} stroke={1.8} aria-hidden="true" />
@@ -515,18 +519,21 @@ function FlexDirectionControl({ domElement, editTarget, selection, revision = 0,
   const sharedDirection = selectedDirection?.kind === "common" ? selectedDirection.value : direction;
   const orientation = sharedDirection.startsWith("column") ? "column" : "row";
   const reverse = sharedDirection.endsWith("-reverse");
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "flex-direction");
 
   function selectDirection(next: string): void {
+    if (blockedBy) return;
     if (!FLEX_DIRECTION_OPTIONS.includes(next)) return;
     setDirection(next);
     setStyle(editTarget ?? domElement, "flex-direction", next);
     onAfterEdit?.();
   }
 
-  return (
+  const control = (
     <SegmentedControl
       value={mixed ? null : orientation}
       aria-label="Flex direction"
+      disabled={blockedBy !== null}
       options={[
         {
           value: "row",
@@ -552,6 +559,7 @@ function FlexDirectionControl({ domElement, editTarget, selection, revision = 0,
       onChange={(next) => selectDirection(`${next}${!mixed && reverse ? "-reverse" : ""}`)}
     />
   );
+  return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{control}</Tooltip>;
 }
 
 function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
@@ -560,24 +568,29 @@ function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAft
   const mixed = selectedWrap?.kind === "mixed";
   const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
   const isWrapped = !mixed && sharedWrap !== "nowrap";
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "flex-wrap");
 
   function toggleWrap(): void {
+    if (blockedBy) return;
     setStyle(editTarget ?? domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
     onAfterEdit?.();
   }
 
   return (
-    <IconButton
-      variant="secondary"
-      size="default"
-      data-active={isWrapped}
-      data-test="layout-flex-wrap-toggle"
-      label={mixed ? "Set Flex Wrap" : isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
-      aria-pressed={mixed ? "mixed" : isWrapped}
-      onClick={toggleWrap}
-    >
-      <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
-    </IconButton>
+    <Tooltip content={inlineStyleWarningContent(blockedBy)}>
+      <IconButton
+        variant="secondary"
+        size="default"
+        data-active={isWrapped}
+        data-test="layout-flex-wrap-toggle"
+        label={mixed ? "Set Flex Wrap" : isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
+        aria-pressed={mixed ? "mixed" : isWrapped}
+        disabled={blockedBy !== null}
+        onClick={toggleWrap}
+      >
+        <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -601,6 +614,13 @@ function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onA
   const reverseDirection = sharedDirection.endsWith("-reverse")
     ? orientation
     : `${orientation}-reverse`;
+  const blockedBy = inlineBlockedBy(
+    selection?.domElements ?? [domElement],
+    "flex-direction",
+    "flex-wrap",
+    "align-content",
+    "align-items",
+  );
 
   const items = [
     ...(mixedDirection ? [] : [{
@@ -641,6 +661,7 @@ function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onA
   ];
 
   function selectSetting(setting: string): void {
+    if (blockedBy) return;
     const separator = setting.indexOf(":");
     if (separator < 0) return;
     const property = setting.slice(0, separator);
@@ -667,6 +688,8 @@ function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onA
       )}
       triggerDataTest="layout-flex-settings"
       triggerAriaLabel="Flex settings"
+      triggerTooltip={inlineStyleWarningContent(blockedBy)}
+      disabled={blockedBy !== null}
       items={items.map((item) => ({
         value: item.value,
         label: item.label,
@@ -681,18 +704,20 @@ function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onA
   );
 }
 
-function FlexDistributionControl({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexDistributionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
   const justify = normalizeFlexJustify(computedJustify);
   const lastPlacement = useRef("flex-start");
   const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
   const [open, setOpen] = useState(false);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content");
 
   useEffect(() => {
     if (FLEX_ALIGNMENT_OPTIONS.includes(justify)) lastPlacement.current = justify;
   }, [justify]);
 
   function selectDistribution(next: string): void {
+    if (blockedBy) return;
     const value = next === "packed" ? lastPlacement.current : next;
     setStyle(editTarget ?? domElement, "justify-content", value);
     onAfterEdit?.();
@@ -709,7 +734,6 @@ function FlexDistributionControl({ domElement, editTarget, revision = 0, onAfter
           variant="quiet"
           size="default"
           label="Item distribution"
-          title="Item distribution"
           data-active={distributed}
           data-test="layout-flex-distribution"
         >
@@ -718,6 +742,8 @@ function FlexDistributionControl({ domElement, editTarget, revision = 0, onAfter
       )}
       triggerDataTest="layout-flex-distribution"
       triggerAriaLabel="Item distribution"
+      triggerTooltip={inlineStyleWarningContent(blockedBy)}
+      disabled={blockedBy !== null}
       items={[
         { value: "packed", label: "Keep grouped" },
         { value: "space-between", label: "Spread between" },
@@ -740,7 +766,7 @@ function FlexDistributionControl({ domElement, editTarget, revision = 0, onAfter
   );
 }
 
-function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const [computedJustify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
   const [computedAlign, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
@@ -749,6 +775,7 @@ function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }
   const isColumn = direction.startsWith("column");
   const isReverse = direction.endsWith("-reverse");
   const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content", "align-items");
 
   // The grid represents physical positions in the parent. For row flex
   // containers, justify-content runs horizontally; for column flex
@@ -761,6 +788,7 @@ function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }
     : FLEX_ALIGNMENT_OPTIONS;
 
   function selectAlignment(nextJustify: string, nextAlign: string): void {
+    if (blockedBy) return;
     // Keep an explicit distribution choice when the grid is used to change
     // the cross-axis alignment. The distribution control owns values such as
     // `space-between`; a grid click should not silently replace them with the
@@ -775,7 +803,7 @@ function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }
     onAfterEdit?.();
   }
 
-  return (
+  const grid = (
     <div
       className="layout__alignment-grid"
       role="group"
@@ -795,25 +823,29 @@ function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }
           const justifyValue = isColumn ? rowValue : columnValue;
           const alignValue = isColumn ? columnValue : rowValue;
           const active = justify === justifyValue && align === alignValue;
+          const label = formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`);
           return (
-            <IconButton
-              key={`${alignValue}-${justifyValue}`}
-              size="default"
-              variant="quiet"
-              className="layout__alignment-button"
-              data-active={active}
-              data-test={`layout-align-${alignValue}-${justifyValue}`}
-              label={formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`)}
-              aria-pressed={active}
-              onClick={() => selectAlignment(justifyValue, alignValue)}
-            >
-              <span />
-            </IconButton>
+            <Tooltip key={`${alignValue}-${justifyValue}`}>
+              <IconButton
+                size="default"
+                variant="quiet"
+                className="layout__alignment-button"
+                data-active={active}
+                data-test={`layout-align-${alignValue}-${justifyValue}`}
+                label={label}
+                aria-pressed={active}
+                disabled={blockedBy !== null}
+                onClick={() => selectAlignment(justifyValue, alignValue)}
+              >
+                <span />
+              </IconButton>
+            </Tooltip>
           );
         }),
       )}
     </div>
   );
+  return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{grid}</Tooltip>;
 }
 
 function normalizeFlexJustify(value: string): string {

@@ -223,6 +223,7 @@ describe("renderer hover scheduling", () => {
 
     expect(hoverMessages(postMessage)[0]).toMatchObject({
       spacing: null,
+      hoverSpacing: { kind: "padding", property: "padding-top", side: "top" },
       point: { x: 100, y: 12 },
     });
     expect(document.documentElement.style.cursor).toBe("");
@@ -237,6 +238,7 @@ describe("renderer hover scheduling", () => {
 
     expect(hoverMessages(postMessage)[1]).toMatchObject({
       spacing: null,
+      hoverSpacing: { kind: "padding", property: "padding-top", side: "top" },
       point: { x: 20, y: 34 },
     });
     expect(document.documentElement.style.cursor).toBe("");
@@ -251,6 +253,7 @@ describe("renderer hover scheduling", () => {
 
     expect(hoverMessages(postMessage)[2]).toMatchObject({
       spacing: { kind: "padding", property: "padding-top", side: "top" },
+      hoverSpacing: { kind: "padding", property: "padding-top", side: "top" },
       point: { x: 100, y: 34 },
     });
     expect(document.documentElement.style.cursor).toBe("ns-resize");

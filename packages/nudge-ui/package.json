@@ -85,7 +85,7 @@
   },
   "dependencies": {
     "@babel/parser": "^7.29.8",
-    "@base-ui/react": "^1.7.0",
+    "@base-ui/react": "^1.8.0",
     "@tabler/icons-react": "^3.46.0",
     "magic-string": "^0.30.21",
     "modern-screenshot": "^4.7.0",

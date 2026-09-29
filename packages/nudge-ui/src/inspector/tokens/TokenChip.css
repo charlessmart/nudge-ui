@@ -4,7 +4,7 @@
   flex: 1;
   min-width: 0;
   background: var(--surface-raised-2x);
-  margin-right: -6px;
+  margin-right: calc(var(--space-8) * -1);
   align-self: stretch;
   padding-left: var(--space-8);
   border-radius: calc(var(--radius-control) - 2px);
@@ -56,7 +56,7 @@
 .token-chip__picker {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
   width: 100%;
   min-width: 0;
   color: var(--text-primary);

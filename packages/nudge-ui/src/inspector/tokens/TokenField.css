@@ -3,7 +3,7 @@
   flex: 1 1 auto;
   align-self: stretch;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
   min-width: 0;
 }
 
@@ -34,6 +34,28 @@
   justify-content: flex-end;
 }
 
+.token-field--blocked {
+  cursor: not-allowed;
+}
+
+.token-field--blocked > .popover-listbox,
+.token-field--blocked > .token-chip,
+.token-field--blocked > .token-opacity-input {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.token-field--blocked .text-input,
+.token-field--blocked .token-chip__trigger,
+.token-field--blocked .token-color-control,
+.token-field--blocked .token-color-control__input {
+  cursor: not-allowed;
+}
+
+.token-field--blocked > .inline-style-warning {
+  margin-inline-start: 2px;
+}
+
 .token-field > .popover-listbox,
 .token-field > .select {
   flex: 1;
@@ -45,7 +67,7 @@
   flex: 0 0 44px;
   width: 44px;
   min-width: 0;
-  padding: 0 2px 0 8px;
+  padding: 0 2px 0 var(--space-8);
   border: 0;
   outline: 0;
   background: transparent;
@@ -70,7 +92,7 @@
 .token-field--color .token-color-control {
   align-self: stretch;
   /* Keep the 28px color slot while centering the 16px swatch in it. */
-  padding: 4px 6px;
+  padding: 4px var(--space-8);
 }
 
 .token-field--color {
@@ -78,7 +100,7 @@
 }
 
 .token-color-control[data-resolved="false"] .color-swatch {
-  background: repeating-conic-gradient(#d8d8d8 0 25%, #ffffff 0 50%) 50% / 8px 8px;
+  background: repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
 }
 
 .token-color-control__input {

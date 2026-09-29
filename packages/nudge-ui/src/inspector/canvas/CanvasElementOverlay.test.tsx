@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { clearWorkspace, getChangesList } from "../changes/changesLog.ts";
+import { clearWorkspace, getChangesList, undo } from "../changes/changesLog.ts";
 import {
   cancelInlineTextEdit,
   getInlineTextDiagnostic,
@@ -210,6 +210,329 @@ describe("CanvasElementOverlay", () => {
       point: { x: 100, y: 32 },
       cancelled: true,
     });
+  });
+
+  it("shows the spacing fill for area hovers even when the pointer is off the drag handle", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "48px";
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "Card",
+          selector: '[data-cid="Card"]',
+          src: "/src/Card.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 10, top: 10, width: 200, height: 120 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 100, y: 12 },
+          spacing: null,
+          hoverSpacing: { kind: "padding", property: "padding-top", side: "top" },
+        },
+      }));
+    });
+
+    const fill = host.querySelector<HTMLElement>('[data-test="canvas-spacing-fill"]');
+    expect(fill).not.toBeNull();
+    expect(fill?.dataset.kind).toBe("padding");
+    expect(fill?.dataset.property).toBe("padding-top");
+    const guide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
+    expect(guide).not.toBeNull();
+    expect(guide?.style.top).toBe("73px");
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "Card",
+          selector: '[data-cid="Card"]',
+          src: "/src/Card.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 10, top: 10, width: 200, height: 120 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 100, y: 12 },
+          spacing: null,
+          hoverSpacing: null,
+        },
+      }));
+    });
+
+    expect(host.querySelector('[data-test="canvas-spacing-fill"]')).toBeNull();
+    expect(host.querySelector('[data-test="canvas-spacing-guide"]')).toBeNull();
+  });
+
+  it("shows the live spacing value above the pointer during a spacing drag", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    expect(host.querySelector('[data-test="canvas-spacing-value-badge"]')).toBeNull();
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+
+    let badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("20px");
+    expect(badge?.style.left).toBe("200px");
+    expect(badge?.style.top).toBe("60px");
+
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+
+    badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
+    expect(badge?.textContent).toBe("32px");
+    expect(badge?.style.left).toBe("200px");
+    expect(badge?.style.top).toBe("72px");
+
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+
+    expect(host.querySelector('[data-test="canvas-spacing-value-badge"]')).toBeNull();
+  });
+
+  it("keeps the committed spacing value until the renderer applies the projected rule", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+
+    // The preview inline stays at the committed value; dropping it before the
+    // renderer applies the managed rule would flash the authored 20px.
+    expect(card.style.paddingTop).toBe("32px");
+
+    // The projected sheet lands in the renderer, then it acknowledges.
+    const sheet = frameDocument.createElement("style");
+    sheet.textContent = '[data-cid="Card"] { padding-top: 32px; }';
+    frameDocument.head.append(sheet);
+    dispatch({ type: "projection-applied", revision: 1 });
+
+    expect(card.style.paddingTop).toBe("");
+    expect(frameDocument.defaultView!.getComputedStyle(card).paddingTop).toBe("32px");
+  });
+
+  it("holds the committed spacing value while the projected rule is not yet applied", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+
+    // Acknowledge a projection that does not contain the committed rule: the
+    // renderer still shows the authored 20px, so the inline preview must stay.
+    dispatch({ type: "projection-applied", revision: 1 });
+    expect(card.style.paddingTop).toBe("32px");
+
+    const sheet = frameDocument.createElement("style");
+    sheet.textContent = '[data-cid="Card"] { padding-top: 32px; }';
+    frameDocument.head.append(sheet);
+    dispatch({ type: "projection-applied", revision: 2 });
+
+    expect(card.style.paddingTop).toBe("");
+    expect(frameDocument.defaultView!.getComputedStyle(card).paddingTop).toBe("32px");
+  });
+
+  it("restores the authored declaration when the committed rule is undone before applying", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+    expect(card.style.paddingTop).toBe("32px");
+
+    // Undo removes the committed rule before the sheet ever lands; the held
+    // inline must follow the workspace intent instead of shadowing it.
+    act(() => {
+      undo();
+    });
+    expect(card.style.paddingTop).toBe("20px");
+
+    dispatch({ type: "projection-applied", revision: 1 });
+    expect(card.style.paddingTop).toBe("20px");
   });
 
   it("does not render margin guides because margins are not directly draggable", () => {
@@ -483,7 +806,8 @@ describe("CanvasElementOverlay", () => {
       spacing: { kind: "padding", property: "padding-top", side: "top" },
     });
     dispatch({ type: "element-drag-move", point: { x: 100, y: 32 }, shiftKey: true });
-    expect(card.style.paddingTop).toBe("28px");
+    // Shift anchors on the nearest 8px step (24) and steps from there.
+    expect(card.style.paddingTop).toBe("32px");
 
     dispatch({ type: "element-drag-end", point: { x: 100, y: 32 }, shiftKey: true });
 
@@ -491,7 +815,7 @@ describe("CanvasElementOverlay", () => {
       expect.objectContaining({
         property: "padding-top",
         oldRawValue: "20px",
-        rawValue: "28px",
+        rawValue: "32px",
       }),
     ]));
     clearWorkspace();

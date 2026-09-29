@@ -222,7 +222,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("elementId");
   });
 
-  it("includes sketch intent with the page title and annotation guidance", () => {
+  it("keeps sketch details out of the text prompt", () => {
     const sketch: AgentSketchMetadata = {
       id: "sketch-checkout",
       revision: 3,
@@ -249,13 +249,10 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, [], "Keep the implementation concise.", [sketch]);
 
-    expect(out).toContain("## Sketch annotations");
-    expect(out).toContain("Page title: `Checkout`");
-    expect(out).toContain("Annotation 1: `Make the Done button more prominent.`");
-    expect(out).toContain("Description: `Give the payment card more breathing room.`");
-    expect(out).toContain("blue strokes, and numbered annotations as visual feedback");
-    expect(out).not.toContain("red strokes as visual feedback");
-    expect(out).toContain("Do not derive selectors, source coordinates, or semantics from the strokes.");
+    expect(out).not.toContain("Sketch");
+    expect(out).not.toContain("Checkout");
+    expect(out).not.toContain("Annotation 1: `Make the Done button more prominent.`");
+    expect(out).not.toContain("Description: `Give the payment card more breathing room.`");
     expect(out).toContain("## Custom instructions\n\nKeep the implementation concise.");
     expect(out).not.toContain("sketch-sketch-checkout-r3.png");
     expect(out).not.toContain("Sketch ID");

@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { getLayoutValue } from "./layoutValue.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyles } from "../tokens/editActions.ts";
-import type { EditTarget } from "../selection/editTarget.ts";
+import { targetElements, type EditTarget } from "../selection/editTarget.ts";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 
 export const GRID_PICKER_MAX_COLUMNS = 12;
 export const GRID_PICKER_MAX_ROWS = 8;
@@ -113,6 +115,7 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
   const [popoverPosition, setPopoverPosition] = useState<PopoverPosition | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const blockedBy = inlineBlockedBy(targetElements(editTarget ?? el), "grid-template-columns", "grid-template-rows");
 
   useEffect(() => {
     setDimensions(readDimensions(el));
@@ -162,6 +165,7 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
   }, [open]);
 
   function choose(columns: number, rows: number): void {
+    if (blockedBy) return;
     const next = {
       columns: clampDimension(columns, GRID_PICKER_MAX_COLUMNS),
       rows: clampDimension(rows, GRID_PICKER_MAX_ROWS),
@@ -201,6 +205,7 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
         aria-label={`Grid ${dimensions.columns} by ${dimensions.rows}`}
         aria-expanded={open}
         aria-haspopup="dialog"
+        disabled={blockedBy !== null}
         onClick={() => {
           setPopoverPosition(null);
           setOpen((current) => !current);
@@ -213,6 +218,7 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
           <span className="grid-picker__preview-label">{dimensions.columns} × {dimensions.rows}</span>
         </span>
       </button>
+      <InlineStyleWarning blockedBy={blockedBy} />
 
       {open ? (
         <div

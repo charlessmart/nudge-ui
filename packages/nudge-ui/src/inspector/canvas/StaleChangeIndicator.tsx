@@ -8,8 +8,6 @@ import {
   getPreviewDiagnosticRevision,
   subscribePreviewDiagnostics,
 } from "../changes/previewDiagnostics.ts";
-import { humanizeSelector } from "../tokens/catalog.ts";
-import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { isVerificationPending } from "./staleChangeDetector.ts";
 
 interface Props {
@@ -44,34 +42,17 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
   }
 
   if (result.reason === "target-missing") {
-    // ADR-0011: host scoping markers are opaque structure and must not
-    // surface as human-facing guidance; the raw selector stays in change
-    // records for managed-rule targeting.
-    const selectorLabel = humanizeSelector(change.selector, getScopingSelectorPattern())
-      || change.selector;
     return (
-      <span
-        className="changes__stale"
-        data-test="stale-missing"
-        title={`Selector: ${selectorLabel}`}
-      >
+      <span className="changes__stale" data-test="stale-missing">
         Source missing — this edit may be stale
       </span>
     );
   }
 
   if (result.reason === "token-drift") {
-    const currentValue = result.computedValue
-      ? ` (current: ${result.computedValue})`
-      : "";
-
     if (isTokenChange(change)) {
       return (
-        <span
-          className="changes__stale"
-          data-test="stale-token-drift"
-          title={`Token ${change.tokenName} baseline has changed since this edit was made${currentValue}`}
-        >
+        <span className="changes__stale" data-test="stale-token-drift">
           Token baseline has changed
         </span>
       );
@@ -81,11 +62,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
   }
 
   return (
-    <span
-      className="changes__conflict"
-      data-test="preview-conflict"
-      title={`Computed: ${result.computedValue}`}
-    >
+    <span className="changes__conflict" data-test="preview-conflict">
       Preview Blocked (
       {result.reason
         ? result.reason.replace(/-/g, " ")

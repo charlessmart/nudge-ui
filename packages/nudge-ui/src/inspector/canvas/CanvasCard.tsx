@@ -402,7 +402,6 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         >
           {onShowFocus ? (
             <Button
-              title="Focus"
               variant="primary"
               size="default"
               data-test={`canvas-card-focus-${card.id}`}

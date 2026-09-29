@@ -37,14 +37,13 @@ describe("TokensPanel", () => {
     document.body.innerHTML = "";
   });
 
-  it("exposes the complete global token name on the ellipsized row label", () => {
+  it("exposes the complete global token name", () => {
     const tokenName = "--color-accent-subtle";
     handle = mount(createElement(TokensPanel, { rows: [inactiveTokenRow(tokenName)] }));
 
     const label = handle.host.querySelector(".token-row__name") as HTMLElement;
 
     expect(label.tagName).toBe("CODE");
-    expect(label.title).toBe(tokenName);
     expect(label.textContent).toBe(tokenName);
     expect(label.querySelector(".token-label__content")?.textContent).toBe(tokenName);
   });

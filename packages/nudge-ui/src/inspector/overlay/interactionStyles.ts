@@ -1,10 +1,13 @@
+import { DESIGN_SELECT_CURSOR, INTERACTION_CURSOR_PROPERTY } from "../ui/customCursors.ts";
+
 const INTERACTION_STYLE_ID = "nudge-ui-interaction-styles";
 
 const interactionStyleDocuments = new Set<Document>();
 
 const INTERACTION_CSS = `
+  html, body,
   [data-cid], [data-cid] * {
-    cursor: default !important;
+    cursor: var(${INTERACTION_CURSOR_PROPERTY}, ${DESIGN_SELECT_CURSOR}) !important;
     -webkit-user-select: none !important;
     user-select: none !important;
   }
