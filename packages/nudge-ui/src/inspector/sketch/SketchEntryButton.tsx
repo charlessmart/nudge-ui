@@ -16,7 +16,6 @@ export function SketchEntryButton({ hostElement }: { readonly hostElement: HTMLE
       type="button"
       data-test="sketch-entry"
       aria-label="Sketch viewport"
-      title="Sketch viewport"
       disabled={disabled || !hostElement}
       onClick={() => startSketchCapture(hostElement)}
     >

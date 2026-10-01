@@ -21,6 +21,7 @@ import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 const BORDER_RADIUS_CORNERS = [
   "border-top-left-radius",
@@ -83,6 +84,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   const isGroup = Boolean(selection && selection.elements.length > 1);
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const dataLinked = !isGroup && cornersAreLinked(tokenRows);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], "border-radius");
 
   const [userUnlinked, setUserUnlinked] = useState(false);
   const [userLinked, setUserLinked] = useState(false);
@@ -105,6 +107,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   }
 
   function handleCollapse(): void {
+    if (blockedBy) return;
     setUserLinked(true);
     setUserUnlinked(false);
     linkAllCorners(editTarget, tokenRows, selection, onAfterEdit);
@@ -165,6 +168,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     </ControlSurface>
   );
 
+  const toggleBlocked = !isLinked && blockedBy !== null;
   const toggleButton = (
     <ToggleButton
       className={embedded ? "border-radius-editor__toggle" : undefined}
@@ -172,8 +176,8 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
       size="default"
       data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
       label={isLinked ? "Edit Individual Corners" : "Link All Corners"}
-      title={isLinked ? "Edit Individual Corners" : "Link All Corners"}
       pressed={!isLinked}
+      disabled={toggleBlocked}
       onPressedChange={(pressed) => {
         if (pressed) handleExpand();
         else handleCollapse();

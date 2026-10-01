@@ -9,6 +9,7 @@ import { removeSketch, useSketchStore } from "./store.ts";
 import type { SketchQueueItem } from "./model.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
+import { Tooltip } from "../ui/Tooltip.tsx";
 
 function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactElement {
   const [url, setUrl] = useState<string | null>(null);
@@ -32,7 +33,15 @@ function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactEle
   );
 }
 
-function SketchLayer({ item, index }: { readonly item: SketchQueueItem; readonly index: number }): ReactElement {
+function SketchLayer({
+  item,
+  index,
+  multiple,
+}: {
+  readonly item: SketchQueueItem;
+  readonly index: number;
+  readonly multiple: boolean;
+}): ReactElement {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = item.status === "dispatching" || item.status === "handing-off";
@@ -65,7 +74,7 @@ function SketchLayer({ item, index }: { readonly item: SketchQueueItem; readonly
     <div className="sketch-layers__item" data-test="sketch-layer" data-sketch-id={item.document.id}>
       <Button
         className="sketch-layers__copy"
-        variant="secondary"
+        variant="primary"
         type="button"
         data-test="sketch-layer-copy-image"
         onClick={() => void copyImage()}
@@ -75,22 +84,25 @@ function SketchLayer({ item, index }: { readonly item: SketchQueueItem; readonly
           {copied
             ? <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
             : <IconCopy size="var(--icon-size-small)" aria-hidden="true" />}
-          <span className="sketch-layers__name">{copied ? "Copied" : `Sketch ${index + 1}`}</span>
+          <span className="sketch-layers__name">
+            {copied ? "Copied" : `Copy sketch note${multiple ? ` ${index + 1}` : ""}`}
+          </span>
         </span>
         <SketchThumbnail item={item} />
       </Button>
-      <IconButton
-        className="sketch-layers__delete"
-        variant="quiet"
-        size="compact"
-        label="Delete sketch"
-        title="Delete sketch"
-        data-test="sketch-layer-delete"
-        onClick={() => void deleteLayer()}
-        disabled={busy}
-      >
-        <IconX size="var(--icon-size-small)" aria-hidden="true" />
-      </IconButton>
+      <Tooltip>
+        <IconButton
+          className="sketch-layers__delete"
+          variant="quiet"
+          size="compact"
+          label="Delete sketch"
+          data-test="sketch-layer-delete"
+          onClick={() => void deleteLayer()}
+          disabled={busy}
+        >
+          <IconX size="var(--icon-size-small)" aria-hidden="true" />
+        </IconButton>
+      </Tooltip>
       {error ? <span className="sketch-layers__error" role="status">{error}</span> : null}
     </div>
   );
@@ -108,9 +120,14 @@ export function SketchLayersPanel(): ReactElement | null {
   return (
     <section className="sketch-layers" data-test="sketch-layers" aria-label="Sketch layers">
       {visibleItems.map((item, index) => (
-        <SketchLayer key={`${item.document.id}:${item.document.revision}`} item={item} index={index} />
+        <SketchLayer
+          key={`${item.document.id}:${item.document.revision}`}
+          item={item}
+          index={index}
+          multiple={visibleItems.length > 1}
+        />
       ))}
-      <p className="sketch-layers__hint" data-test="sketch-copy-helper">Copy prompt and sketch individually into agent</p>
+      <p className="sketch-layers__hint" data-test="sketch-copy-helper">Copy the prompt and each sketch note image into the agent</p>
     </section>
   );
 }

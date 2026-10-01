@@ -83,7 +83,7 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { DESIGN_SELECT_CURSOR, DRAG_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
+import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import {
   activateDraftForCard,
   forkDraftForCard,
@@ -98,6 +98,7 @@ import { registerCardWorkspaceProvider } from "./projection.ts";
 // this provider for per-card workspaces, while history captures through the
 // registered frame lookup. Both stay importable in Node unit tests.
 registerCardWorkspaceProvider((cardId) => getWorkspaceForCard(cardId));
+import { setSelectedElement } from "../selection/selectionStore.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
@@ -154,8 +155,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
   const rendererInteractionsEnabled = interactionTool !== "select";
   const rendererCursor: RendererCursor = interactionTool === "pan" ? "drag" : "design";
-  const boardCursor = interactionTool === "pan" || boardCursorClass !== ""
-    ? DRAG_CURSOR
+  const boardCursor = boardCursorClass === "is-grabbing"
+    ? "grabbing"
+    : interactionTool === "pan" || boardCursorClass !== ""
+      ? PAN_CURSOR
     : interactionTool === "design"
       ? DESIGN_SELECT_CURSOR
       : undefined;
@@ -425,6 +428,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
+    if (nextTool === "select") {
+      setSelectedElement(null);
+    }
+
     if (nextTool === "sketch") {
       if (!sketchEnabled) return;
       const hostElement = getActiveCanvasFrame();

@@ -2,7 +2,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .side-values__header {
@@ -28,7 +28,7 @@
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .side-values[data-expanded="true"] .side-values__value-row {
@@ -51,7 +51,7 @@
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .side-values__grid {
@@ -61,7 +61,7 @@
   grid-template-areas:
     "left top"
     "right bottom";
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .side-values__grid [data-side="left"] {

@@ -14,9 +14,11 @@ import {
   IconRectangle,
   IconX,
 } from "@tabler/icons-react";
+import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { renderAnnotatedPng } from "./raster.ts";
 import { SketchSvgLayer } from "./freehand.tsx";
 import {
@@ -36,8 +38,17 @@ import {
   type SketchStroke,
 } from "./model.ts";
 import type { CapturedSketch } from "./capture.ts";
+import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
+import { portalContainer } from "../ui/portalContainer.ts";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
+
+const SKETCH_TOOLS = [
+  { tool: "move", label: "Move", Icon: IconArrowsMove },
+  { tool: "pen", label: "Pen", Icon: IconPencil },
+  { tool: "rectangle", label: "Rectangle", Icon: IconRectangle },
+  { tool: "annotate", label: "Annotate", Icon: IconMessageCirclePlus },
+] as const satisfies ReadonlyArray<{ tool: SketchTool; label: string; Icon: TablerIcon }>;
 
 interface SketchMoveState {
   readonly pointerId: number;
@@ -61,12 +72,6 @@ export interface SketchEditorProps {
     readonly originalImage: Blob;
     readonly annotatedImage: Blob;
   }) => Promise<void>;
-}
-
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 }
 
 function objectUrl(blob: Blob | null): string | null {
@@ -111,8 +116,8 @@ function rectanglePoints(start: { x: number; y: number }, end: { x: number; y: n
 
 export function SketchEditor({ open, document: sketchDocument, captured, onCancel, onSave }: SketchEditorProps): ReactElement | null {
   const image = captured?.originalImage ?? sketchDocument?.originalImage ?? null;
-  const imageWidth = captured?.imageWidth ?? sketchDocument?.imageWidth ?? 0;
-  const imageHeight = captured?.imageHeight ?? sketchDocument?.imageHeight ?? 0;
+  const imageWidth = captured?.imageWidth ?? sketchDocument?.capture.imageWidth ?? 0;
+  const imageHeight = captured?.imageHeight ?? sketchDocument?.capture.imageHeight ?? 0;
   const capture = captured?.capture ?? sketchDocument?.capture ?? null;
   const [description, setDescription] = useState("");
   const [tool, setTool] = useState<SketchTool>("pen");
@@ -429,14 +434,17 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     setSaving(true);
     setError(null);
     try {
-      const rendered = await renderAnnotatedPng(image, imageWidth, imageHeight, strokes, committedAnnotations);
+      const rendered = await renderAnnotatedPng(
+        image,
+        imageWidth,
+        imageHeight,
+        strokes,
+        committedAnnotations,
+        description.trim(),
+      );
       await onSave({
         ...(sketchDocument ? { id: sketchDocument.id } : {}),
-        capture: {
-          ...capture,
-          imageWidth: rendered.width,
-          imageHeight: rendered.height,
-        },
+        capture,
         description: description.trim(),
         strokes,
         annotations: committedAnnotations,
@@ -491,6 +499,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
                 viewBox={`0 0 ${imageWidth} ${imageHeight}`}
                 preserveAspectRatio="none"
                 pointerEvents="all"
+                style={{ cursor: tool === "move" ? DRAG_CURSOR : SKETCH_CURSOR }}
                 tabIndex={0}
                 aria-label="Sketch over the captured viewport"
                 onPointerDown={onPointerDown}
@@ -524,15 +533,17 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
                     onChange={(event) => setAnnotationDraft(event.target.value)}
                     onKeyDown={onAnnotationKeyDown}
                   />
-                  <IconButton
-                    label="Cancel annotation"
-                    variant="quiet"
-                    size="compact"
-                    data-test="sketch-editor-annotation-cancel"
-                    onClick={cancelActiveAnnotation}
-                  >
-                    <IconX size="var(--icon-size-small)" aria-hidden="true" />
-                  </IconButton>
+                  <Tooltip>
+                    <IconButton
+                      label="Cancel annotation"
+                      variant="quiet"
+                      size="compact"
+                      data-test="sketch-editor-annotation-cancel"
+                      onClick={cancelActiveAnnotation}
+                    >
+                      <IconX size="var(--icon-size-small)" aria-hidden="true" />
+                    </IconButton>
+                  </Tooltip>
                   <Button
                     variant="primary"
                     size="compact"
@@ -550,54 +561,21 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
 
           <div className="sketch__floating-panel">
             <div className="sketch__toolbar" role="toolbar" aria-label="Sketch tools">
-              <IconButton
-                label="Move"
-                title="Move"
-                variant="quiet"
-                aria-pressed={tool === "move"}
-                data-active={tool === "move"}
-                data-test="sketch-move"
-                onClick={() => selectTool("move")}
-                disabled={saving}
-              >
-                <IconArrowsMove size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Pen"
-                title="Pen"
-                variant="quiet"
-                aria-pressed={tool === "pen"}
-                data-active={tool === "pen"}
-                data-test="sketch-pen"
-                onClick={() => selectTool("pen")}
-                disabled={saving}
-              >
-                <IconPencil size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Rectangle"
-                title="Rectangle"
-                variant="quiet"
-                aria-pressed={tool === "rectangle"}
-                data-active={tool === "rectangle"}
-                data-test="sketch-rectangle"
-                onClick={() => selectTool("rectangle")}
-                disabled={saving}
-              >
-                <IconRectangle size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Annotate"
-                title="Annotate"
-                variant="quiet"
-                aria-pressed={tool === "annotate"}
-                data-active={tool === "annotate"}
-                data-test="sketch-annotate"
-                onClick={() => selectTool("annotate")}
-                disabled={saving}
-              >
-                <IconMessageCirclePlus size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
+              {SKETCH_TOOLS.map(({ tool: option, label, Icon }) => (
+                <Tooltip key={option} stableTrigger>
+                  <IconButton
+                    label={label}
+                    variant="quiet"
+                    aria-pressed={tool === option}
+                    data-active={tool === option}
+                    data-test={`sketch-${option}`}
+                    onClick={() => selectTool(option)}
+                    disabled={saving}
+                  >
+                    <Icon size="var(--icon-size-small)" aria-hidden="true" />
+                  </IconButton>
+                </Tooltip>
+              ))}
               <span className="sketch__toolbar-divider" aria-hidden="true" />
               <Button
                 variant="quiet"

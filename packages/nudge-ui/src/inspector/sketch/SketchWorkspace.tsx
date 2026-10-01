@@ -106,13 +106,10 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       captured.imageHeight,
       strokes,
       annotations,
+      draft.description,
     );
     await save({
-      capture: {
-        ...captured.capture,
-        imageWidth: rendered.width,
-        imageHeight: rendered.height,
-      },
+      capture: captured.capture,
       description: draft.description,
       strokes,
       annotations,
@@ -125,16 +122,25 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
 
   async function saveNote(description: string): Promise<void> {
     if (!noteDocument) return;
+    const nextDescription = description.trim();
+    const rendered = await renderAnnotatedPng(
+      noteDocument.originalImage,
+      noteDocument.capture.imageWidth,
+      noteDocument.capture.imageHeight,
+      noteDocument.strokes,
+      noteDocument.annotations ?? [],
+      nextDescription,
+    );
     await saveSketch({
       id: noteDocument.id,
       capture: noteDocument.capture,
-      description: description.trim(),
+      description: nextDescription,
       strokes: noteDocument.strokes,
       annotations: noteDocument.annotations ?? [],
-      imageWidth: noteDocument.imageWidth,
-      imageHeight: noteDocument.imageHeight,
+      imageWidth: rendered.width,
+      imageHeight: rendered.height,
       originalImage: noteDocument.originalImage,
-      annotatedImage: noteDocument.annotatedImage,
+      annotatedImage: rendered.blob,
     });
     closeSketchNote();
   }

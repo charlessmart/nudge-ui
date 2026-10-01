@@ -12,7 +12,7 @@
     "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
   },
   "dependencies": {
-    "@base-ui/react": "^1.7.0",
+    "@base-ui/react": "^1.8.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@nudge-ui/compatibility": "workspace:*",
     "@shadcn/react": "^0.3.1",

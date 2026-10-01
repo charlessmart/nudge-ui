@@ -3,6 +3,7 @@ import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import type { ButtonHTMLAttributes, ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
+import { portalContainer } from "./portalContainer.ts";
 
 export interface SelectOption {
   value: string;
@@ -51,9 +52,6 @@ function NativeSelect({
 }: SelectProps): ReactElement {
   const allOptions = [...options, ...groups.flatMap((group) => group.options)];
   const selectedOption = allOptions.find((option) => option.value === value);
-  const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 
   function handleValueChange(next: string | null): void {
     if (typeof next === "string") props.onValueChange?.(next);
@@ -81,7 +79,7 @@ function NativeSelect({
         </BaseSelect.Icon>
         {children}
       </BaseSelect.Trigger>
-      <BaseSelect.Portal container={portalContainer}>
+      <BaseSelect.Portal container={portalContainer()}>
         <BaseSelect.Positioner className="select__positioner" sideOffset={4}>
           <BaseSelect.Popup className="select__popup">
             <BaseSelect.List className="select__list">
@@ -137,9 +135,6 @@ function SearchableSelect({
       items: group.options.map((option) => option.value),
     })),
   ];
-  const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 
   function handleValueChange(next: string | null): void {
     if (typeof next === "string") props.onValueChange?.(next);
@@ -173,7 +168,7 @@ function SearchableSelect({
         </BaseCombobox.Icon>
         {children}
       </BaseCombobox.Trigger>
-      <BaseCombobox.Portal container={portalContainer}>
+      <BaseCombobox.Portal container={portalContainer()}>
         <BaseCombobox.Positioner className="select__positioner" sideOffset={4}>
           <BaseCombobox.Popup className="select__popup select__popup--searchable">
             <BaseCombobox.Input

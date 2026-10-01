@@ -47,7 +47,7 @@
   width: 32px;
   height: 32px;
   margin: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-4);
   background: var(--surface-panel);
   box-shadow: var(--shadow-control);
   object-fit: cover;
@@ -372,7 +372,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .sketch__toolbar {
@@ -451,7 +451,7 @@
 
 .sketch__field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-8);
   margin-top: 4px;
   color: var(--text-primary);
   font-size: var(--font-size-base);

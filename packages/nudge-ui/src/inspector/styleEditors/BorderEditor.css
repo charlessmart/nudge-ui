@@ -1,7 +1,7 @@
 .border__linked-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .border__linked-control {
@@ -42,7 +42,7 @@
 .border__side-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .border__side-row {
@@ -50,7 +50,7 @@
   min-width: 0;
   grid-template-columns: auto minmax(0, 3fr) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .border__side-row > .side-values__side-icon {

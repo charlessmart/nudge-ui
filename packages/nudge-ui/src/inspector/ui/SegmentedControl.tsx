@@ -17,6 +17,7 @@ interface SegmentedControlProps<T extends string> {
   "data-test"?: string;
   "data-property"?: string;
   className?: string;
+  disabled?: boolean;
   /** Allows the active option to be cleared by clicking it again. */
   allowDeselect?: boolean;
   /** Restores the value represented by an unselected control. */
@@ -32,6 +33,7 @@ export function SegmentedControl<T extends string>({
   "data-test": dataTest,
   "data-property": dataProperty,
   className,
+  disabled = false,
   allowDeselect = false,
   onDeselect,
 }: SegmentedControlProps<T>): ReactElement {
@@ -43,30 +45,30 @@ export function SegmentedControl<T extends string>({
       data-test={dataTest}
       data-property={dataProperty}
     >
-        {options.map((option) => {
-          const selected = option.value === value;
-          return (
-            <Toggle
-              key={option.value}
-              type="button"
-              className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
-              pressed={selected}
-              aria-label={option.label}
-              title={option.label}
-              data-test={option.testId}
-              data-active={selected ? "true" : "false"}
-              onPressedChange={(pressed) => {
-                if (pressed) {
-                  onChange(option.value);
-                } else if (allowDeselect) {
-                  onDeselect?.();
-                }
-              }}
-            >
-              {option.icon ?? <span className="segmented-control__label">{option.label}</span>}
-            </Toggle>
-          );
-        })}
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <Toggle
+            key={option.value}
+            type="button"
+            className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
+            pressed={selected}
+            disabled={disabled}
+            aria-label={option.label}
+            data-test={option.testId}
+            data-active={selected ? "true" : "false"}
+            onPressedChange={(pressed) => {
+              if (pressed) {
+                onChange(option.value);
+              } else if (allowDeselect) {
+                onDeselect?.();
+              }
+            }}
+          >
+            {option.icon ?? <span className="segmented-control__label">{option.label}</span>}
+          </Toggle>
+        );
+      })}
     </div>
   );
 }

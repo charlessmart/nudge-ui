@@ -2,6 +2,9 @@ import { Combobox } from "@base-ui/react/combobox";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import type { FocusEventHandler, KeyboardEventHandler, ReactElement, ReactNode, Ref } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
+import { cx } from "./classNames.ts";
+import { Tooltip } from "./Tooltip.tsx";
+import { portalContainer } from "./portalContainer.ts";
 
 export interface PopoverListboxItem {
   value: string;
@@ -21,6 +24,7 @@ export interface PopoverListboxProps {
   triggerClassName?: string;
   triggerDataTest?: string;
   triggerAriaLabel?: string;
+  triggerTooltip?: ReactNode;
   searchable?: boolean;
   searchPlaceholder?: string;
   searchAriaLabel?: string;
@@ -49,6 +53,7 @@ export function PopoverListbox({
   triggerClassName,
   triggerDataTest,
   triggerAriaLabel,
+  triggerTooltip,
   searchable = false,
   searchPlaceholder = "Search…",
   searchAriaLabel = "Search options",
@@ -66,10 +71,8 @@ export function PopoverListbox({
   onOpenChange,
   onSelect,
 }: PopoverListboxProps): ReactElement {
-  const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
   const itemByValue = new Map(items.map((item) => [item.value, item]));
+  const resolvedTriggerTooltip = triggerTooltip ?? (triggerElement ? triggerAriaLabel : undefined);
 
   function renderComboboxItem(item: PopoverListboxItem): ReactElement {
     return (
@@ -87,7 +90,7 @@ export function PopoverListbox({
   }
 
   return (
-    <div className={`popover-listbox${className ? ` ${className}` : ""}`}>
+    <div className={cx("popover-listbox", className)}>
       {trigger || triggerElement ? (
         <Combobox.Root
           value={value}
@@ -103,27 +106,20 @@ export function PopoverListbox({
             if (typeof next === "string") onSelect(next);
           }}
         >
-          {triggerElement ? (
+          <Tooltip content={resolvedTriggerTooltip} disabled={resolvedTriggerTooltip === undefined} stableTrigger>
             <Combobox.Trigger
               render={triggerElement}
-              className={`popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
-              data-test={triggerDataTest}
-              aria-label={triggerAriaLabel}
-              disabled={disabled}
-            />
-          ) : (
-            <Combobox.Trigger
-              className={`popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+              className={cx("popover-listbox__trigger", triggerClassName)}
               data-test={triggerDataTest}
               aria-label={triggerAriaLabel}
               disabled={disabled}
             >
-              {trigger}
+              {triggerElement ? undefined : trigger}
             </Combobox.Trigger>
-          )}
-          <Combobox.Portal container={portalContainer}>
+          </Tooltip>
+          <Combobox.Portal container={portalContainer()}>
             <Combobox.Positioner className="popover-listbox__positioner">
-              <Combobox.Popup className={`popover-listbox__popup${searchable ? " popover-listbox__popup--searchable" : ""}`}>
+              <Combobox.Popup className={cx("popover-listbox__popup", searchable && "popover-listbox__popup--searchable")}>
                 {searchable ? (
                   <>
                     <Combobox.Input
@@ -137,7 +133,7 @@ export function PopoverListbox({
                     </Combobox.Empty>
                   </>
                 ) : null}
-                <Combobox.List className={`popover-listbox__list${searchable ? " popover-listbox__list--searchable" : ""}`}>
+                <Combobox.List className={cx("popover-listbox__list", searchable && "popover-listbox__list--searchable")}>
                   {searchable
                     ? ((itemValue: string) => {
                       const item = itemByValue.get(itemValue);
@@ -163,7 +159,7 @@ export function PopoverListbox({
         >
           <Autocomplete.Input
             ref={inputRef}
-            className={`text-input${inputAppearance === "embedded" ? " text-input--embedded" : ""}${inputClassName ? ` ${inputClassName}` : ""}`}
+            className={cx("text-input", inputAppearance === "embedded" && "text-input--embedded", inputClassName)}
             placeholder={placeholder}
             data-test={inputDataTest}
             onFocus={inputOnFocus}
@@ -171,7 +167,7 @@ export function PopoverListbox({
             onKeyDownCapture={inputOnKeyDown}
             disabled={disabled}
           />
-          <Autocomplete.Portal container={portalContainer}>
+          <Autocomplete.Portal container={portalContainer()}>
             <Autocomplete.Positioner className="popover-listbox__positioner">
               <Autocomplete.Popup className="popover-listbox__popup">
                 <Autocomplete.List className="popover-listbox__list">

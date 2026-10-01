@@ -186,6 +186,7 @@ export function transformIndexHtmlHtml(
   { debug = false, demoBuild = false, demo = false }: TransformIndexHtmlOptions = {},
 ): string | null {
   if (command === "build" && !demoBuild) return null;
+  if (html.includes("data-nudge-ui-client")) return null;
   const script = demo || demoBuild ? LEGACY_INSPECTOR_SCRIPT : INSPECTOR_SCRIPT;
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
   if (html.includes("</body>")) {
@@ -658,7 +659,7 @@ export function createVitePlugins(
       ...(options.demo === true ? { demo: true } : {}),
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
-      capabilities: { canvas: true, componentSemantics: framework !== null },
+      capabilities: { canvas: true, componentSemantics: framework !== null, domNavigation: true },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
         declarations: definition.declarations.map((declaration) => ({ ...declaration })),
@@ -723,7 +724,10 @@ export function createVitePlugins(
           response.statusCode = 200;
           response.setHeader("Content-Type", "text/html; charset=utf-8");
           response.setHeader("Cache-Control", "no-store");
-          response.end(request.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
+          response.end(request.method === "HEAD" ? undefined : await server.transformIndexHtml(
+            request.url ?? NUDGE_UI_EDITOR_PATH,
+            createNudgeUiEditorDocument(),
+          ));
           return;
         }
         if (pathname === CLIENT_PATH) {
@@ -832,7 +836,7 @@ export function createVitePlugins(
             '    demo: true,',
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
-            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
+            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)}, domNavigation: true },`,
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',

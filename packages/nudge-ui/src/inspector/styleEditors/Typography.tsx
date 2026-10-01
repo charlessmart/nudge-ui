@@ -25,8 +25,10 @@ import { getStateStyleValue } from "../shell/stateValue.ts";
 import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 export interface TypographyProps {
   element: SelectedElement;
@@ -224,6 +226,7 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
   const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules
     ?? fontWeightRow?.atRuleCandidates ?? fontWeightRow?.atRules
     ?? (fontStyleAtRules.length > 0 ? fontStyleAtRules : fontWeightAtRules);
+  const blockedBy = inlineBlockedBy(elements, "font-style", "font-weight");
   const readValue = () => readFontStyle(element);
   const values = elements.map(readFontStyle);
   const isMixed = values.some((value) => value.weight !== values[0]?.weight || value.style !== values[0]?.style);
@@ -243,6 +246,7 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
       : [...FONT_STYLE_OPTIONS, { value: currentKey, label: currentLabel, ...current }];
 
   function handleChange(value: string): void {
+    if (blockedBy) return;
     const option = options.find((candidate) => candidate.value === value);
     if (!option || option.value === "mixed" || !("weight" in option) || !("style" in option)) return;
     setCurrent({ weight: option.weight, style: option.style });
@@ -259,7 +263,6 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
       data-test="typography-field"
       data-property="font-style"
       aria-label="Font style"
-      title="Font style"
     >
       <span className="typography__field-icon" aria-hidden="true">
         <IconTypography size={"var(--icon-size-small)"} stroke={1.45} />
@@ -269,9 +272,11 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
         value={isMixed ? "mixed" : currentKey}
         options={options.map(({ value, label }) => ({ value, label }))}
         onValueChange={handleChange}
+        disabled={blockedBy !== null}
         data-test="font-style-field"
       />
       <AtRuleIndicator atRules={atRules} />
+      <InlineStyleWarning blockedBy={blockedBy} />
     </ControlSurface>
   );
 }
@@ -314,6 +319,7 @@ interface AlignmentFieldProps {
 
 function AlignmentField({ property, label, element, elements, editTarget, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
+  const blockedBy = inlineBlockedBy(elements, property);
   const readValues = () => elements.map((target) => getStateStyleValue(target, property, defaultValue));
   const initialValues = readValues();
   const isMixed = initialValues.some((value) => value !== initialValues[0]);
@@ -327,6 +333,7 @@ function AlignmentField({ property, label, element, elements, editTarget, defaul
   }, [defaultValue, element, elements, property]);
 
   function handleChange(value: string): void {
+    if (blockedBy) return;
     setCurrent(value);
     setStyle(editTarget, property, value);
     onAfterEdit?.();
@@ -341,6 +348,7 @@ function AlignmentField({ property, label, element, elements, editTarget, defaul
         value={current}
         aria-label={label}
         data-property={property}
+        disabled={blockedBy !== null}
         options={options.map((option) => ({
           value: option.value,
           label: option.label,
@@ -350,6 +358,7 @@ function AlignmentField({ property, label, element, elements, editTarget, defaul
         onChange={handleChange}
       />
       <AtRuleIndicator atRules={atRules} />
+      <InlineStyleWarning blockedBy={blockedBy} />
     </div>
   );
 }
@@ -360,4 +369,3 @@ function normalizeAlignment(property: string, value: string): string {
   if (value === "end") return "right";
   return value;
 }
-

@@ -148,8 +148,12 @@ export interface ElementHoverMessage extends RendererMessage {
   borders: { top: number; right: number; bottom: number; left: number } | null;
   /** Last pointer position in the renderer viewport, used for spacing guides. */
   point?: { x: number; y: number } | null;
-  /** The padding or layout gap under the pointer, when one is draggable. */
+  /** The spacing handle under the pointer. Drives the resize cursor and drag
+   * start; only present when the pointer is inside the handle hit area. */
   spacing?: SpacingDescriptor | null;
+  /** The padding bar or layout gap area under the pointer, regardless of the
+   * handle. Drives the hover fill overlay across the whole area. */
+  hoverSpacing?: SpacingDescriptor | null;
 }
 
 /** Modifier state stays inside one renderer frame; the parent never infers it

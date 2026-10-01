@@ -868,11 +868,13 @@ export class AgentClient {
 
 let configuredTransport: AgentBridgeTransport | undefined;
 const clients = new Map<string, AgentClient>();
+const consumerCounts = new Map<AgentClient, number>();
 
 /** Sets a host/test transport for subsequently created project clients. */
 export function configureAgentBridgeTransport(transport: AgentBridgeTransport | undefined): void {
   for (const client of clients.values()) client.stop();
   clients.clear();
+  consumerCounts.clear();
   configuredTransport = transport;
 }
 
@@ -880,6 +882,23 @@ export function configureAgentBridgeTransport(transport: AgentBridgeTransport | 
 export function resetAgentClients(): void {
   for (const client of clients.values()) client.stop();
   clients.clear();
+  consumerCounts.clear();
+}
+
+function retainAgentClient(client: AgentClient): void {
+  consumerCounts.set(client, (consumerCounts.get(client) ?? 0) + 1);
+}
+
+function releaseAgentClient(client: AgentClient): void {
+  const count = consumerCounts.get(client);
+  // A reset already stopped the client and dropped its consumers.
+  if (count === undefined) return;
+  if (count > 1) {
+    consumerCounts.set(client, count - 1);
+    return;
+  }
+  consumerCounts.delete(client);
+  client.stop();
 }
 
 export function createAgentClient(options: AgentClientOptions): AgentClient {
@@ -907,8 +926,9 @@ export function useAgentClient(projectId: string, suppliedClient?: AgentClient):
     [projectId, suppliedClient],
   );
   useEffect(() => {
+    retainAgentClient(client);
     client.start();
-    return () => client.stop();
+    return () => releaseAgentClient(client);
   }, [client]);
   return useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
 }

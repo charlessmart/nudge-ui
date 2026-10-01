@@ -140,7 +140,9 @@ test("dev: border radius token is editable as atomic", async ({ page }) => {
   await selectCase(page, "border-radius-token");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="token-chip"]')).toContainText("12");
-  await expect(page.locator('[data-test="token-field"][data-property="border-radius"] .token-chip__label')).toHaveAttribute("title", "--space-3");
+  const tokenLabel = page.locator('[data-test="token-field"][data-property="border-radius"] .token-chip__label');
+  await tokenLabel.hover();
+  await expect(page.locator(".tooltip__popup").filter({ hasText: "--space-3" })).toBeVisible();
 
   await openEditor(page, "/border-conformance");
   await selectCase(page, "border-radius-atomic");

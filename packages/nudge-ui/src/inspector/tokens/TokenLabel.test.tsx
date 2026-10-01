@@ -12,14 +12,15 @@ describe("TokenLabel", () => {
     document.body.innerHTML = "";
   });
 
-  it("keeps the full rendered label text and native tooltip available", () => {
+  it("renders the full label text in a custom tooltip", () => {
     const tokenName = "--color-surface-raised";
     handle = mount(createElement(TokenLabel, { title: tokenName }, tokenName));
 
     const label = handle.host.querySelector(".token-label") as HTMLElement;
 
-    expect(label.title).toBe(tokenName);
     expect(label.textContent).toBe(tokenName);
     expect(label.querySelector(".token-label__content")?.textContent).toBe(tokenName);
+    expect(label.getAttribute("title")).toBeNull();
+    expect(label.getAttribute("data-base-ui-tooltip-trigger")).toBe("");
   });
 });

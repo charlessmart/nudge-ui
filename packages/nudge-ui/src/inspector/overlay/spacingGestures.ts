@@ -352,6 +352,59 @@ function gapDragHit(segment: GapSegment): Rect {
   return guideHit(gapGuide(segment), orientation);
 }
 
+/** Matches the padding bar whose visible area contains the pointer, whether or
+ * not the point is inside the drag handle. Returns the first side by the same
+ * priority order as the drag affordances so both paths agree on overlaps. */
+function paddingAffordanceInAreaAtPoint(
+  element: HTMLElement,
+  x: number,
+  y: number,
+): SpacingAffordance | null {
+  const model = boxModel(element);
+  if (!containsPoint(model.outer, x, y)) return null;
+  const sides: PaddingSide[] = ["top", "right", "bottom", "left"];
+  for (const side of sides) {
+    const affordance = paddingAffordanceForSide(element, side, model);
+    if (affordance
+      && affordance.affectedAreas.some((area) => containsRectPoint(area, x, y))) {
+      return affordance;
+    }
+  }
+  return null;
+}
+
+/** Matches a layout gap whose visible area contains the pointer, whether or not
+ * the point is inside the drag handle. Shares segment priority and geometry
+ * with gapAffordanceAtPoint so hover and drag agree on crossed gap properties. */
+function gapAffordanceInAreaAtPoint(
+  element: HTMLElement,
+  x: number,
+  y: number,
+): SpacingAffordance | null {
+  const segments = gapSegments(element);
+  if (segments.length === 0) return null;
+  const candidate = segments.find((segment) => containsRectPoint(gapArea(segment), x, y));
+  if (!candidate) return null;
+  const matchingSegments = segments.filter((segment) => segment.property === candidate.property);
+  const first = matchingSegments[0]!;
+  const guide = gapGuide(first);
+  return {
+    kind: "gap",
+    property: first.property,
+    side: null,
+    axis: first.axis,
+    dragAxis: first.axis === "horizontal" ? "x" : "y",
+    value: gapValue(getElementComputedStyle(element), first.property),
+    cursor: first.axis === "horizontal" ? "ew-resize" : "ns-resize",
+    guide,
+    affectedGuides: matchingSegments.map(gapGuide),
+    affectedAreas: matchingSegments.map(gapArea),
+    hit: gapDragHit(first),
+    direction: 1,
+    element,
+  };
+}
+
 function gapValue(style: CSSStyleDeclaration, property: "row-gap" | "column-gap"): number {
   const direct = style.getPropertyValue(property)
     || (property === "row-gap" ? style.rowGap : style.columnGap);
@@ -398,6 +451,23 @@ export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number)
   return null;
 }
 
+/** Finds the spacing target whose visible padding or gap area contains the
+ * pointer, even when the pointer is outside the drag handle. Hover previews use
+ * this; drags and the resize cursor still require the handle hit from
+ * getSpacingAffordanceAtPoint. */
+export function getSpacingHoverAtPoint(doc: Document, x: number, y: number): SpacingAffordance | null {
+  const candidates = trackedElementsAtPoint(doc, x, y);
+  for (const element of candidates) {
+    const padding = paddingAffordanceInAreaAtPoint(element, x, y);
+    if (padding) return padding;
+  }
+  for (const element of candidates) {
+    const gap = gapAffordanceInAreaAtPoint(element, x, y);
+    if (gap) return gap;
+  }
+  return null;
+}
+
 /** Re-resolves a renderer-reported spacing descriptor in its owner document. */
 export function getSpacingAffordanceForDescriptor(
   element: HTMLElement,
@@ -420,7 +490,14 @@ export function getSpacingAffordanceForDescriptor(
   );
 }
 
-/** Calculates a direct-manipulation value, optionally stepping changes by 8px. */
+/**
+ * Calculates a direct-manipulation value, optionally stepping changes by 8px.
+ * While Shift is held the value snaps to a step anchor: the first displacement
+ * picks the nearest multiple of 8 from the authored value in the drag
+ * direction (ties resolve upward), and further movement adds whole 8px steps
+ * from that anchor, so the result is always a multiple of 8 once the drag
+ * moves. At the exact start point the authored value is preserved.
+ */
 export function spacingValueForDrag(
   affordance: Pick<SpacingAffordance, "dragAxis" | "direction" | "value">,
   start: { x: number; y: number },
@@ -429,10 +506,16 @@ export function spacingValueForDrag(
 ): number {
   const delta = affordance.dragAxis === "x" ? point.x - start.x : point.y - start.y;
   const signedDelta = delta * affordance.direction;
-  const adjustedDelta = shiftKey
-    ? Math.trunc(signedDelta / SPACING_SHIFT_STEP) * SPACING_SHIFT_STEP
-    : signedDelta;
-  return Math.max(0, Math.round(affordance.value + adjustedDelta));
+  if (shiftKey) {
+    const step = SPACING_SHIFT_STEP;
+    if (signedDelta !== 0) {
+      const anchor = signedDelta > 0
+        ? Math.ceil(affordance.value / step) * step
+        : Math.floor(affordance.value / step) * step;
+      return Math.max(0, anchor + Math.trunc(signedDelta / step) * step);
+    }
+  }
+  return Math.max(0, Math.round(affordance.value + signedDelta));
 }
 
 export function spacingValueCss(value: number): string {

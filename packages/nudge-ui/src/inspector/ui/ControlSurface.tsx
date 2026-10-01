@@ -1,4 +1,5 @@
-import type { HTMLAttributes, ReactElement, ReactNode } from "react";
+import { forwardRef } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 /**
  * Visual boundary for an inspector control. It owns the shared control chrome
@@ -14,13 +15,16 @@ export interface ControlSurfaceProps extends HTMLAttributes<HTMLSpanElement> {
   children?: ReactNode;
 }
 
-export function ControlSurface({
-  appearance = "default",
-  density = "default",
-  className,
-  children,
-  ...props
-}: ControlSurfaceProps): ReactElement {
+export const ControlSurface = forwardRef<HTMLSpanElement, ControlSurfaceProps>(function ControlSurface(
+  {
+    appearance = "default",
+    density = "default",
+    className,
+    children,
+    ...props
+  },
+  ref,
+) {
   const classes = [
     "control-surface",
     appearance === "embedded" ? "control-surface--embedded" : "",
@@ -28,5 +32,5 @@ export function ControlSurface({
     className ?? "",
   ].filter(Boolean).join(" ");
 
-  return <span {...props} className={classes}>{children}</span>;
-}
+  return <span ref={ref} {...props} className={classes}>{children}</span>;
+});

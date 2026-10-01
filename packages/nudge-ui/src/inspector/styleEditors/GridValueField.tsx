@@ -5,9 +5,11 @@ import { TextInput } from "../ui/TextInput.tsx";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "../tokens/editActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import type { StringRecord } from "./stringRecord.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",
@@ -42,6 +44,7 @@ export function GridValueField({
 }: GridValueFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
   const mixed = selection?.getProperty(property)?.value.kind === "mixed";
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
   const readValue = (): string => {
     const value = getLayoutValue(el, property);
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";
@@ -65,6 +68,7 @@ export function GridValueField({
   }
 
   function commit(): void {
+    if (blockedBy) return;
     const next = draftRef.current.trim();
     if (!next) {
       updateDraft(mixed ? "" : value);
@@ -91,6 +95,7 @@ export function GridValueField({
         placeholder={mixed ? "Mixed" : undefined}
         data-test={`layout-grid-input-${property}`}
         aria-label={property}
+        disabled={blockedBy !== null}
         onChange={(event) => updateDraft(event.target.value)}
         onBlur={() => {
           commit();
@@ -106,6 +111,7 @@ export function GridValueField({
           }
         }}
       />
+      <InlineStyleWarning blockedBy={blockedBy} />
     </FieldRow>
   );
 }

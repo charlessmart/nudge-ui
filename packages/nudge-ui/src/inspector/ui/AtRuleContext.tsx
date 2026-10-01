@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Tooltip } from "@base-ui/react/tooltip";
 import type { AtRuleCandidate, AtRuleContext, ResolvedProperty } from "../../css/model/index.ts";
+import { Tooltip } from "./Tooltip.tsx";
+import { cx } from "./classNames.ts";
 
 const EMPTY_AT_RULES: readonly AtRuleCandidate[] = [];
 const FieldAtRuleContext = createContext<ReadonlyMap<string, readonly AtRuleCandidate[]>>(new Map());
@@ -54,10 +55,6 @@ function countLabel(label: string, count: number): string {
   return `${count} ${noun}`;
 }
 
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body;
-}
-
 export interface AtRuleIndicatorProps {
   atRules?: readonly (AtRuleContext | AtRuleCandidate)[];
   className?: string;
@@ -71,35 +68,33 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
   const count = countLabel(label, atRules.length);
 
   return (
-    <Tooltip.Provider>
-      <Tooltip.Root disableHoverablePopup>
-        <Tooltip.Trigger
-          type="button"
-          delay={0}
-          className={`at-rule-indicator${className ? ` ${className}` : ""}`}
-          data-test="at-rule-indicator"
-          aria-label={activeCount > 0 ? `Active ${count}` : count}
-        >
-          <span className="at-rule-indicator__symbol" aria-hidden="true">{atRules.length}</span>
-        </Tooltip.Trigger>
-        <Tooltip.Portal container={portalContainer()}>
-          <Tooltip.Positioner className="at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
-            <Tooltip.Popup className="at-rule-tooltip" data-test="at-rule-tooltip">
-              <div className="at-rule-tooltip__rules">
-                {atRules.map((atRule, index) => (
-                  <div
-                    className={`at-rule-tooltip__rule${!("active" in atRule) || atRule.active ? " at-rule-tooltip__rule--active" : ""}`}
-                    data-active={!("active" in atRule) || atRule.active ? "true" : "false"}
-                    key={`${atRule.kind}-${atRule.params}-${index}`}
-                  >
-                    <code>{atRule.params}</code>
-                  </div>
-                ))}
-              </div>
-            </Tooltip.Popup>
-          </Tooltip.Positioner>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <Tooltip
+      content={(
+        <div className="at-rule-tooltip__rules">
+          {atRules.map((atRule, index) => (
+            <div
+              className={cx("at-rule-tooltip__rule", (!("active" in atRule) || atRule.active) && "at-rule-tooltip__rule--active")}
+              data-active={!("active" in atRule) || atRule.active ? "true" : "false"}
+              key={`${atRule.kind}-${atRule.params}-${index}`}
+            >
+              <code>{atRule.params}</code>
+            </div>
+          ))}
+        </div>
+      )}
+      delay={0}
+      positionerClassName="at-rule-tooltip-positioner"
+      popupClassName="at-rule-tooltip"
+      data-test="at-rule-tooltip"
+    >
+      <button
+        type="button"
+        className={cx("at-rule-indicator", className)}
+        data-test="at-rule-indicator"
+        aria-label={activeCount > 0 ? `Active ${count}` : count}
+      >
+        <span className="at-rule-indicator__symbol" aria-hidden="true">{atRules.length}</span>
+      </button>
+    </Tooltip>
   );
 }

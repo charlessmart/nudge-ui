@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { isEditableEvent, isSendPromptShortcut } from "./shortcuts.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getInspectorToggleShortcutLabel, isEditableEvent, isSendPromptShortcut } from "./shortcuts.ts";
 
 describe("shortcut editable-target detection", () => {
   afterEach(() => {
     document.body.replaceChildren();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    { platform: "MacIntel", expected: "⌘\\" },
+    { platform: "Win32", expected: "Ctrl\\" },
+  ])("shows $expected on $platform", ({ platform, expected }) => {
+    vi.stubGlobal("navigator", { platform, userAgent: "" });
+
+    expect(getInspectorToggleShortcutLabel()).toBe(expected);
   });
 
   it("recognises a focused input inside the inspector shadow root", () => {

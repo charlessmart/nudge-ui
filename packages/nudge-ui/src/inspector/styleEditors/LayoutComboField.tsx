@@ -4,10 +4,12 @@ import { setStyle } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { nudgeCssValue } from "./nudgeValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
-import { inlineAuthoredValue, meaningfulLayoutValue } from "./layoutValue.ts";
+import { meaningfulLayoutValue } from "./layoutValue.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { LayoutBlockedIndicator } from "./LayoutBlockedIndicator.tsx";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
+import { cx } from "../ui/classNames.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { ControlAppearance } from "../ui/ControlSurface.tsx";
@@ -108,7 +110,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   // blocked (with the reason) instead of accepting edits that silently snap
   // back to the computed value on the next revision. Recomputed every render
   // so external style-attribute edits update the field without a remount.
-  const blockedBy = inlineAuthoredValue(el, property);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
 
   function commit(value: string): void {
     if (blockedBy) return;
@@ -194,7 +196,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
   return (
     <span
-      className={`layout-combo${compact ? " layout-combo--compact" : ""}${blockedBy ? " layout-combo--blocked" : ""}`}
+      className={cx("layout-combo", compact && "layout-combo--compact", blockedBy && "layout-combo--blocked")}
       data-test="layout-combo"
       data-property={property}
     >
@@ -218,7 +220,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         </>
       )}
       <AtRuleIndicator atRules={atRules} />
-      {blockedBy ? <LayoutBlockedIndicator blockedBy={blockedBy} /> : null}
+      <LayoutBlockedIndicator blockedBy={blockedBy} />
     </span>
   );
 }

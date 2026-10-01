@@ -3,8 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
   IconCheck,
-  IconClipboard,
-  IconExternalLink,
+  IconCopy,
   IconPlugConnected,
   IconRefresh,
   IconUnlink,
@@ -15,8 +14,9 @@ import { getAgentConnectionStatus } from "./connectionStatus.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { Button } from "../ui/Button.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";
-import { SegmentedControl } from "../ui/SegmentedControl.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
+import { portalContainer } from "../ui/portalContainer.ts";
 
 export const MCP_DOCS_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
 
@@ -38,12 +38,6 @@ export interface McpConnectionContentProps {
 export interface McpConnectionDialogProps extends McpConnectionContentProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-}
-
-function portalContainer(): HTMLElement | ShadowRoot | null {
-  return typeof document !== "undefined"
-    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
-    : null;
 }
 
 function TimelineStep({
@@ -85,10 +79,9 @@ export function McpConnectionContent({
   onCheckAgain,
 }: McpConnectionContentProps): ReactElement {
   const [checking, setChecking] = useState(false);
-  const [setupMethod, setSetupMethod] = useState<"terminal" | "ai">("ai");
   const [copiedCommand, setCopiedCommand] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [copiedListener, setCopiedListener] = useState(false);
+  const [copiedDoctor, setCopiedDoctor] = useState(false);
   const [copyError, setCopyError] = useState<string | undefined>();
   const [checkError, setCheckError] = useState<string | undefined>();
   const setupCommand = createMcpSetupCommand();
@@ -100,8 +93,10 @@ export function McpConnectionContent({
     "",
     "Start the application normally. Reload the agent if needed, then listen to Nudge.",
   ].join("\n"), [setupCommand]);
-  const listenerInstruction = "Listen to Nudge for this application in the current worktree. Use nudge_list_sessions if selection is ambiguous, then call nudge_listen. After applying each prompt, call nudge_report_status and listen again until I ask you to stop.";
+  const doctorCommand = "nudge-ui agent doctor";
   const status = getAgentConnectionStatus(snapshot);
+  const showConnectionStatus = status.kind !== "not-found"
+    || Boolean(snapshot.error || checkError || snapshot.request?.summary || snapshot.request?.error);
   const canConnect = snapshot.companionReachable
     && !snapshot.paired
     && !snapshot.pairedElsewhere
@@ -150,121 +145,109 @@ export function McpConnectionContent({
     }
   }
 
-  async function handleCopyListener(): Promise<void> {
+  async function handleCopyDoctor(): Promise<void> {
     setCopyError(undefined);
     try {
-      await copyToClipboard(listenerInstruction);
-      setCopiedListener(true);
-      window.setTimeout(() => setCopiedListener(false), 1500);
+      await copyToClipboard(doctorCommand);
+      setCopiedDoctor(true);
+      window.setTimeout(() => setCopiedDoctor(false), 1500);
     } catch {
-      setCopyError("The listener instruction could not be copied. Select it and copy it manually.");
+      setCopyError("The diagnostic command could not be copied. Select it and copy it manually.");
     }
   }
 
   return (
     <>
-      <StatusCallout
-        className="mcp-connection__status"
-        tone={status.tone}
-        data-test="mcp-connection-status"
-      >
-        <span className="mcp-connection__status-label" role="status">{status.label}</span>
-        {snapshot.error ? (
-          <span className="mcp-connection__status-detail">{snapshot.error}</span>
-        ) : null}
-        {checkError ? <span role="alert">{checkError}</span> : null}
-        {snapshot.request?.summary ? (
-          <span className="mcp-connection__status-detail">{snapshot.request.summary}</span>
-        ) : null}
-        {snapshot.request?.error ? (
-          <span className="mcp-connection__status-detail">{snapshot.request.error}</span>
-        ) : null}
-      </StatusCallout>
+      {showConnectionStatus ? (
+        <StatusCallout
+          className="mcp-connection__status"
+          tone={status.tone}
+          data-test="mcp-connection-status"
+        >
+          <span className="mcp-connection__status-label" role="status">{status.label}</span>
+          {snapshot.error ? (
+            <span className="mcp-connection__status-detail">{snapshot.error}</span>
+          ) : null}
+          {checkError ? <span role="alert">{checkError}</span> : null}
+          {snapshot.request?.summary ? (
+            <span className="mcp-connection__status-detail">{snapshot.request.summary}</span>
+          ) : null}
+          {snapshot.request?.error ? (
+            <span className="mcp-connection__status-detail">{snapshot.request.error}</span>
+          ) : null}
+        </StatusCallout>
+      ) : null}
 
       <ol className="mcp-connection__timeline" data-test="mcp-connection-timeline">
         <TimelineStep
           number={1}
-          complete={snapshot.listenerActive || snapshot.request !== null}
-          title="Set up your agent once"
+          complete={snapshot.companionReachable || snapshot.listenerActive || snapshot.request !== null}
+          title="Set up agent"
         >
-          <SegmentedControl
-            aria-label="MCP setup method"
-            className="mcp-connection__setup-tabs"
-            data-test="mcp-setup-tabs"
-            value={setupMethod}
-            options={[
-              { value: "ai", label: "AI instructions", testId: "mcp-setup-tab-ai" },
-              { value: "terminal", label: "Terminal command", testId: "mcp-setup-tab-terminal" },
-            ]}
-            onChange={setSetupMethod}
-          />
-          {setupMethod === "terminal" ? (
-            <>
-              <p className="mcp-connection__copy">
-                Run this command from the application directory, then start your app normally.
-              </p>
-              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
-              <div className="mcp-connection__command-actions">
-                <Button
-                  variant="secondary"
-                  data-test="mcp-copy-command"
-                  type="button"
-                  onClick={() => void handleCopyCommand()}
-                >
-                  {copiedCommand ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-                  {copiedCommand ? "Copied" : "Copy command"}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="mcp-connection__copy">
-                Copy these setup instructions into your coding agent.
-              </p>
-              <pre className="mcp-connection__command"><code data-test="mcp-setup-prompt">{setupPrompt}</code></pre>
-              <div className="mcp-connection__command-actions">
-                <Button
-                  variant="secondary"
-                  data-test="mcp-copy-setup-prompt"
-                  type="button"
-                  onClick={() => void handleCopyPrompt()}
-                >
-                  {copiedPrompt ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-                  {copiedPrompt ? "Copied" : "Copy prompt"}
-                </Button>
-              </div>
-            </>
-          )}
+          <p className="mcp-connection__copy">
+            Agent prompt
+          </p>
+          <div className="mcp-connection__command-block">
+            <IconButton
+              className="mcp-connection__copy-button"
+              variant="quiet"
+              size="compact"
+              label={copiedPrompt ? "Copied" : "Copy setup instructions"}
+              data-test="mcp-copy-setup-prompt"
+              onClick={() => void handleCopyPrompt()}
+            >
+              {copiedPrompt ? <IconCheck size={16} aria-hidden="true" /> : <IconCopy size={16} aria-hidden="true" />}
+            </IconButton>
+            <pre className="mcp-connection__command"><code data-test="mcp-setup-prompt">{setupPrompt}</code></pre>
+          </div>
+          <p className="mcp-connection__copy">
+            Or, terminal command
+          </p>
+          <div className="mcp-connection__command-block">
+            <IconButton
+              className="mcp-connection__copy-button"
+              variant="quiet"
+              size="compact"
+              label={copiedCommand ? "Copied" : "Copy command"}
+              data-test="mcp-copy-command"
+              onClick={() => void handleCopyCommand()}
+            >
+              {copiedCommand ? <IconCheck size={16} aria-hidden="true" /> : <IconCopy size={16} aria-hidden="true" />}
+            </IconButton>
+            <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
+          </div>
         </TimelineStep>
 
-        <TimelineStep number={2} complete={snapshot.listenerActive} title="Listen in this agent session">
+        <TimelineStep number={2} complete={snapshot.listenerActive} title="Tell agent to listen for instructions">
           <p className="mcp-connection__copy">
-            Tell your coding agent: “Listen to Nudge.” Reload the agent if Nudge tools are unavailable.
+            Tell your coding agent: “Listen to Nudge.”
           </p>
-          <div className="mcp-connection__command-actions">
-            <Button
-              variant="secondary"
-              data-test="mcp-copy-listener"
-              type="button"
-              onClick={() => void handleCopyListener()}
-            >
-              {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-              {copiedListener ? "Copied" : "Copy listening instruction"}
-            </Button>
-          </div>
         </TimelineStep>
       </ol>
 
-      <Disclosure className="mcp-connection__details" title="Connection details and recovery">
-        <p className="mcp-connection__copy">The page connects automatically when the development integration is available. To diagnose setup, run <code>nudge-ui agent doctor</code> from the application directory.</p>
+      <Disclosure className="mcp-connection__details" title="Troubleshooting" defaultOpen>
+        <p className="mcp-connection__copy">To diagnose setup</p>
+        <div className="mcp-connection__command-block">
+          <IconButton
+            className="mcp-connection__copy-button"
+            variant="quiet"
+            size="compact"
+            label={copiedDoctor ? "Copied" : "Copy diagnostic command"}
+            data-test="mcp-copy-doctor"
+            onClick={() => void handleCopyDoctor()}
+          >
+            {copiedDoctor ? <IconCheck size={16} aria-hidden="true" /> : <IconCopy size={16} aria-hidden="true" />}
+          </IconButton>
+          <pre className="mcp-connection__command"><code>{doctorCommand}</code></pre>
+        </div>
           <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
             <div className="mcp-connection__diagnostic">
               <dt>Project ID</dt>
-              <dd data-test="mcp-project-id"><code>{projectId}</code></dd>
+              <dd data-test="mcp-project-id">{projectId}</dd>
             </div>
             <div className="mcp-connection__diagnostic">
               <dt>Origin</dt>
-              <dd data-test="mcp-origin"><code>{origin}</code></dd>
+              <dd data-test="mcp-origin">{origin}</dd>
             </div>
           </dl>
           <div className="mcp-connection__actions">
@@ -298,7 +281,7 @@ export function McpConnectionContent({
               onClick={() => void handleCheckAgain()}
             >
               <IconRefresh size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              {checking ? "Checking…" : "Check again"}
+              {checking ? "Checking…" : "Refresh connection"}
             </Button>
             {canDisconnect ? (
               <Button
@@ -314,20 +297,8 @@ export function McpConnectionContent({
           </div>
       </Disclosure>
 
-
-
       {copyError ? <p className="mcp-connection__error" role="alert">{copyError}</p> : null}
 
-      <a
-        className="mcp-connection__docs"
-        data-test="mcp-docs-link"
-        href={MCP_DOCS_URL}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <IconExternalLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-        Read the MCP connection guide
-      </a>
     </>
   );
 }

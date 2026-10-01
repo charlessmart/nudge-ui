@@ -6,8 +6,10 @@ import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
 
 export interface LayoutDropdownProps {
   property: string;
@@ -25,6 +27,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const atRules = useFieldAtRules(property);
   const selectedProperty = selection?.getProperty(property);
   const mixed = selectedProperty?.value.kind === "mixed";
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
 
   const [value, setValue] = useState(() =>
     getStateStyleValue(el, property, options[0]),
@@ -39,7 +42,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   }, [el, property, options, revision]);
 
   function handleChange(next: string): void {
-    if (next === "mixed") return;
+    if (next === "mixed" || blockedBy) return;
     setValue(next);
     setStyle(editTarget ?? el, property, next);
     onAfterEdit?.();
@@ -62,7 +65,9 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
         value={mixed ? "mixed" : value}
         options={allOptions.map((opt) => ({ value: opt, label: formatInspectorLabel(opt) }))}
         onValueChange={handleChange}
+        disabled={blockedBy !== null}
       />
+      <InlineStyleWarning blockedBy={blockedBy} />
     </FieldRow>
   );
 }

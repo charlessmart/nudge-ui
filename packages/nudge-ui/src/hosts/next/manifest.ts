@@ -62,7 +62,7 @@ export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
       stylingSystem: "CSS custom properties",
       // Canvas shares the Vite host's controller/renderer runtime (ADR-0006);
       // the mount in every document bootstraps as a renderer inside cards.
-      capabilities: { canvas: true, componentSemantics: true },
+      capabilities: { canvas: true, componentSemantics: true, domNavigation: true },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],

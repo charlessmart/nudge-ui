@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ReactElement } from "react";
+import { forwardRef } from "react";
+import type { ButtonHTMLAttributes } from "react";
 
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger" | "disabled";
 export type ButtonSize = "default" | "compact" | "large";
@@ -9,11 +10,15 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   "data-test"?: string;
 };
 
-export function Button({ variant = "secondary", size = "default", className, ...props }: ButtonProps): ReactElement {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "secondary", size = "default", className, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       {...props}
       className={`button button--${variant} button--${size}${className ? ` ${className}` : ""}`}
     />
   );
-}
+});

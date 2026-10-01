@@ -80,6 +80,11 @@ export interface SketchDocument {
   readonly strokes: readonly SketchStroke[];
   /** Optional for compatibility with sketches saved before annotations existed. */
   readonly annotations?: readonly SketchAnnotation[];
+  /**
+   * Size of `annotatedImage`, which can be taller than the capture when a
+   * notes panel is appended. `capture.imageWidth`/`imageHeight` size the
+   * original screenshot and the stroke coordinate space.
+   */
   readonly imageWidth: number;
   readonly imageHeight: number;
   readonly originalByteSize: number;
@@ -262,8 +267,12 @@ export function isSketchDocument(value: unknown): value is SketchDocument {
         && document.annotations.length <= SKETCH_LIMITS.annotations
         && document.annotations.every(isSketchAnnotation)
         && new Set(document.annotations.map((annotation) => annotation.number)).size === document.annotations.length))
-    && document.imageWidth === document.capture.imageWidth
-    && document.imageHeight === document.capture.imageHeight
+    && Number.isSafeInteger(document.imageWidth)
+    && (document.imageWidth as number) > 0
+    && (document.imageWidth as number) <= SKETCH_LIMITS.imageEdge
+    && Number.isSafeInteger(document.imageHeight)
+    && (document.imageHeight as number) > 0
+    && (document.imageHeight as number) <= SKETCH_LIMITS.imageEdge
     && Number.isSafeInteger(document.originalByteSize)
     && (document.originalByteSize as number) > 0
     && (document.originalByteSize as number) <= SKETCH_LIMITS.imageBytes

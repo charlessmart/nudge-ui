@@ -8,7 +8,7 @@
 .layout__basic {
   display: flex;
   flex-direction: column;
-  gap: var(--space-12);
+  gap: var(--space-8);
 }
 
 .layout__tool-row {
@@ -47,7 +47,7 @@
     "min-width min-height ."
     "max-width max-height ."
     "aspect-ratio . .";
-  gap: 6px;
+  gap: var(--space-8);
   align-items: end;
 }
 
@@ -104,7 +104,7 @@
 .layout__grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-primary {
@@ -116,6 +116,9 @@
 
 .layout__grid-picker-column,
 .layout__grid-gap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
   min-width: 0;
 }
 
@@ -123,19 +126,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-gap-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-fields .field-row,
@@ -155,7 +158,7 @@
   grid-template-areas:
     "column row"
     "vertical horizontal";
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-child-fields .field-row,
@@ -186,7 +189,7 @@
 .layout__grid-alignment {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__grid-advanced {
@@ -206,14 +209,11 @@
   min-width: 0;
 }
 
-.layout__flex-toolbar {
-  display: block;
-}
-
+.layout__flex-heading,
 .layout__direction-tools {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) var(--control-height-large);
+  gap: var(--space-8);
   min-width: 0;
 }
 
@@ -322,7 +322,7 @@
 .layout__flex-lower {
   display: grid;
   grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-8);
   align-items: start;
   margin-top: 8px;
 }
@@ -339,19 +339,22 @@
 }
 
 .layout__gap-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
   min-width: 0;
 }
 
 .layout__gap-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-8);
 }
 
 .layout__spacing-primary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--control-height-large);
-  gap: 5px;
+  gap: var(--space-8);
   align-items: center;
   min-width: 0;
 }

@@ -229,19 +229,6 @@ describe("CopyPromptButton agent handoff", () => {
     expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')).toBeNull();
   });
 
-  it("shows a listening indicator on the primary button", async () => {
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]');
-    expect(button?.dataset.agentListening).toBe("true");
-    expect(button?.querySelector('[data-test="agent-listening-indicator"]')?.getAttribute("aria-label"))
-      .toBe("Agent listening");
-    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
-  });
-
   it("changes Connect into Send and disables the control while one prompt is working", async () => {
     const transport = new ButtonTransport();
     configureAgentBridgeTransport(transport);

@@ -36,7 +36,7 @@ describe("TokenChip", () => {
     expect(action.parentElement).toBe(chip);
   });
 
-  it("keeps the complete token name in the label tooltip", () => {
+  it("keeps the complete token name in the label", () => {
     const tokenName = "--color-border-subtle";
     handle = mount(createElement(
       TokenChip,
@@ -50,7 +50,6 @@ describe("TokenChip", () => {
 
     const label = handle.host.querySelector(".token-chip__label") as HTMLElement;
 
-    expect(label.getAttribute("title")).toBe(tokenName);
     expect(label.textContent).toBe(tokenName);
     expect(label.querySelector(".token-label__content")?.textContent).toBe(tokenName);
   });
