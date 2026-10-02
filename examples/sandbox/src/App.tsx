@@ -86,21 +86,22 @@ export function App() {
           Nudge UI
         </a>
         <nav className="landing-nav-links" aria-label="Main navigation">
+          <a href="/playground">Playground</a>
           <a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
       </header>
 
       <main>
         <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
-          <h1 id="landing-hero-title">Design where code&nbsp;lives.</h1>
           <div className="landing-hero-side">
+            <h1 id="landing-hero-title">Design where code&nbsp;lives.</h1>
             <p className="landing-hero-intro">
               A design panel for your React, Next and HTML code. Adjust styles,
               move elements, change text and adjust tokens directly. Then hand
               off to an agent.
             </p>
-            <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
             <InstallCommand />
+            <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
           </div>
         </section>
 

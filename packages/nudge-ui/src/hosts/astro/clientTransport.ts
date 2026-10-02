@@ -4,11 +4,13 @@ import {
 } from "../../inspector/clientManifest.ts";
 import type { Plugin, ViteDevServer } from "vite";
 import type { IncomingMessage } from "node:http";
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
 import { createAstroClientAssetHandler } from "./clientAsset.ts";
 
 import {
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_ARTIFACTS_PATH,
   NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   createNudgeUiEditorDocument,
@@ -44,6 +46,21 @@ export function createAstroClientTransportPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
+        if (pathname === NUDGE_UI_ARTIFACTS_PATH || pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) {
+          void handleHtmlArtifactRequest(request, response, server.config.root).catch(next);
+          return;
+        }
+        handleClientRequest(server, request, response, next);
+      });
+    },
+    async closeBundle() {
+      await projectBridge?.close();
+      projectBridge = null;
+    },
+  };
+
+  function handleClientRequest(server: ViteDevServer, request: IncomingMessage, response: import("node:http").ServerResponse, next: (error?: unknown) => void): void {
+        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
           if (request.method !== "GET" && request.method !== "HEAD") {
             response.statusCode = 405;
@@ -75,13 +92,7 @@ export function createAstroClientTransportPlugin(): Plugin {
           return;
         }
         next();
-      });
-    },
-    async closeBundle() {
-      await projectBridge?.close();
-      projectBridge = null;
-    },
-  };
+  }
 }
 
 async function createManifest(

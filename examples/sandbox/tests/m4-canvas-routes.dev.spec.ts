@@ -7,6 +7,9 @@ test("dev: clicking a same-origin link navigates the focused card", async ({ pag
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
+  // Select mode passes clicks to the app; Design mode edits the clicked element.
+  await page.locator('[data-test="canvas-tool-select"]').click();
+
   // Click the conformance link inside the iframe
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const conformanceLink = frame.locator('a[href="/conformance"]').first();

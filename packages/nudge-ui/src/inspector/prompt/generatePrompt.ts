@@ -375,6 +375,11 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
   return canonical;
 }
 
+/** Counts the final edit intents exported by the prompt, preserving gesture history for undo. */
+export function countPromptChanges(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], sketchCount = 0): number {
+  return canonicalizeChanges([...changes]).length + canonicalizeStructuralChanges(structuralChanges).length + sketchCount;
+}
+
 export function generatePrompt(
   changes: ChangeRecord[],
   frameworkHints?: FrameworkHints,

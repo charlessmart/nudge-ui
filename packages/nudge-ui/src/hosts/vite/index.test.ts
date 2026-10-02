@@ -401,6 +401,7 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
       config?: ConfigHook;
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
+      server: { watch: { ignored: ["**/.nudge", "**/.nudge/**"] } },
       optimizeDeps: {
         include: ["nudge-ui/internal/component-runtime"],
       },

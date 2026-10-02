@@ -267,15 +267,16 @@ export function restoreChangeRecords(incoming: ChangeRecord[]): void {
 export function loadWorkspaceChanges(
   incoming: readonly ChangeRecord[],
   structuralChanges: readonly StructuralChange[],
+  preserveHistory = false,
 ): void {
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   clearStructuralProjectionReports();
-  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges });
+  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges }, preserveHistory);
   reapply(workspaceChangeStore.getSnapshot());
 }
 
-/** Clears all workspace intent and its unified undo/redo timeline. */
+/** Clears the active draft and its edit steps, preserving other session history. */
 export function clearWorkspace(): void {
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.

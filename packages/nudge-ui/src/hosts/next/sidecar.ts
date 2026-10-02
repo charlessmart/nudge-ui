@@ -24,6 +24,7 @@ import {
   isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { startOptionalProjectBridge } from "../projectBridge.ts";
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { automationManifestFields } from "../environment.ts";
 
 /**
@@ -366,7 +367,9 @@ export async function ensureSidecar(
     };
 
     const server: Server = createServer((req, res) => {
-      respond(req, res, () => manifest, () => generation, streams, receiveContracts);
+      void handleHtmlArtifactRequest(req, res, fsRoot).then((handled) => {
+        if (!handled) respond(req, res, () => manifest, () => generation, streams, receiveContracts);
+      });
     });
 
     const port = await new Promise<number>((resolvePort, rejectPort) => {

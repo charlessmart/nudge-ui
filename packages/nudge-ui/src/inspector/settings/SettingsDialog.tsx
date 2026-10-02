@@ -6,6 +6,7 @@ import {
   IconPlugConnected,
   IconSettings,
   IconX,
+  IconTrash,
 } from "@tabler/icons-react";
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import {
@@ -21,6 +22,12 @@ import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
+import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
+import { hasWriteLease } from "../canvas/workspaceLease.ts";
+import { cancelSketchInteraction } from "../sketch/interaction.ts";
+import { closeSketchNote } from "../sketch/sketchNote.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
 
@@ -90,6 +97,17 @@ export function SettingsDialog({
     if (open) setActiveSection(initialSection);
   }, [initialSection, open]);
 
+  function resetCanvas(): void {
+    if (!hasWriteLease()) return;
+    cancelSketchInteraction();
+    closeSketchNote();
+    clearSketchClipboardHandoff();
+    clearSession();
+    clearRestoreCount();
+    void clearSketchesForProject(projectId).catch(() => undefined);
+    onOpenChange(false);
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal container={portalContainer()}>
@@ -131,6 +149,15 @@ export function SettingsDialog({
                   </button>
                 ))}
               </div>
+              <button
+                className="settings__nav-item settings__reset-canvas"
+                data-test="settings-reset-canvas"
+                type="button"
+                onClick={resetCanvas}
+              >
+                <IconTrash size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                <span className="settings__nav-item-label">Reset canvas</span>
+              </button>
             </nav>
 
             <main className="settings__content" data-test="settings-content">

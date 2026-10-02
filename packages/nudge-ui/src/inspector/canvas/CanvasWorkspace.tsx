@@ -10,26 +10,32 @@ import {
   setBoardCamera,
   getBoardCamera,
   fitAllCards,
+  focusCanvasCards,
   setCanvasPresentation,
   focusCard,
   hasFitAllRan,
   useBoardCamera,
   useCanvasPresentation,
   useCanvasPresentationTransitioning,
+  useCanvasLayoutTransitioning,
+  useTemporaryAppInteraction,
+  setTemporaryAppInteraction,
   useSelectedCardId,
   useFocusedCardId,
   resizeCard,
   setCardPosition,
   updateCardTitle,
   addCanvasCard,
-  findCardByNormalizedUrl,
   selectCard,
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
   duplicateCard,
+  addCanvasVariation,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { LinkedFrameGroup } from "./LinkedFrameGroup.tsx";
+import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changes/changesLog.ts";
@@ -51,7 +57,7 @@ import {
   recordCanvasProjectionApplied,
   WORKSPACE_ID,
 } from "./projection.ts";
-import { normalizeUrl } from "./normalizeUrl.ts";
+import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
 import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
@@ -62,6 +68,7 @@ import {
   isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
 } from "./frameProtocol.ts";
+import { wheelPanDelta } from "./wheelPan.ts";
 import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
@@ -87,12 +94,13 @@ import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/cus
 import {
   activateDraftForCard,
   forkDraftForCard,
+  linkLiveCard,
   getWorkspaceForCard,
   initializeVersionHistory,
-  registerHistoryFrameLookup,
   removeCardHistory,
 } from "../history/store.ts";
 import { registerCardWorkspaceProvider } from "./projection.ts";
+import { createHtmlArtifact, removeHtmlArtifact, saveHtmlArtifact } from "../artifacts/client.ts";
 
 // Breaks the static cycle between projection and history: projection asks
 // this provider for per-card workspaces, while history captures through the
@@ -123,6 +131,15 @@ export interface CanvasWorkspaceProps {
   readonly primaryUrl: string | null;
 }
 
+/** Static studies are independent even when they retain their source page URL. */
+function isLinkedToActiveCard(card: CanvasCardData, cards: readonly CanvasCardData[], activeId: string | null): boolean {
+  const active = cards.find((candidate) => candidate.id === activeId);
+  if (!active || active.id === card.id || active.artifactId || card.artifactId) return false;
+  const route = normalizeUrl(card.url);
+  const activeRoute = normalizeUrl(active.url);
+  return !!route && !!activeRoute && normalizedUrlKey(route) === normalizedUrlKey(activeRoute);
+}
+
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
   const runtimeConfig = useNudgeUiRuntimeConfig();
@@ -139,6 +156,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
 
   const boardRef = useRef<HTMLDivElement>(null);
+  useCanvasLayoutAnimation(boardRef, cards, camera, presentation);
   const panningRef = useRef(false);
   const panOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const cameraAtPanStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -152,8 +170,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const canvasEntryAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
-  const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
-  const rendererInteractionsEnabled = interactionTool !== "select";
+  const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
+  const temporaryAppInteraction = useTemporaryAppInteraction();
+  const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
+  const layoutTransitioning = useCanvasLayoutTransitioning();
+  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning;
   const rendererCursor: RendererCursor = interactionTool === "pan" ? "drag" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
     ? "grabbing"
@@ -164,11 +185,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       : undefined;
   const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
-
-  useEffect(() => {
-    registerHistoryFrameLookup(() => getRegisteredFrames());
-    return () => registerHistoryFrameLookup(null);
-  }, []);
 
   useEffect(() => {
     initializeVersionHistory(runtimeConfig.projectId, cards.map((card) => card.id));
@@ -258,7 +274,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       width: board.clientWidth,
       height: board.clientHeight,
     };
-    const primaryCard = activateIframeWorkspace(primaryUrl, viewport);
+    const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
+      replaceActiveCard: presentation === "focus" && runtimeConfig.demo !== true,
+    });
     if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {
       demoSeededRef.current = true;
       const demoPages = runtimeConfig.demoPages ?? [];
@@ -298,7 +316,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       focusCard(primaryCard.id);
     }
-  }, [primaryUrl, cards.length, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
+  }, [primaryUrl, cards.length, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
     if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
@@ -361,8 +379,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       enabled,
+      panScroll: enabled && interactionTool !== "select",
     }, window.location.origin);
-  }, []);
+  }, [interactionTool]);
 
   useEffect(() => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -387,6 +406,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       board.getBoundingClientRect(),
       deltaY,
     ));
+  }, []);
+
+  const panCanvasByWheel = useCallback((deltaX: number, deltaY: number) => {
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    const camera = getBoardCamera();
+    setBoardCamera({ ...camera, x: camera.x - deltaX, y: camera.y - deltaY });
   }, []);
 
   const fitCanvasToBoard = useCallback(() => {
@@ -428,6 +453,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
+    if (nextTool === "select" && selectedTool === "select") {
+      setInteractionTool("design");
+      stopPanMode();
+      return;
+    }
     if (nextTool === "select") {
       setSelectedElement(null);
     }
@@ -458,7 +488,42 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     setInteractionTool(nextTool);
     stopPanMode();
-  }, [broadcastPanModifier, presentation, sketchActive, sketchEnabled, stopPanMode]);
+  }, [broadcastPanModifier, presentation, sketchActive, sketchEnabled, stopPanMode, selectedTool]);
+
+  useEffect(() => {
+    if (temporaryAppInteraction) stopPanMode();
+    else if (selectedTool === "pan") {
+      spaceHeldRef.current = true;
+      broadcastPanModifier(true);
+      setBoardCursorClass("is-grabbable");
+    }
+  }, [temporaryAppInteraction, selectedTool, stopPanMode, broadcastPanModifier]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (mode === "canvas" && event.key === "Shift" && !event.repeat && !isEditableEvent(event)) setTemporaryAppInteraction(true);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setTemporaryAppInteraction(event.shiftKey);
+    };
+    const onBlur = () => {
+      if (!document.hasFocus()) setTemporaryAppInteraction(false);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") setTemporaryAppInteraction(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
+      setTemporaryAppInteraction(false);
+    };
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== "canvas") return;
@@ -496,12 +561,66 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setCanvasPresentation("focus");
   }, []);
 
-  const duplicateDesign = useCallback((cardId: string) => {
-    const duplicate = duplicateCard(cardId);
-    if (!duplicate) return;
-    forkDraftForCard(cardId, duplicate.id);
+  const duplicateDesign = useCallback(async (cardId: string) => {
+    const source = getCanvasCards().find((card) => card.id === cardId);
+    if (!source) return;
+    let duplicate;
+    if (source.artifactId) {
+      const frame = getRegisteredFrames().get(cardId);
+      if (!frame) return;
+      const artifactId = await createHtmlArtifact(frame, source.url, `${source.title ?? "Frame"} copy`);
+      duplicate = addCanvasVariation(cardId, artifactId, { x: source.x + source.width + CARD_GAP, y: source.y });
+      if (!duplicate) {
+        await removeHtmlArtifact(artifactId);
+        return;
+      }
+      forkDraftForCard(cardId, duplicate.id, true);
+    } else {
+      duplicate = duplicateCard(cardId);
+      if (!duplicate) return;
+      linkLiveCard(cardId, duplicate.id);
+    }
+    setSelectedElement(null);
     selectCard(duplicate.id);
     setCanvasPresentation("canvas");
+    const board = boardRef.current;
+    focusCanvasCards([duplicate.id], board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+  }, []);
+
+  const createVariation = useCallback(async (cardId: string, position?: { x: number; y: number }) => {
+    const source = getCanvasCards().find((card) => card.id === cardId);
+    const frame = getRegisteredFrames().get(cardId);
+    if (!source || !frame) throw new Error("The source frame is no longer available.");
+    const artifactId = await createHtmlArtifact(frame, source.url, source.title ?? "Frame");
+    const variation = addCanvasVariation(cardId, artifactId, position, !position);
+    if (!variation) {
+      await removeHtmlArtifact(artifactId);
+      throw new Error("The source frame is no longer available.");
+    }
+    forkDraftForCard(cardId, variation.id, true);
+    setSelectedElement(null);
+    selectCard(variation.id);
+    const board = boardRef.current;
+    if (board && !position) focusCanvasCards([variation.id], { width: board.clientWidth, height: board.clientHeight });
+    return variation.id;
+  }, []);
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const stop = subscribeChanges(() => {
+      if (timer !== null) window.clearTimeout(timer);
+      const card = getCanvasCards().find((item) => item.id === getSelectedCardId());
+      if (!card?.artifactId) return;
+      const artifactId = card.artifactId;
+      const cardId = card.id;
+      timer = window.setTimeout(() => {
+        const frame = getRegisteredFrames().get(cardId);
+        if (frame) void saveHtmlArtifact(artifactId, frame).catch((error: unknown) => {
+          console.warn("Nudge UI could not save the HTML study:", error);
+        });
+      }, 500);
+    });
+    return () => { stop(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -534,6 +653,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useEffect(() => {
     return subscribeCanvasRendererMessages(({ cardId, iframe, identity, message: msg }) => {
       if (msg.type === "renderer-hello") return;
+      if (msg.type === "app-interaction-modifier") {
+        if (mode === "canvas") setTemporaryAppInteraction(msg.held === true);
+        return;
+      }
       if (isKeyboardShortcutMessage(msg, identity)) {
         if (msg.phase === "keydown") {
           const nextTool = canvasToolForCode(msg.code);
@@ -543,10 +666,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       const frame = { cardId, iframe };
       const syncActiveFrameUrl = (url: string): void => {
-        updateCardUrl(frame.cardId, url);
+        if (getCanvasCards().some((card) => card.id === frame.cardId && card.artifactId)) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
-        if (activeCardId !== frame.cardId && getCanvasCards().length !== 1) return;
-        window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
+        if (activeCardId === frame.cardId || getCanvasCards().length === 1) {
+          activatedTargetRef.current = url;
+          window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
+        }
+        updateCardUrl(frame.cardId, url);
       };
       if (isProjectionAppliedMessage(msg, identity)) {
         recordCanvasProjectionApplied(frame.cardId, msg.revision);
@@ -615,6 +741,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         broadcastPanModifier(msg.spaceHeld);
         return;
       }
+      if (msg.type === "wheel-pan") {
+        if (presentation === "canvas" && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
+        return;
+      }
       if (msg.type === "zoom") {
         if (presentation !== "canvas") return;
         const iframeRect = frame.iframe.getBoundingClientRect();
@@ -658,18 +788,30 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type !== "navigation-intent") return;
+      if (getCanvasCards().some((card) => card.id === frame.cardId && card.artifactId)) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
 
-      if (msg.openInCard === true) {
-        const card = findCardByNormalizedUrl(normalized) ?? addCanvasCard(msg.url);
+      if (msg.openInCard === true && presentation === "canvas") {
+        const card = getCanvasCards().find((candidate) => {
+          const route = !candidate.artifactId && normalizeUrl(candidate.url);
+          return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
+        }) ?? addCanvasCard(msg.url);
         selectCard(card.id);
+        const board = boardRef.current;
+        if (board) focusCanvasCards([card.id], { width: board.clientWidth, height: board.clientHeight });
+        return;
+      }
+      if (msg.openInCard === true) {
+        // A delayed renderer message must not create a new frame after entering focus mode.
+        selectCard(frame.cardId);
+        activateIframeWorkspace(msg.url, { width: boardRef.current?.clientWidth ?? window.innerWidth, height: boardRef.current?.clientHeight ?? window.innerHeight }, { replaceActiveCard: true });
         return;
       }
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sendLinkTargetState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -685,7 +827,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (mode !== "canvas" || presentation !== "canvas" || sketchActive) return;
+      if (mode !== "canvas" || presentation !== "canvas" || sketchActive || interactionTool === "select") return;
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
         const selectedCardId = getSelectedCardId();
         if (!selectedCardId) return;
@@ -751,20 +893,25 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [endPanning, movePanning, presentation, sketchActive, startPanning]);
 
   useEffect(() => {
-    if (mode !== "canvas" || presentation !== "canvas" || sketchActive) return;
+    if (mode !== "canvas" || presentation !== "canvas") return;
 
     function handleGlobalWheel(e: WheelEvent): void {
-      if (!e.ctrlKey && !e.metaKey) return;
-
+      const zoom = e.ctrlKey || e.metaKey;
+      const board = boardRef.current;
+      if (zoom && sketchActive) return;
+      if (!zoom && (interactionTool === "select" || !board || !e.composedPath().includes(board))) return;
       e.preventDefault();
       e.stopPropagation();
-
-      zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
+      if (zoom) zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
+      else if (board) {
+        const delta = wheelPanDelta(e, { width: board.clientWidth, height: board.clientHeight });
+        panCanvasByWheel(delta.x, delta.y);
+      }
     }
 
     window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [mode, presentation, sketchActive, zoomAtPointer]);
+  }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
   if (mode !== "canvas") return null;
 
@@ -778,7 +925,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
         <div
-          className={`canvas-workspace__board ${boardCursorClass}`.trim()}
+          className={`canvas-workspace__board ${boardCursorClass}${layoutTransitioning ? " is-layout-transitioning" : ""}`.trim()}
           data-test="canvas-board"
           ref={boardRef}
           style={{ cursor: boardCursor }}
@@ -810,14 +957,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             }}
             data-test="canvas-board-content"
           >
+            {presentation === "canvas" ? [...new Set(cards.flatMap((card) => card.linkedGroupId ? [card.linkedGroupId] : []))].map((id) => (
+              <LinkedFrameGroup key={id} id={id} cards={cards.filter((card) => card.linkedGroupId === id)} zoom={camera.zoom} />
+            )) : null}
             {cards.map((card) => (
               <CanvasCard
                 key={card.id}
                 card={card}
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
+                linkedToActive={isLinkedToActiveCard(card, cards, selectedCardId ?? focusedCardId)}
                 onShowFocus={showFocus}
                 onDuplicate={duplicateDesign}
+                onCreateVariation={createVariation}
                 documentOwner={inspectorSession}
               />
             ))}

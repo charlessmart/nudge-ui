@@ -1,5 +1,7 @@
+import { recordCanvasCreation, discardCanvasHistory } from "../changes/workspaceChanges.ts";
 import { useSyncExternalStore } from "react";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
+import { removeHtmlArtifact } from "../artifacts/client.ts";
 
 export type CanvasMode = "inspect" | "canvas";
 export type CanvasPresentation = "focus" | "canvas";
@@ -7,6 +9,16 @@ export type CanvasPresentation = "focus" | "canvas";
 export interface CanvasCard {
   id: string;
   url: string;
+  /** Originating live card. Only these live copies expose Unlink. */
+  duplicateOf?: string;
+  /** The specific source used to create and animate this variation. */
+  variationOf?: string;
+  /** Directly placed variations skip entrance animation, including on redo. */
+  animateEntrance?: boolean;
+  /** A project-local, independently editable HTML study. */
+  artifactId?: string;
+  /** Live duplicates that share one edit draft and move together. */
+  linkedGroupId?: string;
   /** A controller-requested document load. Renderer metadata must not set this. */
   navigationUrl?: string;
   title: string | null;
@@ -14,26 +26,6 @@ export interface CanvasCard {
   y: number;
   width: number;
   height: number;
-  /** The agent-created comparison group that owns this card, when present. */
-  comparisonGroupId?: string;
-}
-
-/** A durable, agent-owned collection of Canvas cards. */
-export interface CanvasComparisonGroup {
-  id: string;
-  label: string;
-  /** Public protocol marker. Canvas currently exposes only agent-created groups. */
-  owner: "agent";
-  /** Pairing identity used to authorize removal of this group. */
-  agentId: string;
-  cardIds: string[];
-  routes: CanvasComparisonGroupRoute[];
-}
-
-export interface CanvasComparisonGroupRoute {
-  url: string;
-  title?: string | null;
-  label?: string;
 }
 
 export interface CanvasCamera {
@@ -60,9 +52,10 @@ function defaultViewportSize() {
 let mode: CanvasMode = "inspect";
 let presentation: CanvasPresentation = "focus";
 let presentationTransitioning = false;
+let layoutTransitioning = false;
+let temporaryAppInteraction = false;
 let presentationTransitionTimer: number | null = null;
 let cards: CanvasCard[] = [];
-let comparisonGroups: CanvasComparisonGroup[] = [];
 let focusedCardId: string | null = null;
 let selectedCardId: string | null = null;
 let cardIdCounter = 0;
@@ -90,12 +83,34 @@ function getPresentationTransitioning(): boolean {
   return presentationTransitioning;
 }
 
-function getCards(): CanvasCard[] {
-  return cards;
+/** Shift temporarily enables app interaction without changing the selected tool. */
+export function setTemporaryAppInteraction(value: boolean): void {
+  if (temporaryAppInteraction === value) return;
+  temporaryAppInteraction = value;
+  notify();
 }
 
-function getComparisonGroups(): CanvasComparisonGroup[] {
-  return comparisonGroups;
+export function useTemporaryAppInteraction(): boolean {
+  return useSyncExternalStore(subscribe, () => temporaryAppInteraction, () => temporaryAppInteraction);
+}
+
+/** Element interactions pause while frame and camera geometry are animated. */
+export function setCanvasLayoutTransitioning(value: boolean): void {
+  if (layoutTransitioning === value) return;
+  layoutTransitioning = value;
+  notify();
+}
+
+export function getCanvasLayoutTransitioning(): boolean {
+  return layoutTransitioning;
+}
+
+export function useCanvasLayoutTransitioning(): boolean {
+  return useSyncExternalStore(subscribe, getCanvasLayoutTransitioning, getCanvasLayoutTransitioning);
+}
+
+function getCards(): CanvasCard[] {
+  return cards;
 }
 
 function notify(): void {
@@ -182,6 +197,7 @@ function resetCameraToActiveCard(viewport?: { width: number; height: number }): 
 
 /** Adds one card while retaining the existing placement policy. */
 export function addCanvasCard(url: string, title?: string): CanvasCard {
+  const before = cards;
   const size = lastUsedCardSize ?? defaultViewportSize();
   const pos = computeNewCardPosition(cards, CARD_GAP);
   const card: CanvasCard = {
@@ -195,28 +211,26 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
   };
   cards = [...cards, card];
   lastUsedCardSize = { width: size.width, height: size.height };
+  recordCreation(before, [card]);
   notify();
   return card;
 }
 
 /**
- * Appends an agent-created comparison group without disturbing existing cards.
- * Callers validate route URLs and labels at the command boundary; this store
- * function only enforces the durable identity and placement invariants.
+ * Appends one card per route, all sharing a durable linked group. Callers
+ * validate route URLs at the command boundary; this store function enforces
+ * only the placement invariant and group identity.
  */
-export function appendCanvasComparisonGroup(input: {
-  id: string;
-  label: string;
-  agentId: string;
-  owner?: "agent";
-  routes: readonly CanvasComparisonGroupRoute[];
-}): { group: CanvasComparisonGroup; cards: CanvasCard[] } | null {
-  if (!input.id || !input.label || !input.agentId || input.routes.length === 0) return null;
-  if (comparisonGroups.some((group) => group.id === input.id)) return null;
+export function appendLinkedGroupCards(
+  groupId: string,
+  routes: readonly { url: string; title?: string | null }[],
+): CanvasCard[] | null {
+  if (!groupId || routes.length === 0) return null;
 
+  const before = cards;
   const nextCards: CanvasCard[] = [];
   let nextCardsSnapshot = cards;
-  for (const route of input.routes) {
+  for (const route of routes) {
     const size = lastUsedCardSize ?? defaultViewportSize();
     const pos = computeNewCardPosition(nextCardsSnapshot, CARD_GAP);
     const card: CanvasCard = {
@@ -227,41 +241,88 @@ export function appendCanvasComparisonGroup(input: {
       y: pos.y,
       width: size.width,
       height: size.height,
-      comparisonGroupId: input.id,
+      linkedGroupId: groupId,
     };
     nextCards.push(card);
     nextCardsSnapshot = [...nextCardsSnapshot, card];
     lastUsedCardSize = { width: size.width, height: size.height };
   }
-
-  const group: CanvasComparisonGroup = {
-    id: input.id,
-    label: input.label,
-    owner: "agent",
-    agentId: input.agentId,
-    cardIds: nextCards.map((card) => card.id),
-    routes: input.routes.map((route) => ({ ...route })),
-  };
   cards = [...cards, ...nextCards];
-  comparisonGroups = [...comparisonGroups, group];
+  recordCreation(before, nextCards);
   notify();
-  return { group, cards: nextCards };
+  return nextCards;
 }
 
-export function getCanvasComparisonGroup(id: string): CanvasComparisonGroup | undefined {
-  return comparisonGroups.find((group) => group.id === id);
+let activateHistoryCard: (cardId: string) => void = () => undefined;
+
+/** Connects canvas replay to the draft controller without coupling the stores. */
+export function setCanvasHistoryActivator(activate: (cardId: string) => void): void {
+  activateHistoryCard = activate;
 }
 
-/** Removes a group and exactly the cards owned by that group. */
-export function removeCanvasComparisonGroup(id: string): CanvasComparisonGroup | null {
-  const group = getCanvasComparisonGroup(id);
-  if (!group) return null;
-  const groupCardIds = new Set(group.cardIds);
-  cards = cards.filter((card) => !groupCardIds.has(card.id));
-  comparisonGroups = comparisonGroups.filter((candidate) => candidate.id !== id);
-  selectFallbackAfterRemoval(groupCardIds);
-  notify();
-  return group;
+function recordCreation(before: readonly CanvasCard[], created: readonly CanvasCard[]): void {
+  const createdIds = new Set(created.map((card) => card.id));
+  const after = cards.map((card) => ({ ...card }));
+  const oldFocus = selectedCardId ?? focusedCardId ?? before[0]?.id;
+  // Creation can compact a group and push neighbors. Record only those layout
+  // fields, so later title and navigation metadata survive replay.
+  const layout = ["x", "y", "linkedGroupId"] as const;
+  const previous = new Map(before.map((card) => [card.id, card]));
+  const changed = after.filter((card) => {
+    const old = previous.get(card.id);
+    return old && layout.some((key) => old[key] !== card[key]);
+  });
+  const restore = (redo: boolean) => {
+    if (!redo) {
+      // Direct creation drags finish placement after the creation was recorded.
+      // Redo must recover the dropped position, dimensions, and loaded title.
+      for (let index = 0; index < after.length; index++) {
+        const recorded = after[index]!;
+        if (!createdIds.has(recorded.id)) continue;
+        const current = cards.find((card) => card.id === recorded.id);
+        if (current) after[index] = { ...current };
+      }
+    }
+    cards = cards.filter((card) => !createdIds.has(card.id)).map((card) => {
+      const next = changed.find((item) => item.id === card.id);
+      const old = previous.get(card.id);
+      if (!next || !old) return card;
+      const target = redo ? next : old;
+      return { ...card, x: target.x, y: target.y, linkedGroupId: target.linkedGroupId };
+    });
+    if (redo) {
+      // Preserve the recorded ordering inside linked groups.
+      for (const added of after.filter((card) => createdIds.has(card.id))) {
+        const index = after.findIndex((card) => card.id === added.id);
+        const preceding = after.slice(0, index).reverse().find((card) => cards.some((item) => item.id === card.id));
+        const insertion = preceding ? cards.findIndex((card) => card.id === preceding.id) + 1 : 0;
+        cards = [...cards.slice(0, insertion), { ...added }, ...cards.slice(insertion)];
+      }
+    }
+    const focus = redo ? created[0]?.id : oldFocus;
+    const target = cards.find((card) => card.id === focus) ?? cards[0];
+    focusedCardId = target?.id ?? null;
+    selectedCardId = focusedCardId;
+    if (target) {
+      activateHistoryCard(target.id);
+      focusCanvasCards([target.id]);
+    }
+    notify();
+  };
+  recordCanvasCreation({
+    cardIds: [...createdIds],
+    undo: () => restore(false),
+    redo: () => restore(true),
+    dispose: () => {
+      for (const artifactId of new Set(created.flatMap((card) => card.artifactId ? [card.artifactId] : []))) {
+        if (!cards.some((card) => card.artifactId === artifactId)) {
+          void removeHtmlArtifact(artifactId).catch((error: unknown) => {
+            console.warn("Nudge UI could not remove an unused HTML study:", error);
+          });
+        }
+      }
+    },
+  });
 }
 
 function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
@@ -270,46 +331,20 @@ function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
   if (removedIds.has(focusedCardId ?? "")) focusedCardId = fallbackId;
 }
 
-/** Clears group metadata while leaving ordinary cards intact. */
-export function clearCanvasComparisonGroups(): void {
-  if (comparisonGroups.length === 0 && !cards.some((card) => card.comparisonGroupId)) return;
-  cards = cards.map(({ comparisonGroupId: _comparisonGroupId, ...card }) => card);
-  comparisonGroups = [];
-  notify();
-}
-
-/**
- * Finds the route paired with `cardId` inside the agent group `groupId` and
- * replaces that group with `patchGroup`, which receives the paired route
- * index.
- */
-function updateComparisonGroupRoutes(
-  groupId: string,
-  cardId: string,
-  patchGroup: (group: CanvasComparisonGroup, routeIndex: number) => CanvasComparisonGroup,
-): void {
-  comparisonGroups = comparisonGroups.map((group) => {
-    if (group.id !== groupId) return group;
-    const routeIndex = group.cardIds.indexOf(cardId);
-    if (routeIndex < 0) return group;
-    return patchGroup(group, routeIndex);
-  });
-}
-
 export function removeCanvasCard(id: string): void {
+  const removedArtifactId = cards.find((card) => card.id === id)?.artifactId;
   const removed = cards.find((card) => card.id === id);
   if (!removed) return;
+  discardCanvasHistory(id);
   cards = cards.filter((c) => c.id !== id);
   selectFallbackAfterRemoval(new Set([id]));
-  if (removed?.comparisonGroupId) {
-    updateComparisonGroupRoutes(removed.comparisonGroupId, id, (group, routeIndex) => ({
-      ...group,
-      cardIds: group.cardIds.filter((_cardId, index) => index !== routeIndex),
-      routes: group.routes.filter((_route, index) => index !== routeIndex),
-    }));
-    comparisonGroups = comparisonGroups.filter((group) => group.cardIds.length > 0);
-  }
+  if (removed.linkedGroupId) compactLinkedGroup(removed.linkedGroupId);
   notify();
+  if (removedArtifactId && !cards.some((card) => card.artifactId === removedArtifactId)) {
+    void removeHtmlArtifact(removedArtifactId).catch((error: unknown) => {
+      console.warn("Nudge UI could not remove the HTML study:", error);
+    });
+  }
 }
 
 /**
@@ -319,12 +354,30 @@ export function removeCanvasCard(id: string): void {
 export function activateIframeWorkspace(
   url: string,
   viewport: { width: number; height: number },
+  options: { replaceActiveCard?: boolean } = {},
 ): CanvasCard | null {
   const normalized = normalizeUrl(url);
   if (!normalized || normalized.origin !== window.location.origin) return null;
   const targetHref = new URL(url).href;
 
   mode = "canvas";
+  const active = cards.find((card) => card.id === (selectedCardId ?? focusedCardId));
+  if (options.replaceActiveCard && active && !active.artifactId) {
+    const oldRoute = normalizeUrl(active.url);
+    const changedRoute = !oldRoute || normalizedUrlKey(oldRoute) !== normalizedUrlKey(normalized);
+    const next = {
+      ...active,
+      url: targetHref,
+      ...(active.url !== targetHref ? { navigationUrl: targetHref } : {}),
+      ...(changedRoute ? { title: null, linkedGroupId: undefined, duplicateOf: undefined } : {}),
+    };
+    cards = cards.map((card) => card.id === active.id ? next : card);
+    if (changedRoute && active.linkedGroupId) compactLinkedGroup(active.linkedGroupId);
+    focusedCardId = active.id;
+    selectedCardId = active.id;
+    notify();
+    return next;
+  }
   const focused = cards.find((card) => card.id === focusedCardId);
   const focusedUrl = focused ? normalizeUrl(focused.url) : null;
   const existing = focused && focusedUrl
@@ -373,47 +426,152 @@ export function activateIframeWorkspace(
 }
 
 export function updateCardTitle(id: string, title: string): void {
-  const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, title } : c));
-  if (card?.comparisonGroupId) {
-    updateComparisonGroupRoutes(card.comparisonGroupId, id, (group, routeIndex) => ({
-      ...group,
-      routes: group.routes.map((route, index) => index === routeIndex ? { ...route, title } : route),
-    }));
-  }
   notify();
 }
 
 export function updateCardUrl(id: string, url: string): void {
-  const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, url } : c));
-  if (card?.comparisonGroupId) {
-    updateComparisonGroupRoutes(card.comparisonGroupId, id, (group, routeIndex) => ({
-      ...group,
-      routes: group.routes.map((route, index) => index === routeIndex ? { ...route, url } : route),
-    }));
-  }
   notify();
 }
 
 export function duplicateCard(sourceId: string): CanvasCard | null {
+  const before = cards;
   const source = cards.find((c) => c.id === sourceId);
   if (!source) return null;
   const size = lastUsedCardSize ?? { width: source.width, height: source.height };
-  const pos = computeNewCardPosition(cards, CARD_GAP);
+  const linkedGroupId = source.artifactId ? undefined : source.linkedGroupId ?? source.id;
   const card: CanvasCard = {
     id: `card-${++cardIdCounter}`,
     url: source.url,
+    duplicateOf: source.artifactId ? undefined : source.id,
+    artifactId: source.artifactId,
+    linkedGroupId,
     title: source.title,
-    x: pos.x,
-    y: pos.y,
+    x: source.x + source.width + CARD_GAP,
+    y: source.y,
     width: size.width,
     height: size.height,
   };
-  cards = [...cards, card];
+  const index = cards.indexOf(source);
+  cards = cards.map((c) => c.id === sourceId ? { ...c, linkedGroupId } : c);
+  cards = [...cards.slice(0, index + 1), card, ...cards.slice(index + 1)];
+  if (linkedGroupId) compactLinkedGroup(linkedGroupId);
+  pushOverlappingCards(new Set(linkedGroupId
+    ? cards.filter((c) => c.linkedGroupId === linkedGroupId).map((c) => c.id)
+    : [card.id]));
   lastUsedCardSize = { width: size.width, height: size.height };
+  recordCreation(before, [card]);
   notify();
-  return card;
+  return cards.find((c) => c.id === card.id)!;
+}
+
+/** Compacts linked views in their durable order, retaining the group's anchor. */
+function compactLinkedGroup(id: string): void {
+  const members = cards.filter((c) => c.linkedGroupId === id);
+  if (members.length === 0) return;
+  let x = Math.min(...members.map((c) => c.x));
+  const y = members[0]!.y;
+  const positions = new Map<string, number>();
+  for (const member of members) {
+    positions.set(member.id, x);
+    x += member.width + CARD_GAP;
+  }
+  cards = cards.map((c) => positions.has(c.id)
+    ? { ...c, x: positions.get(c.id)!, y, linkedGroupId: members.length > 1 ? id : undefined }
+    : c);
+}
+
+/** Moves overlapping neighbors right, keeping each linked group intact. */
+function pushOverlappingCards(protectedIds: ReadonlySet<string>): void {
+  const units: CanvasCard[][] = [];
+  const seen = new Set<string>();
+  for (const card of cards) {
+    const key = card.linkedGroupId ?? card.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    units.push(card.linkedGroupId ? cards.filter((c) => c.linkedGroupId === key) : [card]);
+  }
+  const fixed = units.filter((unit) => unit.some((c) => protectedIds.has(c.id)));
+  const moving = units.filter((unit) => !unit.some((c) => protectedIds.has(c.id)))
+    .sort((a, b) => boundsOf(a).minX - boundsOf(b).minX);
+  for (const unit of moving) {
+    let bounds = boundsOf(unit);
+    let dx = 0;
+    // Check again after a move: another group may occupy the new location.
+    let collision = true;
+    while (collision) {
+      collision = false;
+      for (const placed of fixed) {
+        const other = boundsOf(placed);
+        if (bounds.minY >= other.maxY || bounds.maxY <= other.minY
+          || bounds.minX >= other.maxX + CARD_GAP || bounds.maxX + CARD_GAP <= other.minX) continue;
+        const shift = other.maxX + CARD_GAP - bounds.minX;
+        dx += shift;
+        bounds = { ...bounds, minX: bounds.minX + shift, maxX: bounds.maxX + shift };
+        collision = true;
+      }
+    }
+    const ids = new Set(unit.map((c) => c.id));
+    const moved = unit.map((c) => ({ ...c, x: c.x + dx }));
+    if (dx) cards = cards.map((c) => ids.has(c.id) ? { ...c, x: c.x + dx } : c);
+    fixed.push(moved);
+  }
+}
+
+export function moveLinkedGroup(id: string, dx: number, dy: number): void {
+  cards = cards.map((card) => card.linkedGroupId === id
+    ? { ...card, x: card.x + dx, y: card.y + dy } : card);
+  notify();
+}
+
+/** Adds an independent HTML variation while retaining its source and linked group. */
+export function addCanvasVariation(sourceId: string, artifactId: string, position?: { x: number; y: number }, animateEntrance = true): CanvasCard | null {
+  const before = cards;
+  const source = cards.find((card) => card.id === sourceId);
+  if (!source) return null;
+  const group = cards.filter((card) => card.id === sourceId || (source.linkedGroupId && card.linkedGroupId === source.linkedGroupId));
+  const x = position?.x ?? source.x;
+  let y = position?.y ?? boundsOf(group).maxY + CARD_GAP * 2;
+  if (!position) {
+    for (const neighbor of [...cards].sort((a, b) => a.y - b.y)) {
+      if (x >= neighbor.x + neighbor.width + CARD_GAP || x + source.width + CARD_GAP <= neighbor.x) continue;
+      if (y < neighbor.y + neighbor.height + CARD_GAP * 2 && y + source.height + CARD_GAP * 2 > neighbor.y) y = neighbor.y + neighbor.height + CARD_GAP * 2;
+    }
+  }
+  const variation: CanvasCard = {
+    id: `card-${++cardIdCounter}`, url: source.url, title: source.title,
+    width: source.width, height: source.height, x, y, artifactId, variationOf: sourceId, animateEntrance,
+  };
+  cards = [...cards, variation];
+  recordCreation(before, [variation]);
+  notify();
+  return variation;
+}
+
+/** Detaches a captured study straight down without moving unrelated frames. */
+export function setCardArtifact(id: string, artifactId: string): void {
+  const original = cards.find((card) => card.id === id);
+  if (!original) return;
+  cards = cards.map((card) => card.id === id
+    ? { ...card, artifactId, duplicateOf: undefined, linkedGroupId: undefined } : card);
+  if (original.linkedGroupId) {
+    const group = boundsOf(cards.filter((c) => c.id === id || c.linkedGroupId === original.linkedGroupId));
+    compactLinkedGroup(original.linkedGroupId);
+    let y = group.maxY + CARD_GAP * 2;
+    // Continue down the same column if another study already occupies this spot.
+    const neighbors = cards.filter((c) => c.id !== id).sort((a, b) => a.y - b.y);
+    for (const neighbor of neighbors) {
+      if (original.x >= neighbor.x + neighbor.width + CARD_GAP
+        || original.x + original.width + CARD_GAP <= neighbor.x) continue;
+      if (y < neighbor.y + neighbor.height + CARD_GAP * 2
+        && y + original.height + CARD_GAP * 2 > neighbor.y) {
+        y = neighbor.y + neighbor.height + CARD_GAP * 2;
+      }
+    }
+    cards = cards.map((c) => c.id === id ? { ...c, y } : c);
+  }
+  notify();
 }
 
 export function resizeCard(
@@ -423,8 +581,13 @@ export function resizeCard(
   position?: { readonly x: number; readonly y: number },
 ): void {
   cards = cards.map((c) => (c.id === id
-    ? { ...c, width, height, ...(position ? { x: position.x, y: position.y } : {}) }
+    ? { ...c, width, height, ...(position && !c.linkedGroupId ? { x: position.x, y: position.y } : {}) }
     : c));
+  const resized = cards.find((card) => card.id === id);
+  if (resized?.linkedGroupId) {
+    compactLinkedGroup(resized.linkedGroupId);
+    pushOverlappingCards(new Set(cards.filter((c) => c.linkedGroupId === resized.linkedGroupId).map((c) => c.id)));
+  }
   lastUsedCardSize = { width, height };
   notify();
 }
@@ -573,6 +736,7 @@ export function useFocusedCardId(): string | null {
 }
 
 export function setCardPosition(id: string, x: number, y: number): void {
+  if (cards.some((card) => card.id === id && card.linkedGroupId)) return;
   cards = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
   notify();
 }
@@ -581,17 +745,31 @@ export function hydrateCanvasStore(
   newMode: CanvasMode,
   newCards: CanvasCard[],
   newCamera: CanvasCamera,
-  newComparisonGroups: CanvasComparisonGroup[] = [],
   restoredFocusedCardId: string | null = null,
 ): void {
   mode = newMode;
-  cards = newCards.map((card) => ({ ...card }));
-  comparisonGroups = newComparisonGroups.map((group) => ({
-    ...group,
-    owner: "agent",
-    cardIds: [...group.cardIds],
-    routes: group.routes.map((route) => ({ ...route })),
-  }));
+  cards = newCards.map((card) => ({ ...card, linkedGroupId: card.artifactId ? undefined : card.linkedGroupId }));
+  // Older saved duplicates already share a draft; give those live views the
+  // same grouping affordance as newly created duplicates.
+  for (const card of cards) {
+    if (card.artifactId || card.linkedGroupId || !card.duplicateOf) continue;
+    let root = card;
+    const visited = new Set([card.id]);
+    while (root.duplicateOf) {
+      const parent = cards.find((candidate) => candidate.id === root.duplicateOf);
+      if (!parent || parent.artifactId || visited.has(parent.id)) break;
+      visited.add(parent.id);
+      root = parent;
+    }
+    if (root.id === card.id) continue;
+    const groupId = root.linkedGroupId ?? root.id;
+    cards = cards.map((member) => member.id === root.id || member.id === card.id
+      ? { ...member, linkedGroupId: groupId } : member);
+  }
+  for (const id of new Set(cards.flatMap((card) => card.linkedGroupId ? [card.linkedGroupId] : []))) {
+    compactLinkedGroup(id);
+    pushOverlappingCards(new Set(cards.filter((card) => card.linkedGroupId === id).map((card) => card.id)));
+  }
   focusedCardId = newCards.some((card) => card.id === restoredFocusedCardId)
     ? restoredFocusedCardId
     : null;
@@ -620,10 +798,8 @@ export {
   subscribe,
   getMode,
   getCards,
-  getComparisonGroups,
   getMode as getCanvasMode,
   getCards as getCanvasCards,
-  getComparisonGroups as getCanvasComparisonGroups,
 };
 
 export function useCanvasMode(): CanvasMode {
@@ -640,10 +816,6 @@ export function useCanvasPresentationTransitioning(): boolean {
 
 export function useCanvasCards(): CanvasCard[] {
   return useSyncExternalStore(subscribe, getCards, getCards);
-}
-
-export function useCanvasComparisonGroups(): CanvasComparisonGroup[] {
-  return useSyncExternalStore(subscribe, getComparisonGroups, getComparisonGroups);
 }
 
 export function useBoardCamera(): CanvasCamera {

@@ -2,7 +2,6 @@
 export type CanvasInteractionTool = "select" | "design" | "pan" | "sketch";
 
 export function canvasToolForCode(code: string): CanvasInteractionTool | null {
-  if (code === "KeyI") return "select";
   if (code === "KeyV") return "design";
   if (code === "KeyH") return "pan";
   if (code === "KeyP") return "sketch";

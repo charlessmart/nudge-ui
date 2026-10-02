@@ -33,3 +33,6 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0027: Iframe-first editor workspace](./0027-iframe-first-editor.md)
 - [ADR-0028: Reusable agent adapter with connection-time project selection](./0028-reusable-agent-adapter.md)
 - [ADR-0029: Drafts and visual history](./0029-drafts-and-visual-history.md)
+- [ADR-0030: Project-local HTML studies](./0030-project-local-html-studies.md) (supersedes ADR-0029)
+- [ADR-0031: Linked frames and study handoff](./0031-linked-frames-and-study-handoff.md) (supersedes ADR-0030)
+- [ADR-0032: Additive HTML variations](./0032-additive-html-variations.md) (supersedes ADR-0031)

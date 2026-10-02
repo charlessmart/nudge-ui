@@ -339,37 +339,3 @@
 .editor__title-row .editor__title {
   margin-bottom: 0;
 }
-.version-history {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.version-history summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  cursor: pointer;
-  user-select: none;
-}
-
-.version-history__list {
-  display: grid;
-  gap: var(--space-8);
-  margin-top: var(--space-8);
-}
-
-.version-history__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-}
-
-.version-history__item span {
-  display: grid;
-  min-width: 0;
-}
-
-.version-history__item small {
-  color: var(--text-muted);
-}

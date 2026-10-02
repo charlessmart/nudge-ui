@@ -16,6 +16,7 @@ build/
 
 # Next.js
 .next/
+.nudge/
 .next-prod/
 
 # Environment

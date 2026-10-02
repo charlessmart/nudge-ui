@@ -4,7 +4,7 @@ import {
   isElementClickMessage,
   isInlineTextIntentMessage,
 } from "./frameProtocol.ts";
-import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning } from "./canvasStore.ts";
+import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning, useCanvasLayoutTransitioning, getCanvasLayoutTransitioning, useTemporaryAppInteraction } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import { getSelectedElements, useHierarchy, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
@@ -350,6 +350,13 @@ export function CanvasElementOverlay(): ReactElement | null {
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
   const presentationTransitioning = useCanvasPresentationTransitioning();
+  const layoutTransitioning = useCanvasLayoutTransitioning();
+  const temporaryAppInteraction = useTemporaryAppInteraction();
+  useEffect(() => {
+    if (!layoutTransitioning) return;
+    setHover(null);
+    setMeasureState(null);
+  }, [layoutTransitioning]);
   const projectionZoom = presentation === "focus" ? 1 : camera.zoom;
   const cards = useCanvasCards(); // Projected geometry must follow card drag and resize updates.
   const cardGeometryKey = cards.map((card) => `${card.id}:${card.x}:${card.y}:${card.width}:${card.height}`).join("|");
@@ -497,6 +504,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         releasePendingSpacingCommits(pendingSpacingCommitsRef.current, sourceIframe);
         return;
       }
+
+      if (getCanvasLayoutTransitioning()) return;
 
       if (data.type === "element-hover") {
         const msg = data;
@@ -745,7 +754,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     )
     : [];
 
-  if (presentationTransitioning) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
 
   return (
     <>

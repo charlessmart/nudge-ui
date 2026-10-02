@@ -255,7 +255,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 /** Forwards controller-owned keyboard shortcuts from an iframe document. */
@@ -295,6 +295,8 @@ export interface MeasureModifierMessage extends RendererMessage {
 export interface BoardGestureStateMessage extends RendererMessage {
   type: "board-gesture-state";
   enabled: boolean;
+  /** Ordinary wheel gestures pan the board instead of scrolling the app. */
+  panScroll?: boolean;
 }
 
 /** Proxies modified wheel gestures that originate inside an iframe card. */
@@ -302,6 +304,19 @@ export interface ZoomMessage extends RendererMessage {
   type: "zoom";
   deltaY: number;
   point: { x: number; y: number };
+}
+
+/** Proxies ordinary wheel gestures as normalized pixel distances. */
+export interface WheelPanMessage extends RendererMessage {
+  type: "wheel-pan";
+  deltaX: number;
+  deltaY: number;
+}
+
+/** Keeps held Shift synchronized when keyboard focus moves into an iframe. */
+export interface AppInteractionModifierMessage extends RendererMessage {
+  type: "app-interaction-modifier";
+  held: boolean;
 }
 
 export type FrameProtocolMessage =
@@ -338,7 +353,9 @@ export type FrameProtocolMessage =
   | PanModifierMessage
   | MeasureModifierMessage
   | BoardGestureStateMessage
-  | ZoomMessage;
+  | ZoomMessage
+  | WheelPanMessage
+  | AppInteractionModifierMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
 
@@ -368,7 +385,6 @@ export function isRendererMessageFor(
 
 export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcutCode {
   return value === "Backslash"
-    || value === "KeyI"
     || value === "KeyV"
     || value === "KeyH"
     || value === "KeyP"

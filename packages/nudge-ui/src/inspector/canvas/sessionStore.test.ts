@@ -4,6 +4,7 @@ import {
   persistSession,
   hydrateSession,
   clearSession,
+  clearSelectedFrameChanges,
   serializeSession,
   storageKey,
   SCHEMA_VERSION,
@@ -23,14 +24,17 @@ import {
   getBoardCamera,
   setCanvasMode,
   addCanvasCard,
-  appendCanvasComparisonGroup,
-  getCanvasComparisonGroups,
+  duplicateCard,
+  hydrateCanvasStore,
+  appendLinkedGroupCards,
   removeCanvasCard as removeCanvasCardStore,
   setBoardCamera,
   focusCard,
   getFocusedCardId,
   resizeCard,
+  selectCard,
 } from "./canvasStore.ts";
+import { activateDraftForCard, forkDraftForCard, getWorkspaceForCard, initializeVersionHistory, resetVersionHistory } from "../history/store.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
@@ -138,6 +142,18 @@ function resetAllState(): void {
 describe("sessionStore persistence", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
+
+  it("restores the linked frame membership and order", () => {
+    const original = addCanvasCard(localUrl("/first"));
+    const copy = duplicateCard(original.id)!;
+    persistSession();
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    expect(hydrateSession().restored).toBe(true);
+    const restored = getCanvasCards();
+    expect(restored.map((card) => card.id)).toEqual([original.id, copy.id]);
+    expect(restored.map((card) => card.linkedGroupId)).toEqual([original.id, original.id]);
+    expect(restored[1]!.x).toBeGreaterThan(restored[0]!.x + restored[0]!.width);
+  });
 
   it("serializes and persists current changes", () => {
     appendChange(makeElementChange());
@@ -512,7 +528,7 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
-  it.each(["changes", "comparisonGroups"] as const)("discards a current session without %s", (field) => {
+  it.each(["changes"] as const)("discards a current session without %s", (field) => {
     const session = serializeSession() as unknown as Record<string, unknown>;
     delete session[field];
     localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
@@ -678,38 +694,54 @@ describe("sessionStore hydration", () => {
     expect(cards[0]!.title).toBeNull();
   });
 
-  it("round-trips agent comparison group ownership with its cards", () => {
+  it("round-trips agent-presented linked frames through the session", () => {
     setCanvasMode("canvas");
-    appendCanvasComparisonGroup({
-      id: "agent-landing-iterations",
-      label: "Landing page iterations",
-      agentId: "paired-agent",
-      routes: [
-        { url: localUrl("/landing-a"), label: "A" },
-        { url: localUrl("/landing-b"), label: "B" },
-      ],
-    });
+    appendLinkedGroupCards("agent-landing-iterations", [
+      { url: localUrl("/landing-a"), title: "A" },
+      { url: localUrl("/landing-b"), title: "B" },
+    ]);
     persistSession();
 
     for (const card of getCanvasCards()) removeCanvasCardStore(card.id);
-    expect(getCanvasComparisonGroups()).toEqual([]);
     hydrateSession();
 
-    expect(getCanvasComparisonGroups()).toMatchObject([{
-      id: "agent-landing-iterations",
-      label: "Landing page iterations",
-      owner: "agent",
-      agentId: "paired-agent",
-      routes: [{ label: "A" }, { label: "B" }],
-    }]);
-    expect(getCanvasCards()).toHaveLength(2);
-    expect(getCanvasCards().every((card) => card.comparisonGroupId === "agent-landing-iterations")).toBe(true);
+    expect(getCanvasCards().map((card) => ({ url: card.url, title: card.title, linkedGroupId: card.linkedGroupId })))
+      .toEqual([
+        { url: localUrl("/landing-a"), title: "A", linkedGroupId: "agent-landing-iterations" },
+        { url: localUrl("/landing-b"), title: "B", linkedGroupId: "agent-landing-iterations" },
+      ]);
   });
 });
 
 describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
+
+  it("clears only the selected draft and preserves canvas geometry and other frame edits", () => {
+    resetVersionHistory();
+    const original = addCanvasCard(localUrl("/first"));
+    const study = addCanvasCard(localUrl("/study"));
+    initializeVersionHistory(nudgeUiProjectId, [original.id, study.id]);
+    activateDraftForCard(original.id);
+    appendChange(makeElementChange({ rawValue: "red" }));
+    forkDraftForCard(original.id, study.id);
+    activateDraftForCard(study.id);
+    appendChange(makeElementChange({ rawValue: "blue" }));
+    selectCard(study.id);
+    setBoardCamera({ x: 100, y: 200, zoom: 0.7 });
+    const geometry = getCanvasCards();
+    try {
+      clearSelectedFrameChanges();
+      expect(getWorkspaceForCard(study.id)?.changes).toEqual([]);
+      expect(getWorkspaceForCard(original.id)?.changes[0]).toMatchObject({ rawValue: "red" });
+      expect(getCanvasCards()).toEqual(geometry);
+      expect(getBoardCamera()).toEqual({ x: 100, y: 200, zoom: 0.7 });
+      persistSession();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
+    } finally {
+      resetVersionHistory();
+    }
+  });
 
   it("removes localStorage entry", () => {
     appendChange(makeElementChange());

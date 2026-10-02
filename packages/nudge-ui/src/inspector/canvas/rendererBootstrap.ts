@@ -20,7 +20,9 @@ import type {
   PanStartMessage,
   RendererHelloMessage,
   ZoomMessage,
+  WheelPanMessage,
 } from "./frameProtocol.ts";
+import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
@@ -310,6 +312,8 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let spaceHeld = false;
   let panning = false;
   let boardGesturesEnabled = false;
+  let boardScrollPans = false;
+  let nativeAppInteraction = false;
 
   const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
     if (!ownsRendererBootstrap(owner)) return;
@@ -353,7 +357,9 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     }
     if ((event.data as BoardGestureStateMessage).type === "board-gesture-state") {
       boardGesturesEnabled = (event.data as BoardGestureStateMessage).enabled;
-      if (!boardGesturesEnabled) {
+      boardScrollPans = (event.data as BoardGestureStateMessage).panScroll === true;
+      nativeAppInteraction = (event.data as BoardGestureStateMessage).panScroll === false;
+      if (!boardGesturesEnabled || nativeAppInteraction) {
         spaceHeld = false;
         endPan();
       }
@@ -362,9 +368,16 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   window.addEventListener("message", onMessage);
   owner.listenerRemovers.push(() => window.removeEventListener("message", onMessage));
 
+  function sendAppInteractionModifier(held: boolean): void {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    sendToParent({ type: "app-interaction-modifier", protocolVersion: PROTOCOL_VERSION, held, ...identity });
+  }
+
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (boardGesturesEnabled && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
+    if (event.key === "Shift" && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
+    if (boardGesturesEnabled && !nativeAppInteraction && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();
       sendSpaceState();
@@ -375,6 +388,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onKeyUp = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
+    if (event.key === "Shift") sendAppInteractionModifier(event.shiftKey);
     if (event.code === "Space") {
       spaceHeld = false;
       sendSpaceState();
@@ -409,7 +423,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onPointerDown = (event: PointerEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (!boardGesturesEnabled || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
+    if (!boardGesturesEnabled || nativeAppInteraction || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     panning = true;
@@ -443,6 +457,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onBlur = (): void => {
     if (!ownsRendererBootstrap(owner)) return;
+    if (!window.parent.document.hasFocus()) sendAppInteractionModifier(false);
     spaceHeld = false;
     sendSpaceState();
     endPan();
@@ -452,11 +467,21 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onWheel = (event: WheelEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (!boardGesturesEnabled || (!event.ctrlKey && !event.metaKey)) return;
+    const zoom = event.ctrlKey || event.metaKey;
+    if (!boardGesturesEnabled || (!zoom && !boardScrollPans)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     event.preventDefault();
     event.stopPropagation();
+    if (!zoom) {
+      const delta = wheelPanDelta(event, { width: window.innerWidth, height: window.innerHeight });
+      const message: WheelPanMessage = {
+        type: "wheel-pan", protocolVersion: PROTOCOL_VERSION,
+        deltaX: delta.x, deltaY: delta.y, ...identity,
+      };
+      sendToParent(message);
+      return;
+    }
     const message: ZoomMessage = {
       type: "zoom",
       protocolVersion: PROTOCOL_VERSION,

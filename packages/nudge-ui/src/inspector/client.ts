@@ -16,6 +16,7 @@ import {
 } from "../transport/editor.ts";
 import { resetAgentClients } from "./agent/client.ts";
 import { getActiveCanvasDocument } from "./canvas/activeCanvasDocument.ts";
+import { NUDGE_UI_ARTIFACTS_PATH } from "../transport/routes.ts";
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
@@ -156,6 +157,22 @@ function prepareRuntime(
   manifest: NudgeUiClientManifest,
   runtimeDocument: Document | null,
 ): NudgeUiRuntimeConfig {
+  if (runtimeDocument?.location.pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) {
+    if (!identityPreparedDocuments.has(runtimeDocument)) {
+      // Older captures can contain IDs from another renderer's node registry.
+      for (const element of runtimeDocument.querySelectorAll("[data-renderer-id]")) {
+        element.removeAttribute("data-renderer-id");
+      }
+      installStaticHtmlRuntimeIdentity(runtimeDocument);
+      identityPreparedDocuments.add(runtimeDocument);
+    }
+    return {
+      ...manifest.runtime,
+      framework: "HTML",
+      capabilities: { ...manifest.runtime.capabilities, componentSemantics: false },
+      componentContracts: [],
+    };
+  }
   if (runtimeDocument && manifest.document?.runtimeIdentity === "static-html"
     && !identityPreparedDocuments.has(runtimeDocument)) {
     installStaticHtmlRuntimeIdentity(runtimeDocument);

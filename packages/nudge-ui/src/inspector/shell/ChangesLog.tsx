@@ -28,6 +28,7 @@ import {
 } from "../projection/textProjection.ts";
 import { SketchChanges } from "../sketch/SketchChanges.tsx";
 import { useSketchStore } from "../sketch/store.ts";
+import { countPromptChanges } from "../prompt/generatePrompt.ts";
 
 interface Group {
   key: string;
@@ -123,7 +124,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
     getTextProjectionDiagnosticRevision,
   );
   const groups = useMemo(() => groupChanges(changes), [changes]);
-  const total = changes.length + structuralChanges.length + sketches.length;
+  const total = countPromptChanges(changes, structuralChanges, sketches.length);
 
   if (total === 0 && sketchStore.error === null) return null;
 

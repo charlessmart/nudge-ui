@@ -1,5 +1,6 @@
 import {
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_ARTIFACTS_PATH,
   NUDGE_UI_DIRECT_QUERY_PARAM,
   NUDGE_UI_EDITOR_QUERY_PARAM,
   NUDGE_UI_EDITOR_QUERY_VALUE,
@@ -163,6 +164,7 @@ export function resolveNudgeUiClientEntry(
   context: NudgeUiClientEntryContext,
 ): NudgeUiClientEntry {
   if (context.editorDocument || context.canvasRenderer) return { kind: "bootstrap" };
+  if (new URL(href).pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) return { kind: "direct" };
   const urlSwitch = readNudgeUiQuerySwitch(href);
   if (urlSwitch === "off") return { kind: "direct" };
   const forced = urlSwitch === "on" || context.forcedTab === true;

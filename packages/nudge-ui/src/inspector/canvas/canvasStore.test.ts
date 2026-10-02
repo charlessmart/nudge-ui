@@ -29,6 +29,10 @@ import {
   PRIMARY_CARD_INSET,
   setCanvasPresentation,
   setCardPosition,
+  moveLinkedGroup,
+  setCardArtifact,
+  addCanvasVariation,
+  CARD_GAP,
   type CanvasMode,
 } from "./canvasStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
@@ -248,7 +252,7 @@ describe("iframe workspace startup", () => {
     hydrateCanvasStore("canvas", [
       { id: "card-41", url: first, title: null, x: 0, y: 0, width: 600, height: 400 },
       { id: "card-42", url: focused, title: null, x: 640, y: 0, width: 600, height: 400 },
-    ], { x: 0, y: 0, zoom: 1 }, [], "card-42");
+    ], { x: 0, y: 0, zoom: 1 }, "card-42");
 
     const requested = new URL("/playground#requested", window.location.href).href;
     activateIframeWorkspace(requested, { width: 1200, height: 800 });
@@ -273,6 +277,19 @@ describe("iframe workspace startup", () => {
     expect(getCanvasCards()[0]).toMatchObject({ id: restored.id, width: 640, height: 480 });
     expect(next).toMatchObject({ width: 640, height: 480 });
     expect(getFocusedCardId()).toBe(next?.id);
+  });
+
+  it("replaces the active focus route without adding a frame or changing its geometry", () => {
+    const first = activateIframeWorkspace(new URL("/first", window.location.href).href, { width: 1200, height: 800 })!;
+    const other = addCanvasCard(new URL("/other", window.location.href).href);
+    const camera = getBoardCamera();
+    const requested = new URL("/other", window.location.href).href;
+    const next = activateIframeWorkspace(requested, { width: 1200, height: 800 }, { replaceActiveCard: true });
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(next).toMatchObject({ id: first.id, url: requested, navigationUrl: requested, x: first.x, y: first.y, width: first.width, height: first.height });
+    expect(getCanvasCards().find((card) => card.id === other.id)).toEqual(other);
+    expect(getBoardCamera()).toEqual(camera);
+    expect(getFocusedCardId()).toBe(first.id);
   });
 });
 
@@ -589,7 +606,7 @@ describe("canvasStore world coordinate card placement", () => {
     expect(cardC.x).toBeGreaterThanOrEqual(cardB2.x + cardB2.width);
   });
 
-  it("duplicated card is placed to the right of all existing cards", () => {
+  it("duplicated card is inserted before the next unrelated card", () => {
     const a = addCanvasCard("http://localhost:5173/a", "A");
     resizeCard(a.id, 400, 300);
 
@@ -601,7 +618,8 @@ describe("canvasStore world coordinate card placement", () => {
 
     const cards = getCanvasCards();
     const cardB = cards.find((c) => c.id === b.id)!;
-    expect(copy!.x).toBeGreaterThanOrEqual(cardB.x + cardB.width);
+    expect(copy!.x).toBe(440);
+    expect(cardB.x).toBe(copy!.x + copy!.width + CARD_GAP);
   });
 
   it("cards maintain stable positions regardless of card removal", () => {
@@ -719,5 +737,73 @@ describe("canvasStore card selection", () => {
     selectCard(card.id);
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
     expect(getSelectedCardId()).toBeNull();
+  });
+});
+
+
+describe("linked live frame groups", () => {
+  beforeEach(resetAllCards);
+
+  it("inserts a duplicate beside its source and pushes an overlapping neighboring group intact", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const neighbor = addCanvasCard("http://localhost:5173/second");
+    const neighborCopy = duplicateCard(neighbor.id)!;
+    const copy = duplicateCard(source.id)!;
+    const snapshot = getCanvasCards();
+    const original = snapshot.find((card) => card.id === source.id)!;
+    const next = snapshot.find((card) => card.id === neighbor.id)!;
+    const nextCopy = snapshot.find((card) => card.id === neighborCopy.id)!;
+    expect(copy.x).toBe(original.x + original.width + CARD_GAP);
+    expect(copy.linkedGroupId).toBe(original.linkedGroupId);
+    expect(next.x).toBe(copy.x + copy.width + CARD_GAP);
+    expect(nextCopy.x - next.x).toBe(400 + CARD_GAP);
+    expect(nextCopy.linkedGroupId).toBe(next.linkedGroupId);
+  });
+
+  it("moves linked frames only as a group and keeps their order when resizing", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const copy = duplicateCard(source.id)!;
+    setCardPosition(copy.id, 9999, 9999);
+    expect(getCanvasCards().find((card) => card.id === copy.id)!.x).toBe(440);
+    moveLinkedGroup(copy.linkedGroupId!, 75, 35);
+    resizeCard(source.id, 500, 300);
+    const snapshot = getCanvasCards();
+    expect(snapshot.find((card) => card.id === source.id)).toMatchObject({ x: 75, y: 35 });
+    expect(snapshot.find((card) => card.id === copy.id)).toMatchObject({ x: 615, y: 35 });
+  });
+
+  it("closes the gap and moves the study straight down without moving unrelated frames", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const middle = duplicateCard(source.id)!;
+    const last = duplicateCard(middle.id)!;
+    const neighbor = addCanvasCard("http://localhost:5173/other");
+    setCardArtifact(middle.id, "550e8400-e29b-41d4-a716-446655440000");
+    const snapshot = getCanvasCards();
+    expect(snapshot.find((card) => card.id === last.id)!.x).toBe(440);
+    expect(snapshot.find((card) => card.id === last.id)!.linkedGroupId).toBe(source.id);
+    expect(snapshot.find((card) => card.id === middle.id)).toMatchObject({ x: middle.x, y: 380, linkedGroupId: undefined, duplicateOf: undefined });
+    expect(snapshot.find((card) => card.id === neighbor.id)).toEqual(neighbor);
+    removeCanvasCard(last.id);
+    expect(getCanvasCards().find((card) => card.id === source.id)!.linkedGroupId).toBeUndefined();
+    // Avoid invoking artifact cleanup in this layout-only test's next setup.
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  });
+
+  it("adds independent variations below a group or at a drop position without changing existing frames", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const copy = duplicateCard(source.id)!;
+    const before = getCanvasCards();
+    const variation = addCanvasVariation(copy.id, "550e8400-e29b-41d4-a716-446655440000")!;
+    expect(getCanvasCards().slice(0, 2)).toEqual(before);
+    expect(variation).toMatchObject({ x: copy.x, y: 380, width: copy.width, height: copy.height });
+    expect(variation.linkedGroupId).toBeUndefined();
+    const dropped = addCanvasVariation(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
+    expect(dropped).toMatchObject({ x: -100, y: 150 });
+    expect(getCanvasCards().slice(0, 2)).toEqual(before);
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   });
 });

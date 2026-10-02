@@ -46,8 +46,7 @@ import { getInspectorToggleShortcutLabel, isEditableEvent } from "./shortcuts.ts
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
-import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
-import { hasWriteLease } from "../canvas/workspaceLease.ts";
+import { clearSelectedFrameChanges } from "../canvas/sessionStore.ts";
 import {
   useFocusedCardId,
   useSelectedCardId,
@@ -70,10 +69,7 @@ import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
-import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
-import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
-import { clearSketchesForProject } from "../sketch/store.ts";
-import { closeSketchNote } from "../sketch/sketchNote.ts";
+import { useSketchInteractionActive } from "../sketch/interaction.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
@@ -269,13 +265,7 @@ export function InspectorShell(): ReactElement {
   }
 
   function clearInspectorSession(): void {
-    clearSession();
-    clearRestoreCount();
-    if (!hasWriteLease()) return;
-    cancelSketchInteraction();
-    closeSketchNote();
-    clearSketchClipboardHandoff();
-    void clearSketchesForProject(runtimeConfig.projectId).catch(() => undefined);
+    clearSelectedFrameChanges();
   }
 
   return (

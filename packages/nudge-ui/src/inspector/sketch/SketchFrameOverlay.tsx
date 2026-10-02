@@ -10,6 +10,7 @@ interface SketchFrameOverlayProps {
   readonly iframe: HTMLIFrameElement | null;
   readonly cardId?: string;
   readonly cardUrl: string;
+  readonly artifactId?: string;
   readonly ready: boolean;
 }
 
@@ -37,10 +38,11 @@ function frameRoute(iframe: HTMLIFrameElement, fallback: string): string | null 
   }
 }
 
-function sameFrame(document: SketchDocument, iframe: HTMLIFrameElement, cardUrl: string): boolean {
+function sameFrame(document: SketchDocument, iframe: HTMLIFrameElement, cardUrl: string, artifactId?: string): boolean {
   const sketchRoute = sketchRouteKey(document.capture.url);
   if (!sketchRoute) return false;
-  return sketchRoute === frameRoute(iframe, cardUrl);
+  return sketchRoute === frameRoute(iframe, cardUrl)
+    || (artifactId !== undefined && sketchRoute === sketchRouteKey(cardUrl));
 }
 
 export function projectSketchPoint(
@@ -85,16 +87,16 @@ function visibleStroke(
   };
 }
 
-export function SketchFrameOverlay({ cardId, iframe, cardUrl, ready }: SketchFrameOverlayProps): ReactElement | null {
+export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready }: SketchFrameOverlayProps): ReactElement | null {
   const { items } = useSketchStore();
   useVersionHistory();
   const [revision, setRevision] = useState(0);
   const documents = useMemo(
     () => ready && iframe
       ? items.map((item) => item.document).filter((document) =>
-        sketchBelongsToCard(document.id, cardId ?? null) && sameFrame(document, iframe, cardUrl))
+        sketchBelongsToCard(document.id, cardId ?? null) && sameFrame(document, iframe, cardUrl, artifactId))
       : [],
-    [cardId, cardUrl, iframe, items, ready],
+    [artifactId, cardId, cardUrl, iframe, items, ready],
   );
 
   useEffect(() => {

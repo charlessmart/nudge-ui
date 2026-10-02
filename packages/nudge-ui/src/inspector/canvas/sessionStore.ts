@@ -10,15 +10,14 @@ import {
 import {
   getCanvasMode,
   getCanvasCards,
-  getCanvasComparisonGroups,
   getFocusedCardId,
+  getSelectedCardId,
   getBoardCamera,
   setBoardCamera,
   hydrateCanvasStore,
   removeCanvasCard,
   type CanvasCamera,
   type CanvasMode,
-  type CanvasComparisonGroup,
 } from "./canvasStore.ts";
 import { applyRules } from "../projection/managedStylesheet.ts";
 import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
@@ -39,11 +38,13 @@ import {
   isClipboardHandoffSnapshot,
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
-import { clearVersionHistory } from "../history/store.ts";
+import { activateDraftForCard, clearVersionHistory } from "../history/store.ts";
 
-// v12 is the first durable-session schema after the edit model and preview
-// diagnostic split. Previous session shapes are intentionally incompatible.
-const SCHEMA_VERSION = 12;
+// v12 introduced the edit model and preview diagnostic split; v13 removed the
+// agent comparison-group record from the durable session. Agent-presented
+// routes now persist as ordinary linked frames. Previous session shapes are
+// intentionally incompatible.
+const SCHEMA_VERSION = 13;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -52,10 +53,6 @@ function projectId(): string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isSameOriginUrl(value: unknown): value is string {
@@ -67,48 +64,6 @@ function isSameOriginUrl(value: unknown): value is string {
   }
 }
 
-function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-  return Object.keys(value).every((key) => allowed.includes(key));
-}
-
-function isSerializableComparisonGroup(value: unknown): value is SerializableComparisonGroup {
-  if (!isRecord(value)
-    || !hasOnlyKeys(value, ["id", "label", "owner", "agentId", "cardIds", "routes"])
-    || typeof value.id !== "string"
-    || value.id.length === 0
-    || value.id.length > 256
-    || typeof value.label !== "string"
-    || value.label.length === 0
-    || value.label.length > 160
-    || value.owner !== "agent"
-    || typeof value.agentId !== "string"
-    || value.agentId.length === 0
-    || value.agentId.length > 256
-    || !Array.isArray(value.cardIds)
-    || value.cardIds.length === 0
-    || value.cardIds.length > 64
-    || !Array.isArray(value.routes)
-    || value.routes.length === 0
-    || value.routes.length > 64) {
-    return false;
-  }
-  if (!value.cardIds.every((cardId) => typeof cardId === "string" && cardId.length > 0 && cardId.length <= 256)) {
-    return false;
-  }
-  return value.routes.every((route) => {
-    if (!isRecord(route)
-      || !hasOnlyKeys(route, ["url", "title", "label"])
-      || !isSameOriginUrl(route.url)
-      || (route.title !== undefined && route.title !== null
-        && (typeof route.title !== "string" || route.title.length > 512))
-      || (route.label !== undefined
-        && (typeof route.label !== "string" || route.label.length > 160))) {
-      return false;
-    }
-    return true;
-  });
-}
-
 function storageKey(projectId: string): string {
   return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
 }
@@ -117,24 +72,13 @@ export interface SerializableCard {
   id: string;
   url: string;
   title: string | null;
+  duplicateOf?: string;
+  artifactId?: string;
+  linkedGroupId?: string;
   x: number;
   y: number;
   width: number;
   height: number;
-  comparisonGroupId?: string;
-}
-
-export interface SerializableComparisonGroup {
-  id: string;
-  label: string;
-  owner: "agent";
-  agentId: string;
-  cardIds: string[];
-  routes: Array<{
-    url: string;
-    title?: string | null;
-    label?: string;
-  }>;
 }
 
 export interface DurableSession {
@@ -143,7 +87,6 @@ export interface DurableSession {
   mode: CanvasMode;
   inspectUrl: string;
   cards: SerializableCard[];
-  comparisonGroups: SerializableComparisonGroup[];
   camera: { x: number; y: number; zoom: number };
   focusedCardId?: string | null;
   changes: SerializableChange[];
@@ -177,7 +120,6 @@ function buildSession(): DurableSession {
   }
 
   const cards = getCanvasCards();
-  const comparisonGroups = getCanvasComparisonGroups();
   const camera = getBoardCamera();
   const mode = getCanvasMode();
 
@@ -190,23 +132,13 @@ function buildSession(): DurableSession {
       id: c.id,
       url: c.url,
       title: c.title,
+      ...(c.duplicateOf ? { duplicateOf: c.duplicateOf } : {}),
+      ...(c.artifactId ? { artifactId: c.artifactId } : {}),
+      ...(c.linkedGroupId ? { linkedGroupId: c.linkedGroupId } : {}),
       x: c.x,
       y: c.y,
       width: c.width,
       height: c.height,
-      ...(c.comparisonGroupId ? { comparisonGroupId: c.comparisonGroupId } : {}),
-    })),
-    comparisonGroups: comparisonGroups.map((group) => ({
-      id: group.id,
-      label: group.label,
-      owner: "agent",
-      agentId: group.agentId,
-      cardIds: [...group.cardIds],
-      routes: group.routes.map((route) => ({
-        url: route.url,
-        ...(route.title === undefined ? {} : { title: route.title }),
-        ...(route.label === undefined ? {} : { label: route.label }),
-      })),
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     focusedCardId: getFocusedCardId(),
@@ -318,13 +250,13 @@ export function hydrateSession(): HydrationResult {
       id: c.id as string,
       url: c.url as string,
       title: typeof c.title === "string" ? c.title as string : null,
+      ...(typeof c.duplicateOf === "string" ? { duplicateOf: c.duplicateOf } : {}),
+      ...(typeof c.linkedGroupId === "string" && c.linkedGroupId.length <= 256 ? { linkedGroupId: c.linkedGroupId } : {}),
+      ...(typeof c.artifactId === "string" && /^[a-f0-9-]{36}$/i.test(c.artifactId) ? { artifactId: c.artifactId } : {}),
       x: c.x as number,
       y: c.y as number,
       width: c.width as number,
       height: c.height as number,
-      ...(typeof c.comparisonGroupId === "string"
-        ? { comparisonGroupId: c.comparisonGroupId }
-        : {}),
     });
   }
 
@@ -333,57 +265,7 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  const comparisonGroupsRaw = s.comparisonGroups;
-  if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-  const serializableComparisonGroups: SerializableComparisonGroup[] = [];
-  for (const group of comparisonGroupsRaw) {
-    if (!isSerializableComparisonGroup(group)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    serializableComparisonGroups.push({
-      id: group.id,
-      label: group.label,
-      owner: "agent",
-      agentId: group.agentId,
-      cardIds: [...group.cardIds],
-      routes: group.routes.map((route) => ({ ...route })),
-    });
-  }
-
-  if (new Set(serializableComparisonGroups.map((group) => group.id)).size
-    !== serializableComparisonGroups.length) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-
   const cardsById = new Map(serializableCards.map((card) => [card.id, card]));
-  const groupedCardIds = new Set<string>();
-  for (const group of serializableComparisonGroups) {
-    if (group.cardIds.length !== group.routes.length) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    for (const [routeIndex, cardId] of group.cardIds.entries()) {
-      const card = cardsById.get(cardId);
-      const route = group.routes[routeIndex];
-      if (!card || !route || card.comparisonGroupId !== group.id || groupedCardIds.has(cardId)
-        || card.url !== route.url) {
-        safeDiscard();
-        return { restored: false, changeCount: 0 };
-      }
-      groupedCardIds.add(cardId);
-    }
-  }
-  for (const card of serializableCards) {
-    if (card.comparisonGroupId && !serializableComparisonGroups.some((group) => group.id === card.comparisonGroupId)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-  }
 
   const cameraRaw = s.camera;
   if (
@@ -454,7 +336,6 @@ export function hydrateSession(): HydrationResult {
     s.mode as CanvasMode,
     serializableCards,
     camera,
-    serializableComparisonGroups as CanvasComparisonGroup[],
     focusedCardId,
   );
   // Structural intent and instance evidence become visible atomically. The
@@ -477,6 +358,17 @@ function safeDiscard(): void {
   } catch {
     // ignore
   }
+}
+
+/** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
+export function clearSelectedFrameChanges(): void {
+  if (!canWriteWorkspace()) return;
+  const cardId = getSelectedCardId() ?? getFocusedCardId();
+  if (cardId) activateDraftForCard(cardId);
+  clearWorkspaceLog();
+  setSelectedElement(null);
+  projectToAllReadyCards();
+  scheduleAutoSave();
 }
 
 export function clearSession(): void {

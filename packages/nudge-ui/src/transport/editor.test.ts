@@ -11,6 +11,7 @@ import {
   rememberNudgeUiDirectTabIntent,
   rememberNudgeUiTabSwitch,
   readNudgeUiEditorTarget,
+  resolveNudgeUiClientEntry,
 } from "./editor.ts";
 
 describe("editor transport", () => {
@@ -73,6 +74,12 @@ describe("editor transport", () => {
       "https://example.test/__nudge_ui__/editor?url=%2F__nudge_ui__%2Feditor",
     )).toBeNull();
     expect(() => createNudgeUiEditorUrl("file:///tmp/index.html")).toThrow(TypeError);
+  });
+
+  it("views an artifact directly in a tab and bootstraps it inside Canvas", () => {
+    const url = "https://example.test/__nudge_ui__/artifacts/550e8400-e29b-41d4-a716-446655440000/preview";
+    expect(resolveNudgeUiClientEntry(url, { editorDocument: false, canvasRenderer: false })).toEqual({ kind: "direct" });
+    expect(resolveNudgeUiClientEntry(url, { editorDocument: false, canvasRenderer: true })).toEqual({ kind: "bootstrap" });
   });
 
   it("serves a pure shell and keeps direct application views direct across refresh", () => {

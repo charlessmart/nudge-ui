@@ -15,10 +15,79 @@ export interface WorkspaceChangesSnapshot extends WorkspaceContents {
   readonly canRedo: boolean;
 }
 
-interface HistoryEntry {
+interface EditHistoryEntry {
+  readonly kind: "edit";
+  readonly context: HistoryContext;
   readonly group?: symbol;
   readonly before: WorkspaceContents;
   readonly after: WorkspaceContents;
+}
+
+interface HistoryContext {
+  readonly id: string;
+  readonly activate?: () => void;
+}
+
+interface CanvasHistoryEntry {
+  readonly kind: "canvas";
+  readonly cardIds: readonly string[];
+  readonly undo: () => void;
+  readonly redo: () => void;
+  /** Releases artifacts when an undone creation is no longer redoable. */
+  readonly dispose: () => void;
+}
+
+type HistoryEntry = EditHistoryEntry | CanvasHistoryEntry;
+let historyContext: HistoryContext = { id: "workspace" };
+
+/** Sets the owning draft and the action that focuses it during undo/redo. */
+export function setWorkspaceHistoryContext(id: string, activate?: () => void): void {
+  historyContext = { id, activate };
+}
+
+function discardRedo(): void {
+  for (const entry of redoStack) if (entry.kind === "canvas") entry.dispose();
+  redoStack = [];
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", (event) => {
+    // A cached page keeps its session history. A reload or closed page cannot
+    // redo detached studies, so release those files before the session ends.
+    if (!event.persisted) discardRedo();
+  });
+}
+
+/** Records a completed canvas creation alongside inspector edits. */
+export function recordCanvasCreation(entry: Omit<CanvasHistoryEntry, "kind">): void {
+  discardRedo();
+  undoStack.push({ kind: "canvas", ...entry });
+  publish();
+}
+
+/** Explicit deletion makes commands targeting the deleted frame unavailable. */
+export function discardCanvasHistory(cardId: string): void {
+  const retain = (entry: HistoryEntry) => entry.kind !== "canvas" || !entry.cardIds.includes(cardId);
+  undoStack = undoStack.filter(retain);
+  const removed = redoStack.filter((entry) => !retain(entry));
+  redoStack = redoStack.filter(retain);
+  for (const entry of removed) if (entry.kind === "canvas") entry.dispose();
+  publish();
+}
+
+/** Removes edit steps whose base was committed, reset, or explicitly deleted. */
+export function discardWorkspaceHistory(id: string): void {
+  const retain = (entry: HistoryEntry) => entry.kind !== "edit" || entry.context.id !== id;
+  undoStack = undoStack.filter(retain);
+  redoStack = redoStack.filter(retain);
+  publish();
+}
+
+/** Session restore and Reset canvas start a new, non-persistent timeline. */
+export function clearSessionUndoHistory(): void {
+  discardRedo();
+  undoStack = [];
+  publish();
 }
 
 export type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
@@ -40,7 +109,7 @@ export interface WorkspaceChangeStore {
   ): number;
   undoWorkspaceChange(): boolean;
   redoWorkspaceChange(): boolean;
-  restoreWorkspaceChanges(next: WorkspaceContents): void;
+  restoreWorkspaceChanges(next: WorkspaceContents, preserveHistory?: boolean): void;
   clearWorkspaceChanges(): void;
 }
 
@@ -105,14 +174,18 @@ function commit(next: WorkspaceContents): boolean {
   const before = cloneContents(contents);
   contents = cloneContents(next);
   const previous = undoStack.at(-1);
-  const entry: HistoryEntry = {
-    before: activeHistoryGroup && previous?.group === activeHistoryGroup ? previous.before : before,
+  const grouped = previous?.kind === "edit" && previous.context.id === historyContext.id
+    && activeHistoryGroup && previous.group === activeHistoryGroup;
+  const entry: EditHistoryEntry = {
+    kind: "edit",
+    context: historyContext,
+    before: grouped ? previous.before : before,
     after: cloneContents(contents),
     group: activeHistoryGroup,
   };
-  if (activeHistoryGroup && previous?.group === activeHistoryGroup) undoStack.pop();
+  if (grouped) undoStack.pop();
   if (!sameWorkspaceContents(entry.before, entry.after)) undoStack.push(entry);
-  redoStack = [];
+  discardRedo();
   publish();
   return true;
 }
@@ -199,9 +272,11 @@ function reconcileWorkspaceChangesImpl(
     + contents.structuralChanges.length - next.structuralChanges.length;
   if (removed === 0) return 0;
   contents = next;
-  const prune = (entries: readonly HistoryEntry[]): HistoryEntry[] => entries
-    .map((entry) => ({ group: entry.group, before: retain(entry.before), after: retain(entry.after) }))
-    .filter((entry) => !sameWorkspaceContents(entry.before, entry.after));
+  const prune = (entries: readonly HistoryEntry[]): HistoryEntry[] => entries.flatMap((entry) => {
+    if (entry.kind !== "edit" || entry.context.id !== historyContext.id) return [entry];
+    const next = { ...entry, before: retain(entry.before), after: retain(entry.after) };
+    return sameWorkspaceContents(next.before, next.after) ? [] : [next];
+  });
   undoStack = prune(undoStack);
   redoStack = prune(redoStack);
   publish();
@@ -227,7 +302,10 @@ function undoWorkspaceChangeImpl(): boolean {
   const entry = undoStack.at(-1);
   if (!entry) return false;
   undoStack.pop();
-  contents = cloneContents(entry.before);
+  if (entry.kind === "edit") {
+    entry.context.activate?.();
+    contents = cloneContents(entry.before);
+  } else entry.undo();
   redoStack.push(entry);
   publish();
   return true;
@@ -238,24 +316,27 @@ function redoWorkspaceChangeImpl(): boolean {
   const entry = redoStack.at(-1);
   if (!entry) return false;
   redoStack.pop();
-  contents = cloneContents(entry.after);
-  undoStack.push({ before: entry.before, after: entry.after });
+  if (entry.kind === "edit") {
+    entry.context.activate?.();
+    contents = cloneContents(entry.after);
+  } else entry.redo();
+  undoStack.push(entry);
   publish();
   return true;
 }
 
-function restoreWorkspaceChangesImpl(next: WorkspaceContents): void {
+function restoreWorkspaceChangesImpl(next: WorkspaceContents, preserveHistory = false): void {
   contents = cloneContents(next);
-  undoStack = [];
-  redoStack = [];
+  if (!preserveHistory) {
+    discardRedo();
+    undoStack = [];
+  }
   publish();
 }
 
 function clearWorkspaceChangesImpl(): void {
   contents = { changes: [], structuralChanges: [] };
-  undoStack = [];
-  redoStack = [];
-  publish();
+  discardWorkspaceHistory(historyContext.id);
 }
 
 /** Resets controller state for teardown and tests without requiring a lease. */
@@ -263,6 +344,7 @@ function resetWorkspaceChangesImpl(): void {
   contents = { changes: [], structuralChanges: [] };
   undoStack = [];
   redoStack = [];
+  historyContext = { id: "workspace" };
   revision = 0;
   snapshot = createSnapshot();
   for (const listener of listeners) listener();

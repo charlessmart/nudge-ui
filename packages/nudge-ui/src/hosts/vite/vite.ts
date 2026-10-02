@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import {
   basename,
   join,
@@ -681,11 +682,24 @@ export function createVitePlugins(
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
       // Module resolution is a framework concern; without one this host asks nothing of the resolver.
-      return framework?.viteConfig({
+      const frameworkConfig = framework?.viteConfig({
         projectRoot: userConfig.root ?? process.cwd(),
         demo: options.demo === true,
         existingDedupe: userConfig.resolve?.dedupe ?? [],
       });
+      const ignored = userConfig.server?.watch?.ignored;
+      return {
+        ...frameworkConfig,
+        server: {
+          watch: {
+            ignored: [
+              ...(ignored === undefined ? [] : Array.isArray(ignored) ? ignored : [ignored]),
+              "**/.nudge",
+              "**/.nudge/**",
+            ],
+          },
+        },
+      };
     },
     configResolved(config: ResolvedConfig) {
       root = config.root;
@@ -709,6 +723,10 @@ export function createVitePlugins(
       const runtimeWarning = framework?.unresolvedRuntimeWarning();
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {
+        if (await handleHtmlArtifactRequest(
+          request, response, root ?? process.cwd(),
+          (html) => server.transformIndexHtml(request.url ?? "/", html),
+        )) return;
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
           ? request.method !== "GET"

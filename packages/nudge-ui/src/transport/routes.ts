@@ -13,6 +13,8 @@ export const NUDGE_UI_CLIENT_PATH = `${NUDGE_UI_ROUTE_PREFIX}client.mjs`;
 export const NUDGE_UI_EDITOR_PATH = `${NUDGE_UI_ROUTE_PREFIX}editor`;
 /** Server-sent events announcing settled project changes. */
 export const NUDGE_UI_RELOAD_PATH = `${NUDGE_UI_ROUTE_PREFIX}reload`;
+/** Project-local HTML studies created by unlinking a Canvas frame. */
+export const NUDGE_UI_ARTIFACTS_PATH = `${NUDGE_UI_ROUTE_PREFIX}artifacts`;
 export const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 
 /** Query marker that presents an application route through the editor shell. */
