@@ -49,13 +49,13 @@ describe("agent Canvas presentation", () => {
     });
 
     const cardIds = getCanvasCards()
-      .filter((card) => card.linkedGroupId === "agent-landing-pages")
+      .filter((card) => card.groupId === "agent-landing-pages")
       .map((card) => card.id);
     expect(cardIds).toHaveLength(3);
     // A user duplicate of a presented frame is a linked frame of the same
     // group under the linked-frames model, so the group removes it together.
     const userDuplicate = duplicateCard(cardIds[0]!);
-    expect(userDuplicate?.linkedGroupId).toBe("agent-landing-pages");
+    expect(userDuplicate?.groupId).toBe("agent-landing-pages");
     for (const cardId of cardIds) acknowledgeAgentRendererReady(cardId);
 
     const result = await pending;

@@ -5,7 +5,7 @@ import { registerComponentRuntimeAdapter } from "../componentSemantics/adapterRe
 import type { ComponentRuntimeAdapter } from "../componentSemantics/types.ts";
 import { clearWorkspace, getChangesList, redo, undo } from "../changes/changesLog.ts";
 import * as changesLog from "../changes/changesLog.ts";
-import { serializeSession } from "../canvas/sessionStore.ts";
+import { serializeChange } from "../changes/codecs.ts";
 import {
   beginInlineTextEdit,
   beginInlineTextEditFromEmptyProjection,
@@ -151,7 +151,7 @@ describe("inlineTextEditor", () => {
     expect(element.textContent).toBe("Publish");
     expect(change).toMatchObject({ kind: "component-prop", property: "label", after: "Publish now" });
     expect(getChangesList()).toHaveLength(1);
-    expect(serializeSession().changes).toMatchObject([{
+    expect(getChangesList().map(serializeChange)).toMatchObject([{
       kind: "component-prop",
       property: "label",
       after: "Publish now",
@@ -1049,7 +1049,7 @@ describe("inlineTextEditor", () => {
         scope: "source-site",
         evidence: { mountedCount: 2, beforeText: "Repeated literal" },
       });
-      expect(serializeSession().changes).toMatchObject([{
+      expect(getChangesList().map(serializeChange)).toMatchObject([{
         kind: "component-prop",
         scope: "source-site",
         evidence: { mountedCount: 2 },

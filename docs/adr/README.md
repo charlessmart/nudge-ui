@@ -36,3 +36,7 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0030: Project-local HTML studies](./0030-project-local-html-studies.md) (supersedes ADR-0029)
 - [ADR-0031: Linked frames and study handoff](./0031-linked-frames-and-study-handoff.md) (supersedes ADR-0030)
 - [ADR-0032: Additive HTML variations](./0032-additive-html-variations.md) (supersedes ADR-0031)
+
+- [ADR-0033: Draft-owned persistence and revision-checked study handoff](./0033-draft-persistence-and-study-transactions.md) (supersedes persistence and study coordination in ADR-0027/0032)
+
+- [ADR-0034: Frame content, route discovery, and agent activity](./0034-frame-content-route-discovery-and-agent-activity.md) (supersedes frame identity in ADR-0027/0032)

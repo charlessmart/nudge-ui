@@ -1,3 +1,6 @@
+import { AgentActivityOverlay } from "./AgentActivityOverlay.tsx";
+import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, studyArtifactId } from "./frameContent.ts";
+import { refreshHtmlStudy } from "../artifacts/study.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
@@ -31,9 +34,9 @@ import {
 } from "./canvasResize.ts";
 import {
   getWorkspaceForCard,
-  removeCardHistory,
-} from "../history/store.ts";
-import { artifactDocumentUrl, refreshHtmlArtifact } from "../artifacts/client.ts";
+  removeCardDraft,
+} from "../drafts/store.ts";
+import { artifactDocumentUrl } from "../artifacts/client.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -74,8 +77,8 @@ function resizeHandleTransform(direction: CanvasResizeDirection, scale: number):
 
 export function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateVariation, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const initialUrlRef = useRef(card.navigationUrl ?? card.url);
-  const navigationUrlRef = useRef(card.navigationUrl);
+  const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
+  const navigationUrlRef = useRef(contentNavigationUrl(card.content));
   const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
   const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
@@ -129,11 +132,11 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       disposeDocumentSession();
       unregisterCardFrame(card.id);
     };
-  }, [bindDocumentSession, card.id, card.artifactId, disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, studyArtifactId(card.content), disposeDocumentSession]);
 
   useEffect(() => {
-    if (!card.artifactId || loadState !== "ready") return;
-    const artifactId = card.artifactId;
+    if (card.content.kind !== "study" || loadState !== "ready") return;
+    const artifactId = card.content.artifactId;
     let active = true;
     let checking = false;
     let reloadPending = false;
@@ -143,7 +146,9 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       // that base until they have been saved and handed off.
       if (checking || isInlineTextEditingActive() || workspace?.changes.length || workspace?.structuralChanges.length) return;
       checking = true;
-      void refreshHtmlArtifact(artifactId).then((changed) => {
+      const frame = iframeRef.current;
+      if (!frame) { checking = false; return; }
+      void refreshHtmlStudy(card.id, artifactId, frame).then((changed) => {
         reloadPending ||= changed;
         const latest = getWorkspaceForCard(card.id);
         if (active && reloadPending && !isInlineTextEditingActive() && !latest?.changes.length && !latest?.structuralChanges.length) {
@@ -153,7 +158,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       }).catch(() => undefined).finally(() => { checking = false; });
     }, 1500);
     return () => { active = false; window.clearInterval(timer); };
-  }, [card.artifactId, card.id, loadFrame, loadState]);
+  }, [studyArtifactId(card.content), card.id, loadFrame, loadState]);
 
   function handleReload(): void {
     loadFrame();
@@ -162,7 +167,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   function handleRemove(): void {
     if (getSelectedCardId() === card.id) setSelectedElement(null);
     removeCanvasCard(card.id);
-    removeCardHistory(card.id);
+    removeCardDraft(card.id);
   }
 
   async function handleVariation(position?: { x: number; y: number }): Promise<string | undefined> {
@@ -227,7 +232,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         setLoadState("ready");
         setErrorMessage(null);
         updateFrameTitle(data.title);
-        if (data.url && !card.artifactId) updateCardUrl(card.id, data.url);
+        if (data.url && !studyArtifactId(card.content)) updateCardUrl(card.id, data.url);
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
@@ -243,7 +248,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
       if (data.type === "frame-metadata") {
         updateFrameTitle(data.title);
-        if (data.url && !card.artifactId) updateCardUrl(card.id, data.url);
+        if (data.url && !studyArtifactId(card.content)) updateCardUrl(card.id, data.url);
         return;
       }
 
@@ -252,13 +257,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         setErrorMessage(data.message || "Frame failed to load");
       }
     });
-  }, [card.id, card.artifactId]);
+  }, [card.id, studyArtifactId(card.content)]);
 
   useLayoutEffect(() => {
-    if (!card.navigationUrl || navigationUrlRef.current === card.navigationUrl) return;
-    navigationUrlRef.current = card.navigationUrl;
-    loadFrame(card.navigationUrl);
-  }, [card.navigationUrl, loadFrame]);
+    if (!contentNavigationUrl(card.content) || navigationUrlRef.current === contentNavigationUrl(card.content)) return;
+    navigationUrlRef.current = contentNavigationUrl(card.content);
+    loadFrame(contentNavigationUrl(card.content));
+  }, [contentNavigationUrl(card.content), loadFrame]);
 
   useEffect(() => {
     if (loadState !== "loading") return;
@@ -289,7 +294,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
-  }, [bindDocumentSession, card.id, card.artifactId, disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, studyArtifactId(card.content), disposeDocumentSession]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
@@ -311,7 +316,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     e.stopPropagation();
     e.preventDefault();
     const variationDrag = e.altKey && !!onCreateVariation && loadState === "ready" && !creatingVariation;
-    if (card.linkedGroupId && !variationDrag) return;
+    if (card.groupId && !variationDrag) return;
     let moved = false;
     let variationId: string | undefined;
     let creationStarted = false;
@@ -343,7 +348,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             variationId = id;
             if (cancelled) {
               removeCanvasCard(id);
-              removeCardHistory(id);
+              removeCardDraft(id);
               selectCard(card.id);
             } else setCardPosition(id, position.x, position.y);
           });
@@ -363,7 +368,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       cancelled = true;
       if (variationId) {
         removeCanvasCard(variationId);
-        removeCardHistory(variationId);
+        removeCardDraft(variationId);
         selectCard(card.id);
       }
     }
@@ -377,7 +382,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
-  }, [card.id, card.linkedGroupId, card.x, card.y, camera.zoom, onCreateVariation, loadState, creatingVariation]);
+  }, [card.id, card.groupId, card.x, card.y, camera.zoom, onCreateVariation, loadState, creatingVariation]);
 
   const handleCardPointerDown = useCallback(() => {
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
@@ -467,9 +472,9 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   return (
     <div
-      className={`canvas-card${card.linkedGroupId ? " is-linked" : ""}${linkedToActive ? " is-linked-peer" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
+      className={`canvas-card${card.groupId ? " is-linked" : ""}${linkedToActive ? " is-linked-peer" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
       data-card-id={card.id}
-      data-linked-group-id={card.linkedGroupId}
+      data-linked-group-id={card.groupId}
       style={{
         position: "absolute",
         visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
@@ -510,7 +515,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             className="canvas-card__actions"
             style={{ transform: `scale(${toolbarScale})`, transformOrigin: "right bottom" }}
           >
-          {onDuplicate && !card.artifactId ? (
+          {onDuplicate && !studyArtifactId(card.content) ? (
             <IconButton
               variant="secondary"
               size="default"
@@ -544,7 +549,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
               transformOrigin: "center bottom",
             }}
           >
-            {!card.artifactId ? (
+            {!studyArtifactId(card.content) ? (
               <Tooltip content="Live view">
                 <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
                   <IconBoltFilled size={12} aria-hidden="true" />
@@ -552,7 +557,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
               </Tooltip>
             ) : null}
             <span className="canvas-card__title">
-              {card.artifactId ? "HTML study · " : ""}{card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
+              {studyArtifactId(card.content) ? "HTML study · " : ""}{card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
             </span>
           </span>
         </div>
@@ -572,16 +577,17 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           </div>
         ) : null}
         <iframe
-          key={card.artifactId ?? "live"}
+          key={studyArtifactId(card.content) ?? "live"}
           ref={iframeRef}
           className="canvas-card__iframe"
-          src={card.artifactId ? artifactDocumentUrl(card.artifactId) : initialUrlRef.current}
-          title={card.title || card.url}
+          src={card.content.kind === "study" ? contentDocumentUrl(card.content) : initialUrlRef.current}
+          title={card.title || contentSourceUrl(card.content)}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
-        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={card.url} artifactId={card.artifactId} ready={loadState === "ready"} />
+        <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
+        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={contentSourceUrl(card.content)} artifactId={studyArtifactId(card.content)} ready={loadState === "ready"} />
       </div>
       {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
         <div

@@ -108,7 +108,7 @@ describe("CanvasCard renderer handshake", () => {
     const originalCreateElement = document.createElement.bind(document);
     const card = {
       id: "card-7",
-      url: window.location.href,
+      content: { kind: "route" as const, url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -188,7 +188,7 @@ describe("CanvasCard renderer handshake", () => {
   it("shows live card dimensions in the toolbar", () => {
     const card: CanvasCardData = {
       id: "card-dimensions",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 20,
       y: 30,
@@ -215,7 +215,7 @@ describe("CanvasCard renderer handshake", () => {
   it("shows a card title in place of dimensions when one is available", () => {
     const card: CanvasCardData = {
       id: "card-title",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: "Version 1",
       x: 20,
       y: 30,
@@ -233,7 +233,7 @@ describe("CanvasCard renderer handshake", () => {
     const requested = new URL("/playground#requested", window.location.href).href;
     const card: CanvasCardData = {
       id: "card-restored-route",
-      url: previous,
+      content: { kind: "route", url: previous },
       title: null,
       x: 0,
       y: 0,
@@ -259,7 +259,7 @@ describe("CanvasCard renderer handshake", () => {
   it("returns the selected card to the focused preview", () => {
     const card: CanvasCardData = {
       id: "card-focus-preview",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -284,7 +284,7 @@ describe("CanvasCard renderer handshake", () => {
   it("returns a selected card to the focused preview", () => {
     const card: CanvasCardData = {
       id: "card-focus-preview",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -308,7 +308,7 @@ describe("CanvasCard renderer handshake", () => {
   it("moves the card when dragging from the dimension surface", () => {
     const card: CanvasCardData = {
       id: "card-drag-surface",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 40,
       y: 60,
@@ -339,7 +339,7 @@ describe("CanvasCard renderer handshake", () => {
   it("renders every edge and corner handle with its directional cursor", () => {
     const card: CanvasCardData = {
       id: "card-all-resize-handles",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -375,7 +375,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes from every handle with direction-aware keyboard steps", () => {
     const card: CanvasCardData = {
       id: "card-keyboard-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -427,7 +427,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes horizontally from the left edge and releases pointer capture", () => {
     const card: CanvasCardData = {
       id: "card-left-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -461,7 +461,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes vertically from the top edge while preserving the bottom edge", () => {
     const card: CanvasCardData = {
       id: "card-top-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -489,7 +489,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes both dimensions from a corner handle", () => {
     const card: CanvasCardData = {
       id: "card-corner-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -517,7 +517,7 @@ describe("CanvasCard renderer handshake", () => {
   it("stops a resize on pointer cancel and keeps the minimum dimensions", () => {
     const card: CanvasCardData = {
       id: "card-cancel-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -547,7 +547,7 @@ describe("CanvasCard renderer handshake", () => {
   it("keeps the resize handle screen-sized while the board is zoomed", () => {
     const card: CanvasCardData = {
       id: "card-resize-scale",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -569,7 +569,7 @@ describe("CanvasCard renderer handshake", () => {
   it("inverse-scales only the thickness of zoomed edge handles", () => {
     const card = {
       id: "card-edge-resize-scale",
-      url: "http://localhost:3000/edge-scale",
+      content: { kind: "route" as const, url: "http://localhost:3000/edge-scale" },
       title: "Edge scale",
       x: 0,
       y: 0,
@@ -590,7 +590,7 @@ describe("CanvasCard renderer handshake", () => {
   it("anchors scaled toolbar content to the canvas top edge", () => {
     const card: CanvasCardData = {
       id: "card-toolbar-anchor",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -620,7 +620,7 @@ describe("CanvasCard renderer handshake", () => {
   it("does not render card action buttons", () => {
     const card: CanvasCardData = {
       id: "card-actions-removed",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,

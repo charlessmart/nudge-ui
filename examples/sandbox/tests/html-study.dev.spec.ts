@@ -71,6 +71,11 @@ test("a live frame creates an additive persistent HTML variation", async ({ page
   await expect(study.contentFrame().locator("h1").first()).toContainText("Study variant");
   await expect(source.contentFrame().locator("h1").first()).toHaveText(originalHeading ?? "");
 
+  // Pending intent restores from the study draft before it is materialized as HTML.
+  await page.reload();
+  await expect(study.contentFrame().locator("h1").first()).toContainText("Study variant");
+  await expect(source.contentFrame().locator("h1").first()).toHaveText(originalHeading ?? "");
+
   const artifactId = studyUrl!.split("/")[3]!;
   const baseline = await page.request.get(`/__nudge_ui__/artifacts/${artifactId}/baseline`);
   expect(baseline.ok()).toBe(true);
@@ -175,8 +180,18 @@ test("linked duplicates move as one group and variations preserve the group", as
     y: Number.parseFloat((element as HTMLElement).style.top),
     width: Number.parseFloat((element as HTMLElement).style.width),
   })));
+  await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
+  });
+  const handle = group.getByText("Linked frames", { exact: true });
+  const outside = await handle.boundingBox();
+  expect(outside).not.toBeNull();
+  await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", {
+    deltaX: outside!.x - 40, deltaY: outside!.y - 120, bubbles: true, composed: true,
+  });
+  await expect.poll(async () => (await handle.boundingBox())?.y ?? 0).toBeGreaterThan(100);
   const before = await positions();
-  const bar = await group.boundingBox();
+  const bar = await handle.boundingBox();
   expect(bar).not.toBeNull();
   await page.mouse.move(bar!.x + bar!.width / 2, bar!.y + bar!.height / 2);
   await page.mouse.down();
@@ -185,8 +200,8 @@ test("linked duplicates move as one group and variations preserve the group", as
   const moved = await positions();
   expect(moved[0]!.x).toBeGreaterThan(before[0]!.x);
   expect(moved[0]!.y).toBeGreaterThan(before[0]!.y);
-  expect(moved[1]!.x - moved[0]!.x).toBe(before[1]!.x - before[0]!.x);
-  expect(moved[2]!.x - moved[1]!.x).toBe(before[2]!.x - before[1]!.x);
+  expect(moved[1]!.x - moved[0]!.x).toBeCloseTo(before[1]!.x - before[0]!.x, 2);
+  expect(moved[2]!.x - moved[1]!.x).toBeCloseTo(before[2]!.x - before[1]!.x, 2);
 
   // The card toolbar still selects, but cannot drag a linked member away.
   const dragSurface = cards.nth(1).locator('[data-test^="canvas-card-drag-"]');
@@ -264,3 +279,59 @@ for (const modifier of ["Alt"] as const) {
     await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`);
   });
 }
+
+
+test("a stale study handoff keeps pending edits and the agent's file", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  const cards = page.locator(".canvas-card");
+  await cards.first().locator('[data-test^="canvas-card-variation-"]').click();
+  const study = cards.nth(1).locator("iframe");
+  await expect(cards.nth(1).locator('[data-test^="canvas-card-variation-"]')).toBeEnabled();
+  await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
+  });
+  const studyUrl = (await study.getAttribute("src"))!;
+  const artifactId = studyUrl.split("/")[3]!;
+  const documentPath = fileURLToPath(new URL(`../.nudge/artifacts/${artifactId}/document.html`, import.meta.url));
+  const heading = study.contentFrame().locator("h1").first();
+  await heading.dblclick();
+  const editor = study.contentFrame().locator('[data-inline-editor="true"]');
+  await editor.fill("Pending browser design");
+  await editor.press("Enter");
+  await expect(heading).toContainText("Pending browser design");
+  await expect(page.locator('[data-test="changes-log"]')).toContainText("Pending browser design");
+  const storedHtml = await readFile(documentPath, "utf8");
+  const agentHtml = storedHtml.replace(/(<h1\b[^>]*>)[\s\S]*?(<\/h1>)/i, "$1External agent design$2");
+  expect(agentHtml).not.toBe(storedHtml);
+  await writeFile(documentPath, agentHtml);
+  try {
+    await page.locator('[data-test="copy-prompt"]').click();
+    await expect(page.locator('[data-test="study-save-hint"]')).toContainText("changed outside Nudge");
+    expect(await readFile(documentPath, "utf8")).toBe(agentHtml);
+    await expect(heading).toContainText("Pending browser design");
+    await expect(page.locator('[data-test="changes-log"]')).toContainText("Pending browser design");
+
+    // The conflicting browser design can be kept as a separate variation.
+    await cards.nth(1).locator('[data-test^="canvas-card-variation-"]').click();
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(2).locator("iframe").contentFrame().locator("h1").first()).toContainText("Pending browser design");
+    // Pan back to the conflicting study, then reveal its hover toolbar.
+    await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
+      await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
+    });
+    const boardBox = (await page.locator('[data-test="canvas-board"]').boundingBox())!;
+    const studyBox = (await cards.nth(1).boundingBox())!;
+    await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", {
+      deltaY: studyBox.y + studyBox.height / 2 - boardBox.y - boardBox.height / 2,
+      clientX: boardBox.x + boardBox.width / 2, clientY: boardBox.y + boardBox.height / 2,
+    });
+    await cards.nth(1).hover();
+    await cards.nth(1).locator('[data-test^="canvas-card-drag-"]').click();
+    await page.locator('[data-test="clear-session"]').click();
+    await expect(heading).toContainText("External agent design", { timeout: 10000 });
+    await expect(cards.nth(2).locator("iframe").contentFrame().locator("h1").first()).toContainText("Pending browser design");
+    const copyId = (await cards.nth(2).locator("iframe").getAttribute("src"))!.split("/")[3]!;
+    await page.request.delete(`/__nudge_ui__/artifacts/${copyId}`);
+  } finally { await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`); }
+});

@@ -1,3 +1,7 @@
+import { getCanonicalFrameProjection } from "./projection.ts";
+import { getDraftForCard } from "../drafts/store.ts";
+import { RoutePicker, ROUTE_PICKER_STYLES } from "./RoutePicker.tsx";
+import { studyArtifactId, contentSourceUrl } from "./frameContent.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
@@ -30,8 +34,6 @@ import {
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
-  duplicateCard,
-  addCanvasVariation,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { LinkedFrameGroup } from "./LinkedFrameGroup.tsx";
@@ -91,21 +93,8 @@ import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
-import {
-  activateDraftForCard,
-  forkDraftForCard,
-  linkLiveCard,
-  getWorkspaceForCard,
-  initializeVersionHistory,
-  removeCardHistory,
-} from "../history/store.ts";
-import { registerCardWorkspaceProvider } from "./projection.ts";
-import { createHtmlArtifact, removeHtmlArtifact, saveHtmlArtifact } from "../artifacts/client.ts";
-
-// Breaks the static cycle between projection and history: projection asks
-// this provider for per-card workspaces, while history captures through the
-// registered frame lookup. Both stay importable in Node unit tests.
-registerCardWorkspaceProvider((cardId) => getWorkspaceForCard(cardId));
+import { removeCardDraft } from "../drafts/store.ts";
+import { addLinkedFrame, createVariation as createWorkspaceVariation } from "../workspace/commands.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
@@ -134,9 +123,9 @@ export interface CanvasWorkspaceProps {
 /** Static studies are independent even when they retain their source page URL. */
 function isLinkedToActiveCard(card: CanvasCardData, cards: readonly CanvasCardData[], activeId: string | null): boolean {
   const active = cards.find((candidate) => candidate.id === activeId);
-  if (!active || active.id === card.id || active.artifactId || card.artifactId) return false;
-  const route = normalizeUrl(card.url);
-  const activeRoute = normalizeUrl(active.url);
+  if (!active || active.id === card.id || studyArtifactId(active.content) || studyArtifactId(card.content)) return false;
+  const route = normalizeUrl(contentSourceUrl(card.content));
+  const activeRoute = normalizeUrl(contentSourceUrl(active.content));
   return !!route && !!activeRoute && normalizedUrlKey(route) === normalizedUrlKey(activeRoute);
 }
 
@@ -185,15 +174,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       : undefined;
   const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
-
-  useEffect(() => {
-    initializeVersionHistory(runtimeConfig.projectId, cards.map((card) => card.id));
-  }, [cards, runtimeConfig.projectId]);
-
-  useEffect(() => {
-    const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
-    if (activeCardId) activateDraftForCard(activeCardId);
-  }, [cards, focusedCardId, selectedCardId]);
 
   useLayoutEffect(() => {
     const board = boardRef.current;
@@ -276,6 +256,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     };
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
       replaceActiveCard: presentation === "focus" && runtimeConfig.demo !== true,
+      preserveStudyFocus: true,
     });
     if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {
       demoSeededRef.current = true;
@@ -323,7 +304,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
     if (!activeCard) return;
-    const editorUrl = createNudgeUiEditorUrl(activeCard.url);
+    const editorUrl = createNudgeUiEditorUrl(contentSourceUrl(activeCard.content));
     if (window.location.href !== editorUrl) {
       window.history.replaceState(window.history.state, "", editorUrl);
     }
@@ -476,8 +457,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     if (nextTool === "pan") {
       if (presentation === "focus") {
-        const board = boardRef.current;
-        setCanvasPresentation("canvas", board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+        setCanvasPresentation("canvas");
       }
       setInteractionTool(nextTool);
       spaceHeldRef.current = true;
@@ -542,8 +522,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (presentation === "focus") {
       if (direction < 0) {
-        const board = boardRef.current;
-        setCanvasPresentation("canvas", board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+        setCanvasPresentation("canvas");
       }
       return;
     }
@@ -561,66 +540,21 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setCanvasPresentation("focus");
   }, []);
 
-  const duplicateDesign = useCallback(async (cardId: string) => {
-    const source = getCanvasCards().find((card) => card.id === cardId);
-    if (!source) return;
-    let duplicate;
-    if (source.artifactId) {
-      const frame = getRegisteredFrames().get(cardId);
-      if (!frame) return;
-      const artifactId = await createHtmlArtifact(frame, source.url, `${source.title ?? "Frame"} copy`);
-      duplicate = addCanvasVariation(cardId, artifactId, { x: source.x + source.width + CARD_GAP, y: source.y });
-      if (!duplicate) {
-        await removeHtmlArtifact(artifactId);
-        return;
-      }
-      forkDraftForCard(cardId, duplicate.id, true);
-    } else {
-      duplicate = duplicateCard(cardId);
-      if (!duplicate) return;
-      linkLiveCard(cardId, duplicate.id);
-    }
+  const duplicateDesign = useCallback((cardId: string) => {
+    const duplicate = addLinkedFrame(cardId);
+    if (!duplicate) return;
     setSelectedElement(null);
-    selectCard(duplicate.id);
     setCanvasPresentation("canvas");
     const board = boardRef.current;
     focusCanvasCards([duplicate.id], board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
   }, []);
 
   const createVariation = useCallback(async (cardId: string, position?: { x: number; y: number }) => {
-    const source = getCanvasCards().find((card) => card.id === cardId);
-    const frame = getRegisteredFrames().get(cardId);
-    if (!source || !frame) throw new Error("The source frame is no longer available.");
-    const artifactId = await createHtmlArtifact(frame, source.url, source.title ?? "Frame");
-    const variation = addCanvasVariation(cardId, artifactId, position, !position);
-    if (!variation) {
-      await removeHtmlArtifact(artifactId);
-      throw new Error("The source frame is no longer available.");
-    }
-    forkDraftForCard(cardId, variation.id, true);
+    const variation = await createWorkspaceVariation(cardId, position);
     setSelectedElement(null);
-    selectCard(variation.id);
     const board = boardRef.current;
     if (board && !position) focusCanvasCards([variation.id], { width: board.clientWidth, height: board.clientHeight });
     return variation.id;
-  }, []);
-
-  useEffect(() => {
-    let timer: number | null = null;
-    const stop = subscribeChanges(() => {
-      if (timer !== null) window.clearTimeout(timer);
-      const card = getCanvasCards().find((item) => item.id === getSelectedCardId());
-      if (!card?.artifactId) return;
-      const artifactId = card.artifactId;
-      const cardId = card.id;
-      timer = window.setTimeout(() => {
-        const frame = getRegisteredFrames().get(cardId);
-        if (frame) void saveHtmlArtifact(artifactId, frame).catch((error: unknown) => {
-          console.warn("Nudge UI could not save the HTML study:", error);
-        });
-      }, 500);
-    });
-    return () => { stop(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -666,7 +600,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       const frame = { cardId, iframe };
       const syncActiveFrameUrl = (url: string): void => {
-        if (getCanvasCards().some((card) => card.id === frame.cardId && card.artifactId)) return;
+        if (getCanvasCards().some((card) => card.id === frame.cardId && studyArtifactId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (activeCardId === frame.cardId || getCanvasCards().length === 1) {
           activatedTargetRef.current = url;
@@ -680,13 +614,15 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         // the page without inspector changes; skip conflict verification.
         if (isOriginalPreviewActive()) return;
         const frameDocument = frame.iframe.contentDocument;
-        if (frameDocument && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) {
+        const plan = getCanonicalFrameProjection(frame.cardId, msg.revision);
+        const draft = getDraftForCard(frame.cardId);
+        if (frameDocument && plan && draft && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) {
           const attempt = beginPreviewAttempt(
             getCanvasPreviewDocument(frame.cardId),
-            getWorkspaceChanges().revision,
+            plan.draftRevision,
           );
           if (attempt) {
-            for (const change of getChangesList()) {
+            for (const change of draft.contents.changes) {
               if (!isPreviewableChange(change)) continue;
               const result = verifyManagedStyleProjection(change, null, frameDocument);
               if (result) {
@@ -705,15 +641,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (isStructuralProjectionReportMessage(msg, identity)) {
-        recordCanvasStructuralProjectionReports(frame.cardId, msg.revision, msg.reports);
+        const plan = getCanonicalFrameProjection(frame.cardId, msg.revision);
+        if (plan) recordCanvasStructuralProjectionReports(frame.cardId, msg.revision, msg.reports, plan);
         return;
       }
       if (isRenderedInstanceProjectionReportMessage(msg, identity)) {
-        recordCanvasRenderedInstanceProjectionReports(frame.cardId, msg.revision, msg.reports);
+        const plan = getCanonicalFrameProjection(frame.cardId, msg.revision);
+        if (plan) recordCanvasRenderedInstanceProjectionReports(frame.cardId, msg.revision, msg.reports, plan);
         return;
       }
       if (isTextProjectionReportMessage(msg, identity)) {
-        recordCanvasTextProjectionReports(frame.cardId, msg.revision, msg.reports);
+        const plan = getCanonicalFrameProjection(frame.cardId, msg.revision);
+        if (plan) recordCanvasTextProjectionReports(frame.cardId, msg.revision, msg.reports, plan);
         return;
       }
       if (msg.type === "frame-ready") {
@@ -788,13 +727,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type !== "navigation-intent") return;
-      if (getCanvasCards().some((card) => card.id === frame.cardId && card.artifactId)) return;
+      if (getCanvasCards().some((card) => card.id === frame.cardId && studyArtifactId(card.content))) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
 
       if (msg.openInCard === true && presentation === "canvas") {
         const card = getCanvasCards().find((candidate) => {
-          const route = !candidate.artifactId && normalizeUrl(candidate.url);
+          const route = !studyArtifactId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
           return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
         }) ?? addCanvasCard(msg.url);
         selectCard(card.id);
@@ -833,7 +772,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (!selectedCardId) return;
         e.preventDefault();
         removeCanvasCard(selectedCardId);
-        removeCardHistory(selectedCardId);
+        removeCardDraft(selectedCardId);
         return;
       }
       if (e.code === "Space" && !e.repeat) {
@@ -917,7 +856,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   return (
     <>
-      <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
+      <style data-test="canvas-styles">{WORKSPACE_STYLES + ROUTE_PICKER_STYLES}</style>
       <div
         className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"
@@ -931,6 +870,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           style={{ cursor: boardCursor }}
           onPointerDown={handleBoardPointerDown}
         >
+          <RoutePicker viewport={() => ({ width: boardRef.current?.clientWidth ?? window.innerWidth, height: boardRef.current?.clientHeight ?? window.innerHeight })} />
           {!primaryUrl ? (
             <div className="canvas-workspace__target-error" data-test="canvas-target-error">
               This editor URL does not identify an application page.
@@ -957,8 +897,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             }}
             data-test="canvas-board-content"
           >
-            {presentation === "canvas" ? [...new Set(cards.flatMap((card) => card.linkedGroupId ? [card.linkedGroupId] : []))].map((id) => (
-              <LinkedFrameGroup key={id} id={id} cards={cards.filter((card) => card.linkedGroupId === id)} zoom={camera.zoom} />
+            {presentation === "canvas" ? [...new Set(cards.flatMap((card) => card.groupId ? [card.groupId] : []))].map((id) => (
+              <LinkedFrameGroup key={id} id={id} cards={cards.filter((card) => card.groupId === id)} zoom={camera.zoom} />
             )) : null}
             {cards.map((card) => (
               <CanvasCard

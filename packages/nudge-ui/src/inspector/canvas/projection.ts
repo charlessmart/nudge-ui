@@ -1,6 +1,7 @@
+import { getDraftForCard } from "../drafts/store.ts";
 import { getWorkspaceChanges, type WorkspaceContents } from "../changes/workspaceChanges.ts";
 import type { CanvasCard } from "./canvasStore.ts";
-import { getCanvasMode } from "./canvasStore.ts";
+import { getCanvasMode, getCanvasCards } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import {
   clearCanvasRenderedInstanceProjectionReports,
@@ -24,17 +25,6 @@ import {
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
-/** Per-card workspace lookup registered by the history module's owner.
- * This indirection keeps canvas projection importable in unit tests and
- * avoids a static cycle between projection and version history. */
-let cardWorkspaceProvider: ((cardId: string) => WorkspaceContents | null) | null = null;
-
-export function registerCardWorkspaceProvider(
-  provider: ((cardId: string) => WorkspaceContents | null) | null,
-): void {
-  cardWorkspaceProvider = provider;
-}
-
 export const PROJECT_ID = typeof window !== "undefined" && window.location?.origin
   ? window.location.origin
   : "";
@@ -46,7 +36,14 @@ export const WORKSPACE_ID = typeof crypto !== "undefined" && typeof crypto.rando
 let revision = 0;
 let lastRulesKey: string | null = null;
 let lastPeekActive = false;
-const cardProjectionKeys = new Map<string, string>();
+export interface FrameProjection extends WorkspaceProjectionPlan<CompiledManagedStyles> {
+  readonly draftId: string;
+  readonly draftRevision: number;
+  readonly revision: number;
+  readonly css: string;
+}
+
+const draftPlans = new Map<string, { peek: boolean; plan: FrameProjection }>();
 
 interface FrameProjectionState {
   iframe: HTMLIFrameElement;
@@ -55,6 +52,7 @@ interface FrameProjectionState {
   sentRevision: number;
   appliedRevision: number;
   canonicalSentRevision: number;
+  canonicalProjection: FrameProjection | null;
 }
 
 export interface CanvasProjectionStatus {
@@ -72,6 +70,7 @@ function createPreviewDocumentIdentity(cardId: string): PreviewDocument {
   const previewDocument = {
     logicalDocument: `canvas:${cardId}`,
     sessionId: `canvas-session-${nextPreviewSessionId++}`,
+    draftId: getDraftForCard(cardId)?.id ?? getWorkspaceChanges().draftId,
   };
   previewDocuments.set(cardId, previewDocument);
   return previewDocument;
@@ -137,39 +136,70 @@ export function computeProjection() {
   return { ...plan, css: plan.managedStyles.css, revision };
 }
 
-function computeProjectionForCard(cardId: string) {
-  if (isOriginalPreviewActive()) return computeProjection();
-  const workspace = cardWorkspaceProvider?.(cardId) ?? getWorkspaceChanges();
-  const plan = compileWorkspaceProjection({ ...workspace, revision: 0 });
-  const key = projectionKey(plan);
-  if (cardProjectionKeys.get(cardId) !== key) {
-    cardProjectionKeys.set(cardId, key);
-    revision += 1;
-  }
-  return { ...plan, css: plan.managedStyles.css, revision };
+export function computeProjectionForCard(cardId: string): FrameProjection {
+  const draft = getDraftForCard(cardId);
+  const workspace = draft ? { ...draft.contents, revision: draft.revision, draftId: draft.id } : getWorkspaceChanges();
+  const peek = isOriginalPreviewActive();
+  const cached = draftPlans.get(workspace.draftId);
+  if (cached && cached.plan.draftRevision === workspace.revision && cached.peek === peek) return cached.plan;
+  const source = peek ? { ...workspace, changes: [], structuralChanges: [] } : workspace;
+  const compiled = compileWorkspaceProjection(source);
+  const plan: FrameProjection = { ...compiled, draftId: workspace.draftId, draftRevision: workspace.revision, css: compiled.managedStyles.css, revision: ++revision };
+  draftPlans.set(workspace.draftId, { peek, plan });
+  return plan;
+}
+
+export function getCanonicalFrameProjection(cardId: string, expectedRevision: number): FrameProjection | null {
+  const state = frameProjectionStates.get(cardId);
+  const plan = state?.canonicalProjection;
+  const draft = getDraftForCard(cardId);
+  if (!state || !previewDocuments.has(cardId) || state.iframe.contentDocument !== state.document
+    || !plan || plan.revision !== expectedRevision || state.sentRevision !== expectedRevision
+    || (draft && (draft.id !== plan.draftId || draft.revision !== plan.draftRevision))) return null;
+  return plan;
+}
+
+export function restoreCanonicalFrameProjection(doc: Document): void {
+  const id = getCanvasCardIdForDocument(doc);
+  const card = getCanvasCards().find((card) => card.id === id);
+  const frame = id ? frameRegistry.get(id) : undefined;
+  if (card && frame) sendProjectionToCard(card, frame);
+}
+
+export function getCanvasCardIdForDocument(doc: Document): string | null {
+  for (const [id, state] of frameProjectionStates) if (state.document === doc && state.iframe.contentDocument === doc) return id;
+  return null;
 }
 
 export function resetProjectionRevision(): void {
   revision = 0;
   lastRulesKey = null;
   lastPeekActive = false;
-  cardProjectionKeys.clear();
+  draftPlans.clear();
   for (const state of frameProjectionStates.values()) {
     state.sentRevision = -1;
     state.appliedRevision = -1;
     state.canonicalSentRevision = -1;
+    state.canonicalProjection = null;
   }
   projectionAcknowledgementVersion += 1;
   notifyProjectionAcknowledgementListeners();
 }
 
 export function sendProjectionToCard(
-  card: CanvasCard,
+  card: Pick<CanvasCard, "id">,
   iframe: HTMLIFrameElement,
 ): void {
   const win = iframe.contentWindow;
   if (!win) return;
-  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjectionForCard(card.id);
+  let plan = computeProjectionForCard(card.id);
+  const state = frameProjectionStates.get(card.id);
+  if (state && plan.revision < state.sentRevision) {
+    plan = { ...plan, revision: ++revision };
+    draftPlans.set(plan.draftId, { peek: isOriginalPreviewActive(), plan });
+  }
+  if (state) state.canonicalProjection = plan;
+  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = plan;
   sendProjectionMessage(card.id, iframe, rev, css, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, true);
 }
 
@@ -287,6 +317,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
   const existing = frameProjectionStates.get(cardId);
   if (!existing || existing.iframe !== iframe || existing.document !== frameDocument) {
     if (existing) {
+      if (existing.canonicalProjection) draftPlans.delete(existing.canonicalProjection.draftId);
       invalidatePreviewDocumentSession(existing.previewDocument.logicalDocument, existing.previewDocument.sessionId);
       previewDocuments.delete(cardId);
     }
@@ -299,6 +330,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
       sentRevision: -1,
       appliedRevision: -1,
       canonicalSentRevision: -1,
+      canonicalProjection: null,
     });
   } else {
     startPreviewDocumentSession(existing.previewDocument);
@@ -404,18 +436,5 @@ function notifyFrameRegistryListeners(): void {
 
 export function projectToAllReadyCards(): void {
   if (getCanvasMode() !== "canvas") return;
-  for (const [cardId, iframe] of frameRegistry) {
-    const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjectionForCard(cardId);
-    sendProjectionMessage(
-      cardId,
-      iframe,
-      rev,
-      css,
-      instanceOverrides,
-      structuralChanges,
-      textContentChanges,
-      componentOverrides,
-      true,
-    );
-  }
+  for (const [id, iframe] of frameRegistry) sendProjectionToCard({ id }, iframe);
 }

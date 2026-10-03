@@ -1,3 +1,5 @@
+import { beginActivityDispatch } from "../agent/activity.ts";
+import { studyArtifactId } from "../canvas/frameContent.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
@@ -25,6 +27,8 @@ import { createAgentPresentationAdapter } from "../canvas/agentPresentation.ts";
 import {
   discardAgentDispatch,
   recordAgentDispatch,
+  captureHandoffOwner,
+  type HandoffSnapshot,
   verifyAndReconcileAgentDispatch,
   type AgentCompletionStatus,
 } from "../agent/verification.ts";
@@ -44,9 +48,9 @@ import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 import { getCanvasCards, getFocusedCardId, getSelectedCardId, useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
-import { clearCommittedArtifactDraft, getLiveCardId, getWorkspaceForCard, sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
+import { getEditableCardId, getWorkspaceForCard, sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
 import { htmlStudyPrompt } from "../artifacts/prompt.ts";
-import { artifactDocumentUrl, commitHtmlArtifact, saveHtmlArtifact } from "../artifacts/client.ts";
+import { prepareHtmlStudyHandoff } from "../artifacts/study.ts";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -62,14 +66,14 @@ export function CopyPromptButton({
   onSettingsOpenChange,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
-  useVersionHistory();
+  useDrafts();
   const sketches = useSketches();
-  const selectedHistoryCardId = useSelectedCardId();
-  const focusedHistoryCardId = useFocusedCardId();
-  const activeHistoryCardId = getLiveCardId(selectedHistoryCardId, focusedHistoryCardId);
+  const selectedDraftCardId = useSelectedCardId();
+  const focusedDraftCardId = useFocusedCardId();
+  const activeDraftCardId = getEditableCardId(selectedDraftCardId, focusedDraftCardId);
   const canvasCards = useCanvasCards();
-  const activeArtifactId = canvasCards.find((card) => card.id === activeHistoryCardId)?.artifactId;
-  const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document.id, activeHistoryCardId));
+  const activeArtifactId = studyArtifactId(canvasCards.find((card) => card.id === activeDraftCardId)?.content);
+  const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document.id, activeDraftCardId));
   const pendingSketches = visibleSketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
@@ -83,11 +87,14 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const handoffBusy = useRef(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{
     readonly prompt: string;
     readonly error: string;
+    readonly handoff: HandoffSnapshot;
   } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
@@ -164,11 +171,13 @@ export function CopyPromptButton({
     && !connecting
     && !working;
   const canSend = agent.paired && agent.listenerActive && !working;
-  const disabled = connecting || working || (!canConnect && !hasChanges);
+  const disabled = preparing || connecting || working || (!canConnect && !hasChanges);
   const agentStatus = getAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
 
-  const label = copied
+  const label = preparing
+    ? "Saving study…"
+    : copied
     ? "Copied!"
     : connecting
       ? "Connecting…"
@@ -189,36 +198,44 @@ export function CopyPromptButton({
         : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
+    if (disabled || handoffBusy.current) return;
+    handoffBusy.current = true;
+    setPreparing(Boolean(activeArtifactId) && !canConnect);
+    try { await handoff(); }
+    finally { handoffBusy.current = false; setPreparing(false); }
+  }
+
+  async function handoff(): Promise<void> {
     if (disabled) return;
     if (canConnect) {
       await agentClient.connect();
       return;
     }
-    const activeCardId = getLiveCardId(getSelectedCardId(), getFocusedCardId());
+    const activeCardId = getEditableCardId(getSelectedCardId(), getFocusedCardId());
     const activeCard = getCanvasCards().find((card) => card.id === activeCardId);
+    const owner = captureHandoffOwner(activeCardId);
+    const editTarget = owner.target;
     const hints = {
-      framework: activeCard?.artifactId
+      framework: editTarget.kind === "html"
         ? "HTML"
         : runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
     };
-    // Pin the prompt to the active draft's workspace so a duplicate's prompt
-    // contains only that version's edits. The global change log mirrors the
-    // active draft, but reading through the draft makes the ownership explicit
-    // and keeps inactive alternatives out of the export.
     const draftWorkspace = activeCardId ? getWorkspaceForCard(activeCardId) : null;
-    const promptChanges = draftWorkspace ? [...draftWorkspace.changes] : changes;
-    const promptStructural = draftWorkspace ? [...draftWorkspace.structuralChanges] : structuralChanges;
+    let promptChanges = draftWorkspace ? [...draftWorkspace.changes] : changes;
+    let promptStructural = draftWorkspace ? [...draftWorkspace.structuralChanges] : structuralChanges;
     const sketchHandoff = createSketchHandoffSnapshot(pendingSketches);
     const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
-    if (activeCard?.artifactId) {
+    if (activeCard && editTarget.kind === "html") {
       const frame = getRegisteredFrames().get(activeCard.id);
       if (!frame) {
         setSaveMessage("The HTML study is still loading. Try again when the frame is ready.");
         return;
       }
       try {
-        await saveHtmlArtifact(activeCard.artifactId, frame);
+        const saved = await prepareHtmlStudyHandoff(activeCard.id, editTarget.artifactId, frame);
+        promptChanges = [...saved.changes];
+        promptStructural = [...saved.structuralChanges];
         setSaveMessage(null);
       } catch (error) {
         setSaveMessage(error instanceof Error ? error.message : "The HTML study could not be saved.");
@@ -226,25 +243,15 @@ export function CopyPromptButton({
       }
     }
     const basePrompt = generatePrompt(promptChanges, hints, promptStructural, customInstructions, sketchMetadata);
-    const text = activeCard?.artifactId
-      ? htmlStudyPrompt(activeCard.artifactId, basePrompt, promptChanges.length + promptStructural.length === 0, visibleSketches.length > 0, customInstructions)
+    const text = editTarget.kind === "html"
+      ? htmlStudyPrompt(editTarget.artifactId, basePrompt, promptChanges.length + promptStructural.length === 0, visibleSketches.length > 0, customInstructions)
       : basePrompt;
-    const finishStudy = async (): Promise<void> => {
-      if (!activeCard?.artifactId) return;
-      try {
-        await commitHtmlArtifact(activeCard.artifactId);
-        clearCommittedArtifactDraft(activeCard.id);
-        const frame = getRegisteredFrames().get(activeCard.id);
-        if (frame) frame.src = `${artifactDocumentUrl(activeCard.artifactId)}?revision=${Date.now()}`;
-      } catch (error) {
-        setSaveMessage(error instanceof Error ? error.message : "The HTML study could not be committed.");
-      }
-    };
+    const prepared: HandoffSnapshot = { owner, changes: promptChanges, structuralChanges: promptStructural };
     setAgentCompletionStatus(null);
     setSketchFallback(null);
     if (canSend) {
       const revision = createPromptRevision(promptChanges, promptStructural, sketchMetadata);
-      recordAgentDispatch(revision, promptChanges, promptStructural);
+      recordAgentDispatch(revision, promptChanges, promptStructural, owner);
       const clientDispatchId = sketchHandoff?.localBatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let attachments = undefined;
       try {
@@ -256,6 +263,7 @@ export function CopyPromptButton({
           );
           attachments = await createSketchAttachments(sketchHandoff);
         }
+        beginActivityDispatch(runtimeConfig.projectId, clientDispatchId, owner.frameIds);
         const response = await agentClient.dispatchPrompt(text, revision, {
           clientDispatchId,
           ...(attachments === undefined ? {} : { attachments }),
@@ -269,7 +277,6 @@ export function CopyPromptButton({
               response.request.requestId,
             );
           }
-          await finishStudy();
           return;
         }
         if (sketchHandoff) {
@@ -278,6 +285,7 @@ export function CopyPromptButton({
           const latestAgent = agentClient.getSnapshot();
           setSketchFallback({
             prompt: text,
+            handoff: prepared,
             error: latestAgent.request?.error
               ?? latestAgent.error
               ?? "The agent did not accept the sketch attachments.",
@@ -290,6 +298,7 @@ export function CopyPromptButton({
           await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId).catch(() => undefined);
           setSketchFallback({
             prompt: text,
+            handoff: prepared,
             error: error instanceof Error ? error.message : "The sketch could not be sent to the agent.",
           });
           return;
@@ -298,9 +307,8 @@ export function CopyPromptButton({
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
-    await finishStudy();
-    if (promptChanges.length > 0 || promptStructural.length > 0) {
-      recordClipboardHandoff(promptChanges, promptStructural);
+    if (editTarget.kind === "application" && (promptChanges.length > 0 || promptStructural.length > 0)) {
+      recordClipboardHandoff(promptChanges, promptStructural, owner);
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
@@ -366,7 +374,7 @@ export function CopyPromptButton({
       disabled={disabled}
       data-copied={copied ? "true" : "false"}
       data-agent-state={agent.state}
-      aria-busy={working || connecting ? "true" : undefined}
+      aria-busy={preparing || working || connecting ? "true" : undefined}
       onClick={onClick}
     >
       {icon}
@@ -412,7 +420,7 @@ export function CopyPromptButton({
         </p>
       ) : null}
       {saveMessage ? (
-        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="version-history-hint" role="status">
+        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="study-save-hint" role="status">
           {saveMessage}
         </p>
       ) : null}
@@ -431,8 +439,9 @@ export function CopyPromptButton({
             data-test="sketch-copy-fallback"
             onClick={() => {
               void copyToClipboard(sketchFallback.prompt).then(() => {
-                if (changes.length > 0 || structuralChanges.length > 0) {
-                  recordClipboardHandoff(changes, structuralChanges);
+                const { owner, changes, structuralChanges } = sketchFallback.handoff;
+                if (owner.target.kind === "application" && (changes.length > 0 || structuralChanges.length > 0)) {
+                  recordClipboardHandoff(changes, structuralChanges, owner);
                 }
                 setSketchFallback(null);
               }).catch(() => undefined);

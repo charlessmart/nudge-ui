@@ -4,7 +4,7 @@ import { SketchSvgLayer } from "./freehand.tsx";
 import { useSketchStore } from "./store.ts";
 import type { SketchAnnotation, SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
 import { getSketchScrollPosition } from "./capture.ts";
-import { sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
+import { sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
 
 interface SketchFrameOverlayProps {
   readonly iframe: HTMLIFrameElement | null;
@@ -89,7 +89,7 @@ function visibleStroke(
 
 export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready }: SketchFrameOverlayProps): ReactElement | null {
   const { items } = useSketchStore();
-  useVersionHistory();
+  useDrafts();
   const [revision, setRevision] = useState(0);
   const documents = useMemo(
     () => ready && iframe

@@ -16,6 +16,7 @@ export {
   isAgentSketchCaptureMetadata,
   isAgentSketchMetadata,
   isAgentStatusUpdate,
+  isAgentActivity,
   isAllowedOrigin,
   isCanvasCommand,
   isCanvasGroup,
@@ -29,6 +30,8 @@ export {
 } from "@nudge-ui/agent-protocol";
 
 export type {
+  AgentActivity,
+  BridgeActivityEvent,
   AgentConnectionState,
   AgentProjectIdentity,
   AgentPromptRequest,
@@ -88,6 +91,7 @@ export const AGENT_CONTROL_ENDPOINTS = {
   listen: "/__nudge/agent/listen",
   status: "/__nudge/agent/status",
   reportStatus: "/__nudge/agent/report-status",
+  activity: "/__nudge/agent/activity",
   canvas: "/__nudge/agent/canvas",
 } as const;
 

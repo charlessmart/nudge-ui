@@ -1,4 +1,6 @@
-import { recordCanvasCreation, discardCanvasHistory } from "../changes/workspaceChanges.ts";
+import type { FrameContent } from "./frameContent.ts";
+import { studyArtifactId, contentSourceUrl } from "./frameContent.ts";
+import { recordCanvasCreation, discardCanvasHistory, isWorkspaceHistoryLocked } from "../changes/workspaceChanges.ts";
 import { useSyncExternalStore } from "react";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
 import { removeHtmlArtifact } from "../artifacts/client.ts";
@@ -6,26 +8,44 @@ import { removeHtmlArtifact } from "../artifacts/client.ts";
 export type CanvasMode = "inspect" | "canvas";
 export type CanvasPresentation = "focus" | "canvas";
 
-export interface CanvasCard {
-  id: string;
-  url: string;
-  /** Originating live card. Only these live copies expose Unlink. */
-  duplicateOf?: string;
-  /** The specific source used to create and animate this variation. */
-  variationOf?: string;
-  /** Directly placed variations skip entrance animation, including on redo. */
-  animateEntrance?: boolean;
-  /** A project-local, independently editable HTML study. */
-  artifactId?: string;
-  /** Live duplicates that share one edit draft and move together. */
-  linkedGroupId?: string;
-  /** A controller-requested document load. Renderer metadata must not set this. */
-  navigationUrl?: string;
-  title: string | null;
+export interface FrameGeometry {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+export interface CanvasCard extends FrameGeometry {
+  id: string;
+  content: FrameContent;
+  entrance?: "linked" | "variation";
+  /** Directly placed variations skip entrance animation, including on redo. */
+  animateEntrance?: boolean;
+  groupId?: string;
+  title: string | null;
+}
+
+export type FrameGroup =
+  | { readonly id: string; readonly kind: "linked" }
+  | { readonly id: string; readonly kind: "agent"; readonly label: string; readonly agentId: string; readonly routes: readonly { url: string; title?: string; label?: string }[] };
+
+const frameGroups = new Map<string, FrameGroup>();
+export function setFrameGroup(group: FrameGroup): void { frameGroups.set(group.id, group); }
+export function getFrameGroup(id: string): FrameGroup | undefined { return frameGroups.get(id); }
+export function removeFrameGroup(id: string): void { frameGroups.delete(id); }
+export function getFrameGroups(): readonly FrameGroup[] {
+  return [...frameGroups.values()].filter((group) => cards.some((card) => card.groupId === group.id));
+}
+
+export function isFrameGroup(value: unknown): value is FrameGroup {
+  if (!value || typeof value !== "object") return false;
+  const group = value as FrameGroup;
+  if (typeof group.id !== "string" || group.id.length > 256) return false;
+  if (group.kind === "linked") return true;
+  return group.kind === "agent" && typeof group.label === "string" && typeof group.agentId === "string"
+    && Array.isArray(group.routes) && group.routes.every((route: { url?: unknown }) => {
+      try { return typeof route.url === "string" && new URL(route.url).origin === window.location.origin; } catch { return false; }
+    });
 }
 
 export interface CanvasCamera {
@@ -75,7 +95,7 @@ function getMode(): CanvasMode {
   return mode;
 }
 
-function getPresentation(): CanvasPresentation {
+export function getCanvasPresentation(): CanvasPresentation {
   return presentation;
 }
 
@@ -113,7 +133,19 @@ function getCards(): CanvasCard[] {
   return cards;
 }
 
+let notificationDepth = 0;
+let notificationPending = false;
+
+export function batchCanvasChanges<T>(operation: () => T): T {
+  notificationDepth += 1;
+  try { return operation(); } finally {
+    notificationDepth -= 1;
+    if (notificationDepth === 0 && notificationPending) { notificationPending = false; notify(); }
+  }
+}
+
 function notify(): void {
+  if (notificationDepth > 0) { notificationPending = true; return; }
   listeners.forEach((l) => l());
 }
 
@@ -153,19 +185,10 @@ export function setCanvasMode(newMode: CanvasMode): void {
   notify();
 }
 
-/**
- * Changes how the mounted iframe workspace is presented.
- *
- * Canvas starts from the active card centered in the supplied viewport. Card
- * geometry remains durable, but the camera does not carry over from a prior
- * Canvas session.
- */
 export function setCanvasPresentation(
   next: CanvasPresentation,
-  viewport?: { width: number; height: number },
 ): void {
   if (presentation === next) return;
-  if (next === "canvas") resetCameraToActiveCard(viewport);
   presentation = next;
   presentationTransitioning = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (presentationTransitionTimer !== null) window.clearTimeout(presentationTransitionTimer);
@@ -179,22 +202,6 @@ export function setCanvasPresentation(
   notify();
 }
 
-function resetCameraToActiveCard(viewport?: { width: number; height: number }): void {
-  const activeCardId = selectedCardId ?? focusedCardId;
-  const activeCard = cards.find((card) => card.id === activeCardId) ?? cards[0];
-  if (!activeCard) {
-    cachedBoardCamera = { ...DEFAULT_CAMERA };
-    return;
-  }
-  const zoom = 0.9;
-  const view = viewport ?? defaultViewportSize();
-  cachedBoardCamera = {
-    x: view.width / 2 - (activeCard.x + activeCard.width / 2) * zoom,
-    y: view.height / 2 - (activeCard.y + activeCard.height / 2) * zoom,
-    zoom,
-  };
-}
-
 /** Adds one card while retaining the existing placement policy. */
 export function addCanvasCard(url: string, title?: string): CanvasCard {
   const before = cards;
@@ -202,7 +209,7 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
   const pos = computeNewCardPosition(cards, CARD_GAP);
   const card: CanvasCard = {
     id: `card-${++cardIdCounter}`,
-    url,
+    content: { kind: "route", url },
     title: title ?? null,
     x: pos.x,
     y: pos.y,
@@ -235,13 +242,13 @@ export function appendLinkedGroupCards(
     const pos = computeNewCardPosition(nextCardsSnapshot, CARD_GAP);
     const card: CanvasCard = {
       id: `card-${++cardIdCounter}`,
-      url: route.url,
+      content: { kind: "route", url: route.url },
       title: route.title ?? null,
       x: pos.x,
       y: pos.y,
       width: size.width,
       height: size.height,
-      linkedGroupId: groupId,
+      groupId: groupId,
     };
     nextCards.push(card);
     nextCardsSnapshot = [...nextCardsSnapshot, card];
@@ -263,10 +270,14 @@ export function setCanvasHistoryActivator(activate: (cardId: string) => void): v
 function recordCreation(before: readonly CanvasCard[], created: readonly CanvasCard[]): void {
   const createdIds = new Set(created.map((card) => card.id));
   const after = cards.map((card) => ({ ...card }));
+  const createdGroups = new Map(created.flatMap((card) => {
+    const group = card.groupId ? getFrameGroup(card.groupId) : undefined;
+    return group ? [[group.id, group] as const] : [];
+  }));
   const oldFocus = selectedCardId ?? focusedCardId ?? before[0]?.id;
   // Creation can compact a group and push neighbors. Record only those layout
   // fields, so later title and navigation metadata survive replay.
-  const layout = ["x", "y", "linkedGroupId"] as const;
+  const layout = ["x", "y", "groupId"] as const;
   const previous = new Map(before.map((card) => [card.id, card]));
   const changed = after.filter((card) => {
     const old = previous.get(card.id);
@@ -287,8 +298,10 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
       const next = changed.find((item) => item.id === card.id);
       const old = previous.get(card.id);
       if (!next || !old) return card;
+      const from = redo ? old : next;
       const target = redo ? next : old;
-      return { ...card, x: target.x, y: target.y, linkedGroupId: target.linkedGroupId };
+      return { ...card, x: card.x + target.x - from.x, y: card.y + target.y - from.y,
+        groupId: card.groupId === from.groupId ? target.groupId : card.groupId };
     });
     if (redo) {
       // Preserve the recorded ordering inside linked groups.
@@ -298,6 +311,10 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
         const insertion = preceding ? cards.findIndex((card) => card.id === preceding.id) + 1 : 0;
         cards = [...cards.slice(0, insertion), { ...added }, ...cards.slice(insertion)];
       }
+    }
+    for (const [id, group] of createdGroups) {
+      if (!cards.some((card) => card.groupId === id)) removeFrameGroup(id);
+      else if (!getFrameGroup(id)) setFrameGroup(group);
     }
     const focus = redo ? created[0]?.id : oldFocus;
     const target = cards.find((card) => card.id === focus) ?? cards[0];
@@ -314,8 +331,8 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
     undo: () => restore(false),
     redo: () => restore(true),
     dispose: () => {
-      for (const artifactId of new Set(created.flatMap((card) => card.artifactId ? [card.artifactId] : []))) {
-        if (!cards.some((card) => card.artifactId === artifactId)) {
+      for (const artifactId of new Set(created.flatMap((card) => card.content.kind === "study" ? [card.content.artifactId] : []))) {
+        if (!cards.some((card) => studyArtifactId(card.content) === artifactId)) {
           void removeHtmlArtifact(artifactId).catch((error: unknown) => {
             console.warn("Nudge UI could not remove an unused HTML study:", error);
           });
@@ -332,15 +349,16 @@ function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
 }
 
 export function removeCanvasCard(id: string): void {
-  const removedArtifactId = cards.find((card) => card.id === id)?.artifactId;
+  if (isWorkspaceHistoryLocked()) return;
+  const removedArtifactId = studyArtifactId(cards.find((card) => card.id === id)?.content);
   const removed = cards.find((card) => card.id === id);
   if (!removed) return;
   discardCanvasHistory(id);
   cards = cards.filter((c) => c.id !== id);
   selectFallbackAfterRemoval(new Set([id]));
-  if (removed.linkedGroupId) compactLinkedGroup(removed.linkedGroupId);
+  if (removed.groupId) compactLinkedGroup(removed.groupId);
   notify();
-  if (removedArtifactId && !cards.some((card) => card.artifactId === removedArtifactId)) {
+  if (removedArtifactId && !cards.some((card) => studyArtifactId(card.content) === removedArtifactId)) {
     void removeHtmlArtifact(removedArtifactId).catch((error: unknown) => {
       console.warn("Nudge UI could not remove the HTML study:", error);
     });
@@ -354,7 +372,7 @@ export function removeCanvasCard(id: string): void {
 export function activateIframeWorkspace(
   url: string,
   viewport: { width: number; height: number },
-  options: { replaceActiveCard?: boolean } = {},
+  options: { replaceActiveCard?: boolean; preserveStudyFocus?: boolean } = {},
 ): CanvasCard | null {
   const normalized = normalizeUrl(url);
   if (!normalized || normalized.origin !== window.location.origin) return null;
@@ -362,32 +380,40 @@ export function activateIframeWorkspace(
 
   mode = "canvas";
   const active = cards.find((card) => card.id === (selectedCardId ?? focusedCardId));
-  if (options.replaceActiveCard && active && !active.artifactId) {
-    const oldRoute = normalizeUrl(active.url);
+  if (options.preserveStudyFocus && active?.content.kind === "study") {
+    const sourceRoute = normalizeUrl(active.content.sourceUrl);
+    if (sourceRoute && normalizedUrlKey(sourceRoute) === normalizedUrlKey(normalized)) {
+      focusedCardId = active.id;
+      selectedCardId = active.id;
+      notify();
+      return active;
+    }
+  }
+  if (options.replaceActiveCard && active && !studyArtifactId(active.content)) {
+    const oldRoute = normalizeUrl(contentSourceUrl(active.content));
     const changedRoute = !oldRoute || normalizedUrlKey(oldRoute) !== normalizedUrlKey(normalized);
     const next = {
       ...active,
-      url: targetHref,
-      ...(active.url !== targetHref ? { navigationUrl: targetHref } : {}),
-      ...(changedRoute ? { title: null, linkedGroupId: undefined, duplicateOf: undefined } : {}),
+      content: { kind: "route" as const, url: targetHref, ...(contentSourceUrl(active.content) !== targetHref ? { navigationUrl: targetHref } : {}) },
+      ...(changedRoute ? { title: null, groupId: undefined, entrance: undefined } : {}),
     };
     cards = cards.map((card) => card.id === active.id ? next : card);
-    if (changedRoute && active.linkedGroupId) compactLinkedGroup(active.linkedGroupId);
+    if (changedRoute && active.groupId) compactLinkedGroup(active.groupId);
     focusedCardId = active.id;
     selectedCardId = active.id;
     notify();
     return next;
   }
   const focused = cards.find((card) => card.id === focusedCardId);
-  const focusedUrl = focused ? normalizeUrl(focused.url) : null;
+  const focusedUrl = focused?.content.kind === "route" ? normalizeUrl(focused.content.url) : null;
   const existing = focused && focusedUrl
     && normalizedUrlKey(focusedUrl) === normalizedUrlKey(normalized)
     ? focused
-    : cards.find((card) => card.url === targetHref) ?? findCardByNormalizedUrl(normalized);
+    : cards.find((card) => card.content.kind === "route" && card.content.url === targetHref) ?? findCardByNormalizedUrl(normalized);
   if (existing) {
     let activated = existing;
-    if (existing.url !== targetHref) {
-      activated = { ...existing, url: targetHref, navigationUrl: targetHref };
+    if (contentSourceUrl(existing.content) !== targetHref) {
+      activated = { ...existing, content: { kind: "route", url: targetHref, navigationUrl: targetHref } };
       cards = cards.map((card) => card.id === existing.id ? activated : card);
     }
     focusedCardId = existing.id;
@@ -401,7 +427,7 @@ export function activateIframeWorkspace(
     const height = Math.max(150, viewport.height - PRIMARY_CARD_INSET * 2);
     const card: CanvasCard = {
       id: `card-${++cardIdCounter}`,
-      url: targetHref,
+      content: { kind: "route", url: targetHref },
       title: null,
       x: 0,
       y: 0,
@@ -431,22 +457,22 @@ export function updateCardTitle(id: string, title: string): void {
 }
 
 export function updateCardUrl(id: string, url: string): void {
-  cards = cards.map((c) => (c.id === id ? { ...c, url } : c));
+  cards = cards.map((c) => (c.id === id && c.content.kind === "route" ? { ...c, content: { ...c.content, url } } : c));
   notify();
 }
 
 export function duplicateCard(sourceId: string): CanvasCard | null {
   const before = cards;
   const source = cards.find((c) => c.id === sourceId);
-  if (!source) return null;
+  if (!source || source.content.kind !== "route") return null;
   const size = lastUsedCardSize ?? { width: source.width, height: source.height };
-  const linkedGroupId = source.artifactId ? undefined : source.linkedGroupId ?? source.id;
+  const groupId = source.groupId ?? source.id;
+  if (!frameGroups.has(groupId)) setFrameGroup({ id: groupId, kind: "linked" });
   const card: CanvasCard = {
     id: `card-${++cardIdCounter}`,
-    url: source.url,
-    duplicateOf: source.artifactId ? undefined : source.id,
-    artifactId: source.artifactId,
-    linkedGroupId,
+    content: { kind: "route", url: source.content.url },
+    entrance: "linked",
+    groupId,
     title: source.title,
     x: source.x + source.width + CARD_GAP,
     y: source.y,
@@ -454,11 +480,11 @@ export function duplicateCard(sourceId: string): CanvasCard | null {
     height: size.height,
   };
   const index = cards.indexOf(source);
-  cards = cards.map((c) => c.id === sourceId ? { ...c, linkedGroupId } : c);
+  cards = cards.map((c) => c.id === sourceId ? { ...c, groupId } : c);
   cards = [...cards.slice(0, index + 1), card, ...cards.slice(index + 1)];
-  if (linkedGroupId) compactLinkedGroup(linkedGroupId);
-  pushOverlappingCards(new Set(linkedGroupId
-    ? cards.filter((c) => c.linkedGroupId === linkedGroupId).map((c) => c.id)
+  if (groupId) compactLinkedGroup(groupId);
+  pushOverlappingCards(new Set(groupId
+    ? cards.filter((c) => c.groupId === groupId).map((c) => c.id)
     : [card.id]));
   lastUsedCardSize = { width: size.width, height: size.height };
   recordCreation(before, [card]);
@@ -468,7 +494,7 @@ export function duplicateCard(sourceId: string): CanvasCard | null {
 
 /** Compacts linked views in their durable order, retaining the group's anchor. */
 function compactLinkedGroup(id: string): void {
-  const members = cards.filter((c) => c.linkedGroupId === id);
+  const members = cards.filter((c) => c.groupId === id);
   if (members.length === 0) return;
   let x = Math.min(...members.map((c) => c.x));
   const y = members[0]!.y;
@@ -478,7 +504,7 @@ function compactLinkedGroup(id: string): void {
     x += member.width + CARD_GAP;
   }
   cards = cards.map((c) => positions.has(c.id)
-    ? { ...c, x: positions.get(c.id)!, y, linkedGroupId: members.length > 1 ? id : undefined }
+    ? { ...c, x: positions.get(c.id)!, y, groupId: members.length > 1 || frameGroups.get(id)?.kind === "agent" ? id : undefined }
     : c);
 }
 
@@ -487,10 +513,10 @@ function pushOverlappingCards(protectedIds: ReadonlySet<string>): void {
   const units: CanvasCard[][] = [];
   const seen = new Set<string>();
   for (const card of cards) {
-    const key = card.linkedGroupId ?? card.id;
+    const key = card.groupId ?? card.id;
     if (seen.has(key)) continue;
     seen.add(key);
-    units.push(card.linkedGroupId ? cards.filter((c) => c.linkedGroupId === key) : [card]);
+    units.push(card.groupId ? cards.filter((c) => c.groupId === key) : [card]);
   }
   const fixed = units.filter((unit) => unit.some((c) => protectedIds.has(c.id)));
   const moving = units.filter((unit) => !unit.some((c) => protectedIds.has(c.id)))
@@ -520,7 +546,7 @@ function pushOverlappingCards(protectedIds: ReadonlySet<string>): void {
 }
 
 export function moveLinkedGroup(id: string, dx: number, dy: number): void {
-  cards = cards.map((card) => card.linkedGroupId === id
+  cards = cards.map((card) => card.groupId === id
     ? { ...card, x: card.x + dx, y: card.y + dy } : card);
   notify();
 }
@@ -530,7 +556,7 @@ export function addCanvasVariation(sourceId: string, artifactId: string, positio
   const before = cards;
   const source = cards.find((card) => card.id === sourceId);
   if (!source) return null;
-  const group = cards.filter((card) => card.id === sourceId || (source.linkedGroupId && card.linkedGroupId === source.linkedGroupId));
+  const group = cards.filter((card) => card.id === sourceId || (source.groupId && card.groupId === source.groupId));
   const x = position?.x ?? source.x;
   let y = position?.y ?? boundsOf(group).maxY + CARD_GAP * 2;
   if (!position) {
@@ -540,38 +566,13 @@ export function addCanvasVariation(sourceId: string, artifactId: string, positio
     }
   }
   const variation: CanvasCard = {
-    id: `card-${++cardIdCounter}`, url: source.url, title: source.title,
-    width: source.width, height: source.height, x, y, artifactId, variationOf: sourceId, animateEntrance,
+    id: `card-${++cardIdCounter}`, content: { kind: "study", sourceUrl: contentSourceUrl(source.content), artifactId }, title: source.title,
+    width: source.width, height: source.height, x, y, entrance: "variation", animateEntrance,
   };
   cards = [...cards, variation];
   recordCreation(before, [variation]);
   notify();
   return variation;
-}
-
-/** Detaches a captured study straight down without moving unrelated frames. */
-export function setCardArtifact(id: string, artifactId: string): void {
-  const original = cards.find((card) => card.id === id);
-  if (!original) return;
-  cards = cards.map((card) => card.id === id
-    ? { ...card, artifactId, duplicateOf: undefined, linkedGroupId: undefined } : card);
-  if (original.linkedGroupId) {
-    const group = boundsOf(cards.filter((c) => c.id === id || c.linkedGroupId === original.linkedGroupId));
-    compactLinkedGroup(original.linkedGroupId);
-    let y = group.maxY + CARD_GAP * 2;
-    // Continue down the same column if another study already occupies this spot.
-    const neighbors = cards.filter((c) => c.id !== id).sort((a, b) => a.y - b.y);
-    for (const neighbor of neighbors) {
-      if (original.x >= neighbor.x + neighbor.width + CARD_GAP
-        || original.x + original.width + CARD_GAP <= neighbor.x) continue;
-      if (y < neighbor.y + neighbor.height + CARD_GAP * 2
-        && y + original.height + CARD_GAP * 2 > neighbor.y) {
-        y = neighbor.y + neighbor.height + CARD_GAP * 2;
-      }
-    }
-    cards = cards.map((c) => c.id === id ? { ...c, y } : c);
-  }
-  notify();
 }
 
 export function resizeCard(
@@ -581,12 +582,12 @@ export function resizeCard(
   position?: { readonly x: number; readonly y: number },
 ): void {
   cards = cards.map((c) => (c.id === id
-    ? { ...c, width, height, ...(position && !c.linkedGroupId ? { x: position.x, y: position.y } : {}) }
+    ? { ...c, width, height, ...(position && !c.groupId ? { x: position.x, y: position.y } : {}) }
     : c));
   const resized = cards.find((card) => card.id === id);
-  if (resized?.linkedGroupId) {
-    compactLinkedGroup(resized.linkedGroupId);
-    pushOverlappingCards(new Set(cards.filter((c) => c.linkedGroupId === resized.linkedGroupId).map((c) => c.id)));
+  if (resized?.groupId) {
+    compactLinkedGroup(resized.groupId);
+    pushOverlappingCards(new Set(cards.filter((c) => c.groupId === resized.groupId).map((c) => c.id)));
   }
   lastUsedCardSize = { width, height };
   notify();
@@ -696,7 +697,8 @@ export function findCardByNormalizedUrl(
   normalized: NormalizedUrl,
 ): CanvasCard | undefined {
   return cards.find((c) => {
-    const n = normalizeUrl(c.url);
+    if (c.content.kind !== "route") return false;
+    const n = normalizeUrl(c.content.url);
     if (!n) return false;
     return normalizedUrlKey(n) === normalizedUrlKey(normalized);
   });
@@ -736,7 +738,7 @@ export function useFocusedCardId(): string | null {
 }
 
 export function setCardPosition(id: string, x: number, y: number): void {
-  if (cards.some((card) => card.id === id && card.linkedGroupId)) return;
+  if (cards.some((card) => card.id === id && card.groupId)) return;
   cards = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
   notify();
 }
@@ -746,30 +748,14 @@ export function hydrateCanvasStore(
   newCards: CanvasCard[],
   newCamera: CanvasCamera,
   restoredFocusedCardId: string | null = null,
+  restoredPresentation: CanvasPresentation = "focus",
+  restoredGroups: readonly FrameGroup[] = [],
 ): void {
   mode = newMode;
-  cards = newCards.map((card) => ({ ...card, linkedGroupId: card.artifactId ? undefined : card.linkedGroupId }));
-  // Older saved duplicates already share a draft; give those live views the
-  // same grouping affordance as newly created duplicates.
-  for (const card of cards) {
-    if (card.artifactId || card.linkedGroupId || !card.duplicateOf) continue;
-    let root = card;
-    const visited = new Set([card.id]);
-    while (root.duplicateOf) {
-      const parent = cards.find((candidate) => candidate.id === root.duplicateOf);
-      if (!parent || parent.artifactId || visited.has(parent.id)) break;
-      visited.add(parent.id);
-      root = parent;
-    }
-    if (root.id === card.id) continue;
-    const groupId = root.linkedGroupId ?? root.id;
-    cards = cards.map((member) => member.id === root.id || member.id === card.id
-      ? { ...member, linkedGroupId: groupId } : member);
-  }
-  for (const id of new Set(cards.flatMap((card) => card.linkedGroupId ? [card.linkedGroupId] : []))) {
-    compactLinkedGroup(id);
-    pushOverlappingCards(new Set(cards.filter((card) => card.linkedGroupId === id).map((card) => card.id)));
-  }
+  presentation = restoredPresentation;
+  frameGroups.clear();
+  for (const group of restoredGroups) frameGroups.set(group.id, group);
+  cards = newCards.map((card) => ({ ...card, groupId: studyArtifactId(card.content) ? undefined : card.groupId }));
   focusedCardId = newCards.some((card) => card.id === restoredFocusedCardId)
     ? restoredFocusedCardId
     : null;
@@ -807,7 +793,7 @@ export function useCanvasMode(): CanvasMode {
 }
 
 export function useCanvasPresentation(): CanvasPresentation {
-  return useSyncExternalStore(subscribe, getPresentation, getPresentation);
+  return useSyncExternalStore(subscribe, getCanvasPresentation, getCanvasPresentation);
 }
 
 export function useCanvasPresentationTransitioning(): boolean {
@@ -820,4 +806,29 @@ export function useCanvasCards(): CanvasCard[] {
 
 export function useBoardCamera(): CanvasCamera {
   return useSyncExternalStore(subscribe, getBoardCamera, getBoardCamera);
+}
+
+/** Adds independent routes as one undoable grid without moving existing frames. */
+export function addCanvasRouteGrid(routes: readonly { url: string; title?: string }[]): CanvasCard[] {
+  if (!routes.length || routes.length > 64 || isWorkspaceHistoryLocked()) return [];
+  const unique = new Set<string>();
+  for (const route of routes) {
+    const normalized = normalizeUrl(route.url);
+    if (!normalized || normalized.origin !== window.location.origin || unique.has(route.url)) return [];
+    unique.add(route.url);
+  }
+  const before = cards;
+  const size = lastUsedCardSize ?? defaultViewportSize();
+  const columns = Math.ceil(Math.sqrt(routes.length));
+  const top = cards.length ? Math.max(...cards.map((card) => card.y + card.height)) + CARD_GAP : 0;
+  const created = routes.map((route, index): CanvasCard => ({
+    id: `card-${++cardIdCounter}`, content: { kind: "route", url: route.url }, title: route.title ?? null,
+    x: (index % columns) * (size.width + CARD_GAP), y: top + Math.floor(index / columns) * (size.height + CARD_GAP),
+    width: size.width, height: size.height,
+  }));
+  cards = [...cards, ...created];
+  recordCreation(before, created);
+  selectCard(created[0]!.id);
+  notify();
+  return created;
 }

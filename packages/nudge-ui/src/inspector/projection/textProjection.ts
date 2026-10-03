@@ -1,3 +1,5 @@
+import type { FrameProjection } from "../canvas/projection.ts";
+import { getWorkspaceChanges, getDraftWorkspace } from "../changes/workspaceChanges.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import {
@@ -154,6 +156,8 @@ interface DocumentProjectionState {
 }
 
 interface CanvasReports {
+  draftId: string;
+  draftRevision: number;
   revision: number;
   reports: TextProjectionReport[];
 }
@@ -755,9 +759,10 @@ export function recordCanvasTextProjectionReports(
   cardId: string,
   revision: number,
   reports: readonly TextProjectionReport[],
+  projection?: FrameProjection,
 ): void {
   if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isTextProjectionReport)) return;
-  const expected = new Set(canonicalChanges.keys());
+  const expected = projection ? new Set(projection.textContentChanges.map((record) => record.id)) : new Set(canonicalChanges.keys());
   if (reports.length !== expected.size
     || new Set(reports.map((report) => report.changeId)).size !== reports.length
     || reports.some((report) => !expected.has(report.changeId))) return;
@@ -765,7 +770,8 @@ export function recordCanvasTextProjectionReports(
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  reportsByCanvasCard.set(cardId, { revision, reports: next });
+  const current = getWorkspaceChanges();
+  reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
 
@@ -776,7 +782,7 @@ export function clearCanvasTextProjectionReports(cardId: string): void {
 
 export function getTextContentChangeDiagnostics(changeId: string): TextContentProjectionDiagnostic[] {
   const diagnostics: TextContentProjectionDiagnostic[] = [];
-  const change = canonicalChanges.get(changeId);
+  const change = getWorkspaceChanges().changes.find((change): change is TextContentChangeRecord => change.kind === "text-content" && change.id === changeId) ?? canonicalChanges.get(changeId);
   const host = reportsByDocument.get(document)?.find((report) => report.changeId === changeId);
   if (host) diagnostics.push({
     ...host,
@@ -785,6 +791,7 @@ export function getTextContentChangeDiagnostics(changeId: string): TextContentPr
     evidence: change?.evidence,
   });
   for (const [cardId, entry] of reportsByCanvasCard) {
+    if (entry.draftId !== getWorkspaceChanges().draftId || entry.draftRevision !== getDraftWorkspace(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.changeId === changeId);
     if (report) diagnostics.push({
       ...report,

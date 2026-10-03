@@ -1,3 +1,4 @@
+import { getDraftForCard } from "../drafts/store.ts";
 import type {
   ChangeRecord,
   PreviewableChangeRecord,
@@ -118,6 +119,7 @@ function getPreviewDocuments(): PreviewDocument[] {
   const documents = getCanvasMode() === "canvas" ? [] : [getHostPreviewDocument()];
   const frames = getRegisteredFrames();
   for (const card of getCanvasCards()) {
+    if (getDraftForCard(card.id)?.id && getDraftForCard(card.id)?.id !== getWorkspaceChanges().draftId) continue;
     if (frames.has(card.id)) documents.push(getCanvasPreviewDocument(card.id));
   }
   return documents;
@@ -154,6 +156,7 @@ function gatherMatchEvidence(
   const frames = getRegisteredFrames();
   const cards = getCanvasCards();
   for (const card of cards) {
+    if (getDraftForCard(card.id)?.id && getDraftForCard(card.id)?.id !== getWorkspaceChanges().draftId) continue;
     const frame = frames.get(card.id);
     if (!frame || !frame.contentWindow) continue;
     for (let i = 0; i < changes.length; i++) {

@@ -81,6 +81,7 @@ const componentChange = makeComponentChange({
 
 function snapshot(): WorkspaceChangesSnapshot {
   return {
+    draftId: "workspace",
     revision: 4,
     changes: [styleChange, instanceChange, textChange, componentChange],
     structuralChanges: [structuralDelete],

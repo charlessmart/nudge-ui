@@ -1,10 +1,13 @@
+import { startWorkspaceController } from "../workspace/controller.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { studyArtifactId } from "../canvas/frameContent.ts";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activateIframeWorkspace, addCanvasVariation, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, selectCard } from "../canvas/canvasStore.ts";
+import { activateIframeWorkspace, addCanvasVariation, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, selectCard, moveLinkedGroup } from "../canvas/canvasStore.ts";
 import { workspaceChangeStore, getWorkspaceChanges, resetWorkspaceChanges, clearSessionUndoHistory } from "../changes/workspaceChanges.ts";
 import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import type { StructuralMove } from "../changes/structuralTypes.ts";
-import { activateDraftForCard, forkDraftForCard, getWorkspaceForCard, initializeVersionHistory, linkLiveCard, resetVersionHistory, clearCommittedArtifactDraft, getVersionHistorySnapshot } from "./store.ts";
+import { activateDraftForCard, createStudyDraft, getWorkspaceForCard, initializeDrafts, attachDraftToCard, resetDrafts, clearCommittedArtifactDraft, getDraftsSnapshot } from "../drafts/store.ts";
 
 const style: ElementChangeRecord = {
   cid: "Heading", file: "study.html", line: 1, selector: '[data-cid="Heading"]',
@@ -25,18 +28,22 @@ const move: StructuralMove = {
   presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 0, toIndex: 1 },
 };
 
+let controller: ReturnType<typeof startWorkspaceController>;
+const runtime = getNudgeUiRuntimeConfig();
 beforeEach(() => {
-  resetVersionHistory();
+  configureNudgeUiRuntime({ ...runtime, projectId: "session-test", demo: true });
+  resetDrafts();
   resetWorkspaceChanges();
   hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   localStorage.clear();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+  controller = startWorkspaceController();
 });
-afterEach(() => { resetVersionHistory(); resetWorkspaceChanges(); vi.unstubAllGlobals(); });
+afterEach(() => { controller.dispose(); configureNudgeUiRuntime(runtime); resetDrafts(); resetWorkspaceChanges(); vi.unstubAllGlobals(); });
 
 function original() {
   const card = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
-  initializeVersionHistory("session-test", [card.id]);
+  initializeDrafts("session-test", [card.id]);
   activateDraftForCard(card.id);
   return card;
 }
@@ -45,7 +52,7 @@ it("undoes text, DOM movement, and variation creation in order, then redoes the 
   const source = original();
   workspaceChangeStore.commitChangeRecords([style]);
   const variation = addCanvasVariation(source.id, "artifact-1")!;
-  forkDraftForCard(source.id, variation.id, true);
+  createStudyDraft(source.id, variation.id, studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)!);
   selectCard(variation.id);
   activateDraftForCard(variation.id);
   workspaceChangeStore.commitStructuralChange(move);
@@ -65,7 +72,7 @@ it("undoes text, DOM movement, and variation creation in order, then redoes the 
   expect(fetch).not.toHaveBeenCalled();
 
   workspaceChangeStore.redoWorkspaceChange();
-  expect(getCanvasCards().find((card) => card.id === variation.id)?.artifactId).toBe("artifact-1");
+  expect(studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)).toBe("artifact-1");
   expect(getSelectedCardId()).toBe(variation.id);
   workspaceChangeStore.redoWorkspaceChange();
   workspaceChangeStore.redoWorkspaceChange();
@@ -75,15 +82,15 @@ it("undoes text, DOM movement, and variation creation in order, then redoes the 
 it("restores linked placement and releases an undone artifact when new edits discard redo", () => {
   const source = original();
   const linked = duplicateCard(source.id)!;
-  linkLiveCard(source.id, linked.id);
+  attachDraftToCard(linked.id, { kind: "application" });
   workspaceChangeStore.undoWorkspaceChange();
   expect(getCanvasCards()).toHaveLength(1);
-  expect(getCanvasCards()[0]?.linkedGroupId).toBeUndefined();
+  expect(getCanvasCards()[0]?.groupId).toBeUndefined();
   workspaceChangeStore.redoWorkspaceChange();
   expect(getCanvasCards()[1]?.id).toBe(linked.id);
-  expect(getCanvasCards()[0]?.linkedGroupId).toBe(linked.linkedGroupId);
+  expect(getCanvasCards()[0]?.groupId).toBe(linked.groupId);
   const variation = addCanvasVariation(linked.id, "artifact-2")!;
-  forkDraftForCard(linked.id, variation.id, true);
+  createStudyDraft(linked.id, variation.id, studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)!);
   workspaceChangeStore.undoWorkspaceChange();
   expect(fetch).not.toHaveBeenCalled();
   workspaceChangeStore.commitChangeRecords([style]);
@@ -94,7 +101,7 @@ it("restores linked placement and releases an undone artifact when new edits dis
 it("clears only the active draft's edit steps and keeps canvas creation undoable", () => {
   const source = original();
   const variation = addCanvasVariation(source.id, "artifact-3")!;
-  forkDraftForCard(source.id, variation.id, true);
+  createStudyDraft(source.id, variation.id, studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)!);
   activateDraftForCard(variation.id);
   workspaceChangeStore.commitChangeRecords([text]);
   workspaceChangeStore.clearWorkspaceChanges();
@@ -107,11 +114,11 @@ it("clears only the active draft's edit steps and keeps canvas creation undoable
 it("committing a study clears its stored intent without clearing frame creation history", () => {
   const source = original();
   const variation = addCanvasVariation(source.id, "artifact-4")!;
-  const draft = forkDraftForCard(source.id, variation.id, true)!;
+  const draft = createStudyDraft(source.id, variation.id, studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)!)!;
   activateDraftForCard(variation.id);
   workspaceChangeStore.commitChangeRecords([text]);
   clearCommittedArtifactDraft(variation.id);
-  expect(getVersionHistorySnapshot().drafts.find((item) => item.id === draft.id)?.contents.changes).toEqual([]);
+  expect(getDraftsSnapshot().drafts.find((item) => item.id === draft.id)?.contents.changes).toEqual([]);
   expect(getWorkspaceChanges().changes).toEqual([]);
   workspaceChangeStore.undoWorkspaceChange();
   expect(getCanvasCards()).toHaveLength(1);
@@ -120,10 +127,19 @@ it("committing a study clears its stored intent without clearing frame creation 
 it("releases detached studies when the page exits, but preserves them in the back-forward cache", () => {
   const source = original();
   const variation = addCanvasVariation(source.id, "artifact-exit")!;
-  forkDraftForCard(source.id, variation.id, true);
+  createStudyDraft(source.id, variation.id, studyArtifactId(getCanvasCards().find((card) => card.id === variation.id)?.content)!);
   workspaceChangeStore.undoWorkspaceChange();
   window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
   expect(fetch).not.toHaveBeenCalled();
   window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
   expect(fetch).toHaveBeenCalledWith("/__nudge_ui__/artifacts/artifact-exit", { method: "DELETE", keepalive: true });
+});
+
+it("keeps a later group drag when undo removes a linked frame", () => {
+  const source = original();
+  const linked = duplicateCard(source.id)!;
+  moveLinkedGroup(linked.groupId!, 120, 80);
+  expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
+  expect(getCanvasCards()).toHaveLength(1);
+  expect(getCanvasCards()[0]).toMatchObject({ id: source.id, x: source.x + 120, y: source.y + 80, groupId: undefined });
 });

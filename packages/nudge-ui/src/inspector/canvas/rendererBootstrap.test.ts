@@ -249,6 +249,40 @@ describe("bootstrapRenderer teardown", () => {
 });
 
 describe("bootstrapRenderer link targets", () => {
+  it("removes Shift from app link clicks only during canvas app interaction", () => {
+    handle = bootstrapRenderer();
+    dispatchParentReady();
+    const link = document.createElement("a");
+    link.href = "/pricing";
+    const child = document.createElement("span");
+    link.append(child);
+    document.body.append(link);
+    const received: boolean[] = [];
+    link.addEventListener("click", (event) => {
+      received.push(event.shiftKey);
+      expect(event.target).toBe(child);
+      event.preventDefault();
+    });
+    const setMode = (enabled: boolean, panScroll: boolean) => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled, panScroll, ...identity },
+        origin: window.location.origin,
+        source: window,
+      }));
+    };
+    const click = (metaKey = false) => child.dispatchEvent(new MouseEvent("click", {
+      bubbles: true, cancelable: true, shiftKey: true, metaKey,
+    }));
+    setMode(true, false);
+    click();
+    click(true);
+    setMode(false, false);
+    click();
+    setMode(true, true);
+    click();
+    expect(received).toEqual([false, true, true, true]);
+  });
+
   function sendLinkTargetState(openInCard: boolean): void {
     window.dispatchEvent(new MessageEvent("message", {
       data: { type: "link-target-state", protocolVersion: PROTOCOL_VERSION, openInCard, ...identity },

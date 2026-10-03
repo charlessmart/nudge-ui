@@ -1,3 +1,5 @@
+import type { FrameProjection } from "../canvas/projection.ts";
+import { getWorkspaceChanges, getDraftWorkspace } from "../changes/workspaceChanges.ts";
 import {
   captureRenderedInstance,
   matchesRenderedInstanceEvidence,
@@ -174,6 +176,8 @@ interface DocumentProjectionState {
 }
 
 interface CanvasReports {
+  draftId: string;
+  draftRevision: number;
   revision: number;
   reports: StructuralProjectionReport[];
 }
@@ -681,16 +685,18 @@ export function recordCanvasStructuralProjectionReports(
   cardId: string,
   revision: number,
   reports: readonly StructuralProjectionReport[],
+  projection?: FrameProjection,
 ): void {
   if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isStructuralProjectionReport)) return;
-  const expected = new Set(getStructuralChanges().map((change) => change.id));
+  const expected = projection ? new Set(projection.structuralChanges.map((record) => record.id)) : new Set(getStructuralChanges().map((change) => change.id));
   if (reports.length !== expected.size || new Set(reports.map((report) => report.changeId)).size !== reports.length
     || reports.some((report) => !expected.has(report.changeId))) return;
   const existing = reportsByCanvasCard.get(cardId);
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  reportsByCanvasCard.set(cardId, { revision, reports: next });
+  const current = getWorkspaceChanges();
+  reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
 
@@ -723,6 +729,7 @@ export function getStructuralChangeDiagnostics(changeId: string): StructuralChan
   const host = reportsByDocument.get(document)?.find((report) => report.changeId === changeId);
   if (host) diagnostics.push({ ...host, document: "Inspect" });
   for (const [cardId, entry] of reportsByCanvasCard) {
+    if (entry.draftId !== getWorkspaceChanges().draftId || entry.draftRevision !== getDraftWorkspace(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.changeId === changeId);
     if (report) diagnostics.push({ ...report, document: `Canvas ${cardId}` });
   }

@@ -244,6 +244,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ensureSidecar(root, {
       manifest: buildManifest({ root }),
       tokens: true,
+      ...(Array.isArray(source.pageExtensions) ? { pageExtensions: source.pageExtensions.filter((value): value is string => typeof value === "string") } : {}),
+      ...(typeof source.basePath === "string" ? { basePath: source.basePath } : {}),
       projectBridgeOrigin: bridgeOrigin.origin,
       projectBridgeAllowedOrigins: bridgeOrigin.allowedOrigins,
       ...(sourceRoots ? { sourceRoots } : {}),

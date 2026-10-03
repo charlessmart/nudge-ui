@@ -1,3 +1,4 @@
+import { canEditWorkspace } from "./workspaceChanges.ts";
 import { useSyncExternalStore } from "react";
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import {
@@ -278,6 +279,7 @@ export function loadWorkspaceChanges(
 
 /** Clears the active draft and its edit steps, preserving other session history. */
 export function clearWorkspace(): void {
+  if (!canEditWorkspace()) return;
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.
   cancelInlineTextForClear();
@@ -296,4 +298,10 @@ export { subscribe as subscribeChanges, getChangesSnapshot as getChanges };
 
 export function useChanges(): ChangeRecord[] {
   return useSyncExternalStore(subscribe, getChangesSnapshot, getChangesSnapshot);
+}
+
+export function refreshWorkspacePreview(): void {
+  pendingVerificationTargets.clear();
+  reapply(workspaceChangeStore.getSnapshot());
+  markForVerification(getChangesSnapshot().map(changeKey));
 }

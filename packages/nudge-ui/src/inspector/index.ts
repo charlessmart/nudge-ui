@@ -1,3 +1,4 @@
+import { startWorkspaceController } from "./workspace/controller.ts";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
@@ -14,33 +15,26 @@ import { isKeyboardShortcutMessage, type FrameIdentity } from "./canvas/framePro
 import { subscribeCanvasRendererMessages } from "./canvas/rendererMessageRouter.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
-  hydrateSession,
-  enableAutoSave,
-  scheduleAutoSave,
-  scheduleCanvasSave,
   setRestoreCount,
 } from "./canvas/sessionStore.ts";
-import { subscribeChanges, getChangesList } from "./changes/changesLog.ts";
-import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
+import { getChangesList } from "./changes/changesLog.ts";
 import {
   acquireLease,
   enableWriteGuard,
   hasWriteLease,
-  releaseLease,
   subscribeOwnership,
 } from "./canvas/workspaceLease.ts";
 import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
-import { releaseDocumentProjection, subscribeStructuralChanges } from "./projection/structuralProjection.ts";
+import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
-  subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
 import {
   createWorkspace,
@@ -60,8 +54,7 @@ let lockedRoot: Root | null = null;
 const workspace = createWorkspace();
 let inspectorSession: InspectorSession | null = null;
 let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
-let beforeUnloadAttached = false;
-let persistenceSubscribed = false;
+let workspaceController: ReturnType<typeof startWorkspaceController> | null = null;
 let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
 
@@ -133,6 +126,8 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     // The public demo shares the iframe editor while keeping the write lease,
     // persistence, and agent bridge disabled.
     setCanvasMode("canvas");
+    workspaceController?.dispose();
+    workspaceController = startWorkspaceController();
     mountInspector(inspectorHost);
     setInspectorOpen(false);
     return;
@@ -180,12 +175,14 @@ function startController(inspectorHost: HTMLElement): void {
 
   unsubscribeOwnership?.();
   unsubscribeOwnership = subscribeOwnership((hasLease) => {
-    if (!hasLease) mountLockedNotice(inspectorHost);
+    if (!hasLease) { workspaceController?.dispose(); workspaceController = null; mountLockedNotice(inspectorHost); }
   });
 
-  const result = hydrateSession();
+  workspaceController?.dispose();
+  const result = startWorkspaceController();
+  workspaceController = result;
   if (result.restored) {
-    setRestoreCount(result.changeCount);
+    setRestoreCount(getChangesList().length + getStructuralChanges().length);
     const restored = getChangesList();
     if (restored.length > 0) {
       startStaleDetection(restored);
@@ -198,21 +195,6 @@ function startController(inspectorHost: HTMLElement): void {
   }
 
   mountInspector(inspectorHost);
-  enableAutoSave();
-  if (!beforeUnloadAttached) {
-    // enableAutoSave registers its flush listener first. Release the lease only
-    // after the pending session write has had a chance to pass the ownership
-    // gate during beforeunload.
-    window.addEventListener("beforeunload", releaseLease);
-    beforeUnloadAttached = true;
-  }
-  if (!persistenceSubscribed) {
-    subscribeChanges(() => scheduleAutoSave());
-    subscribeStructuralChanges(() => scheduleAutoSave());
-    subscribeClipboardHandoff(() => scheduleAutoSave());
-    subscribeCanvas(() => scheduleCanvasSave());
-    persistenceSubscribed = true;
-  }
 }
 
 function mountLockedNotice(host: HTMLElement): void {
@@ -283,6 +265,8 @@ export function mountInspector(host: HTMLElement): void {
 export function unmountInspector(): void {
   rendererBootstrapHandle?.teardown();
   rendererBootstrapHandle = null;
+  workspaceController?.dispose();
+  workspaceController = null;
   unsubscribeOwnership?.();
   unsubscribeOwnership = null;
   if (lockedRoot) {

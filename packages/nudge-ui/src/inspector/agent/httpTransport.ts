@@ -19,6 +19,7 @@ import {
   type BridgeEnvelope,
   type CanvasCommand,
   isAgentPromptRequest,
+  isAgentActivity,
 } from "./protocol.ts";
 import { getActiveCanvasDocument } from "../canvas/activeCanvasDocument.ts";
 
@@ -224,6 +225,7 @@ function eventPayload(value: unknown): AgentBridgeEvent | null {
   if (type === "disconnected") {
     return { type: "disconnected", ...(stringValue(event.reason) ? { reason: stringValue(event.reason) } : {}) };
   }
+  if (type === "activity" && isAgentActivity(event.activity)) return { type: "activity", activity: event.activity };
   if (type === "canvas-command" && isRecord(event.command)) {
     // The Canvas controller owns command validation. Preserve the shared
     // shape here so the parent stage can consume this event without a second
@@ -354,13 +356,16 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
     const source = new EventSource(eventUrl.href);
     let closed = false;
     const handleMessage = (event: MessageEvent<unknown>): void => {
-      const parsed = eventPayload(eventData(event));
+      const value = eventData(event);
+      if (isRecord(value) && "event" in value && (value.protocolVersion !== AGENT_PROTOCOL_VERSION || value.projectId !== request.projectId || value.sessionToken !== request.sessionToken)) return;
+      const parsed = eventPayload(value);
       if (parsed) handlers.onEvent(parsed);
     };
     source.addEventListener("message", handleMessage as EventListener);
     source.addEventListener("status", handleMessage as EventListener);
     source.addEventListener("connected", handleMessage as EventListener);
     source.addEventListener("disconnected", handleMessage as EventListener);
+    source.addEventListener("activity", handleMessage as EventListener);
     source.addEventListener("canvas-command", handleMessage as EventListener);
     source.onerror = () => {
       if (closed) return;

@@ -301,15 +301,7 @@ describe("projection", () => {
       appliedRevision: -1,
     });
 
-    sendProjectionToCard({
-      id: "card-1",
-      url: window.location.href,
-      title: null,
-      x: 0,
-      y: 0,
-      width: 800,
-      height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-1" }, iframe);
 
     expect(getCanvasProjectionStatus(iframe.contentDocument)).toEqual({
       sentRevision: 1,
@@ -331,10 +323,7 @@ describe("projection", () => {
     if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-temporary", iframe);
-    sendProjectionToCard({
-      id: "card-temporary", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-temporary" }, iframe);
     recordCanvasProjectionApplied("card-temporary", 1);
 
     const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
@@ -359,10 +348,7 @@ describe("projection", () => {
       changes: [],
       structuralChanges: [],
     });
-    sendProjectionToCard({
-      id: "card-verification", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-verification" }, iframe);
     recordCanvasProjectionApplied("card-verification", 1);
 
     await expect(pending).resolves.toBeNull();
@@ -392,10 +378,7 @@ describe("projection", () => {
     if (!originalDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-navigated", iframe);
-    sendProjectionToCard({
-      id: "card-navigated", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-navigated" }, iframe);
     recordCanvasProjectionApplied("card-navigated", 1);
     expect(isCanvasProjectionRevisionCurrent(originalDocument, 1)).toBe(true);
 

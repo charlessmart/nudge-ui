@@ -8,7 +8,7 @@ import { closeSketchNote } from "./sketchNote.ts";
 import { removeSketch, useSketchStore } from "./store.ts";
 import type { SketchQueueItem } from "./model.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
-import { sketchBelongsToCard, useVersionHistory } from "../history/store.ts";
+import { sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 
 function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactElement {
@@ -110,7 +110,7 @@ function SketchLayer({
 
 export function SketchLayersPanel(): ReactElement | null {
   const { items } = useSketchStore();
-  useVersionHistory();
+  useDrafts();
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const cardId = selectedCardId ?? focusedCardId;

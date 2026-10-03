@@ -11,7 +11,7 @@ import {
   undo,
   type TextContentChangeRecord,
 } from "../changes/changesLog.ts";
-import { serializeSession } from "../canvas/sessionStore.ts";
+import { serializeChange } from "../changes/codecs.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 
 function makeTextChange(
@@ -121,9 +121,9 @@ describe("text-content canonical changes", () => {
     ]);
   });
 
-  it("round-trips the durable target through the session and prompt", () => {
+  it("round-trips the durable target through serialization and prompt", () => {
     appendChange(makeTextChange("Updated copy"));
-    expect(serializeSession().changes).toMatchObject([{
+    expect(getChangesList().map(serializeChange)).toMatchObject([{
       kind: "text-content",
       id: "text-1",
       target: {
@@ -140,7 +140,7 @@ describe("text-content canonical changes", () => {
     expect(prompt).not.toContain("data-cid");
   });
 
-  it("retains selected scope and bounded semantic evidence in session and prompt", () => {
+  it("retains selected scope and bounded semantic evidence in serialization and prompt", () => {
     appendChange(makeTextChange("Updated item", {
       scope: "rendered-instance",
       evidence: {
@@ -151,7 +151,7 @@ describe("text-content canonical changes", () => {
       },
     }));
 
-    expect(serializeSession().changes).toMatchObject([{
+    expect(getChangesList().map(serializeChange)).toMatchObject([{
       kind: "text-content",
       scope: "rendered-instance",
       evidence: {

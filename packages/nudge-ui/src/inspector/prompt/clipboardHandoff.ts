@@ -1,35 +1,33 @@
 import { changeKey } from "../changes/model.ts";
-import {
-  subscribeChanges,
-  type ChangeRecord,
-} from "../changes/changesLog.ts";
-import {
-  type StructuralChange,
-} from "../projection/structuralProjection.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import type { ChangeRecord } from "../changes/types.ts";
+import type { StructuralChange } from "../changes/structuralTypes.ts";
+import { getDraftWorkspace, subscribeWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {
+  captureHandoffOwner,
   handoffChangeFingerprint,
   handoffStructuralFingerprint,
   verifyAndReconcileHandoff,
+  type HandoffOwner,
 } from "../agent/verification.ts";
+import { isDraftTarget } from "../drafts/model.ts";
 
 export interface ClipboardHandoffFingerprint {
   readonly key: string;
   readonly fingerprint: string;
 }
 
-export interface ClipboardHandoffSnapshot {
+interface ClipboardDraftHandoff {
+  readonly owner: HandoffOwner;
   readonly changes: readonly ClipboardHandoffFingerprint[];
   readonly structuralChanges: readonly ClipboardHandoffFingerprint[];
 }
 
-const MAX_HANDOFF_RECORDS = 10_000;
-const MAX_KEY_LENGTH = 16_384;
-const MAX_FINGERPRINT_LENGTH = 1_048_576;
-const RECONCILE_DEBOUNCE_MS = 450;
+export interface ClipboardHandoffSnapshot {
+  readonly drafts: readonly ClipboardDraftHandoff[];
+}
 
-let checkpoint: ClipboardHandoffSnapshot | null = null;
+const checkpoints = new Map<string, ClipboardDraftHandoff>();
 let revision = 0;
 let lastReconciledCount = 0;
 const listeners = new Set<() => void>();
@@ -39,79 +37,62 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-function cloneSnapshot(snapshot: ClipboardHandoffSnapshot): ClipboardHandoffSnapshot {
-  return {
-    changes: snapshot.changes.map((entry) => ({ ...entry })),
-    structuralChanges: snapshot.structuralChanges.map((entry) => ({ ...entry })),
-  };
-}
-
 function isFingerprint(value: unknown): value is ClipboardHandoffFingerprint {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const entry = value as Record<string, unknown>;
-  return Object.keys(entry).every((key) => key === "key" || key === "fingerprint")
-    && typeof entry.key === "string"
-    && entry.key.length > 0
-    && entry.key.length <= MAX_KEY_LENGTH
-    && typeof entry.fingerprint === "string"
-    && entry.fingerprint.length > 0
-    && entry.fingerprint.length <= MAX_FINGERPRINT_LENGTH;
+  if (!value || typeof value !== "object") return false;
+  const entry = value as ClipboardHandoffFingerprint;
+  return typeof entry.key === "string" && entry.key.length > 0 && entry.key.length <= 16_384
+    && typeof entry.fingerprint === "string" && entry.fingerprint.length > 0 && entry.fingerprint.length <= 1_048_576;
 }
 
-/** Validates an origin-local persisted clipboard checkpoint. */
 export function isClipboardHandoffSnapshot(value: unknown): value is ClipboardHandoffSnapshot | null {
   if (value === null) return true;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as Record<string, unknown>;
-  if (!Object.keys(candidate).every((key) => key === "changes" || key === "structuralChanges")
-    || !Array.isArray(candidate.changes)
-    || !Array.isArray(candidate.structuralChanges)
-    || candidate.changes.length + candidate.structuralChanges.length > MAX_HANDOFF_RECORDS
-    || !candidate.changes.every(isFingerprint)
-    || !candidate.structuralChanges.every(isFingerprint)) {
-    return false;
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as ClipboardHandoffSnapshot;
+  if (!Array.isArray(snapshot.drafts) || snapshot.drafts.length > 512) return false;
+  const ids = new Set<string>();
+  for (const draft of snapshot.drafts) {
+    const owner = draft?.owner;
+    if (!owner || typeof owner.draftId !== "string" || ids.has(owner.draftId)
+      || !Number.isSafeInteger(owner.draftRevision) || owner.draftRevision < 0 || !isDraftTarget(owner.target)
+      || !Array.isArray(owner.frameIds) || owner.frameIds.some((id: unknown) => typeof id !== "string")
+      || !Array.isArray(draft.changes) || !Array.isArray(draft.structuralChanges)
+      || draft.changes.length + draft.structuralChanges.length > 10_000
+      || !draft.changes.every(isFingerprint) || !draft.structuralChanges.every(isFingerprint)
+      || new Set(draft.changes.map((entry: ClipboardHandoffFingerprint) => entry.key)).size !== draft.changes.length
+      || new Set(draft.structuralChanges.map((entry: ClipboardHandoffFingerprint) => entry.key)).size !== draft.structuralChanges.length) return false;
+    ids.add(owner.draftId);
   }
-  const changeKeys = candidate.changes.map((entry) => entry.key);
-  const structuralKeys = candidate.structuralChanges.map((entry) => entry.key);
-  return new Set(changeKeys).size === changeKeys.length
-    && new Set(structuralKeys).size === structuralKeys.length;
+  return true;
 }
 
-/** Captures the exact records included in a successful clipboard copy. */
-export function recordClipboardHandoff(
-  changes: readonly ChangeRecord[],
-  structuralChanges: readonly StructuralChange[] = [],
-): void {
-  checkpoint = {
-    changes: changes.map((change) => ({
-      key: changeKey(change),
-      fingerprint: handoffChangeFingerprint(change),
-    })),
-    structuralChanges: structuralChanges.map((change) => ({
-      key: change.id,
-      fingerprint: handoffStructuralFingerprint(change),
-    })),
+function fingerprintSnapshot(owner: HandoffOwner, changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[]): ClipboardDraftHandoff {
+  return {
+    owner: structuredClone(owner),
+    changes: changes.map((change) => ({ key: changeKey(change), fingerprint: handoffChangeFingerprint(change) })),
+    structuralChanges: structuralChanges.map((change) => ({ key: change.id, fingerprint: handoffStructuralFingerprint(change) })),
   };
+}
+
+export function recordClipboardHandoff(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], owner = captureHandoffOwner()): void {
+  checkpoints.set(owner.draftId, fingerprintSnapshot(owner, changes, structuralChanges));
   lastReconciledCount = 0;
   notify();
 }
 
-/** Returns a defensive copy for durable-session serialization. */
 export function getClipboardHandoffSnapshot(): ClipboardHandoffSnapshot | null {
-  return checkpoint ? cloneSnapshot(checkpoint) : null;
+  return checkpoints.size ? structuredClone({ drafts: [...checkpoints.values()] }) : null;
 }
 
-/** Replaces the in-memory checkpoint from a validated durable session. */
 export function hydrateClipboardHandoff(value: ClipboardHandoffSnapshot | null): void {
-  if (!value && !checkpoint && lastReconciledCount === 0) return;
-  checkpoint = value ? cloneSnapshot(value) : null;
+  checkpoints.clear();
+  for (const draft of value?.drafts ?? []) checkpoints.set(draft.owner.draftId, structuredClone(draft));
   lastReconciledCount = 0;
   notify();
 }
 
 export function clearClipboardHandoff(): void {
-  if (!checkpoint && lastReconciledCount === 0) return;
-  checkpoint = null;
+  if (!checkpoints.size && lastReconciledCount === 0) return;
+  checkpoints.clear();
   lastReconciledCount = 0;
   notify();
 }
@@ -121,72 +102,39 @@ export function subscribeClipboardHandoff(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** Monotonic external-store snapshot for persistence and React consumers. */
-export function getClipboardHandoffRevision(): number {
-  return revision;
+export function getClipboardHandoffRevision(): number { return revision; }
+export function getLastClipboardReconciledCount(): number { return lastReconciledCount; }
+
+function matchingRecords(snapshot: ClipboardDraftHandoff) {
+  const workspace = getDraftWorkspace(snapshot.owner.draftId);
+  const changes = new Map(snapshot.changes.map((entry) => [entry.key, entry.fingerprint]));
+  const structures = new Map(snapshot.structuralChanges.map((entry) => [entry.key, entry.fingerprint]));
+  return {
+    changes: workspace.changes.filter((change) => changes.get(changeKey(change)) === handoffChangeFingerprint(change)),
+    structuralChanges: workspace.structuralChanges.filter((change) => structures.get(change.id) === handoffStructuralFingerprint(change)),
+  };
 }
 
-export function getLastClipboardReconciledCount(): number {
-  return lastReconciledCount;
-}
-
-function matchingChanges(snapshot: ClipboardHandoffSnapshot): ChangeRecord[] {
-  const expected = new Map(snapshot.changes.map((entry) => [entry.key, entry.fingerprint]));
-  return getWorkspaceChanges().changes.filter(
-    (change) => expected.get(changeKey(change)) === handoffChangeFingerprint(change),
-  );
-}
-
-function matchingStructuralChanges(snapshot: ClipboardHandoffSnapshot): StructuralChange[] {
-  const expected = new Map(
-    snapshot.structuralChanges.map((entry) => [entry.key, entry.fingerprint]),
-  );
-  return getWorkspaceChanges().structuralChanges.filter(
-    (change) => expected.get(change.id) === handoffStructuralFingerprint(change),
-  );
-}
-
-/** Drops checkpoint entries that no longer describe current canonical intent. */
-function pruneCheckpoint(): boolean {
-  if (!checkpoint) return false;
-  const changes = matchingChanges(checkpoint);
-  const structuralChanges = matchingStructuralChanges(checkpoint);
-  if (changes.length === checkpoint.changes.length
-    && structuralChanges.length === checkpoint.structuralChanges.length) {
-    return false;
+function pruneCheckpoints(): void {
+  let changed = false;
+  for (const [id, snapshot] of checkpoints) {
+    const matching = matchingRecords(snapshot);
+    if (matching.changes.length === snapshot.changes.length && matching.structuralChanges.length === snapshot.structuralChanges.length) continue;
+    changed = true;
+    if (matching.changes.length + matching.structuralChanges.length === 0) checkpoints.delete(id);
+    else checkpoints.set(id, fingerprintSnapshot(snapshot.owner, matching.changes, matching.structuralChanges));
   }
-  checkpoint = changes.length + structuralChanges.length === 0
-    ? null
-    : {
-      changes: changes.map((change) => ({
-        key: changeKey(change),
-        fingerprint: handoffChangeFingerprint(change),
-      })),
-      structuralChanges: structuralChanges.map((change) => ({
-        key: change.id,
-        fingerprint: handoffStructuralFingerprint(change),
-      })),
-    };
-  notify();
-  return true;
+  if (changed) notify();
 }
 
-/**
- * Checks a copied prompt against source-rendered output and reconciles only
- * exact records that the browser can positively verify.
- */
 export async function reconcileClipboardHandoff(doc: Document = document): Promise<number> {
-  const snapshot = checkpoint;
-  if (!snapshot) return 0;
-  const changes = matchingChanges(snapshot);
-  const structuralChanges = matchingStructuralChanges(snapshot);
-  if (changes.length + structuralChanges.length === 0) {
-    pruneCheckpoint();
-    return 0;
+  let removed = 0;
+  for (const snapshot of [...checkpoints.values()]) {
+    const matching = matchingRecords(snapshot);
+    if (matching.changes.length + matching.structuralChanges.length === 0) continue;
+    removed += await verifyAndReconcileHandoff({ owner: snapshot.owner, ...matching }, doc);
   }
-
-  const removed = await verifyAndReconcileHandoff({ changes, structuralChanges }, doc);
-  pruneCheckpoint();
+  pruneCheckpoints();
   if (removed > 0) {
     lastReconciledCount = removed;
     notify();
@@ -194,57 +142,38 @@ export async function reconcileClipboardHandoff(doc: Document = document): Promi
   return removed;
 }
 
-/**
- * Watches source-driven document refreshes and page-return signals. The
- * trailing debounce lets an HMR commit settle before verification lifts the
- * inspector preview for two frames.
- */
 export function startClipboardHandoffController(doc: Document = document): () => void {
-  const ownerWindow = doc.defaultView;
+  const view = doc.defaultView;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let checking = false;
   let stopped = false;
-
-  const schedule = (): void => {
-    if (stopped || checking || !checkpoint) return;
+  const schedule = () => {
+    if (stopped || checking || !checkpoints.size) return;
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      if (stopped || checking || !checkpoint) return;
+      if (stopped || checking || !checkpoints.size) return;
       checking = true;
-      void reconcileClipboardHandoff(doc)
-        .catch(() => undefined)
-        .finally(() => {
-          // Keep the guard through the MutationObserver microtask generated by
-          // restoring managed projections, preventing a verification loop.
-          setTimeout(() => { checking = false; }, 0);
-        });
-    }, RECONCILE_DEBOUNCE_MS);
+      void reconcileClipboardHandoff(doc).catch(() => undefined).finally(() => {
+        setTimeout(() => { checking = false; }, 0);
+      });
+    }, 450);
   };
-
-  const onCanonicalChange = (): void => {
-    pruneCheckpoint();
-  };
-  const onVisibilityChange = (): void => {
-    if (doc.visibilityState === "visible") schedule();
-  };
-
-  // Initializes the document observer before registering the listener.
+  const visible = () => { if (doc.visibilityState === "visible") schedule(); };
   documentRevisions(doc);
-  const unsubscribeRevision = subscribeDocumentRevision(doc, schedule);
-  const unsubscribeChanges = subscribeChanges(onCanonicalChange);
-  ownerWindow?.addEventListener("focus", schedule);
-  ownerWindow?.addEventListener("pageshow", schedule);
-  doc.addEventListener("visibilitychange", onVisibilityChange);
+  const stopRevision = subscribeDocumentRevision(doc, schedule);
+  const stopChanges = subscribeWorkspaceChanges(pruneCheckpoints);
+  view?.addEventListener("focus", schedule);
+  view?.addEventListener("pageshow", schedule);
+  doc.addEventListener("visibilitychange", visible);
   schedule();
-
   return () => {
     stopped = true;
     if (timer !== null) clearTimeout(timer);
-    unsubscribeRevision();
-    unsubscribeChanges();
-    ownerWindow?.removeEventListener("focus", schedule);
-    ownerWindow?.removeEventListener("pageshow", schedule);
-    doc.removeEventListener("visibilitychange", onVisibilityChange);
+    stopRevision();
+    stopChanges();
+    view?.removeEventListener("focus", schedule);
+    view?.removeEventListener("pageshow", schedule);
+    doc.removeEventListener("visibilitychange", visible);
   };
 }

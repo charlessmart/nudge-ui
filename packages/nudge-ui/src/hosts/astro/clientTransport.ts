@@ -1,16 +1,16 @@
+import type { RouteCatalog } from "../../transport/routeCatalog.ts";
+import { handleWorkspaceRequest } from "../../project/workspace.ts";
 import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
 import type { Plugin, ViteDevServer } from "vite";
 import type { IncomingMessage } from "node:http";
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
 import { createAstroClientAssetHandler } from "./clientAsset.ts";
 
 import {
   NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_ARTIFACTS_PATH,
   NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   createNudgeUiEditorDocument,
@@ -34,7 +34,7 @@ interface ComponentModule {
 }
 
 /** Serves the prebuilt client and its host-neutral manifest in Astro dev. */
-export function createAstroClientTransportPlugin(): Plugin {
+export function createAstroClientTransportPlugin(getRoutes?: () => RouteCatalog): Plugin {
   let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
   return {
     name: "nudge-ui-astro-client-transport",
@@ -45,12 +45,8 @@ export function createAstroClientTransportPlugin(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        if (pathname === NUDGE_UI_ARTIFACTS_PATH || pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) {
-          void handleHtmlArtifactRequest(request, response, server.config.root).catch(next);
-          return;
-        }
-        handleClientRequest(server, request, response, next);
+        void handleWorkspaceRequest(request, response, { root: server.config.root, framework: "astro", catalog: getRoutes?.() })
+          .then((handled) => { if (!handled) handleClientRequest(server, request, response, next); }).catch(next);
       });
     },
     async closeBundle() {

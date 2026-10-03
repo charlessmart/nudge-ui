@@ -1,14 +1,12 @@
-import type { ChangeRecord } from "../changes/types.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
-import { loadWorkspaceChanges } from "../changes/changesLog.ts";
-import {
-  deserializeChange,
-  isSerializableChange,
-  serializeChange,
-  type SerializableChange,
-} from "../changes/codecs.ts";
+import { isFrameContent, type FrameContent } from "./frameContent.ts";
+import { canEditWorkspace, isWorkspaceHistoryLocked } from "../changes/workspaceChanges.ts";
 import {
   getCanvasMode,
+  getCanvasPresentation,
+  getFrameGroups,
+  isFrameGroup,
+  type FrameGroup,
+  type CanvasPresentation,
   getCanvasCards,
   getFocusedCardId,
   getSelectedCardId,
@@ -25,9 +23,7 @@ import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import {
-  isStructuralChange,
   resetStructuralDeleteProjection,
-  type StructuralChange,
 } from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -38,13 +34,9 @@ import {
   isClipboardHandoffSnapshot,
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
-import { activateDraftForCard, clearVersionHistory } from "../history/store.ts";
+import { activateDraftForCard, clearDrafts, persistDrafts } from "../drafts/store.ts";
 
-// v12 introduced the edit model and preview diagnostic split; v13 removed the
-// agent comparison-group record from the durable session. Agent-presented
-// routes now persist as ordinary linked frames. Previous session shapes are
-// intentionally incompatible.
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 16;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -70,11 +62,9 @@ function storageKey(projectId: string): string {
 
 export interface SerializableCard {
   id: string;
-  url: string;
+  content: FrameContent;
   title: string | null;
-  duplicateOf?: string;
-  artifactId?: string;
-  linkedGroupId?: string;
+  groupId?: string;
   x: number;
   y: number;
   width: number;
@@ -85,12 +75,12 @@ export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
   projectId: string;
   mode: CanvasMode;
+  presentation: CanvasPresentation;
+  groups: readonly FrameGroup[];
   inspectUrl: string;
   cards: SerializableCard[];
   camera: { x: number; y: number; zoom: number };
   focusedCardId?: string | null;
-  changes: SerializableChange[];
-  structuralChanges: StructuralChange[];
   clipboardHandoff: ClipboardHandoffSnapshot | null;
 }
 
@@ -109,16 +99,6 @@ export interface HydrationResult {
 }
 
 function buildSession(): DurableSession {
-  const workspace = getWorkspaceChanges();
-  const changes = workspace.changes;
-  const serializableChanges: SerializableChange[] = [];
-  for (const change of changes) {
-    const serialized = serializeChange(change);
-    // serializeChange already fails closed, but re-validate here so a future
-    // serializer skew can never poison the whole durable session.
-    if (serialized && isSerializableChange(serialized)) serializableChanges.push(serialized);
-  }
-
   const cards = getCanvasCards();
   const camera = getBoardCamera();
   const mode = getCanvasMode();
@@ -127,14 +107,14 @@ function buildSession(): DurableSession {
     schemaVersion: SCHEMA_VERSION,
     projectId: projectId(),
     mode,
+    presentation: getCanvasPresentation(),
+    groups: getFrameGroups(),
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
-      url: c.url,
+      content: c.content.kind === "route" ? { kind: "route", url: c.content.url } : { ...c.content },
       title: c.title,
-      ...(c.duplicateOf ? { duplicateOf: c.duplicateOf } : {}),
-      ...(c.artifactId ? { artifactId: c.artifactId } : {}),
-      ...(c.linkedGroupId ? { linkedGroupId: c.linkedGroupId } : {}),
+      ...(c.groupId ? { groupId: c.groupId } : {}),
       x: c.x,
       y: c.y,
       width: c.width,
@@ -142,8 +122,6 @@ function buildSession(): DurableSession {
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     focusedCardId: getFocusedCardId(),
-    changes: serializableChanges,
-    structuralChanges: workspace.structuralChanges.map((change) => ({ ...change })),
     clipboardHandoff: getClipboardHandoffSnapshot(),
   };
 }
@@ -164,6 +142,7 @@ export function persistSession(): boolean {
 function persistSessionUnchecked(): boolean {
   if (!projectId()) return false;
   try {
+    persistDrafts();
     const session = buildSession();
     localStorage.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
@@ -234,7 +213,7 @@ export function hydrateSession(): HydrationResult {
     if (
       !card || typeof card !== "object" ||
       typeof candidate.id !== "string" ||
-      !isSameOriginUrl(candidate.url) ||
+      !isFrameContent(candidate.content, window.location.origin) ||
       !isFiniteNumber(candidate.x) ||
       !isFiniteNumber(candidate.y) ||
       !isFiniteNumber(candidate.width) ||
@@ -248,11 +227,9 @@ export function hydrateSession(): HydrationResult {
     const c = card as Record<string, unknown>;
     serializableCards.push({
       id: c.id as string,
-      url: c.url as string,
+      content: c.content as FrameContent,
       title: typeof c.title === "string" ? c.title as string : null,
-      ...(typeof c.duplicateOf === "string" ? { duplicateOf: c.duplicateOf } : {}),
-      ...(typeof c.linkedGroupId === "string" && c.linkedGroupId.length <= 256 ? { linkedGroupId: c.linkedGroupId } : {}),
-      ...(typeof c.artifactId === "string" && /^[a-f0-9-]{36}$/i.test(c.artifactId) ? { artifactId: c.artifactId } : {}),
+      ...(typeof c.groupId === "string" && c.groupId.length <= 256 ? { groupId: c.groupId } : {}),
       x: c.x as number,
       y: c.y as number,
       width: c.width as number,
@@ -278,39 +255,12 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  const changesRaw = s.changes;
-  if (!Array.isArray(changesRaw)) {
+  const presentation = s.presentation ?? "focus";
+  const groups = s.groups ?? [];
+  if ((presentation !== "focus" && presentation !== "canvas") || !Array.isArray(groups) || !groups.every(isFrameGroup)) {
     safeDiscard();
     return { restored: false, changeCount: 0 };
   }
-  const deserializedChanges: ChangeRecord[] = [];
-  const textChangeIds = new Set<string>();
-  for (const c of changesRaw) {
-    if (!isSerializableChange(c)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    if (c.kind === "text-content") {
-      if (textChangeIds.has(c.id)) {
-        safeDiscard();
-        return { restored: false, changeCount: 0 };
-      }
-      textChangeIds.add(c.id);
-    }
-    try {
-      deserializedChanges.push(deserializeChange(c));
-    } catch {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-  }
-
-  const structuralChanges = s.structuralChanges;
-  if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-
   const clipboardHandoff = s.clipboardHandoff;
   if (!isClipboardHandoffSnapshot(clipboardHandoff)) {
     safeDiscard();
@@ -337,19 +287,16 @@ export function hydrateSession(): HydrationResult {
     serializableCards,
     camera,
     focusedCardId,
+    presentation,
+    groups,
   );
-  // Structural intent and instance evidence become visible atomically. The
-  // projection layer preserves structural-first document application order.
-  loadWorkspaceChanges(deserializedChanges, structuralChanges);
   hydrateClipboardHandoff(clipboardHandoff);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
   // sending the user back to the previous page. On refresh, the URLs already
   // match and restoration remains unchanged.
   if (inspectRouteChanged) persistSessionUnchecked();
-  projectToAllReadyCards();
-
-  return { restored: true, changeCount: deserializedChanges.length + structuralChanges.length };
+  return { restored: true, changeCount: 0 };
 }
 
 function safeDiscard(): void {
@@ -362,7 +309,7 @@ function safeDiscard(): void {
 
 /** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
 export function clearSelectedFrameChanges(): void {
-  if (!canWriteWorkspace()) return;
+  if (!canEditWorkspace()) return;
   const cardId = getSelectedCardId() ?? getFocusedCardId();
   if (cardId) activateDraftForCard(cardId);
   clearWorkspaceLog();
@@ -372,6 +319,7 @@ export function clearSelectedFrameChanges(): void {
 }
 
 export function clearSession(): void {
+  if (isWorkspaceHistoryLocked()) return;
   if (!canWriteWorkspace()) return;
   try {
     localStorage.removeItem(storageKey(projectId()));
@@ -381,7 +329,7 @@ export function clearSession(): void {
 
   clearWorkspaceLog();
   clearClipboardHandoff();
-  clearVersionHistory();
+  clearDrafts();
   resetStructuralDeleteProjection();
   removeManagedSheet();
   setSelectedElement(null);
@@ -426,25 +374,14 @@ export function scheduleAutoSave(): void {
   }, AUTOSAVE_DEBOUNCE_MS);
 }
 
-/**
- * Canvas mode/card/camera changes persist immediately (synchronous) so a
- * refresh always restores the workspace, even inside the edit-autosave
- * debounce window. Edit autosave stays coalesced behind the trailing timer.
- */
-export function scheduleCanvasSave(): void {
-  if (!autoSaveEnabled) return;
-  if (persistSession()) autoSaveDirty = false;
-}
+export function scheduleCanvasSave(): void { scheduleAutoSave(); }
 
-function flushAutoSave(): void {
+export function flushAutoSave(): void {
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
     autosaveTimer = null;
   }
   if (!autoSaveDirty) return;
-  // Keep the normal lease gate on the unload path. The controller registers
-  // this listener before releaseLease, so a current owner can flush a first
-  // write without allowing a stale tab to overwrite the new owner's session.
   if (persistSession()) autoSaveDirty = false;
 }
 

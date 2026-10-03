@@ -1,3 +1,4 @@
+import { studyArtifactId } from "./frameContent.ts";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
 
@@ -41,7 +42,7 @@ export function useCanvasLayoutAnimation(
     const oldCards = new Map(before.cards.map((card) => [card.id, card]));
     const layoutChanged = cards.some((card) => {
       const old = oldCards.get(card.id);
-      return (!old && card.animateEntrance !== false && (card.duplicateOf || card.artifactId)) || (old && card.artifactId && old.artifactId !== card.artifactId);
+      return (!old && card.animateEntrance !== false && (card.entrance === "linked" || studyArtifactId(card.content))) || (old && studyArtifactId(card.content) && studyArtifactId(old.content) !== studyArtifactId(card.content));
     });
     const shouldAnimate = layoutChanged && presentation === "canvas" && before.presentation === "canvas"
       && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -62,7 +63,7 @@ export function useCanvasLayoutAnimation(
         const old = oldCards.get(card.id);
         if (!old) {
           if (card.animateEntrance === false) continue;
-          const slideRight = Boolean(card.duplicateOf);
+          const slideRight = Boolean(card.entrance === "linked");
           animate(element, [
             { left: `${card.x - (slideRight ? 200 : 0)}px`, top: `${card.y - (slideRight ? 0 : 200)}px`, opacity: 0 },
             { left: `${card.x}px`, top: `${card.y}px`, opacity: 1 },
@@ -74,7 +75,7 @@ export function useCanvasLayoutAnimation(
       const content = board?.querySelector<HTMLElement>(".canvas-workspace__board-content");
       if (content) {
         const added = cards.find((card) => !oldCards.has(card.id));
-        const slideRight = Boolean(added?.duplicateOf);
+        const slideRight = Boolean(added?.entrance === "linked");
         animate(content, [
           { transform: `translate(${added && !slideRight ? camera.x : before.camera.x}px, ${slideRight ? camera.y : before.camera.y}px) scale(${before.camera.zoom})` },
           { transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` },

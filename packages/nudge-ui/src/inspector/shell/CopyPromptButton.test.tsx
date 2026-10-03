@@ -498,8 +498,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(writeText).toHaveBeenCalledOnce();
     expect(button.textContent).toContain("Copied");
     expect(getClipboardHandoffSnapshot()).toMatchObject({
-      changes: [{ key: expect.any(String), fingerprint: expect.any(String) }],
-      structuralChanges: [],
+      drafts: [{ changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
     });
   });
 

@@ -1,6 +1,6 @@
+import { handleWorkspaceRequest } from "../../project/workspace.ts";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import {
   basename,
   join,
@@ -723,10 +723,12 @@ export function createVitePlugins(
       const runtimeWarning = framework?.unresolvedRuntimeWarning();
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {
-        if (await handleHtmlArtifactRequest(
-          request, response, root ?? process.cwd(),
-          (html) => server.transformIndexHtml(request.url ?? "/", html),
-        )) return;
+        const input = server.config?.build?.rollupOptions?.input;
+        const htmlEntries = typeof input === "string" ? [input] : Array.isArray(input) ? input : Object.values(input ?? {});
+        if (await handleWorkspaceRequest(request, response, {
+          root: root ?? process.cwd(), framework: "vite", htmlEntries,
+          transformStudy: (html) => server.transformIndexHtml(request.url ?? "/", html),
+        })) return;
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
           ? request.method !== "GET"

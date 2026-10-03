@@ -1,3 +1,4 @@
+import { canEditWorkspace } from "../changes/workspaceChanges.ts";
 import { useSyncExternalStore } from "react";
 import { appendChange } from "../changes/changesLog.ts";
 import { registerInlineTextClearHandler } from "./inlineTextLifecycle.ts";
@@ -1176,6 +1177,9 @@ export const inlineTextEditor: InlineTextEditor = {
 export function beginInlineTextEditFromEmptyProjection(
   marker: HTMLElement,
 ): InlineTextSession | TextEditRejection {
+  if (!canEditWorkspace()) {
+    return { kind: "rejected", reason: "editing-active", message: "Wait for the study to finish saving before editing text." };
+  }
   if (!isNudgeUiDev()) {
     return {
       kind: "rejected",
@@ -1212,6 +1216,9 @@ export function beginInlineTextEdit(
   element: HTMLElement,
   point?: { x: number; y: number },
 ): InlineTextSession | TextEditRejection {
+  if (!canEditWorkspace()) {
+    return { kind: "rejected", reason: "editing-active", message: "Wait for the study to finish saving before editing text." };
+  }
   if (!isNudgeUiDev()) {
     return {
       kind: "rejected",

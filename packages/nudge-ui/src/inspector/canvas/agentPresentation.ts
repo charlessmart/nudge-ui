@@ -1,3 +1,4 @@
+import { contentSourceUrl } from "./frameContent.ts";
 import {
   AGENT_PROTOCOL_LIMITS,
   isCanvasCommand,
@@ -13,6 +14,11 @@ import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import {
   appendLinkedGroupCards,
+  getFrameGroup,
+  getFrameGroups,
+  setFrameGroup,
+  removeFrameGroup,
+  batchCanvasChanges,
   fitAllCards,
   focusCard,
   focusCanvasCards,
@@ -117,10 +123,6 @@ interface ReadinessWaiter {
 
 const rendererReadiness = new Map<string, RendererReadinessEntry>();
 const readinessWaiters = new Set<ReadinessWaiter>();
-/** Ephemeral metadata for routes presented by the agent bridge. The presented
- * cards themselves are durable linked frames; this registry only authorizes
- * removal and reconstructs the shared protocol state. */
-const agentRouteGroups = new Map<string, { label: string; agentId: string; routes: readonly AgentRoute[] }>();
 let generatedGroupId = 0;
 let activePresentation = false;
 
@@ -321,12 +323,12 @@ export function waitForAgentRendererReadiness(
 }
 
 function toProtocolGroup(groupId: string): CanvasGroup {
-  const group = agentRouteGroups.get(groupId);
+  const group = getFrameGroup(groupId);
   return {
     id: groupId,
-    label: group!.label,
+    label: (group?.kind === "agent" ? group.label : ""),
     owner: "agent",
-    routes: group!.routes.map((route) => ({
+    routes: (group?.kind === "agent" ? group.routes : []).map((route) => ({
       url: route.url,
       ...(route.title === undefined || route.title === null ? {} : { title: route.title }),
       ...(route.label === undefined ? {} : { label: route.label }),
@@ -336,7 +338,7 @@ function toProtocolGroup(groupId: string): CanvasGroup {
 
 function groupCardIds(groupId: string): string[] {
   return getCanvasCards()
-    .filter((card) => card.linkedGroupId === groupId)
+    .filter((card) => card.groupId === groupId)
     .map((card) => card.id);
 }
 
@@ -348,13 +350,13 @@ export function readCanvasState(): CanvasState {
     : undefined;
   return {
     mode: getCanvasMode(),
-    groups: [...agentRouteGroups.keys()]
+    groups: getFrameGroups().filter((group) => group.kind === "agent").map((group) => group.id)
       .filter((groupId) => groupCardIds(groupId).length > 0)
       .map(toProtocolGroup),
-    focusedGroupId: focusedCard?.linkedGroupId && agentRouteGroups.has(focusedCard.linkedGroupId)
-      ? focusedCard.linkedGroupId
+    focusedGroupId: focusedCard?.groupId && getFrameGroup(focusedCard.groupId)?.kind === "agent"
+      ? focusedCard.groupId
       : null,
-    focusedRouteUrl: focusedCard?.url ?? null,
+    focusedRouteUrl: focusedCard ? contentSourceUrl(focusedCard.content) : null,
   };
 }
 
@@ -380,8 +382,8 @@ export async function presentAgentRoutes(
     }
     // Rejects reuse of an id that already groups frames on the canvas, whether
     // from this bridge or from a user-created linked group.
-    const collides = agentRouteGroups.has(groupId)
-      || getCanvasCards().some((card) => card.linkedGroupId === groupId);
+    const collides = getFrameGroup(groupId) !== undefined
+      || getCanvasCards().some((card) => card.groupId === groupId);
     if (collides) {
       throw new AgentPresentationError("group-id-conflict", `Route group ${groupId} already exists.`);
     }
@@ -390,17 +392,19 @@ export async function presentAgentRoutes(
     // Opening Canvas for an agent group appends only the requested routes. It
     // never creates or repositions the current Inspect route.
     setCanvasMode("canvas");
-    const cards = appendLinkedGroupCards(
+    const cards = batchCanvasChanges(() => {
+      setFrameGroup({ id: groupId, kind: "agent", label, agentId, routes: routes.map((route) => ({ ...route })) });
+      return appendLinkedGroupCards(
       groupId,
       routes.map((route) => ({
         url: route.url,
         ...(route.title === undefined ? {} : { title: route.title }),
       })),
-    );
+      );
+    });
     if (!cards) {
       throw new AgentPresentationError("group-id-conflict", `Route group ${groupId} already exists.`);
     }
-    agentRouteGroups.set(groupId, { label, agentId, routes: routes.map((route) => ({ ...route })) });
     const cardIds = cards.map((card) => card.id);
     beginRendererReadiness(cardIds);
     const readiness = await waitForAgentRendererReadiness(cardIds, readyTimeoutMs);
@@ -411,9 +415,9 @@ export async function presentAgentRoutes(
 }
 
 function groupCards(groupId: string): CanvasCard[] {
-  const group = agentRouteGroups.get(groupId);
-  if (!group) throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
-  const cards = getCanvasCards().filter((card) => card.linkedGroupId === groupId);
+  const group = getFrameGroup(groupId);
+  if (group?.kind !== "agent") throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
+  const cards = getCanvasCards().filter((card) => card.groupId === groupId);
   if (cards.length === 0) {
     throw new AgentPresentationError("group-not-found", `Route group ${groupId} has no cards.`);
   }
@@ -447,8 +451,8 @@ export function removeOwnAgentGroup(
 ): AgentPresentationState {
   ensureDevelopment();
   ensureWritable();
-  const group = agentRouteGroups.get(groupId);
-  if (!group) throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
+  const group = getFrameGroup(groupId);
+  if (group?.kind !== "agent") throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
   if (group.agentId !== agentId) {
     throw new AgentPresentationError(
       "not-group-owner",
@@ -457,7 +461,7 @@ export function removeOwnAgentGroup(
   }
   const cardIds = groupCardIds(groupId);
   for (const cardId of cardIds) removeCanvasCard(cardId);
-  agentRouteGroups.delete(groupId);
+  removeFrameGroup(groupId);
   forgetAgentRendererReadiness(cardIds);
   return readCanvasState();
 }
@@ -606,7 +610,6 @@ export function resetAgentPresentationState(): void {
   for (const waiter of readinessWaiters) clearTimeout(waiter.timer);
   readinessWaiters.clear();
   rendererReadiness.clear();
-  agentRouteGroups.clear();
   activePresentation = false;
   generatedGroupId = 0;
 }

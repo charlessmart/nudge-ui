@@ -91,3 +91,26 @@ test("Shift temporarily enables app interaction across iframe focus and the icon
   await expect(normal).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.up("Shift");
 });
+
+test("Shift app interaction opens links on the canvas without opening a browser tab", async ({ page, context }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  const iframe = page.locator(".canvas-card__iframe").first();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  await iframe.contentFrame().locator("body").evaluate((body) => {
+    const link = body.ownerDocument.createElement("a");
+    link.id = "shift-app-link";
+    link.href = "/#shift-link-destination";
+    link.textContent = "App link";
+    link.style.cssText = "position:fixed;left:80px;top:80px;width:200px;height:80px;background:white;z-index:1000;";
+    body.append(link);
+  });
+  const initialPages = context.pages().length;
+  await page.keyboard.down("Shift");
+  await expect(page.getByRole("button", { name: "Use app normally", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await iframe.contentFrame().locator("#shift-app-link").click();
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
+  await expect.poll(() => page.locator(".canvas-card__iframe").last().contentFrame().locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#shift-link-destination");
+  await page.keyboard.up("Shift");
+  expect(context.pages()).toHaveLength(initialPages);
+});

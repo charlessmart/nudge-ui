@@ -1,11 +1,21 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { isElementChange, useChanges, revertChange } from "../changes/changesLog.ts";
+import { IconArrowBackUp } from "@tabler/icons-react";
+import {
+  isComponentChange,
+  isElementChange,
+  isTextContentChange,
+  isTokenChange,
+  useChanges,
+  revertChange,
+} from "../changes/changesLog.ts";
 import type { ChangeRecord } from "../changes/changesLog.ts";
 import { StaleChangeIndicator } from "../canvas/StaleChangeIndicator.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";
-import { presentChange } from "../changes/presentation.ts";
+import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { presentChange, type ChangePresentation } from "../changes/presentation.ts";
 import {
   getStructuralChanges,
   getStructuralChangeDiagnostics,
@@ -33,7 +43,6 @@ import { countPromptChanges } from "../prompt/generatePrompt.ts";
 interface Group {
   key: string;
   label: string;
-  file: string;
   changes: ChangeRecord[];
 }
 
@@ -51,7 +60,6 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
       group = {
         key,
         label: presentation.groupLabel,
-        file: presentation.file,
         changes: [],
       };
       map.set(key, group);
@@ -59,10 +67,6 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
     group.changes.push(change);
   }
   return Array.from(map.values());
-}
-
-function sourceFile(change: StructuralChange): string {
-  return change.target.sourceSite.src.split(":").slice(0, -2).join(":") || change.target.sourceSite.src;
 }
 
 function structuralParentLabel(change: Extract<StructuralChange, { kind: "move" }>, side: "source" | "destination"): string {
@@ -95,6 +99,48 @@ function structuralReasonLabel(reason: NonNullable<StructuralChangeDiagnostic["r
 
 function structuralDiagnosticText(diagnostic: StructuralChangeDiagnostic): string {
   return `${diagnostic.document}: ${diagnostic.status}${diagnostic.reason ? ` (${structuralReasonLabel(diagnostic.reason)})` : ""}`;
+}
+
+function changeTargetLabel(change: ChangeRecord, presentation: ChangePresentation): string {
+  if (isComponentChange(change)) return change.target.componentName;
+  if (isTextContentChange(change)) return change.target.sourceSite.cid;
+  if (isTokenChange(change)) return change.tokenName;
+  return isElementChange(change) ? change.cid : presentation.groupLabel;
+}
+
+function changeActionLabel(change: ChangeRecord, presentation: ChangePresentation): string {
+  if (isTextContentChange(change)) return "Changed text";
+  return `Changed ${presentation.propertyLabel}`;
+}
+
+function RevertButton({
+  dataTest,
+  dataProperty,
+  onClick,
+}: {
+  readonly dataTest: string;
+  readonly dataProperty?: string;
+  readonly onClick: () => void;
+}): ReactElement {
+  return (
+    <Tooltip content="Revert" stableTrigger>
+      <IconButton
+        variant="quiet"
+        size="compact"
+        className="changes__revert"
+        data-test={dataTest}
+        data-property={dataProperty}
+        label="Revert change"
+        onClick={onClick}
+      >
+        <IconArrowBackUp
+          size="var(--icon-size-small)"
+          stroke="var(--icon-stroke-width)"
+          aria-hidden="true"
+        />
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
@@ -146,10 +192,6 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
             <>
               {groups.map((group) => (
                 <div className="changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
-                  <div className="changes__group-title">
-                    <span>{group.label}</span>
-                    <span className="changes__group-file">{group.file}</span>
-                  </div>
                   {group.changes.map((change, i) => {
                     const presentation = presentChange(change);
                     const instanceDiagnostics = isElementChange(change) && change.scope === "rendered-instance"
@@ -161,52 +203,56 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                       : [];
                     return (
                       <div className="changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
-                        <span className="changes__prop">{presentation.propertyLabel}</span>
-                        <span className="changes__value">
-                          <span className="changes__before">{presentation.before}</span>
-                          <span className="changes__arrow">→</span>
-                          <span className="changes__after">{presentation.after}</span>
+                        <span className="changes__target" data-test="change-target">
+                          {changeTargetLabel(change, presentation)}
                         </span>
-                        {presentation.scope ? (
-                          <span className="changes__scope" data-test="change-scope">
-                            {presentation.scope === "source-site" ? "All outputs at source site" : "This rendered item only"}
+                        <span className="changes__action" data-test="change-action">
+                          {changeActionLabel(change, presentation)}
+                        </span>
+                        <span className="changes__metadata" aria-hidden="true">
+                          <span className="changes__prop">{presentation.propertyLabel}</span>
+                          <span className="changes__value">
+                            <span className="changes__before">{presentation.before}</span>
+                            <span className="changes__arrow">→</span>
+                            <span className="changes__after">{presentation.after}</span>
                           </span>
-                        ) : null}
-                        {presentation.evidence ? (
-                          <span className="changes__evidence" data-test="change-evidence">{presentation.evidence}</span>
-                        ) : null}
-                        <StaleChangeIndicator change={change} />
-                        {instanceDiagnostics.map((diagnostic) => (
-                          <span
-                            className="changes__diagnostic"
-                            data-test="instance-diagnostic"
-                            data-document={diagnostic.document}
-                            data-status={diagnostic.status}
-                            key={`${diagnostic.document}:${diagnostic.status}`}
-                          >
-                            {diagnostic.document}: {diagnostic.status}
-                          </span>
-                        ))}
-                        {textDiagnostics.map((diagnostic) => (
-                          <span
-                            className="changes__diagnostic"
-                            data-test="text-projection-diagnostic"
-                            data-document={diagnostic.document}
-                            data-status={diagnostic.status}
-                            key={`${diagnostic.document}:${diagnostic.status}`}
-                          >
-                            {diagnostic.document}: {diagnostic.status}
-                          </span>
-                        ))}
-                        <Button
-                          size="compact"
-                          className="changes__revert"
-                          data-test="change-revert"
-                          data-property={presentation.property}
+                          {presentation.scope ? (
+                            <span className="changes__scope" data-test="change-scope">
+                              {presentation.scope === "source-site" ? "All outputs at source site" : "This rendered item only"}
+                            </span>
+                          ) : null}
+                          {presentation.evidence ? (
+                            <span className="changes__evidence" data-test="change-evidence">{presentation.evidence}</span>
+                          ) : null}
+                          <StaleChangeIndicator change={change} />
+                          {instanceDiagnostics.map((diagnostic) => (
+                            <span
+                              className="changes__diagnostic"
+                              data-test="instance-diagnostic"
+                              data-document={diagnostic.document}
+                              data-status={diagnostic.status}
+                              key={`${diagnostic.document}:${diagnostic.status}`}
+                            >
+                              {diagnostic.document}: {diagnostic.status}
+                            </span>
+                          ))}
+                          {textDiagnostics.map((diagnostic) => (
+                            <span
+                              className="changes__diagnostic"
+                              data-test="text-projection-diagnostic"
+                              data-document={diagnostic.document}
+                              data-status={diagnostic.status}
+                              key={`${diagnostic.document}:${diagnostic.status}`}
+                            >
+                              {diagnostic.document}: {diagnostic.status}
+                            </span>
+                          ))}
+                        </span>
+                        <RevertButton
+                          dataTest="change-revert"
+                          dataProperty={presentation.property}
                           onClick={() => revertChange(change)}
-                        >
-                          Revert
-                        </Button>
+                        />
                       </div>
                     );
                   })}
@@ -214,13 +260,16 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               ))}
               {structuralChanges.map((change) => (
                 <div className="changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
-                  <div className="changes__group-title">
-                    <span>{change.target.sourceSite.cid}</span>
-                    <span className="changes__group-file">{sourceFile(change)}</span>
-                  </div>
                   <div className="changes__row" data-test="dom-change-row" data-action={change.kind}>
-                    <span className="changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
-                    <span className="changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
+                    <span className="changes__target" data-test="structural-target">
+                      {change.target.sourceSite.cid}
+                    </span>
+                    <span className="changes__action" data-test="structural-action">
+                      {change.kind === "move" ? "Moved" : "Deleted"}
+                    </span>
+                    <span className="changes__metadata" aria-hidden="true">
+                      <span className="changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
+                      <span className="changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
                     <span className="changes__value">
                       <span className="changes__before">
                         {change.kind === "move"
@@ -251,14 +300,11 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                         {structuralDiagnosticText(diagnostic)}
                       </span>
                     ))}
-                    <Button
-                      size="compact"
-                      className="changes__revert"
-                      data-test="dom-change-revert"
+                    </span>
+                    <RevertButton
+                      dataTest="dom-change-revert"
                       onClick={() => revertStructuralChange(change.id)}
-                    >
-                      Revert
-                    </Button>
+                    />
                   </div>
                 </div>
               ))}

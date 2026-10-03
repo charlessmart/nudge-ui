@@ -237,7 +237,7 @@ export interface AgentStatusSnapshot {
   }) | null;
 }
 
-export type BridgeEventType = "status" | "canvas-command" | "connected" | "disconnected";
+export type BridgeEventType = "activity" | "status" | "canvas-command" | "connected" | "disconnected";
 
 export interface BridgeStatusEvent {
   readonly type: "status";
@@ -259,8 +259,35 @@ export interface BridgeCanvasCommandEvent {
   readonly command: CanvasCommand;
 }
 
+/** Temporary attribution for one file operation in an authoritative request. */
+export interface AgentActivity {
+  readonly requestId: string;
+  /** Workspace-relative source path. */
+  readonly file: string;
+  readonly operation: "read" | "edit";
+  readonly line?: number;
+  readonly endLine?: number;
+  readonly componentId?: string;
+}
+
+export function isAgentActivity(value: unknown): value is AgentActivity {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["requestId", "file", "operation", "line", "endLine", "componentId"])) return false;
+  const line = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0 && Number(value) <= 10_000_000;
+  return nonEmptyString(value.requestId, AGENT_PROTOCOL_LIMITS.requestId)
+    && nonEmptyString(value.file, AGENT_PROTOCOL_LIMITS.workspaceRoot)
+    && !/^(?:[\\/]|[a-z]:)/i.test(value.file) && !/[\\\u0000-\u001f]/.test(value.file)
+    && !value.file.split("/").some((part, index, parts) => !part || part === "." || (part === ".." && parts.slice(0, index).some((previous) => previous !== "..")))
+    && (value.operation === "read" || value.operation === "edit")
+    && (value.line === undefined || line(value.line))
+    && (value.endLine === undefined || (line(value.endLine) && line(value.line) && Number(value.endLine) >= Number(value.line)))
+    && (value.componentId === undefined || nonEmptyString(value.componentId, 512));
+}
+
+export interface BridgeActivityEvent { readonly type: "activity"; readonly activity: AgentActivity }
+
 /** Payload delivered to a browser SSE connection. */
 export type BridgeEvent =
+  | BridgeActivityEvent
   | BridgeStatusEvent
   | BridgeConnectedEvent
   | BridgeDisconnectedEvent

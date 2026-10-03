@@ -2,35 +2,11 @@ import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(() =>
-          Boolean(
-            document
-              .getElementById("nudge-ui-root")
-              ?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
-          ),
-        ),
-      { timeout: 5000 },
-    )
-    .toBe(true);
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
 }
 
 async function waitForLockedNotice(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(() =>
-          Boolean(
-            document
-              .getElementById("nudge-ui-root")
-              ?.shadowRoot?.querySelector('[data-test="locked-workspace-notice"]'),
-          ),
-        ),
-      { timeout: 5000 },
-    )
-    .toBe(true);
+  await expect(page.locator('[data-test="locked-workspace-notice"]')).toBeVisible();
 }
 
 async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
@@ -73,7 +49,8 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 test.describe("Canvas workspace lease — single ownership", () => {
   test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
     // Tab 1 has inspector working normally
@@ -103,7 +80,8 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
   test("dev: takeover transfers ownership and old tab loses authority", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
     // Open second tab
@@ -118,7 +96,9 @@ test.describe("Canvas workspace lease — single ownership", () => {
     // A is replaced by the locked panel before it can issue another edit.
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
-    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
+    if (await showCanvas.isVisible()) await showCanvas.click();
+    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
     await waitForLockedNotice(page);
     await expect(page.locator('[data-test="inspect-tab"]')).not.toBeVisible();
@@ -131,7 +111,8 @@ test.describe("Canvas workspace lease — single ownership", () => {
 test.describe("Canvas workspace lease — expiry recovery", () => {
   test("dev: expired lease allows new tab to acquire ownership", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
     // Simulate an expired lease by writing one with old heartbeat
@@ -154,7 +135,9 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
     // Should get inspector (not locked notice), since lease was expired
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="inspect-tab"]')).toBeVisible();
-    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
+    if (await showCanvas.isVisible()) await showCanvas.click();
+    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
 
     await page2.close();
@@ -164,7 +147,8 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 test.describe("Canvas workspace — stale change detection", () => {
   test("dev: restored stale change shows stale indicator", async ({ page }) => {
     await page.goto("/playground");
-    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
     // Make an edit so we have a persisted change
@@ -175,16 +159,18 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Persist a session with that edit
     // (session is auto-saved on change)
 
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("nudge-ui-drafts:")))).toBe(true);
+
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
-    await page.evaluate(() => {
+    await page.addInitScript(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("nudge-ui:") && k.endsWith(":v12"),
+        k.startsWith("nudge-ui-drafts:") && k.endsWith(":v1"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
       if (!raw) return;
       const session = JSON.parse(raw);
-      session.changes.push({
+      session.drafts[0].contents.changes.push({
         kind: "element",
         cid: "GoneComponent",
         file: "src/Deleted.tsx",
@@ -218,52 +204,25 @@ test.describe("Canvas workspace — stale change detection", () => {
 
   test("dev: stale state retains exact selector and source data", async ({ page }) => {
     await page.goto("/playground");
-    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Prepare a session with a known stale change
-    await page.evaluate(() => {
-      const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("nudge-ui:") && !k.endsWith(":lease"),
-      );
-      // Clear any existing session
-      for (const key of keys) localStorage.removeItem(key);
-    });
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("nudge-ui-drafts:")))).toBe(true);
 
-    // Write a fresh session with a stale change
-    await page.evaluate(() => {
-      const leaseKey = Object.keys(localStorage).find((key) =>
-        key.startsWith("nudge-ui:") && key.endsWith(":lease"),
-      );
-      if (!leaseKey) throw new Error("expected a workspace lease");
-      const id = leaseKey.slice("nudge-ui:".length, -":lease".length);
-      const session = {
-        schemaVersion: 12,
-        projectId: id,
-        mode: "inspect",
-        inspectUrl: window.location.href,
-        cards: [],
-        comparisonGroups: [],
-        camera: { x: 0, y: 0, zoom: 1 },
-        changes: [
-          {
-            cid: "Widget",
-            file: "src/Widget.tsx",
-            line: 5,
-            selector: '[data-cid="Widget"][data-src*="Widget.tsx:5"]',
-            property: "margin",
-            rawValue: "16px",
-            oldToken: null,
-            newToken: null,
-            source: { file: "src/Widget.tsx", line: 5, component: "Widget" },
-            scope: "source-site",
-          },
-        ],
-        structuralChanges: [],
-        clipboardHandoff: null,
-      };
-      const prefixedKey = `nudge-ui:${id}:v12`;
-      localStorage.setItem(prefixedKey, JSON.stringify(session));
+    // Keep the saved layout and inject stale intent into its authoritative draft.
+    await page.addInitScript(() => {
+      const key = Object.keys(localStorage).find((key) => key.startsWith("nudge-ui-drafts:") && key.endsWith(":v1"));
+      if (!key) throw new Error("expected persisted draft history");
+      const history = JSON.parse(localStorage.getItem(key)!);
+      history.drafts[0].contents.changes = [{
+        cid: "Widget", file: "src/Widget.tsx", line: 5,
+        selector: '[data-cid="Widget"][data-src*="Widget.tsx:5"]',
+        property: "margin", rawValue: "16px", oldToken: null, newToken: null,
+        source: { file: "src/Widget.tsx", line: 5, component: "Widget" },
+        scope: "source-site",
+      }];
+      localStorage.setItem(key, JSON.stringify(history));
     });
 
     await page.reload();

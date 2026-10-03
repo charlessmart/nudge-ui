@@ -1,3 +1,5 @@
+import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
+
 /** Captures the visible DOM of a same-origin frame as a script-free HTML study. */
 export async function captureHtmlStudy(frame: HTMLIFrameElement): Promise<string> {
   const source = frame.contentDocument;
@@ -7,6 +9,7 @@ export async function captureHtmlStudy(frame: HTMLIFrameElement): Promise<string
   await Promise.all([...source.images].map((image) => image.decode?.().catch(() => undefined)));
   const original = source.documentElement;
   const copy = original.cloneNode(true) as HTMLElement;
+  copy.removeAttribute(HTML_ARTIFACT_REVISION_ATTRIBUTE);
   const sourceElements = [original, ...original.querySelectorAll("*")];
   const copiedElements = [copy, ...copy.querySelectorAll("*")];
   const assets = new Map<string, Promise<string>>();

@@ -116,6 +116,7 @@ describe("WorkspaceChanges", () => {
 
   it("exposes the complete snapshot and preserves commit and undo results", () => {
     expect(workspaceChangeStore.getSnapshot()).toEqual({
+      draftId: "workspace",
       revision: 0,
       changes: [],
       structuralChanges: [],
@@ -198,6 +199,7 @@ describe("WorkspaceChanges", () => {
 
     expect(workspaceChangeStore.commitChangeRecords([styleChange("color", "red")])).toBe("blocked");
     expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      draftId: "workspace",
       revision: 0,
       changes: [],
     });

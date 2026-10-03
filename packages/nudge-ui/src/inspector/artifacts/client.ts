@@ -1,3 +1,4 @@
+import { isHtmlArtifactRevision, HTML_STUDY_CONFLICT, type HtmlArtifactRevision } from "../../transport/artifacts.ts";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../../transport/routes.ts";
 import { captureHtmlStudy } from "./capture.ts";
 
@@ -5,24 +6,32 @@ export function artifactDocumentUrl(id: string): string {
   return `${NUDGE_UI_ARTIFACTS_PATH}/${id}/preview`;
 }
 
-export async function commitHtmlArtifact(id: string): Promise<void> {
-  const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/commit`, { method: "POST" });
-  if (!response.ok) throw new Error((await response.text()) || "The HTML study could not be committed.");
+export async function readHtmlArtifactRevision(id: string): Promise<HtmlArtifactRevision> {
+  const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/revision`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error("The HTML study could not be refreshed.");
+  const revision: unknown = await response.json();
+  if (!isHtmlArtifactRevision(revision)) throw new Error("The HTML study returned an invalid revision.");
+  return revision;
 }
 
-/** Promotes external edits to the frame's base without rewriting the agent's document. */
-export async function refreshHtmlArtifact(id: string): Promise<boolean> {
-  const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/revision`, { cache: "no-store" });
-  if (!response.ok) return false;
-  const revision = await response.json() as { document: string; preview: string };
-  if (revision.document === revision.preview) return false;
-  await commitHtmlArtifact(id);
-  return true;
+/** Checks the editing base before saving and promoting a captured document. */
+export async function commitHtmlArtifact(id: string, expected: HtmlArtifactRevision, html?: string): Promise<HtmlArtifactRevision> {
+  const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/commit`, {
+    method: "POST",
+    signal: AbortSignal.timeout(10000),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ expected, ...(html === undefined ? {} : { html }) }),
+  });
+  if (response.status === 409) throw new Error(HTML_STUDY_CONFLICT);
+  if (!response.ok) throw new Error((await response.text()) || "The HTML study could not be saved.");
+  const revision: unknown = await response.json();
+  if (!isHtmlArtifactRevision(revision)) throw new Error("The HTML study returned an invalid revision.");
+  return revision;
 }
 
-export async function createHtmlArtifact(frame: HTMLIFrameElement, sourceUrl: string, title: string): Promise<string> {
+export async function createHtmlArtifact(frame: HTMLIFrameElement, sourceUrl: string, title: string, capturedHtml?: string): Promise<string> {
   const id = crypto.randomUUID();
-  const html = await captureHtmlStudy(frame);
+  const html = capturedHtml ?? await captureHtmlStudy(frame);
   const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -33,16 +42,6 @@ export async function createHtmlArtifact(frame: HTMLIFrameElement, sourceUrl: st
   });
   if (!response.ok) throw new Error((await response.text()) || "The HTML study could not be saved.");
   return id;
-}
-
-export async function saveHtmlArtifact(id: string, frame: HTMLIFrameElement): Promise<void> {
-  const html = await captureHtmlStudy(frame);
-  const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/document`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ html }),
-  });
-  if (!response.ok) throw new Error((await response.text()) || "The HTML study could not be saved.");
 }
 
 export async function removeHtmlArtifact(id: string): Promise<void> {
