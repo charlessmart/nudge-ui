@@ -145,6 +145,37 @@ allows the bridge to recover a claim after an adapter process is killed. Call
 `nudge_release` when the user stops listening so another adapter can claim the
 session without restarting the MCP host.
 
+## Request execution and host limitations
+
+Ask the agent to listen to Nudge and implement requests until you ask it to stop.
+Keep that turn active while sending changes from the browser. Both `nudge_listen`
+and its alias `nudge_connect` return an `implementation_request` with an explicit
+execution directive, the prompt, request ID, and supplied workspace and session
+scope. Existing `prompt`, revision, and sketch fields remain available.
+
+The agent implements the request using its host's normal approval flow, verifies
+the result, reports the outcome through `nudge_report_status`, and opens another
+listening call. A successful browser dispatch means the bridge delivered the
+request; it does not prove that the agent edited source files.
+
+An MCP tool result continues an active tool call. This adapter cannot start a new
+model turn after the host ends the conversation, abandons a background call, or
+stops consuming its result. Resuming an idle conversation requires a host-specific
+event-to-turn integration or a persistent runner that owns the agent session.
+The adapter does not launch another coding agent or bypass host permissions.
+These limitations apply to any agent harness using this listening workflow.
+
+Codex defaults to a 60-second MCP tool timeout. For longer waits, add
+`tool_timeout_sec = 3600` to the existing `[mcp_servers.nudge_ui]` section of
+`~/.codex/config.toml`, preserving its command and arguments. See the
+[Codex MCP configuration documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+Other hosts have their own tool timeouts and background-call behavior. Increasing
+the timeout allows a longer active wait; it does not enable idle-turn wake-up.
+
+After updating the adapter, restart the agent host to reload the executable and
+server instructions. For local builds, use the tarball setup override described
+above; changing the project bridge alone does not update the managed adapter.
+
 ## Legacy coupled mode
 
 Passing `--origin` retains the previous behavior in which the MCP process also

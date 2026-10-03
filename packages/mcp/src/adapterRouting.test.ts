@@ -80,17 +80,26 @@ describe("reusable MCP adapter", () => {
     const [a, b] = InMemoryTransport.createLinkedPair();
     cleanup.push(() => adapter.close(), () => client.close());
     await Promise.all([adapter.start(b), client.connect(a)]);
-    const portfolio = client.callTool({ name: "nudge_listen", arguments: { workspaceRoot: paths.first } });
-    const examples = client.callTool({ name: "nudge_listen", arguments: { workspaceRoot: paths.second } });
+    const portfolio = client.callTool({ name: "nudge_listen", arguments: { workspaceRoot: paths.first, sessionId: first.session.sessionId } });
+    const examples = client.callTool({ name: "nudge_connect", arguments: { workspaceRoot: paths.second } });
     await vi.waitFor(() => {
       expect(first.bridge.getStatus().listenerActive).toBe(true);
       expect(second.bridge.getStatus().listenerActive).toBe(true);
+      expect(first.bridge.getStatus().agentClientName).toBe("test");
+      expect(second.bridge.getStatus().agentClientName).toBe("test");
     });
     expect((await sendPrompt(first, "Edit portfolio")).status).toBe(202);
     expect((await sendPrompt(second, "Edit examples")).status).toBe(202);
     const portfolioRequest = textContent(await portfolio);
-    expect(portfolioRequest.prompt).toBe("Edit portfolio");
-    expect(textContent(await examples).prompt).toBe("Edit examples");
+    expect(portfolioRequest).toMatchObject({
+      type: "implementation_request", prompt: "Edit portfolio",
+      workspaceRoot: paths.first, sessionId: first.session.sessionId,
+    });
+    const examplesRequest = textContent(await examples);
+    expect(examplesRequest).toMatchObject({
+      type: "implementation_request", prompt: "Edit examples", workspaceRoot: paths.second,
+    });
+    expect(examplesRequest).not.toHaveProperty("sessionId");
     const status = await client.callTool({ name: "nudge_report_status", arguments: {
       workspaceRoot: paths.first, requestId: portfolioRequest.requestId, status: "completed",
     } });
@@ -98,6 +107,8 @@ describe("reusable MCP adapter", () => {
     expect(first.bridge.getStatus().request?.status).toBe("completed");
     expect(second.bridge.getStatus().request?.status).toBe("working");
     await client.callTool({ name: "nudge_release", arguments: { workspaceRoot: paths.first } });
+    expect(first.bridge.getStatus().agentClientName).toBeUndefined();
+    expect(second.bridge.getStatus().agentClientName).toBe("test");
     const sessions = textContent(await client.callTool({ name: "nudge_list_sessions", arguments: { workspaceRoot: paths.second } }));
     expect(sessions).toEqual(expect.arrayContaining([
       expect.objectContaining({ projectId: "portfolio", claimed: false }),

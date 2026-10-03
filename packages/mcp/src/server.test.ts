@@ -114,6 +114,22 @@ describe("standard MCP companion", () => {
       expect(result.content).toMatchObject([{
         text: expect.stringContaining('"changeRevision":91'),
       }]);
+      const request = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+      expect(request).toMatchObject({
+        type: "implementation_request",
+        requestId: "mcp-request",
+        instructions: expect.stringContaining("Implement the prompt"),
+      });
+      expect(request.instructions).toContain("nudge_listen");
+      expect(request.instructions).toContain("host's normal approval flow");
+      const completed = await client.callTool({
+        name: "nudge_report_status",
+        arguments: { requestId: request.requestId, status: "completed", summary: "Implemented and verified the routes" },
+      });
+      expect(completed.isError).not.toBe(true);
+      expect(companion.bridge.getStatus().request).toMatchObject({
+        requestId: "mcp-request", status: "completed",
+      });
     } finally {
       await client.close();
       await companion.close();

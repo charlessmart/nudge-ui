@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { AstroIntegration } from "astro";
 import { nudgeUiAstro, withNudgeUi } from "./integration.ts";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
+import { evaluate } from "@mdx-js/mdx";
+import * as runtime from "react/jsx-runtime";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 type ConfigSetupParameters = Parameters<
   NonNullable<AstroIntegration["hooks"]["astro:config:setup"]>
@@ -26,6 +30,7 @@ function runConfigSetup(
     injectScript,
     addMiddleware,
     isRestart: false,
+    config: { root: new URL("file:///project/"), markdown: {} },
   } as unknown as ConfigSetupParameters);
   return { updateConfig, injectScript, addMiddleware };
 }
@@ -110,6 +115,17 @@ describe("nudgeUiAstro", () => {
       headers: { accept: "text/html" },
     }, response, vi.fn());
     expect(body).toContain("data-nudge-ui-editor");
+  });
+
+  it("registers a legacy Markdown plugin that maps prose to the authored MDX file", async () => {
+    const { updateConfig } = runConfigSetup(nudgeUiAstro(), "dev");
+    const patch = updateConfig.mock.calls[0]?.[0] as {
+      markdown: { rehypePlugins: NonNullable<Parameters<typeof evaluate>[1]>["rehypePlugins"] };
+    };
+    const module = await evaluate({ value: "\n\n# Original heading", path: "/project/src/case.mdx" }, {
+      ...runtime, rehypePlugins: patch.markdown.rehypePlugins,
+    });
+    expect(renderToStaticMarkup(createElement(module.default))).toContain('data-src="src/case.mdx:3:1"');
   });
 
   it("wraps arbitrary integration lists without mutating the input", () => {

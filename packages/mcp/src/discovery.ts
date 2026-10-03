@@ -119,7 +119,7 @@ export class DiscoveredProjectRouter {
     return this.client;
   }
 
-  async waitForPrompt(signal?: AbortSignal, sessionId?: string): Promise<AgentPromptRequest> {
+  async waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentPromptRequest> {
     const releaseGeneration = this.releaseGeneration;
     const client = await this.connectToSession(sessionId);
     if (releaseGeneration !== this.releaseGeneration) {
@@ -130,12 +130,12 @@ export class DiscoveredProjectRouter {
       throw new Error("The Nudge project session was released.");
     }
     try {
-      return await client.waitForPrompt(signal);
+      return await client.waitForPrompt(signal, agentClientName);
     } catch (error) {
       if (signal?.aborted || sessionId || releaseGeneration !== this.releaseGeneration) throw error;
       const replacement = await this.connectToSession();
       if (replacement === client) throw error;
-      return await replacement.waitForPrompt(signal);
+      return await replacement.waitForPrompt(signal, agentClientName);
     }
   }
 

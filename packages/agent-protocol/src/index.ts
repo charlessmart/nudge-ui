@@ -227,6 +227,8 @@ export interface AgentStatusSnapshot {
   readonly projectId: string;
   readonly connection: AgentConnectionState;
   readonly listenerActive: boolean;
+  /** MCP client name supplied during initialization; absent for older adapters. */
+  readonly agentClientName?: string;
   readonly paired: boolean;
   /** The last paired page, retained only for this process lifetime. */
   readonly pageUrl?: string | null;

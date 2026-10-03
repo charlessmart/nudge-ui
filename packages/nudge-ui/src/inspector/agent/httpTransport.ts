@@ -203,6 +203,7 @@ function statusPayload(value: unknown): AgentStatusSnapshot | null {
     projectId: status.projectId,
     connection: status.connection,
     listenerActive: status.listenerActive,
+    ...(typeof status.agentClientName === "string" ? { agentClientName: status.agentClientName.slice(0, 120) } : {}),
     paired: status.paired,
     request,
   };

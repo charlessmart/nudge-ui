@@ -112,9 +112,9 @@ export class ProjectSessionClient {
     }
   }
 
-  async waitForPrompt(signal?: AbortSignal): Promise<AgentPromptRequest> {
+  async waitForPrompt(signal?: AbortSignal, agentClientName?: string): Promise<AgentPromptRequest> {
     await this.claim();
-    return await this.send(AGENT_CONTROL_ENDPOINTS.listen, {}, { signal, timeoutMs: null });
+    return await this.send(AGENT_CONTROL_ENDPOINTS.listen, { agentClientName }, { signal, timeoutMs: null });
   }
 
   async getStatus(): Promise<AgentStatusSnapshot> {

@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computeHierarchy } from "../selection/hierarchy.ts";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
@@ -48,8 +48,9 @@ describe("DomNavigator", () => {
     });
 
     const trigger = host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!;
-    expect(trigger.textContent).toBe("button");
-    act(() => trigger.focus());
+    expect(host.querySelector(".dom-navigator__label")?.textContent).toBe("button");
+    expect(trigger.getAttribute("aria-label")).toBe("Open DOM navigator");
+    act(() => trigger.click());
     const parentItem = document.body.querySelector<HTMLButtonElement>('[data-test="dom-navigator-item"][data-cid="Parent"]');
     expect(parentItem).not.toBeNull();
     expect(parentItem?.textContent).toBe("div");
@@ -88,62 +89,51 @@ describe("DomNavigator", () => {
       }));
     });
 
-    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.focus());
+    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
     const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[data-test="dom-navigator-item"]'));
     expect(items.map((item) => item.textContent)).toEqual(["main", "section", "button", "span", "em"]);
     expect(items.map((item) => item.dataset.depth)).toEqual(["0", "1", "2", "3", "4"]);
     expect(items[2]?.dataset.current).toBe("true");
   });
 
-  it("keeps the menu open while the pointer crosses the gap between trigger and menu", () => {
-    vi.useFakeTimers();
-    try {
-      const parent = document.createElement("div");
-      parent.dataset.cid = "Parent";
-      const selected = document.createElement("button");
-      selected.dataset.cid = "Selected";
-      parent.append(selected);
-      document.body.append(parent);
-      setSelectedElement(resolveSelectionFromElement(selected));
+  it("opens only on icon click and stays open when the pointer leaves", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    parent.append(selected);
+    host.append(parent);
 
-      root = createRoot(host);
-      act(() => {
-        root!.render(createElement(DomNavigator, {
-          selected: resolveSelectionFromElement(selected)!,
-          hierarchy: computeHierarchy(selected),
-          anchor: { left: 10, top: 20, width: 30, height: 30 },
-          project: () => null,
-        }));
-      });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(DomNavigator, {
+        selected: resolveSelectionFromElement(selected)!,
+        hierarchy: computeHierarchy(selected),
+        anchor: { left: 10, top: 20, width: 30, height: 30 },
+        project: () => null,
+      }));
+    });
 
-      const trigger = host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!;
-      const enterFromOutside = (element: Element): void => {
-        act(() => element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })));
-      };
-      const leaveToOutside = (element: Element): void => {
-        act(() => element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })));
-      };
+    const trigger = host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!;
+    const label = host.querySelector<HTMLElement>(".dom-navigator__label")!;
+    act(() => {
+      label.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      label.click();
+      trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      trigger.focus();
+    });
+    expect(document.body.querySelector('[role="menu"]')).toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
-      // Hovering the trigger opens the popover.
-      enterFromOutside(trigger);
-      const menu = document.body.querySelector<HTMLElement>(".dom-navigator__menu");
-      expect(menu).not.toBeNull();
+    act(() => trigger.click());
+    expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
 
-      // Pointer leaves the trigger into the gap; the close is deferred, not immediate.
-      leaveToOutside(trigger);
-      expect(document.body.querySelector(".dom-navigator__menu")).not.toBeNull();
+    act(() => trigger.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })));
+    expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
 
-      // Pointer reaches the menu before the delay elapses, cancelling the pending close.
-      enterFromOutside(menu!);
-      act(() => vi.advanceTimersByTime(1000));
-      expect(document.body.querySelector(".dom-navigator__menu")).not.toBeNull();
-
-      // Leaving the menu for good still closes it.
-      leaveToOutside(menu!);
-      act(() => vi.advanceTimersByTime(1000));
-      expect(document.body.querySelector(".dom-navigator__menu")).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+    act(() => trigger.click());
+    expect(document.body.querySelector('[role="menu"]')).toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 });

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import type { AstroIntegration, AstroUserConfig } from "astro";
 import { nudgeUi, type NudgeUiOptions } from "../vite/index.ts";
 import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
@@ -6,6 +7,7 @@ import {
 } from "./clientTransport.ts";
 import { createProjectContextPlugin } from "./projectContext.ts";
 import { isNudgeUiEnabled } from "../environment.ts";
+import { installMarkdownIdentity } from "./markdownIdentity.ts";
 
 export type { NudgeUiOptions };
 
@@ -61,14 +63,17 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
   return {
     name: "nudge-ui",
     hooks: {
-      "astro:config:setup"({ command, updateConfig, injectScript, addMiddleware }) {
+      "astro:config:setup"({ command, config, updateConfig, injectScript, addMiddleware }) {
         if (!enabled || command !== "dev") return;
+
+        const markdown = installMarkdownIdentity(config.markdown, fileURLToPath(config.root));
 
         // The shared plugin objects are plain Vite plugin records, but this
         // monorepo typechecks them against a different Vite major than the
         // installed Astro resolves internally; the runtime contract
         // (config/resolveId/load/transform hooks) is identical.
         updateConfig({
+          ...(markdown ? { markdown } : {}),
           vite: {
             // SAFETY: Astro and this package resolve different Vite type
             // versions, but both consume the same runtime Plugin contract.

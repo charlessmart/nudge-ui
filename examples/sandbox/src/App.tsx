@@ -104,6 +104,15 @@ export function App() {
           </div>
         </section>
 
+        <nav className="landing-route-links landing-inner" aria-label="Sandbox routes" data-test="sandbox-route-links">
+          <span className="landing-route-links__label">Preview sandbox routes</span>
+          {import.meta.env.DEV ? <a href="/playground">Playground</a> : null}
+          <a href="/examples">Examples hub</a>
+          <a href="/examples/raw-css">Raw CSS</a>
+          {import.meta.env.DEV ? <a href="/component-props">Component props</a> : null}
+          <a href="/conformance">Conformance</a>
+        </nav>
+
         <section className="landing-window-wrap landing-inner" aria-label="A preview of the Nudge UI inspector">
           <div className="landing-window">
             <div className="lw-titlebar">

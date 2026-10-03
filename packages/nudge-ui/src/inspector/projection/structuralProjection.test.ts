@@ -111,6 +111,29 @@ describe("structural delete projection", () => {
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.2", "0.1", "0.3"]);
   });
 
+  it.each(["undo", "revert", "clear"])("restores a move without source coordinates on %s", (action) => {
+    const parent = document.createElement("article");
+    parent.dataset.cid = "astro:Article";
+    document.body.append(parent);
+    const first = add("First paragraph");
+    const second = add("Second paragraph");
+    first.removeAttribute("data-src");
+    second.removeAttribute("data-src");
+    parent.append(first, second);
+
+    createStructuralMove(second, { parent, before: first }, "mdx-move");
+    applyStructuralProjection(document, getStructuralChanges());
+    expect(Array.from(parent.children)).toEqual([second, first]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "mdx-move", status: "applied" }]);
+
+    if (action === "undo") expect(undo()).toBe(true);
+    else if (action === "revert") revertStructuralChange("mdx-move");
+    else clearWorkspace();
+
+    expect(Array.from(parent.children)).toEqual([first, second]);
+    expect(getStructuralChanges()).toEqual([]);
+  });
+
   it("rejects a non-element anchor and leaves the source document unchanged", () => {
     const parent = document.createElement("section");
     parent.dataset.cid = "List";

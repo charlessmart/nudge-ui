@@ -110,6 +110,40 @@ test.describe("Nudge MCP browser bridge", () => {
     }
   });
 
+  test("shows the connected client logo beside MCP and uses a robot for an unknown client", async ({ page }) => {
+    // The host manifest supplies the endpoint after bootstrap. Route this
+    // test's manifest to the isolated bridge instead of the host's companion.
+    await page.route("**/__nudge_ui__/manifest", async (route) => {
+      const response = await route.fetch();
+      const manifest = await response.json();
+      await route.fulfill({ response, json: { ...manifest, agentBridge: { baseUrl: bridge.address!.url } } });
+    });
+    await openEditor(page, "/playground");
+    const button = page.locator('[data-test="settings-button"]');
+    await expect(button.locator(".agent-status-button__avatar")).toHaveCount(3);
+    const firstAbort = new AbortController();
+    const first = bridge.waitForPrompt(firstAbort.signal, undefined, "codex-mcp-client").catch(() => null);
+    const secondAbort = new AbortController();
+    let second: Promise<PromptRequest | null> | undefined;
+    try {
+      await connectBrowser(page, bridge, { abort: firstAbort, promise: first });
+      await expect(button).toContainText("MCP");
+      await expect(button.locator(".agent-status-button__avatar")).toHaveCount(1);
+      await expect(button.getByRole("img", { name: "Codex", exact: true })).toBeVisible();
+
+      firstAbort.abort();
+      await first;
+      second = bridge.waitForPrompt(secondAbort.signal, undefined, "unrecognized-client").catch(() => null);
+      await expect(button.getByRole("img", { name: "Agent", exact: true })).toBeVisible();
+      await expect(button.locator(".agent-status-button__avatar .tabler-icon-robot")).toBeVisible();
+      await expect(button.locator(".agent-status-button__avatar")).toHaveCount(1);
+    } finally {
+      firstAbort.abort();
+      secondAbort.abort();
+      await Promise.all([first, second]);
+    }
+  });
+
   test("discovers the listener, pairs explicitly, and delivers one prompt", async ({ page }) => {
     const promptListener = startPromptListener(bridge);
     const app = await openEditor(page, "/playground");

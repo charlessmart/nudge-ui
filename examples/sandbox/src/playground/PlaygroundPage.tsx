@@ -176,7 +176,7 @@ function App() {
   return (
     <div className="site-shell">
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Nudge UI home">
+        <a className="wordmark" href="/" aria-label="Nudge UI home">
           <span className="wordmark-mark" aria-hidden="true">✳</span>
           <span>nudge ui</span>
         </a>

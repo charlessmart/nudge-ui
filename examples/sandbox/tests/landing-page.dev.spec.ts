@@ -8,6 +8,16 @@ test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async 
   await expect(appLocator(page, ".landing-brand")).toHaveText(/Nudge UI/);
   await expect(appLocator(page, ".landing-nav-links a")).toHaveText("GitHub");
 
+  const routeLinks = appLocator(page, '[data-test="sandbox-route-links"] a');
+  await expect(routeLinks).toHaveCount(5);
+  await expect(routeLinks.evaluateAll((elements) => elements.map((element) => element.getAttribute("href")))).resolves.toEqual([
+    "/playground",
+    "/examples",
+    "/examples/raw-css",
+    "/component-props",
+    "/conformance",
+  ]);
+
   // Hero + install command
   await expect(appLocator(page, "#landing-hero-title")).toHaveText("Design where code lives.");
   const install = appLocator(page, ".landing-install");

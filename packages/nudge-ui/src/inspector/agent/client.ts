@@ -54,6 +54,7 @@ export interface AgentClientSnapshot {
   /** Companion state, using the shared protocol vocabulary. */
   readonly connection: AgentStatusSnapshot["connection"];
   readonly listenerActive: boolean;
+  readonly agentClientName?: string;
   /** Whether the last valid discovery response came from the local companion. */
   readonly companionReachable: boolean;
   readonly paired: boolean;
@@ -231,6 +232,7 @@ export class AgentClient {
   private started = false;
   private connection: AgentStatusSnapshot["connection"] = "offline";
   private listenerActive = false;
+  private agentClientName: string | undefined;
   private companionReachable = false;
   private paired = false;
   private pairedElsewhere = false;
@@ -715,6 +717,7 @@ export class AgentClient {
     this.companionReachable = true;
     this.lastError = undefined;
     this.listenerActive = status.listenerActive;
+    this.agentClientName = status.agentClientName;
     this.paired = status.paired;
     this.pairedElsewhere = pairedElsewhere;
     this.connection = statusForConnection(status);
@@ -833,6 +836,7 @@ export class AgentClient {
       state,
       connection: this.connection,
       listenerActive: this.listenerActive,
+      ...(this.agentClientName === undefined ? {} : { agentClientName: this.agentClientName }),
       companionReachable: this.companionReachable,
       paired: this.paired,
       pairedElsewhere: this.pairedElsewhere,

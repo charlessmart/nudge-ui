@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
+import { IconMenu2 } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
@@ -14,13 +15,6 @@ export interface DomNavigatorProps {
   anchor: Rect;
   project: (element: HTMLElement) => Rect | null;
 }
-
-/**
- * Delay before closing after the pointer leaves the trigger or menu, so it can
- * cross the gap between them. Base UI's safe polygon relies on top-document
- * `mousemove`, which stops once the pointer enters the app iframe.
- */
-const HOVER_CLOSE_DELAY_MS = 150;
 
 function nodeDescription(node: HTMLElement): string {
   const id = node.id ? `#${node.id}` : "";
@@ -41,35 +35,12 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
   const children = nodes.filter((node) => node.direction === "down");
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
-  }, []);
   if (nodes.length === 0) return null;
 
   const preview = hovered ? project(hovered) : null;
-  const cancelScheduledClose = (): void => {
-    if (closeTimerRef.current === null) return;
-    clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = null;
-  };
-  const scheduleClose = (): void => {
-    if (closeTimerRef.current !== null) return;
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null;
-      setExpanded(false);
-      setHovered(null);
-    }, HOVER_CLOSE_DELAY_MS);
-  };
   const setOpen = (next: boolean): void => {
-    cancelScheduledClose();
     setExpanded(next);
     if (!next) setHovered(null);
-  };
-  const bridge: ComponentProps<"div"> = {
-    onMouseEnter: () => setOpen(true),
-    onMouseLeave: scheduleClose,
   };
   const renderItem = (node: NavigationNode | null, depth: number): ReactElement => {
     const current = node === null;
@@ -106,12 +77,6 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
         data-test="dom-navigator"
         aria-label="DOM navigator"
         style={{ left: Math.max(4, anchor.left), top: Math.max(4, anchor.top - 28) }}
-        {...bridge}
-        onFocus={() => setOpen(true)}
-        onBlur={(event) => {
-          const next = event.relatedTarget;
-          if (!(next instanceof Node) || !portalContainer()?.contains(next)) setOpen(false);
-        }}
       >
         <BasePopover.Root open={expanded} onOpenChange={setOpen}>
           <BasePopover.Trigger
@@ -120,14 +85,16 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
                 type="button"
                 className="dom-navigator__trigger"
                 data-test="dom-navigator-trigger"
+                aria-label="Open DOM navigator"
                 aria-haspopup="menu"
                 aria-expanded={expanded}
                 onMouseEnter={() => setHovered(null)}
               />
             }
           >
-            <span>{nodeDescription(selected.domElement)}</span>
+            <IconMenu2 size={14} aria-hidden="true" />
           </BasePopover.Trigger>
+          <span className="dom-navigator__label">{nodeDescription(selected.domElement)}</span>
           <BasePopover.Portal container={portalContainer()}>
             <BasePopover.Positioner
               className="dom-navigator__positioner"
@@ -139,7 +106,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
                 className="dom-navigator__menu"
                 role="menu"
                 aria-label="DOM navigator"
-                {...bridge}
+                onMouseLeave={() => setHovered(null)}
               >
                 {parents.slice().reverse().map((node) => renderItem(node, parents.length - node.depth))}
                 {renderItem(null, parents.length)}

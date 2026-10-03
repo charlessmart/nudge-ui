@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
-import { useAgentClient } from "../agent/client.ts";
+import { IconRobot } from "@tabler/icons-react";
+import { useAgentClient, type AgentClientSnapshot } from "../agent/client.ts";
 import { getAgentConnectionStatus } from "../agent/connectionStatus.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { Button } from "../ui/Button.tsx";
@@ -8,6 +9,21 @@ import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 
 export interface AgentStatusButtonProps {
   onOpenSettings: (section: SettingsSection) => void;
+}
+
+/** Renders a known MCP client logo, or a generic robot avatar. */
+function ConnectedAgentAvatar({ name }: { name?: string }): ReactElement {
+  const harness = name?.toLowerCase().match(/(?:^|[^a-z])(codex|claude|cursor)(?:$|[^a-z])/)?.[1];
+  return (
+    <span className="agent-status-button__avatars" role="img" aria-label={
+      harness === "codex" ? "Codex" : harness === "claude" ? "Claude" : harness === "cursor" ? "Cursor" : "Agent"
+    }>
+      {harness === "codex" ? <CodexAvatar />
+        : harness === "claude" ? <ClaudeAvatar />
+          : harness === "cursor" ? <CursorAvatar />
+            : <span className="agent-status-button__avatar"><IconRobot size={24} color="#000" aria-hidden="true" /></span>}
+    </span>
+  );
 }
 
 function CodexAvatar(): ReactElement {
@@ -52,6 +68,13 @@ function CursorAvatar(): ReactElement {
 export function AgentStatusButton({ onOpenSettings }: AgentStatusButtonProps): ReactElement {
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const agent = useAgentClient(runtimeConfig.projectId);
+  return <AgentStatusButtonView agent={agent} onOpenSettings={onOpenSettings} />;
+}
+
+/** Renders the connection snapshot provided by the project client. */
+export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButtonProps & {
+  agent: AgentClientSnapshot;
+}): ReactElement {
   const status = getAgentConnectionStatus(agent);
   const connected = agent.paired || agent.pairedElsewhere;
   const listening = connected && agent.listenerActive;
@@ -67,11 +90,11 @@ export function AgentStatusButton({ onOpenSettings }: AgentStatusButtonProps): R
         data-mcp-listening={listening ? "true" : "false"}
         onClick={() => onOpenSettings("mcp")}
       >
-        <span className="agent-status-button__avatars">
+        {connected ? <ConnectedAgentAvatar name={agent.agentClientName} /> : <span className="agent-status-button__avatars">
           <CodexAvatar />
           <ClaudeAvatar />
           <CursorAvatar />
-        </span>
+        </span>}
         <span className="agent-status-button__label">{connected ? "MCP" : "Settings"}</span>
         {connected ? (
           <span

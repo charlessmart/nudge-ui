@@ -106,7 +106,7 @@ export interface BrowserBridge {
   start(): Promise<BridgeAddress>;
   close(): Promise<void>;
   /** Blocks until a paired browser dispatches a prompt. */
-  waitForPrompt(signal?: AbortSignal): Promise<AgentDeliveredPrompt>;
+  waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentDeliveredPrompt>;
   /** Marks the agent-side listener as stopped without ending the project. */
   cancelListener(reason?: string): void;
   /** Reports the terminal result for the currently running browser request. */
@@ -317,6 +317,7 @@ function statusWith(
   paired: boolean,
   request: AgentStatusSnapshot["request"],
   pageUrl: string | null,
+  agentClientName?: string,
 ): AgentStatusSnapshot {
   return {
     protocolVersion: AGENT_PROTOCOL_VERSION,
@@ -325,6 +326,7 @@ function statusWith(
     listenerActive,
     paired,
     pageUrl,
+    ...(agentClientName === undefined ? {} : { agentClientName }),
     request,
   };
 }
@@ -376,6 +378,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   let closePromise: Promise<void> | null = null;
   let startPromise: Promise<BridgeAddress> | null = null;
   let agentOwner: string | null = null;
+  let agentClientName: string | undefined;
   let agentOwnerSeenAt = 0;
   let agentOwnerExpiry: unknown | null = null;
 
@@ -385,6 +388,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     sessionToken !== null,
     currentRequest,
     lastPageUrl,
+    agentClientName,
   );
 
   const broadcast = (event: BridgeEvent): void => {
@@ -709,6 +713,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     if (agentOwnerExpiry !== null) clock.clearTimeout(agentOwnerExpiry);
     agentOwnerExpiry = null;
     agentOwner = null;
+    agentClientName = undefined;
     agentOwnerSeenAt = 0;
     cancelListener(reason);
     if (currentRequest?.status === "working") {
@@ -725,6 +730,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
         error: { code: "agent_released", message: reason },
       });
     }
+    broadcastStatus();
   };
 
   const scheduleAgentOwnerExpiry = (): void => {
@@ -773,7 +779,8 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     requireAgentOwner(request, body);
     const abort = new AbortController();
     response.once("close", () => abort.abort());
-    const prompt = await waitForPrompt(abort.signal);
+    const clientName = typeof body.agentClientName === "string" ? body.agentClientName.trim().slice(0, 120) : undefined;
+    const prompt = await waitForPrompt(abort.signal, undefined, clientName);
     sendJson(response, 200, prompt, null);
   };
 
@@ -921,10 +928,11 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     broadcastStatus();
   };
 
-  const waitForPrompt = (signal?: AbortSignal): Promise<AgentDeliveredPrompt> => {
+  const waitForPrompt = (signal?: AbortSignal, _sessionId?: string, clientName?: string): Promise<AgentDeliveredPrompt> => {
     if (lifecycle === "closed") return Promise.reject(new Error("The browser bridge is closed."));
     if (listener) return Promise.reject(new Error("A listening call is already active for this project."));
     if (currentRequest?.status === "working") return Promise.reject(new Error("A request is already in flight for this project."));
+    agentClientName = clientName?.trim().slice(0, 120) || undefined;
     // Keep the terminal outcome visible until the agent explicitly rearms its
     // listening call. Rearming is the lifecycle boundary for the old request.
     if (currentRequest) currentRequest = null;
@@ -1081,6 +1089,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     if (agentOwnerExpiry !== null) clock.clearTimeout(agentOwnerExpiry);
     agentOwnerExpiry = null;
     agentOwner = null;
+    agentClientName = undefined;
     agentOwnerSeenAt = 0;
     cancelListener("bridge_closed");
     if (pendingCanvas) {

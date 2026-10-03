@@ -32,3 +32,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0026: Project-owned agent sessions and guided setup](./0026-project-owned-agent-sessions.md)
 - [ADR-0027: Iframe-first editor workspace](./0027-iframe-first-editor.md)
 - [ADR-0028: Reusable agent adapter with connection-time project selection](./0028-reusable-agent-adapter.md)
+- [ADR-0029: Astro Markdown source identity](./0029-astro-markdown-source-identity.md)

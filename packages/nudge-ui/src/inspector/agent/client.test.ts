@@ -159,6 +159,21 @@ describe("AgentClient", () => {
     });
   });
 
+  it("updates the client name from bridge status without retaining a released agent", async () => {
+    const transport = new FakeTransport();
+    transport.pairingStatus = status({ paired: true, agentClientName: "codex-mcp-client" });
+    const client = new AgentClient({ projectId: "fixture-project", transport, discoveryIntervalMs: 0 });
+    client.start();
+    await flush();
+    await client.connect();
+    expect(client.getSnapshot().agentClientName).toBe("codex-mcp-client");
+    transport.emitStatus(status({ paired: true, agentClientName: "Claude Code" }));
+    expect(client.getSnapshot().agentClientName).toBe("Claude Code");
+    transport.emitStatus(status({ paired: true, listenerActive: false }));
+    expect(client.getSnapshot().agentClientName).toBeUndefined();
+    client.stop();
+  });
+
   it("automatically pairs a bridge supplied by the project dev host", async () => {
     const transport = new FakeTransport();
     transport.discoveredStatus = status({ connection: "offline", listenerActive: false });

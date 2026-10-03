@@ -114,8 +114,8 @@ export function resolveRenderedInstance(doc: Document, ref: RenderedInstanceRef)
 /** Checks stable source/evidence fields without treating a post-move ordinal as identity. */
 export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedInstanceRef): boolean {
   const { props, text, ariaLabel = null } = ref.locator;
-  return el.getAttribute("data-cid") === ref.sourceSite.cid
-    && el.getAttribute("data-src") === ref.sourceSite.src
+  return (el.getAttribute("data-cid") ?? "") === ref.sourceSite.cid
+    && (el.getAttribute("data-src") ?? "") === ref.sourceSite.src
     && el.getAttribute("data-cprops") === props
     && normalizedText(el) === text
     && el.getAttribute("aria-label") === ariaLabel;

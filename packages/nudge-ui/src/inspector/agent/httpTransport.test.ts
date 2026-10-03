@@ -41,16 +41,18 @@ it("reads bridge configuration only from the selected preview", async () => {
       projectId: "project-b",
       connection: "listening",
       listenerActive: true,
+      agentClientName: "codex-mcp-client",
       paired: false,
       request: null,
     },
   })));
   vi.stubGlobal("fetch", fetch);
 
-  await new HttpAgentBridgeTransport().discover({
+  const status = await new HttpAgentBridgeTransport().discover({
     projectId: "project-b",
     origin: window.location.origin,
   });
+  expect(status?.agentClientName).toBe("codex-mcp-client");
 
   expect(fetch).toHaveBeenCalledWith(
     expect.objectContaining({ href: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8765\/health\?/) }),
