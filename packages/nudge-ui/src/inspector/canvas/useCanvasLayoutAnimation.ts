@@ -83,7 +83,7 @@ export function useCanvasLayoutAnimation(
       }
     }
     const nextGroups = new Map<string, { left: string; top: string; width: string }>();
-    for (const element of board?.querySelectorAll<HTMLElement>(".canvas-linked-group") ?? []) {
+    for (const element of board?.querySelectorAll<HTMLElement>(".canvas-frame-section:not(.is-ungrouped)") ?? []) {
       const id = element.dataset.groupId!;
       const next = { left: element.style.left, top: element.style.top, width: element.style.width };
       const old = groups.current.get(id);

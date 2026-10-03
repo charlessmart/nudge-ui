@@ -242,7 +242,10 @@ export function CopyPromptButton({
         return;
       }
     }
-    const basePrompt = generatePrompt(promptChanges, hints, promptStructural, customInstructions, sketchMetadata);
+    const generated = generatePrompt(promptChanges, hints, promptStructural, customInstructions, sketchMetadata);
+    const basePrompt = editTarget.kind === "application" && editTarget.route
+      ? `Page: ${editTarget.route}\nApply the requested changes to this page. Shared source may affect other pages.\n\n${generated}`
+      : generated;
     const text = editTarget.kind === "html"
       ? htmlStudyPrompt(editTarget.artifactId, basePrompt, promptChanges.length + promptStructural.length === 0, visibleSketches.length > 0, customInstructions)
       : basePrompt;
@@ -263,7 +266,7 @@ export function CopyPromptButton({
           );
           attachments = await createSketchAttachments(sketchHandoff);
         }
-        beginActivityDispatch(runtimeConfig.projectId, clientDispatchId, owner.frameIds);
+        beginActivityDispatch(runtimeConfig.projectId, clientDispatchId, owner.frameIds, owner.target);
         const response = await agentClient.dispatchPrompt(text, revision, {
           clientDispatchId,
           ...(attachments === undefined ? {} : { attachments }),

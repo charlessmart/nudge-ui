@@ -1,3 +1,4 @@
+import { waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test("focus-mode address navigation replaces the current frame", async ({ page }) => {
@@ -11,12 +12,14 @@ test("focus-mode address navigation replaces the current frame", async ({ page }
   await expect(cards.first()).toHaveAttribute("data-card-id", id!);
   await expect.poll(() => cards.first().locator("iframe").contentFrame().locator("body").evaluate(() => location.pathname)).toBe("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   await expect(cards).toHaveCount(1);
 });
 
 test("independent views of the same live route show purple peers without a group bar", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
   await cards.nth(1).locator('[data-test^="canvas-card-focus-"]').click();
@@ -26,6 +29,7 @@ test("independent views of the same live route show purple peers without a group
   await page.goto("/playground?nudge-ui=editor");
   await expect(cards).toHaveCount(2);
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   await expect(page.locator('[data-test="canvas-linked-group"]')).toHaveCount(0);
   await expect(cards.first()).toHaveClass(/is-linked-peer/);
   await expect(cards.nth(1)).not.toHaveClass(/is-linked-peer/);
@@ -39,6 +43,7 @@ test("independent views of the same live route show purple peers without a group
 test("canvas links open a new route once and return to its existing live frame", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
   const cards = page.locator(".canvas-card");
   const originalId = await cards.first().getAttribute("data-card-id");

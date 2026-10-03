@@ -71,7 +71,7 @@ it("copies sketch references into a captured study without inheriting later sket
   expect(getDraftForCard(study.id)?.contents.changes).toEqual([]);
   expect(sketchBelongsToCard("captured-note", study.id)).toBe(true);
   expect(sketchBelongsToCard("later-note", study.id)).toBe(false);
-  expect(getDraftForCard(live.id)?.target).toEqual({ kind: "application" });
+  expect(getDraftForCard(live.id)?.target).toMatchObject({ kind: "application", route: window.location.origin + "/" });
   expect(getDraftForCard(study.id)?.target.kind).toBe("html");
 });
 

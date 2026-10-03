@@ -3,7 +3,7 @@ import { getDraftForCard } from "../drafts/store.ts";
 import { RoutePicker, ROUTE_PICKER_STYLES } from "./RoutePicker.tsx";
 import { studyArtifactId, contentSourceUrl } from "./frameContent.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
-import { IconCornerLeftUp } from "@tabler/icons-react";
+import { IconCornerLeftUp, IconBoltFilled, IconLink, IconArtboard, IconSparkles } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
@@ -36,7 +36,7 @@ import {
   updateCardUrl,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
-import { LinkedFrameGroup } from "./LinkedFrameGroup.tsx";
+import { CanvasFrameSection } from "./CanvasFrameSection.tsx";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
@@ -258,6 +258,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       replaceActiveCard: presentation === "focus" && runtimeConfig.demo !== true,
       preserveStudyFocus: true,
     });
+    if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
+      setBoardCamera({
+        x: 40, y: 120,
+        zoom: Math.max(0.25, Math.min(0.9, (viewport.width - 80) / (primaryCard.width + CARD_GAP + 300))),
+      });
+    }
     if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {
       demoSeededRef.current = true;
       const demoPages = runtimeConfig.demoPages ?? [];
@@ -852,6 +858,20 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
+  const renderCard = (card: CanvasCardData) => (
+    <CanvasCard
+      key={card.id}
+      card={card}
+      presentation={presentation}
+      presentationCard={card.id === presentationCardId}
+      linkedToActive={isLinkedToActiveCard(card, cards, selectedCardId ?? focusedCardId)}
+      onShowFocus={showFocus}
+      onDuplicate={duplicateDesign}
+      onCreateVariation={createVariation}
+      documentOwner={inspectorSession}
+    />
+  );
+
   if (mode !== "canvas") return null;
 
   return (
@@ -897,22 +917,21 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             }}
             data-test="canvas-board-content"
           >
-            {presentation === "canvas" ? [...new Set(cards.flatMap((card) => card.groupId ? [card.groupId] : []))].map((id) => (
-              <LinkedFrameGroup key={id} id={id} cards={cards.filter((card) => card.groupId === id)} zoom={camera.zoom} />
-            )) : null}
-            {cards.map((card) => (
-              <CanvasCard
-                key={card.id}
-                card={card}
-                presentation={presentation}
-                presentationCard={card.id === presentationCardId}
-                linkedToActive={isLinkedToActiveCard(card, cards, selectedCardId ?? focusedCardId)}
-                onShowFocus={showFocus}
-                onDuplicate={duplicateDesign}
-                onCreateVariation={createVariation}
-                documentOwner={inspectorSession}
-              />
-            ))}
+            {[...new Set(cards.map((card) => card.groupId ?? card.id))].map((id) => {
+              const members = cards.filter((card) => (card.groupId ?? card.id) === id);
+              return <CanvasFrameSection key={id} id={id} cards={members} zoom={camera.zoom} presentation={presentation}>
+                {members.map(renderCard)}
+              </CanvasFrameSection>;
+            })}
+            {presentation === "canvas" && cards.length === 1 ? (
+              <aside className="canvas-workspace__intro" data-test="canvas-intro" style={{ left: cards[0]!.x + cards[0]!.width + CARD_GAP, top: cards[0]!.y + 64 }}>
+                <h2>Room to explore</h2>
+                <p><IconBoltFilled aria-hidden="true" /><span><strong>Live app</strong>Edit your real page.</span></p>
+                <p><IconLink aria-hidden="true" /><span><strong>Linked frames</strong>Compare sizes. Share edits.</span></p>
+                <p><IconArtboard aria-hidden="true" /><span><strong>HTML studies</strong>Try an independent design.</span></p>
+                <p><IconSparkles aria-hidden="true" /><span><strong>Your agent</strong>Make changes. Bring pages here.</span></p>
+              </aside>
+            ) : null}
           </div>
           {!sketchActive ? (
             <CanvasToolbar

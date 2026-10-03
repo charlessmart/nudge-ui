@@ -4,13 +4,16 @@ import { beginActivityDispatch, getAgentActivity, reportAgentActivity, synchroni
 afterEach(() => { synchronizeAgentActivity("activity-test", undefined, false); vi.useRealTimers(); });
 describe("temporary agent activity", () => {
   it("decorates the submitted frames only for the matching dispatch", () => {
-    beginActivityDispatch("activity-test", "dispatch-1", ["frame-1", "frame-2"]);
+    const target = { kind: "application" as const, route: "http://localhost/playground" };
+    beginActivityDispatch("activity-test", "dispatch-1", ["frame-1", "frame-2"], target);
     synchronizeAgentActivity("activity-test", "request-1", true, "dispatch-1");
     expect(getAgentActivity("activity-test").targets).toEqual(["frame-1", "frame-2"]);
+    expect(getAgentActivity("activity-test").target).toEqual(target);
     reportAgentActivity("activity-test", { requestId: "old-request", file: "src/Card.tsx", operation: "edit" });
     expect(getAgentActivity("activity-test").files).toEqual([]);
     synchronizeAgentActivity("activity-test", "request-2", true, "other-dispatch");
     expect(getAgentActivity("activity-test").targets).toEqual([]);
+    expect(getAgentActivity("activity-test").target).toBeUndefined();
   });
   it("expires file attribution while the request remains working", () => {
     vi.useFakeTimers();

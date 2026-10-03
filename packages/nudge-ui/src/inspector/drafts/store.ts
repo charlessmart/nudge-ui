@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { getCanvasCards, selectCard, focusCanvasCards } from "../canvas/canvasStore.ts";
+import { getCanvasCards, selectCard, focusCanvasCards, activateIframeWorkspace } from "../canvas/canvasStore.ts";
 import { contentEditTarget } from "../canvas/frameContent.ts";
 import {
   deserializeChange,
@@ -21,7 +21,7 @@ import { refreshWorkspacePreview } from "../changes/changesLog.ts";
 import { discardWorkspaceHistory } from "../workspace/timeline.ts";
 import { isStructuralChange } from "../projection/structuralProjection.ts";
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
-import { isDraftTarget, targetKey, type Draft, type DraftTarget, type DraftSnapshot } from "./model.ts";
+import { applicationTarget, isDraftTarget, targetKey, type Draft, type DraftTarget, type DraftSnapshot } from "./model.ts";
 
 interface DraftMetadata {
   readonly id: string;
@@ -131,7 +131,11 @@ export function initializeDrafts(nextProjectId: string, cardIds: readonly string
       const stored: unknown = raw ? JSON.parse(raw) : null;
       if (validPersisted(stored)) {
         for (const draft of stored.drafts) {
-          drafts.set(draft.id, { id: draft.id, target: draft.target, sketchIds: draft.sketchIds });
+          const frame = getCanvasCards().find((card) => stored.cardDrafts[card.id] === draft.id);
+          const target = draft.target.kind === "application" && !draft.target.route
+            ? applicationTarget(frame?.content.kind === "route" ? frame.content.url : undefined)
+            : draft.target;
+          drafts.set(draft.id, { id: draft.id, target, sketchIds: draft.sketchIds });
           restoreDraftWorkspace(draft.id, { changes: draft.contents.changes.map(deserializeChange), structuralChanges: draft.contents.structuralChanges }, draft.revision);
         }
         for (const [cardId, draftId] of Object.entries(stored.cardDrafts)) cardDrafts.set(cardId, draftId);
@@ -140,14 +144,17 @@ export function initializeDrafts(nextProjectId: string, cardIds: readonly string
       drafts.clear();
       cardDrafts.clear();
     }
-    if (drafts.size === 0) createDraft({ kind: "application" }, initial);
+    if (drafts.size === 0) {
+      const frame = getCanvasCards().find((card) => cardIds.includes(card.id) && card.content.kind === "route");
+      createDraft(frame ? contentEditTarget(frame.content) : applicationTarget(), initial);
+    }
   }
   for (const cardId of cardIds) {
     const card = getCanvasCards().find((card) => card.id === cardId);
     const current = getDraftForCard(cardId);
     if (current && (!card || targetKey(current.target) === targetKey(contentEditTarget(card.content)))) continue;
     changed = true;
-    attachDraftToCard(cardId, card ? contentEditTarget(card.content) : { kind: "application" });
+    attachDraftToCard(cardId, card ? contentEditTarget(card.content) : applicationTarget());
   }
   if (changed) publish();
 }
@@ -160,6 +167,7 @@ function createDraft(target: DraftTarget, contents: WorkspaceContents = { change
 }
 
 export function attachDraftToCard(cardId: string, target: DraftTarget): Draft {
+  if (target.kind === "application" && !target.route) target = applicationTarget();
   const metadata = [...drafts.values()].find((draft) => targetKey(draft.target) === targetKey(target)) ?? createDraft(target);
   cardDrafts.set(cardId, metadata.id);
   publish();
@@ -182,7 +190,16 @@ export function activateDraftForCard(cardId: string): void {
   if (!draftId) return;
   const previous = getWorkspaceChanges().draftId;
   setWorkspaceHistoryContext(draftId, () => {
-    const target = getCanvasCards().find((card) => card.id === cardId) ?? getCanvasCards().find((card) => cardDrafts.get(card.id) === draftId);
+    let target = getCanvasCards().find((card) => card.id === cardId && cardDrafts.get(card.id) === draftId)
+      ?? getCanvasCards().find((card) => cardDrafts.get(card.id) === draftId);
+    const draft = getDraft(draftId);
+    if (!target && draft?.target.kind === "application" && draft.target.route) {
+      const original = getCanvasCards().find((card) => card.id === cardId && card.content.kind === "route");
+      if (original) {
+        selectCard(original.id);
+        target = activateIframeWorkspace(draft.target.route, { width: window.innerWidth, height: window.innerHeight }, { replaceActiveCard: true }) ?? undefined;
+      }
+    }
     if (!target) return;
     activateDraftForCard(target.id);
     selectCard(target.id);

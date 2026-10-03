@@ -7,7 +7,7 @@ import {
   selectCard,
   type CanvasCard,
 } from "../canvas/canvasStore.ts";
-import { contentSourceUrl } from "../canvas/frameContent.ts";
+import { contentEditTarget, contentSourceUrl } from "../canvas/frameContent.ts";
 import {
   getRegisteredFrames,
   projectWorkspaceSnapshotToDocument,
@@ -76,7 +76,7 @@ export function addPages(routes: readonly { url: string; title?: string }[]): Ca
   if (!canWriteWorkspace()) return [];
   return batchCanvasChanges(() => {
     const cards = addCanvasRouteGrid(routes);
-    for (const card of cards) attachDraftToCard(card.id, { kind: "application" });
+    for (const card of cards) attachDraftToCard(card.id, contentEditTarget(card.content));
     return cards;
   });
 }

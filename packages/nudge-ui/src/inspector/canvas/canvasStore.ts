@@ -545,7 +545,7 @@ function pushOverlappingCards(protectedIds: ReadonlySet<string>): void {
   }
 }
 
-export function moveLinkedGroup(id: string, dx: number, dy: number): void {
+export function moveFrameGroup(id: string, dx: number, dy: number): void {
   cards = cards.map((card) => card.groupId === id
     ? { ...card, x: card.x + dx, y: card.y + dy } : card);
   notify();

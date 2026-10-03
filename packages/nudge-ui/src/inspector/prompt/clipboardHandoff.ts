@@ -1,7 +1,7 @@
 import { changeKey } from "../changes/model.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
-import { getDraftWorkspace, subscribeWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getDraftWorkspace, getWorkspaceChanges, subscribeWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {
   captureHandoffOwner,
@@ -29,7 +29,7 @@ export interface ClipboardHandoffSnapshot {
 
 const checkpoints = new Map<string, ClipboardDraftHandoff>();
 let revision = 0;
-let lastReconciledCount = 0;
+const reconciledCounts = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -75,7 +75,7 @@ function fingerprintSnapshot(owner: HandoffOwner, changes: readonly ChangeRecord
 
 export function recordClipboardHandoff(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], owner = captureHandoffOwner()): void {
   checkpoints.set(owner.draftId, fingerprintSnapshot(owner, changes, structuralChanges));
-  lastReconciledCount = 0;
+  reconciledCounts.delete(owner.draftId);
   notify();
 }
 
@@ -86,14 +86,14 @@ export function getClipboardHandoffSnapshot(): ClipboardHandoffSnapshot | null {
 export function hydrateClipboardHandoff(value: ClipboardHandoffSnapshot | null): void {
   checkpoints.clear();
   for (const draft of value?.drafts ?? []) checkpoints.set(draft.owner.draftId, structuredClone(draft));
-  lastReconciledCount = 0;
+  reconciledCounts.clear();
   notify();
 }
 
 export function clearClipboardHandoff(): void {
-  if (!checkpoints.size && lastReconciledCount === 0) return;
+  if (!checkpoints.size && !reconciledCounts.size) return;
   checkpoints.clear();
-  lastReconciledCount = 0;
+  reconciledCounts.clear();
   notify();
 }
 
@@ -103,7 +103,7 @@ export function subscribeClipboardHandoff(listener: () => void): () => void {
 }
 
 export function getClipboardHandoffRevision(): number { return revision; }
-export function getLastClipboardReconciledCount(): number { return lastReconciledCount; }
+export function getLastClipboardReconciledCount(): number { return reconciledCounts.get(getWorkspaceChanges().draftId) ?? 0; }
 
 function matchingRecords(snapshot: ClipboardDraftHandoff) {
   const workspace = getDraftWorkspace(snapshot.owner.draftId);
@@ -132,11 +132,12 @@ export async function reconcileClipboardHandoff(doc: Document = document): Promi
   for (const snapshot of [...checkpoints.values()]) {
     const matching = matchingRecords(snapshot);
     if (matching.changes.length + matching.structuralChanges.length === 0) continue;
-    removed += await verifyAndReconcileHandoff({ owner: snapshot.owner, ...matching }, doc);
+    const count = await verifyAndReconcileHandoff({ owner: snapshot.owner, ...matching }, doc);
+    if (count > 0) reconciledCounts.set(snapshot.owner.draftId, count);
+    removed += count;
   }
   pruneCheckpoints();
   if (removed > 0) {
-    lastReconciledCount = removed;
     notify();
   }
   return removed;

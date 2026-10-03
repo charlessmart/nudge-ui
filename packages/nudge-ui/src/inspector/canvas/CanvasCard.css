@@ -28,7 +28,7 @@
 }
 
 .canvas-card.is-selected .canvas-card__frame {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--frame-accent, var(--accent));
   outline-offset: -2px;
 }
 
@@ -41,7 +41,7 @@
 }
 
 @keyframes canvas-card-focus {
-  0%, 35% { outline: 3px solid var(--accent); outline-offset: -3px; }
+  0%, 35% { outline: 3px solid var(--frame-accent, var(--accent)); outline-offset: -3px; }
   100% { outline: 0 solid transparent; outline-offset: -2px; }
 }
 
@@ -61,16 +61,6 @@
   justify-content: flex-start;
   z-index: 1;
   cursor: grab;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.canvas-card:hover .canvas-card__toolbar,
-.canvas-card:focus-within .canvas-card__toolbar,
-.canvas-card.is-selected .canvas-card__toolbar,
-.canvas-card.is-focused .canvas-card__toolbar {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -98,13 +88,23 @@
   cursor: grabbing;
 }
 
+.canvas-card__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.canvas-card__identity > button { flex-shrink: 0; }
+
 .canvas-card__dimensions {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  position: absolute;
-  left: 50%;
-  bottom: 0;
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 260px;
   color: var(--text-secondary);
   font-size: var(--font-size-base);
   font-variant-numeric: tabular-nums;
@@ -120,7 +120,8 @@
   text-overflow: ellipsis;
 }
 
-.canvas-card__live-badge {
+.canvas-card__live-badge,
+.canvas-card__study-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -288,34 +289,64 @@
   opacity: 1;
 }
 
-.canvas-linked-group {
+.canvas-card.is-linked {
+  --frame-accent: #a855f7;
+}
+
+.canvas-card.is-linked .canvas-card__frame {
+  outline: 1px solid var(--frame-accent);
+  outline-offset: -1px;
+}
+
+.canvas-card.is-linked.is-selected .canvas-card__frame {
+  outline-width: 3px;
+  outline-offset: -3px;
+}
+
+.canvas-frame-section {
   position: absolute;
+  box-sizing: border-box;
+  background: var(--surface-raised-2x);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  border-radius: var(--radius-8);
+}
+
+.canvas-frame-section__content {
+  position: absolute;
+}
+
+.canvas-frame-section__heading {
+  position: absolute;
+  left: 0;
   display: flex;
   align-items: center;
-  box-sizing: border-box;
-  height: var(--control-height-large);
-  padding: 0 var(--space-12);
-  font-size: var(--font-size-base);
   gap: var(--space-8);
-  background: var(--accent-surface);
-  color: var(--accent);
+  padding: var(--space-8) var(--space-12);
+  color: var(--text-secondary);
+  background: var(--surface-raised-2x);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-8);
+  font: inherit;
+  font-size: var(--font-size-base);
+  white-space: nowrap;
   cursor: grab;
   touch-action: none;
   user-select: none;
-  z-index: 2;
 }
 
-.canvas-linked-group.is-dragging {
-  cursor: grabbing;
-}
+.canvas-frame-section__heading.is-dragging { cursor: grabbing; }
+.canvas-frame-section__heading:focus-visible { outline: 2px solid #a855f7; }
+.canvas-frame-section__count { color: var(--text-tertiary); }
+.canvas-frame-section.is-focus,
+.canvas-frame-section.is-ungrouped,
+.canvas-frame-section.is-focus .canvas-frame-section__content,
+.canvas-frame-section.is-ungrouped .canvas-frame-section__content { display: contents; }
+.canvas-frame-section.is-focus .canvas-frame-section__heading,
+.canvas-frame-section.is-ungrouped .canvas-frame-section__heading { display: none; }
 
-.canvas-linked-group:focus-visible {
-  outline: 2px solid var(--accent);
-}
-
-.canvas-linked-group__count {
-  margin-left: auto;
+.canvas-card__study-badge {
+  color: var(--text-secondary);
+  background: var(--surface-raised-2x);
 }
 
 .canvas-card.is-linked .canvas-card__toolbar,

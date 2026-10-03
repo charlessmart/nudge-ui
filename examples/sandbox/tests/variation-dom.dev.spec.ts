@@ -97,8 +97,8 @@ test("duplicates slide right and variations slide down with hover paused", async
     const viewport = board.getBoundingClientRect();
     const duplicate = board.querySelectorAll(".canvas-card")[1]!.getBoundingClientRect();
     return {
-      x: Math.round(duplicate.x + duplicate.width / 2 - (viewport.x + viewport.width / 2)),
-      y: Math.round(duplicate.y + duplicate.height / 2 - (viewport.y + viewport.height / 2)),
+      x: Math.round(Math.abs(duplicate.x + duplicate.width / 2 - (viewport.x + viewport.width / 2))),
+      y: Math.round(Math.abs(duplicate.y + duplicate.height / 2 - (viewport.y + viewport.height / 2))),
     };
   })).toEqual({ x: 0, y: 0 });
   await captureEntrance(2);
@@ -135,7 +135,7 @@ test("linked headers and frame controls keep matching dimensions and spacing at 
       }
     }, gesture);
     await expect.poll(() => content.evaluate((element) => {
-      const header = element.querySelector<HTMLElement>('[data-test="canvas-linked-group"]')!;
+      const header = element.querySelector<HTMLElement>('.canvas-frame-section__heading')!;
       const button = element.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
       const frame = element.querySelector<HTMLElement>(".canvas-card")!;
       const headerRect = header.getBoundingClientRect();
@@ -149,6 +149,6 @@ test("linked headers and frame controls keep matching dimensions and spacing at 
         headerGap: Math.round(buttonRect.top - headerRect.bottom),
         frameGap: Math.round(frame.getBoundingClientRect().top - buttonRect.bottom),
       };
-    })).toEqual({ height: 32, buttonHeight: 32, radius: 8, headerGap: 12, frameGap: 8 });
+    })).toEqual({ height: 34, buttonHeight: 24, radius: 8, headerGap: 28, frameGap: 12 });
   }
 });

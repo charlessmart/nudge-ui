@@ -1,3 +1,4 @@
+import { applicationTarget, type DraftTarget } from "../drafts/model.ts";
 import { artifactDocumentUrl } from "../artifacts/client.ts";
 
 /** Content identity is independent of frame geometry and its editable draft. */
@@ -21,8 +22,8 @@ export function contentDocumentUrl(content: FrameContent): string {
   return content.kind === "route" ? content.navigationUrl ?? content.url : artifactDocumentUrl(content.artifactId);
 }
 
-export function contentEditTarget(content: FrameContent): { kind: "application" } | { kind: "html"; path: string; artifactId: string } {
-  return content.kind === "route" ? { kind: "application" } : {
+export function contentEditTarget(content: FrameContent): DraftTarget {
+  return content.kind === "route" ? applicationTarget(content.url) : {
     kind: "html", path: `.nudge/artifacts/${content.artifactId}/document.html`, artifactId: content.artifactId,
   };
 }

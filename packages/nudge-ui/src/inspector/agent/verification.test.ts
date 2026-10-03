@@ -92,6 +92,23 @@ describe("agent completion verification", () => {
     expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
   });
 
+  it("retains a sent change if the page navigates during verification", async () => {
+    const sent = styleChange("color", "rgb(255, 0, 0)");
+    appendChange(sent);
+    recordAgentDispatch(42, getChangesList());
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      window.history.replaceState({}, "", "/other");
+      callback(0);
+      return 1;
+    });
+
+    expect(await verifyAndReconcileAgentDispatch(42)).toBe(0);
+    expect(getChangesList()).toEqual([sent]);
+  });
+
   it("preserves a newer value for the same change key", async () => {
     const sent = styleChange("color", "rgb(255, 0, 0)");
     appendChange(sent);

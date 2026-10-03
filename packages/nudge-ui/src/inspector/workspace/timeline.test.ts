@@ -3,7 +3,7 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/run
 import { studyArtifactId } from "../canvas/frameContent.ts";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activateIframeWorkspace, addCanvasVariation, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, selectCard, moveLinkedGroup } from "../canvas/canvasStore.ts";
+import { activateIframeWorkspace, addCanvasVariation, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, selectCard, moveFrameGroup } from "../canvas/canvasStore.ts";
 import { workspaceChangeStore, getWorkspaceChanges, resetWorkspaceChanges, clearSessionUndoHistory } from "../changes/workspaceChanges.ts";
 import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import type { StructuralMove } from "../changes/structuralTypes.ts";
@@ -138,7 +138,7 @@ it("releases detached studies when the page exits, but preserves them in the bac
 it("keeps a later group drag when undo removes a linked frame", () => {
   const source = original();
   const linked = duplicateCard(source.id)!;
-  moveLinkedGroup(linked.groupId!, 120, 80);
+  moveFrameGroup(linked.groupId!, 120, 80);
   expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
   expect(getCanvasCards()).toHaveLength(1);
   expect(getCanvasCards()[0]).toMatchObject({ id: source.id, x: source.x + 120, y: source.y + 80, groupId: undefined });

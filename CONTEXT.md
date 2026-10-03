@@ -9,8 +9,9 @@ that intent to a coding agent. The inspector does not edit application source.
   are handed to the agent for implementation in application source.
 - **HTML study**: An independent, project-local HTML document captured from a
   frame. Its source URL records provenance; its own document is the edit target.
-- **Draft**: Mutable pending edit intent. Linked live frames share a draft;
-  studies have independent drafts. A draft revision identifies intent for
+- **Draft**: Mutable pending edit intent for one page URL or HTML study. Live
+  frames of the same page share a draft;
+  different pages and studies have independent drafts. A draft revision identifies intent for
   consistency checks, rather than a saved historical version.
 - **Frame group**: A layout group for linked views or agent-presented pages.
   Group membership does not determine edit ownership.

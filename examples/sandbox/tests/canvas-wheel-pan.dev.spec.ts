@@ -1,8 +1,10 @@
+import { waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("scrolling pans the canvas and Use app normally restores nested iframe scrolling", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   const iframe = page.locator(".canvas-card__iframe").first();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await iframe.contentFrame().locator("body").evaluate((body) => {
@@ -39,6 +41,7 @@ test("scrolling pans the canvas and Use app normally restores nested iframe scro
 test("Shift temporarily enables app interaction across iframe focus and the icon pins it", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   const normal = page.getByRole("button", { name: "Use app normally", exact: true });
   const pan = page.getByRole("button", { name: "Pan", exact: true });
   const iframe = page.locator(".canvas-card__iframe").first();
@@ -95,6 +98,7 @@ test("Shift temporarily enables app interaction across iframe focus and the icon
 test("Shift app interaction opens links on the canvas without opening a browser tab", async ({ page, context }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
   const iframe = page.locator(".canvas-card__iframe").first();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await iframe.contentFrame().locator("body").evaluate((body) => {

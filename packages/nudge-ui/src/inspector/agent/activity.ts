@@ -1,16 +1,18 @@
 import { useSyncExternalStore } from "react";
+import type { DraftTarget } from "../drafts/model.ts";
 import type { AgentActivity } from "./protocol.ts";
 
 export interface ActivityFile extends AgentActivity { readonly expiresAt: number }
 export interface AgentActivitySnapshot {
   readonly requestId: string | null;
   readonly targets: readonly string[];
+  readonly target?: DraftTarget;
   readonly files: readonly ActivityFile[];
 }
 const EMPTY: AgentActivitySnapshot = Object.freeze({ requestId: null, targets: [], files: [] });
 interface ProjectActivity {
   snapshot: AgentActivitySnapshot;
-  dispatch?: { id: string; targets: readonly string[] };
+  dispatch?: { id: string; targets: readonly string[]; target?: DraftTarget };
   timer?: ReturnType<typeof setTimeout>;
   listeners: Set<() => void>;
 }
@@ -26,8 +28,8 @@ function publish(state: ProjectActivity, snapshot: AgentActivitySnapshot): void 
 }
 
 /** Pins submitted frames before dispatch. Activity never selects or edits a draft. */
-export function beginActivityDispatch(projectId: string, dispatchId: string, targets: readonly string[]): void {
-  project(projectId).dispatch = { id: dispatchId, targets: [...targets] };
+export function beginActivityDispatch(projectId: string, dispatchId: string, targets: readonly string[], target?: DraftTarget): void {
+  project(projectId).dispatch = { id: dispatchId, targets: [...targets], target };
 }
 
 /** Dispatch and status are the only authority for the layer's lifetime. */
@@ -42,8 +44,8 @@ export function synchronizeAgentActivity(projectId: string, requestId: string | 
   }
   if (state.snapshot.requestId === requestId) return;
   if (state.timer) clearTimeout(state.timer);
-  const targets = state.dispatch && state.dispatch.id === dispatchId ? state.dispatch.targets : [];
-  publish(state, { requestId, targets, files: [] });
+  const dispatch = state.dispatch?.id === dispatchId ? state.dispatch : undefined;
+  publish(state, { requestId, targets: dispatch?.targets ?? [], ...(dispatch?.target ? { target: dispatch.target } : {}), files: [] });
 }
 
 export function reportAgentActivity(projectId: string, activity: AgentActivity): void {

@@ -4,6 +4,7 @@ import { BorderBeam } from "border-beam";
 import { useAgentActivity, type ActivityFile } from "../agent/activity.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
+import { targetKey } from "../drafts/model.ts";
 import { contentEditTarget, type FrameContent } from "./frameContent.ts";
 
 export interface ActivityAttribution { files: readonly ActivityFile[]; elements: readonly Element[] }
@@ -81,7 +82,8 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
     iframe.addEventListener("load", attachDocument);
     return () => { iframe.removeEventListener("load", attachDocument); detachDocument(); };
   }, [activity, content, iframe]);
-  const submitted = activity.requestId !== null && activity.targets.includes(cardId);
+  const submitted = activity.requestId !== null && activity.targets.includes(cardId)
+    && (!activity.target || targetKey(activity.target) === targetKey(contentEditTarget(content)));
   const working = activity.requestId !== null && (submitted || visual.files.length > 0);
   if (!working) return null;
   const latest = visual.files.at(-1) ?? (submitted ? activity.files.at(-1) : undefined);

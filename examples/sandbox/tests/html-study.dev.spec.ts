@@ -183,7 +183,7 @@ test("linked duplicates move as one group and variations preserve the group", as
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
-  const handle = group.getByText("Linked frames", { exact: true });
+  const handle = group.locator(".canvas-frame-section__heading");
   const outside = await handle.boundingBox();
   expect(outside).not.toBeNull();
   await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", {
@@ -213,7 +213,7 @@ test("linked duplicates move as one group and variations preserve the group", as
   await cards.nth(1).locator('[data-test^="canvas-card-variation-"]').click();
   await expect(cards).toHaveCount(4);
   await expect(cards.nth(3).locator(".canvas-card__dimensions")).toContainText("HTML study", { timeout: 15_000 });
-  await expect(group).toHaveText(/Linked frames3/);
+  await expect(group.locator(".canvas-frame-section__heading")).toHaveText(/Breakpoints3/);
   const after = await positions();
   expect(after.slice(0, 3)).toEqual(moved);
   expect(after[3]!.x).toBe(moved[1]!.x);
@@ -247,7 +247,7 @@ for (const modifier of ["Alt"] as const) {
     });
     const before = await cards.nth(1).evaluate((element: HTMLElement) => ({ x: element.style.left, y: element.style.top }));
     await cards.nth(1).hover();
-    const toolbar = await cards.nth(1).locator('[data-test^="canvas-card-drag-"]').boundingBox();
+    const toolbar = await cards.nth(1).locator('.canvas-card__dimensions').boundingBox();
     await page.keyboard.down(modifier);
     await page.mouse.move(toolbar!.x + toolbar!.width / 2, toolbar!.y + toolbar!.height / 2);
     await page.mouse.down();
@@ -266,7 +266,7 @@ for (const modifier of ["Alt"] as const) {
     await expect(page.locator('[data-test="canvas-board"]')).not.toHaveClass(/is-layout-transitioning/);
     expect(await cards.nth(1).evaluate((element: HTMLElement) => ({ x: element.style.left, y: element.style.top }))).toEqual(before);
     await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("HTML study");
-    await expect(page.locator('[data-test="canvas-linked-group"]')).toHaveText(/Linked frames2/);
+    await expect(page.locator('[data-test="canvas-linked-group"] .canvas-frame-section__heading')).toHaveText(/Breakpoints2/);
     const dropped = await cards.nth(2).evaluate((element: HTMLElement) => ({ x: Number.parseFloat(element.style.left), y: Number.parseFloat(element.style.top) }));
     expect(dropped.x).toBeGreaterThan(Number.parseFloat(before.x));
     expect(dropped.y).toBeGreaterThan(Number.parseFloat(before.y));

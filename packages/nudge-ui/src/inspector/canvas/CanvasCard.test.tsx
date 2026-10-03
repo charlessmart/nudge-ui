@@ -276,7 +276,7 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.classList.contains("button--primary")).toBe(true);
+    expect(control.classList.contains("button--secondary")).toBe(true);
     expect(control.textContent).toContain("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
@@ -611,10 +611,9 @@ describe("CanvasCard renderer handshake", () => {
       throw new Error("toolbar content did not mount");
     }
 
-    expect(dimensions.style.transformOrigin).toBe("center bottom");
-    expect(dimensions.style.transform).toBe("translateX(-50%) scale(2)");
-    expect(focus.style.transformOrigin).toBe("left bottom");
-    expect(focus.style.transform).toBe("scale(2)");
+    expect(dimensions.parentElement).toBe(focus.parentElement);
+    expect(dimensions.parentElement?.style.zoom).toBe("2");
+    expect(dimensions.compareDocumentPosition(focus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does not render card action buttons", () => {

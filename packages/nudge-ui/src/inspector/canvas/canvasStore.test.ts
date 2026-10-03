@@ -30,7 +30,7 @@ import {
   PRIMARY_CARD_INSET,
   setCanvasPresentation,
   setCardPosition,
-  moveLinkedGroup,
+  moveFrameGroup,
   addCanvasVariation,
   CARD_GAP,
   type CanvasMode,
@@ -757,7 +757,7 @@ describe("linked live frame groups", () => {
     const copy = duplicateCard(source.id)!;
     setCardPosition(copy.id, 9999, 9999);
     expect(getCanvasCards().find((card) => card.id === copy.id)!.x).toBe(440);
-    moveLinkedGroup(copy.groupId!, 75, 35);
+    moveFrameGroup(copy.groupId!, 75, 35);
     resizeCard(source.id, 500, 300);
     const snapshot = getCanvasCards();
     expect(snapshot.find((card) => card.id === source.id)).toMatchObject({ x: 75, y: 35 });

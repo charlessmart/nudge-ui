@@ -4,7 +4,7 @@ import { refreshHtmlStudy } from "../artifacts/study.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown, IconPlus, IconBoltFilled } from "@tabler/icons-react";
+import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown, IconPlus, IconBoltFilled, IconArtboard } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
@@ -494,26 +494,46 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       >
         <div
           className="canvas-card__drag-surface"
+          style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
           data-test={`canvas-card-drag-${card.id}`}
         >
+          <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
+          <span
+            className="canvas-card__dimensions"
+            data-test={`canvas-card-dimensions-${card.id}`}
+          >
+            {!studyArtifactId(card.content) ? (
+              <Tooltip content="Live view">
+                <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
+                  <IconBoltFilled size={12} aria-hidden="true" />
+                </span>
+              </Tooltip>
+            ) : (
+              <Tooltip content="HTML only">
+                <span className="canvas-card__study-badge" aria-label="HTML only" data-test={`canvas-card-study-${card.id}`}>
+                  <IconArtboard size={14} aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            <span className="canvas-card__title">
+              {studyArtifactId(card.content) ? "HTML study · " : ""}{card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
+            </span>
+          </span>
           {onShowFocus ? (
             <Button
-              variant="primary"
-              size="default"
+              variant="secondary"
+              size="compact"
               data-test={`canvas-card-focus-${card.id}`}
-              style={{
-                transform: `scale(${toolbarScale})`,
-                transformOrigin: "left bottom",
-              }}
               onClick={() => onShowFocus(card.id)}
             >
               <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
               Focus
             </Button>
           ) : null}
+          </div>
           <div
             className="canvas-card__actions"
-            style={{ transform: `scale(${toolbarScale})`, transformOrigin: "right bottom" }}
+            style={{ zoom: toolbarScale }}
           >
           {onDuplicate && !studyArtifactId(card.content) ? (
             <IconButton
@@ -540,26 +560,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           ) : null}
           </div>
           {variationError ? <span className="canvas-card__variation-error" role="status">{variationError}</span> : null}
-          <span
-            className="canvas-card__dimensions"
-            data-test={`canvas-card-dimensions-${card.id}`}
-            style={{
-              maxWidth: `max(0px, calc(${100 / toolbarScale}% - 320px))`,
-              transform: `translateX(-50%) scale(${toolbarScale})`,
-              transformOrigin: "center bottom",
-            }}
-          >
-            {!studyArtifactId(card.content) ? (
-              <Tooltip content="Live view">
-                <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
-                  <IconBoltFilled size={12} aria-hidden="true" />
-                </span>
-              </Tooltip>
-            ) : null}
-            <span className="canvas-card__title">
-              {studyArtifactId(card.content) ? "HTML study · " : ""}{card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
-            </span>
-          </span>
+
         </div>
       </div> : null}
       <div className="canvas-card__frame">
