@@ -92,8 +92,7 @@
     "parse5": "^7.3.0",
     "perfect-freehand": "^1.2.3",
     "postcss": "^8.5.26",
-    "typescript": "^5.9.3",
-    "border-beam": "1.4.1"
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "astro": ">=5.0.0",

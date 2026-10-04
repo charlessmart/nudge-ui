@@ -1,6 +1,5 @@
 import activityStyles from "./AgentActivityOverlay.css?inline";
 import { useEffect, useState } from "react";
-import { BorderBeam } from "border-beam";
 import { useAgentActivity, type ActivityFile } from "../agent/activity.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
@@ -86,12 +85,14 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
     && (!activity.target || targetKey(activity.target) === targetKey(contentEditTarget(content)));
   const working = activity.requestId !== null && (submitted || visual.files.length > 0);
   if (!working) return null;
-  const latest = visual.files.at(-1) ?? (submitted ? activity.files.at(-1) : undefined);
-  const label = latest ? `${latest.operation === "edit" ? "Editing" : "Reading"} ${latest.file}` : "Agent working…";
   return <div className="canvas-agent-activity" data-test={`canvas-agent-activity-${cardId}`}>
-    <BorderBeam size="md" colorVariant="ocean" strength={latest?.operation === "read" ? 0.45 : 0.85} borderRadius={4} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}><div style={{ width: "100%", height: "100%" }} /></BorderBeam>
+    <svg className="canvas-agent-activity__beam" aria-hidden="true" focusable="false">
+      <rect className="canvas-agent-activity__beam-track" width="100%" height="100%" rx="2" />
+      <rect className="canvas-agent-activity__beam-trail" width="100%" height="100%" rx="2" pathLength="100" />
+      <rect className="canvas-agent-activity__beam-head" width="100%" height="100%" rx="2" pathLength="100" />
+    </svg>
     {visual.highlights.map((rect, index) => <div key={index} className="canvas-agent-activity__shimmer" data-test="canvas-agent-component-shimmer" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} />)}
-    <span className="canvas-agent-activity__label" role="status">{label}</span>
+    <span className="canvas-agent-activity__label" role="status">Agent working…</span>
     <style>{activityStyles}</style>
   </div>;
 }

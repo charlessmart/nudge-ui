@@ -1,5 +1,87 @@
-.canvas-agent-activity{position:absolute;inset:0;pointer-events:none;z-index:12;overflow:hidden;border-radius:4px}
-.canvas-agent-activity__label{position:absolute;top:12px;right:12px;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 10px;border-radius:20px;background:#201d32e8;color:#eee9ff;font:12px system-ui;box-shadow:0 2px 12px #0003}
-.canvas-agent-activity__shimmer{position:absolute;border-radius:5px;background:linear-gradient(110deg,#a889ff12 10%,#62cdff55 35%,#af7dff77 50%,#62cdff55 65%,#a889ff12 90%);background-size:250% 100%;animation:nudge-component-shimmer 2.4s ease-in-out infinite;outline:1px solid #af7dff88}
-@keyframes nudge-component-shimmer{from{background-position:150% 0}to{background-position:-150% 0}}
-@media(prefers-reduced-motion:reduce){.canvas-agent-activity__shimmer{animation:none}}
+.canvas-agent-activity {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.canvas-agent-activity__beam {
+  position: absolute;
+  inset: 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  overflow: visible;
+  z-index: 1;
+  filter: drop-shadow(0 0 3px #8b5cf680);
+}
+
+.canvas-agent-activity__beam rect {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.canvas-agent-activity__beam-track {
+  stroke: #a78bfa60;
+}
+
+.canvas-agent-activity__beam-trail,
+.canvas-agent-activity__beam-head {
+  animation: nudge-border-beam 5s linear infinite;
+}
+
+.canvas-agent-activity__beam-trail {
+  stroke: #8b5cf6;
+  stroke-dasharray: 16 84;
+  --beam-offset: 12px;
+}
+
+.canvas-agent-activity__beam-head {
+  stroke: #67e8f9;
+  stroke-dasharray: 4 96;
+}
+
+.canvas-agent-activity__label {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #201d32e8;
+  color: #eee9ff;
+  font: 12px system-ui;
+  box-shadow: 0 2px 12px #0003;
+}
+
+.canvas-agent-activity__shimmer {
+  position: absolute;
+  border-radius: 5px;
+  background: linear-gradient(110deg, #a889ff12 10%, #62cdff55 35%, #af7dff77 50%, #62cdff55 65%, #a889ff12 90%);
+  background-size: 250% 100%;
+  animation: nudge-component-shimmer 2.4s ease-in-out infinite;
+  outline: 1px solid #af7dff88;
+}
+
+@keyframes nudge-border-beam {
+  from { stroke-dashoffset: var(--beam-offset, 0px); }
+  to { stroke-dashoffset: calc(var(--beam-offset, 0px) - 100px); }
+}
+
+@keyframes nudge-component-shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -150% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-agent-activity__beam-trail,
+  .canvas-agent-activity__beam-head,
+  .canvas-agent-activity__shimmer {
+    animation: none;
+  }
+}
