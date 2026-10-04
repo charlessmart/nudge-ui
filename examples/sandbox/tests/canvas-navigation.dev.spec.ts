@@ -60,3 +60,47 @@ test("canvas links open a new route once and return to its existing live frame",
   await expect(cards.first()).toHaveAttribute("data-card-id", originalId!);
   await expect(cards.first()).toHaveClass(/is-selected/);
 });
+
+for (const linked of [false, true]) {
+  test(`returning from Focus centers the ${linked ? "linked" : "standalone"} frame at 90% zoom`, async ({ page }) => {
+    await page.goto("/playground");
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await waitForCanvasTransition(page);
+    const cards = page.locator(".canvas-card");
+    const content = page.locator('[data-test="canvas-board-content"]');
+    if (linked) {
+      await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
+      await expect(cards).toHaveCount(2);
+      await waitForCanvasTransition(page);
+    }
+    const active = linked ? cards.nth(1) : cards.first();
+    const id = await active.getAttribute("data-card-id");
+    const board = page.locator('[data-test="canvas-board"]');
+    await board.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      element.dispatchEvent(new WheelEvent("wheel", {
+        deltaY: 240, ctrlKey: true, clientX: rect.x + rect.width / 2,
+        clientY: rect.y + rect.height / 2, bubbles: true, composed: true,
+      }));
+      element.dispatchEvent(new WheelEvent("wheel", { deltaX: 60, deltaY: -40, bubbles: true, composed: true }));
+    });
+    const zoom = () => content.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+    expect(await zoom()).not.toBeCloseTo(0.9);
+    await active.locator('[data-test^="canvas-card-focus-"]').click();
+    await waitForCanvasTransition(page);
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await waitForCanvasTransition(page);
+    expect(await zoom()).toBeCloseTo(0.9);
+    const offset = await board.evaluate((element, id) => {
+      const viewport = element.getBoundingClientRect();
+      const frame = element.querySelector(`[data-card-id="${id}"]`)!.getBoundingClientRect();
+      return {
+        x: frame.x + frame.width / 2 - (viewport.x + viewport.width / 2),
+        y: frame.y + frame.height / 2 - (viewport.y + viewport.height / 2),
+      };
+    }, id);
+    expect(offset.x).toBeCloseTo(0, 1);
+    expect(offset.y).toBeCloseTo(0, 1);
+    await expect(active).toHaveClass(/is-selected/);
+  });
+}

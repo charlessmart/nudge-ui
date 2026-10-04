@@ -12,6 +12,7 @@ import {
   getFocusedCardId,
   getCanvasCards,
   setBoardCamera,
+  batchCanvasChanges,
   getBoardCamera,
   fitAllCards,
   focusCanvasCards,
@@ -528,7 +529,21 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (presentation === "focus") {
       if (direction < 0) {
-        setCanvasPresentation("canvas");
+        batchCanvasChanges(() => {
+          const board = boardRef.current;
+          const cards = getCanvasCards();
+          const activeId = getSelectedCardId() ?? getFocusedCardId();
+          const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
+          if (board && card) {
+            const zoom = 0.9;
+            setBoardCamera({
+              x: board.clientWidth / 2 - (card.x + card.width / 2) * zoom,
+              y: board.clientHeight / 2 - (card.y + card.height / 2) * zoom,
+              zoom,
+            });
+          }
+          setCanvasPresentation("canvas");
+        });
       }
       return;
     }
