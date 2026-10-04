@@ -101,28 +101,3 @@
 .canvas-workspace__board.is-layout-transitioning .canvas-card__iframe {
   pointer-events: none;
 }
-
-.canvas-workspace__intro {
-  position: absolute;
-  width: 270px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  line-height: 1.5;
-}
-
-.canvas-workspace__intro h2 {
-  margin: 0 0 var(--space-24);
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 500;
-}
-
-.canvas-workspace__intro p {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-12);
-  margin: 0 0 var(--space-20);
-}
-
-.canvas-workspace__intro svg { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; }
-.canvas-workspace__intro strong { display: block; color: var(--text-primary); font-weight: 500; }
