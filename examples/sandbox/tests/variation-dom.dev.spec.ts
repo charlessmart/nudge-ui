@@ -117,7 +117,7 @@ test("duplicates slide right and variations slide down with hover paused", async
   await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`);
 });
 
-test("linked sections and their controls retain canvas dimensions across zoom levels", async ({ page }) => {
+test("linked sections scale with the canvas while labels and controls compensate for zoom", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   const cards = page.locator(".canvas-card");
@@ -131,6 +131,9 @@ test("linked sections and their controls retain canvas dimensions across zoom le
     const section = element.querySelector<HTMLElement>('[data-test="canvas-linked-group"]')!;
     const header = section.querySelector<HTMLElement>(".canvas-frame-section__heading")!;
     const button = section.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
+    const action = section.querySelector<HTMLElement>('[data-test^="canvas-card-duplicate-"]')!;
+    const badge = section.querySelector<HTMLElement>(".canvas-card__live-badge")!;
+    const toolbar = section.querySelector<HTMLElement>(".canvas-card__toolbar")!;
     const frames = [...section.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
     const sectionRect = section.getBoundingClientRect();
     const headerRect = header.getBoundingClientRect();
@@ -144,17 +147,22 @@ test("linked sections and their controls retain canvas dimensions across zoom le
       rightPadding: (sectionRect.right - frames.at(-1)!.right) / zoom,
       topPadding: (frames[0]!.top - sectionRect.top) / zoom,
       bottomPadding: (sectionRect.bottom - frames[0]!.bottom) / zoom,
-      headerHeight: headerRect.height / zoom,
-      buttonHeight: buttonRect.height / zoom,
-      headerGap: (sectionRect.top - headerRect.bottom) / zoom,
-      frameGap: (frames[0]!.top - buttonRect.bottom) / zoom,
-      headerScale: getComputedStyle(header).transform,
+      controls: {
+        headerHeight: headerRect.height,
+        buttonHeight: buttonRect.height,
+        actionHeight: action.getBoundingClientRect().height,
+        badgeHeight: badge.getBoundingClientRect().height,
+        headerGap: sectionRect.top - headerRect.bottom,
+        frameGap: frames[0]!.top - buttonRect.bottom,
+        topPadding: (toolbar.getBoundingClientRect().top - sectionRect.top) / zoom,
+      },
       sectionRadius: getComputedStyle(section).borderTopLeftRadius,
       sectionBorder: getComputedStyle(section).boxShadow,
       frameBorder: getComputedStyle(section.querySelector(".canvas-card__frame")!).outlineWidth,
     };
   });
-  const { zoom: initialZoom, ...initial } = await dimensions();
+  const { zoom: initialZoom, controls: initialControls, ...initial } = await dimensions();
+  expect(initialControls.topPadding).toBeGreaterThanOrEqual(15.9);
   const board = page.locator('[data-test="canvas-board"]');
   for (const gesture of [{ deltaY: -1, steps: 120 }, { deltaY: 1, steps: 140 }]) {
     await board.evaluate((element, { deltaY, steps }) => {
@@ -162,8 +170,16 @@ test("linked sections and their controls retain canvas dimensions across zoom le
         element.dispatchEvent(new WheelEvent("wheel", { deltaY, ctrlKey: true, clientX: 400, clientY: 300, bubbles: true, composed: true }));
       }
     }, gesture);
-    const { zoom, ...actual } = await dimensions();
+    const { zoom, controls, ...actual } = await dimensions();
     expect(Math.abs(zoom - initialZoom)).toBeGreaterThan(0.1);
+    const screenScale = Math.min(1, zoom * 2);
+    expect(controls.headerHeight / screenScale).toBeCloseTo(34, 1);
+    expect(controls.buttonHeight / screenScale).toBeCloseTo(24, 1);
+    expect(controls.actionHeight / screenScale).toBeCloseTo(32, 1);
+    expect(controls.badgeHeight / screenScale).toBeCloseTo(20, 1);
+    expect(controls.headerGap / screenScale).toBeCloseTo(8, 1);
+    expect(controls.frameGap / screenScale).toBeCloseTo(12, 1);
+    expect(controls.topPadding).toBeGreaterThanOrEqual(15.9);
     for (const key of Object.keys(initial) as (keyof typeof initial)[]) {
       const value = initial[key];
       if (typeof value === "number") expect(actual[key], key).toBeCloseTo(value, 1);

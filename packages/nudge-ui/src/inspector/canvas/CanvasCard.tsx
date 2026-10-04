@@ -91,7 +91,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
   const isFocusPresentationCard = presentation === "focus" && presentationCard;
-  const toolbarScale = card.groupId ? 1 : getCanvasToolbarScale(camera.zoom);
+  const toolbarScale = getCanvasToolbarScale(camera.zoom);
   const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
 
   const disposeDocumentSession = useCallback((): void => {
