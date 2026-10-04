@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { IconLink } from "@tabler/icons-react";
 import { moveFrameGroup, getFrameGroup, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { getCanvasToolbarScale } from "./toolbarScale.ts";
 
 export function CanvasFrameSection({ id, cards, zoom, presentation, children }: {
   readonly id: string;
@@ -12,14 +11,13 @@ export function CanvasFrameSection({ id, cards, zoom, presentation, children }: 
 }): ReactElement {
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ pointerId: number; x: number; y: number } | null>(null);
-  const scale = getCanvasToolbarScale(zoom);
   const left = Math.min(...cards.map((card) => card.x));
   const right = Math.max(...cards.map((card) => card.x + card.width));
   const top = Math.min(...cards.map((card) => card.y));
   const bottom = Math.max(...cards.map((card) => card.y + card.height));
-  const padding = 24 * scale;
+  const padding = 24;
   const x = left - padding;
-  const y = top - 56 * scale;
+  const y = top - 56;
   const grouped = cards.some((card) => card.groupId === id);
   const group = getFrameGroup(id);
   const first = cards[0]!;
@@ -37,7 +35,6 @@ export function CanvasFrameSection({ id, cards, zoom, presentation, children }: 
         type="button"
         className={`canvas-frame-section__heading${dragging ? " is-dragging" : ""}`}
         aria-label={`Move linked frame group, ${cards.length} frames`}
-        style={{ transform: `scale(${scale})`, transformOrigin: "left bottom", bottom: `calc(100% + 8px * ${scale})` }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           event.stopPropagation();

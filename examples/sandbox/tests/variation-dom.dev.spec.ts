@@ -117,7 +117,7 @@ test("duplicates slide right and variations slide down with hover paused", async
   await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`);
 });
 
-test("linked headers and frame controls keep matching dimensions and spacing at high zoom", async ({ page }) => {
+test("linked sections and their controls retain canvas dimensions across zoom levels", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   const cards = page.locator(".canvas-card");
@@ -127,28 +127,47 @@ test("linked headers and frame controls keep matching dimensions and spacing at 
   await content.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
+  const dimensions = () => content.evaluate((element) => {
+    const section = element.querySelector<HTMLElement>('[data-test="canvas-linked-group"]')!;
+    const header = section.querySelector<HTMLElement>(".canvas-frame-section__heading")!;
+    const button = section.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
+    const frames = [...section.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
+    const sectionRect = section.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    const zoom = new DOMMatrixReadOnly(getComputedStyle(element).transform).a;
+    return {
+      zoom,
+      sectionWidth: sectionRect.width / zoom,
+      sectionHeight: sectionRect.height / zoom,
+      leftPadding: (frames[0]!.left - sectionRect.left) / zoom,
+      rightPadding: (sectionRect.right - frames.at(-1)!.right) / zoom,
+      topPadding: (frames[0]!.top - sectionRect.top) / zoom,
+      bottomPadding: (sectionRect.bottom - frames[0]!.bottom) / zoom,
+      headerHeight: headerRect.height / zoom,
+      buttonHeight: buttonRect.height / zoom,
+      headerGap: (sectionRect.top - headerRect.bottom) / zoom,
+      frameGap: (frames[0]!.top - buttonRect.bottom) / zoom,
+      headerScale: getComputedStyle(header).transform,
+      sectionRadius: getComputedStyle(section).borderTopLeftRadius,
+      sectionBorder: getComputedStyle(section).boxShadow,
+      frameBorder: getComputedStyle(section.querySelector(".canvas-card__frame")!).outlineWidth,
+    };
+  });
+  const { zoom: initialZoom, ...initial } = await dimensions();
   const board = page.locator('[data-test="canvas-board"]');
-  for (const gesture of [{ deltaY: -1, steps: 120 }, { deltaY: 1, steps: 50 }]) {
+  for (const gesture of [{ deltaY: -1, steps: 120 }, { deltaY: 1, steps: 140 }]) {
     await board.evaluate((element, { deltaY, steps }) => {
       for (let step = 0; step < steps; step++) {
         element.dispatchEvent(new WheelEvent("wheel", { deltaY, ctrlKey: true, clientX: 400, clientY: 300, bubbles: true, composed: true }));
       }
     }, gesture);
-    await expect.poll(() => content.evaluate((element) => {
-      const header = element.querySelector<HTMLElement>('.canvas-frame-section__heading')!;
-      const button = element.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
-      const frame = element.querySelector<HTMLElement>(".canvas-card")!;
-      const headerRect = header.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const zoom = new DOMMatrixReadOnly(getComputedStyle(element).transform).a;
-      const scale = new DOMMatrixReadOnly(getComputedStyle(header).transform).a;
-      return {
-        height: Math.round(headerRect.height),
-        buttonHeight: Math.round(buttonRect.height),
-        radius: Math.round(parseFloat(getComputedStyle(header).borderTopLeftRadius) * scale * zoom),
-        headerGap: Math.round(buttonRect.top - headerRect.bottom),
-        frameGap: Math.round(frame.getBoundingClientRect().top - buttonRect.bottom),
-      };
-    })).toEqual({ height: 34, buttonHeight: 24, radius: 8, headerGap: 28, frameGap: 12 });
+    const { zoom, ...actual } = await dimensions();
+    expect(Math.abs(zoom - initialZoom)).toBeGreaterThan(0.1);
+    for (const key of Object.keys(initial) as (keyof typeof initial)[]) {
+      const value = initial[key];
+      if (typeof value === "number") expect(actual[key], key).toBeCloseTo(value, 1);
+      else expect(actual[key], key).toBe(value);
+    }
   }
 });
