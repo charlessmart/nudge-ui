@@ -461,6 +461,29 @@ export function applyColorOpacity(value: string, opacity: string): ColorEditResu
   return { ok: false, reason: "unsupported" };
 }
 
+/** Applies opacity using RGB channels for hex colors so field edits retain percentage precision. */
+export function withColorOpacity(color: string, opacity: string): ColorEditResult {
+  const hex = /^#([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.exec(color.trim());
+  if (hex) {
+    const raw = hex[1]!;
+    const channels = rgbTuple(`#${raw.slice(0, raw.length <= 4 ? 3 : 6)}`)!;
+    color = `rgb(${channels.join(" ")} / 100%)`;
+  }
+  return applyColorOpacity(color, opacity);
+}
+
+/** Preserves the previous opacity when the replacement color has no explicit alpha. */
+export function replaceColorPreservingOpacity(
+  previous: string,
+  color: string,
+  context: ColorSemanticsContext,
+): ColorEditResult {
+  const opacity = interpretColorOpacity(previous, context);
+  return opacity && !colorValueHasEmbeddedAlpha(color)
+    ? withColorOpacity(color, opacity.value)
+    : { ok: true, value: color };
+}
+
 function tokenReferenceName(entry: TokenEntry): string | null {
   const name = entry.cssName ?? entry.name;
   return name.startsWith("--") ? name : null;

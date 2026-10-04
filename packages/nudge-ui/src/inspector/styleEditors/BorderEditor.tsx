@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import {
-  IconBorderBottom,
-  IconBorderLeft,
-  IconBorderRight,
   IconBorderSides,
   IconBorderStyle2,
-  IconBorderTop,
   IconCheck,
   IconMinus,
   IconPlus,
@@ -28,7 +24,7 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
-import { hasAuthoredProperty, hasAuthoredStyle, isZeroCssValue } from "./stylePresence.ts";
+import { isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
@@ -138,66 +134,14 @@ function valuesAreLinked(
   return new Set(signatures).size === 1;
 }
 
-function isBorderFaceProperty(property: string): boolean {
-  const p = property.toLowerCase();
-  return p === "border"
-    || p === "border-width"
-    || p === "border-style"
-    || p === "border-color"
-    || /^border-(top|right|bottom|left)(?:-(?:width|style|color))?$/.test(p);
-}
-
-function isZeroWidthValue(value: string): boolean {
-  const trimmed = value.trim().toLowerCase();
-  if (isZeroCssValue(trimmed)) return true;
-  // Structured/preflight authored forms like `0 solid` / `0px solid currentcolor`.
-  const first = trimmed.split(/\s+/)[0] ?? "";
-  return isZeroCssValue(first);
-}
-
-/** True when a face paints: drawn style and non-zero width. */
-function sidePaints(el: HTMLElement, rows: ResolvedProperty[], side: string): boolean {
-  const style = borderStyleValue(el, rows, `border-${side}-style`);
-  if (INVISIBLE_BORDER_STYLES.has(style)) return false;
-  return !isZeroWidthValue(borderWidthValue(el, rows, `border-${side}-width`));
-}
-
-/**
- * Show border controls for intentional / painted borders only.
- *
- * Tailwind preflight authors `border: 0 solid` on `*`. That is cascade
- * evidence but not a visible border — hide controls and show + instead.
- *
- * Counts as presence:
- * - any painted face (drawn style + non-zero width)
- * - a direct width or disabling style, including zero
- */
-function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
-  if (SIDE_NAMES.some((side) => sidePaints(el, rows, side))) return true;
-
-  for (const row of rows) {
-    if (!isBorderFaceProperty(row.property) && !row.structure) continue;
-    if (!hasAuthoredStyle(row)) continue;
-    const property = row.property.toLowerCase();
-    const authored = (row.authored ?? row.declaredValue ?? "").trim().toLowerCase();
-    const structuredStyle = row.structure?.style?.trim().toLowerCase() ?? "";
-    const structuredWidth = row.structure?.width?.trim() ?? "";
-
-    if (INVISIBLE_BORDER_STYLES.has(structuredStyle) || INVISIBLE_BORDER_STYLES.has(authored)) {
-      return true;
-    }
-    if (structuredWidth) return true;
-    if ((property === "border-width" || property.endsWith("-width")) && authored) {
-      return true;
-    }
-  }
-
-  // Computed non-zero width without cascade rows (inline / inaccessible sheets).
-  if (!isZeroWidthValue(borderWidthValue(el, rows, "border-width"))) return true;
-  if (SIDE_NAMES.some((side) => !isZeroWidthValue(borderWidthValue(el, rows, `border-${side}-width`)))) {
-    return true;
-  }
-  return false;
+/** Initial visibility follows the effective border, including stylesheet resets. */
+function hasBorderPresence(el: HTMLElement): boolean {
+  return SIDE_NAMES.some((side) => {
+    const style = getStateStyleValue(el, `border-${side}-style`, "none").toLowerCase();
+    if (INVISIBLE_BORDER_STYLES.has(style)) return false;
+    const width = getStateStyleValue(el, `border-${side}-width`, "0px");
+    return !isZeroCssValue(width);
+  });
 }
 
 export interface BorderEditorProps {
@@ -265,11 +209,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const linkedBorderStyle = borderStyleValue(el, tokenRows, "border-style");
   const showWidthAndColor = !(borderLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
 
-  const hasBorder = isGroup
-    ? (selection?.domElements.some((candidate) => hasBorderPresence(candidate, [])) ?? false)
-      || borderWidthProperties.some((property) => hasAuthoredProperty(selection, property))
-    : hasBorderPresence(el, tokenRows);
-  const visibility = useFieldVisibility(selection?.domElements ?? [el], "border", hasBorder || rawBorderFallback);
+  const hasBorder = selectedElements.some(hasBorderPresence);
+  const visibility = useFieldVisibility(selectedElements, "border", hasBorder);
   const showBorderControls = visibility.visible;
 
   function handleAddBorder(): void {
@@ -490,16 +431,33 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   );
 }
 
-const BORDER_SIDE_ICONS = {
-  top: IconBorderTop,
-  right: IconBorderRight,
-  bottom: IconBorderBottom,
-  left: IconBorderLeft,
+const BORDER_SIDE_ICON_PATHS = {
+  left: {
+    outline: "M20 3H4v18h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1Z",
+    emphasis: { x1: "3.5", y1: "3.5", x2: "3.5", y2: "20.5" },
+  },
+  right: {
+    outline: "M4 3a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16V3H4Z",
+    emphasis: { x1: "20.5", y1: "3.5", x2: "20.5", y2: "20.5" },
+  },
+  top: {
+    outline: "M21 20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4h18v16Z",
+    emphasis: { x1: "3.5", y1: "3.5", x2: "20.5", y2: "3.5" },
+  },
+  bottom: {
+    outline: "M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v17H3V4Z",
+    emphasis: { x1: "3.5", y1: "20.5", x2: "20.5", y2: "20.5" },
+  },
 } as const;
 
 function BorderSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
-  const Icon = BORDER_SIDE_ICONS[side];
-  return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
+  const { outline, emphasis } = BORDER_SIDE_ICON_PATHS[side];
+  return (
+    <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d={outline} stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="square" strokeOpacity="0.2" />
+      <line {...emphasis} stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 interface BorderStyleSettingsMenuProps {

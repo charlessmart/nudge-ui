@@ -408,7 +408,7 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="border-style-settings"]')).not.toBeNull();
   });
 
-  it("shows style for authored none borders and hides width/color until a drawn style is chosen", () => {
+  it("hides controls for an authored none border on initial selection", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       ...defaultComputed(),
@@ -471,14 +471,11 @@ describe("BorderEditor", () => {
       ],
     }));
 
-    // Authored `border: none` is still a border declaration — show style, hide width/color.
-    expect(handle.host.querySelector('[data-test="add-border"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="border-style-settings"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-color"]')).toBeNull();
 
-    selectBorderStyle("solid");
-    expect(sheetText()).toContain("border-style: solid;");
   });
 
   it("expands individual sides by default when side borders differ", () => {
@@ -684,15 +681,147 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).toBeNull();
   });
 
-  it("writes box-shadow via the raw input", () => {
+  it("writes shadow offsets without changing blur, spread, or color", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
     act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
-    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="box-shadow"]');
-    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
-    setInputValue(raw, "0 2px 4px rgba(0,0,0,0.2)");
-    expect(sheetText()).toContain("box-shadow: 0 2px 4px rgba(0,0,0,0.2);");
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-0"]')!, "5");
+    expect(sheetText()).toContain("box-shadow: 5px 2px 3px 0 rgb(0 0 0 / 20%);");
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-1"]')!, "-6");
+    expect(sheetText()).toContain("box-shadow: 5px -6px 3px 0 rgb(0 0 0 / 20%);");
+  });
+
+  it.each(["#e60023", "var(--color-red)"])("resolves shadow color tokens for the swatch: %s", (tokenValue) => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    const authored = "0px 2px 3px 0px color-mix(in srgb, var(--color-danger) 20%, transparent)";
+    handle = mount(createElement(BoxShadowEditor, {
+      element: selected,
+      entries: [
+        { name: "--color-danger", value: tokenValue, source: "s:3" },
+        { name: "--color-red", value: "#e60023", source: "s:4" },
+      ],
+      tokenRows: [{
+        property: "box-shadow", tokenName: "--color-danger", authored,
+        declaredValue: authored, resolvedValue: "0px 2px 3px 0px rgba(230, 0, 35, 0.2)",
+        capability: "composite", confidence: "exact", evidence: { reason: "shadow color token" },
+      }],
+    }));
+    expect(handle.host.querySelector<HTMLInputElement>('[data-test="token-color-input"]')?.value).toBe("#e60023");
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--color-danger");
+    expect(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')?.value).toBe("20%");
+  });
+
+  it("keeps a color token inside structured shadow controls", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    const authored = "0px 2px 3px 0px color-mix(in srgb, var(--color-text-secondary) 20%, transparent)";
+    handle = mount(createElement(BoxShadowEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [{
+        property: "box-shadow",
+        tokenName: "--color-text-secondary",
+        authored,
+        declaredValue: authored,
+        resolvedValue: "0px 2px 3px 0px rgba(102, 102, 102, 0.2)",
+        capability: "composite",
+        confidence: "exact",
+        evidence: { reason: "color token inside a shadow" },
+      }],
+    }));
+    expect(handle.host.querySelector('[data-test="raw-input"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-color-input"]')).not.toBeNull();
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-0"]')!, "5");
+    expect(sheetText()).toContain("box-shadow: 5px 2px 3px 0px color-mix(in srgb, var(--color-text-secondary) 20%, transparent);");
+  });
+
+  it("keeps the token control for a token that defines the entire shadow", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BoxShadowEditor, {
+      element: selected,
+      entries: [{ name: "--shadow-card", value: "0px 2px 3px #000000", source: "s:9" }],
+      tokenRows: [{
+        property: "box-shadow",
+        tokenName: "--shadow-card",
+        declaredValue: "var(--shadow-card)",
+        resolvedValue: "0px 2px 3px #000000",
+        confidence: "exact",
+        evidence: { reason: "whole shadow token" },
+      }],
+    }));
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--shadow-card");
+    expect(handle.host.querySelector('[data-test="shadow-0-0"]')).not.toBeNull();
+  });
+
+  it("adds a shadow without replacing existing layers", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "inset -2px 4px 6px -1px #abcdef" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
+    expect(sheetText()).toContain("box-shadow: inset -2px 4px 6px -1px #abcdef, 0 2px 3px 0 rgb(0 0 0 / 20%);");
+    expect(handle.host.querySelector('[data-test="shadow-1-0"]')).not.toBeNull();
+  });
+
+  it("removes one shadow while preserving the remaining layer", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "inset -2px 4px 6px -1px #abcdef, 1px 3px 5px #123456" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="remove-shadow-0"]')!.click());
+    expect(sheetText()).toContain("box-shadow: 1px 3px 5px 0 #123456;");
+    expect(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-0"]')?.value).toBe("1");
+    expect(handle.host.querySelector('[data-test="shadow-1-0"]')).toBeNull();
+  });
+
+  it("removes the final shadow and can add a new one", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "2px 4px 6px #abcdef" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="remove-shadow-0"]')!.click());
+    expect(sheetText()).toContain("box-shadow: none;");
+    expect(handle.host.querySelector('[data-test="shadow-0-0"]')).toBeNull();
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
+    expect(sheetText()).toContain("box-shadow: 0 2px 3px 0 rgb(0 0 0 / 20%);");
+    expect(handle.host.querySelector('[data-test="shadow-1-0"]')).toBeNull();
+  });
+
+  it("preserves inset and other layers when editing shadow spread", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "inset -2px 4px 6px -1px rgba(10, 20, 30, 0.4), 1px 3px 5px #abcdef" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-3"]')!, "-7");
+    expect(sheetText()).toContain("box-shadow: inset -2px 4px 6px -7px rgba(10, 20, 30, 0.4), 1px 3px 5px 0 #abcdef;");
+  });
+
+  it("preserves shadow opacity when choosing a new color", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "2px 4px 6px 1px rgba(10, 20, 30, 0.4)" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-color"]')!, "#ff0000");
+    expect(sheetText()).toContain("box-shadow: 2px 4px 6px 1px rgb(255 0 0 / 40%);");
+  });
+
+  it("nudges shadow offsets below zero with the arrow keys", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
+    const input = handle.host.querySelector<HTMLInputElement>('[data-test="shadow-0-0"]')!;
+    act(() => {
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    expect(sheetText()).toContain("box-shadow: -1px 2px 3px 0 rgb(0 0 0 / 20%);");
+  });
+
+  it("changes shadow opacity without changing geometry or RGB channels", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ ...defaultComputed(), "box-shadow": "2px 4px 6px 1px rgba(10, 20, 30, 0.4)" });
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')!, "60%");
+    expect(sheetText()).toContain("box-shadow: 2px 4px 6px 1px rgba(10, 20, 30, 60%);");
   });
 
   it("pre-selects the border-color token from the resolved tokenRow", () => {
@@ -742,10 +871,6 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
     const borderIcons = handle.host.querySelectorAll('[data-test="border-side-rows"] .border__side-row > .side-values__side-icon');
     expect(borderIcons).toHaveLength(4);
-    expect(borderIcons[0]?.classList.contains("tabler-icon-border-top")).toBe(true);
-    expect(borderIcons[1]?.classList.contains("tabler-icon-border-right")).toBe(true);
-    expect(borderIcons[2]?.classList.contains("tabler-icon-border-bottom")).toBe(true);
-    expect(borderIcons[3]?.classList.contains("tabler-icon-border-left")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="token-field"][data-property="border-top-color"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="border-style-top"]')).not.toBeNull();

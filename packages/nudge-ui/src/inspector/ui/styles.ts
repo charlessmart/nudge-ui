@@ -21,6 +21,7 @@ import inspectorShellStyles from "../shell/InspectorShell.css?inline";
 import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import emptyStateStyles from "../shell/EmptyState.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
+import backgroundEditorStyles from "../styleEditors/BackgroundEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
 import typographyStyles from "../styleEditors/Typography.css?inline";
 import layoutSectionStyles from "../styleEditors/LayoutSection.css?inline";
@@ -60,6 +61,7 @@ export const UI_STYLES = [
   inspectorOverlayStyles,
   emptyStateStyles,
   styleEditorStyles,
+  backgroundEditorStyles,
   borderEditorStyles,
   typographyStyles,
   layoutSectionStyles,

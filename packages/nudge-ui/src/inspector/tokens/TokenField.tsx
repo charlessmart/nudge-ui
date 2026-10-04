@@ -38,6 +38,8 @@ import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 
 export interface TokenValueFieldProps {
   property: string;
+  /** Numeric editing policy for a scalar slot inside a composite property. */
+  nudgeProperty?: string;
   domElement?: HTMLElement;
   semanticSlot?: TokenSemanticSlot;
   committedValue: string;
@@ -275,6 +277,7 @@ function NativeColorSwatch({
 export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const {
     property,
+    nudgeProperty = property,
     domElement,
     semanticSlot,
     committedValue,
@@ -440,7 +443,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
       const next = property === "opacity"
         ? nudgeOpacityValue(rawValue, direction, event.shiftKey)
-        : nudgeCssValue(property, rawValue, direction, event.shiftKey);
+        : nudgeCssValue(nudgeProperty, rawValue, direction, event.shiftKey);
       if (next) {
         event.preventDefault();
         event.stopPropagation();
@@ -490,8 +493,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
     if (event.button !== 0) return;
-    if (fieldDisabled || !supportsDragNudge(property)) return;
-    if (!canNudgeCssValueByDrag(property, rawValue)) return;
+    if (fieldDisabled || !supportsDragNudge(nudgeProperty)) return;
+    if (!canNudgeCssValueByDrag(nudgeProperty, rawValue)) return;
 
     stopDragNudge();
     const handle = event.currentTarget;
@@ -539,7 +542,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     }
     drag.deltaX += movementX;
     const next = nudgeCssValueByDrag(
-      property,
+      nudgeProperty,
       drag.startValue,
       drag.deltaX,
       drag.shiftActive,
@@ -567,8 +570,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function renderLeading(): ReactElement | null {
     if (!leading) return null;
     const canDrag = !fieldDisabled
-      && supportsDragNudge(property)
-      && canNudgeCssValueByDrag(property, rawValue);
+      && supportsDragNudge(nudgeProperty)
+      && canNudgeCssValueByDrag(nudgeProperty, rawValue);
     if (!canDrag) return <span className="token-field__leading">{leading}</span>;
     return (
       <span

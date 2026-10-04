@@ -25,6 +25,19 @@ export interface BrowserCssInspectionView {
   documentTokens: DocumentTokenInspectionSnapshot | null;
 }
 
+interface ScopedInspectionView extends BrowserCssInspectionView {
+  selection: readonly SelectedElement[];
+  state: InteractionState;
+  session: BrowserCssInspection;
+}
+
+const EMPTY_VIEW: BrowserCssInspectionView = {
+  element: null,
+  elements: [],
+  stableProperties: [],
+  documentTokens: null,
+};
+
 export interface BrowserCssInspectionViewOptions {
   includeDocumentTokens?: boolean;
   session?: BrowserCssInspection;
@@ -52,13 +65,16 @@ function inspectStableView(
   state: InteractionState,
   includeDocumentTokens: boolean,
   elements: readonly InspectionSnapshot[],
-): BrowserCssInspectionView {
+): ScopedInspectionView {
   const primary = elements[0] ?? null;
   const stableProperties = selected[0] && state === "base"
     ? session.inspect(selected[0].domElement, { cascade: "stable" }).properties
     : [];
   const documentTokens = includeDocumentTokens ? session.inspectTokens() : null;
   return {
+    selection: selected,
+    state,
+    session,
     element: primary,
     elements,
     stableProperties,
@@ -82,14 +98,13 @@ export function useBrowserCssInspection(
   const includeDocumentTokens = options.includeDocumentTokens ?? false;
   const latest = useRef({ selected: selectedElements, state, session, includeDocumentTokens });
   latest.current = { selected: selectedElements, state, session, includeDocumentTokens };
-  const [view, setView] = useState<BrowserCssInspectionView>(() =>
-    inspectStableView(
-      session,
-      selectedElements,
-      state,
-      includeDocumentTokens,
-      inspectAuthoredElements(session, selectedElements, state),
-    ));
+  const [view, setView] = useState<ScopedInspectionView>(() => inspectStableView(
+    session,
+    selectedElements,
+    state,
+    includeDocumentTokens,
+    inspectAuthoredElements(session, selectedElements, state),
+  ));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSelectionResolveAtRef = useRef(0);
   const revisionFrameRef = useRef<number | null>(null);
@@ -224,5 +239,10 @@ export function useBrowserCssInspection(
     return () => clearTimeout(timeoutId);
   }, [session, selectedDocument]);
 
-  return view;
+  // Selection effects run after children render. Never expose the previous
+  // element's authored rows while the new selection is waiting for inspection.
+  const matchesSelection = view.session === session && view.state === state
+    && view.selection.length === selectedElements.length
+    && view.selection.every((element, index) => element.domElement === selectedElements[index]?.domElement);
+  return matchesSelection ? view : EMPTY_VIEW;
 }

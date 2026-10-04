@@ -85,11 +85,12 @@ test("dev: incomplete border shorthand decomposes with CSS initials", async ({ p
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("currentcolor");
 });
 
-test("dev: border none exposes style and hides width/color until drawn", async ({ page }) => {
+test("dev: border none hides controls until a border is added", async ({ page }) => {
   await openEditor(page, "/border-conformance");
   await selectCase(page, "border-none-style");
 
-  await expectLinkedBorderStyle(page, "none");
+  await expect(page.locator('[data-test="border-style-settings"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Border", exact: true })).toBeVisible();
   await expect(page.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(0);
   await expect(page.locator('[data-test="token-field"][data-property="border-color"]')).toHaveCount(0);
 });
@@ -114,11 +115,12 @@ test("dev: order-permuted shorthand shows literal hex color not a token chip", a
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="token-chip"]')).toHaveCount(0);
 });
 
-test("dev: border hidden exposes style control", async ({ page }) => {
+test("dev: border hidden hides controls until a border is added", async ({ page }) => {
   await openEditor(page, "/border-conformance");
   await selectCase(page, "border-hidden-style");
 
-  await expectLinkedBorderStyle(page, "hidden");
+  await expect(page.locator('[data-test="border-style-settings"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Border", exact: true })).toBeVisible();
   await expect(page.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(0);
 });
 

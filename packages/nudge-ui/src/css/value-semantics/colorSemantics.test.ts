@@ -4,6 +4,8 @@ import type { ColorOpacity, TokenEntry, TokenTable } from "../model/index.ts";
 import { extractVarCalls } from "./tokenInterpretation.ts";
 import {
   applyColorOpacity,
+  replaceColorPreservingOpacity,
+  withColorOpacity,
   applyColorTokenReplacement,
   colorValueHasEmbeddedAlpha,
   interpretColorOpacity,
@@ -424,4 +426,26 @@ describe("arbitrary input does not throw", () => {
   });
 
 
+});
+
+
+describe("color field replacement", () => {
+  it.each(["#f00", "#ff0000", "#f008", "#ff000088"])("retains percentage precision when applying opacity to %s", (color) => {
+    expect(withColorOpacity(color, "12.3456%")).toEqual({ ok: true, value: "rgb(255 0 0 / 12.3456%)" });
+  });
+
+  it("preserves the previous opacity when replacing a color with a token", () => {
+    expect(replaceColorPreservingOpacity("rgb(0 0 0 / 20%)", "var(--color-danger)", plainCtx()))
+      .toEqual({ ok: true, value: "color-mix(in srgb, var(--color-danger) 20%, transparent)" });
+  });
+
+  it.each(["#f008", "oklch(63% .2 25 / 80%)", "transparent"])("retains the replacement's explicit alpha in %s", (color) => {
+    expect(replaceColorPreservingOpacity("rgb(0 0 0 / 20%)", color, plainCtx()))
+      .toEqual({ ok: true, value: color });
+  });
+
+  it("rejects unsupported replacements without losing the previous opacity", () => {
+    expect(replaceColorPreservingOpacity("rgb(0 0 0 / 20%)", "invalid-color", plainCtx()))
+      .toEqual({ ok: false, reason: "unsupported" });
+  });
 });

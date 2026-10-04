@@ -283,7 +283,7 @@ test("dev: token alias chain resolves correctly", async ({ page }) => {
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-error");
-  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--swatch-color:\s*#dc2626/);
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveCSS("background-color", "rgb(220, 38, 38)");
   await fg.locator('[data-test="token-chip"]').click();
   await expect(page.getByRole("option", { name: "--color-danger #dc2626" })).toBeVisible();
 });
@@ -295,5 +295,5 @@ test("dev: inherited local color tokens remain attributable", async ({ page }) =
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-ink");
-  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--swatch-color:\s*#1a1a2e/);
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveCSS("background-color", "rgb(26, 26, 46)");
 });

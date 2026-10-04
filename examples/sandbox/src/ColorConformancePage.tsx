@@ -22,6 +22,7 @@ const SPECIMENS: StringRecord = {
   "color-token-fallback": "Tokens with fallback values keep the authored fallback intact.",
   "color-token-bg-only": "Background-color only, no foreground token.",
   "color-token-unknown-fallback": "Unknown tokens should surface the raw expression.",
+  "color-opacity-token": "Opacity tokens keep foreground and background alpha separate from color tokens.",
   "color-mix-token": "color-mix() preserves the authored expression with token references.",
   "color-fill-and-stroke": "fill and stroke are treated as color-capable properties.",
   "color-hex-comparison": "A companion element with both foreground and background.",

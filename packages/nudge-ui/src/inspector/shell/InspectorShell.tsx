@@ -24,6 +24,7 @@ import { AgentStatusButton } from "./AgentStatusButton.tsx";
 import { SpacingBox } from "../styleEditors/SpacingBox.tsx";
 import { Typography } from "../styleEditors/Typography.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
+import { BackgroundEditor } from "../styleEditors/BackgroundEditor.tsx";
 import { ColorPicker } from "../styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "../styleEditors/BorderEditor.tsx";
 import { AppearanceSection } from "../styleEditors/AppearanceSection.tsx";
@@ -421,7 +422,7 @@ export function InspectorShell(): ReactElement {
                     <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                     <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
                   </> : null}
-                  <ColorPicker key={`background-${styleState}`} element={selected} selection={styleSelection} property="background-color" entries={tokenEntries} tokenRow={backgroundTokenRow} />
+                  <BackgroundEditor key={`background-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRow={backgroundTokenRow} />
                   <BorderEditor key={`border-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   </div>

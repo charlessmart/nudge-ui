@@ -1,0 +1,111 @@
+.background-editor,
+.background-editor__gradient,
+.background-editor__raw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.background-editor__track {
+  position: relative;
+  height: 28px;
+  margin: var(--space-8) 0 var(--space-12);
+  border: 1px solid var(--border-subtle);
+  background-clip: padding-box;
+  border-radius: var(--radius-4);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.background-editor__stop {
+  position: absolute;
+  top: 19px;
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 2px solid var(--surface-raised-2x);
+  border-radius: var(--radius-4);
+  box-shadow: var(--shadow-outline), 0 2px 4px var(--border-medium);
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.background-editor__stop:active { cursor: grabbing; }
+.background-editor__stop:disabled { cursor: default; }
+
+.background-editor__toolbar {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.background-editor__toolbar > .select,
+.background-editor__toolbar > .control-surface {
+  flex: 1;
+  min-width: 0;
+}
+
+.background-editor__stop-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.background-editor__stop-row > .control-surface { min-width: 0; }
+
+.background-editor__hint {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.image-background {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.image-background__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.image-background__tile {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: var(--control-height-large);
+  min-height: 0;
+  min-width: 0;
+  gap: var(--space-8);
+  padding: 0;
+  text-align: left;
+}
+
+.image-background__tile:hover:not(:disabled) {
+  background: transparent;
+}
+
+.image-background__thumb {
+  width: var(--control-height-large);
+  height: var(--control-height-large);
+  flex: none;
+  object-fit: cover;
+  border-radius: var(--radius-4);
+  background: var(--surface-well);
+}
+
+.image-background__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

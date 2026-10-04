@@ -143,10 +143,11 @@
 
 .agent-status-button__dot {
   position: absolute;
-  top: 3px;
+  top: 50%;
   right: 3px;
   width: 6px;
   height: 6px;
+  transform: translateY(-50%);
   border-radius: 50%;
   background: var(--text-muted);
 }

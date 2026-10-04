@@ -89,7 +89,7 @@ describe("McpConnectionDialog", () => {
     const dialog = document.body.querySelector<HTMLElement>('[data-test="mcp-connection-dialog"]');
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(document.body.querySelector('[data-test="mcp-connection-status"]')?.textContent)
-      .toContain("Project connected · Ask agent to listen");
+      .toContain("MCP Ready - Ask agent to listen");
     expect(document.body.querySelector('[data-test="mcp-connect"]')).toBeNull();
     expect(document.body.querySelector('[data-test="mcp-disconnect"]')).not.toBeNull();
     expect(document.body.querySelector('[data-test="mcp-project-id"]')?.textContent).toBe("fixture-project");

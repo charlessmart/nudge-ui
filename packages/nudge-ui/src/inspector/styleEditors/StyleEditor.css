@@ -84,3 +84,37 @@
   color: var(--text-secondary);
   font-size: var(--font-size-base);
 }
+
+.box-shadow-editor__layers,
+.box-shadow-editor__layer {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.box-shadow-editor__dimensions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.box-shadow-editor__layer {
+  grid-template-columns: minmax(0, 1fr) var(--control-height-large);
+  align-items: center;
+}
+
+.box-shadow-editor__remove {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.box-shadow-editor__color {
+  grid-column: 1;
+}
+
+.box-shadow-editor__dimensions > .control-surface {
+  --control-surface-padding: 2px 4px;
+}
+
+.box-shadow-editor__dimensions .token-field {
+  gap: var(--space-4);
+}

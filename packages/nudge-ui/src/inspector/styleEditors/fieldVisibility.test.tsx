@@ -6,6 +6,8 @@ import { ColorPicker } from "./ColorPicker.tsx";
 import { BoxShadowEditor } from "./BoxShadowEditor.tsx";
 import { BorderEditor } from "./BorderEditor.tsx";
 import { getBrowserCssInspection, disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { setActiveStyleState } from "../shell/styleState.ts";
 import { resetPendingRules } from "../tokens/editActions.ts";
@@ -92,6 +94,26 @@ describe("inspector field visibility", () => {
     expect(handle.host.querySelector('[data-property="inset-vertical"] [data-test="raw-input"]')).not.toBeNull();
   });
 
+  it("does not carry an inspected background into a transparent selection", () => {
+    const colored = makeSelected("Colored").selected;
+    const transparent = { ...colored, cid: "Transparent", domElement: document.createElement("nav") };
+    document.body.appendChild(transparent.domElement);
+    addCss('[data-cid="Colored"] { background-color: rgb(40, 80, 120); }');
+    function InspectedBackground({ element }: { element: SelectedElement }) {
+      const inspection = useBrowserCssInspection(element);
+      return createElement(ColorPicker, {
+        element,
+        property: "background-color",
+        tokenRow: inspection.element?.properties.find((row) => row.property === "background-color") ?? null,
+      });
+    }
+    handle = mount(createElement(InspectedBackground, { element: colored }));
+    expect(handle.host.querySelector('[data-test="raw-input"]')).not.toBeNull();
+    act(() => handle!.root.render(createElement(InspectedBackground, { element: transparent })));
+    expect(handle.host.querySelector('[data-test="raw-input"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="add-color"]')).not.toBeNull();
+  });
+
   it("keeps a background editable after its opacity reaches zero", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { background-color: rgb(40, 80, 120); }');
@@ -105,23 +127,40 @@ describe("inspector field visibility", () => {
     expect(handle.host.querySelector('[data-test="add-color"]')).toBeNull();
   });
 
-  it("keeps a shadow editable after changing it to none", () => {
+  it("keeps a shadow editable after its opacity reaches zero", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { box-shadow: 0 2px 4px black; }');
     const render = () => createElement(BoxShadowEditor, {
       element: selected, onAfterEdit: () => handle!.root.render(render()),
     });
     handle = mount(render());
-    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="raw-input"]')!, "none");
-    expect(handle.host.querySelector<HTMLInputElement>('[data-test="raw-input"]')?.value).toBe("none");
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')!, "0%");
+    expect(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')?.value).toBe("0%");
+    expect(handle.host.querySelector('[data-test="shadow-0-0"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="add-shadow"]')).not.toBeNull();
   });
 
-  it("shows a component's authored zero border rather than treating it as a reset", () => {
+  it("keeps border controls compact for a group with only zero or none borders", () => {
+    const first = makeSelected("Zero").selected;
+    const second = makeSelected("None").selected;
+    addCss('[data-cid="Zero"] { border: 0px solid red; } [data-cid="None"] { border: none; }');
+    const inspection = getBrowserCssInspection();
+    const snapshots = [inspection.inspect(first.domElement), inspection.inspect(second.domElement)];
+    handle = mount(createElement(BorderEditor, {
+      element: second,
+      selection: createStyleSelection([first, second], snapshots, second),
+    }));
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
+  });
+
+  it("keeps an authored zero border compact on initial selection", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { border: 0 solid; }');
     handle = mount(createElement(BorderEditor, {
       element: selected, tokenRows: [...getBrowserCssInspection().inspect(selected.domElement).properties],
     }));
-    expect(handle.host.querySelector('[data-property="border-width"] [data-test="raw-input"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
@@ -20,6 +20,10 @@ import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
 
 export interface ColorPickerProps {
   element: SelectedElement;
+  title?: string;
+  toolbar?: ReactNode;
+  /** Overrides initial presence for sections that use computed paint. */
+  present?: boolean;
   selection?: StyleSelection | null;
   property?: string;
   entries?: TokenEntry[];
@@ -46,14 +50,14 @@ export function isEmptyColorValue(value: string): boolean {
 }
 
 export function ColorPicker(props: ColorPickerProps): ReactElement {
-  const { element, selection, property = "color", entries, tokenRow, onAfterEdit } = props;
+  const { element, selection, property = "color", entries, tokenRow, onAfterEdit, title, toolbar, present } = props;
   const el = element.domElement;
   const selectedElements = selection?.domElements ?? [el];
   const target: EditTarget = selection?.target ?? el;
   const blockedBy = inlineBlockedBy(selectedElements, property);
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const hasColor = hasAuthoredProperty(selection, property, tokenRow)
-    || selectedElements.some((selected) => !isEmptyColorValue(getStateStyleValue(selected, property)));
+  const hasColor = present ?? (hasAuthoredProperty(selection, property, tokenRow)
+    || selectedElements.some((selected) => !isEmptyColorValue(getStateStyleValue(selected, property))));
   const visibility = useFieldVisibility(selectedElements, property, hasColor);
   const showTokenField = visibility.visible;
 
@@ -67,7 +71,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   return (
     <div className={`editor`} data-test="color-picker" data-property={property}>
       <div className="editor__title-row">
-        <div className="editor__title">{colorSectionTitle(property)}</div>
+        <div className="editor__title">{title ?? colorSectionTitle(property)}</div>
         {showTokenField ? (
           <Tooltip content={inlineStyleWarningContent(blockedBy)}>
             <IconButton
@@ -93,6 +97,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
           </IconButton>
         )}
       </div>
+      {showTokenField && toolbar}
       {showTokenField && (
         <div className="color">
           <ControlSurface>

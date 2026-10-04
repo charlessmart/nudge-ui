@@ -13,6 +13,7 @@ const SHORTHAND_SOURCES: StringListRecord = {
   "font-size": ["font"],
   "line-height": ["font"],
   "background-color": ["background"],
+  "background-image": ["background"],
   "row-gap": ["gap"],
   "column-gap": ["gap"],
   "flex-grow": ["flex"],

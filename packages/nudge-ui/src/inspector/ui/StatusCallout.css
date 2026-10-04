@@ -1,8 +1,8 @@
 .status-callout {
-  padding: 12px 14px;
+  padding: var(--space-8) var(--space-12);
   background: var(--surface-control);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-8);
   color: var(--text-secondary);
   font-size: var(--font-size-base);
   line-height: 1.4;
