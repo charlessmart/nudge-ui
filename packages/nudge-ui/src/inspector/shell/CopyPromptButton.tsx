@@ -43,6 +43,10 @@ import {
 import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 
+import { useComments, markCommentsHandedOff, type ElementComment } from "../comments/store.ts";
+import { reconcileComments } from "../comments/verification.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
   readonly settingsSection?: SettingsSection;
@@ -57,6 +61,7 @@ export function CopyPromptButton({
   onSettingsOpenChange,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
+  const comments = useComments();
   const sketches = useSketches();
   const pendingSketches = sketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
@@ -74,6 +79,7 @@ export function CopyPromptButton({
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{
     readonly prompt: string;
+    readonly comments: readonly ElementComment[];
     readonly error: string;
   } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
@@ -91,8 +97,7 @@ export function CopyPromptButton({
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const agentRef = useRef(agent);
   agentRef.current = agent;
-  const hasChanges = changes.length + structuralChanges.length + pendingSketches.length > 0;
-  const changeCount = changes.length + structuralChanges.length + sketches.length;
+  const hasChanges = changes.length + structuralChanges.length + pendingSketches.length + comments.length > 0;
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -115,6 +120,12 @@ export function CopyPromptButton({
     if (agent.state !== "completed" || revision === undefined) return;
     let active = true;
     void verifyAndReconcileAgentDispatch(revision)
+      .then(async (removed) => {
+        for (const [, iframe] of getRegisteredFrames()) {
+          if (iframe.contentDocument) await reconcileComments(iframe.contentDocument);
+        }
+        return removed;
+      })
       .then((removed) => {
         if (!active) return;
         const latest = agentRef.current;
@@ -151,6 +162,8 @@ export function CopyPromptButton({
     && !connecting
     && !working;
   const canSend = agent.paired && agent.listenerActive && !working;
+  const changeCount = changes.length + structuralChanges.length + comments.length
+    + (canSend ? pendingSketches.length : 0);
   const disabled = connecting || working || (!canConnect && !hasChanges);
   const agentStatus = getAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
@@ -187,11 +200,12 @@ export function CopyPromptButton({
     };
     const sketchHandoff = createSketchHandoffSnapshot(pendingSketches);
     const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
-    const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata);
+    const sentComments = [...comments];
+    const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata, sentComments);
     setAgentCompletionStatus(null);
     setSketchFallback(null);
     if (canSend) {
-      const revision = createPromptRevision(changes, structuralChanges, sketchMetadata);
+      const revision = createPromptRevision(changes, structuralChanges, [...sketchMetadata, ...sentComments]);
       recordAgentDispatch(revision, changes, structuralChanges);
       const clientDispatchId = sketchHandoff?.localBatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let attachments = undefined;
@@ -209,6 +223,7 @@ export function CopyPromptButton({
           ...(attachments === undefined ? {} : { attachments }),
         });
         if (response) {
+          markCommentsHandedOff(sentComments);
           if (sketchHandoff) {
             await markSketchesHandingOff(
               sketchHandoff.entries.map((entry) => ({ id: entry.id, revision: entry.revision })),
@@ -225,6 +240,7 @@ export function CopyPromptButton({
           const latestAgent = agentClient.getSnapshot();
           setSketchFallback({
             prompt: text,
+            comments: sentComments,
             error: latestAgent.request?.error
               ?? latestAgent.error
               ?? "The agent did not accept the sketch attachments.",
@@ -237,6 +253,7 @@ export function CopyPromptButton({
           await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId).catch(() => undefined);
           setSketchFallback({
             prompt: text,
+            comments: sentComments,
             error: error instanceof Error ? error.message : "The sketch could not be sent to the agent.",
           });
           return;
@@ -245,6 +262,7 @@ export function CopyPromptButton({
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
+    markCommentsHandedOff(sentComments);
     if (changes.length > 0 || structuralChanges.length > 0) {
       recordClipboardHandoff(changes, structuralChanges);
     }
@@ -368,6 +386,7 @@ export function CopyPromptButton({
             data-test="sketch-copy-fallback"
             onClick={() => {
               void copyToClipboard(sketchFallback.prompt).then(() => {
+                markCommentsHandedOff(sketchFallback.comments);
                 if (changes.length > 0 || structuralChanges.length > 0) {
                   recordClipboardHandoff(changes, structuralChanges);
                 }

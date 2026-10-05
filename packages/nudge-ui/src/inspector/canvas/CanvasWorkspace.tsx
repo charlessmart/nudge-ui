@@ -82,8 +82,10 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
+import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
+
+import { setCommentToolActive } from "../comments/store.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
@@ -139,11 +141,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
   const rendererInteractionsEnabled = interactionTool !== "select";
-  const rendererCursor: RendererCursor = interactionTool === "pan" ? "drag" : "design";
+  const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
     ? "grabbing"
-    : interactionTool === "pan" || boardCursorClass !== ""
+    : boardCursorClass !== ""
       ? PAN_CURSOR
+    : interactionTool === "comment"
+      ? createCommentCursor(boardRef.current)
     : interactionTool === "design"
       ? DESIGN_SELECT_CURSOR
       : undefined;
@@ -290,9 +294,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       spaceHeld,
-      cursor: spaceHeld ? "drag" : "design",
+      cursor: spaceHeld ? "drag" : rendererCursor,
     }, window.location.origin);
-  }, []);
+  }, [rendererCursor]);
 
   const sendInspectorInteractionState = useCallback((
     iframe: HTMLIFrameElement,
@@ -310,6 +314,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       open,
       interactionsEnabled,
       cursor,
+      commentCursor: cursor === "comment" ? createCommentCursor(boardRef.current) : undefined,
     }, window.location.origin);
   }, []);
 
@@ -408,6 +413,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const hostElement = getActiveCanvasFrame();
       if (!hostElement) return;
       stopPanMode();
+      setCommentToolActive(false);
       setInteractionTool(nextTool);
       startSketchCapture(hostElement);
       return;
@@ -415,21 +421,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     if (sketchActive) cancelSketchInteraction();
 
-    if (nextTool === "pan") {
-      if (presentation === "focus") {
-        const board = boardRef.current;
-        setCanvasPresentation("canvas", board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
-      }
-      setInteractionTool(nextTool);
-      spaceHeldRef.current = true;
-      broadcastPanModifier(true);
-      if (!panningRef.current) setBoardCursorClass("is-grabbable");
-      return;
-    }
-
+    setCommentToolActive(nextTool === "comment");
     setInteractionTool(nextTool);
     stopPanMode();
-  }, [broadcastPanModifier, presentation, sketchActive, sketchEnabled, stopPanMode]);
+  }, [sketchActive, sketchEnabled, stopPanMode]);
+
+  useEffect(() => () => setCommentToolActive(false), []);
 
   useEffect(() => {
     if (mode !== "canvas") return;
@@ -669,7 +666,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     function onKeyUp(e: KeyboardEvent): void {
       if (e.code === "Space") {
-        spaceHeldRef.current = interactionTool === "pan";
+        spaceHeldRef.current = false;
         broadcastPanModifier(spaceHeldRef.current);
         if (!panningRef.current) {
           setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");

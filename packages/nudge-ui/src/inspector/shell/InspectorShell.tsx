@@ -74,6 +74,7 @@ import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
 import { clearSketchesForProject } from "../sketch/store.ts";
+import { clearComments } from "../comments/store.ts";
 import { closeSketchNote } from "../sketch/sketchNote.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 
@@ -273,6 +274,7 @@ export function InspectorShell(): ReactElement {
     clearSession();
     clearRestoreCount();
     if (!hasWriteLease()) return;
+    clearComments();
     cancelSketchInteraction();
     closeSketchNote();
     clearSketchClipboardHandoff();

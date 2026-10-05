@@ -120,7 +120,6 @@ export function SketchLayersPanel(): ReactElement | null {
           multiple={items.length > 1}
         />
       ))}
-      <p className="sketch-layers__hint" data-test="sketch-copy-helper">Copy the prompt and each sketch note image into the agent</p>
     </section>
   );
 }

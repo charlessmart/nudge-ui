@@ -209,6 +209,30 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
+  it("excludes sketch notes from the clipboard prompt count", async () => {
+    await initializeSketchStore("handoff-project");
+    const image = new Blob(["png"], { type: "image/png" });
+    await saveSketch({
+      description: "Align the heading",
+      capture: {
+        url: window.location.href, title: "Fixture", timestamp: 1,
+        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
+        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
+      },
+      strokes: [], imageWidth: 1, imageHeight: 1, originalImage: image, annotatedImage: image,
+    });
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = null;
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Copy prompt");
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
+    act(() => restoreChangeRecords([change()]));
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
+  });
+
   it("shows the connected status without a setup action when the agent is not listening", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });

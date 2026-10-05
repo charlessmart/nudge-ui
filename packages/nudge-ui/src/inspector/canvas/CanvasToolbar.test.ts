@@ -20,7 +20,7 @@ describe("canvas toolbar keyboard shortcuts", () => {
   it.each([
     ["KeyI", "select"],
     ["KeyV", "design"],
-    ["KeyH", "pan"],
+    ["KeyC", "comment"],
     ["KeyP", "sketch"],
   ])("maps %s to the corresponding tool", (code, tool) => {
     expect(canvasToolForCode(code)).toBe(tool);

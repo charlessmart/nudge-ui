@@ -6,6 +6,7 @@ import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
+// v21 adds the Comment tool cursor and C shortcut.
 // v20 adds Shift state to element drag messages so spacing handles can snap
 // changes to 8px increments.
 // v19 adds spacing drag gestures (hover point, spacing descriptor, start
@@ -22,7 +23,7 @@ import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 export interface FrameMessage {
   type: string;
@@ -255,7 +256,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 /** Forwards controller-owned keyboard shortcuts from an iframe document. */
@@ -370,7 +371,7 @@ export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcu
   return value === "Backslash"
     || value === "KeyI"
     || value === "KeyV"
-    || value === "KeyH"
+    || value === "KeyC"
     || value === "KeyP"
     || value === "KeyS";
 }

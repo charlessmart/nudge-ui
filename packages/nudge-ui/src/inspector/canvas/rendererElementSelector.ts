@@ -40,7 +40,7 @@ import {
   toSpacingDescriptor,
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
-import { INTERACTION_CURSOR_PROPERTY, rendererCursorValue, type RendererCursor } from "../ui/customCursors.ts";
+import { COMMENT_CURSOR, INTERACTION_CURSOR_PROPERTY, rendererCursorValue, type RendererCursor } from "../ui/customCursors.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -152,6 +152,9 @@ export function installRendererElementSelector(
   const initialCursorPriority = document.documentElement.style.getPropertyPriority("cursor");
   const initialInteractionCursor = document.documentElement.style.getPropertyValue(INTERACTION_CURSOR_PROPERTY);
   const initialInteractionCursorPriority = document.documentElement.style.getPropertyPriority(INTERACTION_CURSOR_PROPERTY);
+  let commentMode = false;
+  let interactionCursor: RendererCursor = "design";
+  let commentCursor = COMMENT_CURSOR;
   let appliedInteractionCursor = rendererCursorValue("design");
   let appliedRootCursor: string | null = null;
   let spacingCursor: {
@@ -162,7 +165,7 @@ export function installRendererElementSelector(
   } | null = null;
 
   function setInteractionCursor(cursor: RendererCursor): void {
-    appliedInteractionCursor = rendererCursorValue(cursor);
+    appliedInteractionCursor = rendererCursorValue(cursor, commentCursor);
     document.documentElement.style.setProperty(INTERACTION_CURSOR_PROPERTY, appliedInteractionCursor);
   }
 
@@ -236,11 +239,11 @@ export function installRendererElementSelector(
     const rect = clear ? null : element.getBoundingClientRect();
     // The handle hit is the only target that starts a drag, so it is the only
     // one that changes the cursor. The area-wide match is purely visual.
-    const rawSpacing = !clear && pending.point
+    const rawSpacing = !commentMode && !clear && pending.point
       ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
       : null;
     const spacing = rawSpacing && rawSpacing.element === element ? rawSpacing : null;
-    const rawHoverSpacing = !clear && pending.point
+    const rawHoverSpacing = !commentMode && !clear && pending.point
       ? getSpacingHoverAtPoint(document, pending.point.x, pending.point.y)
       : null;
     const hoverSpacing = rawHoverSpacing && rawHoverSpacing.element === element ? rawHoverSpacing : null;
@@ -391,11 +394,16 @@ export function installRendererElementSelector(
       return;
     }
     if (message.type === "pan-modifier" && typeof message.spaceHeld === "boolean") {
-      setInteractionCursor(message.spaceHeld ? "drag" : "design");
+      setInteractionCursor(message.spaceHeld ? "drag" : interactionCursor);
       return;
     }
     if (message.type !== "inspector-interaction-state" || typeof message.open !== "boolean") return;
-    setInteractionCursor(message.cursor === "drag" ? "drag" : "design");
+    if (typeof message.commentCursor === "string") commentCursor = message.commentCursor;
+    interactionCursor = message.cursor === "comment" ? "comment" : message.cursor === "drag" ? "drag" : "design";
+    commentMode = interactionCursor === "comment";
+    cancelActiveDrag();
+    clearSpacingCursor();
+    setInteractionCursor(interactionCursor);
     const interactionsEnabled = message.interactionsEnabled === undefined
       ? message.open
       : message.interactionsEnabled === true;
@@ -458,7 +466,7 @@ export function installRendererElementSelector(
 
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
     if (interactionsSuspended) return;
-    if (event.button !== 0) return;
+    if (event.button !== 0 || commentMode) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
     const spacingAffordance = getSpacingAffordanceAtPoint(document, event.clientX, event.clientY);
@@ -640,7 +648,7 @@ export function installRendererElementSelector(
       sendToParent(msg);
       return;
     }
-    if (!lastSelected) return;
+    if (!lastSelected || commentMode) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     if (event.key === "Delete" || event.key === "Backspace") {
@@ -704,7 +712,7 @@ export function installRendererElementSelector(
     document,
     "dblclick",
     (event: MouseEvent) => {
-      if (interactionsSuspended) return;
+      if (interactionsSuspended || commentMode) return;
       const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
       const identity = getRendererIdentity();
       if (!element || !identity) return;

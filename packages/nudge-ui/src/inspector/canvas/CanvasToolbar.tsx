@@ -1,10 +1,9 @@
 import type { ReactElement } from "react";
-import { IconHandStop, IconPointer2, IconSketching } from "@tabler/icons-react";
+import { IconMessageCircle, IconMessageCircleFilled, IconPointer2, IconSketching } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import {
   DesignPointerFilledIcon,
-  PanHandFilledIcon,
   SelectPlayFilledIcon,
   SelectPlayOutlineIcon,
   SketchThickIcon,
@@ -95,12 +94,12 @@ export function CanvasToolbar({
           onToolChange={onToolChange}
         />
         <ToolButton
-          tool="pan"
+          tool="comment"
           activeTool={tool}
-          label="Pan"
-          shortcut="H"
-          icon={<IconHandStop size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          activeIcon={<PanHandFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          label="Comment"
+          shortcut="C"
+          icon={<IconMessageCircle size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<IconMessageCircleFilled size={ICON_SIZE} aria-hidden="true" />}
           onToolChange={onToolChange}
         />
         <ToolButton

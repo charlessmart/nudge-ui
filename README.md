@@ -127,11 +127,19 @@ canvas toolbar has these tools:
 | --- | --- | --- |
 | Select | `I` | Use the app normally. Nudge doesn't intercept clicks. In Canvas view, links open in a new card. |
 | Design | `V` | Click elements to inspect and edit them. The app doesn't receive the click. |
-| Pan | `H` | Drag the canvas. |
+| Comment | `C` | Select an element and leave a note for your coding agent. |
 | Sketch | `P` | Draw on the page. |
 
 In Design, clicks made by scripts, such as `element.click()`, still reach the
 app. Only clicks from a person become selections.
+
+Comments are saved locally for each page and included when you copy or send a
+prompt. Click a comment pin to edit or delete its note. After handoff, Nudge
+automatically removes the comment when the target's rendered content or
+appearance changes at the same viewport size. It checks with inspector previews
+removed. This is a change detection heuristic, not proof that the agent satisfied
+the note. Missing or ambiguous targets keep their comments. Hold Space to pan
+the canvas.
 
 ## Turn Nudge off
 

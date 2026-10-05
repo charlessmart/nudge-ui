@@ -1,4 +1,6 @@
-export type RendererCursor = "design" | "drag";
+import foundationStyles from "./Foundation.css?inline";
+
+export type RendererCursor = "design" | "drag" | "comment";
 
 /** Custom property the renderer sets on its root to drive the interaction cursor. */
 export const INTERACTION_CURSOR_PROPERTY = "--nudge-ui-interaction-cursor";
@@ -98,10 +100,35 @@ export const DRAG_CURSOR_URL = cursorDataUrl(DRAG_CURSOR_SVG);
 export const SKETCH_CURSOR_URL = cursorDataUrl(SKETCH_CURSOR_SVG);
 
 export const DESIGN_SELECT_CURSOR = `url("${DESIGN_SELECT_CURSOR_URL}") 3 4, default`;
+/** Cursor SVGs are separate images, so resolve CSS tokens before encoding them. */
+export function createCommentCursor(tokenSource?: Element | null): string {
+  const styles = tokenSource?.ownerDocument.defaultView?.getComputedStyle(tokenSource);
+  const token = (name: string): string => styles?.getPropertyValue(name).trim()
+    || foundationStyles.match(new RegExp(`${name}:\\s*([^;]+);`))![1]!.trim();
+  const svg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#comment-clip)"><g filter="url(#comment-shadow)">
+<path d="M4.3 16.1L3 20L7.7 19C11.659 20.922 16.608 19.942 19.274 16.707C21.94 13.472 21.5 8.983 18.245 6.206C14.99 3.43 9.926 3.225 6.4 5.726C2.874 8.228 1.976 12.663 4.3 16.1Z" fill="${token("--text-primary")}" stroke="${token("--surface-raised-2x")}" stroke-width="${token("--icon-stroke-width")}" stroke-linecap="round" stroke-linejoin="round"/>
+</g></g>
+<defs>
+<filter id="comment-shadow" x="-0.0000152588" y="1.81214" width="24.0141" height="22.0212" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="0.833333"/><feGaussianBlur stdDeviation="1.25"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="dropShadow"/>
+<feBlend mode="normal" in="SourceGraphic" in2="dropShadow" result="shape"/>
+</filter>
+<clipPath id="comment-clip"><rect width="24" height="24" fill="white"/></clipPath>
+</defs></svg>`;
+  return `url("${cursorDataUrl(svg)}") 3 20, crosshair`;
+}
+
+export const COMMENT_CURSOR = createCommentCursor();
 export const PAN_CURSOR = "grab";
 export const DRAG_CURSOR = `url("${DRAG_CURSOR_URL}") ${DRAG_CURSOR_HOTSPOT.x} ${DRAG_CURSOR_HOTSPOT.y}, grab`;
 export const SKETCH_CURSOR = `url("${SKETCH_CURSOR_URL}") 3 17, crosshair`;
 
-export function rendererCursorValue(cursor: RendererCursor): string {
-  return cursor === "drag" ? PAN_CURSOR : DESIGN_SELECT_CURSOR;
+export function rendererCursorValue(cursor: RendererCursor, commentCursor = COMMENT_CURSOR): string {
+  return cursor === "comment" ? commentCursor : cursor === "drag" ? PAN_CURSOR : DESIGN_SELECT_CURSOR;
 }

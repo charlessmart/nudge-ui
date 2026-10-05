@@ -26,6 +26,8 @@ import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runti
 import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
+import { getComments, type ElementComment } from "../comments/store.ts";
+
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
@@ -381,10 +383,11 @@ export function generatePrompt(
   structuralChanges: readonly StructuralChange[] = [],
   customInstructions: string = DEFAULT_CUSTOM_INSTRUCTIONS,
   sketches: readonly AgentSketchMetadata[] = [],
+  comments: readonly ElementComment[] = getComments(),
 ): string {
   const deduplicated = canonicalizeChanges(changes);
   const structuralIntent = canonicalizeStructuralChanges(structuralChanges);
-  if (deduplicated.length === 0 && structuralIntent.length === 0 && sketches.length === 0) return EMPTY_SENTINEL;
+  if (deduplicated.length === 0 && structuralIntent.length === 0 && sketches.length === 0 && comments.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
@@ -464,6 +467,19 @@ export function generatePrompt(
     sections.push({
       heading: "Structural changes",
       lines: structuralIntent.map(structuralChangeLine),
+    });
+  }
+
+  if (comments.length > 0) {
+    sections.push({
+      heading: "Element comments",
+      lines: comments.flatMap((comment) => [
+        `### <${comment.tag}> (${comment.target.sourceSite.src || "source unknown"})`,
+        `- Page: ${promptText(comment.route)}`,
+        `- Target: ${renderedInstanceDescription(comment.target)}`,
+        `- Note: ${promptText(comment.note)}`,
+        "",
+      ]),
     });
   }
 

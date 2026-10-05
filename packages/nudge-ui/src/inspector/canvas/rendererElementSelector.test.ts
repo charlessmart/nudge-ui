@@ -518,8 +518,8 @@ describe("renderer hover scheduling", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
-      code: "KeyH",
-      key: "h",
+      code: "KeyC",
+      key: "c",
     }));
     document.dispatchEvent(new KeyboardEvent("keydown", {
       bubbles: true,
@@ -557,7 +557,7 @@ describe("renderer hover scheduling", () => {
       ));
     expect(shortcuts).toEqual([
       expect.objectContaining({ phase: "keydown", code: "KeyV" }),
-      expect.objectContaining({ phase: "keydown", code: "KeyH" }),
+      expect.objectContaining({ phase: "keydown", code: "KeyC" }),
       expect.objectContaining({ phase: "keydown", code: "KeyP" }),
       expect.objectContaining({ phase: "keydown", code: "KeyS" }),
       expect.objectContaining({ phase: "keydown", code: "Backslash" }),

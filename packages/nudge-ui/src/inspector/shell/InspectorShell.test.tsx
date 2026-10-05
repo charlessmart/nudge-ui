@@ -11,6 +11,7 @@ import { setCanvasMode } from "../canvas/canvasStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
+import { clearComments, getComments, saveComment } from "../comments/store.ts";
 import { beginInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 
 // Signal to React that the surrounding test environment supports act().
@@ -37,6 +38,7 @@ describe("InspectorShell", () => {
       unmountInspector();
     });
     clearWorkspace();
+    clearComments();
     clearRestoreCount();
     releaseLease();
     host.remove();
@@ -242,6 +244,25 @@ describe("InspectorShell", () => {
       (shadow.querySelector('[data-test="clear-session"]') as HTMLButtonElement).click();
     });
     expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
+    expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+  });
+
+  it("clears persisted comments when comments are the only pending changes", () => {
+    saveComment({
+      id: "heading-comment", route: window.location.href, tag: "h1", note: "Make this welcoming",
+      target: { sourceSite: { cid: "Heading", src: "src/App.tsx:10:3" },
+        locator: { kind: "evidence", occurrence: 0, props: null, text: "Heading" } },
+      baseline: "original", viewport: "800:600", handedOff: false,
+    });
+    act(() => mountInspector(host));
+    expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
+    const clear = host.shadowRoot?.querySelector<HTMLButtonElement>('[data-test="clear-session"]');
+    expect(clear).not.toBeNull();
+    act(() => clear!.click());
+
+    expect(getComments()).toEqual([]);
+    const key = Object.keys(localStorage).find((key) => key.endsWith(":comments:v1"))!;
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual([]);
     expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
   });
 

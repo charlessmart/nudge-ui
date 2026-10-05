@@ -28,6 +28,7 @@ import {
 } from "../projection/textProjection.ts";
 import { SketchChanges } from "../sketch/SketchChanges.tsx";
 import { useSketchStore } from "../sketch/store.ts";
+import { useComments } from "../comments/store.ts";
 
 interface Group {
   key: string;
@@ -98,6 +99,7 @@ function structuralDiagnosticText(diagnostic: StructuralChangeDiagnostic): strin
 
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
   const changes = useChanges();
+  const comments = useComments();
   const sketchStore = useSketchStore();
   const sketches = sketchStore.items;
   const structuralChanges = useSyncExternalStore(
@@ -125,11 +127,12 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
   const groups = useMemo(() => groupChanges(changes), [changes]);
   const total = changes.length + structuralChanges.length + sketches.length;
 
-  if (total === 0 && sketchStore.error === null) return null;
+  const hasLoggedChanges = total > 0 || sketchStore.error !== null;
+  if (!hasLoggedChanges && comments.length === 0) return null;
 
   return (
     <>
-      <Disclosure
+      {hasLoggedChanges ? <Disclosure
         className="changes"
         data-test="changes-log"
         triggerDataTest="changes-toggle"
@@ -264,7 +267,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               <SketchChanges />
             </>
           )}
-      </Disclosure>
+      </Disclosure> : null}
       {onClearSession ? (
         <div className="changes__session-action" data-test="session-actions">
           <Button

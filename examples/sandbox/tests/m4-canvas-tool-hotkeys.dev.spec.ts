@@ -10,9 +10,9 @@ test("dev: canvas tool hotkeys still work after selecting an iframe element", as
   await heading.click();
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
-  await page.keyboard.press("h");
+  await page.keyboard.press("c");
 
-  await expect(page.locator('[data-test="canvas-tool-pan"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toHaveAttribute("data-active", "true");
 });
 
 test("dev: canvas tool hotkeys still work after selecting an iframe button", async ({ page }) => {
@@ -25,15 +25,15 @@ test("dev: canvas tool hotkeys still work after selecting an iframe button", asy
   await button.click({ force: true });
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
-  await page.keyboard.press("h");
+  await page.keyboard.press("c");
 
-  await expect(page.locator('[data-test="canvas-tool-pan"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toHaveAttribute("data-active", "true");
 });
 
 test("dev: canvas tool hotkeys survive an iframe window capture handler", async ({ page }) => {
   await page.addInitScript(() => {
     window.addEventListener("keydown", (event) => {
-      if (event.code === "KeyH") event.stopPropagation();
+      if (event.code === "KeyC") event.stopPropagation();
     }, true);
   });
   await page.goto("/playground");
@@ -45,7 +45,7 @@ test("dev: canvas tool hotkeys survive an iframe window capture handler", async 
   await heading.click();
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
-  await page.keyboard.press("h");
+  await page.keyboard.press("c");
 
-  await expect(page.locator('[data-test="canvas-tool-pan"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toHaveAttribute("data-active", "true");
 });
