@@ -1,0 +1,13 @@
+diff --git a/dist/chunks/rpc.C3q9uwRX.js b/dist/chunks/rpc.C3q9uwRX.js
+index 28760b0bdb659953df78bc156faecde45fa9a7aa..b22a32b7848a473cb9c9469d70e77c6ea8fa4454 100644
+--- a/dist/chunks/rpc.C3q9uwRX.js
++++ b/dist/chunks/rpc.C3q9uwRX.js
+@@ -52,6 +52,8 @@ function createRuntimeRpc(options) {
+         onCancel: setCancel
+       },
+       {
++        // Synchronous UI work on CI can delay worker RPC replies beyond 60 seconds.
++        timeout: 300_000,
+         eventNames: [
+           "onUserConsoleLog",
+           "onFinished",

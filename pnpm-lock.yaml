@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  vitest@2.1.9:
+    hash: 7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53
+    path: patches/vitest@2.1.9.patch
+
 importers:
 
   .:
@@ -34,7 +39,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   examples/mockup-cards:
     dependencies:
@@ -83,7 +88,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   examples/sandbox:
     dependencies:
@@ -166,7 +171,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   examples/sandbox-next:
     dependencies:
@@ -243,7 +248,7 @@ importers:
         version: 5.4.21(@types/node@26.4.1)(lightningcss@1.33.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   examples/sandbox-tailwind-v3:
     dependencies:
@@ -444,7 +449,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/compatibility:
     devDependencies:
@@ -456,7 +461,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/create-nudge-ui:
     dependencies:
@@ -472,7 +477,7 @@ importers:
     devDependencies:
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/mcp:
     dependencies:
@@ -497,7 +502,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/nudge-ui:
     dependencies:
@@ -576,7 +581,7 @@ importers:
         version: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/package-css-fixture: {}
 
@@ -11929,7 +11934,7 @@ snapshots:
     optionalDependencies:
       vite: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)
 
-  vitest@2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0):
+  vitest@2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0))
@@ -11965,7 +11970,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0):
+  vitest@2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@26.4.1)(lightningcss@1.33.0))
