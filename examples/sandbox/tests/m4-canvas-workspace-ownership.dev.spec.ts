@@ -171,7 +171,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.addInitScript(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("nudge-ui-drafts:") && k.endsWith(":v1"),
+        k.startsWith("nudge-ui-drafts:") && k.endsWith(":v2"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
@@ -220,7 +220,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
     // Keep the saved layout and inject stale intent into its authoritative draft.
     await page.addInitScript(() => {
-      const key = Object.keys(localStorage).find((key) => key.startsWith("nudge-ui-drafts:") && key.endsWith(":v1"));
+      const key = Object.keys(localStorage).find((key) => key.startsWith("nudge-ui-drafts:") && key.endsWith(":v2"));
       if (!key) throw new Error("expected persisted draft history");
       const history = JSON.parse(localStorage.getItem(key)!);
       history.drafts[0].contents.changes = [{

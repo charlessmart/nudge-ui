@@ -31,11 +31,11 @@ import {
 } from "../projection/textProjection.ts";
 import { isTextContentChangeListValue } from "../changes/types.ts";
 import {
-  applyWorkspaceProjection,
+  applyDraftProjection,
   type DocumentProjectionAdapter,
   type SerializedManagedStyles,
-  type WorkspaceProjectionPlan,
-} from "../projection/workspaceProjection.ts";
+  type DraftProjectionPlan,
+} from "../projection/draftProjection.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
@@ -69,7 +69,7 @@ const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedMan
 
 function projectionFromReplaceStylesMessage(
   msg: ReplaceStylesMessage,
-): WorkspaceProjectionPlan<SerializedManagedStyles> {
+): DraftProjectionPlan<SerializedManagedStyles> {
   return {
     sourceRevision: msg.revision,
     managedStyles: { css: msg.css },
@@ -282,7 +282,7 @@ export function handleReplaceStyles(
 
   if (msg.revision <= lastAppliedRevision) return false;
 
-  applyWorkspaceProjection(
+  applyDraftProjection(
     rendererDocumentProjectionAdapter,
     projectionFromReplaceStylesMessage(msg),
   );

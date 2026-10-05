@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
-import { IconArtboard, IconBoltFilled, IconLink, IconSparkles } from "@tabler/icons-react";
-import { useCanvasPresentation } from "../canvas/canvasStore.ts";
+import { IconArtboard, IconBoltFilled, IconSparkles } from "@tabler/icons-react";
+import { useCanvasPresentation } from "../canvas/viewStore.ts";
 import { Disclosure } from "../ui/Disclosure.tsx";
 import gridIllustration from "../ui/assets/grid.svg";
 import { getPlatformModifierKey, isMacPlatform } from "./shortcuts.ts";
@@ -18,11 +18,10 @@ export function EmptyState(): ReactElement {
     <div className={`empty-state${canvas ? " empty-state--canvas" : ""}`} data-test="empty-state">
       {canvas ? (
         <div className="empty-state__canvas" data-test="canvas-intro">
-          <h2 className="empty-state__title">Room to explore</h2>
-          <p><span className="empty-state__live-badge"><IconBoltFilled aria-hidden="true" /></span><span><strong>Live app</strong>Edit your real page.</span></p>
-          <p><IconLink aria-hidden="true" /><span><strong>Linked frames</strong>Compare sizes. Share edits.</span></p>
-          <p><IconArtboard aria-hidden="true" /><span><strong>HTML studies</strong>Try an independent design.</span></p>
-          <p><IconSparkles aria-hidden="true" /><span><strong>Your agent</strong>Make changes. Bring pages here.</span></p>
+          <h2 className="empty-state__title">Using the canvas</h2>
+          <p><span className="empty-state__live-badge"><IconBoltFilled aria-hidden="true" /></span><span><strong>Live app</strong>A view of your real running app</span></p>
+          <p><IconArtboard aria-hidden="true" /><span><strong>HTML iterations</strong>Unlinked from live app for isolated changes. Ask your agent to implement in live app once ready.</span></p>
+          <p><IconSparkles aria-hidden="true" /><span><strong>Agent with MCP</strong>Ask your agent to: lay out flows, show page states and create iterations.</span></p>
         </div>
       ) : (
         <>

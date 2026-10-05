@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activateIframeWorkspace, addCanvasVariation, hydrateCanvasStore } from "../canvas/canvasStore.ts";
-import { computeProjectionForCard, resetProjectionRevision, registerCardFrame, unregisterCardFrame, sendProjectionToCard, projectWorkspaceSnapshotToDocument, projectToAllReadyCards, recordCanvasProjectionApplied, getCanonicalFrameProjection } from "../canvas/projection.ts";
-import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
+import { activateIframeWorkspace, addCanvasIteration, hydrateCanvasStore } from "../canvas/canvasStore.ts";
+import { computeProjectionForCard, resetProjectionRevision, registerCardFrame, unregisterCardFrame, sendProjectionToCard, projectDraftToDocument, projectToAllReadyCards, recordCanvasProjectionApplied, getCanonicalFrameProjection } from "../canvas/projection.ts";
+import { draftChangeStore } from "../changes/draftChanges.ts";
 import type { TextContentChangeRecord } from "../changes/types.ts";
 import { getTextContentChangeDiagnostics, recordCanvasTextProjectionReports, resetTextProjectionState } from "../projection/textProjection.ts";
-import { initializeDrafts, activateDraftForCard, createStudyDraft, getDraftForCard, addDraftSketch, sketchBelongsToCard, resetDrafts } from "./store.ts";
+import { loadDrafts, activateDraftForCard, getDraftForCard, assignSketchToDraft, sketchBelongsToCard, resetDrafts } from "./store.ts";
+import type { SketchDocument } from "../sketch/model.ts";
 
 const artifactId = "550e8400-e29b-41d4-a716-446655440000";
 function text(id: string): TextContentChangeRecord {
@@ -30,49 +31,48 @@ afterEach(() => {
 
 function frames() {
   const live = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
-  initializeDrafts("projection", [live.id], { persistent: false });
+  loadDrafts("projection", { persistent: false });
   activateDraftForCard(live.id);
-  workspaceChangeStore.commitChangeRecords([text("live-text")]);
-  const study = addCanvasVariation(live.id, artifactId)!;
-  createStudyDraft(live.id, study.id, artifactId);
-  return { live, study };
+  draftChangeStore.commitChangeRecords([text("live-text")]);
+  const iteration = addCanvasIteration(live.id, artifactId)!;
+  return { live, iteration };
 }
 
-it("accepts an inactive study's reports against its own projection and shows them only for that draft", () => {
-  const { live, study } = frames();
-  activateDraftForCard(study.id);
-  workspaceChangeStore.commitChangeRecords([text("study-text")]);
-  const studyPlan = computeProjectionForCard(study.id);
+it("accepts an inactive iteration's reports against its own projection and shows them only for that draft", () => {
+  const { live, iteration } = frames();
+  activateDraftForCard(iteration.id);
+  draftChangeStore.commitChangeRecords([text("iteration-text")]);
+  const iterationPlan = computeProjectionForCard(iteration.id);
   activateDraftForCard(live.id);
-  recordCanvasTextProjectionReports(study.id, studyPlan.revision, [{ changeId: "study-text", status: "missing" }], studyPlan);
-  expect(getTextContentChangeDiagnostics("study-text")).toEqual([]);
-  activateDraftForCard(study.id);
-  expect(getTextContentChangeDiagnostics("study-text")).toMatchObject([{ status: "missing" }]);
-  workspaceChangeStore.commitChangeRecords([{ ...text("study-text"), after: "Newer" }]);
-  expect(getTextContentChangeDiagnostics("study-text")).toEqual([]);
+  recordCanvasTextProjectionReports(iteration.id, iterationPlan.revision, [{ changeId: "iteration-text", status: "missing" }], iterationPlan);
+  expect(getTextContentChangeDiagnostics("iteration-text")).toEqual([]);
+  activateDraftForCard(iteration.id);
+  expect(getTextContentChangeDiagnostics("iteration-text")).toMatchObject([{ status: "missing" }]);
+  draftChangeStore.commitChangeRecords([{ ...text("iteration-text"), after: "Newer" }]);
+  expect(getTextContentChangeDiagnostics("iteration-text")).toEqual([]);
 });
 
 it("keeps draft revisions and cached plans stable when changing selection", () => {
-  const { live, study } = frames();
+  const { live, iteration } = frames();
   const draft = getDraftForCard(live.id)!;
   const plan = computeProjectionForCard(live.id);
-  activateDraftForCard(study.id);
+  activateDraftForCard(iteration.id);
   activateDraftForCard(live.id);
   expect(getDraftForCard(live.id)?.revision).toBe(draft.revision);
   expect(computeProjectionForCard(live.id)).toBe(plan);
 });
 
-it("copies sketch references into a captured study without inheriting later sketches or pending edits", () => {
+it("starts a captured iteration without the source's sketches or pending edits", () => {
   const { live } = frames();
-  addDraftSketch(getDraftForCard(live.id)!.id, "captured-note");
-  const study = addCanvasVariation(live.id, "660e8400-e29b-41d4-a716-446655440000")!;
-  createStudyDraft(live.id, study.id, study.content.kind === "study" ? study.content.artifactId : "");
-  addDraftSketch(getDraftForCard(live.id)!.id, "later-note");
-  expect(getDraftForCard(study.id)?.contents.changes).toEqual([]);
-  expect(sketchBelongsToCard("captured-note", study.id)).toBe(true);
-  expect(sketchBelongsToCard("later-note", study.id)).toBe(false);
+  // SAFETY: draft ownership reads only the sketch ID and capture URL.
+  const note = { id: "captured-note", capture: { url: window.location.href } } as SketchDocument;
+  assignSketchToDraft(getDraftForCard(live.id)!.id, note.id);
+  const iteration = addCanvasIteration(live.id, "660e8400-e29b-41d4-a716-446655440000")!;
+  expect(getDraftForCard(iteration.id)?.contents.changes).toEqual([]);
+  expect(sketchBelongsToCard(note, live.id)).toBe(true);
+  expect(sketchBelongsToCard(note, iteration.id)).toBe(false);
   expect(getDraftForCard(live.id)?.target).toMatchObject({ kind: "application", route: window.location.origin + "/" });
-  expect(getDraftForCard(study.id)?.target.kind).toBe("html");
+  expect(getDraftForCard(iteration.id)?.target.kind).toBe("html");
 });
 
 it("restores the owning draft with a newer renderer revision after a temporary projection", async () => {
@@ -84,7 +84,7 @@ it("restores the owning draft with a newer renderer revision after a temporary p
   registerCardFrame(live.id, iframe);
   try {
     sendProjectionToCard(live, iframe);
-    const pending = projectWorkspaceSnapshotToDocument(doc, { changes: [], structuralChanges: [] });
+    const pending = projectDraftToDocument(doc, { changes: [], structuralChanges: [] });
     const temporary = postMessage.mock.calls.at(-1)![0];
     projectToAllReadyCards();
     const canonical = postMessage.mock.calls.at(-1)![0];

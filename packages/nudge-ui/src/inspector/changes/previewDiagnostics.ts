@@ -1,4 +1,4 @@
-import { getWorkspaceChanges, getDraftWorkspace } from "./workspaceChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "./draftChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 
 /** A logical document is stable while its live document may be replaced. */
@@ -10,7 +10,7 @@ export interface PreviewDocument {
 
 export interface PreviewAttempt extends PreviewDocument {
   readonly draftId: string;
-  readonly workspaceRevision: number;
+  readonly draftRevision: number;
   readonly attempt: number;
 }
 
@@ -31,7 +31,7 @@ let diagnosticRevision = 0;
 const listeners = new Set<() => void>();
 
 function storageKey(document: PreviewDocument, changeKey: string): string {
-  return `${document.draftId ?? getWorkspaceChanges().draftId}\u0000${document.logicalDocument}\u0000${document.sessionId}\u0000${changeKey}`;
+  return `${document.draftId ?? getActiveDraftChanges().draftId}\u0000${document.logicalDocument}\u0000${document.sessionId}\u0000${changeKey}`;
 }
 
 function sessionKey(document: PreviewDocument): string {
@@ -52,7 +52,7 @@ function notify(): void {
 
 /** Returns the stable host-document identity for this inspector lifetime. */
 export function getHostPreviewDocument(): PreviewDocument {
-  return { ...HOST_DOCUMENT, draftId: getWorkspaceChanges().draftId };
+  return { ...HOST_DOCUMENT, draftId: getActiveDraftChanges().draftId };
 }
 
 /** Starts or replaces the live session for one logical document. */
@@ -95,10 +95,10 @@ export function invalidatePreviewDocumentSession(
 /** Opens a verification attempt for the currently active document session. */
 export function beginPreviewAttempt(
   document: PreviewDocument,
-  revision = getDraftWorkspace(document.draftId ?? getWorkspaceChanges().draftId).revision,
+  revision = getDraftChanges(document.draftId ?? getActiveDraftChanges().draftId).revision,
 ): PreviewAttempt | null {
-  const draftId = document.draftId ?? getWorkspaceChanges().draftId;
-  if (revision !== getDraftWorkspace(draftId).revision || activeSessions.get(document.logicalDocument) !== document.sessionId) {
+  const draftId = document.draftId ?? getActiveDraftChanges().draftId;
+  if (revision !== getDraftChanges(draftId).revision || activeSessions.get(document.logicalDocument) !== document.sessionId) {
     return null;
   }
   const attempt = (attemptsBySession.get(sessionKey(document)) ?? 0) + 1;
@@ -107,7 +107,7 @@ export function beginPreviewAttempt(
   // rejects late publishes per key; wiping would drop every other change's
   // status before it is re-verified (and drop all host status when Canvas
   // verification returns null).
-  return { ...document, draftId, workspaceRevision: revision, attempt };
+  return { ...document, draftId, draftRevision: revision, attempt };
 }
 
 /** Publishes only a result from the active revision, session, and attempt. */
@@ -116,7 +116,7 @@ export function publishPreviewDiagnostic(
   changeKey: string,
   result: PreviewResult,
 ): boolean {
-  if (attempt.workspaceRevision !== getDraftWorkspace(attempt.draftId).revision
+  if (attempt.draftRevision !== getDraftChanges(attempt.draftId).revision
     || activeSessions.get(attempt.logicalDocument) !== attempt.sessionId
     || attemptsBySession.get(sessionKey(attempt)) !== attempt.attempt) {
     return false;
@@ -126,7 +126,7 @@ export function publishPreviewDiagnostic(
   const previous = diagnostics.get(key);
   if (previous
     && previous.changeKey === changeKey
-    && previous.workspaceRevision === attempt.workspaceRevision
+    && previous.draftRevision === attempt.draftRevision
     && previous.attempt === attempt.attempt
     && sameResult(previous.result, result)) {
     return true;
@@ -157,7 +157,7 @@ export function notifyPreviewDiagnostics(): void {
 export function getPreviewDiagnostic(
   changeKey: string,
   logicalDocument = HOST_DOCUMENT.logicalDocument,
-  draftId = getWorkspaceChanges().draftId,
+  draftId = getActiveDraftChanges().draftId,
 ): PreviewDiagnostic | undefined {
   // Pure getter: never sync or notify. It runs on the React render path via
   // StaleChangeIndicator, so side effects here would clear state mid-render.

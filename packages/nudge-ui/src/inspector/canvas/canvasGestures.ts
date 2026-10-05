@@ -1,8 +1,4 @@
-import {
-  MAX_CAMERA_ZOOM,
-  MIN_CAMERA_ZOOM,
-  type CanvasCamera,
-} from "./canvasStore.ts";
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM, type CanvasCamera } from "./viewStore.ts";
 
 export const ZOOM_WHEEL_FACTOR = 1.02;
 

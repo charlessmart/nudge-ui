@@ -1,5 +1,4 @@
-import type { RouteCatalog } from "../../transport/routeCatalog.ts";
-import { handleWorkspaceRequest } from "../../project/workspace.ts";
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
@@ -34,7 +33,7 @@ interface ComponentModule {
 }
 
 /** Serves the prebuilt client and its host-neutral manifest in Astro dev. */
-export function createAstroClientTransportPlugin(getRoutes?: () => RouteCatalog): Plugin {
+export function createAstroClientTransportPlugin(): Plugin {
   let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
   return {
     name: "nudge-ui-astro-client-transport",
@@ -45,7 +44,7 @@ export function createAstroClientTransportPlugin(getRoutes?: () => RouteCatalog)
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        void handleWorkspaceRequest(request, response, { root: server.config.root, framework: "astro", catalog: getRoutes?.() })
+        void handleHtmlArtifactRequest(request, response, server.config.root)
           .then((handled) => { if (!handled) handleClientRequest(server, request, response, next); }).catch(next);
       });
     },

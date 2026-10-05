@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { activateIframeWorkspace, hydrateCanvasStore, updateCardUrl } from "../canvas/canvasStore.ts";
-import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
+import { draftChangeStore } from "../changes/draftChanges.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
-import { initializeDrafts, activateDraftForCard, getDraftForCard, getWorkspaceForCard, resetDrafts } from "./store.ts";
+import { loadDrafts, activateDraftForCard, getDraftForCard, getDraftContentsForCard, resetDrafts } from "./store.ts";
 import { startWorkspaceController } from "../workspace/controller.ts";
 import { applicationTarget } from "./model.ts";
 import { addLinkedFrame } from "../workspace/commands.ts";
@@ -32,33 +32,32 @@ afterEach(() => {
 
 it("shares a page's changes across breakpoints and keeps another page independent", () => {
   const first = activateIframeWorkspace(window.location.origin + "/playground", { width: 800, height: 600 })!;
-  initializeDrafts("pages", [first.id], { persistent: false });
+  loadDrafts("pages", { persistent: false });
   activateDraftForCard(first.id);
-  workspaceChangeStore.commitChangeRecords([change("red")]);
+  draftChangeStore.commitChangeRecords([change("red")]);
   const linked = addLinkedFrame(first.id)!;
   const other = activateIframeWorkspace(window.location.origin + "/examples", { width: 800, height: 600 })!;
-  initializeDrafts("pages", [first.id, linked.id, other.id], { persistent: false });
   activateDraftForCard(other.id);
-  expect(workspaceChangeStore.getSnapshot().changes).toEqual([]);
-  workspaceChangeStore.commitChangeRecords([change("blue")]);
+  expect(draftChangeStore.getSnapshot().changes).toEqual([]);
+  draftChangeStore.commitChangeRecords([change("blue")]);
   activateDraftForCard(linked.id);
-  expect(workspaceChangeStore.getSnapshot().changes).toMatchObject([{ rawValue: "red" }]);
+  expect(draftChangeStore.getSnapshot().changes).toMatchObject([{ rawValue: "red" }]);
   expect(getDraftForCard(first.id)?.id).toBe(getDraftForCard(linked.id)?.id);
-  expect(getWorkspaceForCard(other.id)?.changes).toMatchObject([{ rawValue: "blue" }]);
+  expect(getDraftContentsForCard(other.id)?.changes).toMatchObject([{ rawValue: "blue" }]);
 });
 
 it("retains the sent page's changes when its only frame navigates elsewhere", async () => {
   const first = activateIframeWorkspace(window.location.origin + "/playground", { width: 800, height: 600 })!;
   controller = startWorkspaceController();
-  workspaceChangeStore.commitChangeRecords([change("red")]);
+  draftChangeStore.commitChangeRecords([change("red")]);
   const owner = captureHandoffOwner(first.id);
   recordAgentDispatch(42, [change("red")], [], owner);
   updateCardUrl(first.id, window.location.origin + "/examples");
-  workspaceChangeStore.commitChangeRecords([change("blue")]);
+  draftChangeStore.commitChangeRecords([change("blue")]);
   expect(await verifyAndReconcileAgentDispatch(42)).toBe(0);
-  expect(getWorkspaceForCard(first.id)?.changes).toMatchObject([{ rawValue: "blue" }]);
+  expect(getDraftContentsForCard(first.id)?.changes).toMatchObject([{ rawValue: "blue" }]);
   updateCardUrl(first.id, window.location.origin + "/playground");
-  expect(getWorkspaceForCard(first.id)?.changes).toMatchObject([{ rawValue: "red" }]);
+  expect(getDraftContentsForCard(first.id)?.changes).toMatchObject([{ rawValue: "red" }]);
 });
 
 it("uses query values as page identity while ignoring hashes and the editor parameter", () => {
@@ -71,11 +70,11 @@ it("uses query values as page identity while ignoring hashes and the editor para
 it("returns a navigated frame to its original page when undoing that page's edit", () => {
   const first = activateIframeWorkspace(window.location.origin + "/playground", { width: 800, height: 600 })!;
   controller = startWorkspaceController();
-  workspaceChangeStore.commitChangeRecords([change("red")]);
+  draftChangeStore.commitChangeRecords([change("red")]);
   updateCardUrl(first.id, window.location.origin + "/examples");
-  expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
+  expect(draftChangeStore.undoChange()).toBe(true);
   expect(getDraftForCard(first.id)?.target).toMatchObject({ route: window.location.origin + "/playground" });
-  expect(getWorkspaceForCard(first.id)?.changes).toHaveLength(0);
-  expect(workspaceChangeStore.redoWorkspaceChange()).toBe(true);
-  expect(getWorkspaceForCard(first.id)?.changes).toMatchObject([{ rawValue: "red" }]);
+  expect(getDraftContentsForCard(first.id)?.changes).toHaveLength(0);
+  expect(draftChangeStore.redoChange()).toBe(true);
+  expect(getDraftContentsForCard(first.id)?.changes).toMatchObject([{ rawValue: "red" }]);
 });

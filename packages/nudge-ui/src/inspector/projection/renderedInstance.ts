@@ -1,5 +1,5 @@
 import type { FrameProjection } from "../canvas/projection.ts";
-import { getWorkspaceChanges, getDraftWorkspace } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
@@ -329,7 +329,7 @@ export function recordCanvasRenderedInstanceProjectionReports(
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  const current = getWorkspaceChanges();
+  const current = getActiveDraftChanges();
   reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
@@ -344,7 +344,7 @@ export function getRenderedInstanceChangeDiagnostics(overrideId: string): Render
   const host = reportsByDocument.get(document)?.find((report) => report.overrideId === overrideId);
   if (host) diagnostics.push({ ...host, document: "Inspect" });
   for (const [cardId, entry] of reportsByCanvasCard) {
-    if (entry.draftId !== getWorkspaceChanges().draftId || entry.draftRevision !== getDraftWorkspace(entry.draftId).revision) continue;
+    if (entry.draftId !== getActiveDraftChanges().draftId || entry.draftRevision !== getDraftChanges(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.overrideId === overrideId);
     if (report) diagnostics.push({ ...report, document: `Canvas ${cardId}` });
   }

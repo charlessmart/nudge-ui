@@ -3,18 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementChangeRecord } from "./types.ts";
 import type { StructuralDelete } from "./structuralTypes.ts";
 import * as workspaceLease from "../canvas/workspaceLease.ts";
+import { applicationTarget, targetKey } from "../drafts/model.ts";
 import {
   commitChangeRecords,
   createChangeHistoryGroup,
   commitStructuralChange,
-  getWorkspaceChanges,
-  redoWorkspaceChange,
-  resetWorkspaceChanges,
-  restoreWorkspaceChanges,
-  subscribeWorkspaceChanges,
-  undoWorkspaceChange,
-  workspaceChangeStore,
-} from "./workspaceChanges.ts";
+  getActiveDraftChanges,
+  redoChange,
+  resetDraftChanges,
+  restoreActiveDraftChanges,
+  subscribeActiveDraftChanges,
+  undoChange,
+  draftChangeStore,
+} from "./draftChanges.ts";
 
 const project = (): void => undefined;
 
@@ -42,8 +43,8 @@ const structuralDelete: StructuralDelete = {
   },
 };
 
-describe("WorkspaceChanges", () => {
-  beforeEach(() => resetWorkspaceChanges());
+describe("DraftChanges", () => {
+  beforeEach(() => resetDraftChanges());
 
   it("keeps separate drags and unrelated edits as separate undo steps", () => {
     const firstDrag = createChangeHistoryGroup();
@@ -54,16 +55,16 @@ describe("WorkspaceChanges", () => {
     secondDrag(() => commitChangeRecords([styleChange("padding", "20px")], project));
     secondDrag(() => commitChangeRecords([styleChange("padding", "24px")], project));
 
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toMatchObject([
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().changes).toMatchObject([
       { property: "padding", rawValue: "16px" },
       { property: "color", rawValue: "red" },
     ]);
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toMatchObject([{ property: "padding", rawValue: "16px" }]);
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toEqual([]);
-    expect(undoWorkspaceChange(project)).toBe(false);
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().changes).toMatchObject([{ property: "padding", rawValue: "16px" }]);
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().changes).toEqual([]);
+    expect(undoChange(project)).toBe(false);
   });
 
   it("does not group an unrelated edit made between gesture updates", () => {
@@ -71,8 +72,8 @@ describe("WorkspaceChanges", () => {
     drag(() => commitChangeRecords([styleChange("padding", "8px")], project));
     commitChangeRecords([styleChange("color", "red")], project);
     drag(() => commitChangeRecords([styleChange("padding", "16px")], project));
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toMatchObject([
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().changes).toMatchObject([
       { property: "padding", rawValue: "8px" },
       { property: "color", rawValue: "red" },
     ]);
@@ -83,29 +84,29 @@ describe("WorkspaceChanges", () => {
     commitStructuralChange(structuralDelete, project);
     commitChangeRecords([styleChange("background", "blue")], project);
 
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges()).toMatchObject({
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges()).toMatchObject({
       changes: [{ property: "color" }],
       structuralChanges: [structuralDelete],
     });
 
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().structuralChanges).toEqual([]);
-    expect(redoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().structuralChanges).toEqual([structuralDelete]);
+    expect(undoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().structuralChanges).toEqual([]);
+    expect(redoChange(project)).toBe(true);
+    expect(getActiveDraftChanges().structuralChanges).toEqual([structuralDelete]);
   });
 
   it("publishes one complete snapshot for restore", () => {
     const observed: Array<{ changes: number; structuralChanges: number }> = [];
-    const unsubscribe = subscribeWorkspaceChanges(() => {
-      const current = getWorkspaceChanges();
+    const unsubscribe = subscribeActiveDraftChanges(() => {
+      const current = getActiveDraftChanges();
       observed.push({
         changes: current.changes.length,
         structuralChanges: current.structuralChanges.length,
       });
     });
 
-    restoreWorkspaceChanges({
+    restoreActiveDraftChanges({
       changes: [styleChange("color", "red")],
       structuralChanges: [structuralDelete],
     }, project);
@@ -115,8 +116,8 @@ describe("WorkspaceChanges", () => {
   });
 
   it("exposes the complete snapshot and preserves commit and undo results", () => {
-    expect(workspaceChangeStore.getSnapshot()).toEqual({
-      draftId: "workspace",
+    expect(draftChangeStore.getSnapshot()).toEqual({
+      draftId: targetKey(applicationTarget()),
       revision: 0,
       changes: [],
       structuralChanges: [],
@@ -125,10 +126,10 @@ describe("WorkspaceChanges", () => {
     });
 
     const change = styleChange("color", "red");
-    expect(workspaceChangeStore.commitChangeRecords([])).toBe("unchanged");
-    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("applied");
-    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("unchanged");
-    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+    expect(draftChangeStore.commitChangeRecords([])).toBe("unchanged");
+    expect(draftChangeStore.commitChangeRecords([change])).toBe("applied");
+    expect(draftChangeStore.commitChangeRecords([change])).toBe("unchanged");
+    expect(draftChangeStore.getSnapshot()).toMatchObject({
       revision: 1,
       changes: [change],
       structuralChanges: [],
@@ -136,15 +137,15 @@ describe("WorkspaceChanges", () => {
       canRedo: false,
     });
 
-    expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
-    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+    expect(draftChangeStore.undoChange()).toBe(true);
+    expect(draftChangeStore.getSnapshot()).toMatchObject({
       revision: 2,
       changes: [],
       canUndo: false,
       canRedo: true,
     });
-    expect(workspaceChangeStore.redoWorkspaceChange()).toBe(true);
-    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+    expect(draftChangeStore.redoChange()).toBe(true);
+    expect(draftChangeStore.getSnapshot()).toMatchObject({
       revision: 3,
       changes: [change],
       canUndo: true,
@@ -153,8 +154,8 @@ describe("WorkspaceChanges", () => {
   });
 
   it("does not expose mutable canonical records through a snapshot", () => {
-    workspaceChangeStore.commitChangeRecords([styleChange("color", "red")]);
-    const current = workspaceChangeStore.getSnapshot();
+    draftChangeStore.commitChangeRecords([styleChange("color", "red")]);
+    const current = draftChangeStore.getSnapshot();
     const change = current.changes[0] as ElementChangeRecord;
 
     expect(Object.isFrozen(current)).toBe(true);
@@ -164,14 +165,14 @@ describe("WorkspaceChanges", () => {
     expect(() => {
       change.source.file = "src/Other.tsx";
     }).toThrow();
-    expect(workspaceChangeStore.getSnapshot().changes[0]).toMatchObject({
+    expect(draftChangeStore.getSnapshot().changes[0]).toMatchObject({
       source: { file: "src/Button.tsx" },
     });
   });
 
   it("rejects a duplicate structural id without publishing or adding history", () => {
     let notifications = 0;
-    const unsubscribe = subscribeWorkspaceChanges(() => {
+    const unsubscribe = subscribeActiveDraftChanges(() => {
       notifications += 1;
     });
 
@@ -184,22 +185,22 @@ describe("WorkspaceChanges", () => {
       },
     }, project)).toBe(false);
 
-    expect(getWorkspaceChanges()).toMatchObject({
+    expect(getActiveDraftChanges()).toMatchObject({
       revision: 1,
       structuralChanges: [structuralDelete],
     });
     expect(notifications).toBe(1);
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(undoWorkspaceChange(project)).toBe(false);
+    expect(undoChange(project)).toBe(true);
+    expect(undoChange(project)).toBe(false);
     unsubscribe();
   });
 
   it("preserves blocked as distinct from unchanged", () => {
     const canWrite = vi.spyOn(workspaceLease, "canWriteWorkspace").mockReturnValue(false);
 
-    expect(workspaceChangeStore.commitChangeRecords([styleChange("color", "red")])).toBe("blocked");
-    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
-      draftId: "workspace",
+    expect(draftChangeStore.commitChangeRecords([styleChange("color", "red")])).toBe("blocked");
+    expect(draftChangeStore.getSnapshot()).toMatchObject({
+      draftId: targetKey(applicationTarget()),
       revision: 0,
       changes: [],
     });

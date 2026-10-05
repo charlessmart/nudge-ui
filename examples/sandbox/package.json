@@ -18,7 +18,8 @@
     "@nudge-ui/package-css-fixture": "workspace:*",
     "nudge-ui": "workspace:*",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
     "@nudge-ui/compatibility": "workspace:*",

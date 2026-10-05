@@ -1,7 +1,8 @@
-import { getDraftForCard } from "../drafts/store.ts";
-import { getWorkspaceChanges, type WorkspaceContents } from "../changes/workspaceChanges.ts";
+import { draftIdForCard } from "../drafts/store.ts";
+import { getDraftChanges, getActiveDraftChanges, type DraftContents } from "../changes/draftChanges.ts";
 import type { CanvasCard } from "./canvasStore.ts";
-import { getCanvasMode, getCanvasCards } from "./canvasStore.ts";
+import { getCanvasCards } from "./canvasStore.ts";
+import { getCanvasMode } from "./viewStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import {
   clearCanvasRenderedInstanceProjectionReports,
@@ -18,10 +19,10 @@ import {
   type PreviewDocument,
 } from "../changes/previewDiagnostics.ts";
 import {
-  compileWorkspaceProjection,
+  compileDraftProjection,
   type CompiledManagedStyles,
-  type WorkspaceProjectionPlan,
-} from "../projection/workspaceProjection.ts";
+  type DraftProjectionPlan,
+} from "../projection/draftProjection.ts";
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
@@ -36,7 +37,7 @@ export const WORKSPACE_ID = typeof crypto !== "undefined" && typeof crypto.rando
 let revision = 0;
 let lastRulesKey: string | null = null;
 let lastPeekActive = false;
-export interface FrameProjection extends WorkspaceProjectionPlan<CompiledManagedStyles> {
+export interface FrameProjection extends DraftProjectionPlan<CompiledManagedStyles> {
   readonly draftId: string;
   readonly draftRevision: number;
   readonly revision: number;
@@ -70,7 +71,7 @@ function createPreviewDocumentIdentity(cardId: string): PreviewDocument {
   const previewDocument = {
     logicalDocument: `canvas:${cardId}`,
     sessionId: `canvas-session-${nextPreviewSessionId++}`,
-    draftId: getDraftForCard(cardId)?.id ?? getWorkspaceChanges().draftId,
+    draftId: draftIdForCard(cardId) ?? getActiveDraftChanges().draftId,
   };
   previewDocuments.set(cardId, previewDocument);
   return previewDocument;
@@ -93,7 +94,7 @@ export function invalidateCanvasPreviewDocument(cardId: string): void {
   previewDocuments.delete(cardId);
 }
 
-function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): string {
+function projectionKey(plan: DraftProjectionPlan<CompiledManagedStyles>): string {
   // Revision ordering protects every controller-owned projection dimension.
   // In particular, a delete-only snapshot has empty CSS but must still advance
   // past the snapshot already accepted by ready Canvas renderers.
@@ -101,7 +102,7 @@ function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): st
 }
 
 export function computeProjection() {
-  const plan = compileWorkspaceProjection(getWorkspaceChanges());
+  const plan = compileDraftProjection(getActiveDraftChanges());
   if (isOriginalPreviewActive()) {
     // Hold-to-view-original: frames show the page without inspector changes
     // while canonical intent (and its projection key) stays untouched.
@@ -137,13 +138,13 @@ export function computeProjection() {
 }
 
 export function computeProjectionForCard(cardId: string): FrameProjection {
-  const draft = getDraftForCard(cardId);
-  const workspace = draft ? { ...draft.contents, revision: draft.revision, draftId: draft.id } : getWorkspaceChanges();
+  const draftId = draftIdForCard(cardId);
+  const workspace = draftId ? getDraftChanges(draftId) : getActiveDraftChanges();
   const peek = isOriginalPreviewActive();
   const cached = draftPlans.get(workspace.draftId);
   if (cached && cached.plan.draftRevision === workspace.revision && cached.peek === peek) return cached.plan;
   const source = peek ? { ...workspace, changes: [], structuralChanges: [] } : workspace;
-  const compiled = compileWorkspaceProjection(source);
+  const compiled = compileDraftProjection(source);
   const plan: FrameProjection = { ...compiled, draftId: workspace.draftId, draftRevision: workspace.revision, css: compiled.managedStyles.css, revision: ++revision };
   draftPlans.set(workspace.draftId, { peek, plan });
   return plan;
@@ -152,10 +153,11 @@ export function computeProjectionForCard(cardId: string): FrameProjection {
 export function getCanonicalFrameProjection(cardId: string, expectedRevision: number): FrameProjection | null {
   const state = frameProjectionStates.get(cardId);
   const plan = state?.canonicalProjection;
-  const draft = getDraftForCard(cardId);
+  const draftId = draftIdForCard(cardId);
+  const draft = draftId ? getDraftChanges(draftId) : null;
   if (!state || !previewDocuments.has(cardId) || state.iframe.contentDocument !== state.document
     || !plan || plan.revision !== expectedRevision || state.sentRevision !== expectedRevision
-    || (draft && (draft.id !== plan.draftId || draft.revision !== plan.draftRevision))) return null;
+    || (draft && (draft.draftId !== plan.draftId || draft.revision !== plan.draftRevision))) return null;
   return plan;
 }
 
@@ -234,14 +236,14 @@ function sendProjectionMessage(
 }
 
 /** Temporarily projects a snapshot through the renderer that owns the document. */
-export async function projectWorkspaceSnapshotToDocument(
+export async function projectDraftToDocument(
   doc: Document,
-  snapshot: WorkspaceContents,
+  snapshot: DraftContents,
 ): Promise<number | null> {
   const entry = [...frameProjectionStates.entries()].find(([, state]) => state.document === doc);
   if (!entry) return null;
   const [cardId, state] = entry;
-  const plan = compileWorkspaceProjection({ ...snapshot, revision: 0 });
+  const plan = compileDraftProjection({ ...snapshot, revision: 0 });
   revision += 1;
   sendProjectionMessage(
     cardId,

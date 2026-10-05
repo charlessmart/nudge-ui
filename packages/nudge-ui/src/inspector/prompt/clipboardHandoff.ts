@@ -1,7 +1,7 @@
 import { changeKey } from "../changes/model.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
-import { getDraftWorkspace, getWorkspaceChanges, subscribeWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getDraftChanges, getActiveDraftChanges, subscribeActiveDraftChanges } from "../changes/draftChanges.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {
   captureHandoffOwner,
@@ -103,10 +103,10 @@ export function subscribeClipboardHandoff(listener: () => void): () => void {
 }
 
 export function getClipboardHandoffRevision(): number { return revision; }
-export function getLastClipboardReconciledCount(): number { return reconciledCounts.get(getWorkspaceChanges().draftId) ?? 0; }
+export function getLastClipboardReconciledCount(): number { return reconciledCounts.get(getActiveDraftChanges().draftId) ?? 0; }
 
 function matchingRecords(snapshot: ClipboardDraftHandoff) {
-  const workspace = getDraftWorkspace(snapshot.owner.draftId);
+  const workspace = getDraftChanges(snapshot.owner.draftId);
   const changes = new Map(snapshot.changes.map((entry) => [entry.key, entry.fingerprint]));
   const structures = new Map(snapshot.structuralChanges.map((entry) => [entry.key, entry.fingerprint]));
   return {
@@ -163,7 +163,7 @@ export function startClipboardHandoffController(doc: Document = document): () =>
   const visible = () => { if (doc.visibilityState === "visible") schedule(); };
   documentRevisions(doc);
   const stopRevision = subscribeDocumentRevision(doc, schedule);
-  const stopChanges = subscribeWorkspaceChanges(pruneCheckpoints);
+  const stopChanges = subscribeActiveDraftChanges(pruneCheckpoints);
   view?.addEventListener("focus", schedule);
   view?.addEventListener("pageshow", schedule);
   doc.addEventListener("visibilitychange", visible);

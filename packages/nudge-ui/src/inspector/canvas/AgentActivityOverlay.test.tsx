@@ -18,10 +18,10 @@ describe("rendered source activity attribution", () => {
     const file = { ...edit("src/Card.tsx"), operation: "read" as const };
     expect(attributeActivity({ kind: "route", url: "http://localhost/" }, document, [file])).toEqual({ files: [file], elements: [] });
   });
-  it("targets study files independently of their captured application source", () => {
+  it("targets iteration files independently of their captured application source", () => {
     const document = new DOMParser().parseFromString('<div data-src="src/Card.tsx:10:1"></div>', "text/html");
-    const content = { kind: "study" as const, sourceUrl: "http://localhost/", artifactId: "study-1" };
-    const file = edit(".nudge/artifacts/study-1/document.html");
+    const content = { kind: "iteration" as const, sourceUrl: "http://localhost/", artifactId: "iteration-1" };
+    const file = edit(".nudge/artifacts/iteration-1/document.html");
     expect(attributeActivity(content, document, [edit("src/Card.tsx"), file])).toEqual({ files: [file], elements: [] });
   });
 });

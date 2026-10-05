@@ -114,7 +114,7 @@ export function SketchLayersPanel(): ReactElement | null {
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const cardId = selectedCardId ?? focusedCardId;
-  const visibleItems = items.filter((item) => sketchBelongsToCard(item.document.id, cardId));
+  const visibleItems = items.filter((item) => sketchBelongsToCard(item.document, cardId));
   if (visibleItems.length === 0) return null;
 
   return (

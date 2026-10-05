@@ -2,9 +2,7 @@ import { contentSourceUrl } from "./frameContent.ts";
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  getCanvasMode,
   getCanvasCards,
-  setCanvasMode,
   addCanvasCard,
   removeCanvasCard,
   updateCardTitle,
@@ -18,23 +16,27 @@ import {
   getSelectedCardId,
   hydrateCanvasStore,
   resizeCard,
+  fitAllCards,
+  subscribe,
+  activateIframeWorkspace,
+  PRIMARY_CARD_INSET,
+  setCardPosition,
+  addCanvasIteration,
+  CARD_GAP,
+} from "./canvasStore.ts";
+import {
+  getCanvasMode,
+  setCanvasMode,
   getBoardCamera,
   setBoardCamera,
-  fitAllCards,
   hasFitAllRan,
   resetFitAllFlag,
   MIN_CAMERA_ZOOM,
   MAX_CAMERA_ZOOM,
-  subscribe,
-  activateIframeWorkspace,
-  PRIMARY_CARD_INSET,
   setCanvasPresentation,
-  setCardPosition,
-  moveFrameGroup,
-  addCanvasVariation,
-  CARD_GAP,
+  subscribeCanvasView,
   type CanvasMode,
-} from "./canvasStore.ts";
+} from "./viewStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 
 function resetAllCards(): void {
@@ -65,7 +67,7 @@ describe("canvasStore mode transitions", () => {
 
   it("subscribe fires on mode change", () => {
     const received: CanvasMode[] = [];
-    const unsub = subscribe(() => received.push(getCanvasMode()));
+    const unsub = subscribeCanvasView(() => received.push(getCanvasMode()));
     setCanvasMode("canvas");
     setCanvasMode("inspect");
     expect(received).toEqual(["canvas", "inspect"]);
@@ -74,7 +76,7 @@ describe("canvasStore mode transitions", () => {
 
   it("subscribe does not fire on no-op transitions", () => {
     let count = 0;
-    const unsub = subscribe(() => count++);
+    const unsub = subscribeCanvasView(() => count++);
     setCanvasMode("canvas");
     count = 0;
     setCanvasMode("canvas");
@@ -490,7 +492,7 @@ describe("canvasStore camera", () => {
 
   it("notifies listeners on camera change", () => {
     let fired = false;
-    const unsub = subscribe(() => { fired = true; });
+    const unsub = subscribeCanvasView(() => { fired = true; });
     setBoardCamera({ x: 10, y: 20, zoom: 2 });
     expect(fired).toBe(true);
     unsub();
@@ -556,7 +558,7 @@ describe("canvasStore fitAllCards", () => {
   it("notifies listeners when fit runs", () => {
     addCanvasCard("http://localhost:5173/about", "About");
     let fired = false;
-    const unsub = subscribe(() => { fired = true; });
+    const unsub = subscribeCanvasView(() => { fired = true; });
     fitAllCards();
     expect(fired).toBe(true);
     unsub();
@@ -731,10 +733,10 @@ describe("canvasStore card selection", () => {
 });
 
 
-describe("linked live frame groups", () => {
+describe("independent linked live frames", () => {
   beforeEach(resetAllCards);
 
-  it("inserts a duplicate beside its source and pushes an overlapping neighboring group intact", () => {
+  it("inserts a duplicate beside its source and makes room among individual neighbors", () => {
     const source = addCanvasCard("http://localhost:5173/first");
     resizeCard(source.id, 400, 300);
     const neighbor = addCanvasCard("http://localhost:5173/second");
@@ -745,35 +747,38 @@ describe("linked live frame groups", () => {
     const next = snapshot.find((card) => card.id === neighbor.id)!;
     const nextCopy = snapshot.find((card) => card.id === neighborCopy.id)!;
     expect(copy.x).toBe(original.x + original.width + CARD_GAP);
-    expect(copy.groupId).toBe(original.groupId);
+    expect(copy.groupId).toBeUndefined();
+    expect(original.groupId).toBeUndefined();
     expect(next.x).toBe(copy.x + copy.width + CARD_GAP);
     expect(nextCopy.x - next.x).toBe(400 + CARD_GAP);
-    expect(nextCopy.groupId).toBe(next.groupId);
+    expect(nextCopy.groupId).toBeUndefined();
+    expect(next.groupId).toBeUndefined();
   });
 
-  it("moves linked frames only as a group and keeps their order when resizing", () => {
+  it("moves, resizes, and removes a linked view without repositioning its peers", () => {
     const source = addCanvasCard("http://localhost:5173/first");
     resizeCard(source.id, 400, 300);
     const copy = duplicateCard(source.id)!;
-    setCardPosition(copy.id, 9999, 9999);
-    expect(getCanvasCards().find((card) => card.id === copy.id)!.x).toBe(440);
-    moveFrameGroup(copy.groupId!, 75, 35);
-    resizeCard(source.id, 500, 300);
-    const snapshot = getCanvasCards();
-    expect(snapshot.find((card) => card.id === source.id)).toMatchObject({ x: 75, y: 35 });
-    expect(snapshot.find((card) => card.id === copy.id)).toMatchObject({ x: 615, y: 35 });
+    setCardPosition(copy.id, 800, 600);
+    resizeCard(source.id, 500, 400, { x: -100, y: -100 });
+    expect(getCanvasCards()).toMatchObject([
+      { id: source.id, x: -100, y: -100, width: 500, height: 400 },
+      { id: copy.id, x: 800, y: 600, width: 400, height: 300 },
+    ]);
+    removeCanvasCard(copy.id);
+    expect(getCanvasCards()).toMatchObject([{ id: source.id, x: -100, y: -100, width: 500, height: 400 }]);
   });
 
-  it("adds independent variations below a group or at a drop position without changing existing frames", () => {
+  it("adds iterations below their source or at a drop position without changing existing frames", () => {
     const source = addCanvasCard("http://localhost:5173/first");
     resizeCard(source.id, 400, 300);
     const copy = duplicateCard(source.id)!;
     const before = getCanvasCards();
-    const variation = addCanvasVariation(copy.id, "550e8400-e29b-41d4-a716-446655440000")!;
+    const iteration = addCanvasIteration(copy.id, "550e8400-e29b-41d4-a716-446655440000")!;
     expect(getCanvasCards().slice(0, 2)).toEqual(before);
-    expect(variation).toMatchObject({ x: copy.x, y: 380, width: copy.width, height: copy.height });
-    expect(variation.groupId).toBeUndefined();
-    const dropped = addCanvasVariation(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
+    expect(iteration).toMatchObject({ x: copy.x, y: 380, width: copy.width, height: copy.height });
+    expect(iteration.groupId).toBeUndefined();
+    const dropped = addCanvasIteration(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
     expect(dropped).toMatchObject({ x: -100, y: 150 });
     expect(getCanvasCards().slice(0, 2)).toEqual(before);
     hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });

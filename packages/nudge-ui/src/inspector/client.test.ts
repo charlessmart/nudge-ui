@@ -55,7 +55,7 @@ afterEach(() => {
 });
 
 describe("subscribeToManifestReloads", () => {
-  it("prepares missing element identities in an HTML variation using a React host manifest", async () => {
+  it("prepares missing element identities in an HTML iteration using a React host manifest", async () => {
     const previousUrl = window.location.href;
     window.history.replaceState(null, "", "/__nudge_ui__/artifacts/550e8400-e29b-41d4-a716-446655440000/preview");
     const parent = document.createElement("section");

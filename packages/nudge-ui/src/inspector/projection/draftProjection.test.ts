@@ -6,13 +6,13 @@ import type {
   TextContentChangeRecord,
 } from "../changes/types.ts";
 import type { StructuralDelete } from "../changes/structuralTypes.ts";
-import type { WorkspaceChangesSnapshot } from "../changes/workspaceChanges.ts";
+import type { DraftChangesSnapshot } from "../changes/draftChanges.ts";
 import {
-  applyWorkspaceProjection,
-  compileWorkspaceProjection,
+  applyDraftProjection,
+  compileDraftProjection,
   type CompiledManagedStyles,
   type DocumentProjectionAdapter,
-} from "./workspaceProjection.ts";
+} from "./draftProjection.ts";
 
 const styleChange: ElementChangeRecord = {
   cid: "Button",
@@ -79,7 +79,7 @@ const componentChange = makeComponentChange({
   after: true,
 });
 
-function snapshot(): WorkspaceChangesSnapshot {
+function snapshot(): DraftChangesSnapshot {
   return {
     draftId: "workspace",
     revision: 4,
@@ -92,7 +92,7 @@ function snapshot(): WorkspaceChangesSnapshot {
 
 describe("workspace projection", () => {
   it("compiles every projection dimension from one snapshot", () => {
-    const plan = compileWorkspaceProjection(snapshot());
+    const plan = compileDraftProjection(snapshot());
 
     expect(plan.sourceRevision).toBe(4);
     expect(plan.structuralChanges).toEqual([structuralDelete]);
@@ -119,7 +119,7 @@ describe("workspace projection", () => {
       applyManagedStyles: () => calls.push("styles"),
     };
 
-    applyWorkspaceProjection(adapter, compileWorkspaceProjection(snapshot()));
+    applyDraftProjection(adapter, compileDraftProjection(snapshot()));
 
     expect(calls).toEqual(["structural", "instances", "text", "components", "styles"]);
   });

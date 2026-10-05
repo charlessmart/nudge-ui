@@ -12,8 +12,9 @@ import {
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
+import { removeFrame } from "../workspace/commands.ts";
 import {
-  appendLinkedGroupCards,
+  appendAgentRouteCards,
   getFrameGroup,
   getFrameGroups,
   setFrameGroup,
@@ -23,12 +24,10 @@ import {
   focusCard,
   focusCanvasCards,
   getCanvasCards,
-  getCanvasMode,
   getFocusedCardId,
-  removeCanvasCard,
-  setCanvasMode,
   type CanvasCard,
 } from "./canvasStore.ts";
+import { getCanvasMode, setCanvasMode } from "./viewStore.ts";
 
 /**
  * Renderer acknowledgements are deliberately shorter than the companion's
@@ -326,9 +325,9 @@ function toProtocolGroup(groupId: string): CanvasGroup {
   const group = getFrameGroup(groupId);
   return {
     id: groupId,
-    label: (group?.kind === "agent" ? group.label : ""),
+    label: group?.label ?? "",
     owner: "agent",
-    routes: (group?.kind === "agent" ? group.routes : []).map((route) => ({
+    routes: (group?.routes ?? []).map((route) => ({
       url: route.url,
       ...(route.title === undefined || route.title === null ? {} : { title: route.title }),
       ...(route.label === undefined ? {} : { label: route.label }),
@@ -350,7 +349,7 @@ export function readCanvasState(): CanvasState {
     : undefined;
   return {
     mode: getCanvasMode(),
-    groups: getFrameGroups().filter((group) => group.kind === "agent").map((group) => group.id)
+    groups: getFrameGroups().map((group) => group.id)
       .filter((groupId) => groupCardIds(groupId).length > 0)
       .map(toProtocolGroup),
     focusedGroupId: focusedCard?.groupId && getFrameGroup(focusedCard.groupId)?.kind === "agent"
@@ -380,8 +379,6 @@ export async function presentAgentRoutes(
     if (!isNonEmptyString(groupId) || groupId.length > AGENT_PROTOCOL_LIMITS.groupId) {
       throw new AgentPresentationError("invalid-command", "A route group ID is required.");
     }
-    // Rejects reuse of an id that already groups frames on the canvas, whether
-    // from this bridge or from a user-created linked group.
     const collides = getFrameGroup(groupId) !== undefined
       || getCanvasCards().some((card) => card.groupId === groupId);
     if (collides) {
@@ -394,7 +391,7 @@ export async function presentAgentRoutes(
     setCanvasMode("canvas");
     const cards = batchCanvasChanges(() => {
       setFrameGroup({ id: groupId, kind: "agent", label, agentId, routes: routes.map((route) => ({ ...route })) });
-      return appendLinkedGroupCards(
+      return appendAgentRouteCards(
       groupId,
       routes.map((route) => ({
         url: route.url,
@@ -460,7 +457,7 @@ export function removeOwnAgentGroup(
     );
   }
   const cardIds = groupCardIds(groupId);
-  for (const cardId of cardIds) removeCanvasCard(cardId);
+  for (const cardId of cardIds) removeFrame(cardId);
   removeFrameGroup(groupId);
   forgetAgentRendererReadiness(cardIds);
   return readCanvasState();

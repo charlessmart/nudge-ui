@@ -7,43 +7,10 @@
   border-radius: 4px;
 }
 
-.canvas-agent-activity__beam {
-  position: absolute;
-  inset: 2px;
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  overflow: visible;
-  z-index: 1;
-  filter: drop-shadow(0 0 3px #8b5cf680);
-}
-
-.canvas-agent-activity__beam rect {
-  fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.canvas-agent-activity__beam-track {
-  stroke: #a78bfa60;
-}
-
-.canvas-agent-activity__beam-trail,
-.canvas-agent-activity__beam-head {
-  animation: nudge-border-beam 5s linear infinite;
-}
-
-.canvas-agent-activity__beam-trail {
-  stroke: #8b5cf6;
-  stroke-dasharray: 16 84;
-  --beam-offset: 12px;
-}
-
-.canvas-agent-activity__beam-head {
-  stroke: #67e8f9;
-  stroke-dasharray: 4 96;
-}
-
 .canvas-agent-activity__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   position: absolute;
   top: 12px;
   right: 12px;
@@ -51,26 +18,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 6px 10px;
+  padding: 4px 10px 4px 4px;
   border-radius: 20px;
-  background: #201d32e8;
-  color: #eee9ff;
+  background: #242424e8;
+  color: #fff;
   font: 12px system-ui;
   box-shadow: 0 2px 12px #0003;
+}
+
+.canvas-agent-activity__label canvas {
+  flex: 0 0 auto;
+}
+
+.canvas-agent-activity__label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .canvas-agent-activity__shimmer {
   position: absolute;
   border-radius: 5px;
-  background: linear-gradient(110deg, #a889ff12 10%, #62cdff55 35%, #af7dff77 50%, #62cdff55 65%, #a889ff12 90%);
+  background: linear-gradient(110deg, transparent 20%, rgb(212 212 212 / 0.18) 35%, rgb(212 212 212 / 0.35) 50%, rgb(212 212 212 / 0.18) 65%, transparent 80%);
   background-size: 250% 100%;
   animation: nudge-component-shimmer 2.4s ease-in-out infinite;
-  outline: 1px solid #af7dff88;
-}
-
-@keyframes nudge-border-beam {
-  from { stroke-dashoffset: var(--beam-offset, 0px); }
-  to { stroke-dashoffset: calc(var(--beam-offset, 0px) - 100px); }
 }
 
 @keyframes nudge-component-shimmer {
@@ -79,8 +49,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-agent-activity__beam-trail,
-  .canvas-agent-activity__beam-head,
   .canvas-agent-activity__shimmer {
     animation: none;
   }

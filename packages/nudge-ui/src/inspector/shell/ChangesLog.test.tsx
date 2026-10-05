@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { appendChange, clearWorkspace } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft } from "../changes/changesLog.ts";
 import {
   createStructuralDelete,
   createStructuralMove,
@@ -28,7 +28,7 @@ describe("ChangesLog", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    clearWorkspace();
+    clearActiveDraft();
     resetStructuralDeleteProjection();
     resetPreviewDiagnostics();
   });

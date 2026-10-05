@@ -35,8 +35,8 @@ const showcaseVideos = [
   },
   {
     id: "explore-canvas",
-    title: "A canvas for exploring variations",
-    description: "Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.",
+    title: "A canvas for comparing pages",
+    description: "Open different pages in a canvas view to compare screens, screen sizes or overall flows. Pick a direction, refine the details immediately and get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.",
     src: exploreCanvasVideo,
     poster: exploreCanvasPoster,
   },

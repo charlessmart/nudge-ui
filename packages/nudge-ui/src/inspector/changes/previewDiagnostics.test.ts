@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementChangeRecord } from "./types.ts";
 import { changeKey } from "./model.ts";
@@ -15,11 +16,11 @@ import {
 } from "./previewDiagnostics.ts";
 import {
   commitChangeRecords,
-  getWorkspaceChanges,
-  resetWorkspaceChanges,
-  restoreWorkspaceChanges,
-  undoWorkspaceChange,
-} from "./workspaceChanges.ts";
+  getActiveDraftChanges,
+  resetDraftChanges,
+  restoreActiveDraftChanges,
+  undoChange,
+} from "./draftChanges.ts";
 
 const change: ElementChangeRecord = {
   cid: "Button",
@@ -42,7 +43,7 @@ const result = {
 
 describe("preview diagnostics", () => {
   beforeEach(() => {
-    resetWorkspaceChanges();
+    resetDraftChanges();
     resetPreviewDiagnostics();
   });
 
@@ -55,7 +56,7 @@ describe("preview diagnostics", () => {
       changeKey: changeKey(change),
       logicalDocument: "host",
       sessionId: document.sessionId,
-      workspaceRevision: 0,
+      draftRevision: 0,
       attempt: 1,
       result,
     });
@@ -77,7 +78,7 @@ describe("preview diagnostics", () => {
     const attempt = beginPreviewAttempt(document)!;
     publishPreviewDiagnostic(attempt, changeKey(change), result);
 
-    restoreWorkspaceChanges({ changes: [change], structuralChanges: [] }, () => undefined);
+    restoreActiveDraftChanges({ changes: [change], structuralChanges: [] }, () => undefined);
 
     // A new commit must not delete earlier diagnostics. The revision stamp
     // rejects late publishes per key, but reads survive until overwritten.
@@ -125,12 +126,12 @@ describe("preview diagnostics", () => {
 
   it("publishes diagnostics without changing canonical state or history", () => {
     expect(commitChangeRecords([change], () => undefined)).toBe("applied");
-    const before = getWorkspaceChanges();
+    const before = getActiveDraftChanges();
     const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
 
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(true);
-    expect(getWorkspaceChanges()).toEqual(before);
-    expect(undoWorkspaceChange(() => undefined)).toBe(true);
+    expect(getActiveDraftChanges()).toEqual(before);
+    expect(undoChange(() => undefined)).toBe(true);
   });
 
   it("invalidates late results when a logical document receives a new session", () => {

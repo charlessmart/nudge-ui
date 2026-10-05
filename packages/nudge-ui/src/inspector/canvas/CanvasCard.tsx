@@ -1,10 +1,22 @@
 import { AgentActivityOverlay } from "./AgentActivityOverlay.tsx";
-import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, studyArtifactId } from "./frameContent.ts";
-import { refreshHtmlStudy } from "../artifacts/study.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
+import { refreshHtmlIteration } from "../iterations/coordinator.ts";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown, IconPlus, IconBoltFilled, IconArtboard } from "@tabler/icons-react";
+import {
+  useCanvasCards,
+  getCanvasCardLabel,
+  updateCardUrl,
+  resizeCard,
+  setCardPosition,
+  selectCard,
+  getSelectedCardId,
+  useSelectedCardId,
+  useFocusedCardId,
+  type CanvasCard,
+} from "./canvasStore.ts";
+import { useBoardCamera, type CanvasPresentation } from "./viewStore.ts";
+import { IconArrowsDiagonal, IconCopy, IconCornerLeftDown, IconBoltFilled, IconArtboard, IconTrash } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
@@ -32,11 +44,9 @@ import {
   resizeCanvasRect,
   type CanvasResizeDirection,
 } from "./canvasResize.ts";
-import {
-  getWorkspaceForCard,
-  removeCardDraft,
-} from "../drafts/store.ts";
-import { artifactDocumentUrl } from "../artifacts/client.ts";
+import { getDraftContentsForCard } from "../drafts/store.ts";
+import { removeFrame } from "../workspace/commands.ts";
+import { artifactDocumentUrl } from "../iterations/client.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -45,7 +55,7 @@ interface CanvasCardProps {
   linkedToActive?: boolean;
   onShowFocus?: (cardId: string) => void;
   onDuplicate?: (cardId: string) => void;
-  onCreateVariation?: (cardId: string, position?: { x: number; y: number }) => Promise<string>;
+  onCreateIteration?: (cardId: string, position?: { x: number; y: number }) => Promise<string>;
   documentOwner?: InspectorSession;
 }
 
@@ -75,7 +85,7 @@ function resizeHandleTransform(direction: CanvasResizeDirection, scale: number):
   return `scale(${scale})`;
 }
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateVariation, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateIteration, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
   const navigationUrlRef = useRef(contentNavigationUrl(card.content));
@@ -83,9 +93,12 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [creatingVariation, setCreatingVariation] = useState(false);
-  const [variationError, setVariationError] = useState<string | null>(null);
+  const [creatingIteration, setCreatingIteration] = useState(false);
+  const [iterationError, setIterationError] = useState<string | null>(null);
   const camera = useBoardCamera();
+  const canvasCards = useCanvasCards();
+  const canRemove = canvasCards.length > 1;
+  const frameLabel = getCanvasCardLabel(card, canvasCards);
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
@@ -132,25 +145,25 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       disposeDocumentSession();
       unregisterCardFrame(card.id);
     };
-  }, [bindDocumentSession, card.id, studyArtifactId(card.content), disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, iterationId(card.content), disposeDocumentSession]);
 
   useEffect(() => {
-    if (card.content.kind !== "study" || loadState !== "ready") return;
+    if (card.content.kind !== "iteration" || loadState !== "ready") return;
     const artifactId = card.content.artifactId;
     let active = true;
     let checking = false;
     let reloadPending = false;
     const timer = window.setInterval(() => {
-      const workspace = getWorkspaceForCard(card.id);
+      const workspace = getDraftContentsForCard(card.id);
       // Pending inspector edits still project over preview.html. Do not replace
       // that base until they have been saved and handed off.
       if (checking || isInlineTextEditingActive() || workspace?.changes.length || workspace?.structuralChanges.length) return;
       checking = true;
       const frame = iframeRef.current;
       if (!frame) { checking = false; return; }
-      void refreshHtmlStudy(card.id, artifactId, frame).then((changed) => {
+      void refreshHtmlIteration(card.id, artifactId, frame).then((changed) => {
         reloadPending ||= changed;
-        const latest = getWorkspaceForCard(card.id);
+        const latest = getDraftContentsForCard(card.id);
         if (active && reloadPending && !isInlineTextEditingActive() && !latest?.changes.length && !latest?.structuralChanges.length) {
           reloadPending = false;
           loadFrame(`${artifactDocumentUrl(artifactId)}?revision=${Date.now()}`);
@@ -158,7 +171,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       }).catch(() => undefined).finally(() => { checking = false; });
     }, 1500);
     return () => { active = false; window.clearInterval(timer); };
-  }, [studyArtifactId(card.content), card.id, loadFrame, loadState]);
+  }, [iterationId(card.content), card.id, loadFrame, loadState]);
 
   function handleReload(): void {
     loadFrame();
@@ -166,24 +179,16 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   function handleRemove(): void {
     if (getSelectedCardId() === card.id) setSelectedElement(null);
-    removeCanvasCard(card.id);
-    removeCardDraft(card.id);
+    removeFrame(card.id);
   }
 
-  async function handleVariation(position?: { x: number; y: number }): Promise<string | undefined> {
-    if (creatingVariation || !onCreateVariation || loadState !== "ready") return;
-    setCreatingVariation(true);
-    setVariationError(null);
-    try { return await onCreateVariation(card.id, position); }
-    catch (error) { setVariationError(error instanceof Error ? error.message : "The variation could not be created."); }
-    finally { setCreatingVariation(false); }
-  }
-
-  function updateFrameTitle(title: string | undefined): void {
-    if (!title) return;
-    const runtime = getNudgeUiRuntimeConfig();
-    if (runtime.demo === true && (runtime.demoCardLabels?.length ?? 0) > 0) return;
-    updateCardTitle(card.id, title);
+  async function handleIteration(position?: { x: number; y: number }): Promise<string | undefined> {
+    if (creatingIteration || !onCreateIteration || loadState !== "ready") return;
+    setCreatingIteration(true);
+    setIterationError(null);
+    try { return await onCreateIteration(card.id, position); }
+    catch (error) { setIterationError(error instanceof Error ? error.message : "The iteration could not be created."); }
+    finally { setCreatingIteration(false); }
   }
 
   /** The controller half of the handshake: announce workspace identity. */
@@ -231,8 +236,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         adoptFrameRuntime(data.runtime);
         setLoadState("ready");
         setErrorMessage(null);
-        updateFrameTitle(data.title);
-        if (data.url && !studyArtifactId(card.content)) updateCardUrl(card.id, data.url);
+        if (data.url && !iterationId(card.content)) updateCardUrl(card.id, data.url);
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
@@ -247,8 +251,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       }
 
       if (data.type === "frame-metadata") {
-        updateFrameTitle(data.title);
-        if (data.url && !studyArtifactId(card.content)) updateCardUrl(card.id, data.url);
+        if (data.url && !iterationId(card.content)) updateCardUrl(card.id, data.url);
         return;
       }
 
@@ -257,7 +260,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         setErrorMessage(data.message || "Frame failed to load");
       }
     });
-  }, [card.id, studyArtifactId(card.content)]);
+  }, [card.id, iterationId(card.content)]);
 
   useLayoutEffect(() => {
     if (!contentNavigationUrl(card.content) || navigationUrlRef.current === contentNavigationUrl(card.content)) return;
@@ -294,7 +297,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
-  }, [bindDocumentSession, card.id, studyArtifactId(card.content), disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, iterationId(card.content), disposeDocumentSession]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
@@ -315,10 +318,9 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
     e.stopPropagation();
     e.preventDefault();
-    const variationDrag = e.altKey && !!onCreateVariation && loadState === "ready" && !creatingVariation;
-    if (card.groupId && !variationDrag) return;
+    const iterationDrag = e.altKey && !!onCreateIteration && loadState === "ready" && !creatingIteration;
     let moved = false;
-    let variationId: string | undefined;
+    let iterationId: string | undefined;
     let creationStarted = false;
     let cancelled = false;
     let position = { x: card.x, y: card.y };
@@ -339,16 +341,15 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       const dy = (ev.clientY - dragRef.current.startY) / camera.zoom;
       moved ||= Math.hypot(ev.clientX - dragRef.current.startX, ev.clientY - dragRef.current.startY) >= 6;
       position = { x: dragRef.current.cardX + dx, y: dragRef.current.cardY + dy };
-      if (variationDrag) {
-        if (variationId) setCardPosition(variationId, position.x, position.y);
+      if (iterationDrag) {
+        if (iterationId) setCardPosition(iterationId, position.x, position.y);
         else if (moved && !creationStarted) {
           creationStarted = true;
-          void handleVariation(position).then((id) => {
+          void handleIteration(position).then((id) => {
             if (!id) return;
-            variationId = id;
+            iterationId = id;
             if (cancelled) {
-              removeCanvasCard(id);
-              removeCardDraft(id);
+              removeFrame(id);
               selectCard(card.id);
             } else setCardPosition(id, position.x, position.y);
           });
@@ -366,23 +367,22 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       cleanup();
       setIsDragging(false);
       cancelled = true;
-      if (variationId) {
-        removeCanvasCard(variationId);
-        removeCardDraft(variationId);
+      if (iterationId) {
+        removeFrame(iterationId);
         selectCard(card.id);
       }
     }
     function onUp(): void {
       cleanup();
       setIsDragging(false);
-      if (variationId) setCardPosition(variationId, position.x, position.y);
+      if (iterationId) setCardPosition(iterationId, position.x, position.y);
     }
     dragCleanupRef.current?.();
     dragCleanupRef.current = onCancel;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
-  }, [card.id, card.groupId, card.x, card.y, camera.zoom, onCreateVariation, loadState, creatingVariation]);
+  }, [card.id, card.x, card.y, camera.zoom, onCreateIteration, loadState, creatingIteration]);
 
   const handleCardPointerDown = useCallback(() => {
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
@@ -472,10 +472,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   return (
     <div
-      className={`canvas-card${card.groupId ? " is-linked" : ""}${linkedToActive ? " is-linked-peer" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
+      className={`canvas-card${linkedToActive ? " is-linked" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
       data-card-id={card.id}
-      data-linked-group-id={card.groupId}
+      tabIndex={presentation === "canvas" ? 0 : undefined}
+      role="group"
+      aria-label={`Frame: ${frameLabel}`}
       style={{
+        "--canvas-toolbar-scale": toolbarScale,
         position: "absolute",
         visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
         pointerEvents: presentation === "focus" && !presentationCard ? "none" : undefined,
@@ -483,86 +486,89 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         top: isFocusPresentationCard ? 0 : card.y,
         width: isFocusPresentationCard ? "100%" : card.width,
         height: isFocusPresentationCard ? "100%" : card.height,
-      }}
+      } as CSSProperties}
       onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
-      {presentation === "canvas" ? <div
-        className="canvas-card__toolbar"
-        style={{ bottom: `calc(100% + var(--space-8) * ${toolbarScale})` }}
-        title="Option/Alt-drag to create a variation"
-        onPointerDown={handleToolbarPointerDown}
-      >
+      {presentation === "canvas" ? <>
         <div
-          className="canvas-card__drag-surface"
-          style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
-          data-test={`canvas-card-drag-${card.id}`}
+          className="canvas-card__header"
+          style={{ bottom: `calc(100% + var(--space-8) * ${toolbarScale})`, minHeight: `calc(var(--control-height-xlarge) * ${toolbarScale})` }}
+          onPointerDown={handleToolbarPointerDown}
         >
-          <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
-          <span
-            className="canvas-card__dimensions"
-            data-test={`canvas-card-dimensions-${card.id}`}
+          <div
+            className="canvas-card__drag-surface"
+            style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
+            data-test={`canvas-card-drag-${card.id}`}
           >
-            {!studyArtifactId(card.content) ? (
-              <Tooltip content="Live view">
-                <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
-                  <IconBoltFilled size={12} aria-hidden="true" />
+            <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
+              <span className="canvas-card__dimensions" data-test={`canvas-card-dimensions-${card.id}`}>
+                {!iterationId(card.content) ? (
+                  <Tooltip content="Live view">
+                    <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
+                      <IconBoltFilled size={12} aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Tooltip content="HTML only">
+                    <span className="canvas-card__iteration-badge" aria-label="HTML only" data-test={`canvas-card-iteration-badge-${card.id}`}>
+                      <IconArtboard size={14} aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                )}
+                <span className="canvas-card__title">
+                  {frameLabel}
                 </span>
-              </Tooltip>
-            ) : (
-              <Tooltip content="HTML only">
-                <span className="canvas-card__study-badge" aria-label="HTML only" data-test={`canvas-card-study-${card.id}`}>
-                  <IconArtboard size={14} aria-hidden="true" />
-                </span>
-              </Tooltip>
-            )}
-            <span className="canvas-card__title">
-              {studyArtifactId(card.content) ? "HTML study · " : ""}{card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
-            </span>
-          </span>
-          {onShowFocus ? (
-            <Button
-              variant="secondary"
-              size="compact"
-              data-test={`canvas-card-focus-${card.id}`}
-              onClick={() => onShowFocus(card.id)}
-            >
-              <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-              Focus
-            </Button>
-          ) : null}
+              </span>
+            </div>
+            {iterationError ? <span className="canvas-card__iteration-error" role="status">{iterationError}</span> : null}
           </div>
           <div
-            className="canvas-card__actions"
-            style={{ zoom: toolbarScale }}
+            className="canvas-card__floating-toolbar"
+            data-busy={creatingIteration ? "true" : undefined}
+            onPointerDown={(event) => event.stopPropagation()}
           >
-          {onDuplicate && !studyArtifactId(card.content) ? (
-            <IconButton
-              variant="secondary"
-              size="default"
-              label="Add linked frame"
-              title="Add linked frame"
-              data-test={`canvas-card-duplicate-${card.id}`}
-              onClick={() => onDuplicate(card.id)}
+            <div
+              className="canvas-toolbar canvas-card__actions"
+              style={{ zoom: toolbarScale }}
+              role="toolbar"
+              aria-label="Frame actions"
+              aria-busy={creatingIteration}
+              data-test={`canvas-card-actions-${card.id}`}
             >
-              <IconPlus size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-            </IconButton>
-          ) : null}
-          {onCreateVariation ? (
-            <Button
-              variant="secondary"
-              size="default"
-              data-test={`canvas-card-variation-${card.id}`}
-              disabled={creatingVariation || loadState !== "ready"}
-              onClick={() => void handleVariation()}
-            >
-              {creatingVariation ? "Creating…" : "Variation"}
-            </Button>
-          ) : null}
+              {onShowFocus ? (
+                <Tooltip content="Open this frame in focus view">
+                  <Button variant="quiet" size="default" data-test={`canvas-card-focus-${card.id}`} onClick={() => onShowFocus(card.id)}>
+                    <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    Focus
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {onDuplicate && !iterationId(card.content) ? (
+                <Tooltip content="Create a linked copy of this frame">
+                  <Button variant="quiet" size="default" data-test={`canvas-card-duplicate-${card.id}`} onClick={() => onDuplicate(card.id)}>
+                    <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    Duplicate
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {onCreateIteration ? (
+                <Tooltip content="Unlinked HTML version" shortcut="Option + Drag" stableTrigger>
+                  <Button variant="quiet" size="default" data-test={`canvas-card-create-iteration-${card.id}`} disabled={creatingIteration || loadState !== "ready"} onClick={() => void handleIteration()}>
+                    <IconArtboard size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    {creatingIteration ? "Creating…" : "Iteration"}
+                  </Button>
+                </Tooltip>
+              ) : null}
+              <div className="canvas-toolbar__divider" aria-hidden="true" />
+              <Tooltip content={canRemove ? "Delete frame" : "Keep at least one frame on the canvas"}>
+                <IconButton variant="quiet" size="default" label="Delete frame" data-test={`canvas-card-delete-${card.id}`} disabled={!canRemove} onClick={handleRemove}>
+                  <IconTrash size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                </IconButton>
+              </Tooltip>
+            </div>
           </div>
-          {variationError ? <span className="canvas-card__variation-error" role="status">{variationError}</span> : null}
-
         </div>
-      </div> : null}
+      </> : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (
           <div className="canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>
@@ -578,17 +584,17 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           </div>
         ) : null}
         <iframe
-          key={studyArtifactId(card.content) ?? "live"}
+          key={iterationId(card.content) ?? "live"}
           ref={iframeRef}
           className="canvas-card__iframe"
-          src={card.content.kind === "study" ? contentDocumentUrl(card.content) : initialUrlRef.current}
-          title={card.title || contentSourceUrl(card.content)}
+          src={card.content.kind === "iteration" ? contentDocumentUrl(card.content) : initialUrlRef.current}
+          title={frameLabel}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
         <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
-        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={contentSourceUrl(card.content)} artifactId={studyArtifactId(card.content)} ready={loadState === "ready"} />
+        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={contentSourceUrl(card.content)} artifactId={iterationId(card.content)} ready={loadState === "ready"} />
       </div>
       {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
         <div

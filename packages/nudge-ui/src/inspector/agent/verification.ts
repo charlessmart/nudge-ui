@@ -1,10 +1,10 @@
-import { getDraft, getDraftForCard } from "../drafts/store.ts";
+import { draftIdForCard } from "../drafts/store.ts";
 import { getCanvasCards } from "../canvas/canvasStore.ts";
 import { getRegisteredFrames, getCanvasCardIdForDocument } from "../canvas/projection.ts";
-import { applicationTarget, targetKey, type DraftTarget } from "../drafts/model.ts";
+import { applicationTarget, targetFromKey, targetKey, type DraftTarget } from "../drafts/model.ts";
 import { changeKey, tokenReference } from "../changes/model.ts";
 import { selectorForManagedChange } from "../changes/managedStyleProjection.ts";
-import { getWorkspaceChanges, getDraftWorkspace, reconcileDraftWorkspace } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges, getDraftChanges, reconcileDraftChanges } from "../changes/draftChanges.ts";
 import {
   isComponentChange,
   isTextContentChange,
@@ -25,13 +25,13 @@ import {
   resolveTextProjectionTextNode,
 } from "../projection/textProjection.ts";
 import {
-  applyHostWorkspaceProjection,
-  compileWorkspaceProjection,
-} from "../projection/workspaceProjection.ts";
+  applyHostDraftProjection,
+  compileDraftProjection,
+} from "../projection/draftProjection.ts";
 import {
   isCanvasProjectionRevisionCurrent,
   restoreCanonicalFrameProjection,
-  projectWorkspaceSnapshotToDocument,
+  projectDraftToDocument,
 } from "../canvas/projection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
@@ -43,10 +43,10 @@ export interface HandoffOwner {
 }
 
 export function captureHandoffOwner(cardId?: string | null): HandoffOwner {
-  const draft = cardId ? getDraftForCard(cardId) : getDraft(getWorkspaceChanges().draftId);
-  const workspace = draft ? getDraftWorkspace(draft.id) : getWorkspaceChanges();
-  return { draftId: workspace.draftId, draftRevision: workspace.revision, target: draft?.target ?? applicationTarget(),
-    frameIds: getCanvasCards().filter((card) => getDraftForCard(card.id)?.id === workspace.draftId).map((card) => card.id) };
+  const draftId = (cardId && draftIdForCard(cardId)) || getActiveDraftChanges().draftId;
+  const workspace = getDraftChanges(draftId);
+  return { draftId, draftRevision: workspace.revision, target: targetFromKey(draftId) ?? applicationTarget(),
+    frameIds: getCanvasCards().filter((card) => draftIdForCard(card.id) === workspace.draftId).map((card) => card.id) };
 }
 
 export interface HandoffSnapshot {
@@ -251,19 +251,19 @@ export async function verifyAndReconcileHandoff(
 ): Promise<number> {
   if (!doc || !documentBelongsToHandoff(doc, snapshot.owner)) return 0;
   const applyProjection = async (
-    snapshot: Parameters<typeof compileWorkspaceProjection>[0],
+    snapshot: Parameters<typeof compileDraftProjection>[0],
   ): Promise<number | "host" | null> => {
     if (doc === document && !isEditorShellDocument(doc)) {
-      applyHostWorkspaceProjection(compileWorkspaceProjection(snapshot));
+      applyHostDraftProjection(compileDraftProjection(snapshot));
       return "host";
     }
     if (doc === document) return null;
-    return projectWorkspaceSnapshotToDocument(doc, snapshot);
+    return projectDraftToDocument(doc, snapshot);
   };
   const sentByKey = new Map(
     snapshot.changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
   );
-  const current = getDraftWorkspace(snapshot.owner.draftId).changes;
+  const current = getDraftChanges(snapshot.owner.draftId).changes;
   const eligible = current.filter(
     (change) => sentByKey.get(changeKey(change)) === handoffChangeFingerprint(change),
   );
@@ -275,7 +275,7 @@ export async function verifyAndReconcileHandoff(
   const sentStructural = new Map(
     snapshot.structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
   );
-  const currentStructural = getDraftWorkspace(snapshot.owner.draftId).structuralChanges;
+  const currentStructural = getDraftChanges(snapshot.owner.draftId).structuralChanges;
   const eligibleStructural = currentStructural.filter(
     (change) => sentStructural.get(change.id) === handoffStructuralFingerprint(change),
   );
@@ -283,7 +283,7 @@ export async function verifyAndReconcileHandoff(
   const remainingStructural = currentStructural.filter((change) => !eligibleStructuralIds.has(change.id));
 
   try {
-    const currentWorkspace = getDraftWorkspace(snapshot.owner.draftId);
+    const currentWorkspace = getDraftChanges(snapshot.owner.draftId);
     const previewRevision = await applyProjection({
       revision: currentWorkspace.revision,
       changes: remaining,
@@ -300,13 +300,13 @@ export async function verifyAndReconcileHandoff(
     // window is open. Recheck byte identity immediately before reconciliation
     // so a newer value at the same key can never be removed.
     const currentByKey = new Map(
-      getDraftWorkspace(snapshot.owner.draftId).changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
+      getDraftChanges(snapshot.owner.draftId).changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
     );
     const stillVerified = new Set(
       [...verified].filter((key) => currentByKey.get(key) === sentByKey.get(key)),
     );
     const currentStructuralById = new Map(
-      getDraftWorkspace(snapshot.owner.draftId).structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
+      getDraftChanges(snapshot.owner.draftId).structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
     );
     const stillVerifiedStructural = new Set(
       [...verifiedStructural].filter(
@@ -316,26 +316,26 @@ export async function verifyAndReconcileHandoff(
     if (typeof previewRevision === "number"
       && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
     if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
-    return reconcileDraftWorkspace(snapshot.owner.draftId, stillVerified, stillVerifiedStructural);
+    return reconcileDraftChanges(snapshot.owner.draftId, stillVerified, stillVerifiedStructural);
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
     // (for example, a read-only Canvas lease), restore the untouched set here.
-    if (doc === document) await applyProjection(getWorkspaceChanges());
+    if (doc === document) await applyProjection(getActiveDraftChanges());
     else restoreCanonicalFrameProjection(doc);
   }
 }
 
 export function documentBelongsToHandoff(doc: Document, owner: HandoffOwner): boolean {
-  if (owner.target.kind === "application" && owner.target.route
+  if (owner.target.kind === "application"
     && targetKey(applicationTarget(doc.location.href)) !== targetKey(owner.target)) return false;
   if (doc === document) return owner.target.kind === "application" && !isEditorShellDocument(doc);
   const id = getCanvasCardIdForDocument(doc);
-  return !!id && getDraftForCard(id)?.id === owner.draftId;
+  return !!id && draftIdForCard(id) === owner.draftId;
 }
 
 function handoffDocument(owner: HandoffOwner): Document | null {
   for (const [id, frame] of getRegisteredFrames()) {
-    if (getDraftForCard(id)?.id !== owner.draftId) continue;
+    if (draftIdForCard(id) !== owner.draftId) continue;
     const doc = frame.contentDocument;
     if (doc && documentBelongsToHandoff(doc, owner)) return doc;
   }

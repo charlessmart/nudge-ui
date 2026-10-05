@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "../componentSemantics/adapterRegistry.ts";
 import type { ComponentRuntimeAdapter } from "../componentSemantics/types.ts";
-import { clearWorkspace, getChangesList, redo, undo } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, redo, undo } from "../changes/changesLog.ts";
 import * as changesLog from "../changes/changesLog.ts";
 import { serializeChange } from "../changes/codecs.ts";
 import {
@@ -120,7 +120,7 @@ describe("inlineTextEditor", () => {
   beforeEach(() => {
     unregisterReactAdapter = registerComponentRuntimeAdapter(reactComponentRuntimeAdapter);
     getInlineTextSession()?.cancel();
-    clearWorkspace();
+    clearActiveDraft();
     componentContracts.length = 0;
     componentContracts.push({
       componentId: "src/ui/Button#Button",
@@ -233,7 +233,7 @@ describe("inlineTextEditor", () => {
     });
     expect(getInlineTextDiagnostic()).not.toBeNull();
 
-    clearWorkspace();
+    clearActiveDraft();
 
     expect(getInlineTextDiagnostic()).toBeNull();
   });
@@ -885,7 +885,7 @@ describe("inlineTextEditor", () => {
     result.commit();
     expect(document.activeElement).toBe(control);
 
-    clearWorkspace();
+    clearActiveDraft();
     const second = beginInlineTextEdit(element);
     if ("kind" in second) throw new Error(second.message);
     const chooser = document.createElement("button");
@@ -916,7 +916,7 @@ describe("inlineTextEditor", () => {
       if ("kind" in result) throw new Error(result.message);
       result.host.textContent = "Pending draft";
       result.host.dispatchEvent(new FocusEvent("blur"));
-      clearWorkspace();
+      clearActiveDraft();
       vi.runAllTimers();
 
       expect(getInlineTextSession()).toBeNull();
@@ -1452,7 +1452,7 @@ describe("inlineTextEditor", () => {
     session.host.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
     requestInlineEdit(second, 20);
 
-    clearWorkspace();
+    clearActiveDraft();
     await Promise.resolve();
 
     expect(getInlineTextSession()).toBeNull();

@@ -9,13 +9,8 @@ import {
   removeOwnAgentGroup,
   resetAgentPresentationState,
 } from "./agentPresentation.ts";
-import {
-  addCanvasCard,
-  duplicateCard,
-  getCanvasCards,
-  removeCanvasCard,
-  setCanvasMode,
-} from "./canvasStore.ts";
+import { addCanvasCard, duplicateCard, getCanvasCards, removeCanvasCard } from "./canvasStore.ts";
+import { setCanvasMode } from "./viewStore.ts";
 
 function resetCanvas(): void {
   resetAgentPresentationState();
@@ -34,7 +29,7 @@ describe("agent Canvas presentation", () => {
     setNudgeUiHostDevFlag(undefined);
   });
 
-  it("appends a labeled route group as linked frames, preserves user cards, and waits for renderer readiness", async () => {
+  it("appends agent route collections, preserves user frames, and waits for renderer readiness", async () => {
     const userCard = addCanvasCard(`${window.location.origin}/existing`, "Existing");
     const pending = presentAgentRoutes({
       groupId: "agent-landing-pages",
@@ -52,10 +47,8 @@ describe("agent Canvas presentation", () => {
       .filter((card) => card.groupId === "agent-landing-pages")
       .map((card) => card.id);
     expect(cardIds).toHaveLength(3);
-    // A user duplicate of a presented frame is a linked frame of the same
-    // group under the linked-frames model, so the group removes it together.
     const userDuplicate = duplicateCard(cardIds[0]!);
-    expect(userDuplicate?.groupId).toBe("agent-landing-pages");
+    expect(userDuplicate?.groupId).toBeUndefined();
     for (const cardId of cardIds) acknowledgeAgentRendererReady(cardId);
 
     const result = await pending;
@@ -67,7 +60,7 @@ describe("agent Canvas presentation", () => {
     expect(getCanvasCards().some((card) => card.id === userCard.id)).toBe(true);
 
     removeOwnAgentGroup("agent-landing-pages", "paired-agent");
-    expect(getCanvasCards()).toEqual([userCard]);
+    expect(getCanvasCards().map((card) => card.id)).toEqual([userCard.id, userDuplicate!.id]);
     expect(readCanvasState().groups).toEqual([]);
   });
 

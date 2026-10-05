@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { clearWorkspace, getChangesList, undo } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, undo } from "../changes/changesLog.ts";
 import {
   cancelInlineTextEdit,
   getInlineTextDiagnostic,
@@ -50,7 +50,7 @@ describe("CanvasElementOverlay", () => {
     });
     root = null;
     cancelInlineTextEdit();
-    clearWorkspace();
+    clearActiveDraft();
     setSelectedElement(null);
     unregisterCardFrame(cardId);
     host.remove();
@@ -818,6 +818,6 @@ describe("CanvasElementOverlay", () => {
         rawValue: "32px",
       }),
     ]));
-    clearWorkspace();
+    clearActiveDraft();
   });
 });

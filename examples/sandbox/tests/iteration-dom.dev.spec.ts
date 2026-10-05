@@ -1,26 +1,27 @@
+import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-test("HTML variation DOM drags work and change counts describe final prompt intent", async ({ page }) => {
+test("HTML iteration DOM drags work and change counts describe final prompt intent", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   const cards = page.locator(".canvas-card");
-  await expect(cards.first().locator('[data-test^="canvas-card-variation-"]')).toBeEnabled();
+  await expect(cards.first().locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
   await cards.first().locator("iframe").contentFrame().locator("body").evaluate((body) => {
     const fixture = body.ownerDocument.createElement("section");
-    fixture.id = "variation-drag-fixture";
+    fixture.id = "iteration-drag-fixture";
     fixture.style.cssText = "position:fixed;left:80px;top:100px;width:360px;background:white;z-index:1000;";
     fixture.innerHTML = '<div style="height:60px">First</div><div style="height:60px">Second</div><div style="height:60px">Third</div>';
     body.append(fixture);
   });
-  await cards.first().locator('[data-test^="canvas-card-variation-"]').click();
-  const study = cards.nth(1).locator("iframe");
-  await expect(cards.nth(1).locator('[data-test^="canvas-card-variation-"]')).toBeEnabled();
+  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-create-iteration-"]'));
+  const iteration = cards.nth(1).locator("iframe");
+  await expect(cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
-  const fixture = study.contentFrame().locator("#variation-drag-fixture");
+  const fixture = iteration.contentFrame().locator("#iteration-drag-fixture");
   await expect(fixture).toHaveAttribute("data-cid", /^nudge-ui-runtime-/);
   const children = fixture.locator(":scope > div");
   const order = () => children.allTextContents();
@@ -57,39 +58,70 @@ test("HTML variation DOM drags work and change counts describe final prompt inte
     const prompt = await page.evaluate(() => navigator.clipboard.readText());
     return prompt.split("\n").filter((line) => line.startsWith("- Move ")).length;
   }).toBe(1);
-  await expect.poll(() => cards.first().locator("iframe").contentFrame().locator("#variation-drag-fixture > div").allTextContents()).toEqual(["First", "Second", "Third"]);
-  const artifactId = (await study.getAttribute("src"))!.split("/")[3]!;
+  await expect.poll(() => cards.first().locator("iframe").contentFrame().locator("#iteration-drag-fixture > div").allTextContents()).toEqual(["First", "Second", "Third"]);
+  const artifactId = (await iteration.getAttribute("src"))!.split("/")[3]!;
   await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`);
 });
 
-test("duplicates slide right and variations slide down with hover paused", async ({ page }) => {
+test("duplicates slide right and iterations slide down with hover paused", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   const cards = page.locator(".canvas-card");
   async function captureEntrance(index: number): Promise<void> {
+    await waitForCanvasTransition(page);
     await page.locator('[data-test="canvas-board-content"]').evaluate((board, index) => {
+      const before = new DOMMatrixReadOnly(getComputedStyle(board).transform);
       const observer = new MutationObserver(() => {
         const card = board.querySelectorAll<HTMLElement>(".canvas-card")[index];
         if (!card) return;
-        const frames = (card.getAnimations()[0]?.effect as KeyframeEffect | null)?.getKeyframes();
-        if (!frames) return;
-        card.dataset.testAnimationStart = JSON.stringify({
+        const entrance = card.getAnimations()[0];
+        const frames = (entrance?.effect as KeyframeEffect | null)?.getKeyframes();
+        if (!entrance || !frames) return;
+        if (!card.dataset.testAnimationStart) card.dataset.testAnimationStart = JSON.stringify({
           interactionsPaused: board.parentElement!.classList.contains("is-layout-transitioning"),
           offsetX: parseFloat(card.style.left) - parseFloat(String(frames[0]?.left)),
           offsetY: parseFloat(card.style.top) - parseFloat(String(frames[0]?.top)),
-          duration: card.getAnimations()[0]?.effect?.getTiming().duration,
+          duration: entrance.effect?.getTiming().duration,
           opacity: frames[0]?.opacity,
           finalOpacity: frames.at(-1)?.opacity,
         });
+        const camera = board.getAnimations()[0];
+        if (!camera) return;
+        const target = new DOMMatrixReadOnly((board as HTMLElement).style.transform);
+        const previousTime = camera.currentTime;
+        camera.pause();
+        const sample = (time: number) => {
+          camera.currentTime = time;
+          const matrix = new DOMMatrixReadOnly(getComputedStyle(board).transform);
+          return { x: matrix.e, y: matrix.f };
+        };
+        const from = sample(0);
+        const middle = sample(75);
+        const end = sample(150);
+        card.dataset.testCameraStart = JSON.stringify({
+          duration: camera.effect?.getTiming().duration,
+          startsAtPreviousPosition: Math.hypot(from.x - before.e, from.y - before.f) < 0.1,
+          movesThroughIntermediatePosition: Math.hypot(middle.x - from.x, middle.y - from.y) > 1
+            && Math.hypot(middle.x - target.e, middle.y - target.f) > 1,
+          reachesTargetAt150ms: Math.hypot(end.x - target.e, end.y - target.f) < 0.1,
+        });
+        camera.currentTime = previousTime;
+        camera.play();
         observer.disconnect();
       });
-      observer.observe(board, { childList: true, subtree: true });
+      observer.observe(board, { childList: true, subtree: true, attributes: true });
     }, index);
   }
+  const expectedCameraMotion = JSON.stringify({
+    duration: 150, startsAtPreviousPosition: true,
+    movesThroughIntermediatePosition: true, reachesTargetAt150ms: true,
+  });
+  await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", { deltaX: 120, deltaY: -80, bubbles: true, composed: true });
   await captureEntrance(1);
-  await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
+  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(1)).toHaveAttribute("data-test-animation-start", JSON.stringify({ interactionsPaused: true, offsetX: 200, offsetY: 0, duration: 300, opacity: "0", finalOpacity: "1" }));
+  await expect(cards.nth(1)).toHaveAttribute("data-test-camera-start", expectedCameraMotion);
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
@@ -102,9 +134,10 @@ test("duplicates slide right and variations slide down with hover paused", async
     };
   })).toEqual({ x: 0, y: 0 });
   await captureEntrance(2);
-  await cards.nth(1).locator('[data-test^="canvas-card-variation-"]').click();
+  await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards).toHaveCount(3);
   await expect(cards.nth(2)).toHaveAttribute("data-test-animation-start", JSON.stringify({ interactionsPaused: true, offsetX: 0, offsetY: 200, duration: 300, opacity: "0", finalOpacity: "1" }));
+  await expect(cards.nth(2)).toHaveAttribute("data-test-camera-start", expectedCameraMotion);
   const board = page.locator('[data-test="canvas-board"]');
   await expect(page.locator('[data-test="canvas-hover-outline"]')).toHaveCount(0);
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCount(0);
@@ -117,52 +150,39 @@ test("duplicates slide right and variations slide down with hover paused", async
   await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`);
 });
 
-test("linked sections scale with the canvas while labels and controls compensate for zoom", async ({ page }) => {
+test("linked frame geometry scales with the canvas and controls retain their zoom behavior", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   const cards = page.locator(".canvas-card");
-  await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
+  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(cards).toHaveCount(2);
+  await waitForCanvasTransition(page);
+  await cards.first().focus();
+  await expect(cards.first().locator(".canvas-card__floating-toolbar")).toHaveCSS("opacity", "1");
   const content = page.locator('[data-test="canvas-board-content"]');
-  await content.evaluate(async (element) => {
-    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
-  });
   const dimensions = () => content.evaluate((element) => {
-    const section = element.querySelector<HTMLElement>('[data-test="canvas-linked-group"]')!;
-    const header = section.querySelector<HTMLElement>(".canvas-frame-section__heading")!;
-    const button = section.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
-    const action = section.querySelector<HTMLElement>('[data-test^="canvas-card-duplicate-"]')!;
-    const badge = section.querySelector<HTMLElement>(".canvas-card__live-badge")!;
-    const toolbar = section.querySelector<HTMLElement>(".canvas-card__toolbar")!;
-    const frames = [...section.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
-    const sectionRect = section.getBoundingClientRect();
-    const headerRect = header.getBoundingClientRect();
-    const buttonRect = button.getBoundingClientRect();
+    const card = element.querySelector<HTMLElement>(".canvas-card")!;
+    const rect = card.getBoundingClientRect();
+    const button = card.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
+    const action = card.querySelector<HTMLElement>('[data-test^="canvas-card-duplicate-"]')!;
+    const badge = card.querySelector<HTMLElement>(".canvas-card__live-badge")!;
+    const frames = [...element.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
     const zoom = new DOMMatrixReadOnly(getComputedStyle(element).transform).a;
     return {
       zoom,
-      sectionWidth: sectionRect.width / zoom,
-      sectionHeight: sectionRect.height / zoom,
-      leftPadding: (frames[0]!.left - sectionRect.left) / zoom,
-      rightPadding: (sectionRect.right - frames.at(-1)!.right) / zoom,
-      topPadding: (frames[0]!.top - sectionRect.top) / zoom,
-      bottomPadding: (sectionRect.bottom - frames[0]!.bottom) / zoom,
-      controls: {
-        headerHeight: headerRect.height,
-        buttonHeight: buttonRect.height,
-        actionHeight: action.getBoundingClientRect().height,
-        badgeHeight: badge.getBoundingClientRect().height,
-        headerGap: sectionRect.top - headerRect.bottom,
-        frameGap: frames[0]!.top - buttonRect.bottom,
-        topPadding: (toolbar.getBoundingClientRect().top - sectionRect.top) / zoom,
-      },
-      sectionRadius: getComputedStyle(section).borderTopLeftRadius,
-      sectionBorder: getComputedStyle(section).boxShadow,
-      frameBorder: getComputedStyle(section.querySelector(".canvas-card__frame")!).outlineWidth,
+      width: rect.width / zoom,
+      height: rect.height / zoom,
+      gap: (frames[1]!.left - frames[0]!.right) / zoom,
+      buttonHeight: button.getBoundingClientRect().height,
+      actionHeight: action.getBoundingClientRect().height,
+      badgeHeight: badge.getBoundingClientRect().height,
+      frameGap: rect.top - button.getBoundingClientRect().bottom,
+      borders: [...element.querySelectorAll(".canvas-card__frame")].map((frame) => ({
+        width: getComputedStyle(frame).outlineWidth, color: getComputedStyle(frame).outlineColor,
+      })),
     };
   });
-  const { zoom: initialZoom, controls: initialControls, ...initial } = await dimensions();
-  expect(initialControls.topPadding).toBeGreaterThanOrEqual(15.9);
+  const initial = await dimensions();
   const board = page.locator('[data-test="canvas-board"]');
   for (const gesture of [{ deltaY: -1, steps: 120 }, { deltaY: 1, steps: 140 }]) {
     await board.evaluate((element, { deltaY, steps }) => {
@@ -170,20 +190,19 @@ test("linked sections scale with the canvas while labels and controls compensate
         element.dispatchEvent(new WheelEvent("wheel", { deltaY, ctrlKey: true, clientX: 400, clientY: 300, bubbles: true, composed: true }));
       }
     }, gesture);
-    const { zoom, controls, ...actual } = await dimensions();
-    expect(Math.abs(zoom - initialZoom)).toBeGreaterThan(0.1);
-    const screenScale = Math.min(1, zoom * 2);
-    expect(controls.headerHeight / screenScale).toBeCloseTo(34, 1);
-    expect(controls.buttonHeight / screenScale).toBeCloseTo(24, 1);
-    expect(controls.actionHeight / screenScale).toBeCloseTo(32, 1);
-    expect(controls.badgeHeight / screenScale).toBeCloseTo(20, 1);
-    expect(controls.headerGap / screenScale).toBeCloseTo(8, 1);
-    expect(controls.frameGap / screenScale).toBeCloseTo(12, 1);
-    expect(controls.topPadding).toBeGreaterThanOrEqual(15.9);
-    for (const key of Object.keys(initial) as (keyof typeof initial)[]) {
-      const value = initial[key];
-      if (typeof value === "number") expect(actual[key], key).toBeCloseTo(value, 1);
-      else expect(actual[key], key).toBe(value);
-    }
+    const actual = await dimensions();
+    expect(Math.abs(actual.zoom - initial.zoom)).toBeGreaterThan(0.1);
+    const screenScale = Math.min(1, actual.zoom * 2);
+    expect(actual.buttonHeight / screenScale).toBeCloseTo(32, 1);
+    expect(actual.actionHeight / screenScale).toBeCloseTo(32, 1);
+    expect(actual.badgeHeight / screenScale).toBeCloseTo(20, 1);
+    expect(actual.frameGap / screenScale).toBeCloseTo(12, 1);
+    expect(actual.width).toBeCloseTo(initial.width, 1);
+    expect(actual.height).toBeCloseTo(initial.height, 1);
+    expect(actual.gap).toBeCloseTo(initial.gap, 1);
+    expect(actual.borders).toEqual([
+      { width: "2px", color: "rgb(168, 85, 247)" },
+      { width: "2px", color: "rgb(168, 85, 247)" },
+    ]);
   }
 });

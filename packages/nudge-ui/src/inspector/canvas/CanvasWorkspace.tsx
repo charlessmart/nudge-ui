@@ -1,30 +1,18 @@
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
-import { RoutePicker, ROUTE_PICKER_STYLES } from "./RoutePicker.tsx";
-import { studyArtifactId, contentSourceUrl } from "./frameContent.ts";
+import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
-  removeCanvasCard,
   getSelectedCardId,
   getFocusedCardId,
   getCanvasCards,
-  setBoardCamera,
   batchCanvasChanges,
-  getBoardCamera,
   fitAllCards,
   focusCanvasCards,
-  setCanvasPresentation,
   focusCard,
-  hasFitAllRan,
-  useBoardCamera,
-  useCanvasPresentation,
-  useCanvasPresentationTransitioning,
-  useCanvasLayoutTransitioning,
-  useTemporaryAppInteraction,
-  setTemporaryAppInteraction,
   useSelectedCardId,
   useFocusedCardId,
   resizeCard,
@@ -32,15 +20,27 @@ import {
   updateCardTitle,
   addCanvasCard,
   selectCard,
+  deselectCard,
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
 } from "./canvasStore.ts";
+import {
+  setBoardCamera,
+  getBoardCamera,
+  setCanvasPresentation,
+  hasFitAllRan,
+  useBoardCamera,
+  useCanvasPresentation,
+  useCanvasPresentationTransitioning,
+  useCanvasLayoutTransitioning,
+  useTemporaryAppInteraction,
+  setTemporaryAppInteraction,
+} from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
-import { CanvasFrameSection } from "./CanvasFrameSection.tsx";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
-import { useCanvasMode } from "./canvasStore.ts";
+import { useCanvasMode } from "./viewStore.ts";
 import { subscribeChanges } from "../changes/changesLog.ts";
 import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
@@ -48,7 +48,7 @@ import { recordCanvasRenderedInstanceProjectionReports } from "../projection/ren
 import { recordCanvasTextProjectionReports } from "../projection/textProjection.ts";
 import { getChangesList, isPreviewableChange } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import { beginPreviewAttempt, publishPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import { verifyManagedStyleProjection } from "../changes/managedStyleProjection.ts";
 import {
@@ -80,6 +80,7 @@ import { useInspectorOpen } from "../shell/openStore.ts";
 import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
+import { isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import {
@@ -94,8 +95,7 @@ import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
-import { removeCardDraft } from "../drafts/store.ts";
-import { addLinkedFrame, createVariation as createWorkspaceVariation } from "../workspace/commands.ts";
+import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
@@ -121,15 +121,6 @@ export interface CanvasWorkspaceProps {
   readonly primaryUrl: string | null;
 }
 
-/** Static studies are independent even when they retain their source page URL. */
-function isLinkedToActiveCard(card: CanvasCardData, cards: readonly CanvasCardData[], activeId: string | null): boolean {
-  const active = cards.find((candidate) => candidate.id === activeId);
-  if (!active || active.id === card.id || studyArtifactId(active.content) || studyArtifactId(card.content)) return false;
-  const route = normalizeUrl(contentSourceUrl(card.content));
-  const activeRoute = normalizeUrl(contentSourceUrl(active.content));
-  return !!route && !!activeRoute && normalizedUrlKey(route) === normalizedUrlKey(activeRoute);
-}
-
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
   const runtimeConfig = useNudgeUiRuntimeConfig();
@@ -143,6 +134,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const focusedCardId = useFocusedCardId();
   const sketchActive = useSketchInteractionActive();
   const sketchEnabled = isNudgeUiDev() && runtimeConfig.demo !== true;
+  const canvasIterationsEnabled = isNudgeUiFeatureEnabled(runtimeConfig.features, "canvasIterations");
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -175,6 +167,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       : undefined;
   const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
+  const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
 
   useLayoutEffect(() => {
     const board = boardRef.current;
@@ -257,7 +250,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     };
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
       replaceActiveCard: presentation === "focus" && runtimeConfig.demo !== true,
-      preserveStudyFocus: true,
+      preserveIterationFocus: true,
     });
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
       setBoardCamera({
@@ -570,12 +563,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     focusCanvasCards([duplicate.id], board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
   }, []);
 
-  const createVariation = useCallback(async (cardId: string, position?: { x: number; y: number }) => {
-    const variation = await createWorkspaceVariation(cardId, position);
+  const createIteration = useCallback(async (cardId: string, position?: { x: number; y: number }) => {
+    const iteration = await createWorkspaceIteration(cardId, position);
     setSelectedElement(null);
     const board = boardRef.current;
-    if (board && !position) focusCanvasCards([variation.id], { width: board.clientWidth, height: board.clientHeight });
-    return variation.id;
+    if (board && !position) focusCanvasCards([iteration.id], { width: board.clientWidth, height: board.clientHeight });
+    return iteration.id;
   }, []);
 
   useEffect(() => {
@@ -621,7 +614,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       const frame = { cardId, iframe };
       const syncActiveFrameUrl = (url: string): void => {
-        if (getCanvasCards().some((card) => card.id === frame.cardId && studyArtifactId(card.content))) return;
+        if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (activeCardId === frame.cardId || getCanvasCards().length === 1) {
           activatedTargetRef.current = url;
@@ -748,13 +741,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type !== "navigation-intent") return;
-      if (getCanvasCards().some((card) => card.id === frame.cardId && studyArtifactId(card.content))) return;
+      if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
 
       if (msg.openInCard === true && presentation === "canvas") {
         const card = getCanvasCards().find((candidate) => {
-          const route = !studyArtifactId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
+          const route = !iterationId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
           return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
         }) ?? addCanvasCard(msg.url);
         selectCard(card.id);
@@ -792,8 +785,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         const selectedCardId = getSelectedCardId();
         if (!selectedCardId) return;
         e.preventDefault();
-        removeCanvasCard(selectedCardId);
-        removeCardDraft(selectedCardId);
+        removeFrame(selectedCardId);
         return;
       }
       if (e.code === "Space" && !e.repeat) {
@@ -824,6 +816,15 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       window.removeEventListener("keyup", onKeyUp, true);
     };
   }, [broadcastPanModifier, interactionTool, mode, presentation, sketchActive]);
+
+  const handleBoardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (presentation !== "canvas" || sketchActive || spaceHeldRef.current || panningRef.current) return;
+    if (event.target === event.currentTarget
+      || (event.target instanceof HTMLElement && event.target.dataset.test === "canvas-board-content")) {
+      setSelectedElement(null);
+      deselectCard();
+    }
+  }, [presentation, sketchActive]);
 
   const handleBoardPointerDown = useCallback((e: React.PointerEvent) => {
     if (presentation !== "canvas" || sketchActive) return;
@@ -879,10 +880,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       card={card}
       presentation={presentation}
       presentationCard={card.id === presentationCardId}
-      linkedToActive={isLinkedToActiveCard(card, cards, selectedCardId ?? focusedCardId)}
+      linkedToActive={linkedFrameIds.includes(card.id)}
       onShowFocus={showFocus}
       onDuplicate={duplicateDesign}
-      onCreateVariation={createVariation}
+      onCreateIteration={canvasIterationsEnabled ? createIteration : undefined}
       documentOwner={inspectorSession}
     />
   );
@@ -891,7 +892,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   return (
     <>
-      <style data-test="canvas-styles">{WORKSPACE_STYLES + ROUTE_PICKER_STYLES}</style>
+      <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
       <div
         className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"
@@ -904,8 +905,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ref={boardRef}
           style={{ cursor: boardCursor }}
           onPointerDown={handleBoardPointerDown}
+          onClick={handleBoardClick}
         >
-          <RoutePicker viewport={() => ({ width: boardRef.current?.clientWidth ?? window.innerWidth, height: boardRef.current?.clientHeight ?? window.innerHeight })} />
           {!primaryUrl ? (
             <div className="canvas-workspace__target-error" data-test="canvas-target-error">
               This editor URL does not identify an application page.
@@ -932,12 +933,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             }}
             data-test="canvas-board-content"
           >
-            {[...new Set(cards.map((card) => card.groupId ?? card.id))].map((id) => {
-              const members = cards.filter((card) => (card.groupId ?? card.id) === id);
-              return <CanvasFrameSection key={id} id={id} cards={members} zoom={camera.zoom} presentation={presentation}>
-                {members.map(renderCard)}
-              </CanvasFrameSection>;
-            })}
+            {cards.map(renderCard)}
           </div>
           {!sketchActive ? (
             <CanvasToolbar

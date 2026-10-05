@@ -1,24 +1,26 @@
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
-import { canEditWorkspace, isWorkspaceHistoryLocked } from "../changes/workspaceChanges.ts";
+import { canEditDraft, isDraftLocked } from "../changes/draftChanges.ts";
 import {
-  getCanvasMode,
-  getCanvasPresentation,
   getFrameGroups,
   isFrameGroup,
   type FrameGroup,
-  type CanvasPresentation,
   getCanvasCards,
   getFocusedCardId,
   getSelectedCardId,
-  getBoardCamera,
-  setBoardCamera,
   hydrateCanvasStore,
   removeCanvasCard,
+} from "./canvasStore.ts";
+import {
+  getCanvasMode,
+  getCanvasPresentation,
+  type CanvasPresentation,
+  getBoardCamera,
+  setBoardCamera,
   type CanvasCamera,
   type CanvasMode,
-} from "./canvasStore.ts";
+} from "./viewStore.ts";
 import { applyRules } from "../projection/managedStylesheet.ts";
-import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
@@ -36,7 +38,7 @@ import {
 } from "../prompt/clipboardHandoff.ts";
 import { activateDraftForCard, clearDrafts, persistDrafts } from "../drafts/store.ts";
 
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -256,7 +258,7 @@ export function hydrateSession(): HydrationResult {
   }
 
   const presentation = s.presentation ?? "focus";
-  const groups = s.groups ?? [];
+  const groups = Array.isArray(s.groups) ? s.groups.filter((group) => group?.kind !== "linked") : s.groups ?? [];
   if ((presentation !== "focus" && presentation !== "canvas") || !Array.isArray(groups) || !groups.every(isFrameGroup)) {
     safeDiscard();
     return { restored: false, changeCount: 0 };
@@ -309,17 +311,17 @@ function safeDiscard(): void {
 
 /** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
 export function clearSelectedFrameChanges(): void {
-  if (!canEditWorkspace()) return;
+  if (!canEditDraft()) return;
   const cardId = getSelectedCardId() ?? getFocusedCardId();
   if (cardId) activateDraftForCard(cardId);
-  clearWorkspaceLog();
+  clearActiveDraft();
   setSelectedElement(null);
   projectToAllReadyCards();
   scheduleAutoSave();
 }
 
 export function clearSession(): void {
-  if (isWorkspaceHistoryLocked()) return;
+  if (isDraftLocked()) return;
   if (!canWriteWorkspace()) return;
   try {
     localStorage.removeItem(storageKey(projectId()));
@@ -327,7 +329,7 @@ export function clearSession(): void {
     // ignore
   }
 
-  clearWorkspaceLog();
+  clearActiveDraft();
   clearClipboardHandoff();
   clearDrafts();
   resetStructuralDeleteProjection();

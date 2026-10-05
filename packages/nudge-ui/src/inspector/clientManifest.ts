@@ -3,7 +3,7 @@ import {
   type NudgeUiRuntimeConfig,
 } from "./runtime/runtimeConfig.ts";
 
-export type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
+export type { NudgeUiRuntimeConfig, NudgeUiRuntimeFeatures } from "./runtime/runtimeConfig.ts";
 export { detectStylingSystem } from "./runtime/runtimeConfig.ts";
 
 /** Version of the host-to-inspector runtime manifest Interface. */

@@ -17,9 +17,9 @@ import { componentChangeToOverride } from "../componentSemantics/changeModel.ts"
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import { isComponentChange, type TextContentChangeRecord } from "../changes/types.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
-import type { WorkspaceContents } from "../changes/workspaceChanges.ts";
+import type { DraftContents } from "../changes/draftChanges.ts";
 
-export interface WorkspaceProjectionSource extends WorkspaceContents {
+export interface DraftProjectionSource extends DraftContents {
   readonly revision: number;
 }
 
@@ -33,7 +33,7 @@ export interface SerializedManagedStyles {
 }
 
 /** A complete, read-only projection for one document-local runtime. */
-export interface WorkspaceProjectionPlan<ManagedStyles> {
+export interface DraftProjectionPlan<ManagedStyles> {
   readonly sourceRevision: number;
   readonly managedStyles: ManagedStyles;
   readonly instanceOverrides: readonly RenderedInstanceOverride[];
@@ -51,9 +51,9 @@ export interface DocumentProjectionAdapter<ManagedStyles> {
   applyManagedStyles(styles: ManagedStyles): void;
 }
 
-export function compileWorkspaceProjection(
-  snapshot: WorkspaceProjectionSource,
-): WorkspaceProjectionPlan<CompiledManagedStyles> {
+export function compileDraftProjection(
+  snapshot: DraftProjectionSource,
+): DraftProjectionPlan<CompiledManagedStyles> {
   const changes = [...snapshot.changes];
   const rules = buildManagedStyleRules(changes);
   return {
@@ -79,9 +79,9 @@ export function compileWorkspaceProjection(
  * can depend on the restored element order. Managed CSS is applied last so
  * selectors can use the document-local instance markers installed above.
  */
-export function applyWorkspaceProjection<ManagedStyles>(
+export function applyDraftProjection<ManagedStyles>(
   adapter: DocumentProjectionAdapter<ManagedStyles>,
-  plan: WorkspaceProjectionPlan<ManagedStyles>,
+  plan: DraftProjectionPlan<ManagedStyles>,
 ): void {
   adapter.applyStructural(plan.structuralChanges);
   adapter.applyRenderedInstances(plan.instanceOverrides);
@@ -106,8 +106,8 @@ const hostDocumentProjectionAdapter: DocumentProjectionAdapter<CompiledManagedSt
   },
 };
 
-export function applyHostWorkspaceProjection(
-  plan: WorkspaceProjectionPlan<CompiledManagedStyles>,
+export function applyHostDraftProjection(
+  plan: DraftProjectionPlan<CompiledManagedStyles>,
 ): void {
-  applyWorkspaceProjection(hostDocumentProjectionAdapter, plan);
+  applyDraftProjection(hostDocumentProjectionAdapter, plan);
 }

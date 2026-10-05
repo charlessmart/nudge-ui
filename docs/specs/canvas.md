@@ -15,7 +15,7 @@ confusing an experiment with the live app.
 | --- | --- |
 | Live frame | A running app page at a chosen viewport size. Visual edits become instructions for changes to application source. |
 | Linked frames | Multiple live views of the same page that share pending edits. Useful for responsive comparison. |
-| HTML study | An independent HTML variation captured from a frame, including its current visual edits. Further edits target that study’s HTML file. |
+| HTML iteration | An independent HTML document captured from a frame, including its current visual edits. Further edits target that iteration’s HTML file. |
 | Sketch note | A drawing or annotation over a frame, with optional written instructions, that communicates intent to the agent. |
 
 ## Main flows
@@ -30,29 +30,23 @@ for editing.
 
 ### 2. Compare responsive layouts and related pages
 
-Use **Add linked frame** on a live frame to compare the same page at another
-width. Edits appear across linked views; each viewport can be resized separately,
-and the group moves together.
-
-Use **Add pages** to search framework-discovered routes, select several, and add
-them as a grid below existing frames. This requires no Nudge configuration.
-Discovery covers Next.js pages, Astro pages, and Vite/static HTML entry pages.
-Dynamic route patterns are shown but require a concrete URL before they can be
-added. Arbitrary client router definitions are outside current discovery.
+Use **Duplicate** on a live frame to compare the same page at another
+width. Edits appear across linked views; each frame can be moved and resized
+independently. Open related pages by following links in **Use app normally**.
 
 ### 3. Explore an independent alternative
 
-Choose **Variation**, or Option/Alt-drag a frame’s top bar, to capture an HTML
-study. Keep the original live frame and its linked views available for comparison.
-Edit and resize the study independently, or create further variations from it.
-Clearly label live frames and HTML studies so the user knows where agent edits
-will go. A study preserves a rendered design; it does not reproduce the app’s
+Choose **Iteration**, or Option/Alt-drag a frame’s top bar, to capture an HTML
+iteration. Keep the original live frame and its linked views available for comparison.
+Edit and resize the iteration independently, or create further iterations from it.
+Clearly label live frames and HTML iterations so the user knows where agent edits
+will go. An iteration preserves a rendered design; it does not reproduce the app’s
 full behavior or automatically apply changes back to application source.
 
 ### 4. Make the intended change visible
 
 Select elements to preview supported style, token, component-property, and
-structural changes. Double-click text to edit it inline. Each independent study
+structural changes. Double-click text to edit it inline. Each independent iteration
 keeps its own pending changes; switching frames preserves other drafts.
 
 Use Pencil to draw over a frame and add a note. Keep drawings visible with the
@@ -63,27 +57,26 @@ precise visual edits with sketches when the desired result needs explanation.
 
 Send the active draft’s changes, sketch images, and instructions to a connected
 agent. Otherwise, copy the prompt and sketch images for manual handoff. Live
-frame requests target application source; study requests target the study’s HTML
-file. Save the study’s pending changes before preparing its handoff.
+frame requests target application source; iteration requests target the iteration’s HTML
+file. Save the iteration’s pending changes before preparing its handoff.
 
-Show **Agent working…** and an animated border beam around affected frames.
-When the agent reports file activity, show reading/editing context and a gradient
-shimmer over identifiable components being edited. These temporary indicators
-describe activity; task completion remains a separate, authoritative state. The
-agent can also bring affected pages onto the canvas for review.
+Show **Agent working…** with a small solving orb in each affected frame’s badge.
+When the agent reports file activity, show a light grey transparent shimmer over the
+components being edited. These temporary indicators describe activity; task
+completion remains a separate, authoritative state. The agent can also bring
+affected pages onto the canvas for review.
 
 ### 6. Review, recover, and continue
 
 Refresh previews as changes arrive without interrupting active text edits.
 Reconcile completed changes while retaining unapplied changes and newer user
-edits. Keep work available when dispatch or saving fails, and surface study save
+edits. Keep work available when dispatch or saving fails, and surface iteration save
 conflicts instead of silently overwriting changes. Remove activity indicators
 when the task ends or disconnects.
 
 Use one session undo/redo timeline for visual edits and frame creation across
-drafts. Undo automatically focuses the relevant frame; adding a page grid is one
-undo step. Restore the canvas arrangement, focused frame, and pending drafts
-after reload. Clearing pending changes preserves frames; **Reset canvas** is a
+drafts. Undo automatically focuses the relevant frame. Restore the canvas
+arrangement, focused frame, and pending drafts after reload. Clearing pending changes preserves frames; **Reset canvas** is a
 separate action. Only one browser tab owns editing at a time.
 
 ## Current boundaries
@@ -91,4 +84,4 @@ separate action. Only one browser tab owns editing at a time.
 The canvas is a development workspace. Nudge previews intent and hands it to an
 agent; it does not directly edit application source. Session undo is not a saved
 version archive. Named immutable versions, component-state fixtures, Storybook
-integration, and automatic promotion of studies into app source are deferred.
+integration, and automatic promotion of iterations into app source are deferred.

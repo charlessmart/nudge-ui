@@ -1,5 +1,5 @@
-import { addDraftSketch } from "../drafts/store.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { assignSketchToDraft } from "../drafts/store.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { renderAnnotatedPng } from "./raster.ts";
@@ -93,15 +93,15 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
     : null;
 
   async function save(input: Parameters<SketchEditorProps["onSave"]>[0]): Promise<void> {
-    const owner = interaction.draftId ?? getWorkspaceChanges().draftId;
+    const owner = interaction.draftId ?? getActiveDraftChanges().draftId;
     const saved = await saveSketch(input);
-    if (!input.id) addDraftSketch(owner, saved.id);
+    if (!input.id) assignSketchToDraft(owner, saved.id);
     closeSketchEditor();
   }
 
   async function saveLive(draft: SketchLiveDraft): Promise<void> {
     if (!hostElement) throw new Error("The inspector is no longer available.");
-    const owner = interaction.draftId ?? getWorkspaceChanges().draftId;
+    const owner = interaction.draftId ?? getActiveDraftChanges().draftId;
     const captured = await completeSketchCapture(hostElement);
     const strokes = projectLiveStrokes(draft, captured);
     const annotations = projectLiveAnnotations(draft, captured);
@@ -123,7 +123,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       originalImage: captured.originalImage,
       annotatedImage: rendered.blob,
     });
-    addDraftSketch(owner, saved.id);
+    assignSketchToDraft(owner, saved.id);
     closeSketchEditor();
   }
 

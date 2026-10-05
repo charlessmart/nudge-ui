@@ -5,7 +5,7 @@ import {
   appendChanges,
   revertChange,
   reconcileVerifiedChanges,
-  clearWorkspace,
+  clearActiveDraft,
   getChangesList,
   getPendingRules,
   subscribeChanges,
@@ -67,11 +67,11 @@ function makeInstanceOverride(): RenderedInstanceOverride {
 
 describe("changesLog", () => {
   beforeEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     document.getElementById("nudge-ui-styles")?.remove();
   });
 
@@ -203,10 +203,10 @@ describe("changesLog", () => {
     expect(getChangesList()).toHaveLength(1);
   });
 
-  it("clearWorkspace empties the log", () => {
+  it("clearActiveDraft empties the log", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("color", COLOR_C, null));
-    clearWorkspace();
+    clearActiveDraft();
     expect(getChangesList()).toHaveLength(0);
     expect(getPendingRules()).toHaveLength(0);
   });
@@ -298,11 +298,11 @@ describe("changesLog", () => {
       expect(redo()).toBe(false);
     });
 
-    it("clearWorkspace clears the undo stack", () => {
+    it("clearActiveDraft clears the undo stack", () => {
       appendChange(makeRecord("background", COLOR_B, COLOR_A));
       appendChange(makeRecord("color", COLOR_C, null));
       undo();
-      clearWorkspace();
+      clearActiveDraft();
       expect(redo()).toBe(false);
     });
 
@@ -351,7 +351,7 @@ describe("changesLog", () => {
     appendChange(makeRecord("margin", null, null, "12px"));
     const before = getPendingRules();
     expect(before).toHaveLength(2);
-    clearWorkspace();
+    clearActiveDraft();
     appendChange(makeRecord("padding", null, null, "10px"));
     appendChange(makeRecord("margin", null, null, "12px"));
     const rebuilt = getPendingRules();
@@ -473,9 +473,9 @@ describe("changesLog", () => {
     expect(rules[1]!.declarations.color).toBe("blue");
   });
 
-  it("clearWorkspace also empties the managed stylesheet", () => {
+  it("clearActiveDraft also empties the managed stylesheet", () => {
     appendChange(makeRecord("color", null, null, "red"));
-    clearWorkspace();
+    clearActiveDraft();
     expect(document.getElementById("nudge-ui-styles")?.textContent).toBe("");
   });
 

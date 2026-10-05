@@ -1,4 +1,4 @@
-import { HTML_ARTIFACT_REVISION_ATTRIBUTE, HTML_STUDY_CONFLICT, isHtmlArtifactRevision, type HtmlArtifactRevision } from "../transport/artifacts.ts";
+import { HTML_ARTIFACT_REVISION_ATTRIBUTE, HTML_ITERATION_CONFLICT, isHtmlArtifactRevision, type HtmlArtifactRevision } from "../transport/artifacts.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -167,7 +167,7 @@ export async function handleHtmlArtifactRequest(
         if (!input || typeof input !== "object") { respond(response, 400, "Invalid document"); return true; }
         const item = input as Record<string, unknown>;
         if (!isHtmlArtifactRevision(item.expected)) {
-          respond(response, 428, "An expected study revision is required"); return true;
+          respond(response, 428, "An expected iteration revision is required"); return true;
         }
         if ((item.html !== undefined && typeof item.html !== "string")
           || (request.method === "PUT" && typeof item.html !== "string")) {
@@ -175,7 +175,7 @@ export async function handleHtmlArtifactRequest(
         }
         const expected = item.expected;
         if (!sameRevision(await readRevision(target), expected)) {
-          respond(response, 409, HTML_STUDY_CONFLICT); return true;
+          respond(response, 409, HTML_ITERATION_CONFLICT); return true;
         }
         const html = typeof item.html === "string" ? item.html : await readFile(join(target, "document.html"), "utf8");
         const writes = request.method === "POST" ? ["preview.html"] : [];
@@ -196,7 +196,7 @@ export async function handleHtmlArtifactRequest(
             preview: revision(readFileSync(join(target, "preview.html"))),
           };
           if (!sameRevision(latest, expected)) {
-            respond(response, 409, HTML_STUDY_CONFLICT); return true;
+            respond(response, 409, HTML_ITERATION_CONFLICT); return true;
           }
           let replacedPreview = false;
           try {

@@ -4,7 +4,15 @@ import {
   isElementClickMessage,
   isInlineTextIntentMessage,
 } from "./frameProtocol.ts";
-import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning, useCanvasLayoutTransitioning, getCanvasLayoutTransitioning, useTemporaryAppInteraction } from "./canvasStore.ts";
+import { useCanvasCards } from "./canvasStore.ts";
+import {
+  useBoardCamera,
+  useCanvasPresentation,
+  useCanvasPresentationTransitioning,
+  useCanvasLayoutTransitioning,
+  getCanvasLayoutTransitioning,
+  useTemporaryAppInteraction,
+} from "./viewStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import { getSelectedElements, useHierarchy, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {

@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   appendChange,
-  clearWorkspace,
+  clearActiveDraft,
   getChangesList,
 } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
@@ -49,14 +49,14 @@ function makeTokenRecord() {
 
 describe("originalPreview", () => {
   beforeEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     setOriginalPreviewActive(false);
     document.getElementById("nudge-ui-styles")?.remove();
   });
 
   afterEach(() => {
     setOriginalPreviewActive(false);
-    clearWorkspace();
+    clearActiveDraft();
     document.getElementById("nudge-ui-styles")?.remove();
   });
 

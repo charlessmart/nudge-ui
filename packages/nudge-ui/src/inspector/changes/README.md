@@ -111,7 +111,7 @@ These are different facts and must not be represented by one universal status.
   reconcile style, text, and structural records when the source result is
   observable. Component prop records remain unresolved because rendered output
   cannot prove that the source prop was edited.
-- `CommitResult` from [`workspaceChanges.ts`](./workspaceChanges.ts) is a
+- `CommitResult` from [`draftChanges.ts`](./draftChanges.ts) is a
   canonical write result: `applied`, `unchanged`, or `blocked`. It is neither a
   target-resolution status nor a preview result. `blocked` must remain distinct
   from `unchanged`, and a blocked inline-text commit restores its draft.
@@ -128,7 +128,7 @@ unsent intent remains in the workspace.
 | Record shapes and type guards | `changes/types.ts`, `changes/structuralTypes.ts`, `changes/editModel.ts`, `componentSemantics/types.ts` | Canonical records contain serializable intent and bounded evidence, never live DOM or framework objects. Operation, target, scope, and evidence remain distinguishable. Shared rendered-instance and text guards reject document-local fields. `inline-text/textChangeBoundary.ts` is a compatibility re-export. |
 | Per-variant durable codecs | `changes/codecs.ts` | The shared codec owns serializable change shapes, strict validation, and canonical round trips. It depends only on the edit model, component model, and shared CSS value types; it does not import storage or projection implementations. |
 | Canonical keys, baselines, and merge rules | `changes/model.ts` | A merge preserves the first baseline and latest requested value. Returning to the baseline removes the canonical delta. Text records only merge when their stable evidence and before/after chain are compatible. |
-| Workspace history and revision | `changes/workspaceChanges.ts` | Only canonical mutations advance revision or enter undo/redo. Diagnostic publication does neither. `CommitResult` remains three-valued. Reconciliation removes only positively verified records and cannot resurrect them through history. |
+| Workspace history and revision | `changes/draftChanges.ts` | Only canonical mutations advance revision or enter undo/redo. Diagnostic publication does neither. `CommitResult` remains three-valued. Reconciliation removes only positively verified records and cannot resurrect them through history. |
 | Public change orchestration | `changes/changesLog.ts`, `changes/previewDiagnostics.ts` | Subscribers observe a complete workspace snapshot. CSS projection is derived from canonical records. Deferred verification publishes to the diagnostic store and is bound to the document captured at commit time. |
 | Source-site and instance scope | `selection/editScope.ts`, `changes/editModel.ts`, `projection/renderedInstance.ts` | Missing or ambiguous rendered evidence fails closed. A partial repeated-source edit must not silently broaden to every output. The projection module re-exports the shared model while owning resolution. |
 | Component intent and runtime override | `componentSemantics/changeModel.ts`, `componentSemantics/textBinding.ts` | A rendered-instance component record is not converted into a callsite-wide override. Repeated expression and spread props are not broadened without proof. |
@@ -144,7 +144,7 @@ known mismatches are called out so the ownership work has a concrete scope.
 
 | Lifetime | State that belongs to it | Disposal expectation |
 | --- | --- | --- |
-| Workspace | Canonical change contents, revision, undo/redo, workspace subscriptions, persisted Canvas card/camera state (`workspaceChanges.ts`, `canvasStore.ts`, `sessionStore.ts`), and the workspace write lease/guard (`canvas/workspaceLease.ts`) | Survives an inspector React remount. It is cleared only by an explicit workspace clear/restore or final host teardown. Disposal stops workspace subscriptions, pending persistence work, and the lease heartbeat after the final write. `unmountInspector()` disposes mounted resources without clearing workspace intent. |
+| Workspace | Canonical change contents, revision, undo/redo, workspace subscriptions, persisted Canvas card/camera state (`draftChanges.ts`, `canvasStore.ts`, `sessionStore.ts`), and the workspace write lease/guard (`canvas/workspaceLease.ts`) | Survives an inspector React remount. It is cleared only by an explicit workspace clear/restore or final host teardown. Disposal stops workspace subscriptions, pending persistence work, and the lease heartbeat after the final write. `unmountInspector()` disposes mounted resources without clearing workspace intent. |
 | Mounted inspector | React roots, host keyboard listeners, selection/UI state, inspection bridge, clipboard handoff controller, stale-detection timers, and mounted shell resources (`index.ts` and shell modules) | `unmountInspector()` owns stopping these resources: unmount roots, remove listeners, cancel controllers/timers, clear selection/layout, and remove inspector-owned host projection. It must not dispose workspace intent merely because the UI remounted. |
 | Inspected document session | Managed stylesheet state, rendered-instance/text/structural applied state and reports, CSSOM resolution caches and observers, renderer selectors, document-local DOM markers/placeholders, and renderer history patches (`canvas/rendererBootstrap.ts`) | The host document and each Canvas iframe/reload have independent lifetimes. Disposal disconnects observers, cancels queued validation, restores only patches still owned by the session, removes only inspector-owned DOM artifacts, invalidates late callbacks/reports, and releases document caches. A Canvas card ID is not a sufficient identity for a live document after reload or replacement. |
 
@@ -159,7 +159,7 @@ Current coverage includes:
 - Canonical style/token records, merge/baseline behavior, undo/redo, deferred
   verification, and instance-scoped CSS in
   [`changesLog.test.ts`](./changesLog.test.ts),
-  [`workspaceChanges.test.ts`](./workspaceChanges.test.ts),
+  [`draftChanges.test.ts`](./draftChanges.test.ts),
   `tokens/editActions.test.ts`, and `projection/managedStylesheet.test.ts`.
 - Component target identity, scope safety, runtime overrides, and semantic text
   binding in `componentSemantics/changeAction.test.ts`,

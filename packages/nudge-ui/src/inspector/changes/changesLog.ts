@@ -1,4 +1,4 @@
-import { canEditWorkspace } from "./workspaceChanges.ts";
+import { canEditDraft } from "./draftChanges.ts";
 import { useSyncExternalStore } from "react";
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import {
@@ -13,10 +13,10 @@ import { isPreviewableChange } from "./types.ts";
 import type { ChangeRecord } from "./types.ts";
 import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
 import {
-  workspaceChangeStore,
+  draftChangeStore,
   type CommitResult,
-  type WorkspaceChangesSnapshot,
-} from "./workspaceChanges.ts";
+  type DraftChangesSnapshot,
+} from "./draftChanges.ts";
 import {
   beginPreviewAttempt,
   clearPreviewDiagnostics,
@@ -26,9 +26,9 @@ import {
 import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import type { StructuralChange } from "./structuralTypes.ts";
 import {
-  applyHostWorkspaceProjection,
-  compileWorkspaceProjection,
-} from "../projection/workspaceProjection.ts";
+  applyHostDraftProjection,
+  compileDraftProjection,
+} from "../projection/draftProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
 import {
   isOriginalPreviewActive,
@@ -67,25 +67,25 @@ export interface AppendChangesOptions {
 }
 
 function subscribe(cb: () => void): () => void {
-  return workspaceChangeStore.subscribe(cb);
+  return draftChangeStore.subscribe(cb);
 }
 
 function getChangesSnapshot(): ChangeRecord[] {
   // SAFETY: The public change model is the concrete record union stored by
   // the workspace snapshot; this module preserves the mutable array facade.
-  return workspaceChangeStore.getSnapshot().changes as ChangeRecord[];
+  return draftChangeStore.getSnapshot().changes as ChangeRecord[];
 }
 
 export function getPendingRules(): StyleRule[] {
   return buildManagedStyleRules(getChangesSnapshot());
 }
 
-function reapply(workspace: WorkspaceChangesSnapshot): void {
+function reapply(workspace: DraftChangesSnapshot): void {
   // While hold-to-view-original is active the host document intentionally
   // shows the page without inspector changes. Commits still land in the
   // canonical store; the release path re-projects the latest snapshot.
   if (isOriginalPreviewActive()) return;
-  if (!isEditorShellDocument()) applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
+  if (!isEditorShellDocument()) applyHostDraftProjection(compileDraftProjection(workspace));
 }
 
 function flushVerification(): void {
@@ -102,7 +102,7 @@ function flushVerification(): void {
   const current = getChangesSnapshot();
   const attempt = beginPreviewAttempt(
     getHostPreviewDocument(),
-    workspaceChangeStore.getSnapshot().revision,
+    draftChangeStore.getSnapshot().revision,
   );
   if (!attempt) return;
   for (let i = 0; i < current.length; i++) {
@@ -175,9 +175,9 @@ subscribeOriginalPreview(() => {
 
 /** Append records and report whether canonical workspace state changed. */
 export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
-  const result = workspaceChangeStore.commitChangeRecords(incoming);
+  const result = draftChangeStore.commitChangeRecords(incoming);
   if (result !== "applied") return result;
-  reapply(workspaceChangeStore.getSnapshot());
+  reapply(draftChangeStore.getSnapshot());
   // Re-verify the full surviving set so earlier diagnostics are refreshed at
   // the new revision instead of being orphaned at the old one.
   markForVerification(getChangesSnapshot().map(changeKey), options.verificationTargets);
@@ -189,8 +189,8 @@ export function appendChange(change: ChangeRecord): CommitResult {
 }
 
 export function revertChange(change: ChangeRecord): void {
-  if (!workspaceChangeStore.revertChangeRecord(change)) return;
-  reapply(workspaceChangeStore.getSnapshot());
+  if (!draftChangeStore.revertChangeRecord(change)) return;
+  reapply(draftChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
@@ -203,47 +203,47 @@ export function revertChange(change: ChangeRecord): void {
  * preserving newer, unsent edits and their remaining undo history.
  */
 export function reconcileVerifiedChanges(verifiedKeys: ReadonlySet<string>): number {
-  const removed = reconcileVerifiedWorkspaceChanges(verifiedKeys, new Set());
+  const removed = reconcileVerifiedDraftChanges(verifiedKeys, new Set());
   if (removed === 0) return 0;
   return removed;
 }
 
 /** Atomically reconciles ordinary and structural intent from one agent handoff. */
-export function reconcileVerifiedWorkspaceChanges(
+export function reconcileVerifiedDraftChanges(
   verifiedKeys: ReadonlySet<string>,
   verifiedStructuralIds: ReadonlySet<string>,
 ): number {
-  const removed = workspaceChangeStore.reconcileWorkspaceChanges(verifiedKeys, verifiedStructuralIds);
+  const removed = draftChangeStore.reconcileActiveDraftChanges(verifiedKeys, verifiedStructuralIds);
   if (removed === 0) return 0;
-  reapply(workspaceChangeStore.getSnapshot());
+  reapply(draftChangeStore.getSnapshot());
   pruneStructuralProjectionReports(verifiedStructuralIds);
   markForVerification(getChangesSnapshot().map(changeKey));
   return removed;
 }
 
 export function discardChangesForSelector(selector: string): void {
-  if (!workspaceChangeStore.discardChangeRecords({ kind: "selector", selector })) return;
-  reapply(workspaceChangeStore.getSnapshot());
+  if (!draftChangeStore.discardChangeRecords({ kind: "selector", selector })) return;
+  reapply(draftChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 /** Relink removes every CSS declaration owned by one durable rendered target. */
 export function discardChangesForInstanceOverride(overrideId: string): void {
-  if (!workspaceChangeStore.discardChangeRecords({ kind: "instance-override", id: overrideId })) return;
-  reapply(workspaceChangeStore.getSnapshot());
+  if (!draftChangeStore.discardChangeRecords({ kind: "instance-override", id: overrideId })) return;
+  reapply(draftChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 export function undo(): boolean {
-  const undone = workspaceChangeStore.undoWorkspaceChange();
-  if (undone) reapply(workspaceChangeStore.getSnapshot());
+  const undone = draftChangeStore.undoChange();
+  if (undone) reapply(draftChangeStore.getSnapshot());
   if (undone) markForVerification(getChangesSnapshot().map(changeKey));
   return undone;
 }
 
 export function redo(): boolean {
-  const redone = workspaceChangeStore.redoWorkspaceChange();
-  if (redone) reapply(workspaceChangeStore.getSnapshot());
+  const redone = draftChangeStore.redoChange();
+  if (redone) reapply(draftChangeStore.getSnapshot());
   if (redone) markForVerification(getChangesSnapshot().map(changeKey));
   return redone;
 }
@@ -259,13 +259,13 @@ export function restoreChangeRecords(incoming: ChangeRecord[]): void {
   // inspect a newly loaded record with its old selection context.
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
-  const workspace = workspaceChangeStore.getSnapshot();
-  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges: workspace.structuralChanges });
-  reapply(workspaceChangeStore.getSnapshot());
+  const workspace = draftChangeStore.getSnapshot();
+  draftChangeStore.restoreActiveDraftChanges({ changes: incoming, structuralChanges: workspace.structuralChanges });
+  reapply(draftChangeStore.getSnapshot());
 }
 
 /** Restores every canonical workspace intent as one subscriber-visible snapshot. */
-export function loadWorkspaceChanges(
+export function loadActiveDraftChanges(
   incoming: readonly ChangeRecord[],
   structuralChanges: readonly StructuralChange[],
   preserveHistory = false,
@@ -273,21 +273,21 @@ export function loadWorkspaceChanges(
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   clearStructuralProjectionReports();
-  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges }, preserveHistory);
-  reapply(workspaceChangeStore.getSnapshot());
+  draftChangeStore.restoreActiveDraftChanges({ changes: incoming, structuralChanges }, preserveHistory);
+  reapply(draftChangeStore.getSnapshot());
 }
 
 /** Clears the active draft and its edit steps, preserving other session history. */
-export function clearWorkspace(): void {
-  if (!canEditWorkspace()) return;
+export function clearActiveDraft(): void {
+  if (!canEditDraft()) return;
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.
   cancelInlineTextForClear();
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   clearStructuralProjectionReports();
-  workspaceChangeStore.clearWorkspaceChanges();
-  reapply(workspaceChangeStore.getSnapshot());
+  draftChangeStore.clearActiveDraftChanges();
+  reapply(draftChangeStore.getSnapshot());
 }
 
 export function getChangesList(): ChangeRecord[] {
@@ -300,8 +300,8 @@ export function useChanges(): ChangeRecord[] {
   return useSyncExternalStore(subscribe, getChangesSnapshot, getChangesSnapshot);
 }
 
-export function refreshWorkspacePreview(): void {
+export function refreshDraftPreview(): void {
   pendingVerificationTargets.clear();
-  reapply(workspaceChangeStore.getSnapshot());
+  reapply(draftChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }

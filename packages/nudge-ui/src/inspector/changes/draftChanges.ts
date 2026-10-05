@@ -1,4 +1,5 @@
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
+import { applicationTarget, targetKey } from "../drafts/model.ts";
 import { changeKey, mergeChange, sameEffectiveChanges, selectorForChange } from "./model.ts";
 import { isElementChange, type ChangeRecord } from "./types.ts";
 import type { StructuralChange } from "./structuralTypes.ts";
@@ -9,42 +10,47 @@ import {
   timelineStatus,
   subscribeTimeline,
   clearSessionUndoHistory,
-  discardWorkspaceHistory,
+  discardDraftHistory,
 } from "../workspace/timeline.ts";
 export {
   recordCanvasCreation,
   discardCanvasHistory,
-  discardWorkspaceHistory,
+  discardDraftHistory,
   clearSessionUndoHistory,
   createChangeHistoryGroup,
 } from "../workspace/timeline.ts";
 
-export interface WorkspaceContents {
+export interface DraftContents {
   readonly changes: readonly ChangeRecord[];
   readonly structuralChanges: readonly StructuralChange[];
 }
 
-export interface WorkspaceChangesSnapshot extends WorkspaceContents {
+export interface DraftChangesSnapshot extends DraftContents {
   readonly draftId: string;
   readonly revision: number;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
 }
 
-interface DraftWorkspace {
+interface DraftState {
   readonly id: string;
   revision: number;
-  contents: WorkspaceContents;
+  contents: DraftContents;
   activate?: () => void;
 }
 
-const drafts = new Map<string, DraftWorkspace>();
+const drafts = new Map<string, DraftState>();
 const lockedDrafts = new Set<string>();
 const listeners = new Set<() => void>();
 const draftListeners = new Set<(draftId: string) => void>();
-let activeDraftId = "workspace";
+/** Until a frame is activated, edits belong to the current page's draft. */
+let activeDraftId: string | null = null;
 
-function draftWorkspace(id = activeDraftId): DraftWorkspace {
+function activeId(): string {
+  return activeDraftId ??= targetKey(applicationTarget());
+}
+
+function draftState(id = activeId()): DraftState {
   let draft = drafts.get(id);
   if (!draft) {
     draft = { id, revision: 0, contents: { changes: [], structuralChanges: [] } };
@@ -53,32 +59,32 @@ function draftWorkspace(id = activeDraftId): DraftWorkspace {
   return draft;
 }
 
-export function lockWorkspaceHistory(id: string): () => void {
-  if (lockedDrafts.has(id)) throw new Error("This study is already saving.");
+export function lockDraft(id: string): () => void {
+  if (lockedDrafts.has(id)) throw new Error("This iteration is already saving.");
   lockedDrafts.add(id);
   return () => { lockedDrafts.delete(id); };
 }
 
-export function isWorkspaceHistoryLocked(id?: string): boolean {
+export function isDraftLocked(id?: string): boolean {
   return id === undefined ? lockedDrafts.size > 0 : lockedDrafts.has(id);
 }
 
-export function canEditWorkspace(id = activeDraftId): boolean {
+export function canEditDraft(id = activeId()): boolean {
   return canWriteWorkspace() && !lockedDrafts.has(id);
 }
 
-export function setWorkspaceHistoryContext(id: string, activate?: () => void): void {
-  draftWorkspace(id).activate = activate;
-  if (activeDraftId === id) return;
+export function setActiveDraft(id: string, activate?: () => void): void {
+  draftState(id).activate = activate;
+  if (activeId() === id) return;
   activeDraftId = id;
   publishSelection();
 }
 
-export type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
+export type DraftProjector = (snapshot: DraftChangesSnapshot) => void;
 export type CommitResult = "applied" | "unchanged" | "blocked";
 
-export interface WorkspaceChangeStore {
-  getSnapshot(): WorkspaceChangesSnapshot;
+export interface DraftChangeStore {
+  getSnapshot(): DraftChangesSnapshot;
   subscribe(listener: () => void): () => void;
   commitChangeRecords(incoming: readonly ChangeRecord[]): CommitResult;
   revertChangeRecord(change: ChangeRecord): boolean;
@@ -87,19 +93,19 @@ export interface WorkspaceChangeStore {
   ): boolean;
   commitStructuralChange(change: StructuralChange): boolean;
   revertStructuralChangeRecord(changeId: string): boolean;
-  reconcileWorkspaceChanges(
+  reconcileActiveDraftChanges(
     verifiedKeys: ReadonlySet<string>,
     verifiedStructuralIds: ReadonlySet<string>,
   ): number;
-  undoWorkspaceChange(): boolean;
-  redoWorkspaceChange(): boolean;
-  restoreWorkspaceChanges(next: WorkspaceContents, preserveHistory?: boolean): void;
-  clearWorkspaceChanges(): void;
+  undoChange(): boolean;
+  redoChange(): boolean;
+  restoreActiveDraftChanges(next: DraftContents, preserveHistory?: boolean): void;
+  clearActiveDraftChanges(): void;
 }
 
-let snapshot = createSnapshot();
+let snapshot: DraftChangesSnapshot | null = null;
 
-function cloneContents(value: WorkspaceContents): WorkspaceContents {
+function cloneContents(value: DraftContents): DraftContents {
   return {
     changes: value.changes.map((change) => cloneValue(change)),
     structuralChanges: value.structuralChanges.map((change) => cloneValue(change)),
@@ -128,8 +134,8 @@ function freezeValue<T>(value: T, key?: string): T {
   return value;
 }
 
-function createSnapshot(): WorkspaceChangesSnapshot {
-  const draft = draftWorkspace();
+function createSnapshot(): DraftChangesSnapshot {
+  const draft = draftState();
   return Object.freeze({ draftId: draft.id, revision: draft.revision, ...draft.contents, ...timelineStatus() });
 }
 
@@ -150,25 +156,25 @@ function mutate<T>(operation: () => T): T {
 
 function publishSelection(): void {
   if (notificationDepth > 0) { notificationPending = true; return; }
-  snapshot = createSnapshot();
+  snapshot = null;
   for (const listener of listeners) listener();
 }
 
 subscribeTimeline(publishSelection);
 
-function replaceContents(draft: DraftWorkspace, next: WorkspaceContents): void {
+function replaceContents(draft: DraftState, next: DraftContents): void {
   draft.contents = freezeValue(cloneContents(next));
   draft.revision += 1;
   for (const listener of draftListeners) listener(draft.id);
   publishSelection();
 }
 
-export function subscribeDraftWorkspaces(listener: (draftId: string) => void): () => void {
+export function subscribeDraftChanges(listener: (draftId: string) => void): () => void {
   draftListeners.add(listener);
   return () => draftListeners.delete(listener);
 }
 
-export function getDraftWorkspace(id: string): WorkspaceChangesSnapshot {
+export function getDraftChanges(id: string): DraftChangesSnapshot {
   const draft = drafts.get(id);
   return {
     draftId: id,
@@ -179,25 +185,25 @@ export function getDraftWorkspace(id: string): WorkspaceChangesSnapshot {
   };
 }
 
-export function restoreDraftWorkspace(id: string, next: WorkspaceContents, revision = 1): void {
-  const draft = draftWorkspace(id);
+export function restoreDraftChanges(id: string, next: DraftContents, revision = 1): void {
+  const draft = draftState(id);
   draft.contents = freezeValue(cloneContents(next));
   draft.revision = revision;
   publishSelection();
 }
 
-function commit(next: WorkspaceContents): boolean {
-  if (!canEditWorkspace()) return false;
-  const draft = draftWorkspace();
+function commit(next: DraftContents): boolean {
+  if (!canEditDraft()) return false;
+  const draft = draftState();
   const before = draft.contents;
   mutate(() => {
     replaceContents(draft, next);
-    recordEdit({ draftId: draft.id, activate: draft.activate, before, after: draft.contents }, sameWorkspaceContents);
+    recordEdit({ draftId: draft.id, activate: draft.activate, before, after: draft.contents }, sameDraftContents);
   });
   return true;
 }
 
-function getSnapshot(): WorkspaceChangesSnapshot { return snapshot; }
+function getSnapshot(): DraftChangesSnapshot { return snapshot ??= createSnapshot(); }
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -205,20 +211,20 @@ function subscribe(listener: () => void): () => void {
 
 function commitChangeRecordsImpl(incoming: readonly ChangeRecord[]): CommitResult {
   if (incoming.length === 0) return "unchanged";
-  const contents = draftWorkspace().contents;
+  const contents = draftState().contents;
   const changes = incoming.reduce((current, change) => mergeChange(current, change), [...contents.changes]);
   if (sameEffectiveChanges([...contents.changes], changes)) return "unchanged";
   return commit({ ...contents, changes }) ? "applied" : "blocked";
 }
 
 function revertChangeRecordImpl(change: ChangeRecord): boolean {
-  const contents = draftWorkspace().contents;
+  const contents = draftState().contents;
   const changes = contents.changes.filter((candidate) => changeKey(candidate) !== changeKey(change));
   return changes.length !== contents.changes.length && commit({ ...contents, changes });
 }
 
 function discardChangeRecordsImpl(target: { kind: "selector"; selector: string } | { kind: "instance-override"; id: string }): boolean {
-  const contents = draftWorkspace().contents;
+  const contents = draftState().contents;
   const changes = contents.changes.filter((change) => target.kind === "selector"
     ? selectorForChange(change) !== target.selector
     : !isElementChange(change) || change.instanceOverride?.id !== target.id);
@@ -226,21 +232,21 @@ function discardChangeRecordsImpl(target: { kind: "selector"; selector: string }
 }
 
 function commitStructuralChangeImpl(change: StructuralChange): boolean {
-  const contents = draftWorkspace().contents;
+  const contents = draftState().contents;
   if (contents.structuralChanges.some((candidate) => candidate.id === change.id)) return false;
   return commit({ ...contents, structuralChanges: [...contents.structuralChanges, change] });
 }
 
 function revertStructuralChangeRecordImpl(changeId: string): boolean {
-  const contents = draftWorkspace().contents;
+  const contents = draftState().contents;
   const structuralChanges = contents.structuralChanges.filter((change) => change.id !== changeId);
   return structuralChanges.length !== contents.structuralChanges.length && commit({ ...contents, structuralChanges });
 }
 
-export function reconcileDraftWorkspace(id: string, verifiedKeys: ReadonlySet<string>, verifiedStructuralIds: ReadonlySet<string>): number {
-  if (!canEditWorkspace(id)) return 0;
-  const draft = draftWorkspace(id);
-  const retain = (value: WorkspaceContents): WorkspaceContents => ({
+export function reconcileDraftChanges(id: string, verifiedKeys: ReadonlySet<string>, verifiedStructuralIds: ReadonlySet<string>): number {
+  if (!canEditDraft(id)) return 0;
+  const draft = draftState(id);
+  const retain = (value: DraftContents): DraftContents => ({
     changes: value.changes.filter((change) => !verifiedKeys.has(changeKey(change))),
     structuralChanges: value.structuralChanges.filter((change) => !verifiedStructuralIds.has(change.id)),
   });
@@ -249,110 +255,123 @@ export function reconcileDraftWorkspace(id: string, verifiedKeys: ReadonlySet<st
   if (removed === 0) return 0;
   mutate(() => {
     replaceContents(draft, next);
-    pruneDraftHistory(id, retain, sameWorkspaceContents);
+    pruneDraftHistory(id, retain, sameDraftContents);
   });
   return removed;
 }
 
-function reconcileWorkspaceChangesImpl(keys: ReadonlySet<string>, ids: ReadonlySet<string>): number {
-  return reconcileDraftWorkspace(activeDraftId, keys, ids);
+function reconcileActiveDraftChangesImpl(keys: ReadonlySet<string>, ids: ReadonlySet<string>): number {
+  return reconcileDraftChanges(activeId(), keys, ids);
 }
 
-function sameWorkspaceContents(left: WorkspaceContents, right: WorkspaceContents): boolean {
+function sameDraftContents(left: DraftContents, right: DraftContents): boolean {
   return sameEffectiveChanges([...left.changes], [...right.changes])
     && JSON.stringify(left.structuralChanges) === JSON.stringify(right.structuralChanges);
 }
 
 function replay(direction: "undo" | "redo"): boolean {
-  if (isWorkspaceHistoryLocked() || !canWriteWorkspace()) return false;
+  if (isDraftLocked() || !canWriteWorkspace()) return false;
   return mutate(() => replayTimeline(direction, (entry, next) => {
-    replaceContents(draftWorkspace(entry.draftId), next);
+    replaceContents(draftState(entry.draftId), next);
     entry.activate?.();
-    if (!entry.activate) setWorkspaceHistoryContext(entry.draftId);
+    if (!entry.activate) setActiveDraft(entry.draftId);
   }));
 }
 
-function restoreWorkspaceChangesImpl(next: WorkspaceContents, preserveHistory = false): void {
+function restoreActiveDraftChangesImpl(next: DraftContents, preserveHistory = false): void {
   mutate(() => {
-    replaceContents(draftWorkspace(), next);
+    replaceContents(draftState(), next);
     if (!preserveHistory) clearSessionUndoHistory();
   });
 }
 
-export function clearDraftWorkspace(id: string, expectedRevision?: number): boolean {
-  const draft = draftWorkspace(id);
-  if (!canEditWorkspace(id) || (expectedRevision !== undefined && draft.revision !== expectedRevision)) return false;
+export function clearDraftChanges(id: string, expectedRevision?: number): boolean {
+  const draft = draftState(id);
+  if (!canEditDraft(id) || (expectedRevision !== undefined && draft.revision !== expectedRevision)) return false;
   mutate(() => {
     replaceContents(draft, { changes: [], structuralChanges: [] });
-    discardWorkspaceHistory(id);
+    discardDraftHistory(id);
   });
   return true;
 }
 
-function clearWorkspaceChangesImpl(): void { clearDraftWorkspace(activeDraftId); }
+export function listDraftIds(): readonly string[] {
+  return [...drafts.keys()];
+}
 
-function resetWorkspaceChangesImpl(): void {
+/** Drops a draft whose content no longer exists, such as a deleted iteration. */
+export function forgetDraft(id: string): void {
+  if (!drafts.has(id) || lockedDrafts.has(id)) return;
+  discardDraftHistory(id);
+  drafts.delete(id);
+  for (const listener of draftListeners) listener(id);
+  publishSelection();
+}
+
+function clearActiveDraftChangesImpl(): void { clearDraftChanges(activeId()); }
+
+function resetDraftChangesImpl(): void {
   drafts.clear();
   lockedDrafts.clear();
-  activeDraftId = "workspace";
+  activeDraftId = null;
   clearSessionUndoHistory();
   publishSelection();
 }
 
-export const workspaceChangeStore: WorkspaceChangeStore = {
+export const draftChangeStore: DraftChangeStore = {
   getSnapshot, subscribe,
   commitChangeRecords: commitChangeRecordsImpl,
   revertChangeRecord: revertChangeRecordImpl,
   discardChangeRecords: discardChangeRecordsImpl,
   commitStructuralChange: commitStructuralChangeImpl,
   revertStructuralChangeRecord: revertStructuralChangeRecordImpl,
-  reconcileWorkspaceChanges: reconcileWorkspaceChangesImpl,
-  undoWorkspaceChange: () => replay("undo"),
-  redoWorkspaceChange: () => replay("redo"),
-  restoreWorkspaceChanges: restoreWorkspaceChangesImpl,
-  clearWorkspaceChanges: clearWorkspaceChangesImpl,
+  reconcileActiveDraftChanges: reconcileActiveDraftChangesImpl,
+  undoChange: () => replay("undo"),
+  redoChange: () => replay("redo"),
+  restoreActiveDraftChanges: restoreActiveDraftChangesImpl,
+  clearActiveDraftChanges: clearActiveDraftChangesImpl,
 };
 
-export function getWorkspaceChanges(): WorkspaceChangesSnapshot {
-  return workspaceChangeStore.getSnapshot();
+export function getActiveDraftChanges(): DraftChangesSnapshot {
+  return draftChangeStore.getSnapshot();
 }
 
-export function subscribeWorkspaceChanges(listener: () => void): () => void {
-  return workspaceChangeStore.subscribe(listener);
+export function subscribeActiveDraftChanges(listener: () => void): () => void {
+  return draftChangeStore.subscribe(listener);
 }
 
 export function commitChangeRecords(
   incoming: readonly ChangeRecord[],
-  project: WorkspaceProjector,
+  project: DraftProjector,
 ): CommitResult {
-  const result = workspaceChangeStore.commitChangeRecords(incoming);
-  if (result === "applied") project(workspaceChangeStore.getSnapshot());
+  const result = draftChangeStore.commitChangeRecords(incoming);
+  if (result === "applied") project(draftChangeStore.getSnapshot());
   return result;
 }
 
-export function commitStructuralChange(change: StructuralChange, project: WorkspaceProjector): boolean {
-  const changed = workspaceChangeStore.commitStructuralChange(change);
-  if (changed) project(workspaceChangeStore.getSnapshot());
+export function commitStructuralChange(change: StructuralChange, project: DraftProjector): boolean {
+  const changed = draftChangeStore.commitStructuralChange(change);
+  if (changed) project(draftChangeStore.getSnapshot());
   return changed;
 }
 
-export function undoWorkspaceChange(project: WorkspaceProjector): boolean {
-  const changed = workspaceChangeStore.undoWorkspaceChange();
-  if (changed) project(workspaceChangeStore.getSnapshot());
+export function undoChange(project: DraftProjector): boolean {
+  const changed = draftChangeStore.undoChange();
+  if (changed) project(draftChangeStore.getSnapshot());
   return changed;
 }
 
-export function redoWorkspaceChange(project: WorkspaceProjector): boolean {
-  const changed = workspaceChangeStore.redoWorkspaceChange();
-  if (changed) project(workspaceChangeStore.getSnapshot());
+export function redoChange(project: DraftProjector): boolean {
+  const changed = draftChangeStore.redoChange();
+  if (changed) project(draftChangeStore.getSnapshot());
   return changed;
 }
 
-export function restoreWorkspaceChanges(next: WorkspaceContents, project: WorkspaceProjector): void {
-  workspaceChangeStore.restoreWorkspaceChanges(next);
-  project(workspaceChangeStore.getSnapshot());
+export function restoreActiveDraftChanges(next: DraftContents, project: DraftProjector): void {
+  draftChangeStore.restoreActiveDraftChanges(next);
+  project(draftChangeStore.getSnapshot());
 }
 
-export function resetWorkspaceChanges(): void {
-  resetWorkspaceChangesImpl();
+export function resetDraftChanges(): void {
+  resetDraftChangesImpl();
 }

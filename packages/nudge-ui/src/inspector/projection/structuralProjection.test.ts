@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearWorkspace, loadWorkspaceChanges, redo, undo } from "../changes/changesLog.ts";
+import { clearActiveDraft, loadActiveDraftChanges, redo, undo } from "../changes/changesLog.ts";
 import {
   applyStructuralDeleteProjection,
   applyStructuralProjection,
@@ -391,7 +391,7 @@ describe("structural delete projection", () => {
     applyStructuralProjection(document, getStructuralChanges());
     expect(target.isConnected).toBe(false);
 
-    clearWorkspace();
+    clearActiveDraft();
     expect(getStructuralChanges()).toEqual([]);
     expect(document.body.textContent).toContain("0.2");
     expect(undo()).toBe(false);
@@ -405,7 +405,7 @@ describe("structural delete projection", () => {
     recordCanvasStructuralProjectionReports("card-1", 1, [{ changeId: "delete-1", status: "applied" }]);
     expect(getStructuralChangeDiagnostics("delete-1")).toHaveLength(2);
 
-    clearWorkspace();
+    clearActiveDraft();
 
     expect(getStructuralChangeDiagnostics("delete-1")).toEqual([]);
     expect(target.isConnected).toBe(true);
@@ -415,9 +415,9 @@ describe("structural delete projection", () => {
     add("0.1");
     const target = add("0.2");
     const captured = createStructuralDelete(target, "delete-1")!;
-    clearWorkspace();
+    clearActiveDraft();
 
-    loadWorkspaceChanges([], [captured]);
+    loadActiveDraftChanges([], [captured]);
 
     expect(getStructuralChanges()).toEqual([captured]);
     expect(document.body.textContent).toBe("0.1");

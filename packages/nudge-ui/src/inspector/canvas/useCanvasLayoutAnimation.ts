@@ -1,8 +1,10 @@
-import { studyArtifactId } from "./frameContent.ts";
+import { iterationId } from "./frameContent.ts";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
-import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
+import { type CanvasCard } from "./canvasStore.ts";
+import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasPresentation } from "./viewStore.ts";
 
 const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 300, easing: "ease-out" };
+const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: "ease-out" };
 
 /** Animates frame creation and layout changes without delaying direct manipulation. */
 export function useCanvasLayoutAnimation(
@@ -14,7 +16,6 @@ export function useCanvasLayoutAnimation(
   const previous = useRef({ cards, camera, presentation });
   const animations = useRef<Animation[]>([]);
   const generation = useRef(0);
-  const groups = useRef(new Map<string, { left: string; top: string; width: string }>());
 
   useEffect(() => {
     const board = boardRef.current;
@@ -42,21 +43,25 @@ export function useCanvasLayoutAnimation(
     const oldCards = new Map(before.cards.map((card) => [card.id, card]));
     const layoutChanged = cards.some((card) => {
       const old = oldCards.get(card.id);
-      return (!old && card.animateEntrance !== false && (card.entrance === "linked" || studyArtifactId(card.content))) || (old && studyArtifactId(card.content) && studyArtifactId(old.content) !== studyArtifactId(card.content));
+      return (!old && card.animateEntrance !== false && (card.entrance === "linked" || iterationId(card.content))) || (old && iterationId(card.content) && iterationId(old.content) !== iterationId(card.content));
     });
-    const shouldAnimate = layoutChanged && presentation === "canvas" && before.presentation === "canvas"
+    const cameraChanged = camera.x !== before.camera.x || camera.y !== before.camera.y || camera.zoom !== before.camera.zoom;
+    const shouldAnimate = (layoutChanged || (cameraChanged && animations.current.length > 0))
+      && presentation === "canvas" && before.presentation === "canvas"
       && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const board = boardRef.current;
-    const animate = (element: HTMLElement, frames: Keyframe[]) => {
+    const animate = (element: HTMLElement, frames: Keyframe[], options = SLIDE_OPTIONS) => {
       if (shouldAnimate && typeof element.animate === "function") {
-        animations.current.push(element.animate(frames, SLIDE_OPTIONS));
+        animations.current.push(element.animate(frames, options));
       }
     };
     if (shouldAnimate) {
       generation.current += 1;
       setCanvasLayoutTransitioning(true);
-      for (const animation of animations.current) animation.cancel();
-      animations.current = [];
+      if (layoutChanged) {
+        for (const animation of animations.current) animation.cancel();
+        animations.current = [];
+      }
       for (const element of board?.querySelectorAll<HTMLElement>(".canvas-card") ?? []) {
         const card = cards.find((item) => item.id === element.dataset.cardId);
         if (!card) continue;
@@ -73,24 +78,18 @@ export function useCanvasLayoutAnimation(
         }
       }
       const content = board?.querySelector<HTMLElement>(".canvas-workspace__board-content");
-      if (content) {
-        const added = cards.find((card) => !oldCards.has(card.id));
-        const slideRight = Boolean(added?.entrance === "linked");
+      if (content && cameraChanged) {
+        const current = animations.current.find((animation) => animation.playState === "running"
+          && (animation.effect as KeyframeEffect)?.target === content);
+        const from = current ? getComputedStyle(content).transform
+          : `translate(${before.camera.x}px, ${before.camera.y}px) scale(${before.camera.zoom})`;
+        current?.cancel();
         animate(content, [
-          { transform: `translate(${added && !slideRight ? camera.x : before.camera.x}px, ${slideRight ? camera.y : before.camera.y}px) scale(${before.camera.zoom})` },
+          { transform: from },
           { transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` },
-        ]);
+        ], CAMERA_OPTIONS);
       }
     }
-    const nextGroups = new Map<string, { left: string; top: string; width: string }>();
-    for (const element of board?.querySelectorAll<HTMLElement>(".canvas-frame-section:not(.is-ungrouped)") ?? []) {
-      const id = element.dataset.groupId!;
-      const next = { left: element.style.left, top: element.style.top, width: element.style.width };
-      const old = groups.current.get(id);
-      if (old) animate(element, [old, next]);
-      nextGroups.set(id, next);
-    }
-    groups.current = nextGroups;
     if (shouldAnimate) {
       const current = generation.current;
       void Promise.all(animations.current.map((animation) => animation.finished.catch(() => undefined))).then(() => {

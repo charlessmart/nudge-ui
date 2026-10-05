@@ -30,7 +30,7 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 import { cx } from "../ui/classNames.ts";
 import { TokenChip } from "./TokenChip.tsx";
 import { startDragPointerLock } from "./dragPointerLock.ts";
-import { createChangeHistoryGroup } from "../changes/workspaceChanges.ts";
+import { createChangeHistoryGroup } from "../changes/draftChanges.ts";
 import { isMultiTarget, type EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "../styleEditors/inlineAuthored.ts";

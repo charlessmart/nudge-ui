@@ -112,6 +112,58 @@
   position: relative;
 }
 
+.copy-prompt__menu {
+  width: max(var(--anchor-width), 280px);
+  max-width: calc(100vw - 24px);
+}
+
+.copy-prompt__menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border-radius: var(--radius-4);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+  cursor: pointer;
+  outline: 0;
+}
+
+.copy-prompt__menu-item[data-highlighted] {
+  background: var(--surface-control);
+}
+
+.copy-prompt__menu-icon {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.copy-prompt__menu-icon--live {
+  color: var(--accent);
+}
+
+.copy-prompt__menu-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.copy-prompt__menu-title {
+  font-weight: var(--font-weight-label);
+}
+
+.copy-prompt__menu-description {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.copy-prompt__menu-description code {
+  font-family: var(--font-mono);
+}
+
 .agent-status-button {
   position: relative;
 }

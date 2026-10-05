@@ -1,4 +1,4 @@
-import { handleWorkspaceRequest } from "../../project/workspace.ts";
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
@@ -88,6 +88,8 @@ export interface NudgeUiOptions extends ReactOptions {
   demoPages?: readonly string[];
   /** Labels for the seeded demo cards in display order, including the primary card. */
   demoCardLabels?: readonly string[];
+  /** Product features exposed by the inspector runtime. Omitted flags remain enabled. */
+  features?: NudgeUiRuntimeConfig["features"];
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -660,6 +662,7 @@ export function createVitePlugins(
       ...(options.demo === true ? { demo: true } : {}),
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
+      ...(options.features === undefined ? {} : { features: options.features }),
       capabilities: { canvas: true, componentSemantics: framework !== null, domNavigation: true },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
@@ -723,12 +726,10 @@ export function createVitePlugins(
       const runtimeWarning = framework?.unresolvedRuntimeWarning();
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {
-        const input = server.config?.build?.rollupOptions?.input;
-        const htmlEntries = typeof input === "string" ? [input] : Array.isArray(input) ? input : Object.values(input ?? {});
-        if (await handleWorkspaceRequest(request, response, {
-          root: root ?? process.cwd(), framework: "vite", htmlEntries,
-          transformStudy: (html) => server.transformIndexHtml(request.url ?? "/", html),
-        })) return;
+        if (await handleHtmlArtifactRequest(
+          request, response, root ?? process.cwd(),
+          (html) => server.transformIndexHtml(request.url ?? "/", html),
+        )) return;
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
           ? request.method !== "GET"
@@ -856,6 +857,7 @@ export function createVitePlugins(
             '    demo: true,',
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
+            `    features: ${JSON.stringify(options.features ?? {})},`,
             `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)}, domNavigation: true },`,
             '    tokenCatalog,',
             '    tokens,',

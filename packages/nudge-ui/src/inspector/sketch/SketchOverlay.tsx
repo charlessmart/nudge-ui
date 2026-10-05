@@ -34,7 +34,7 @@ import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { useInspectorOpen } from "../shell/openStore.ts";
 import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
-import { useTemporaryAppInteraction } from "../canvas/canvasStore.ts";
+import { useTemporaryAppInteraction } from "../canvas/viewStore.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 

@@ -1,3 +1,4 @@
+import { clickFrameAction } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test("dev: clicking a same-origin link navigates the focused card", async ({ page }) => {
@@ -60,11 +61,11 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  await page.locator('[data-test="presentation-canvas"]').click();
+  await page.locator('[data-test="canvas-show-canvas"]').click();
   // Click the duplicate button on the first card
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
-  await expect(duplicateBtn).toBeVisible();
-  await duplicateBtn.click();
+  await expect(duplicateBtn).toBeAttached();
+  await clickFrameAction(page, duplicateBtn);
 
   // Two cards now
   await expect(board.locator(".canvas-card")).toHaveCount(2);
@@ -82,7 +83,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
 test("dev: delete key removes a comparison card and recovers the final editing surface", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="presentation-canvas"]').click();
+  await page.locator('[data-test="canvas-show-canvas"]').click();
 
   // Add a second card first
   await page.evaluate(() => {
@@ -92,7 +93,7 @@ test("dev: delete key removes a comparison card and recovers the final editing s
 
   // Create a duplicate card to have 2 cards
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
-  await duplicateBtn.click();
+  await clickFrameAction(page, duplicateBtn);
 
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(2);
@@ -113,8 +114,8 @@ test("dev: delete key removes a comparison card and recovers the final editing s
 
 test("dev: deleting the active route does not recreate it after reload", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="presentation-canvas"]').click();
-  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   const cards = page.locator(".canvas-card");
   const frames = page.frameLocator(".canvas-card__iframe");
   await expect(cards).toHaveCount(2);
@@ -139,7 +140,7 @@ test("dev: deleting the active route does not recreate it after reload", async (
 test("dev: open app escapes the editor to the plain application route", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="presentation-canvas"]').click();
+  await page.locator('[data-test="canvas-show-canvas"]').click();
 
   // Open the focused route as a plain application page.
   const popupPromise = page.waitForEvent("popup");
@@ -161,7 +162,7 @@ test("dev: open app escapes the editor to the plain application route", async ({
 test("dev: canvas card toolbar has open-app, duplicate, and refresh controls", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="presentation-canvas"]').click();
+  await page.locator('[data-test="canvas-show-canvas"]').click();
   await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
 
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();

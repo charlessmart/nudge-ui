@@ -1,5 +1,5 @@
 import type { FrameProjection } from "../canvas/projection.ts";
-import { getWorkspaceChanges, getDraftWorkspace } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import {
@@ -770,7 +770,7 @@ export function recordCanvasTextProjectionReports(
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  const current = getWorkspaceChanges();
+  const current = getActiveDraftChanges();
   reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
@@ -782,7 +782,7 @@ export function clearCanvasTextProjectionReports(cardId: string): void {
 
 export function getTextContentChangeDiagnostics(changeId: string): TextContentProjectionDiagnostic[] {
   const diagnostics: TextContentProjectionDiagnostic[] = [];
-  const change = getWorkspaceChanges().changes.find((change): change is TextContentChangeRecord => change.kind === "text-content" && change.id === changeId) ?? canonicalChanges.get(changeId);
+  const change = getActiveDraftChanges().changes.find((change): change is TextContentChangeRecord => change.kind === "text-content" && change.id === changeId) ?? canonicalChanges.get(changeId);
   const host = reportsByDocument.get(document)?.find((report) => report.changeId === changeId);
   if (host) diagnostics.push({
     ...host,
@@ -791,7 +791,7 @@ export function getTextContentChangeDiagnostics(changeId: string): TextContentPr
     evidence: change?.evidence,
   });
   for (const [cardId, entry] of reportsByCanvasCard) {
-    if (entry.draftId !== getWorkspaceChanges().draftId || entry.draftRevision !== getDraftWorkspace(entry.draftId).revision) continue;
+    if (entry.draftId !== getActiveDraftChanges().draftId || entry.draftRevision !== getDraftChanges(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.changeId === changeId);
     if (report) diagnostics.push({
       ...report,

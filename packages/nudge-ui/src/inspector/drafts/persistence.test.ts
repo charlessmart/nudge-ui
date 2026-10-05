@@ -1,10 +1,10 @@
-import { persistDrafts } from "./store.ts";
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { clearWorkspace, getChangesList, appendChange } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, appendChange } from "../changes/changesLog.ts";
 import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/changesLog.ts";
 import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
-import { activateDraftForCard, initializeDrafts, resetDrafts } from "./store.ts";
+import { activateDraftForCard, loadDrafts, persistDrafts, resetDrafts } from "./store.ts";
+import { hydrateCanvasStore } from "../canvas/canvasStore.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
@@ -75,10 +75,12 @@ function makeTextChange(overrides: Partial<TextContentChangeRecord> = {}): TextC
   };
 }
 
-const historyKey = `nudge-ui-drafts:${nudgeUiProjectId}:v1`;
-function saveDraft(): void {
-  initializeDrafts(nudgeUiProjectId, ["record-card"]);
+const historyKey = `nudge-ui-drafts:${nudgeUiProjectId}:v2`;
+function openDraft(): void {
+  loadDrafts(nudgeUiProjectId);
   activateDraftForCard("record-card");
+}
+function saveDraft(): void {
   persistDrafts();
 }
 function storedContents() {
@@ -88,12 +90,15 @@ function storedContents() {
 function reloadDraft(): void {
   persistDrafts();
   resetDrafts();
-  clearWorkspace();
-  initializeDrafts(nudgeUiProjectId, ["record-card"]);
-  activateDraftForCard("record-card");
+  clearActiveDraft();
+  openDraft();
 }
-beforeEach(() => { resetDrafts(); clearWorkspace(); localStorage.clear(); document.body.replaceChildren(); });
-afterEach(() => { resetDrafts(); clearWorkspace(); document.body.replaceChildren(); });
+beforeEach(() => {
+  resetDrafts(); clearActiveDraft(); localStorage.clear(); document.body.replaceChildren();
+  hydrateCanvasStore("canvas", [{ id: "record-card", content: { kind: "route", url: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 }], { x: 0, y: 0, zoom: 1 });
+  openDraft();
+});
+afterEach(() => { resetDrafts(); clearActiveDraft(); document.body.replaceChildren(); });
 
 describe("draft intent persistence", () => {
   it("serializes a durable rendered-instance change", () => {
@@ -139,7 +144,7 @@ describe("draft intent persistence", () => {
     });
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     document.body.replaceChildren(element);
     reloadDraft();
     expect(getChangesList()).toMatchObject([{ kind: "text-content", after: "Updated" }]);
@@ -169,7 +174,7 @@ describe("draft intent persistence", () => {
     expect(parsed.changes[0].target.textNodePath).toEqual([1, 0]);
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     document.body.replaceChildren(element);
     reloadDraft();
     expect(element.querySelector("path")).not.toBeNull();
@@ -240,7 +245,7 @@ describe("draft intent persistence", () => {
     saveDraft();
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     reloadDraft();
 
     const restored = getChangesList();
@@ -268,7 +273,7 @@ describe("draft intent persistence", () => {
     saveDraft();
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     reloadDraft();
 
     expect(getChangesList()).toMatchObject([{
@@ -287,7 +292,7 @@ describe("draft intent persistence", () => {
     saveDraft();
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     reloadDraft();
 
     const restored = getChangesList();
@@ -303,7 +308,7 @@ describe("draft intent persistence", () => {
     saveDraft();
 
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     reloadDraft();
 
     expect(getChangesList()).toMatchObject([{

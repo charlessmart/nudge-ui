@@ -16,30 +16,32 @@ import {
   clearRestoreCount,
   resetAutoSave,
 } from "./sessionStore.ts";
-import { clearWorkspace, getChangesList, appendChange } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, appendChange } from "../changes/changesLog.ts";
 import type { ElementChangeRecord } from "../changes/changesLog.ts";
 import {
-  getCanvasMode,
   getCanvasCards,
-  getBoardCamera,
-  setCanvasMode,
   addCanvasCard,
-  addCanvasVariation,
+  addCanvasIteration,
   duplicateCard,
   hydrateCanvasStore,
-  appendLinkedGroupCards,
+  appendAgentRouteCards,
   setFrameGroup,
   getFrameGroups,
-  setCanvasPresentation,
-  getCanvasPresentation,
   removeCanvasCard as removeCanvasCardStore,
-  setBoardCamera,
   focusCard,
   getFocusedCardId,
   resizeCard,
   selectCard,
 } from "./canvasStore.ts";
-import { activateDraftForCard, createStudyDraft, getWorkspaceForCard, initializeDrafts, resetDrafts } from "../drafts/store.ts";
+import {
+  getCanvasMode,
+  getBoardCamera,
+  setCanvasMode,
+  setCanvasPresentation,
+  getCanvasPresentation,
+  setBoardCamera,
+} from "./viewStore.ts";
+import { activateDraftForCard, getDraftContentsForCard, loadDrafts, resetDrafts } from "../drafts/store.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
@@ -80,8 +82,8 @@ function makeElementChange(
 
 function resetAllState(): void {
   resetDrafts();
-  localStorage.removeItem(`nudge-ui-drafts:${nudgeUiProjectId}:v1`);
-  clearWorkspace();
+  localStorage.removeItem(`nudge-ui-drafts:${nudgeUiProjectId}:v2`);
+  clearActiveDraft();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
@@ -105,7 +107,7 @@ describe("sessionStore persistence", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("restores the linked frame membership and order", () => {
+  it("restores linked views as independent frames in their recorded order", () => {
     const original = addCanvasCard(localUrl("/first"));
     const copy = duplicateCard(original.id)!;
     persistSession();
@@ -113,8 +115,28 @@ describe("sessionStore persistence", () => {
     expect(hydrateSession().restored).toBe(true);
     const restored = getCanvasCards();
     expect(restored.map((card) => card.id)).toEqual([original.id, copy.id]);
-    expect(restored.map((card) => card.groupId)).toEqual([original.id, original.id]);
+    expect(restored.map((card) => card.groupId)).toEqual([undefined, undefined]);
     expect(restored[1]!.x).toBeGreaterThan(restored[0]!.x + restored[0]!.width);
+  });
+
+  it("restores legacy linked layouts without retaining movement groups", () => {
+    const original = addCanvasCard(localUrl("/first"));
+    const copy = duplicateCard(original.id)!;
+    persistSession();
+    const session = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
+    session.groups = [{ id: "old-breakpoints", kind: "linked" }];
+    for (const card of session.cards) card.groupId = "old-breakpoints";
+    session.cards[1].x = 850;
+    session.cards[1].y = 650;
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+
+    expect(hydrateSession().restored).toBe(true);
+    expect(getCanvasCards()).toMatchObject([
+      { id: original.id, x: original.x, y: original.y, groupId: undefined },
+      { id: copy.id, x: 850, y: 650, groupId: undefined },
+    ]);
+    expect(getFrameGroups()).toEqual([]);
   });
 
   it("persists geometry and handoff metadata without duplicating draft intent", () => {
@@ -133,7 +155,7 @@ describe("sessionStore persistence", () => {
     persistSession();
 
     clearClipboardHandoff();
-    clearWorkspace();
+    clearActiveDraft();
     expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 0 });
 
     expect(getClipboardHandoffSnapshot()).toMatchObject({
@@ -236,29 +258,28 @@ describe("sessionStore hydration", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("restores the focused study from drafts after hydrating layout", () => {
+  it("restores the focused iteration from drafts after hydrating layout", () => {
     const original = addCanvasCard(localUrl("/first"));
     const artifactId = "550e8400-e29b-41d4-a716-446655440000";
-    const study = addCanvasVariation(original.id, artifactId)!;
-    initializeDrafts(nudgeUiProjectId, [original.id, study.id]);
+    const iteration = addCanvasIteration(original.id, artifactId)!;
+    loadDrafts(nudgeUiProjectId);
     activateDraftForCard(original.id);
     appendChange(makeElementChange({ rawValue: "red" }));
-    createStudyDraft(original.id, study.id, artifactId);
-    activateDraftForCard(study.id);
+    activateDraftForCard(iteration.id);
     appendChange(makeElementChange({ rawValue: "blue" }));
-    focusCard(study.id);
+    focusCard(iteration.id);
     persistSession();
     resetDrafts();
-    clearWorkspace();
+    clearActiveDraft();
     hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
 
     expect(hydrateSession()).toEqual({ restored: true, changeCount: 0 });
     expect(getChangesList()).toEqual([]);
-    initializeDrafts(nudgeUiProjectId, getCanvasCards().map((card) => card.id));
+    loadDrafts(nudgeUiProjectId);
     activateDraftForCard(getFocusedCardId()!);
 
     expect(getChangesList()).toMatchObject([{ rawValue: "blue" }]);
-    expect(getWorkspaceForCard(original.id)?.changes).toMatchObject([{ rawValue: "red" }]);
+    expect(getDraftContentsForCard(original.id)?.changes).toMatchObject([{ rawValue: "red" }]);
   });
 
   it("restores geometry without replacing the current draft's intent", () => {
@@ -432,7 +453,7 @@ describe("sessionStore hydration", () => {
   it("round-trips agent-presented linked frames through the session", () => {
     setCanvasMode("canvas");
     setFrameGroup({ id: "agent-landing-iterations", kind: "agent", label: "Landing alternatives", agentId: "agent", routes: [{ url: localUrl("/landing-a") }, { url: localUrl("/landing-b") }] });
-    appendLinkedGroupCards("agent-landing-iterations", [
+    appendAgentRouteCards("agent-landing-iterations", [
       { url: localUrl("/landing-a"), title: "A" },
       { url: localUrl("/landing-b"), title: "B" },
     ]);
@@ -459,20 +480,19 @@ describe("sessionStore clear session", () => {
     resetDrafts();
     const original = addCanvasCard(localUrl("/first"));
     const artifactId = "550e8400-e29b-41d4-a716-446655440000";
-    const study = addCanvasVariation(original.id, artifactId)!;
-    initializeDrafts(nudgeUiProjectId, [original.id, study.id]);
+    const iteration = addCanvasIteration(original.id, artifactId)!;
+    loadDrafts(nudgeUiProjectId);
     activateDraftForCard(original.id);
     appendChange(makeElementChange({ rawValue: "red" }));
-    createStudyDraft(original.id, study.id, artifactId);
-    activateDraftForCard(study.id);
+    activateDraftForCard(iteration.id);
     appendChange(makeElementChange({ rawValue: "blue" }));
-    selectCard(study.id);
+    selectCard(iteration.id);
     setBoardCamera({ x: 100, y: 200, zoom: 0.7 });
     const geometry = getCanvasCards();
     try {
       clearSelectedFrameChanges();
-      expect(getWorkspaceForCard(study.id)?.changes).toEqual([]);
-      expect(getWorkspaceForCard(original.id)?.changes[0]).toMatchObject({ rawValue: "red" });
+      expect(getDraftContentsForCard(iteration.id)?.changes).toEqual([]);
+      expect(getDraftContentsForCard(original.id)?.changes[0]).toMatchObject({ rawValue: "red" });
       expect(getCanvasCards()).toEqual(geometry);
       expect(getBoardCamera()).toEqual({ x: 100, y: 200, zoom: 0.7 });
       persistSession();

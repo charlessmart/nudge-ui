@@ -14,13 +14,13 @@ import {
   isCanvasCanonicalProjectionRevisionCurrent,
   isCanvasProjectionRevisionCurrent,
   projectToAllReadyCards,
-  projectWorkspaceSnapshotToDocument,
+  projectDraftToDocument,
   PROJECT_ID,
   recordCanvasProjectionApplied,
   sendProjectionToCard,
   WORKSPACE_ID,
 } from "./projection.ts";
-import { appendChange, clearWorkspace, getPendingRules } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getPendingRules } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
@@ -37,7 +37,7 @@ const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styl
 
 describe("projection", () => {
   beforeEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     resetPreviewDiagnostics();
     resetStructuralDeleteProjection();
     resetProjectionRevision();
@@ -128,7 +128,7 @@ describe("projection", () => {
     expect(css).toContain("--color-text: #eeeeee");
   });
 
-  it("clearWorkspace produces empty projection", () => {
+  it("clearActiveDraft produces empty projection", () => {
     appendChange({
       cid: "Button",
       file: "src/Button.tsx",
@@ -143,7 +143,7 @@ describe("projection", () => {
 
     expect(computeProjection().css).not.toBe("");
 
-    clearWorkspace();
+    clearActiveDraft();
     expect(computeProjection().css).toBe("");
   });
 
@@ -160,7 +160,7 @@ describe("projection", () => {
     });
 
     expect(computeProjection().revision).toBe(1);
-    clearWorkspace();
+    clearActiveDraft();
     expect(computeProjection().revision).toBe(2);
     expect(computeProjection().revision).toBe(2);
   });
@@ -326,7 +326,7 @@ describe("projection", () => {
     sendProjectionToCard({ id: "card-temporary" }, iframe);
     recordCanvasProjectionApplied("card-temporary", 1);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [], structuralChanges: [],
     });
     recordCanvasProjectionApplied("card-temporary", 2);
@@ -344,7 +344,7 @@ describe("projection", () => {
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-verification", iframe);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [],
       structuralChanges: [],
     });
@@ -362,7 +362,7 @@ describe("projection", () => {
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-disposed", iframe);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [],
       structuralChanges: [],
     });

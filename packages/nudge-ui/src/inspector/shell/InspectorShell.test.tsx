@@ -5,9 +5,10 @@ import { mountInspector, unmountInspector } from "../index.ts";
 import { getSelectedElement, setSelectedElement, setSelectedElements } from "../selection/selectionStore.ts";
 import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { appendChange, clearWorkspace, getChangesList } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList } from "../changes/changesLog.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
-import { addCanvasCard, getCanvasCards, removeCanvasCard, setCanvasMode } from "../canvas/canvasStore.ts";
+import { addCanvasCard, getCanvasCards, removeCanvasCard } from "../canvas/canvasStore.ts";
+import { setCanvasMode } from "../canvas/viewStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
@@ -36,7 +37,7 @@ describe("InspectorShell", () => {
     act(() => {
       unmountInspector();
     });
-    clearWorkspace();
+    clearActiveDraft();
     clearRestoreCount();
     releaseLease();
     host.remove();

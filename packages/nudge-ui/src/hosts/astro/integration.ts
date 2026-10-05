@@ -1,5 +1,3 @@
-import { astroRouteCatalog } from "./routes.ts";
-import type { RouteCatalog } from "../../transport/routeCatalog.ts";
 import type { AstroIntegration, AstroUserConfig } from "astro";
 import { nudgeUi, type NudgeUiOptions } from "../vite/index.ts";
 import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
@@ -59,19 +57,12 @@ const MIDDLEWARE_ENTRYPOINT = new URL(
 export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegration {
   const enabled = isNudgeUiEnabled(options.enabled);
   const sharedOptions: NudgeUiOptions = { ...options };
-  let routeCatalog: RouteCatalog = { framework: "astro", routes: [] };
-  let basePath = "/";
 
   return {
     name: "nudge-ui",
     hooks: {
-      "astro:routes:resolved"({ routes }) {
-        if (!enabled) return;
-        routeCatalog = astroRouteCatalog(routes, basePath);
-      },
-      "astro:config:setup"({ command, config, updateConfig, injectScript, addMiddleware }) {
+      "astro:config:setup"({ command, updateConfig, injectScript, addMiddleware }) {
         if (!enabled || command !== "dev") return;
-        basePath = config.base;
 
         // The shared plugin objects are plain Vite plugin records, but this
         // monorepo typechecks them against a different Vite major than the
@@ -82,7 +73,7 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
             // SAFETY: Astro and this package resolve different Vite type
             // versions, but both consume the same runtime Plugin contract.
             plugins: [
-              createAstroClientTransportPlugin(() => routeCatalog),
+              createAstroClientTransportPlugin(),
               ...nudgeUi(sharedOptions),
               createProjectContextPlugin(),
             ] as never,

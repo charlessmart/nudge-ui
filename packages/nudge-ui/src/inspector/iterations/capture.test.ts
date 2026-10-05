@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { captureHtmlStudy } from "./capture.ts";
+import { captureHtmlIteration } from "./capture.ts";
 
-describe("HTML study capture", () => {
+describe("HTML iteration capture", () => {
   it("keeps rendered text and input state while removing application scripts and navigation", async () => {
     const frame = document.createElement("iframe");
     document.body.append(frame);
@@ -12,7 +12,7 @@ describe("HTML study capture", () => {
     doc.close();
     doc.querySelector("input")!.value = "new";
 
-    const html = await captureHtmlStudy(frame);
+    const html = await captureHtmlIteration(frame);
     expect(html).toContain('data-cid="html:main"');
     expect(html).not.toContain("data-renderer-id");
     expect(doc.querySelector("main")!.getAttribute("data-renderer-id")).toBe("r1");
@@ -41,7 +41,7 @@ describe("HTML study capture", () => {
     // Projection edits are inserted through CSSOM, so cloning text alone loses them.
     doc.querySelector<HTMLStyleElement>("#nudge-ui-styles")!.sheet!.insertRule(".layout { color: purple; }");
 
-    const html = await captureHtmlStudy(frame);
+    const html = await captureHtmlIteration(frame);
     const captured = new DOMParser().parseFromString(html, "text/html");
     const layout = captured.querySelector<HTMLElement>(".layout")!;
     expect(layout.style.width).toBe("calc(100% - 4vw)");

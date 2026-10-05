@@ -14,9 +14,9 @@ import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changes/types.ts";
 import {
-  applyHostWorkspaceProjection,
-  compileWorkspaceProjection,
-} from "../projection/workspaceProjection.ts";
+  applyHostDraftProjection,
+  compileDraftProjection,
+} from "../projection/draftProjection.ts";
 import {
   getReactCallsiteMultiplicity,
   instrumentReactComponent,
@@ -27,8 +27,8 @@ import {
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-function applyTestWorkspaceProjection(changes: readonly ChangeRecord[]): void {
-  applyHostWorkspaceProjection(compileWorkspaceProjection({
+function applyTestDraftProjection(changes: readonly ChangeRecord[]): void {
+  applyHostDraftProjection(compileDraftProjection({
     revision: 1,
     changes,
     structuralChanges: [],
@@ -255,12 +255,12 @@ describe("React component runtime adapter", () => {
     )));
     const beforeProjection = renderCount;
 
-    act(() => applyTestWorkspaceProjection([semanticChange]));
+    act(() => applyTestDraftProjection([semanticChange]));
     const afterSemanticProjection = renderCount;
     expect(afterSemanticProjection).toBeGreaterThan(beforeProjection);
     expect(host.querySelector("button")?.getAttribute("data-variant")).toBe("secondary");
 
-    act(() => applyTestWorkspaceProjection([semanticChange, cssChange]));
+    act(() => applyTestDraftProjection([semanticChange, cssChange]));
 
     expect(renderCount).toBe(afterSemanticProjection);
     expect(host.querySelector("button")?.getAttribute("data-variant")).toBe("secondary");

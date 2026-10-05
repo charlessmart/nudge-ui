@@ -1,11 +1,11 @@
-import type { WorkspaceContents } from "../changes/workspaceChanges.ts";
+import type { DraftContents } from "../changes/draftChanges.ts";
 
 export interface EditHistoryEntry {
   readonly kind: "edit";
   readonly draftId: string;
   readonly group?: symbol;
-  readonly before: WorkspaceContents;
-  readonly after: WorkspaceContents;
+  readonly before: DraftContents;
+  readonly after: DraftContents;
   readonly activate?: () => void;
 }
 
@@ -42,7 +42,7 @@ export function timelineStatus(): { canUndo: boolean; canRedo: boolean } {
   return { canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 };
 }
 
-export function recordEdit(entry: Omit<EditHistoryEntry, "kind" | "group">, equal: (a: WorkspaceContents, b: WorkspaceContents) => boolean): void {
+export function recordEdit(entry: Omit<EditHistoryEntry, "kind" | "group">, equal: (a: DraftContents, b: DraftContents) => boolean): void {
   const previous = undoStack.at(-1);
   const grouped = activeGroup && previous?.kind === "edit" && previous.draftId === entry.draftId && previous.group === activeGroup;
   const next: EditHistoryEntry = { kind: "edit", ...entry, before: grouped ? previous.before : entry.before, group: activeGroup };
@@ -58,7 +58,7 @@ export function recordCanvasCreation(entry: Omit<CanvasHistoryEntry, "kind">): v
   notify();
 }
 
-export function replayTimeline(direction: "undo" | "redo", applyEdit: (entry: EditHistoryEntry, contents: WorkspaceContents) => void): boolean {
+export function replayTimeline(direction: "undo" | "redo", applyEdit: (entry: EditHistoryEntry, contents: DraftContents) => void): boolean {
   const source = direction === "undo" ? undoStack : redoStack;
   const destination = direction === "undo" ? redoStack : undoStack;
   const entry = source.pop();
@@ -70,7 +70,7 @@ export function replayTimeline(direction: "undo" | "redo", applyEdit: (entry: Ed
   return true;
 }
 
-export function pruneDraftHistory(draftId: string, retain: (contents: WorkspaceContents) => WorkspaceContents, equal: (a: WorkspaceContents, b: WorkspaceContents) => boolean): void {
+export function pruneDraftHistory(draftId: string, retain: (contents: DraftContents) => DraftContents, equal: (a: DraftContents, b: DraftContents) => boolean): void {
   const prune = (entries: readonly HistoryEntry[]): HistoryEntry[] => entries.flatMap((entry) => {
     if (entry.kind !== "edit" || entry.draftId !== draftId) return [entry];
     const next = { ...entry, before: retain(entry.before), after: retain(entry.after) };
@@ -81,7 +81,7 @@ export function pruneDraftHistory(draftId: string, retain: (contents: WorkspaceC
   notify();
 }
 
-export function discardWorkspaceHistory(draftId: string): void {
+export function discardDraftHistory(draftId: string): void {
   const retain = (entry: HistoryEntry) => entry.kind !== "edit" || entry.draftId !== draftId;
   undoStack = undoStack.filter(retain);
   redoStack = redoStack.filter(retain);
@@ -103,7 +103,7 @@ export function clearSessionUndoHistory(): void {
   notify();
 }
 
-export function releaseDetachedStudies(): void {
+export function releaseDetachedIterations(): void {
   discardRedo();
   notify();
 }

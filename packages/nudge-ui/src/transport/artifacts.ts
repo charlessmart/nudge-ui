@@ -5,7 +5,7 @@ export interface HtmlArtifactRevision {
 }
 
 export const HTML_ARTIFACT_REVISION_ATTRIBUTE = "data-nudge-artifact-revision";
-export const HTML_STUDY_CONFLICT = "This study changed outside Nudge. Your visual edits are still pending. Create a variation to keep your design, then clear this study’s changes to load the external update.";
+export const HTML_ITERATION_CONFLICT = "This iteration changed outside Nudge. Your visual edits are still pending. Create another iteration to keep your design, then clear this iteration’s changes to load the external update.";
 
 export function isHtmlArtifactRevision(value: unknown): value is HtmlArtifactRevision {
   if (!value || typeof value !== "object") return false;

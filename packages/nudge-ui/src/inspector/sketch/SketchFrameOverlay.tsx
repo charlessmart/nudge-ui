@@ -94,7 +94,7 @@ export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready 
   const documents = useMemo(
     () => ready && iframe
       ? items.map((item) => item.document).filter((document) =>
-        sketchBelongsToCard(document.id, cardId ?? null) && sameFrame(document, iframe, cardUrl, artifactId))
+        sketchBelongsToCard(document, cardId ?? null) && sameFrame(document, iframe, cardUrl, artifactId))
       : [],
     [artifactId, cardId, cardUrl, iframe, items, ready],
   );

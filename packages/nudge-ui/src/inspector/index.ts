@@ -31,7 +31,7 @@ import { installInspectionBridge } from "./inspection/bridge.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
-import { setCanvasMode } from "./canvas/canvasStore.ts";
+import { setCanvasMode } from "./canvas/viewStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,

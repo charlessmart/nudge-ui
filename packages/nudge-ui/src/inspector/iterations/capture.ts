@@ -1,7 +1,7 @@
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
 
-/** Captures the visible DOM of a same-origin frame as a script-free HTML study. */
-export async function captureHtmlStudy(frame: HTMLIFrameElement): Promise<string> {
+/** Captures the visible DOM of a same-origin frame as a script-free HTML iteration. */
+export async function captureHtmlIteration(frame: HTMLIFrameElement): Promise<string> {
   const source = frame.contentDocument;
   const view = frame.contentWindow;
   if (!source || !view?.document.documentElement) throw new Error("The frame is not ready to capture.");
@@ -17,7 +17,7 @@ export async function captureHtmlStudy(frame: HTMLIFrameElement): Promise<string
     const sourceElement = sourceElements[index]!;
     const copied = copiedElements[index]!;
     if (sourceElement.nodeType !== 1 || copied.nodeType !== 1) continue;
-    // Renderer IDs belong to the source iframe's node registry. The study's
+    // Renderer IDs belong to the source iframe's node registry. The iteration's
     // fresh registry can reuse those values for different nodes.
     copied.removeAttribute("data-renderer-id");
     // Preserve authored inline values (percentages, variables, and calc), rather
@@ -104,7 +104,7 @@ async function captureStylesheets(
       }
     }
     style.textContent = await resolveCssUrls(css, sheet.href ?? document.baseURI, assets);
-    // Captured edits become the study's base. The renderer must create its own
+    // Captured edits become the iteration's base. The renderer must create its own
     // managed stylesheet for new edits instead of clearing these captured rules.
     if (style.id === "nudge-ui-styles") {
       style.removeAttribute("id");

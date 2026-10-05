@@ -32,11 +32,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0026: Project-owned agent sessions and guided setup](./0026-project-owned-agent-sessions.md)
 - [ADR-0027: Iframe-first editor workspace](./0027-iframe-first-editor.md)
 - [ADR-0028: Reusable agent adapter with connection-time project selection](./0028-reusable-agent-adapter.md)
-- [ADR-0029: Drafts and visual history](./0029-drafts-and-visual-history.md)
-- [ADR-0030: Project-local HTML studies](./0030-project-local-html-studies.md) (supersedes ADR-0029)
-- [ADR-0031: Linked frames and study handoff](./0031-linked-frames-and-study-handoff.md) (supersedes ADR-0030)
-- [ADR-0032: Additive HTML variations](./0032-additive-html-variations.md) (supersedes ADR-0031)
-
-- [ADR-0033: Draft-owned persistence and revision-checked study handoff](./0033-draft-persistence-and-study-transactions.md) (supersedes persistence and study coordination in ADR-0027/0032)
-
-- [ADR-0034: Frame content, route discovery, and agent activity](./0034-frame-content-route-discovery-and-agent-activity.md) (supersedes frame identity in ADR-0027/0032)
+- [ADR-0030: Canvas drafts, frames, and HTML iterations](./0030-canvas-drafts-frames-and-html-iterations.md) (supersedes edit-intent ownership and frame identity in ADR-0027)

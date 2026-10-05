@@ -5,7 +5,10 @@ import {
   subscribe as subscribeCanvas,
   setCanvasHistoryActivator,
 } from "../canvas/canvasStore.ts";
-import { initializeDrafts, activateDraftForCard, subscribeDrafts } from "../drafts/store.ts";
+import { subscribeCanvasView } from "../canvas/viewStore.ts";
+import { loadDrafts, activateDraft, activateDraftForCard, draftIdForCard, subscribeDrafts } from "../drafts/store.ts";
+import { applicationTarget, targetKey } from "../drafts/model.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import {
   hydrateSession,
   enableAutoSave,
@@ -16,25 +19,22 @@ import {
 import { releaseLease } from "../canvas/workspaceLease.ts";
 import { subscribeClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
-import { releaseDetachedStudies } from "./timeline.ts";
+import { releaseDetachedIterations } from "./timeline.ts";
 
 export function startWorkspaceController() {
   const config = getNudgeUiRuntimeConfig();
   const persistent = config.demo !== true;
+  loadDrafts(config.projectId, { persistent });
   const result = persistent ? hydrateSession() : { restored: false };
   const save = persistent ? scheduleAutoSave : () => undefined;
-  let synchronizing = false;
+  let active = "";
   const synchronize = () => {
-    if (synchronizing) return;
-    synchronizing = true;
-    try {
-      const cards = getCanvasCards();
-      initializeDrafts(config.projectId, cards.map((card) => card.id), { persistent });
-      const id = getSelectedCardId() ?? getFocusedCardId() ?? cards[0]?.id;
-      if (id) activateDraftForCard(id);
-    } finally {
-      synchronizing = false;
-    }
+    const cardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
+    const draftId = (cardId && draftIdForCard(cardId)) || targetKey(applicationTarget());
+    const next = `${cardId ?? ""}\n${draftId}`;
+    if (next === active && getActiveDraftChanges().draftId === draftId) return;
+    active = next;
+    activateDraft(draftId, cardId);
   };
   synchronize();
   setCanvasHistoryActivator(activateDraftForCard);
@@ -43,6 +43,7 @@ export function startWorkspaceController() {
     synchronize();
     save();
   });
+  const stopView = subscribeCanvasView(save);
   const stopDrafts = subscribeDrafts(save);
   const stopClipboard = subscribeClipboardHandoff(save);
   const beforeunload = () => {
@@ -51,7 +52,7 @@ export function startWorkspaceController() {
   };
   const pagehide = (event: PageTransitionEvent) => {
     flushAutoSave();
-    if (!event.persisted) releaseDetachedStudies();
+    if (!event.persisted) releaseDetachedIterations();
   };
   if (persistent) window.addEventListener("beforeunload", beforeunload);
   window.addEventListener("pagehide", pagehide);
@@ -60,6 +61,7 @@ export function startWorkspaceController() {
     dispose() {
       flushAutoSave();
       stopCanvas();
+      stopView();
       stopDrafts();
       stopClipboard();
       window.removeEventListener("beforeunload", beforeunload);

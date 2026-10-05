@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ThinkingOrb } from "thinking-orbs";
 import { Button } from "../Button";
 import { Footer } from "../Footer";
 import { RepeatedItem } from "../RepeatedItem";
@@ -232,6 +233,17 @@ function App() {
               </aside>
             </div>
           </div>
+        </section>
+
+        <section className="agent-activity-preview" id="agent-activity-preview" aria-labelledby="agent-activity-preview-title">
+          <div className="section-heading">
+            <p className="eyebrow">Canvas feedback</p>
+            <h2 id="agent-activity-preview-title">Agent activity</h2>
+          </div>
+          <span className="agent-activity-preview__chip" role="status">
+            <ThinkingOrb state="solving" size={20} theme="dark" aria-hidden="true" />
+            Agent working…
+          </span>
         </section>
 
         <InteractionStateExamples />

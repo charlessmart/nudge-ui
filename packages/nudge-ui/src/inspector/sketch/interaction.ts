@@ -1,4 +1,4 @@
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import { useSyncExternalStore } from "react";
 import {
   captureViewport,
@@ -71,7 +71,7 @@ export function useSketchInteractionActive(): boolean {
 export function beginSketchCapture(initialTool: SketchEntryTool = "pen"): void {
   captureController?.abort();
   captureController = null;
-  publish({ captureState: "sketching", captured: null, editingId: null, error: null, initialTool, draftId: getWorkspaceChanges().draftId });
+  publish({ captureState: "sketching", captured: null, editingId: null, error: null, initialTool, draftId: getActiveDraftChanges().draftId });
 }
 
 export function completeSketchCapture(hostElement: HTMLElement): Promise<CapturedSketch> {

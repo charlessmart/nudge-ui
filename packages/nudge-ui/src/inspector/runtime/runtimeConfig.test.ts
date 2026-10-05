@@ -4,6 +4,7 @@ import {
   getNudgeUiRuntimeConfig,
   getScopingSelectorPattern,
   getSourceCoordinatePolicy,
+  isNudgeUiFeatureEnabled,
   subscribeNudgeUiRuntime,
   type NudgeUiRuntimeConfig,
 } from "./runtimeConfig.ts";
@@ -164,6 +165,21 @@ describe("Nudge UI runtime configuration", () => {
     expect(() => {
       (snapshot.capabilities as { canvas: boolean }).canvas = true;
     }).toThrow();
+  });
+
+  it("defaults product features on and accepts explicit disables", () => {
+    previousConfig = getNudgeUiRuntimeConfig();
+    expect(isNudgeUiFeatureEnabled(undefined, "canvasIterations")).toBe(true);
+
+    configureNudgeUiRuntime({
+      ...makeConfig("generation-features"),
+      features: { canvasIterations: false },
+    });
+
+    const snapshot = getNudgeUiRuntimeConfig();
+    expect(snapshot.features).toEqual({ canvasIterations: false });
+    expect(isNudgeUiFeatureEnabled(snapshot.features, "canvasIterations")).toBe(false);
+    expect(Object.isFrozen(snapshot.features)).toBe(true);
   });
 });
 
@@ -344,6 +360,11 @@ describe("runtime configuration validation and defaults", () => {
       ...makeConfig("generation-types"),
       capabilities: { canvas: "yes" },
     } as unknown as NudgeUiRuntimeConfig)).toThrow(/"canvas" must be a boolean/);
+
+    expect(() => configureNudgeUiRuntime({
+      ...makeConfig("generation-feature-types"),
+      features: { canvasIterations: "yes" },
+    } as unknown as NudgeUiRuntimeConfig)).toThrow(/"canvasIterations" must be a boolean/);
   });
 
   it("reuses frozen input subtrees by reference across repeated configuration", () => {

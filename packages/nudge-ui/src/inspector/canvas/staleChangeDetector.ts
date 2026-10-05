@@ -1,4 +1,4 @@
-import { getDraftForCard } from "../drafts/store.ts";
+import { draftIdForCard } from "../drafts/store.ts";
 import type {
   ChangeRecord,
   PreviewableChangeRecord,
@@ -18,11 +18,12 @@ import {
   type PreviewAttempt,
   type PreviewDocument,
 } from "../changes/previewDiagnostics.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
-import { getCanvasCards, getCanvasMode } from "./canvasStore.ts";
+import { getCanvasCards } from "./canvasStore.ts";
+import { getCanvasMode } from "./viewStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
 import type { TokenDefinition } from "../../css/model/index.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -119,7 +120,7 @@ function getPreviewDocuments(): PreviewDocument[] {
   const documents = getCanvasMode() === "canvas" ? [] : [getHostPreviewDocument()];
   const frames = getRegisteredFrames();
   for (const card of getCanvasCards()) {
-    if (getDraftForCard(card.id)?.id && getDraftForCard(card.id)?.id !== getWorkspaceChanges().draftId) continue;
+    if (draftIdForCard(card.id) && draftIdForCard(card.id) !== getActiveDraftChanges().draftId) continue;
     if (frames.has(card.id)) documents.push(getCanvasPreviewDocument(card.id));
   }
   return documents;
@@ -127,7 +128,7 @@ function getPreviewDocuments(): PreviewDocument[] {
 
 function beginPreviewAttempts(): Map<string, PreviewAttempt> {
   const attempts = new Map<string, PreviewAttempt>();
-  const revision = getWorkspaceChanges().revision;
+  const revision = getActiveDraftChanges().revision;
   for (const document of getPreviewDocuments()) {
     const attempt = beginPreviewAttempt(document, revision);
     if (attempt) attempts.set(document.logicalDocument, attempt);
@@ -156,7 +157,7 @@ function gatherMatchEvidence(
   const frames = getRegisteredFrames();
   const cards = getCanvasCards();
   for (const card of cards) {
-    if (getDraftForCard(card.id)?.id && getDraftForCard(card.id)?.id !== getWorkspaceChanges().draftId) continue;
+    if (draftIdForCard(card.id) && draftIdForCard(card.id) !== getActiveDraftChanges().draftId) continue;
     const frame = frames.get(card.id);
     if (!frame || !frame.contentWindow) continue;
     for (let i = 0; i < changes.length; i++) {

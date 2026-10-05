@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { activateIframeWorkspace, hydrateCanvasStore } from "../canvas/canvasStore.ts";
+import { activateIframeWorkspace, getCanvasCards, hydrateCanvasStore } from "../canvas/canvasStore.ts";
 import { acquireLease, enableWriteGuard, hasWriteLease, releaseLease } from "../canvas/workspaceLease.ts";
-import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
+import { draftChangeStore } from "../changes/draftChanges.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
-import { getDraftsSnapshot, resetDrafts } from "../drafts/store.ts";
+import { getDraftsSnapshot, getDraftContentsForCard, resetDrafts } from "../drafts/store.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { startWorkspaceController } from "./controller.ts";
 
@@ -42,11 +42,11 @@ it("flushes the newest edits before releasing ownership after a controller resta
   controller = startWorkspaceController();
   controller.dispose();
   controller = startWorkspaceController();
-  workspaceChangeStore.commitChangeRecords([change]);
+  draftChangeStore.commitChangeRecords([change]);
 
   window.dispatchEvent(new Event("beforeunload"));
 
-  const stored = JSON.parse(localStorage.getItem("nudge-ui-drafts:controller-restart:v1") ?? "null");
+  const stored = JSON.parse(localStorage.getItem("nudge-ui-drafts:controller-restart:v2") ?? "null");
   expect(stored.drafts[0].contents.changes).toMatchObject([{ rawValue: "red" }]);
   expect(hasWriteLease()).toBe(false);
 });
@@ -54,12 +54,23 @@ it("flushes the newest edits before releasing ownership after a controller resta
 it("initializes demo drafts without saving the workspace or releasing a lease", () => {
   configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
   controller = startWorkspaceController();
-  expect(workspaceChangeStore.commitChangeRecords([change])).toBe("applied");
+  expect(draftChangeStore.commitChangeRecords([change])).toBe("applied");
   window.dispatchEvent(new Event("beforeunload"));
   controller.dispose();
 
   expect(getDraftsSnapshot().drafts[0]?.contents.changes).toMatchObject([{ rawValue: "red" }]);
-  expect(localStorage.getItem("nudge-ui-drafts:controller-restart:v1")).toBeNull();
-  expect(localStorage.getItem("nudge-ui:controller-restart:v16")).toBeNull();
+  expect(localStorage.getItem("nudge-ui-drafts:controller-restart:v2")).toBeNull();
+  expect(localStorage.getItem("nudge-ui:controller-restart:v17")).toBeNull();
   expect(hasWriteLease()).toBe(true);
+});
+
+it("reloads drafts saved by another tab when this tab takes over again", () => {
+  controller = startWorkspaceController();
+  draftChangeStore.commitChangeRecords([change]);
+  controller.dispose();
+  localStorage.removeItem("nudge-ui-drafts:controller-restart:v2");
+
+  controller = startWorkspaceController();
+
+  expect(getDraftContentsForCard(getCanvasCards()[0]!.id)?.changes).toEqual([]);
 });

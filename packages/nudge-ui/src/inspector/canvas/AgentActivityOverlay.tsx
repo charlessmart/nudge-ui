@@ -1,5 +1,6 @@
 import activityStyles from "./AgentActivityOverlay.css?inline";
 import { useEffect, useState } from "react";
+import { ThinkingOrb } from "thinking-orbs";
 import { useAgentActivity, type ActivityFile } from "../agent/activity.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
@@ -8,7 +9,7 @@ import { contentEditTarget, type FrameContent } from "./frameContent.ts";
 
 export interface ActivityAttribution { files: readonly ActivityFile[]; elements: readonly Element[] }
 
-/** Reuses rendered source identities. Study provenance cannot target application source. */
+/** Reuses rendered source identities. Iteration provenance cannot target application source. */
 export function attributeActivity(content: FrameContent, document: Document, files: readonly ActivityFile[]): ActivityAttribution {
   const target = contentEditTarget(content);
   if (target.kind === "html") return { files: files.filter((file) => file.file === target.path), elements: [] };
@@ -86,13 +87,11 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
   const working = activity.requestId !== null && (submitted || visual.files.length > 0);
   if (!working) return null;
   return <div className="canvas-agent-activity" data-test={`canvas-agent-activity-${cardId}`}>
-    <svg className="canvas-agent-activity__beam" aria-hidden="true" focusable="false">
-      <rect className="canvas-agent-activity__beam-track" width="100%" height="100%" rx="2" />
-      <rect className="canvas-agent-activity__beam-trail" width="100%" height="100%" rx="2" pathLength="100" />
-      <rect className="canvas-agent-activity__beam-head" width="100%" height="100%" rx="2" pathLength="100" />
-    </svg>
     {visual.highlights.map((rect, index) => <div key={index} className="canvas-agent-activity__shimmer" data-test="canvas-agent-component-shimmer" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} />)}
-    <span className="canvas-agent-activity__label" role="status">Agent working…</span>
+    <span className="canvas-agent-activity__label" role="status">
+      <ThinkingOrb state="solving" size={20} theme="dark" aria-hidden="true" />
+      <span>Agent working…</span>
+    </span>
     <style>{activityStyles}</style>
   </div>;
 }

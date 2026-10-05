@@ -1,3 +1,4 @@
+import { clickFrameAction } from "./canvasTransition.ts";
 import { test, expect, type Page } from "@playwright/test";
 import { createLoopbackBridge, type BrowserBridge } from "@nudge-ui/mcp";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
@@ -152,7 +153,7 @@ test.describe("Nudge MCP browser bridge", () => {
     await openEditor(page, "/playground");
     await page.locator('[data-test="canvas-show-canvas"]').click();
     const cards = page.locator(".canvas-card");
-    await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
+    await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
     await expect(cards).toHaveCount(2);
     await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
@@ -179,24 +180,18 @@ test.describe("Nudge MCP browser bridge", () => {
     await expect.poll(() => cards.first().locator('[data-test="canvas-agent-component-shimmer"]').count()).toBeGreaterThan(0);
     await expect.poll(() => cards.nth(1).locator('[data-test="canvas-agent-component-shimmer"]').count()).toBeGreaterThan(0);
     await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
-    const beam = cards.first().locator(".canvas-agent-activity__beam-head");
-    const offsets = await beam.evaluate((element) => {
-      const animation = element.getAnimations()[0];
-      if (!animation) throw new Error("The frame border must animate while the agent works.");
-      animation.pause();
-      animation.currentTime = 0;
-      const start = getComputedStyle(element).strokeDashoffset;
-      animation.currentTime = Number(animation.effect!.getTiming().duration) / 4;
-      const next = getComputedStyle(element).strokeDashoffset;
-      animation.play();
-      return { start, next, stroke: getComputedStyle(element).stroke };
-    });
-    expect(offsets.start).not.toBe(offsets.next);
-    expect(offsets.stroke).not.toBe("none");
+    const orb = labels.nth(1).locator("canvas");
+    await expect(orb).toBeVisible();
+    await expect.poll(() => orb.evaluate((canvas: HTMLCanvasElement) => {
+      const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+      return pixels.some((value, index) => index % 4 === 3 && value > 0);
+    })).toBe(true);
+    const shimmer = cards.nth(1).locator('[data-test="canvas-agent-component-shimmer"]').first();
     expect(bridge.getStatus().request?.status).toBe("working");
     await page.screenshot({ path: "/private/tmp/nudge-agent-activity.png" });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect.poll(() => beam.evaluate((element) => element.getAnimations().length)).toBe(0);
+    await expect.poll(() => shimmer.evaluate((element) => element.getAnimations().length)).toBe(0);
+    await expect(orb).toBeVisible();
     await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
     bridge.updateRequestStatus({ requestId: request.requestId, status: "completed" });
     await expect(page.locator('[data-test^="canvas-agent-activity-"]')).toHaveCount(0);

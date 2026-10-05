@@ -1,4 +1,4 @@
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("page selection scopes the changes count and prompt while linked views share the page", async ({ page }) => {
@@ -17,7 +17,7 @@ test("page selection scopes the changes count and prompt while linked views shar
   await original.locator('[data-inline-editor="true"]').press("Enter");
   await expect(page.locator('[data-test="copy-prompt-change-count"]')).toHaveText("1");
   await original.locator("body").evaluate((body) => { body.dataset.transientState = "preserved"; });
-  await cards.first().locator('[data-test^="canvas-card-duplicate-"]').click();
+  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(cards).toHaveCount(2);
   await expect(original.locator("body")).toHaveAttribute("data-transient-state", "preserved");
   await expect(page.locator('[data-test="copy-prompt-change-count"]')).toHaveText("1");
