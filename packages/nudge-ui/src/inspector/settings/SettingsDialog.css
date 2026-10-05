@@ -63,9 +63,15 @@
 }
 
 .settings__nav {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding: var(--space-16) var(--space-8);
   background: var(--surface-panel);
+}
+
+.settings__reset-canvas {
+  margin-top: auto;
 }
 
 .settings__nav-label {

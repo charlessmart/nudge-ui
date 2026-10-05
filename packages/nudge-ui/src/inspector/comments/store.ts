@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { isRenderedInstanceRef, type RenderedInstanceRef } from "../changes/editModel.ts";
+import { useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { contentEditTarget } from "../canvas/frameContent.ts";
+import { documentTarget, targetKey, type DraftTarget } from "../drafts/model.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 export interface ElementComment {
@@ -60,6 +63,19 @@ export function useComments(): readonly ElementComment[] {
   return useSyncExternalStore(subscribeComments, getComments, getComments);
 }
 
+export function getCommentsForTarget(target: DraftTarget): readonly ElementComment[] {
+  return getComments().filter((comment) => targetKey(documentTarget(comment.route)) === targetKey(target));
+}
+
+export function useFrameComments(): readonly ElementComment[] {
+  useComments();
+  const cards = useCanvasCards();
+  const selected = useSelectedCardId();
+  const focused = useFocusedCardId();
+  const card = cards.find((card) => card.id === selected) ?? cards.find((card) => card.id === focused) ?? cards[0];
+  return getCommentsForTarget(card ? contentEditTarget(card.content) : documentTarget(window.location.href));
+}
+
 export function saveComment(comment: ElementComment): void {
   const current = getComments();
   publish([...current.filter((item) => item.id !== comment.id), comment]);
@@ -72,10 +88,11 @@ export function removeComment(id: string): void {
 export function getCommentClearRevision(): number { return clearRevision; }
 
 /** Clears saved notes and invalidates any open or saving comment draft. */
-export function clearComments(): void {
+export function clearComments(target?: DraftTarget): void {
   getComments();
   clearRevision += 1;
-  publish([]);
+  const cleared = new Set((target ? getCommentsForTarget(target) : getComments()).map((comment) => comment.id));
+  publish(getComments().filter((comment) => !cleared.has(comment.id)));
 }
 
 /** Arms only the exact notes successfully copied or accepted by an agent. */
@@ -101,5 +118,7 @@ export function useCommentToolActive(): boolean {
 export function commentRoute(doc: Document): string {
   const url = new URL(doc.location.href);
   url.hash = "";
+  url.searchParams.delete("nudge-ui");
+  url.searchParams.sort();
   return url.href;
 }

@@ -1,3 +1,4 @@
+import { contentSourceUrl } from "./frameContent.ts";
 import {
   AGENT_PROTOCOL_LIMITS,
   isCanvasCommand,
@@ -11,22 +12,22 @@ import {
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
+import { removeFrame } from "../workspace/commands.ts";
 import {
-  appendCanvasComparisonGroup,
+  appendAgentRouteCards,
+  getFrameGroup,
+  getFrameGroups,
+  setFrameGroup,
+  removeFrameGroup,
+  batchCanvasChanges,
   fitAllCards,
   focusCard,
   focusCanvasCards,
   getCanvasCards,
-  getCanvasComparisonGroup,
-  getCanvasComparisonGroups,
-  getCanvasMode,
   getFocusedCardId,
-  removeCanvasComparisonGroup,
-  setCanvasMode,
   type CanvasCard,
-  type CanvasComparisonGroup,
-  type CanvasComparisonGroupRoute,
 } from "./canvasStore.ts";
+import { getCanvasMode, setCanvasMode } from "./viewStore.ts";
 
 /**
  * Renderer acknowledgements are deliberately shorter than the companion's
@@ -59,7 +60,7 @@ export interface AgentPresentationRoute {
 
 export type AgentPresentationRouteInput = string | AgentPresentationRoute;
 
-export interface PresentAgentComparisonGroupInput {
+export interface PresentAgentRoutesInput {
   label: string;
   routes?: readonly AgentPresentationRouteInput[];
   /** Convenience spelling for direct browser callers. */
@@ -71,8 +72,8 @@ export interface PresentAgentComparisonGroupInput {
   readyTimeoutMs?: number;
 }
 
-export interface AgentComparisonGroupPresentation {
-  group: CanvasComparisonGroup;
+export interface AgentRoutesPresentation {
+  group: CanvasGroup;
   cards: CanvasCard[];
   readiness: AgentRendererReadiness;
 }
@@ -152,13 +153,13 @@ function createGroupId(): string {
 
 function validateLabel(value: unknown): string {
   if (!isNonEmptyString(value)) {
-    throw new AgentPresentationError("invalid-label", "A comparison group label is required.");
+    throw new AgentPresentationError("invalid-label", "A route group label is required.");
   }
   const label = value.trim();
   if (label.length > MAX_GROUP_LABEL_LENGTH || /[\u0000-\u001f\u007f]/.test(label)) {
     throw new AgentPresentationError(
       "invalid-label",
-      `Comparison group labels must be between 1 and ${MAX_GROUP_LABEL_LENGTH} printable characters.`,
+      `Route group labels must be between 1 and ${MAX_GROUP_LABEL_LENGTH} printable characters.`,
     );
   }
   return label;
@@ -167,20 +168,20 @@ function validateLabel(value: unknown): string {
 function routeForValidation(value: unknown): Record<string, unknown> {
   if (typeof value === "string") return { url: value };
   if (!isRecord(value)) {
-    throw new AgentPresentationError("invalid-route", "Each comparison route must be a URL object.");
+    throw new AgentPresentationError("invalid-route", "Each presented route must be a URL object.");
   }
   return value;
 }
 
-function normalizeRoutes(input: PresentAgentComparisonGroupInput): AgentRoute[] {
+function normalizeRoutes(input: PresentAgentRoutesInput): AgentRoute[] {
   const rawRoutes = input.routes ?? input.urls;
   if (!rawRoutes || rawRoutes.length === 0) {
-    throw new AgentPresentationError("invalid-route", "At least one comparison route is required.");
+    throw new AgentPresentationError("invalid-route", "At least one presented route is required.");
   }
   if (rawRoutes.length > MAX_PRESENTATION_ROUTES) {
     throw new AgentPresentationError(
       "too-many-routes",
-      `A comparison group may contain at most ${MAX_PRESENTATION_ROUTES} routes.`,
+      `A route group may contain at most ${MAX_PRESENTATION_ROUTES} routes.`,
     );
   }
 
@@ -199,7 +200,7 @@ function normalizeRoutes(input: PresentAgentComparisonGroupInput): AgentRoute[] 
   } catch (error) {
     throw new AgentPresentationError(
       "invalid-route",
-      error instanceof Error ? error.message : "Comparison routes must be same-origin URLs.",
+      error instanceof Error ? error.message : "Presented routes must be same-origin URLs.",
     );
   }
 }
@@ -320,17 +321,24 @@ export function waitForAgentRendererReadiness(
   });
 }
 
-function toProtocolGroup(group: CanvasComparisonGroup): CanvasGroup {
+function toProtocolGroup(groupId: string): CanvasGroup {
+  const group = getFrameGroup(groupId);
   return {
-    id: group.id,
-    label: group.label,
+    id: groupId,
+    label: group?.label ?? "",
     owner: "agent",
-    routes: group.routes.map((route) => ({
+    routes: (group?.routes ?? []).map((route) => ({
       url: route.url,
       ...(route.title === undefined || route.title === null ? {} : { title: route.title }),
       ...(route.label === undefined ? {} : { label: route.label }),
     })),
   };
+}
+
+function groupCardIds(groupId: string): string[] {
+  return getCanvasCards()
+    .filter((card) => card.groupId === groupId)
+    .map((card) => card.id);
 }
 
 /** Returns the compact state shape shared with the companion bridge. */
@@ -341,15 +349,19 @@ export function readCanvasState(): CanvasState {
     : undefined;
   return {
     mode: getCanvasMode(),
-    groups: getCanvasComparisonGroups().map(toProtocolGroup),
-    focusedGroupId: focusedCard?.comparisonGroupId ?? null,
-    focusedRouteUrl: focusedCard?.url ?? null,
+    groups: getFrameGroups().map((group) => group.id)
+      .filter((groupId) => groupCardIds(groupId).length > 0)
+      .map(toProtocolGroup),
+    focusedGroupId: focusedCard?.groupId && getFrameGroup(focusedCard.groupId)?.kind === "agent"
+      ? focusedCard.groupId
+      : null,
+    focusedRouteUrl: focusedCard ? contentSourceUrl(focusedCard.content) : null,
   };
 }
 
-export async function presentAgentComparisonGroup(
-  input: PresentAgentComparisonGroupInput,
-): Promise<AgentComparisonGroupPresentation> {
+export async function presentAgentRoutes(
+  input: PresentAgentRoutesInput,
+): Promise<AgentRoutesPresentation> {
   ensureDevelopment();
   ensureWritable();
   if (activePresentation) {
@@ -365,57 +377,57 @@ export async function presentAgentComparisonGroup(
     }
     const groupId = input.groupId ?? createGroupId();
     if (!isNonEmptyString(groupId) || groupId.length > AGENT_PROTOCOL_LIMITS.groupId) {
-      throw new AgentPresentationError("invalid-command", "A comparison group ID is required.");
+      throw new AgentPresentationError("invalid-command", "A route group ID is required.");
     }
-    if (getCanvasComparisonGroup(groupId)) {
-      throw new AgentPresentationError("group-id-conflict", `Comparison group ${groupId} already exists.`);
+    const collides = getFrameGroup(groupId) !== undefined
+      || getCanvasCards().some((card) => card.groupId === groupId);
+    if (collides) {
+      throw new AgentPresentationError("group-id-conflict", `Route group ${groupId} already exists.`);
     }
 
     const readyTimeoutMs = clampReadyTimeout(input.readyTimeoutMs);
     // Opening Canvas for an agent group appends only the requested routes. It
     // never creates or repositions the current Inspect route.
     setCanvasMode("canvas");
-    const appended = appendCanvasComparisonGroup({
-      id: groupId,
-      label,
-      owner: "agent",
-      agentId,
-      routes: routes.map((route) => ({
+    const cards = batchCanvasChanges(() => {
+      setFrameGroup({ id: groupId, kind: "agent", label, agentId, routes: routes.map((route) => ({ ...route })) });
+      return appendAgentRouteCards(
+      groupId,
+      routes.map((route) => ({
         url: route.url,
         ...(route.title === undefined ? {} : { title: route.title }),
-        ...(route.label === undefined ? {} : { label: route.label }),
-      })) as readonly CanvasComparisonGroupRoute[],
+      })),
+      );
     });
-    if (!appended) {
-      throw new AgentPresentationError("group-id-conflict", `Comparison group ${groupId} already exists.`);
+    if (!cards) {
+      throw new AgentPresentationError("group-id-conflict", `Route group ${groupId} already exists.`);
     }
-    const cardIds = appended.cards.map((card) => card.id);
+    const cardIds = cards.map((card) => card.id);
     beginRendererReadiness(cardIds);
     const readiness = await waitForAgentRendererReadiness(cardIds, readyTimeoutMs);
-    return { ...appended, readiness };
+    return { group: toProtocolGroup(groupId), cards, readiness };
   } finally {
     activePresentation = false;
   }
 }
 
-function groupCards(groupId: string): { group: CanvasComparisonGroup; cards: CanvasCard[] } {
-  const group = getCanvasComparisonGroup(groupId);
-  if (!group) throw new AgentPresentationError("group-not-found", `Comparison group ${groupId} was not found.`);
-  const cardIds = new Set(group.cardIds);
-  const cards = getCanvasCards().filter((card) => cardIds.has(card.id));
+function groupCards(groupId: string): CanvasCard[] {
+  const group = getFrameGroup(groupId);
+  if (group?.kind !== "agent") throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
+  const cards = getCanvasCards().filter((card) => card.groupId === groupId);
   if (cards.length === 0) {
-    throw new AgentPresentationError("group-not-found", `Comparison group ${groupId} has no cards.`);
+    throw new AgentPresentationError("group-not-found", `Route group ${groupId} has no cards.`);
   }
-  return { group, cards };
+  return cards;
 }
 
-export function focusAgentComparisonGroup(
+export function focusAgentGroup(
   groupId: string,
   viewport?: { width: number; height: number },
 ): AgentPresentationState {
   ensureDevelopment();
   ensureWritable();
-  const { cards } = groupCards(groupId);
+  const cards = groupCards(groupId);
   focusCard(cards[0]!.id);
   focusCanvasCards(cards.map((card) => card.id), viewport);
   return readCanvasState();
@@ -430,22 +442,23 @@ export function fitAgentCanvas(
   return readCanvasState();
 }
 
-export function removeOwnAgentComparisonGroup(
+export function removeOwnAgentGroup(
   groupId: string,
   agentId = DEFAULT_AGENT_ID,
 ): AgentPresentationState {
   ensureDevelopment();
   ensureWritable();
-  const group = getCanvasComparisonGroup(groupId);
-  if (!group) throw new AgentPresentationError("group-not-found", `Comparison group ${groupId} was not found.`);
-  if (group.owner !== "agent" || group.agentId !== agentId) {
+  const group = getFrameGroup(groupId);
+  if (group?.kind !== "agent") throw new AgentPresentationError("group-not-found", `Route group ${groupId} was not found.`);
+  if (group.agentId !== agentId) {
     throw new AgentPresentationError(
       "not-group-owner",
-      `Agent ${agentId} cannot remove comparison group ${groupId}.`,
+      `Agent ${agentId} cannot remove route group ${groupId}.`,
     );
   }
-  const cardIds = [...group.cardIds];
-  removeCanvasComparisonGroup(groupId);
+  const cardIds = groupCardIds(groupId);
+  for (const cardId of cardIds) removeFrame(cardId);
+  removeFrameGroup(groupId);
   forgetAgentRendererReadiness(cardIds);
   return readCanvasState();
 }
@@ -503,7 +516,7 @@ async function executeCanvasCommand(command: CanvasCommand, agentId: string): Pr
       ensureDevelopment();
       return { commandId: command.commandId, ok: true, state: readCanvasState() };
     case "present-routes": {
-      const presentation = await presentAgentComparisonGroup({
+      const presentation = await presentAgentRoutes({
         groupId: command.groupId,
         label: command.label,
         routes: command.routes,
@@ -515,7 +528,7 @@ async function executeCanvasCommand(command: CanvasCommand, agentId: string): Pr
           commandId: command.commandId,
           ok: true,
           state,
-          group: toProtocolGroup(presentation.group),
+          group: presentation.group,
         };
       }
       const failed = presentation.readiness.failedCardIds.length > 0;
@@ -523,7 +536,7 @@ async function executeCanvasCommand(command: CanvasCommand, agentId: string): Pr
         commandId: command.commandId,
         ok: false,
         state,
-        group: toProtocolGroup(presentation.group),
+        group: presentation.group,
         error: {
           code: failed ? "renderer-error" : "renderer-timeout",
           message: failed
@@ -536,7 +549,7 @@ async function executeCanvasCommand(command: CanvasCommand, agentId: string): Pr
       return {
         commandId: command.commandId,
         ok: true,
-        state: focusAgentComparisonGroup(command.groupId),
+        state: focusAgentGroup(command.groupId),
       };
     case "fit-all":
       return {
@@ -548,7 +561,7 @@ async function executeCanvasCommand(command: CanvasCommand, agentId: string): Pr
       return {
         commandId: command.commandId,
         ok: true,
-        state: removeOwnAgentComparisonGroup(command.groupId, agentId),
+        state: removeOwnAgentGroup(command.groupId, agentId),
       };
   }
 }

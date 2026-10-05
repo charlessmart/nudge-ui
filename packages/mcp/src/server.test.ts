@@ -87,6 +87,7 @@ describe("standard MCP companion", () => {
       expect(tools.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
         "nudge_listen",
         "nudge_report_status",
+        "nudge_report_activity",
         "nudge_present_routes",
         "nudge_read_canvas",
       ]));
@@ -122,6 +123,11 @@ describe("standard MCP companion", () => {
       });
       expect(request.instructions).toContain("nudge_listen");
       expect(request.instructions).toContain("host's normal approval flow");
+      const activity = await client.callTool({ name: "nudge_report_activity", arguments: { requestId: "mcp-request", file: "src/Card.tsx", operation: "edit", line: 10 } });
+      expect(activity.isError).not.toBe(true);
+      expect(companion.bridge.getStatus().request?.status).toBe("working");
+      const stale = await client.callTool({ name: "nudge_report_activity", arguments: { requestId: "old-request", file: "src/Card.tsx", operation: "read" } });
+      expect(stale.isError).toBe(true);
       const completed = await client.callTool({
         name: "nudge_report_status",
         arguments: { requestId: request.requestId, status: "completed", summary: "Implemented and verified the routes" },
@@ -130,6 +136,9 @@ describe("standard MCP companion", () => {
       expect(companion.bridge.getStatus().request).toMatchObject({
         requestId: "mcp-request", status: "completed",
       });
+      const late = await client.callTool({ name: "nudge_report_activity", arguments: { requestId: "mcp-request", file: "src/Card.tsx", operation: "read" } });
+      expect(late.isError).toBe(true);
+
     } finally {
       await client.close();
       await companion.close();

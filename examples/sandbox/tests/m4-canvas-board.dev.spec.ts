@@ -110,20 +110,18 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
 test.describe("Canvas board gesture handling", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/playground");
-      await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+    await page.locator('[data-test="canvas-show-canvas"]').click();
   });
 
-  test("dev: unmodified wheel event does not change board transform", async ({ page }) => {
+  test("dev: unmodified wheel event pans the board", async ({ page }) => {
     const board = page.locator('[data-test="canvas-board"]');
     const boardContent = page.locator('[data-test="canvas-board-content"]');
 
     const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
 
-    await board.dispatchEvent("wheel", { deltaY: 100 } as unknown as EventInit);
-    await page.waitForTimeout(200);
-
-    const transformAfter = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-    expect(transformAfter).toBe(transformBefore);
+    await board.dispatchEvent("wheel", { deltaY: 100, bubbles: true, composed: true });
+    await expect.poll(() => boardContent.evaluate((el: HTMLElement) => el.style.transform)).not.toBe(transformBefore);
   });
 
   test("dev: ordinary empty-background drag does not pan the board", async ({ page }) => {

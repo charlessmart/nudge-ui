@@ -18,12 +18,15 @@ describe("canvas toolbar zoom presets", () => {
 
 describe("canvas toolbar keyboard shortcuts", () => {
   it.each([
-    ["KeyI", "select"],
     ["KeyV", "design"],
     ["KeyC", "comment"],
     ["KeyP", "sketch"],
   ])("maps %s to the corresponding tool", (code, tool) => {
     expect(canvasToolForCode(code)).toBe(tool);
+  });
+
+  it("does not activate app interaction with I", () => {
+    expect(canvasToolForCode("KeyI")).toBeNull();
   });
 
   it("ignores modifiers and repeated keydown events", () => {

@@ -20,6 +20,7 @@ function liveSourcePlugin(): Plugin {
       return {
         resolve: {
           alias: [
+            { find: NUDGE_UI_CLIENT_PATH, replacement: nudgeUiSource("inspector/client.ts") },
             { find: "nudge-ui/testing", replacement: nudgeUiSource("inspector/testing.ts") },
             {
               find: "nudge-ui/internal/component-runtime",

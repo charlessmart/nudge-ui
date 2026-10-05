@@ -9,7 +9,7 @@ import {
   nudgeElement,
 } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { clearWorkspace } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../changes/changesLog.ts";
 import { getStructuralChangeDiagnostics, getStructuralChanges, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 function fixture() {
@@ -29,7 +29,7 @@ function fixture() {
 
 afterEach(() => {
   document.documentElement.removeAttribute("data-nudge-ui-editor");
-  clearWorkspace();
+  clearActiveDraft();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
 });

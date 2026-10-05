@@ -1,3 +1,4 @@
+import { clickFrameAction } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { getAppFrame } from "@nudge-ui/compatibility/playwright";
 
@@ -202,7 +203,7 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
 
   // Create an explicit comparison, then navigate that card. Selecting in the
   // comparison must not navigate the editor shell.
-  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   await expect(page.locator(".canvas-card")).toHaveCount(2);
   await waitForIframeReady(page, 1);
   await page.frameLocator(".canvas-card__iframe").nth(1)

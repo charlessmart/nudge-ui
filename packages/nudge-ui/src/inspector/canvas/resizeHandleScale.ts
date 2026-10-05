@@ -1,4 +1,4 @@
-import { MAX_CAMERA_ZOOM } from "./canvasStore.ts";
+import { MAX_CAMERA_ZOOM } from "./viewStore.ts";
 import { CANVAS_TOOLBAR_MAX_SCALE } from "./toolbarScale.ts";
 
 /**

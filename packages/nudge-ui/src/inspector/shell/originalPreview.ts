@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
-import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
+import { draftChangeStore } from "../changes/draftChanges.ts";
 import {
-  applyHostWorkspaceProjection,
-  compileWorkspaceProjection,
-} from "../projection/workspaceProjection.ts";
+  applyHostDraftProjection,
+  compileDraftProjection,
+} from "../projection/draftProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 let previewingOriginal = false;
@@ -40,8 +40,8 @@ function notifyOriginalPreviewListeners(): void {
 
 function applyEmptyHostProjection(): void {
   if (isEditorShellDocument()) return;
-  const { revision } = workspaceChangeStore.getSnapshot();
-  applyHostWorkspaceProjection({
+  const { revision } = draftChangeStore.getSnapshot();
+  applyHostDraftProjection({
     sourceRevision: revision,
     managedStyles: { rules: [], css: "" },
     instanceOverrides: [],
@@ -53,8 +53,8 @@ function applyEmptyHostProjection(): void {
 
 function applyCanonicalHostProjection(): void {
   if (isEditorShellDocument()) return;
-  applyHostWorkspaceProjection(
-    compileWorkspaceProjection(workspaceChangeStore.getSnapshot()),
+  applyHostDraftProjection(
+    compileDraftProjection(draftChangeStore.getSnapshot()),
   );
 }
 

@@ -34,6 +34,7 @@ import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { useInspectorOpen } from "../shell/openStore.ts";
 import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
+import { useTemporaryAppInteraction } from "../canvas/viewStore.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 
@@ -134,6 +135,7 @@ function annotationEditorStyle(
 }
 
 export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel, onDone }: SketchOverlayProps): ReactElement | null {
+  const temporaryAppInteraction = useTemporaryAppInteraction();
   const inspectorOpen = useInspectorOpen();
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
   const [tool, setTool] = useState<SketchTool>("pen");
@@ -484,11 +486,13 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     >
       <Dialog.Portal container={portalContainer()}>
         <Dialog.Backdrop
+          style={{ visibility: temporaryAppInteraction ? "hidden" : undefined }}
           className="sketch__backdrop sketch__live-backdrop"
           data-inspector-open={inspectorOpen ? "true" : "false"}
           data-test="sketch-live-backdrop"
         />
         <Dialog.Popup
+          style={{ visibility: temporaryAppInteraction ? "hidden" : undefined }}
           className="sketch__popup sketch__live-popup"
           data-inspector-open={inspectorOpen ? "true" : "false"}
           data-test="sketch-live-editor"

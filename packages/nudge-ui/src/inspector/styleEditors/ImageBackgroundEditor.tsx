@@ -4,7 +4,7 @@ import { IconPhoto, IconUpload } from "@tabler/icons-react";
 import { TokenValueField } from "../tokens/TokenField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { StyleDeclaration } from "../tokens/editActions.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { Button } from "../ui/Button.tsx";
 import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
@@ -59,7 +59,7 @@ export function ImageBackgroundEditor({ element, elements, value, mixed, onUploa
   const computedRepeat = getStateStyleValue(element, "background-repeat", "repeat");
   const computedSizing = computedRepeat === "repeat" && /^(?:auto|auto auto)$/.test(computedSize) ? "tile"
     : computedSize === "auto auto" ? "auto" : computedSize;
-  const sizing = sizingDraft?.element === element && sizingDraft.revision === getWorkspaceChanges().revision ? sizingDraft.value : computedSizing;
+  const sizing = sizingDraft?.element === element && sizingDraft.revision === getActiveDraftChanges().revision ? sizingDraft.value : computedSizing;
   const uploadBlocked = inlineBlockedBy(elements, "background-image", "background-size", "background-repeat", "background-position");
   const sizingBlocked = inlineBlockedBy(elements, "background-size", "background-repeat", "background-position");
 
@@ -92,7 +92,7 @@ export function ImageBackgroundEditor({ element, elements, value, mixed, onUploa
       if (!isCurrent()) return;
       if (!onUpload(`url("${data}")`)) return;
       setImage({ src: data, name: file.name });
-      setSizingDraft({ element, revision: getWorkspaceChanges().revision, value: "cover" });
+      setSizingDraft({ element, revision: getActiveDraftChanges().revision, value: "cover" });
     } catch {
       if (isCurrent()) setError("This image could not be loaded. Choose another file.");
     } finally {
@@ -107,7 +107,7 @@ export function ImageBackgroundEditor({ element, elements, value, mixed, onUploa
       { property: "background-repeat", value: next === "tile" ? "repeat" : "no-repeat" },
       { property: "background-position", value: "center" },
     ])) return;
-    setSizingDraft({ element, revision: getWorkspaceChanges().revision, value: next });
+    setSizingDraft({ element, revision: getActiveDraftChanges().revision, value: next });
   }
 
   return <div className="image-background" data-test="image-background-editor">

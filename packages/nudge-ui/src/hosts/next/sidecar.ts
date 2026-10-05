@@ -1,3 +1,4 @@
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -366,7 +367,9 @@ export async function ensureSidecar(
     };
 
     const server: Server = createServer((req, res) => {
-      respond(req, res, () => manifest, () => generation, streams, receiveContracts);
+      void handleHtmlArtifactRequest(req, res, fsRoot).then((handled) => {
+        if (!handled) respond(req, res, () => manifest, () => generation, streams, receiveContracts);
+      });
     });
 
     const port = await new Promise<number>((resolvePort, rejectPort) => {

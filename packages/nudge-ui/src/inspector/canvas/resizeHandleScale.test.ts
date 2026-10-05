@@ -4,7 +4,7 @@ import {
   CANVAS_RESIZE_HANDLE_MIN_SCALE,
   getCanvasResizeHandleScale,
 } from "./resizeHandleScale.ts";
-import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "./canvasStore.ts";
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "./viewStore.ts";
 
 describe("getCanvasResizeHandleScale", () => {
   it("keeps the resize hit target at a stable screen size across board zoom", () => {

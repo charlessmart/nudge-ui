@@ -7,7 +7,7 @@ import type {
 } from "../changes/changesLog.ts";
 import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
 import {
-  clearWorkspace,
+  clearActiveDraft,
   getChangesList,
   isElementChange,
   isPreviewableChange,
@@ -15,6 +15,7 @@ import {
 } from "../changes/changesLog.ts";
 import { getCanvasPreviewDocument, registerCardFrame, unregisterCardFrame } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
+import { activateDraftForCard } from "../drafts/store.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import { changeKey } from "../changes/model.ts";
@@ -25,7 +26,7 @@ import {
   publishPreviewDiagnostic,
   resetPreviewDiagnostics,
 } from "../changes/previewDiagnostics.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 
 const TOKEN_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const TOKEN_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -113,13 +114,13 @@ function addElementToFrame(iframe: HTMLIFrameElement, selector: string): void {
 describe("staleChangeDetector", () => {
   beforeEach(() => {
     cancelStaleDetection();
-    clearWorkspace();
+    clearActiveDraft();
     resetPreviewDiagnostics();
   });
 
   afterEach(() => {
     cancelStaleDetection();
-    clearWorkspace();
+    clearActiveDraft();
     resetPreviewDiagnostics();
   });
 
@@ -129,7 +130,7 @@ describe("staleChangeDetector", () => {
       restoreChangeRecords([change]);
 
       const changes = getPreviewableChanges();
-      const attempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision)!;
+      const attempt = beginPreviewAttempt(getHostPreviewDocument(), getActiveDraftChanges().revision)!;
       publishPreviewDiagnostic(attempt, changeKey(change), {
         status: "applied",
         requestedValue: "var(--color-b)",
@@ -186,6 +187,7 @@ describe("staleChangeDetector", () => {
 
       const card = addCanvasCard("http://localhost:5173/about");
       registerCardFrame(card.id, iframe);
+      activateDraftForCard(card.id);
 
       const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
       restoreChangeRecords([change]);
@@ -213,6 +215,7 @@ describe("staleChangeDetector", () => {
 
       const card = addCanvasCard("http://localhost:5173/about");
       registerCardFrame(card.id, iframe);
+      activateDraftForCard(card.id);
 
       const missingSelector = '[data-cid="Deleted"][data-src*="Deleted.tsx:1"]';
       const change = makeElementChange({

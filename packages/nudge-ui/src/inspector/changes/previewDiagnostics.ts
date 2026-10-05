@@ -1,14 +1,16 @@
-import { getWorkspaceChanges, subscribeWorkspaceChanges } from "./workspaceChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "./draftChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 
 /** A logical document is stable while its live document may be replaced. */
 export interface PreviewDocument {
   readonly logicalDocument: string;
   readonly sessionId: string;
+  readonly draftId?: string;
 }
 
 export interface PreviewAttempt extends PreviewDocument {
-  readonly workspaceRevision: number;
+  readonly draftId: string;
+  readonly draftRevision: number;
   readonly attempt: number;
 }
 
@@ -22,7 +24,6 @@ const HOST_DOCUMENT: PreviewDocument = {
   sessionId: "host-document",
 };
 
-let workspaceRevision = getWorkspaceChanges().revision;
 let activeSessions = new Map<string, string>([[HOST_DOCUMENT.logicalDocument, HOST_DOCUMENT.sessionId]]);
 let attemptsBySession = new Map<string, number>();
 let diagnostics = new Map<string, PreviewDiagnostic>();
@@ -30,7 +31,7 @@ let diagnosticRevision = 0;
 const listeners = new Set<() => void>();
 
 function storageKey(document: PreviewDocument, changeKey: string): string {
-  return `${document.logicalDocument}\u0000${document.sessionId}\u0000${changeKey}`;
+  return `${document.draftId ?? getActiveDraftChanges().draftId}\u0000${document.logicalDocument}\u0000${document.sessionId}\u0000${changeKey}`;
 }
 
 function sessionKey(document: PreviewDocument): string {
@@ -49,25 +50,13 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-function syncWorkspaceRevision(): void {
-  const nextRevision = getWorkspaceChanges().revision;
-  if (nextRevision === workspaceRevision) return;
-  // Track the revision so late publishes are rejected per key. Do not clear
-  // here: a new commit must preserve earlier diagnostics until they are
-  // re-verified, otherwise every edit deletes every other change's status.
-  workspaceRevision = nextRevision;
-}
-
-subscribeWorkspaceChanges(syncWorkspaceRevision);
-
 /** Returns the stable host-document identity for this inspector lifetime. */
 export function getHostPreviewDocument(): PreviewDocument {
-  return HOST_DOCUMENT;
+  return { ...HOST_DOCUMENT, draftId: getActiveDraftChanges().draftId };
 }
 
 /** Starts or replaces the live session for one logical document. */
 export function startPreviewDocumentSession(document: PreviewDocument): void {
-  syncWorkspaceRevision();
   const previousSession = activeSessions.get(document.logicalDocument);
   if (previousSession === document.sessionId) return;
 
@@ -106,10 +95,10 @@ export function invalidatePreviewDocumentSession(
 /** Opens a verification attempt for the currently active document session. */
 export function beginPreviewAttempt(
   document: PreviewDocument,
-  revision = getWorkspaceChanges().revision,
+  revision = getDraftChanges(document.draftId ?? getActiveDraftChanges().draftId).revision,
 ): PreviewAttempt | null {
-  syncWorkspaceRevision();
-  if (revision !== workspaceRevision || activeSessions.get(document.logicalDocument) !== document.sessionId) {
+  const draftId = document.draftId ?? getActiveDraftChanges().draftId;
+  if (revision !== getDraftChanges(draftId).revision || activeSessions.get(document.logicalDocument) !== document.sessionId) {
     return null;
   }
   const attempt = (attemptsBySession.get(sessionKey(document)) ?? 0) + 1;
@@ -118,7 +107,7 @@ export function beginPreviewAttempt(
   // rejects late publishes per key; wiping would drop every other change's
   // status before it is re-verified (and drop all host status when Canvas
   // verification returns null).
-  return { ...document, workspaceRevision: revision, attempt };
+  return { ...document, draftId, draftRevision: revision, attempt };
 }
 
 /** Publishes only a result from the active revision, session, and attempt. */
@@ -127,8 +116,7 @@ export function publishPreviewDiagnostic(
   changeKey: string,
   result: PreviewResult,
 ): boolean {
-  syncWorkspaceRevision();
-  if (attempt.workspaceRevision !== workspaceRevision
+  if (attempt.draftRevision !== getDraftChanges(attempt.draftId).revision
     || activeSessions.get(attempt.logicalDocument) !== attempt.sessionId
     || attemptsBySession.get(sessionKey(attempt)) !== attempt.attempt) {
     return false;
@@ -138,7 +126,7 @@ export function publishPreviewDiagnostic(
   const previous = diagnostics.get(key);
   if (previous
     && previous.changeKey === changeKey
-    && previous.workspaceRevision === attempt.workspaceRevision
+    && previous.draftRevision === attempt.draftRevision
     && previous.attempt === attempt.attempt
     && sameResult(previous.result, result)) {
     return true;
@@ -169,6 +157,7 @@ export function notifyPreviewDiagnostics(): void {
 export function getPreviewDiagnostic(
   changeKey: string,
   logicalDocument = HOST_DOCUMENT.logicalDocument,
+  draftId = getActiveDraftChanges().draftId,
 ): PreviewDiagnostic | undefined {
   // Pure getter: never sync or notify. It runs on the React render path via
   // StaleChangeIndicator, so side effects here would clear state mid-render.
@@ -176,7 +165,7 @@ export function getPreviewDiagnostic(
   // cleared; publish-time stamps reject stale results per key.
   const sessionId = activeSessions.get(logicalDocument);
   if (!sessionId) return undefined;
-  return diagnostics.get(storageKey({ logicalDocument, sessionId }, changeKey));
+  return diagnostics.get(storageKey({ logicalDocument, sessionId, draftId }, changeKey));
 }
 
 /**
@@ -206,7 +195,6 @@ export function getPreviewDiagnosticRevision(): number {
 
 /** Test and teardown reset; it does not alter canonical workspace state. */
 export function resetPreviewDiagnostics(): void {
-  workspaceRevision = getWorkspaceChanges().revision;
   activeSessions = new Map([[HOST_DOCUMENT.logicalDocument, HOST_DOCUMENT.sessionId]]);
   attemptsBySession = new Map();
   diagnostics = new Map();

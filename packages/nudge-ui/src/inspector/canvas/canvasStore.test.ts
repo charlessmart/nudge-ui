@@ -1,9 +1,8 @@
+import { contentSourceUrl } from "./frameContent.ts";
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  getCanvasMode,
   getCanvasCards,
-  setCanvasMode,
   addCanvasCard,
   removeCanvasCard,
   updateCardTitle,
@@ -17,20 +16,27 @@ import {
   getSelectedCardId,
   hydrateCanvasStore,
   resizeCard,
+  fitAllCards,
+  subscribe,
+  activateIframeWorkspace,
+  PRIMARY_CARD_INSET,
+  setCardPosition,
+  addCanvasIteration,
+  CARD_GAP,
+} from "./canvasStore.ts";
+import {
+  getCanvasMode,
+  setCanvasMode,
   getBoardCamera,
   setBoardCamera,
-  fitAllCards,
   hasFitAllRan,
   resetFitAllFlag,
   MIN_CAMERA_ZOOM,
   MAX_CAMERA_ZOOM,
-  subscribe,
-  activateIframeWorkspace,
-  PRIMARY_CARD_INSET,
   setCanvasPresentation,
-  setCardPosition,
+  subscribeCanvasView,
   type CanvasMode,
-} from "./canvasStore.ts";
+} from "./viewStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 
 function resetAllCards(): void {
@@ -61,7 +67,7 @@ describe("canvasStore mode transitions", () => {
 
   it("subscribe fires on mode change", () => {
     const received: CanvasMode[] = [];
-    const unsub = subscribe(() => received.push(getCanvasMode()));
+    const unsub = subscribeCanvasView(() => received.push(getCanvasMode()));
     setCanvasMode("canvas");
     setCanvasMode("inspect");
     expect(received).toEqual(["canvas", "inspect"]);
@@ -70,7 +76,7 @@ describe("canvasStore mode transitions", () => {
 
   it("subscribe does not fire on no-op transitions", () => {
     let count = 0;
-    const unsub = subscribe(() => count++);
+    const unsub = subscribeCanvasView(() => count++);
     setCanvasMode("canvas");
     count = 0;
     setCanvasMode("canvas");
@@ -85,7 +91,7 @@ describe("canvasStore card operations", () => {
   it("addCanvasCard appends a card with position and notifies listeners", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     expect(card.id).toMatch(/^card-/);
-    expect(card.url).toBe("http://localhost:5173/about");
+    expect(contentSourceUrl(card.content)).toBe("http://localhost:5173/about");
     expect(card.title).toBe("About");
     expect(card.x).toBeGreaterThanOrEqual(0);
     expect(card.y).toBeGreaterThanOrEqual(0);
@@ -161,7 +167,7 @@ describe("canvasStore card operations", () => {
   it("updateCardUrl updates an existing card url", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     updateCardUrl(card.id, "http://localhost:5173/other");
-    expect(getCanvasCards()[0]!.url).toBe("http://localhost:5173/other");
+    expect(contentSourceUrl(getCanvasCards()[0]!.content)).toBe("http://localhost:5173/other");
   });
 
   it("subscribe fires on card changes", () => {
@@ -208,7 +214,7 @@ describe("iframe workspace startup", () => {
     const target = new URL("/playground", window.location.href).href;
     hydrateCanvasStore("inspect", [{
       id: "card-42",
-      url: target,
+      content: { kind: "route", url: target },
       title: "Application title",
       x: 120,
       y: 80,
@@ -227,7 +233,7 @@ describe("iframe workspace startup", () => {
   it("applies an explicit entry fragment to a restored route without duplicating it", () => {
     const target = new URL("/playground#before", window.location.href).href;
     hydrateCanvasStore("canvas", [{
-      id: "card-42", url: target, title: null,
+      id: "card-42", content: { kind: "route", url: target }, title: null,
       x: 0, y: 0, width: 713, height: 509,
     }], { x: 0, y: 0, zoom: 1 });
 
@@ -236,8 +242,7 @@ describe("iframe workspace startup", () => {
 
     expect(getCanvasCards()).toHaveLength(1);
     expect(getCanvasCards()[0]).toMatchObject({
-      url: requested,
-      navigationUrl: requested,
+      content: { kind: "route", url: requested, navigationUrl: requested },
     });
     expect(getFocusedCardId()).toBe("card-42");
   });
@@ -246,18 +251,17 @@ describe("iframe workspace startup", () => {
     const first = new URL("/playground#first", window.location.href).href;
     const focused = new URL("/playground#focused", window.location.href).href;
     hydrateCanvasStore("canvas", [
-      { id: "card-41", url: first, title: null, x: 0, y: 0, width: 600, height: 400 },
-      { id: "card-42", url: focused, title: null, x: 640, y: 0, width: 600, height: 400 },
-    ], { x: 0, y: 0, zoom: 1 }, [], "card-42");
+      { id: "card-41", content: { kind: "route", url: first }, title: null, x: 0, y: 0, width: 600, height: 400 },
+      { id: "card-42", content: { kind: "route", url: focused }, title: null, x: 640, y: 0, width: 600, height: 400 },
+    ], { x: 0, y: 0, zoom: 1 }, "card-42");
 
     const requested = new URL("/playground#requested", window.location.href).href;
     activateIframeWorkspace(requested, { width: 1200, height: 800 });
 
     expect(getFocusedCardId()).toBe("card-42");
-    expect(getCanvasCards().find((card) => card.id === "card-41")?.url).toBe(first);
+    expect(contentSourceUrl(getCanvasCards().find((card) => card.id === "card-41")?.content)).toBe(first);
     expect(getCanvasCards().find((card) => card.id === "card-42")).toMatchObject({
-      url: requested,
-      navigationUrl: requested,
+      content: { kind: "route", url: requested, navigationUrl: requested },
     });
   });
 
@@ -274,6 +278,19 @@ describe("iframe workspace startup", () => {
     expect(next).toMatchObject({ width: 640, height: 480 });
     expect(getFocusedCardId()).toBe(next?.id);
   });
+
+  it("replaces the active focus route without adding a frame or changing its geometry", () => {
+    const first = activateIframeWorkspace(new URL("/first", window.location.href).href, { width: 1200, height: 800 })!;
+    const other = addCanvasCard(new URL("/other", window.location.href).href);
+    const camera = getBoardCamera();
+    const requested = new URL("/other", window.location.href).href;
+    const next = activateIframeWorkspace(requested, { width: 1200, height: 800 }, { replaceActiveCard: true });
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(next).toMatchObject({ id: first.id, content: { kind: "route", url: requested, navigationUrl: requested }, x: first.x, y: first.y, width: first.width, height: first.height });
+    expect(getCanvasCards().find((card) => card.id === other.id)).toEqual(other);
+    expect(getBoardCamera()).toEqual(camera);
+    expect(getFocusedCardId()).toBe(first.id);
+  });
 });
 
 describe("canvasStore duplicateCard", () => {
@@ -284,9 +301,9 @@ describe("canvasStore duplicateCard", () => {
     const copy = duplicateCard(original.id);
 
     expect(copy).not.toBeNull();
-    expect(copy!.url).toBe(original.url);
+    expect(contentSourceUrl(copy!.content)).toBe(contentSourceUrl(original.content));
     expect(copy!.title).toBe(original.title);
-    expect(copy!.id).not.toBe(original.id);
+    expect(copy!.id).not.toBe("linked");
     expect(copy!.id).toMatch(/^card-/);
     const cards = getCanvasCards();
     const origInStore = cards.find((c) => c.id === original.id)!;
@@ -318,7 +335,7 @@ describe("canvasStore findCardByNormalizedUrl", () => {
     expect(normalized).not.toBeNull();
     const found = findCardByNormalizedUrl(normalized!);
     expect(found).toBeDefined();
-    expect(found!.url).toBe("http://localhost:5173/about");
+    expect(contentSourceUrl(found!.content)).toBe("http://localhost:5173/about");
   });
 
   it("distinguishes cards by pathname", () => {
@@ -415,7 +432,7 @@ describe("canvasStore resizeCard", () => {
     resizeCard(card.id, 800, 600);
     const updated = getCanvasCards()[0]!;
     expect(updated.id).toBe(card.id);
-    expect(updated.url).toBe(card.url);
+    expect(contentSourceUrl(updated.content)).toBe(contentSourceUrl(card.content));
     expect(updated.title).toBe(card.title);
     expect(updated.x).toBe(card.x);
     expect(updated.y).toBe(card.y);
@@ -475,7 +492,7 @@ describe("canvasStore camera", () => {
 
   it("notifies listeners on camera change", () => {
     let fired = false;
-    const unsub = subscribe(() => { fired = true; });
+    const unsub = subscribeCanvasView(() => { fired = true; });
     setBoardCamera({ x: 10, y: 20, zoom: 2 });
     expect(fired).toBe(true);
     unsub();
@@ -488,13 +505,9 @@ describe("canvasStore camera", () => {
     focusCard(card.id);
     setBoardCamera({ x: -240, y: 560, zoom: 0.5 });
 
-    setCanvasPresentation("canvas", { width: 1200, height: 800 });
+    setCanvasPresentation("canvas");
 
-    expect(getBoardCamera()).toEqual({
-      x: -48,
-      y: -32,
-      zoom: 0.9,
-    });
+    expect(getBoardCamera()).toEqual({ x: -240, y: 560, zoom: 0.5 });
     expect(getCanvasCards()[0]).toMatchObject({
       x: 320,
       y: 180,
@@ -504,13 +517,9 @@ describe("canvasStore camera", () => {
 
     setCanvasPresentation("focus");
     setBoardCamera({ x: 900, y: -300, zoom: 2 });
-    setCanvasPresentation("canvas", { width: 1200, height: 800 });
+    setCanvasPresentation("canvas");
 
-    expect(getBoardCamera()).toEqual({
-      x: -48,
-      y: -32,
-      zoom: 0.9,
-    });
+    expect(getBoardCamera()).toEqual({ x: 900, y: -300, zoom: 2 });
     setCanvasPresentation("focus");
   });
 });
@@ -549,7 +558,7 @@ describe("canvasStore fitAllCards", () => {
   it("notifies listeners when fit runs", () => {
     addCanvasCard("http://localhost:5173/about", "About");
     let fired = false;
-    const unsub = subscribe(() => { fired = true; });
+    const unsub = subscribeCanvasView(() => { fired = true; });
     fitAllCards();
     expect(fired).toBe(true);
     unsub();
@@ -589,7 +598,7 @@ describe("canvasStore world coordinate card placement", () => {
     expect(cardC.x).toBeGreaterThanOrEqual(cardB2.x + cardB2.width);
   });
 
-  it("duplicated card is placed to the right of all existing cards", () => {
+  it("duplicated card is inserted before the next unrelated card", () => {
     const a = addCanvasCard("http://localhost:5173/a", "A");
     resizeCard(a.id, 400, 300);
 
@@ -601,7 +610,8 @@ describe("canvasStore world coordinate card placement", () => {
 
     const cards = getCanvasCards();
     const cardB = cards.find((c) => c.id === b.id)!;
-    expect(copy!.x).toBeGreaterThanOrEqual(cardB.x + cardB.width);
+    expect(copy!.x).toBe(440);
+    expect(cardB.x).toBe(copy!.x + copy!.width + CARD_GAP);
   });
 
   it("cards maintain stable positions regardless of card removal", () => {
@@ -719,5 +729,58 @@ describe("canvasStore card selection", () => {
     selectCard(card.id);
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
     expect(getSelectedCardId()).toBeNull();
+  });
+});
+
+
+describe("independent linked live frames", () => {
+  beforeEach(resetAllCards);
+
+  it("inserts a duplicate beside its source and makes room among individual neighbors", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const neighbor = addCanvasCard("http://localhost:5173/second");
+    const neighborCopy = duplicateCard(neighbor.id)!;
+    const copy = duplicateCard(source.id)!;
+    const snapshot = getCanvasCards();
+    const original = snapshot.find((card) => card.id === source.id)!;
+    const next = snapshot.find((card) => card.id === neighbor.id)!;
+    const nextCopy = snapshot.find((card) => card.id === neighborCopy.id)!;
+    expect(copy.x).toBe(original.x + original.width + CARD_GAP);
+    expect(copy.groupId).toBeUndefined();
+    expect(original.groupId).toBeUndefined();
+    expect(next.x).toBe(copy.x + copy.width + CARD_GAP);
+    expect(nextCopy.x - next.x).toBe(400 + CARD_GAP);
+    expect(nextCopy.groupId).toBeUndefined();
+    expect(next.groupId).toBeUndefined();
+  });
+
+  it("moves, resizes, and removes a linked view without repositioning its peers", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const copy = duplicateCard(source.id)!;
+    setCardPosition(copy.id, 800, 600);
+    resizeCard(source.id, 500, 400, { x: -100, y: -100 });
+    expect(getCanvasCards()).toMatchObject([
+      { id: source.id, x: -100, y: -100, width: 500, height: 400 },
+      { id: copy.id, x: 800, y: 600, width: 400, height: 300 },
+    ]);
+    removeCanvasCard(copy.id);
+    expect(getCanvasCards()).toMatchObject([{ id: source.id, x: -100, y: -100, width: 500, height: 400 }]);
+  });
+
+  it("adds iterations below their source or at a drop position without changing existing frames", () => {
+    const source = addCanvasCard("http://localhost:5173/first");
+    resizeCard(source.id, 400, 300);
+    const copy = duplicateCard(source.id)!;
+    const before = getCanvasCards();
+    const iteration = addCanvasIteration(copy.id, "550e8400-e29b-41d4-a716-446655440000")!;
+    expect(getCanvasCards().slice(0, 2)).toEqual(before);
+    expect(iteration).toMatchObject({ x: copy.x, y: 380, width: copy.width, height: copy.height });
+    expect(iteration.groupId).toBeUndefined();
+    const dropped = addCanvasIteration(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
+    expect(dropped).toMatchObject({ x: -100, y: 150 });
+    expect(getCanvasCards().slice(0, 2)).toEqual(before);
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   });
 });

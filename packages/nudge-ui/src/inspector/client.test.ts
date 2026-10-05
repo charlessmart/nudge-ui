@@ -55,6 +55,27 @@ afterEach(() => {
 });
 
 describe("subscribeToManifestReloads", () => {
+  it("prepares missing element identities in an HTML iteration using a React host manifest", async () => {
+    const previousUrl = window.location.href;
+    window.history.replaceState(null, "", "/__nudge_ui__/artifacts/550e8400-e29b-41d4-a716-446655440000/preview");
+    const parent = document.createElement("section");
+    parent.innerHTML = '<p data-cid="Captured" data-src="src/App.tsx:4:1" data-renderer-id="r1">Captured element</p>';
+    document.body.append(parent);
+    vi.stubGlobal("EventSource", FakeEventSource);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(manifestResponse(1)));
+    try {
+      subscribeToManifestReloads(manifest, "/__nudge_ui__/manifest", () => document);
+      FakeEventSource.instances[0]!.emitRevision(1);
+      await vi.waitFor(() => expect(parent.dataset.cid).toMatch(/^nudge-ui-runtime-/));
+      expect(parent.firstElementChild?.getAttribute("data-cid")).toBe("Captured");
+      expect(parent.firstElementChild?.getAttribute("data-src")).toBe("src/App.tsx:4:1");
+      expect(parent.firstElementChild?.hasAttribute("data-renderer-id")).toBe(false);
+    } finally {
+      parent.remove();
+      window.history.replaceState(null, "", previousUrl);
+    }
+  });
+
   it("keeps the stream open and waits for a later revision after a refresh failure", async () => {
     const fetch = vi.fn().mockRejectedValue(new Error("temporary failure"));
     vi.stubGlobal("EventSource", FakeEventSource);

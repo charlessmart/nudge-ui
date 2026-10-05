@@ -1,12 +1,29 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { AgentActivityOverlay } from "./AgentActivityOverlay.tsx";
+import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
+import { refreshHtmlIteration } from "../iterations/coordinator.ts";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
+import {
+  useCanvasCards,
+  getCanvasCardLabel,
+  updateCardUrl,
+  resizeCard,
+  setCardPosition,
+  selectCard,
+  getSelectedCardId,
+  useSelectedCardId,
+  useFocusedCardId,
+  type CanvasCard,
+} from "./canvasStore.ts";
+import { useBoardCamera, type CanvasPresentation } from "./viewStore.ts";
+import { IconArrowsDiagonal, IconCopy, IconCornerLeftDown, IconBoltFilled, IconArtboard, IconTrash } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { Button } from "../ui/Button.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -17,7 +34,7 @@ import type { DocumentSession, InspectorSession } from "../session/sessionFactor
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
 import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
-import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
+import { disposeInlineTextEdit, isInlineTextEditingActive } from "../inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
@@ -27,12 +44,18 @@ import {
   resizeCanvasRect,
   type CanvasResizeDirection,
 } from "./canvasResize.ts";
+import { getDraftContentsForCard } from "../drafts/store.ts";
+import { removeFrame } from "../workspace/commands.ts";
+import { artifactDocumentUrl } from "../iterations/client.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
+  linkedToActive?: boolean;
   onShowFocus?: (cardId: string) => void;
+  onDuplicate?: (cardId: string) => void;
+  onCreateIteration?: (cardId: string, position?: { x: number; y: number }) => Promise<string>;
   documentOwner?: InspectorSession;
 }
 
@@ -62,15 +85,20 @@ function resizeHandleTransform(direction: CanvasResizeDirection, scale: number):
   return `scale(${scale})`;
 }
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateIteration, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const initialUrlRef = useRef(card.navigationUrl ?? card.url);
-  const navigationUrlRef = useRef(card.navigationUrl);
+  const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
+  const navigationUrlRef = useRef(contentNavigationUrl(card.content));
   const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
   const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [creatingIteration, setCreatingIteration] = useState(false);
+  const [iterationError, setIterationError] = useState<string | null>(null);
   const camera = useBoardCamera();
+  const canvasCards = useCanvasCards();
+  const canRemove = canvasCards.length > 1;
+  const frameLabel = getCanvasCardLabel(card, canvasCards);
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
@@ -117,7 +145,33 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       disposeDocumentSession();
       unregisterCardFrame(card.id);
     };
-  }, [bindDocumentSession, card.id, disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, iterationId(card.content), disposeDocumentSession]);
+
+  useEffect(() => {
+    if (card.content.kind !== "iteration" || loadState !== "ready") return;
+    const artifactId = card.content.artifactId;
+    let active = true;
+    let checking = false;
+    let reloadPending = false;
+    const timer = window.setInterval(() => {
+      const workspace = getDraftContentsForCard(card.id);
+      // Pending inspector edits still project over preview.html. Do not replace
+      // that base until they have been saved and handed off.
+      if (checking || isInlineTextEditingActive() || workspace?.changes.length || workspace?.structuralChanges.length) return;
+      checking = true;
+      const frame = iframeRef.current;
+      if (!frame) { checking = false; return; }
+      void refreshHtmlIteration(card.id, artifactId, frame).then((changed) => {
+        reloadPending ||= changed;
+        const latest = getDraftContentsForCard(card.id);
+        if (active && reloadPending && !isInlineTextEditingActive() && !latest?.changes.length && !latest?.structuralChanges.length) {
+          reloadPending = false;
+          loadFrame(`${artifactDocumentUrl(artifactId)}?revision=${Date.now()}`);
+        }
+      }).catch(() => undefined).finally(() => { checking = false; });
+    }, 1500);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [iterationId(card.content), card.id, loadFrame, loadState]);
 
   function handleReload(): void {
     loadFrame();
@@ -125,14 +179,16 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   function handleRemove(): void {
     if (getSelectedCardId() === card.id) setSelectedElement(null);
-    removeCanvasCard(card.id);
+    removeFrame(card.id);
   }
 
-  function updateFrameTitle(title: string | undefined): void {
-    if (!title) return;
-    const runtime = getNudgeUiRuntimeConfig();
-    if (runtime.demo === true && (runtime.demoCardLabels?.length ?? 0) > 0) return;
-    updateCardTitle(card.id, title);
+  async function handleIteration(position?: { x: number; y: number }): Promise<string | undefined> {
+    if (creatingIteration || !onCreateIteration || loadState !== "ready") return;
+    setCreatingIteration(true);
+    setIterationError(null);
+    try { return await onCreateIteration(card.id, position); }
+    catch (error) { setIterationError(error instanceof Error ? error.message : "The iteration could not be created."); }
+    finally { setCreatingIteration(false); }
   }
 
   /** The controller half of the handshake: announce workspace identity. */
@@ -180,8 +236,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         adoptFrameRuntime(data.runtime);
         setLoadState("ready");
         setErrorMessage(null);
-        updateFrameTitle(data.title);
-        if (data.url) updateCardUrl(card.id, data.url);
+        if (data.url && !iterationId(card.content)) updateCardUrl(card.id, data.url);
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
@@ -196,8 +251,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       }
 
       if (data.type === "frame-metadata") {
-        updateFrameTitle(data.title);
-        if (data.url) updateCardUrl(card.id, data.url);
+        if (data.url && !iterationId(card.content)) updateCardUrl(card.id, data.url);
         return;
       }
 
@@ -206,13 +260,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         setErrorMessage(data.message || "Frame failed to load");
       }
     });
-  }, [card.id]);
+  }, [card.id, iterationId(card.content)]);
 
   useLayoutEffect(() => {
-    if (!card.navigationUrl || navigationUrlRef.current === card.navigationUrl) return;
-    navigationUrlRef.current = card.navigationUrl;
-    loadFrame(card.navigationUrl);
-  }, [card.navigationUrl, loadFrame]);
+    if (!contentNavigationUrl(card.content) || navigationUrlRef.current === contentNavigationUrl(card.content)) return;
+    navigationUrlRef.current = contentNavigationUrl(card.content);
+    loadFrame(contentNavigationUrl(card.content));
+  }, [contentNavigationUrl(card.content), loadFrame]);
 
   useEffect(() => {
     if (loadState !== "loading") return;
@@ -243,14 +297,15 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
-  }, [bindDocumentSession, card.id, disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, iterationId(card.content), disposeDocumentSession]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    return () => resizeCleanupRef.current?.();
+    return () => { resizeCleanupRef.current?.(); dragCleanupRef.current?.(); };
   }, []);
 
   const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
@@ -263,6 +318,12 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
     e.stopPropagation();
     e.preventDefault();
+    const iterationDrag = e.altKey && !!onCreateIteration && loadState === "ready" && !creatingIteration;
+    let moved = false;
+    let iterationId: string | undefined;
+    let creationStarted = false;
+    let cancelled = false;
+    let position = { x: card.x, y: card.y };
 
     dragRef.current = {
       startX: e.clientX,
@@ -278,18 +339,50 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     function onMove(ev: PointerEvent): void {
       const dx = (ev.clientX - dragRef.current.startX) / camera.zoom;
       const dy = (ev.clientY - dragRef.current.startY) / camera.zoom;
-      setCardPosition(card.id, dragRef.current.cardX + dx, dragRef.current.cardY + dy);
+      moved ||= Math.hypot(ev.clientX - dragRef.current.startX, ev.clientY - dragRef.current.startY) >= 6;
+      position = { x: dragRef.current.cardX + dx, y: dragRef.current.cardY + dy };
+      if (iterationDrag) {
+        if (iterationId) setCardPosition(iterationId, position.x, position.y);
+        else if (moved && !creationStarted) {
+          creationStarted = true;
+          void handleIteration(position).then((id) => {
+            if (!id) return;
+            iterationId = id;
+            if (cancelled) {
+              removeFrame(id);
+              selectCard(card.id);
+            } else setCardPosition(id, position.x, position.y);
+          });
+        }
+      } else setCardPosition(card.id, position.x, position.y);
     }
 
-    function onUp(): void {
-      setIsDragging(false);
+    function cleanup(): void {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      dragCleanupRef.current = null;
     }
-
+    function onCancel(): void {
+      cleanup();
+      setIsDragging(false);
+      cancelled = true;
+      if (iterationId) {
+        removeFrame(iterationId);
+        selectCard(card.id);
+      }
+    }
+    function onUp(): void {
+      cleanup();
+      setIsDragging(false);
+      if (iterationId) setCardPosition(iterationId, position.x, position.y);
+    }
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = onCancel;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [card.id, card.x, card.y, camera.zoom]);
+    window.addEventListener("pointercancel", onCancel);
+  }, [card.id, card.x, card.y, camera.zoom, onCreateIteration, loadState, creatingIteration]);
 
   const handleCardPointerDown = useCallback(() => {
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
@@ -379,9 +472,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   return (
     <div
-      className={`canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
+      className={`canvas-card${linkedToActive ? " is-linked" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
       data-card-id={card.id}
+      tabIndex={presentation === "canvas" ? 0 : undefined}
+      role="group"
+      aria-label={`Frame: ${frameLabel}`}
       style={{
+        "--canvas-toolbar-scale": toolbarScale,
         position: "absolute",
         visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
         pointerEvents: presentation === "focus" && !presentationCard ? "none" : undefined,
@@ -389,44 +486,89 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         top: isFocusPresentationCard ? 0 : card.y,
         width: isFocusPresentationCard ? "100%" : card.width,
         height: isFocusPresentationCard ? "100%" : card.height,
-      }}
+      } as CSSProperties}
       onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
-      {presentation === "canvas" ? <div
-        className="canvas-card__toolbar"
-        onPointerDown={handleToolbarPointerDown}
-      >
+      {presentation === "canvas" ? <>
         <div
-          className="canvas-card__drag-surface"
-          data-test={`canvas-card-drag-${card.id}`}
+          className="canvas-card__header"
+          style={{ bottom: `calc(100% + var(--space-8) * ${toolbarScale})`, minHeight: `calc(var(--control-height-xlarge) * ${toolbarScale})` }}
+          onPointerDown={handleToolbarPointerDown}
         >
-          {onShowFocus ? (
-            <Button
-              variant="primary"
-              size="default"
-              data-test={`canvas-card-focus-${card.id}`}
-              style={{
-                transform: `scale(${toolbarScale})`,
-                transformOrigin: "left bottom",
-              }}
-              onClick={() => onShowFocus(card.id)}
-            >
-              <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-              Focus
-            </Button>
-          ) : null}
-          <span
-            className="canvas-card__dimensions"
-            data-test={`canvas-card-dimensions-${card.id}`}
-            style={{
-              transform: `translateX(-50%) scale(${toolbarScale})`,
-              transformOrigin: "center bottom",
-            }}
+          <div
+            className="canvas-card__drag-surface"
+            style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
+            data-test={`canvas-card-drag-${card.id}`}
           >
-            {card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
-          </span>
+            <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
+              <span className="canvas-card__dimensions" data-test={`canvas-card-dimensions-${card.id}`}>
+                {!iterationId(card.content) ? (
+                  <Tooltip content="Live view">
+                    <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
+                      <IconBoltFilled size={12} aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Tooltip content="HTML only">
+                    <span className="canvas-card__iteration-badge" aria-label="HTML only" data-test={`canvas-card-iteration-badge-${card.id}`}>
+                      <IconArtboard size={14} aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                )}
+                <span className="canvas-card__title">
+                  {frameLabel}
+                </span>
+              </span>
+            </div>
+            {iterationError ? <span className="canvas-card__iteration-error" role="status">{iterationError}</span> : null}
+          </div>
+          <div
+            className="canvas-card__floating-toolbar"
+            data-busy={creatingIteration ? "true" : undefined}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div
+              className="canvas-toolbar canvas-card__actions"
+              style={{ zoom: toolbarScale }}
+              role="toolbar"
+              aria-label="Frame actions"
+              aria-busy={creatingIteration}
+              data-test={`canvas-card-actions-${card.id}`}
+            >
+              {onShowFocus ? (
+                <Tooltip content="Open this frame in focus view">
+                  <Button variant="quiet" size="default" data-test={`canvas-card-focus-${card.id}`} onClick={() => onShowFocus(card.id)}>
+                    <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    Focus
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {onDuplicate && !iterationId(card.content) ? (
+                <Tooltip content="Create a linked copy of this frame">
+                  <Button variant="quiet" size="default" data-test={`canvas-card-duplicate-${card.id}`} onClick={() => onDuplicate(card.id)}>
+                    <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    Duplicate
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {onCreateIteration ? (
+                <Tooltip content="Unlinked HTML version" shortcut="Option + Drag" stableTrigger>
+                  <Button variant="quiet" size="default" data-test={`canvas-card-create-iteration-${card.id}`} disabled={creatingIteration || loadState !== "ready"} onClick={() => void handleIteration()}>
+                    <IconArtboard size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                    {creatingIteration ? "Creating…" : "Iteration"}
+                  </Button>
+                </Tooltip>
+              ) : null}
+              <div className="canvas-toolbar__divider" aria-hidden="true" />
+              <Tooltip content={canRemove ? "Delete frame" : "Keep at least one frame on the canvas"}>
+                <IconButton variant="quiet" size="default" label="Delete frame" data-test={`canvas-card-delete-${card.id}`} disabled={!canRemove} onClick={handleRemove}>
+                  <IconTrash size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                </IconButton>
+              </Tooltip>
+            </div>
+          </div>
         </div>
-      </div> : null}
+      </> : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (
           <div className="canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>
@@ -442,15 +584,17 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           </div>
         ) : null}
         <iframe
+          key={iterationId(card.content) ?? "live"}
           ref={iframeRef}
           className="canvas-card__iframe"
-          src={initialUrlRef.current}
-          title={card.title || card.url}
+          src={card.content.kind === "iteration" ? contentDocumentUrl(card.content) : initialUrlRef.current}
+          title={frameLabel}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
-        <SketchFrameOverlay iframe={iframeRef.current} cardUrl={card.url} ready={loadState === "ready"} />
+        <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
+        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={contentSourceUrl(card.content)} artifactId={iterationId(card.content)} ready={loadState === "ready"} />
       </div>
       {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
         <div

@@ -10,6 +10,7 @@ import {
   AGENT_PROTOCOL_VERSION,
   canonicalOrigin,
   isAgentStatusUpdate,
+  isAgentActivity,
   isAllowedOrigin,
   isCanvasCommand,
   isCanvasGroup,
@@ -19,6 +20,7 @@ import {
   validateRoutes,
 } from "@nudge-ui/agent-protocol";
 import type {
+  AgentActivity,
   AgentConnectionState,
   AgentDeliveredPrompt,
   AgentPromptRequest,
@@ -109,6 +111,8 @@ export interface BrowserBridge {
   waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentDeliveredPrompt>;
   /** Marks the agent-side listener as stopped without ending the project. */
   cancelListener(reason?: string): void;
+  /** Emits temporary source attribution for the currently working request. */
+  reportActivity(activity: AgentActivity): void;
   /** Reports the terminal result for the currently running browser request. */
   updateRequestStatus(update: AgentStatusUpdate | AgentRequestOutcome): void;
   /** Sends a Canvas command to the browser and waits for one bounded ack. */
@@ -794,6 +798,14 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     sendJson(response, 200, getStatus(), null);
   };
 
+  const handleAgentActivity = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    requireAgentOwner(request, body);
+    if (!isAgentActivity(body.activity)) throw new BridgeRequestError(400, "invalid_activity", "activity must identify a workspace-relative source file.");
+    reportActivity(body.activity);
+    sendJson(response, 200, { accepted: true }, null);
+  };
+
   const handleAgentCanvas = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     const body = await readJsonBody(request);
     requireAgentOwner(request, body);
@@ -838,6 +850,10 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       }
       if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.reportStatus) {
         await handleAgentReportStatus(request, response);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.activity) {
+        await handleAgentActivity(request, response);
         return;
       }
       if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.canvas) {
@@ -976,6 +992,14 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       };
     }
     broadcastStatus();
+  };
+
+  const reportActivity = (activity: AgentActivity): void => {
+    if (!isAgentActivity(activity)) throw new TypeError("Invalid agent activity");
+    if (!currentRequest || currentRequest.requestId !== activity.requestId || currentRequest.status !== "working") {
+      throw new BridgeRequestError(409, "inactive_request", "Activity requires the currently working request.");
+    }
+    broadcast({ type: "activity", activity });
   };
 
   const dispatchCanvasCommand = (
@@ -1131,6 +1155,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     waitForPrompt,
     cancelListener,
     updateRequestStatus,
+    reportActivity,
     dispatchCanvasCommand,
     pairBrowser,
     disconnectBrowser,

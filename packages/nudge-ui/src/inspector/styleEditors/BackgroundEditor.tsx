@@ -6,7 +6,7 @@ import { interpretTokenValue } from "../../css/value-semantics/tokenInterpretati
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { colorValueToHex, TokenValueField } from "../tokens/TokenField.tsx";
 import { setStyles } from "../tokens/editActions.ts";
-import { createChangeHistoryGroup, getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { createChangeHistoryGroup, getActiveDraftChanges } from "../changes/draftChanges.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -47,7 +47,7 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
   const [draft, setDraft] = useState<{ element: HTMLElement; revision: number; value: string; mode: BackgroundMode; gradient?: GradientValue; elements: readonly HTMLElement[] } | null>(null);
   // The renderer applies workspace edits asynchronously. Keep this revision
   // authoritative until another edit or undo changes the workspace.
-  const activeDraft = draft?.element === el && draft.revision === getWorkspaceChanges().revision
+  const activeDraft = draft?.element === el && draft.revision === getActiveDraftChanges().revision
     && draft.elements.length === elements.length && draft.elements.every((element, index) => element === elements[index]) ? draft : null;
   const value = activeDraft?.value ?? source;
   const mode = activeDraft?.mode ?? backgroundMode(value);
@@ -60,7 +60,7 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
 
   function commit(nextValue: string, nextMode: BackgroundMode = backgroundMode(nextValue), nextGradient?: GradientValue, declarations: StyleDeclaration[] = []): boolean {
     if (blockedBy || !setStyles(target, [{ property: "background-image", value: nextValue }, ...declarations]).length) return false;
-    setDraft({ element: el, revision: getWorkspaceChanges().revision, value: nextValue, mode: nextMode, gradient: nextGradient, elements });
+    setDraft({ element: el, revision: getActiveDraftChanges().revision, value: nextValue, mode: nextMode, gradient: nextGradient, elements });
     onAfterEdit?.();
     return true;
   }
@@ -119,7 +119,7 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
       ])}
       onSizing={(declarations) => {
         if (!setStyles(target, declarations).length) return false;
-        setDraft({ element: el, revision: getWorkspaceChanges().revision, value, mode: "image", elements });
+        setDraft({ element: el, revision: getActiveDraftChanges().revision, value, mode: "image", elements });
         onAfterEdit?.();
         return true;
       }} /> : gradient && mode === "gradient" ? <div className="background-editor__gradient">

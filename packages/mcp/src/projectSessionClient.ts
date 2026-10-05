@@ -1,3 +1,4 @@
+import type { AgentActivity } from "@nudge-ui/agent-protocol";
 import { randomUUID } from "node:crypto";
 import type {
   AgentPromptRequest,
@@ -120,6 +121,11 @@ export class ProjectSessionClient {
   async getStatus(): Promise<AgentStatusSnapshot> {
     const health = await readSessionHealth(this.descriptor);
     return health.status;
+  }
+
+  async reportActivity(activity: AgentActivity): Promise<void> {
+    await this.claim();
+    await this.send(AGENT_CONTROL_ENDPOINTS.activity, { activity });
   }
 
   async updateRequestStatus(update: AgentStatusUpdate): Promise<AgentStatusSnapshot> {

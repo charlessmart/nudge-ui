@@ -1,3 +1,4 @@
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
@@ -43,6 +44,17 @@ export function createAstroClientTransportPlugin(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
+        void handleHtmlArtifactRequest(request, response, server.config.root)
+          .then((handled) => { if (!handled) handleClientRequest(server, request, response, next); }).catch(next);
+      });
+    },
+    async closeBundle() {
+      await projectBridge?.close();
+      projectBridge = null;
+    },
+  };
+
+  function handleClientRequest(server: ViteDevServer, request: IncomingMessage, response: import("node:http").ServerResponse, next: (error?: unknown) => void): void {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
           if (request.method !== "GET" && request.method !== "HEAD") {
@@ -75,13 +87,7 @@ export function createAstroClientTransportPlugin(): Plugin {
           return;
         }
         next();
-      });
-    },
-    async closeBundle() {
-      await projectBridge?.close();
-      projectBridge = null;
-    },
-  };
+  }
 }
 
 async function createManifest(

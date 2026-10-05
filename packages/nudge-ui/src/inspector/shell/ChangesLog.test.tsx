@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { appendChange, clearWorkspace } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft } from "../changes/changesLog.ts";
 import {
   createStructuralDelete,
   createStructuralMove,
@@ -28,7 +28,7 @@ describe("ChangesLog", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    clearWorkspace();
+    clearActiveDraft();
     resetStructuralDeleteProjection();
     resetPreviewDiagnostics();
   });
@@ -62,7 +62,12 @@ describe("ChangesLog", () => {
     const toggle = root_.querySelector('[data-test="changes-toggle"]') as HTMLElement;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(root_.querySelector('[data-test="change-row"]')).not.toBeNull();
-    expect(root_.querySelector('[data-test="change-row"]')?.querySelector(".changes__value")).not.toBeNull();
+    const row = root_.querySelector('[data-test="change-row"]')!;
+    expect(row.querySelector('[data-test="change-target"]')?.textContent).toBe("Button");
+    expect(row.querySelector('[data-test="change-action"]')?.textContent).toContain("Changed");
+    expect(row.querySelector('[data-test="change-revert"]')?.getAttribute("aria-label")).toBe("Revert change");
+    expect(row.querySelector('[data-test="change-revert"] svg')).not.toBeNull();
+    expect(row.querySelector(".changes__metadata .changes__value")).not.toBeNull();
 
     act(() => {
       toggle.click();
@@ -113,6 +118,8 @@ describe("ChangesLog", () => {
     });
 
     expect(container.querySelector('[data-test="dom-change-row"]')?.getAttribute("data-action")).toBe("delete");
+    expect(container.querySelector('[data-test="structural-target"]')?.textContent).toBe("Item");
+    expect(container.querySelector('[data-test="structural-action"]')?.textContent).toBe("Deleted");
     expect(container.querySelector('[data-test="structural-source-site"]')?.textContent).toContain("Item");
     act(() => (container.querySelector('[data-test="dom-change-revert"]') as HTMLButtonElement).click());
     expect(target.isConnected).toBe(true);
@@ -143,6 +150,7 @@ describe("ChangesLog", () => {
     });
 
     const row = container.querySelector('[data-test="dom-change-row"]')!;
+    expect(row.querySelector('[data-test="structural-action"]')?.textContent).toBe("Moved");
     expect(row.textContent).toContain("ul position 2");
     expect(row.textContent).toContain("ul position 1");
   });

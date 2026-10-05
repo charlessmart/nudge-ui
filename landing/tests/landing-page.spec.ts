@@ -97,6 +97,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(versionTwoFrame).toBeVisible();
   const cardLabels = await inspectorHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
   expect(cardLabels.sort()).toEqual(["Final", "V1", "V2"]);
+  await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
   const cardWidths = await inspectorHost.locator("[data-card-id]").evaluateAll((elements) => (
     elements.map((element) => getComputedStyle(element).width)
   ));
@@ -204,12 +205,12 @@ test("renders demo videos as vertical sections", async ({ page }) => {
   await expect(showcase.getByRole("tablist")).toHaveCount(0);
   await expect(showcase.locator("[role=tabpanel]")).toHaveCount(0);
   await expect(items.nth(0).getByRole("heading", { name: "Edit UI directly" })).toBeVisible();
-  await expect(items.nth(1).getByRole("heading", { name: "A canvas for exploring variations" })).toBeVisible();
+  await expect(items.nth(1).getByRole("heading", { name: "A canvas for comparing pages" })).toBeVisible();
   await expect(items.nth(2).getByRole("heading", { name: "Keep tokens and components in sync" })).toBeVisible();
   await expect(items.nth(0).getByText("Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.", { exact: true })).toBeVisible();
   await expect(items.nth(0).locator(".landing-showcase-item-bullets")).toHaveText("Change stylesMove and delete elementsEdit text");
   await expect(items.nth(0).locator(".landing-showcase-item-bullets svg")).toHaveCount(3);
-  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.", { exact: true })).toBeVisible();
+  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare screens, screen sizes or overall flows. Pick a direction, refine the details immediately and get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.", { exact: true })).toBeVisible();
   await expect(items.nth(2).getByText("It's your real code base, so use the tokens and components that exist already. Avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
   await expect(showcase.getByText("Share and review changes", { exact: true })).toHaveCount(0);
   await expect(items.locator("video")).toHaveCount(0);

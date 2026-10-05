@@ -119,7 +119,7 @@ export function CanvasToolbar({
           tool="select"
           activeTool={tool}
           label="Use app normally"
-          shortcut="I"
+          shortcut="Hold Shift"
           icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
           activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
           onToolChange={onToolChange}

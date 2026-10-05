@@ -8,6 +8,7 @@ export default defineConfig({
     demo: true,
     demoPages: ["/?landing-version=1", "/?landing-version=2", "/"],
     demoCardLabels: ["V1", "V2", "Final"],
+    features: { canvasIterations: false },
     projectId: "nudge-ui-landing-demo",
   }) as PluginOption],
   server: {

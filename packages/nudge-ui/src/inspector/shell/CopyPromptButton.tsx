@@ -1,49 +1,44 @@
+import { Menu } from "@base-ui/react/menu";
+import { iterationId } from "../canvas/frameContent.ts";
+import { applicationTarget } from "../drafts/model.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
+  IconArtboard,
+  IconBoltFilled,
   IconCheck,
+  IconChevronDown,
   IconCopy,
   IconPlugConnected,
   IconSend,
 } from "@tabler/icons-react";
 import { useChanges } from "../changes/changesLog.ts";
-import { generatePrompt } from "../prompt/generatePrompt.ts";
-import { copyToClipboard } from "../prompt/copyToClipboard.ts";
+import { countPromptChanges } from "../prompt/generatePrompt.ts";
 import { loadCustomInstructions, saveCustomInstructions } from "../prompt/promptSettings.ts";
 import { getAgentConnectionStatus } from "../agent/connectionStatus.ts";
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog.tsx";
 import { Button } from "../ui/Button.tsx";
+import { portalContainer } from "../ui/portalContainer.ts";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "../projection/structuralProjection.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
-import {
-  createPromptRevision,
-  getAgentClient,
-  useAgentClient,
-} from "../agent/client.ts";
+import { getAgentClient, useAgentClient } from "../agent/client.ts";
 import { createAgentPresentationAdapter } from "../canvas/agentPresentation.ts";
-import {
-  discardAgentDispatch,
-  recordAgentDispatch,
-  verifyAndReconcileAgentDispatch,
-  type AgentCompletionStatus,
-} from "../agent/verification.ts";
+import { verifyAndReconcileAgentDispatch, type AgentCompletionStatus } from "../agent/verification.ts";
 import {
   getClipboardHandoffRevision,
   getLastClipboardReconciledCount,
-  recordClipboardHandoff,
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
-import { useSketches, markSketchesDispatching, markSketchesHandingOff, settleSketchDispatch } from "../sketch/store.ts";
-import {
-  createSketchAttachments,
-  createSketchHandoffSnapshot,
-  sketchMetadataForHandoff,
-} from "../sketch/handoff.ts";
+import { useSketches, settleSketchDispatch } from "../sketch/store.ts";
 import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
+import { getFocusedCardId, getSelectedCardId, useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { getEditableCardId, sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
+import { copyHandoff, deliverHandoff, prepareHandoff, prepareIterationImplementationPrompt, type PreparedHandoff } from "../workspace/handoff.ts";
+import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 
-import { useComments, markCommentsHandedOff, type ElementComment } from "../comments/store.ts";
+import { useFrameComments } from "../comments/store.ts";
 import { reconcileComments } from "../comments/verification.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 
@@ -61,9 +56,19 @@ export function CopyPromptButton({
   onSettingsOpenChange,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
-  const comments = useComments();
+  const comments = useFrameComments();
+  useDrafts();
   const sketches = useSketches();
-  const pendingSketches = sketches.filter((item) => item.status === "pending");
+  const selectedDraftCardId = useSelectedCardId();
+  const focusedDraftCardId = useFocusedCardId();
+  const activeDraftCardId = getEditableCardId(selectedDraftCardId, focusedDraftCardId);
+  const canvasCards = useCanvasCards();
+  const activeContent = canvasCards.find((card) => card.id === activeDraftCardId)?.content;
+  const activeArtifactId = iterationId(activeContent);
+  const sourcePage = activeContent?.kind === "iteration" ? new URL(applicationTarget(activeContent.sourceUrl).route) : null;
+  const sourceRoute = sourcePage ? `${sourcePage.pathname}${sourcePage.search}` : "";
+  const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document, activeDraftCardId));
+  const pendingSketches = visibleSketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -76,12 +81,11 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const handoffBusy = useRef(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
-  const [sketchFallback, setSketchFallback] = useState<{
-    readonly prompt: string;
-    readonly comments: readonly ElementComment[];
-    readonly error: string;
-  } | null>(null);
+  const [sketchFallback, setSketchFallback] = useState<{ readonly handoff: PreparedHandoff; readonly error: string } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
   const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
@@ -97,7 +101,13 @@ export function CopyPromptButton({
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const agentRef = useRef(agent);
   agentRef.current = agent;
-  const hasChanges = changes.length + structuralChanges.length + pendingSketches.length + comments.length > 0;
+  const hasChanges = Boolean(activeArtifactId) || countPromptChanges(changes, structuralChanges, pendingSketches.length) + comments.length > 0;
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -162,112 +172,100 @@ export function CopyPromptButton({
     && !connecting
     && !working;
   const canSend = agent.paired && agent.listenerActive && !working;
-  const changeCount = changes.length + structuralChanges.length + comments.length
-    + (canSend ? pendingSketches.length : 0);
-  const disabled = connecting || working || (!canConnect && !hasChanges);
+  const changeCount = countPromptChanges(changes, structuralChanges, canSend ? pendingSketches.length : 0) + comments.length;
+  const disabled = preparing || connecting || working || (!canConnect && !hasChanges);
   const agentStatus = getAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
 
-  const label = copied
+  const label = preparing
+    ? "Saving iteration…"
+    : copied
     ? "Copied!"
     : connecting
       ? "Connecting…"
       : working
         ? "Agent working…"
-        : canConnect
+        : canConnect && !activeArtifactId
           ? "Connect agent"
-          : canSend
+          : canSend && !activeArtifactId
             ? "Send prompt"
             : "Copy prompt";
 
   const icon = copied
     ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-    : canConnect || connecting
+    : !activeArtifactId && (canConnect || connecting)
       ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-      : canSend || working
+      : !activeArtifactId && (canSend || working)
         ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
         : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
+    if (disabled || handoffBusy.current) return;
+    handoffBusy.current = true;
+    setPreparing(Boolean(activeArtifactId) && !canConnect);
+    try { await handoff(); }
+    finally { handoffBusy.current = false; setPreparing(false); }
+  }
+
+  async function copyIterationPrompt(target: "iteration" | "application"): Promise<void> {
+    if (!activeArtifactId || disabled || handoffBusy.current) return;
+    handoffBusy.current = true;
+    setCopied(false);
+    setPreparing(true);
+    try {
+      const request = {
+        cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
+        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
+        customInstructions,
+        pendingSketches,
+      };
+      if (target === "application") {
+        const prompt = await prepareIterationImplementationPrompt(request);
+        try { await copyToClipboard(prompt); }
+        catch { throw new Error("The iteration was saved, but the prompt could not be copied. Try again."); }
+      } else {
+        const prepared = await prepareHandoff(request);
+        try { await copyHandoff(prepared); }
+        catch { throw new Error("The iteration was saved, but the prompt could not be copied. Try again."); }
+      }
+      setSaveMessage(null);
+      setCopied(true);
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "The prompt could not be copied. Try again.");
+    } finally {
+      handoffBusy.current = false;
+      setPreparing(false);
+    }
+  }
+
+  async function handoff(): Promise<void> {
     if (disabled) return;
     if (canConnect) {
       await agentClient.connect();
       return;
     }
-    const hints = {
-      framework: runtimeConfig.framework,
-      stylingSystem: runtimeConfig.stylingSystem,
-    };
-    const sketchHandoff = createSketchHandoffSnapshot(pendingSketches);
-    const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
-    const sentComments = [...comments];
-    const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata, sentComments);
+    let prepared: PreparedHandoff;
+    try {
+      prepared = await prepareHandoff({
+        cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
+        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
+        customInstructions,
+        pendingSketches,
+      });
+      setSaveMessage(null);
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "The HTML iteration could not be saved.");
+      return;
+    }
     setAgentCompletionStatus(null);
     setSketchFallback(null);
-    if (canSend) {
-      const revision = createPromptRevision(changes, structuralChanges, [...sketchMetadata, ...sentComments]);
-      recordAgentDispatch(revision, changes, structuralChanges);
-      const clientDispatchId = sketchHandoff?.localBatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      let attachments = undefined;
-      try {
-        if (sketchHandoff) {
-          await markSketchesDispatching(
-            sketchHandoff.entries.map((entry) => ({ id: entry.id, revision: entry.revision })),
-            revision,
-            sketchHandoff.localBatchId,
-          );
-          attachments = await createSketchAttachments(sketchHandoff);
-        }
-        const response = await agentClient.dispatchPrompt(text, revision, {
-          clientDispatchId,
-          ...(attachments === undefined ? {} : { attachments }),
-        });
-        if (response) {
-          markCommentsHandedOff(sentComments);
-          if (sketchHandoff) {
-            await markSketchesHandingOff(
-              sketchHandoff.entries.map((entry) => ({ id: entry.id, revision: entry.revision })),
-              revision,
-              sketchHandoff.localBatchId,
-              response.request.requestId,
-            );
-          }
-          return;
-        }
-        if (sketchHandoff) {
-          await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId);
-          discardAgentDispatch(revision);
-          const latestAgent = agentClient.getSnapshot();
-          setSketchFallback({
-            prompt: text,
-            comments: sentComments,
-            error: latestAgent.request?.error
-              ?? latestAgent.error
-              ?? "The agent did not accept the sketch attachments.",
-          });
-          return;
-        }
-      } catch (error) {
-        discardAgentDispatch(revision);
-        if (sketchHandoff) {
-          await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId).catch(() => undefined);
-          setSketchFallback({
-            prompt: text,
-            comments: sentComments,
-            error: error instanceof Error ? error.message : "The sketch could not be sent to the agent.",
-          });
-          return;
-        }
-      }
-      discardAgentDispatch(revision);
+    const outcome = await deliverHandoff(prepared, runtimeConfig.projectId, canSend ? agentClient : null);
+    if (outcome.kind === "sketch-failed") {
+      setSketchFallback({ handoff: outcome.handoff, error: outcome.error });
+      return;
     }
-    await copyToClipboard(text);
-    markCommentsHandedOff(sentComments);
-    if (changes.length > 0 || structuralChanges.length > 0) {
-      recordClipboardHandoff(changes, structuralChanges);
-    }
+    if (outcome.kind === "sent") return;
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
   }
 
   useEffect(() => {
@@ -321,27 +319,66 @@ export function CopyPromptButton({
     openMcpConnection();
   }
 
+  const promptButton = (
+    <Button
+      variant="primary"
+      className="copy-prompt__main"
+      data-test="copy-prompt"
+      type="button"
+      disabled={disabled}
+      data-copied={copied ? "true" : "false"}
+      data-agent-state={agent.state}
+      aria-busy={preparing || working || connecting ? "true" : undefined}
+      onClick={activeArtifactId ? undefined : onClick}
+    >
+      {icon}
+      {label}
+      {changeCount > 0 ? (
+        <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
+          {changeCount}
+        </span>
+      ) : null}
+      {activeArtifactId ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
+    </Button>
+  );
+
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      <Button
-        variant="primary"
-        className="copy-prompt__main"
-        data-test="copy-prompt"
-        type="button"
-        disabled={disabled}
-        data-copied={copied ? "true" : "false"}
-        data-agent-state={agent.state}
-        aria-busy={working || connecting ? "true" : undefined}
-        onClick={onClick}
-      >
-        {icon}
-        {label}
-        {changeCount > 0 ? (
-          <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
-            {changeCount}
-          </span>
-        ) : null}
-      </Button>
+      {activeArtifactId ? (
+        <Menu.Root key={activeDraftCardId} modal={false}>
+          <Menu.Trigger render={promptButton} />
+          <Menu.Portal container={portalContainer()}>
+            <Menu.Positioner className="inspector-popover__positioner" side="bottom" align="start" sideOffset={6}>
+              <Menu.Popup className="inspector-popover__popup copy-prompt__menu" data-test="copy-prompt-menu">
+                <Menu.Item
+                  className="copy-prompt__menu-item"
+                  data-test="copy-iteration-prompt"
+                  label="Copy iteration prompt"
+                  onClick={() => void copyIterationPrompt("iteration")}
+                >
+                  <IconArtboard className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                  <span className="copy-prompt__menu-content">
+                    <span className="copy-prompt__menu-title">Copy iteration prompt</span>
+                    <span className="copy-prompt__menu-description">Continue editing this HTML iteration.</span>
+                  </span>
+                </Menu.Item>
+                <Menu.Item
+                  className="copy-prompt__menu-item"
+                  data-test="copy-iteration-implementation"
+                  label="Copy prompt for live app"
+                  onClick={() => void copyIterationPrompt("application")}
+                >
+                  <IconBoltFilled className="copy-prompt__menu-icon copy-prompt__menu-icon--live" size="var(--icon-size-small)" aria-hidden="true" />
+                  <span className="copy-prompt__menu-content">
+                    <span className="copy-prompt__menu-title">Copy prompt for live app</span>
+                    <span className="copy-prompt__menu-description">Implement this design on <code>{sourceRoute}</code></span>
+                  </span>
+                </Menu.Item>
+              </Menu.Popup>
+            </Menu.Positioner>
+          </Menu.Portal>
+        </Menu.Root>
+      ) : promptButton}
       <SketchLayersPanel />
       {statusAction || agentStatus.kind === "connected-not-listening" ? (
         <StatusCallout
@@ -371,6 +408,11 @@ export function CopyPromptButton({
           {reconciledCount} Implemented changes
         </p>
       ) : null}
+      {saveMessage ? (
+        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="iteration-save-hint" role="status">
+          {saveMessage}
+        </p>
+      ) : null}
       {agentCompletionStatus === "verified" ? (
         <p className="copy-prompt__hint" data-test="agent-verified-hint" role="status">
           Agent changes verified.
@@ -385,13 +427,7 @@ export function CopyPromptButton({
             type="button"
             data-test="sketch-copy-fallback"
             onClick={() => {
-              void copyToClipboard(sketchFallback.prompt).then(() => {
-                markCommentsHandedOff(sketchFallback.comments);
-                if (changes.length > 0 || structuralChanges.length > 0) {
-                  recordClipboardHandoff(changes, structuralChanges);
-                }
-                setSketchFallback(null);
-              }).catch(() => undefined);
+              void copyHandoff(sketchFallback.handoff).then(() => setSketchFallback(null)).catch(() => undefined);
             }}
           >
             Copy prompt

@@ -1,3 +1,5 @@
+import type { FrameProjection } from "../canvas/projection.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
@@ -39,6 +41,8 @@ interface DocumentProjectionState {
 }
 
 interface CanvasReports {
+  draftId: string;
+  draftRevision: number;
   revision: number;
   reports: DocumentProjectionReport[];
 }
@@ -315,16 +319,18 @@ export function recordCanvasRenderedInstanceProjectionReports(
   cardId: string,
   revision: number,
   reports: readonly DocumentProjectionReport[],
+  projection?: FrameProjection,
 ): void {
   if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isDocumentProjectionReport)) return;
-  const expected = new Set(canonicalOverrides.keys());
+  const expected = projection ? new Set(projection.instanceOverrides.map((record) => record.id)) : new Set(canonicalOverrides.keys());
   if (reports.length !== expected.size || new Set(reports.map((report) => report.overrideId)).size !== reports.length
     || reports.some((report) => !expected.has(report.overrideId))) return;
   const existing = reportsByCanvasCard.get(cardId);
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  reportsByCanvasCard.set(cardId, { revision, reports: next });
+  const current = getActiveDraftChanges();
+  reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
 
@@ -338,6 +344,7 @@ export function getRenderedInstanceChangeDiagnostics(overrideId: string): Render
   const host = reportsByDocument.get(document)?.find((report) => report.overrideId === overrideId);
   if (host) diagnostics.push({ ...host, document: "Inspect" });
   for (const [cardId, entry] of reportsByCanvasCard) {
+    if (entry.draftId !== getActiveDraftChanges().draftId || entry.draftRevision !== getDraftChanges(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.overrideId === overrideId);
     if (report) diagnostics.push({ ...report, document: `Canvas ${cardId}` });
   }

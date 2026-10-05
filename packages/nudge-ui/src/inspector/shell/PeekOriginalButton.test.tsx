@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "../index.ts";
-import { appendChange, clearWorkspace } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft } from "../changes/changesLog.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
 import { isOriginalPreviewActive, setOriginalPreviewActive } from "./originalPreview.ts";
 
@@ -44,7 +44,7 @@ describe("PeekOriginalButton", () => {
     // Reset any keyboard-held peek flag in the global shortcut handler.
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "\\", code: "Backslash", bubbles: true }));
     setOriginalPreviewActive(false);
-    clearWorkspace();
+    clearActiveDraft();
     releaseLease();
     host.remove();
     document.getElementById("nudge-ui-styles")?.remove();

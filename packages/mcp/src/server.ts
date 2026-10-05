@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
 import type {
+  AgentActivity,
   AgentDeliveredPrompt,
   AgentPromptRequest,
   AgentProjectIdentity,
@@ -46,6 +47,7 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "Supply workspaceRoot with the absolute checkout or application path you are editing on every tool call. Listing and selecting sessions requires this explicit scope; repeat the same workspaceRoot and sessionId for status, Canvas, and release calls. Never use the MCP process working directory to infer the task workspace.",
   "When the user asks to listen to Nudge, call nudge_list_sessions when that tool is available; if several apps are running, select only a session marked matchesApplication.",
   "Call nudge_listen (or nudge_connect) and keep the call open while waiting for a browser request; the bridge may be running before a listener exists.",
+  "While handling a prompt, call nudge_report_activity before reading or editing a file. Use workspace-relative file paths and the delivered requestId. Include a source line range or componentId when known; activity is temporary and never completes a task.",
   "When the user asks to stop listening, call nudge_release when that tool is available so another agent can claim the project session.",
   "Canvas tools operate only on same-origin routes from the paired project.",
   "Automated browsers such as Playwright and headless Chrome get the plain app without the Nudge editor; add ?nudge-ui=on to a URL only when testing Nudge itself.",
@@ -133,6 +135,7 @@ function boundedWorkspaceRoot(value: string | undefined): string | undefined {
 interface AgentToolTarget {
   waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentPromptRequest>;
   getStatus(): AgentStatusSnapshot | Promise<AgentStatusSnapshot>;
+  reportActivity(activity: AgentActivity): void | Promise<void>;
   updateRequestStatus(update: AgentStatusUpdate | AgentRequestOutcome): void | AgentStatusSnapshot | Promise<AgentStatusSnapshot | void>;
   dispatchCanvasCommand(command: import("./bridge.ts").CanvasCommandInput): Promise<CanvasCommandResult>;
   listSessions?(): Promise<readonly DiscoveredProjectSession[]>;
@@ -248,6 +251,23 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget | undefined,
     } catch (error) {
       return errorResult(error);
     }
+  });
+
+  mcpServer.registerTool("nudge_report_activity", {
+    title: "Show Nudge file activity",
+    description: "While handling a delivered prompt, report a file read or edit to highlight matching Canvas frames. Use a workspace-relative file path. Provide a source line range or componentId for a component highlight. This is temporary attribution; report task completion separately.",
+    inputSchema: {
+      ...scopeInput, requestId: z.string().min(1).max(256), file: z.string().min(1).max(4096),
+      operation: z.enum(["read", "edit"]), line: z.number().int().positive().max(10_000_000).optional(),
+      endLine: z.number().int().positive().max(10_000_000).optional(), componentId: z.string().min(1).max(512).optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (args) => {
+    try {
+      const { workspaceRoot: _workspaceRoot, sessionId: _sessionId, ...activity } = args;
+      await (await target(args)).reportActivity(activity);
+      return textResult({ accepted: true });
+    } catch (error) { return errorResult(error); }
   });
 
   mcpServer.registerTool("nudge_read_canvas", {

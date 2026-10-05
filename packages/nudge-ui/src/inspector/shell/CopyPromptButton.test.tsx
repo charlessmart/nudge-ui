@@ -12,7 +12,7 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "../agent/protocol.ts";
-import { clearWorkspace, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { clearActiveDraft, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { getSketches, initializeSketchStore, markSketchesDispatching, markSketchesHandingOff, resetSketchStore, saveSketch } from "../sketch/store.ts";
@@ -131,7 +131,7 @@ describe("CopyPromptButton agent handoff", () => {
     act(() => root.unmount());
     configureAgentBridgeTransport(undefined);
     resetAgentClients();
-    clearWorkspace();
+    clearActiveDraft();
     clearClipboardHandoff();
     resetAgentVerification();
     resetSketchStore();
@@ -522,8 +522,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(writeText).toHaveBeenCalledOnce();
     expect(button.textContent).toContain("Copied");
     expect(getClipboardHandoffSnapshot()).toMatchObject({
-      changes: [{ key: expect.any(String), fingerprint: expect.any(String) }],
-      structuralChanges: [],
+      drafts: [{ changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
     });
   });
 

@@ -1,0 +1,50 @@
+import { expect, test } from "@playwright/test";
+import { waitForCanvasTransition } from "./canvasTransition.ts";
+
+test("frame actions appear on preview hover and keep working when the pointer enters the toolbar", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  const cards = page.locator(".canvas-card");
+  const original = cards.first();
+  const actions = original.getByRole("toolbar", { name: "Frame actions" });
+  await page.mouse.move(1200, 600);
+  await expect(actions).not.toBeVisible();
+  await expect(original.locator(".canvas-card__identity button")).toHaveCount(0);
+  await expect(original.locator('[data-test^="canvas-card-live-"]')).toBeVisible();
+  await original.locator("iframe").hover({ position: { x: 120, y: 200 } });
+  await expect(actions).toBeVisible();
+  await expect(original.locator(".canvas-card__floating-toolbar")).toHaveCSS("opacity", "1");
+  await expect(actions.getByRole("button", { name: "Delete frame", exact: true })).toBeDisabled();
+  await actions.hover();
+  await expect(actions).toBeVisible();
+  await actions.getByRole("button", { name: "Focus", exact: true }).click();
+  await waitForCanvasTransition(page);
+  await expect(page.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "focus");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await original.hover();
+  await actions.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await expect(cards).toHaveCount(2);
+  await waitForCanvasTransition(page);
+  const duplicate = cards.nth(1);
+  await duplicate.hover();
+  await duplicate.getByRole("button", { name: "Delete frame", exact: true }).click();
+  await expect(cards).toHaveCount(1);
+});
+
+test("keyboard focus reveals frame actions and leaving the frame hides them", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await page.mouse.move(1200, 600);
+  const card = page.locator(".canvas-card").first();
+  const actions = card.getByRole("toolbar", { name: "Frame actions" });
+  await card.focus();
+  await expect(actions).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(actions.getByRole("button", { name: "Focus", exact: true })).toBeFocused();
+  await page.locator('[data-test="canvas-tool-design"]').focus();
+  await expect(actions).not.toBeVisible();
+  await expect(card.locator('[data-test^="canvas-card-live-"]')).toBeVisible();
+});

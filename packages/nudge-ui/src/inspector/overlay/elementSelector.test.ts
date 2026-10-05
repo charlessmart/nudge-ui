@@ -16,7 +16,7 @@ import {
   getInlineTextDiagnostic,
   getInlineTextSession,
 } from "../inline-text/inlineTextEditor.ts";
-import { clearWorkspace } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../changes/changesLog.ts";
 
 // jsdom marks every dispatched event untrusted; tests choose which clicks count as a person's.
 const clickPolicy = { userClick: true };
@@ -76,7 +76,7 @@ describe("resolveSelectionFromEvent", () => {
   let host: HTMLDivElement;
 
   beforeEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     host = document.createElement("div");
     host.id = "nudge-ui-root";
     document.body.appendChild(host);
@@ -206,7 +206,7 @@ describe("installElementSelector", () => {
   });
   afterEach(() => {
     cancelInlineTextEdit();
-    clearWorkspace();
+    clearActiveDraft();
     uninstall();
     document.body.innerHTML = "";
     setSelectedElement(null);

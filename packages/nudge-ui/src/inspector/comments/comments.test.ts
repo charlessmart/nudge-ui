@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
-import { commentRoute, getComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
+import { clearComments, commentRoute, getComments, getCommentsForTarget, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
+import { applicationTarget, htmlTarget } from "../drafts/model.ts";
 import { reconcileComments } from "./verification.ts";
 
 // The renderer transport is the boundary; DOM identity and fingerprinting remain real.
 vi.mock("../canvas/projection.ts", () => ({
-  projectWorkspaceSnapshotToDocument: async () => 1,
+  projectDraftToDocument: async () => 1,
   isCanvasProjectionRevisionCurrent: () => true,
 }));
 
@@ -42,6 +43,19 @@ describe("element comments", () => {
     expect(prompt).toContain("src/App.tsx:10:3");
     expect(prompt).toContain("text `Save`");
     expect(prompt).toContain(document.location.href);
+  });
+
+  it("scopes notes to a page or HTML iteration and clears only that target", () => {
+    const saved = comment(target());
+    const page = { ...saved, id: "page", route: "http://localhost:3000/playground?nudge-ui=on#section" };
+    const other = { ...saved, id: "other", route: "http://localhost:3000/examples" };
+    const iteration = { ...saved, id: "iteration", route: "http://localhost:3000/__nudge_ui__/artifacts/11111111-1111-1111-1111-111111111111/document.html" };
+    for (const note of [page, other, iteration]) saveComment(note);
+    const pageTarget = applicationTarget("http://localhost:3000/playground");
+    expect(getCommentsForTarget(pageTarget)).toEqual([page]);
+    expect(getCommentsForTarget(htmlTarget("11111111-1111-1111-1111-111111111111"))).toEqual([iteration]);
+    clearComments(pageTarget);
+    expect(getComments()).toEqual([other, iteration]);
   });
 
   it("persists notes and their handoff status in local storage", () => {

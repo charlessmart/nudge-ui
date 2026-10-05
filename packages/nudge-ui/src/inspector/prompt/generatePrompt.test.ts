@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { generatePrompt } from "./generatePrompt.ts";
+import { countPromptChanges, generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
 import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/changesLog.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
@@ -351,6 +352,9 @@ describe("generatePrompt", () => {
     const out = generatePrompt([], undefined, structural);
 
     expect(out.split("\n").filter((line) => line.startsWith("- Move text `Column two`"))).toHaveLength(1);
+    expect(countPromptChanges([], structural)).toBe(1);
+    expect(countPromptChanges([], structural, 2)).toBe(3);
+    expect(structural).toHaveLength(3);
     expect(out).toContain("before text `Column one` (src/App.tsx:151:14)");
     expect(out).not.toContain("src/App.tsx:156:14");
     expect(out).not.toContain("src/App.tsx:162:14");

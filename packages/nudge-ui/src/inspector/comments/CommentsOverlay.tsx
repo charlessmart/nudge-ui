@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { IconCheck, IconTrash } from "@tabler/icons-react";
-import { useCanvasMode } from "../canvas/canvasStore.ts";
+import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "../canvas/rendererCidIndex.ts";

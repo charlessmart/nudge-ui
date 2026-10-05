@@ -7,6 +7,8 @@ import { copyImageToClipboard } from "./raster.ts";
 import { closeSketchNote } from "./sketchNote.ts";
 import { removeSketch, useSketchStore } from "./store.ts";
 import type { SketchQueueItem } from "./model.ts";
+import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 
 function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactElement {
@@ -108,16 +110,21 @@ function SketchLayer({
 
 export function SketchLayersPanel(): ReactElement | null {
   const { items } = useSketchStore();
-  if (items.length === 0) return null;
+  useDrafts();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const cardId = selectedCardId ?? focusedCardId;
+  const visibleItems = items.filter((item) => sketchBelongsToCard(item.document, cardId));
+  if (visibleItems.length === 0) return null;
 
   return (
     <section className="sketch-layers" data-test="sketch-layers" aria-label="Sketch layers">
-      {items.map((item, index) => (
+      {visibleItems.map((item, index) => (
         <SketchLayer
           key={`${item.document.id}:${item.document.revision}`}
           item={item}
           index={index}
-          multiple={items.length > 1}
+          multiple={visibleItems.length > 1}
         />
       ))}
     </section>

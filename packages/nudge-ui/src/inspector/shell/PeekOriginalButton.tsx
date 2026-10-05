@@ -2,17 +2,17 @@ import { useEffect, useSyncExternalStore, type ReactElement } from "react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { PeekOriginalIcon } from "./PeekOriginalIcon.tsx";
-import { workspaceChangeStore } from "../changes/workspaceChanges.ts";
+import { draftChangeStore } from "../changes/draftChanges.ts";
 import {
   setOriginalPreviewActive,
   useOriginalPreviewActive,
 } from "./originalPreview.ts";
 
-function useWorkspaceChangeCount(): number {
+function useDraftChangeCount(): number {
   return useSyncExternalStore(
-    workspaceChangeStore.subscribe,
+    draftChangeStore.subscribe,
     () => {
-      const snapshot = workspaceChangeStore.getSnapshot();
+      const snapshot = draftChangeStore.getSnapshot();
       return snapshot.changes.length + snapshot.structuralChanges.length;
     },
     () => 0,
@@ -26,7 +26,7 @@ function useWorkspaceChangeCount(): number {
  */
 export function PeekOriginalButton(): ReactElement {
   const active = useOriginalPreviewActive();
-  const changeCount = useWorkspaceChangeCount();
+  const changeCount = useDraftChangeCount();
   const disabled = changeCount === 0;
 
   useEffect(() => {

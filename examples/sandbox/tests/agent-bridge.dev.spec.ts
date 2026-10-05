@@ -1,3 +1,4 @@
+import { clickFrameAction } from "./canvasTransition.ts";
 import { test, expect, type Page } from "@playwright/test";
 import { createLoopbackBridge, type BrowserBridge } from "@nudge-ui/mcp";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
@@ -9,15 +10,15 @@ async function configureBridge(page: Page, bridge: BrowserBridge): Promise<void>
   const address = bridge.address;
   if (!address) throw new Error("The test bridge did not expose an address.");
 
-  // The browser client normally uses its deterministic project port. An
-  // ephemeral port keeps this test isolated from a developer's companion
-  // process, so publish this test-only endpoint before the app bootstraps.
-  await page.addInitScript(({ baseUrl }) => {
-    const target = window as Window & {
-      __NUDGE_UI_AGENT_BRIDGE__?: { baseUrl: string };
-    };
-    target.__NUDGE_UI_AGENT_BRIDGE__ = { baseUrl };
-  }, { baseUrl: address.url });
+  // The host manifest owns bridge configuration. Override that owned transport
+  // contract so each test uses its isolated companion rather than a dev server's.
+  await page.route("**/__nudge_ui__/manifest", async (route) => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    manifest.runtime.projectId = bridge.projectId;
+    manifest.agentBridge = { baseUrl: address.url, autoConnect: false };
+    await route.fulfill({ response, json: manifest });
+  });
 }
 
 type PromptRequest = Awaited<ReturnType<BrowserBridge["waitForPrompt"]>>;
@@ -51,10 +52,10 @@ async function connectBrowser(
   });
 
   const connect = page.locator('[data-test="copy-prompt"]');
-  await expect(connect).toHaveText("Connect agent", { timeout: 10_000 });
+  await expect(connect).toContainText("Connect agent", { timeout: 10_000 });
   await connect.click();
   await eventsResponse;
-  await expect(connect).toHaveText("Send prompt", { timeout: 10_000 });
+  await expect(connect).toContainText("Send prompt", { timeout: 10_000 });
 
   // Stop this helper's listener after pairing so a Canvas command cannot be
   // mistaken for a prompt.
@@ -86,22 +87,22 @@ test.describe("Nudge MCP browser bridge", () => {
   test("pairs an idle companion from the connection panel and becomes ready when the agent listens", async ({ page }) => {
     await openEditor(page, "/playground");
     const connectionStatus = page.locator('[data-test="agent-connection-status"]');
-    await expect(connectionStatus).toContainText("Ready to connect agent");
+    await expect(connectionStatus).toContainText("Project available · Connect this page");
     await page.locator('[data-test="settings-button"]').click();
     await page.locator('[data-test="settings-nav-mcp"]').click();
     const dialog = page.locator('[data-test="mcp-connection-dialog"]');
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Ready to connect agent");
+    await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Project available · Connect this page");
     await page.locator('[data-test="mcp-connect"]').click();
     await expect.poll(() => bridge.getStatus().paired).toBe(true);
     expect(bridge.getStatus().listenerActive).toBe(false);
     await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy prompt");
-    await expect(connectionStatus).toContainText("Connected, not listening");
+    await expect(connectionStatus).toContainText("Project connected · Ask agent to listen");
 
     const listener = startPromptListener(bridge);
     try {
       await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Send prompt");
-      await expect(connectionStatus).toContainText("Agent listening");
+      await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Agent listening");
       await page.locator('[data-test="mcp-disconnect"]').click();
       await expect.poll(() => bridge.getStatus().paired).toBe(false);
     } finally {
@@ -181,6 +182,55 @@ test.describe("Nudge MCP browser bridge", () => {
     await expect(send).toHaveAttribute("data-agent-state", "completed");
   });
 
+  test("shows source activity across linked frames and clears it on completion", async ({ page }) => {
+    const listener = startPromptListener(bridge);
+    await openEditor(page, "/playground");
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    const cards = page.locator(".canvas-card");
+    await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+    await expect(cards).toHaveCount(2);
+    await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
+      await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
+    });
+    const app = cards.nth(1).locator("iframe").contentFrame();
+    const item = app.locator("#hero-title");
+    await item.dblclick();
+    await app.locator('[data-inline-editor="true"]').fill("Agent activity target");
+    await app.locator('[data-inline-editor="true"]').press("Enter");
+    await expect(item).toContainText("Agent activity target");
+    const source = await item.getAttribute("data-src");
+    const match = /^(.*):(\d+):(\d+)$/.exec(source ?? "");
+    if (!match) throw new Error("The activity fixture requires a rendered source identity.");
+    const activeListener = await connectBrowser(page, bridge, listener);
+    await page.locator('[data-test="copy-prompt"]').click();
+    const request = await activeListener!.promise;
+    if (!request) throw new Error("No browser request was delivered.");
+    const labels = page.locator(".canvas-agent-activity__label");
+    await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
+    bridge.reportActivity({ requestId: request.requestId, operation: "read", file: match[1]! });
+    await expect(page.locator('[data-test^="canvas-agent-activity-"]')).toHaveCount(2);
+    await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
+    bridge.reportActivity({ requestId: request.requestId, operation: "edit", file: match[1]!, line: Number(match[2]) });
+    await expect.poll(() => cards.first().locator('[data-test="canvas-agent-component-shimmer"]').count()).toBeGreaterThan(0);
+    await expect.poll(() => cards.nth(1).locator('[data-test="canvas-agent-component-shimmer"]').count()).toBeGreaterThan(0);
+    await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
+    const orb = labels.nth(1).locator("canvas");
+    await expect(orb).toBeVisible();
+    await expect.poll(() => orb.evaluate((canvas: HTMLCanvasElement) => {
+      const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+      return pixels.some((value, index) => index % 4 === 3 && value > 0);
+    })).toBe(true);
+    const shimmer = cards.nth(1).locator('[data-test="canvas-agent-component-shimmer"]').first();
+    expect(bridge.getStatus().request?.status).toBe("working");
+    await page.screenshot({ path: "/private/tmp/nudge-agent-activity.png" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect.poll(() => shimmer.evaluate((element) => element.getAnimations().length)).toBe(0);
+    await expect(orb).toBeVisible();
+    await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
+    bridge.updateRequestStatus({ requestId: request.requestId, status: "completed" });
+    await expect(page.locator('[data-test^="canvas-agent-activity-"]')).toHaveCount(0);
+  });
+
   test("reconciles source-backed iframe CSS and retains text without source evidence", async ({ page }) => {
     const promptListener = startPromptListener(bridge);
     const app = await openEditor(page, "/playground");
@@ -188,7 +238,7 @@ test.describe("Nudge MCP browser bridge", () => {
     if (!activeListener) throw new Error("The prompt listener ended before pairing.");
 
     const heading = app.locator("#hero-title");
-    await heading.dblclick({ position: { x: 80, y: 30 } });
+    await heading.dblclick();
     const textEditor = app.locator('[data-inline-editor="true"]');
     await textEditor.fill("Source-backed iframe heading");
     await textEditor.press("Enter");
@@ -246,6 +296,7 @@ test.describe("Nudge MCP browser bridge", () => {
     const request = await activeListener.promise;
     if (!request) throw new Error("The prompt listener ended before dispatch.");
 
+    await page.locator('[data-test="canvas-tool-select"]').click();
     await app.locator('a[href="/conformance"]').click();
     await expect.poll(async () => (await getAppFrame(page)).url())
       .toContain("/conformance");

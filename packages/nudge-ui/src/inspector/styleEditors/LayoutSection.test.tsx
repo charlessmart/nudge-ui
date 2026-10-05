@@ -54,7 +54,7 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-flex-container"] > .editor__title')?.textContent)
+    expect(handle.host.querySelector('[data-test="layout-flex-container"] .editor__title')?.textContent)
       .toBe("Flex");
     expect(handle.host.querySelector('[data-test="layout-flex-container"] > .layout__group-title')).toBeNull();
     expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();

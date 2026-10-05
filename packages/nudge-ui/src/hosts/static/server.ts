@@ -1,3 +1,4 @@
+import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import { createHash } from "node:crypto";
 import {
   createServer,
@@ -466,6 +467,7 @@ async function handleRequest(input: {
   reloadClients: Set<ServerResponse>;
 }): Promise<void> {
   const { request, response } = input;
+  if (await handleHtmlArtifactRequest(request, response, input.rootDirectory)) return;
   if (request.method !== "GET" && request.method !== "HEAD") {
     sendText(response, 405, "Method Not Allowed", { Allow: "GET, HEAD" });
     return;

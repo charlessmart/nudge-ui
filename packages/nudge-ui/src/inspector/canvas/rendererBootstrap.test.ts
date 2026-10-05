@@ -124,6 +124,39 @@ describe("bootstrapRenderer teardown", () => {
     expect(window.history.pushState).toBe(applicationPushState);
   });
 
+  it("routes scrolling to board panning only when enabled and preserves modified-wheel zoom", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+    const setGestures = (enabled: boolean, panScroll: boolean) => window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin, source: window.parent,
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled, panScroll, ...identity },
+    }));
+    setGestures(true, true);
+    const wheel = new WheelEvent("wheel", { deltaX: 2, deltaY: 3, deltaMode: 1, cancelable: true });
+    window.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 32, deltaY: 48 }));
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 2, shiftKey: true, deltaMode: 1, cancelable: true }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 32, deltaY: 0 }));
+
+    setGestures(true, false);
+    const native = new WheelEvent("wheel", { deltaY: 50, cancelable: true });
+    const before = postMessage.mock.calls.length;
+    window.dispatchEvent(native);
+    expect(native.defaultPrevented).toBe(false);
+    expect(postMessage.mock.calls).toHaveLength(before);
+    const zoom = new WheelEvent("wheel", { deltaY: -50, ctrlKey: true, cancelable: true });
+    window.dispatchEvent(zoom);
+    expect(zoom.defaultPrevented).toBe(true);
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "zoom", deltaY: -50 }));
+
+    setGestures(false, false);
+    const focus = new WheelEvent("wheel", { deltaY: 50, ctrlKey: true, cancelable: true });
+    window.dispatchEvent(focus);
+    expect(focus.defaultPrevented).toBe(false);
+  });
+
   it("cancels a pending pan frame and removes pan listeners", () => {
     const scheduled: FrameRequestCallback[] = [];
     const originalRequestAnimationFrame = window.requestAnimationFrame;
@@ -216,6 +249,40 @@ describe("bootstrapRenderer teardown", () => {
 });
 
 describe("bootstrapRenderer link targets", () => {
+  it("removes Shift from app link clicks only during canvas app interaction", () => {
+    handle = bootstrapRenderer();
+    dispatchParentReady();
+    const link = document.createElement("a");
+    link.href = "/pricing";
+    const child = document.createElement("span");
+    link.append(child);
+    document.body.append(link);
+    const received: boolean[] = [];
+    link.addEventListener("click", (event) => {
+      received.push(event.shiftKey);
+      expect(event.target).toBe(child);
+      event.preventDefault();
+    });
+    const setMode = (enabled: boolean, panScroll: boolean) => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled, panScroll, ...identity },
+        origin: window.location.origin,
+        source: window,
+      }));
+    };
+    const click = (metaKey = false) => child.dispatchEvent(new MouseEvent("click", {
+      bubbles: true, cancelable: true, shiftKey: true, metaKey,
+    }));
+    setMode(true, false);
+    click();
+    click(true);
+    setMode(false, false);
+    click();
+    setMode(true, true);
+    click();
+    expect(received).toEqual([false, true, true, true]);
+  });
+
   function sendLinkTargetState(openInCard: boolean): void {
     window.dispatchEvent(new MessageEvent("message", {
       data: { type: "link-target-state", protocolVersion: PROTOCOL_VERSION, openInCard, ...identity },

@@ -1,3 +1,4 @@
+import { clickFrameAction } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 
@@ -226,7 +227,7 @@ test("dev: cross-container moves support undo, redo, revert, and clear", async (
 test("dev: a cross-container snapshot reaches every ready Canvas card", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
 
@@ -391,7 +392,7 @@ test("dev: the same Canvas edit keeps diagnostics separate per document", async 
   await page.goto("/playground");
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
-  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   await expect(board.locator(".canvas-card")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
 
@@ -612,7 +613,7 @@ test("dev: deleting a repeated item keeps the unified workspace active", async (
 test("dev: Canvas delete-only projection advances into every already-ready card", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
 

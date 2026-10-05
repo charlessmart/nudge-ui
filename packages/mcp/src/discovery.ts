@@ -1,3 +1,4 @@
+import type { AgentActivity } from "@nudge-ui/agent-protocol";
 import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
@@ -142,6 +143,11 @@ export class DiscoveredProjectRouter {
   async getStatus(): Promise<AgentStatusSnapshot> {
     const client = await this.connectToSession();
     return await client.getStatus();
+  }
+
+  async reportActivity(activity: AgentActivity): Promise<void> {
+    const client = await this.connectToSession();
+    await client.reportActivity(activity);
   }
 
   async updateRequestStatus(update: AgentStatusUpdate): Promise<AgentStatusSnapshot> {

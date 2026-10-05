@@ -95,3 +95,9 @@
   color: #6b7280;
   font: 500 14px/1.4 system-ui, sans-serif;
 }
+
+/* Moving iframes must not acquire hover state beneath a stationary pointer. */
+.canvas-workspace.is-presentation-transitioning .canvas-card__iframe,
+.canvas-workspace__board.is-layout-transitioning .canvas-card__iframe {
+  pointer-events: none;
+}

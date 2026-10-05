@@ -59,6 +59,7 @@ describe("sketch interaction", () => {
       editingId: null,
       error: null,
       initialTool: "pen",
+      draftId: null,
     });
   });
 });

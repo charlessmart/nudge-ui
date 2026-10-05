@@ -14,13 +14,13 @@ import {
   isCanvasCanonicalProjectionRevisionCurrent,
   isCanvasProjectionRevisionCurrent,
   projectToAllReadyCards,
-  projectWorkspaceSnapshotToDocument,
+  projectDraftToDocument,
   PROJECT_ID,
   recordCanvasProjectionApplied,
   sendProjectionToCard,
   WORKSPACE_ID,
 } from "./projection.ts";
-import { appendChange, clearWorkspace, getPendingRules } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getPendingRules } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
@@ -37,7 +37,7 @@ const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styl
 
 describe("projection", () => {
   beforeEach(() => {
-    clearWorkspace();
+    clearActiveDraft();
     resetPreviewDiagnostics();
     resetStructuralDeleteProjection();
     resetProjectionRevision();
@@ -128,7 +128,7 @@ describe("projection", () => {
     expect(css).toContain("--color-text: #eeeeee");
   });
 
-  it("clearWorkspace produces empty projection", () => {
+  it("clearActiveDraft produces empty projection", () => {
     appendChange({
       cid: "Button",
       file: "src/Button.tsx",
@@ -143,7 +143,7 @@ describe("projection", () => {
 
     expect(computeProjection().css).not.toBe("");
 
-    clearWorkspace();
+    clearActiveDraft();
     expect(computeProjection().css).toBe("");
   });
 
@@ -160,7 +160,7 @@ describe("projection", () => {
     });
 
     expect(computeProjection().revision).toBe(1);
-    clearWorkspace();
+    clearActiveDraft();
     expect(computeProjection().revision).toBe(2);
     expect(computeProjection().revision).toBe(2);
   });
@@ -301,15 +301,7 @@ describe("projection", () => {
       appliedRevision: -1,
     });
 
-    sendProjectionToCard({
-      id: "card-1",
-      url: window.location.href,
-      title: null,
-      x: 0,
-      y: 0,
-      width: 800,
-      height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-1" }, iframe);
 
     expect(getCanvasProjectionStatus(iframe.contentDocument)).toEqual({
       sentRevision: 1,
@@ -331,13 +323,10 @@ describe("projection", () => {
     if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-temporary", iframe);
-    sendProjectionToCard({
-      id: "card-temporary", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-temporary" }, iframe);
     recordCanvasProjectionApplied("card-temporary", 1);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [], structuralChanges: [],
     });
     recordCanvasProjectionApplied("card-temporary", 2);
@@ -355,14 +344,11 @@ describe("projection", () => {
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-verification", iframe);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [],
       structuralChanges: [],
     });
-    sendProjectionToCard({
-      id: "card-verification", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-verification" }, iframe);
     recordCanvasProjectionApplied("card-verification", 1);
 
     await expect(pending).resolves.toBeNull();
@@ -376,7 +362,7 @@ describe("projection", () => {
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-disposed", iframe);
 
-    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+    const pending = projectDraftToDocument(iframe.contentDocument, {
       changes: [],
       structuralChanges: [],
     });
@@ -392,10 +378,7 @@ describe("projection", () => {
     if (!originalDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
     vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
     registerCardFrame("card-navigated", iframe);
-    sendProjectionToCard({
-      id: "card-navigated", url: window.location.href, title: null,
-      x: 0, y: 0, width: 800, height: 600,
-    }, iframe);
+    sendProjectionToCard({ id: "card-navigated" }, iframe);
     recordCanvasProjectionApplied("card-navigated", 1);
     expect(isCanvasProjectionRevisionCurrent(originalDocument, 1)).toBe(true);
 

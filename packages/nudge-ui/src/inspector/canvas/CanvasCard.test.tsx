@@ -108,7 +108,7 @@ describe("CanvasCard renderer handshake", () => {
     const originalCreateElement = document.createElement.bind(document);
     const card = {
       id: "card-7",
-      url: window.location.href,
+      content: { kind: "route" as const, url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -185,10 +185,10 @@ describe("CanvasCard renderer handshake", () => {
     expect(posted).toHaveLength(0);
   });
 
-  it("shows live card dimensions in the toolbar", () => {
+  it("labels a frame with its route instead of dimensions", () => {
     const card: CanvasCardData = {
       id: "card-dimensions",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 20,
       y: 30,
@@ -205,17 +205,17 @@ describe("CanvasCard renderer handshake", () => {
       `[data-test="canvas-card-dimensions-${card.id}"]`,
     )?.textContent;
 
-    expect(dimensions()).toBe("1440 × 900 px");
+    expect(dimensions()).toBe(new URL(window.location.href).pathname);
 
     act(() => resizeCard(card.id, 1024, 768));
 
-    expect(dimensions()).toBe("1024 × 768 px");
+    expect(dimensions()).toBe(new URL(window.location.href).pathname);
   });
 
-  it("shows a card title in place of dimensions when one is available", () => {
+  it("uses the route instead of the application title", () => {
     const card: CanvasCardData = {
       id: "card-title",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: "Version 1",
       x: 20,
       y: 30,
@@ -225,7 +225,7 @@ describe("CanvasCard renderer handshake", () => {
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
-    expect(host.querySelector(`[data-test="canvas-card-dimensions-${card.id}"]`)?.textContent).toBe("Version 1");
+    expect(host.querySelector(`[data-test="canvas-card-dimensions-${card.id}"]`)?.textContent).toBe(new URL(window.location.href).pathname);
   });
 
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
@@ -233,7 +233,7 @@ describe("CanvasCard renderer handshake", () => {
     const requested = new URL("/playground#requested", window.location.href).href;
     const card: CanvasCardData = {
       id: "card-restored-route",
-      url: previous,
+      content: { kind: "route", url: previous },
       title: null,
       x: 0,
       y: 0,
@@ -259,7 +259,7 @@ describe("CanvasCard renderer handshake", () => {
   it("returns the selected card to the focused preview", () => {
     const card: CanvasCardData = {
       id: "card-focus-preview",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -276,7 +276,6 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.classList.contains("button--primary")).toBe(true);
     expect(control.textContent).toContain("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
@@ -284,7 +283,7 @@ describe("CanvasCard renderer handshake", () => {
   it("returns a selected card to the focused preview", () => {
     const card: CanvasCardData = {
       id: "card-focus-preview",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -308,7 +307,7 @@ describe("CanvasCard renderer handshake", () => {
   it("moves the card when dragging from the dimension surface", () => {
     const card: CanvasCardData = {
       id: "card-drag-surface",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 40,
       y: 60,
@@ -336,10 +335,35 @@ describe("CanvasCard renderer handshake", () => {
     });
   });
 
+  it("moves only the dragged linked frame at canvas zoom", () => {
+    const source: CanvasCardData = {
+      id: "linked-source", groupId: "breakpoints",
+      content: { kind: "route", url: window.location.href }, title: null,
+      x: 40, y: 60, width: 800, height: 600,
+    };
+    const linked = { ...source, id: "linked-copy", x: 900 };
+    hydrateCanvasStore("canvas", [source, linked], { x: 0, y: 0, zoom: 0.5 });
+    renderCard(source);
+    const label = host.querySelector<HTMLElement>(`[data-test="canvas-card-drag-${source.id}"]`)!;
+    Object.defineProperty(label, "setPointerCapture", { value: () => {} });
+
+    act(() => {
+      label.dispatchEvent(pointerEvent("pointerdown", 100, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 160, 230));
+      window.dispatchEvent(pointerEvent("pointermove", 180, 240));
+      window.dispatchEvent(pointerEvent("pointerup", 180, 240));
+    });
+
+    expect(getCanvasCards()).toMatchObject([
+      { id: source.id, x: 200, y: 140 },
+      { id: linked.id, x: 900, y: 60 },
+    ]);
+  });
+
   it("renders every edge and corner handle with its directional cursor", () => {
     const card: CanvasCardData = {
       id: "card-all-resize-handles",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -375,7 +399,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes from every handle with direction-aware keyboard steps", () => {
     const card: CanvasCardData = {
       id: "card-keyboard-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -427,7 +451,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes horizontally from the left edge and releases pointer capture", () => {
     const card: CanvasCardData = {
       id: "card-left-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -461,7 +485,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes vertically from the top edge while preserving the bottom edge", () => {
     const card: CanvasCardData = {
       id: "card-top-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -489,7 +513,7 @@ describe("CanvasCard renderer handshake", () => {
   it("resizes both dimensions from a corner handle", () => {
     const card: CanvasCardData = {
       id: "card-corner-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -517,7 +541,7 @@ describe("CanvasCard renderer handshake", () => {
   it("stops a resize on pointer cancel and keeps the minimum dimensions", () => {
     const card: CanvasCardData = {
       id: "card-cancel-resize",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 100,
       y: 80,
@@ -547,7 +571,7 @@ describe("CanvasCard renderer handshake", () => {
   it("keeps the resize handle screen-sized while the board is zoomed", () => {
     const card: CanvasCardData = {
       id: "card-resize-scale",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -569,7 +593,7 @@ describe("CanvasCard renderer handshake", () => {
   it("inverse-scales only the thickness of zoomed edge handles", () => {
     const card = {
       id: "card-edge-resize-scale",
-      url: "http://localhost:3000/edge-scale",
+      content: { kind: "route" as const, url: "http://localhost:3000/edge-scale" },
       title: "Edge scale",
       x: 0,
       y: 0,
@@ -587,40 +611,28 @@ describe("CanvasCard renderer handshake", () => {
     expect(left.style.transform).toBe("scale(2, 1)");
   });
 
-  it("anchors scaled toolbar content to the canvas top edge", () => {
-    const card: CanvasCardData = {
-      id: "card-toolbar-anchor",
-      url: window.location.href,
-      title: null,
-      x: 0,
-      y: 0,
-      width: 800,
-      height: 600,
+  it("deletes the requested frame from its action toolbar", () => {
+    const removed: CanvasCardData = {
+      id: "card-to-delete",
+      content: { kind: "route", url: window.location.href },
+      title: "Remove this frame",
+      x: 0, y: 0, width: 800, height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
-    root = createRoot(host);
-    act(() => {
-      root!.render(createElement(CanvasCard, { card, onShowFocus: vi.fn() }));
-    });
+    const remaining = { ...removed, id: "card-to-keep", title: "Keep this frame", x: 840 };
+    hydrateCanvasStore("canvas", [removed, remaining], { x: 0, y: 0, zoom: 1 });
+    renderCard(removed);
+    const control = host.querySelector<HTMLButtonElement>(`[data-test="canvas-card-delete-${removed.id}"]`);
+    if (!control) throw new Error("Delete frame control did not mount");
 
-    const dimensions = host.querySelector(
-      `[data-test="canvas-card-dimensions-${card.id}"]`,
-    );
-    const focus = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
-    if (!(dimensions instanceof HTMLElement) || !(focus instanceof HTMLElement)) {
-      throw new Error("toolbar content did not mount");
-    }
+    act(() => control.click());
 
-    expect(dimensions.style.transformOrigin).toBe("center bottom");
-    expect(dimensions.style.transform).toBe("translateX(-50%) scale(2)");
-    expect(focus.style.transformOrigin).toBe("left bottom");
-    expect(focus.style.transform).toBe("scale(2)");
+    expect(getCanvasCards().map((card) => card.id)).toEqual(["card-to-keep"]);
   });
 
-  it("does not render card action buttons", () => {
+  it("omits frame actions that have no handler", () => {
     const card: CanvasCardData = {
       id: "card-actions-removed",
-      url: window.location.href,
+      content: { kind: "route", url: window.location.href },
       title: null,
       x: 0,
       y: 0,
@@ -629,9 +641,9 @@ describe("CanvasCard renderer handshake", () => {
     };
     renderCard(card);
 
-    expect(host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`)).toBeNull();
     expect(host.querySelector(`[data-test="canvas-card-duplicate-${card.id}"]`)).toBeNull();
-    expect(host.querySelector(`[data-test="canvas-card-reload-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-create-iteration-${card.id}"]`)).toBeNull();
   });
 
 });

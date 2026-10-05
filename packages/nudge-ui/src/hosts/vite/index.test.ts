@@ -244,6 +244,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
       demo: true,
       demoPages: ["/?landing-version=1"],
       demoCardLabels: ["V1", "Final"],
+      features: { canvasIterations: false },
     }) as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build"; mode?: string }) => void;
       load?: (id: string) => string | null | Promise<string | null>;
@@ -258,6 +259,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code).toContain("demo: true");
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
     expect(code).toContain('demoCardLabels: ["V1","Final"]');
+    expect(code).toContain('features: {"canvasIterations":false}');
     expect(code).toContain("capabilities: { canvas: true, componentSemantics: true, domNavigation: true }");
     expect(code).toContain('window.addEventListener("nudge-ui:open"');
     expect(code).toContain("window.location.assign(createNudgeUiEditorUrl(window.location.href))");
@@ -401,6 +403,7 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
       config?: ConfigHook;
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
+      server: { watch: { ignored: ["**/.nudge", "**/.nudge/**"] } },
       optimizeDeps: {
         include: ["nudge-ui/internal/component-runtime"],
       },

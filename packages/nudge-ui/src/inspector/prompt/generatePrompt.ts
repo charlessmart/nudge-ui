@@ -26,7 +26,8 @@ import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runti
 import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
-import { getComments, type ElementComment } from "../comments/store.ts";
+import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
+import { documentTarget } from "../drafts/model.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -377,13 +378,18 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
   return canonical;
 }
 
+/** Counts the final edit intents exported by the prompt, preserving gesture history for undo. */
+export function countPromptChanges(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], sketchCount = 0): number {
+  return canonicalizeChanges([...changes]).length + canonicalizeStructuralChanges(structuralChanges).length + sketchCount;
+}
+
 export function generatePrompt(
   changes: ChangeRecord[],
   frameworkHints?: FrameworkHints,
   structuralChanges: readonly StructuralChange[] = [],
   customInstructions: string = DEFAULT_CUSTOM_INSTRUCTIONS,
   sketches: readonly AgentSketchMetadata[] = [],
-  comments: readonly ElementComment[] = getComments(),
+  comments: readonly ElementComment[] = getCommentsForTarget(documentTarget(window.location.href)),
 ): string {
   const deduplicated = canonicalizeChanges(changes);
   const structuralIntent = canonicalizeStructuralChanges(structuralChanges);

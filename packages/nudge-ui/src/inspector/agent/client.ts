@@ -1,3 +1,4 @@
+import { reportAgentActivity, synchronizeAgentActivity } from "./activity.ts";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
@@ -653,6 +654,7 @@ export class AgentClient {
   }
 
   private handleEvent(event: AgentBridgeEvent): void {
+    if (event.type === "activity") { reportAgentActivity(this.projectId, event.activity); return; }
     if (event.type === "status" || event.type === "connected") {
       if (event.status.projectId !== this.projectId || event.status.protocolVersion !== AGENT_PROTOCOL_VERSION) {
         this.handleDisconnect("The agent bridge project or protocol does not match this page.");
@@ -866,6 +868,7 @@ export class AgentClient {
 
   private publish(stateOverride?: AgentClientState): void {
     this.snapshot = Object.freeze(this.makeSnapshot(stateOverride));
+    synchronizeAgentActivity(this.projectId, this.snapshot.request?.requestId, this.snapshot.paired && this.snapshot.request?.status === "working", this.snapshot.request?.clientDispatchId);
     for (const listener of this.listeners) listener();
   }
 }

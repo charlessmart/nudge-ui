@@ -52,6 +52,12 @@ export interface NudgeUiRuntimeCapabilities {
   readonly scopingSelectorPattern?: string;
 }
 
+/** Product features that a host can selectively expose in its inspector UI. */
+export interface NudgeUiRuntimeFeatures {
+  /** Whether Canvas can create filesystem-backed HTML iterations. */
+  readonly canvasIterations?: boolean;
+}
+
 /**
  * Browser knowledge supplied by a host Adapter before the inspector mounts.
  *
@@ -66,6 +72,8 @@ export interface NudgeUiRuntimeConfig {
   readonly framework: NudgeUiRuntimeFramework;
   readonly stylingSystem: string;
   readonly capabilities: NudgeUiRuntimeCapabilities;
+  /** Product-level feature switches; omitted features remain enabled. */
+  readonly features?: NudgeUiRuntimeFeatures;
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
@@ -200,6 +208,17 @@ function optionalBoolean(input: Record<string, unknown>, field: string): boolean
   return value;
 }
 
+function optionalFeatureBoolean(input: Record<string, unknown>, field: string): boolean | undefined {
+  const value = input[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new TypeError(
+      `Nudge UI runtime feature "${field}" must be a boolean; received ${JSON.stringify(value)}.`,
+    );
+  }
+  return value;
+}
+
 function optionalNonEmptyString(input: Record<string, unknown>, field: string): string | undefined {
   const value = input[field];
   if (value === undefined) return undefined;
@@ -257,6 +276,17 @@ function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
   };
 }
 
+function normalizeFeatures(input: unknown): NudgeUiRuntimeFeatures | undefined {
+  if (input === undefined) return undefined;
+  if (!isPlainRecord(input)) {
+    throw new TypeError(
+      'Nudge UI runtime configuration field "features" must be an object.',
+    );
+  }
+  const canvasIterations = optionalFeatureBoolean(input, "canvasIterations");
+  return canvasIterations === undefined ? {} : { canvasIterations };
+}
+
 function optionalDemoFlag(input: Record<string, unknown>): true | undefined {
   const value = input.demo;
   if (value === undefined || value === false) return undefined;
@@ -288,12 +318,14 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
   const demo = optionalDemoFlag(input);
   const demoPages = optionalStringArray(input, "demoPages");
   const demoCardLabels = optionalStringArray(input, "demoCardLabels");
+  const features = normalizeFeatures(input.features);
   const normalized = cloneAndFreeze<NudgeUiRuntimeConfig>({
     projectId: requireString(input, "projectId"),
     host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
     framework: requireEnum(input, "framework", RUNTIME_FRAMEWORKS) as NudgeUiRuntimeFramework,
     stylingSystem: optionalString(input, "stylingSystem"),
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(features === undefined ? {} : { features }),
     tokenCatalog: optionalArray(input, "tokenCatalog") as NudgeUiRuntimeConfig["tokenCatalog"],
     tokens: optionalArray(input, "tokens") as NudgeUiRuntimeConfig["tokens"],
     tokenDiagnostics: optionalArray(
@@ -340,6 +372,14 @@ export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
 /** Returns the immutable runtime snapshot used by shared inspector Modules. */
 export function getNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
   return activeRuntimeConfig;
+}
+
+/** Returns whether a product feature is enabled; omitted flags default to enabled. */
+export function isNudgeUiFeatureEnabled(
+  features: NudgeUiRuntimeFeatures | undefined,
+  feature: keyof NudgeUiRuntimeFeatures,
+): boolean {
+  return features?.[feature] !== false;
 }
 
 /**

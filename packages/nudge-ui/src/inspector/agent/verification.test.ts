@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearWorkspace, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
@@ -44,7 +44,7 @@ describe("agent completion verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
-    clearWorkspace();
+    clearActiveDraft();
     resetAgentVerification();
     resetStructuralDeleteProjection();
     document.head.replaceChildren();
@@ -59,7 +59,7 @@ describe("agent completion verification", () => {
 
   afterEach(() => {
     document.documentElement.removeAttribute("data-nudge-ui-editor");
-    clearWorkspace();
+    clearActiveDraft();
     resetAgentVerification();
     resetStructuralDeleteProjection();
     window.history.replaceState({}, "", "/");
@@ -90,6 +90,23 @@ describe("agent completion verification", () => {
 
     await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(1);
     expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
+  });
+
+  it("retains a sent change if the page navigates during verification", async () => {
+    const sent = styleChange("color", "rgb(255, 0, 0)");
+    appendChange(sent);
+    recordAgentDispatch(42, getChangesList());
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      window.history.replaceState({}, "", "/other");
+      callback(0);
+      return 1;
+    });
+
+    expect(await verifyAndReconcileAgentDispatch(42)).toBe(0);
+    expect(getChangesList()).toEqual([sent]);
   });
 
   it("preserves a newer value for the same change key", async () => {

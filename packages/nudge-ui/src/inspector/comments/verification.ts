@@ -1,5 +1,6 @@
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
-import { isCanvasProjectionRevisionCurrent, projectWorkspaceSnapshotToDocument } from "../canvas/projection.ts";
+import { getDraftChanges } from "../changes/draftChanges.ts";
+import { documentTarget, targetKey } from "../drafts/model.ts";
+import { isCanvasProjectionRevisionCurrent, projectDraftToDocument } from "../canvas/projection.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
 import { commentRoute, getComments, removeComment } from "./store.ts";
 
@@ -14,12 +15,12 @@ export function readCommentSource<T>(doc: Document, read: () => T): Promise<T | 
   const operation = previous.catch(() => undefined).then(async () => {
     readingDocuments.add(doc);
     try {
-      const revision = await projectWorkspaceSnapshotToDocument(doc, { changes: [], structuralChanges: [] });
+      const revision = await projectDraftToDocument(doc, { changes: [], structuralChanges: [] });
       if (revision === null || !isCanvasProjectionRevisionCurrent(doc, revision)) return null;
       return read();
     } finally {
       try {
-        await projectWorkspaceSnapshotToDocument(doc, getWorkspaceChanges());
+        await projectDraftToDocument(doc, getDraftChanges(targetKey(documentTarget(doc.location.href))));
         // Deliver projection mutation records before accepting another source signal.
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       } finally {

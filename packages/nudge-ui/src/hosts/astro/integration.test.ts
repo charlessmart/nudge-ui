@@ -30,7 +30,7 @@ function runConfigSetup(
     injectScript,
     addMiddleware,
     isRestart: false,
-    config: { root: new URL("file:///project/"), markdown: {} },
+    config: { base: "/", root: new URL("file:///project/"), markdown: {} },
   } as unknown as ConfigSetupParameters);
   return { updateConfig, injectScript, addMiddleware };
 }
@@ -81,7 +81,7 @@ describe("nudgeUiAstro", () => {
     expect(registration.entrypoint?.pathname).toContain("middleware.ts");
   });
 
-  it("serves the pure editor document from Astro's client transport", () => {
+  it("serves the pure editor document from Astro's client transport", async () => {
     const integration = nudgeUiAstro({ projectId: "site" });
     const { updateConfig } = runConfigSetup(integration, "dev");
     const plugins = (
@@ -93,6 +93,7 @@ describe("nudgeUiAstro", () => {
       end(body?: string): void;
     }, next: () => void) => void) | undefined;
     plugins[0]?.configureServer?.({
+      config: { root: process.cwd() },
       middlewares: { use: (handler: typeof middleware) => { middleware = handler; } },
     });
     let body = "";
@@ -104,8 +105,8 @@ describe("nudgeUiAstro", () => {
 
     middleware?.({ url: "/__nudge_ui__/editor?url=%2Fabout", method: "GET" }, response, vi.fn());
 
-    expect(response.statusCode).toBe(200);
-    expect(body).toContain("data-nudge-ui-editor");
+    await expect.poll(() => response.statusCode).toBe(200);
+    await expect.poll(() => body).toContain("data-nudge-ui-editor");
     expect(body).not.toContain("about");
 
     body = "";
@@ -114,7 +115,7 @@ describe("nudgeUiAstro", () => {
       method: "GET",
       headers: { accept: "text/html" },
     }, response, vi.fn());
-    expect(body).toContain("data-nudge-ui-editor");
+    await expect.poll(() => body).toContain("data-nudge-ui-editor");
   });
 
   it("registers a legacy Markdown plugin that maps prose to the authored MDX file", async () => {

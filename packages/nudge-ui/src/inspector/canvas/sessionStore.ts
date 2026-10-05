@@ -1,34 +1,33 @@
-import type { ChangeRecord } from "../changes/types.ts";
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
-import { loadWorkspaceChanges } from "../changes/changesLog.ts";
+import { isFrameContent, type FrameContent } from "./frameContent.ts";
+import { clearComments } from "../comments/store.ts";
+import { documentTarget, targetFromKey } from "../drafts/model.ts";
+import { canEditDraft, getActiveDraftChanges, isDraftLocked } from "../changes/draftChanges.ts";
 import {
-  deserializeChange,
-  isSerializableChange,
-  serializeChange,
-  type SerializableChange,
-} from "../changes/codecs.ts";
-import {
-  getCanvasMode,
+  getFrameGroups,
+  isFrameGroup,
+  type FrameGroup,
   getCanvasCards,
-  getCanvasComparisonGroups,
   getFocusedCardId,
-  getBoardCamera,
-  setBoardCamera,
+  getSelectedCardId,
   hydrateCanvasStore,
   removeCanvasCard,
+} from "./canvasStore.ts";
+import {
+  getCanvasMode,
+  getCanvasPresentation,
+  type CanvasPresentation,
+  getBoardCamera,
+  setBoardCamera,
   type CanvasCamera,
   type CanvasMode,
-  type CanvasComparisonGroup,
-} from "./canvasStore.ts";
+} from "./viewStore.ts";
 import { applyRules } from "../projection/managedStylesheet.ts";
-import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import {
-  isStructuralChange,
   resetStructuralDeleteProjection,
-  type StructuralChange,
 } from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -39,10 +38,9 @@ import {
   isClipboardHandoffSnapshot,
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
+import { activateDraftForCard, clearDrafts, persistDrafts } from "../drafts/store.ts";
 
-// v12 is the first durable-session schema after the edit model and preview
-// diagnostic split. Previous session shapes are intentionally incompatible.
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 17;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -51,10 +49,6 @@ function projectId(): string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isSameOriginUrl(value: unknown): value is string {
@@ -66,87 +60,31 @@ function isSameOriginUrl(value: unknown): value is string {
   }
 }
 
-function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-  return Object.keys(value).every((key) => allowed.includes(key));
-}
-
-function isSerializableComparisonGroup(value: unknown): value is SerializableComparisonGroup {
-  if (!isRecord(value)
-    || !hasOnlyKeys(value, ["id", "label", "owner", "agentId", "cardIds", "routes"])
-    || typeof value.id !== "string"
-    || value.id.length === 0
-    || value.id.length > 256
-    || typeof value.label !== "string"
-    || value.label.length === 0
-    || value.label.length > 160
-    || value.owner !== "agent"
-    || typeof value.agentId !== "string"
-    || value.agentId.length === 0
-    || value.agentId.length > 256
-    || !Array.isArray(value.cardIds)
-    || value.cardIds.length === 0
-    || value.cardIds.length > 64
-    || !Array.isArray(value.routes)
-    || value.routes.length === 0
-    || value.routes.length > 64) {
-    return false;
-  }
-  if (!value.cardIds.every((cardId) => typeof cardId === "string" && cardId.length > 0 && cardId.length <= 256)) {
-    return false;
-  }
-  return value.routes.every((route) => {
-    if (!isRecord(route)
-      || !hasOnlyKeys(route, ["url", "title", "label"])
-      || !isSameOriginUrl(route.url)
-      || (route.title !== undefined && route.title !== null
-        && (typeof route.title !== "string" || route.title.length > 512))
-      || (route.label !== undefined
-        && (typeof route.label !== "string" || route.label.length > 160))) {
-      return false;
-    }
-    return true;
-  });
-}
-
 function storageKey(projectId: string): string {
   return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
 }
 
 export interface SerializableCard {
   id: string;
-  url: string;
+  content: FrameContent;
   title: string | null;
+  groupId?: string;
   x: number;
   y: number;
   width: number;
   height: number;
-  comparisonGroupId?: string;
-}
-
-export interface SerializableComparisonGroup {
-  id: string;
-  label: string;
-  owner: "agent";
-  agentId: string;
-  cardIds: string[];
-  routes: Array<{
-    url: string;
-    title?: string | null;
-    label?: string;
-  }>;
 }
 
 export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
   projectId: string;
   mode: CanvasMode;
+  presentation: CanvasPresentation;
+  groups: readonly FrameGroup[];
   inspectUrl: string;
   cards: SerializableCard[];
-  comparisonGroups: SerializableComparisonGroup[];
   camera: { x: number; y: number; zoom: number };
   focusedCardId?: string | null;
-  changes: SerializableChange[];
-  structuralChanges: StructuralChange[];
   clipboardHandoff: ClipboardHandoffSnapshot | null;
 }
 
@@ -165,18 +103,7 @@ export interface HydrationResult {
 }
 
 function buildSession(): DurableSession {
-  const workspace = getWorkspaceChanges();
-  const changes = workspace.changes;
-  const serializableChanges: SerializableChange[] = [];
-  for (const change of changes) {
-    const serialized = serializeChange(change);
-    // serializeChange already fails closed, but re-validate here so a future
-    // serializer skew can never poison the whole durable session.
-    if (serialized && isSerializableChange(serialized)) serializableChanges.push(serialized);
-  }
-
   const cards = getCanvasCards();
-  const comparisonGroups = getCanvasComparisonGroups();
   const camera = getBoardCamera();
   const mode = getCanvasMode();
 
@@ -184,33 +111,21 @@ function buildSession(): DurableSession {
     schemaVersion: SCHEMA_VERSION,
     projectId: projectId(),
     mode,
+    presentation: getCanvasPresentation(),
+    groups: getFrameGroups(),
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
-      url: c.url,
+      content: c.content.kind === "route" ? { kind: "route", url: c.content.url } : { ...c.content },
       title: c.title,
+      ...(c.groupId ? { groupId: c.groupId } : {}),
       x: c.x,
       y: c.y,
       width: c.width,
       height: c.height,
-      ...(c.comparisonGroupId ? { comparisonGroupId: c.comparisonGroupId } : {}),
-    })),
-    comparisonGroups: comparisonGroups.map((group) => ({
-      id: group.id,
-      label: group.label,
-      owner: "agent",
-      agentId: group.agentId,
-      cardIds: [...group.cardIds],
-      routes: group.routes.map((route) => ({
-        url: route.url,
-        ...(route.title === undefined ? {} : { title: route.title }),
-        ...(route.label === undefined ? {} : { label: route.label }),
-      })),
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     focusedCardId: getFocusedCardId(),
-    changes: serializableChanges,
-    structuralChanges: workspace.structuralChanges.map((change) => ({ ...change })),
     clipboardHandoff: getClipboardHandoffSnapshot(),
   };
 }
@@ -231,6 +146,7 @@ export function persistSession(): boolean {
 function persistSessionUnchecked(): boolean {
   if (!projectId()) return false;
   try {
+    persistDrafts();
     const session = buildSession();
     localStorage.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
@@ -301,7 +217,7 @@ export function hydrateSession(): HydrationResult {
     if (
       !card || typeof card !== "object" ||
       typeof candidate.id !== "string" ||
-      !isSameOriginUrl(candidate.url) ||
+      !isFrameContent(candidate.content, window.location.origin) ||
       !isFiniteNumber(candidate.x) ||
       !isFiniteNumber(candidate.y) ||
       !isFiniteNumber(candidate.width) ||
@@ -315,15 +231,13 @@ export function hydrateSession(): HydrationResult {
     const c = card as Record<string, unknown>;
     serializableCards.push({
       id: c.id as string,
-      url: c.url as string,
+      content: c.content as FrameContent,
       title: typeof c.title === "string" ? c.title as string : null,
+      ...(typeof c.groupId === "string" && c.groupId.length <= 256 ? { groupId: c.groupId } : {}),
       x: c.x as number,
       y: c.y as number,
       width: c.width as number,
       height: c.height as number,
-      ...(typeof c.comparisonGroupId === "string"
-        ? { comparisonGroupId: c.comparisonGroupId }
-        : {}),
     });
   }
 
@@ -332,57 +246,7 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  const comparisonGroupsRaw = s.comparisonGroups;
-  if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-  const serializableComparisonGroups: SerializableComparisonGroup[] = [];
-  for (const group of comparisonGroupsRaw) {
-    if (!isSerializableComparisonGroup(group)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    serializableComparisonGroups.push({
-      id: group.id,
-      label: group.label,
-      owner: "agent",
-      agentId: group.agentId,
-      cardIds: [...group.cardIds],
-      routes: group.routes.map((route) => ({ ...route })),
-    });
-  }
-
-  if (new Set(serializableComparisonGroups.map((group) => group.id)).size
-    !== serializableComparisonGroups.length) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-
   const cardsById = new Map(serializableCards.map((card) => [card.id, card]));
-  const groupedCardIds = new Set<string>();
-  for (const group of serializableComparisonGroups) {
-    if (group.cardIds.length !== group.routes.length) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    for (const [routeIndex, cardId] of group.cardIds.entries()) {
-      const card = cardsById.get(cardId);
-      const route = group.routes[routeIndex];
-      if (!card || !route || card.comparisonGroupId !== group.id || groupedCardIds.has(cardId)
-        || card.url !== route.url) {
-        safeDiscard();
-        return { restored: false, changeCount: 0 };
-      }
-      groupedCardIds.add(cardId);
-    }
-  }
-  for (const card of serializableCards) {
-    if (card.comparisonGroupId && !serializableComparisonGroups.some((group) => group.id === card.comparisonGroupId)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-  }
 
   const cameraRaw = s.camera;
   if (
@@ -395,39 +259,12 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  const changesRaw = s.changes;
-  if (!Array.isArray(changesRaw)) {
+  const presentation = s.presentation ?? "focus";
+  const groups = Array.isArray(s.groups) ? s.groups.filter((group) => group?.kind !== "linked") : s.groups ?? [];
+  if ((presentation !== "focus" && presentation !== "canvas") || !Array.isArray(groups) || !groups.every(isFrameGroup)) {
     safeDiscard();
     return { restored: false, changeCount: 0 };
   }
-  const deserializedChanges: ChangeRecord[] = [];
-  const textChangeIds = new Set<string>();
-  for (const c of changesRaw) {
-    if (!isSerializableChange(c)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    if (c.kind === "text-content") {
-      if (textChangeIds.has(c.id)) {
-        safeDiscard();
-        return { restored: false, changeCount: 0 };
-      }
-      textChangeIds.add(c.id);
-    }
-    try {
-      deserializedChanges.push(deserializeChange(c));
-    } catch {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-  }
-
-  const structuralChanges = s.structuralChanges;
-  if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
-    safeDiscard();
-    return { restored: false, changeCount: 0 };
-  }
-
   const clipboardHandoff = s.clipboardHandoff;
   if (!isClipboardHandoffSnapshot(clipboardHandoff)) {
     safeDiscard();
@@ -453,21 +290,17 @@ export function hydrateSession(): HydrationResult {
     s.mode as CanvasMode,
     serializableCards,
     camera,
-    serializableComparisonGroups as CanvasComparisonGroup[],
     focusedCardId,
+    presentation,
+    groups,
   );
-  // Structural intent and instance evidence become visible atomically. The
-  // projection layer preserves structural-first document application order.
-  loadWorkspaceChanges(deserializedChanges, structuralChanges);
   hydrateClipboardHandoff(clipboardHandoff);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
   // sending the user back to the previous page. On refresh, the URLs already
   // match and restoration remains unchanged.
   if (inspectRouteChanged) persistSessionUnchecked();
-  projectToAllReadyCards();
-
-  return { restored: true, changeCount: deserializedChanges.length + structuralChanges.length };
+  return { restored: true, changeCount: 0 };
 }
 
 function safeDiscard(): void {
@@ -478,7 +311,20 @@ function safeDiscard(): void {
   }
 }
 
+/** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
+export function clearSelectedFrameChanges(): void {
+  if (!canEditDraft()) return;
+  const cardId = getSelectedCardId() ?? getFocusedCardId();
+  if (cardId) activateDraftForCard(cardId);
+  clearComments(targetFromKey(getActiveDraftChanges().draftId) ?? documentTarget(window.location.href));
+  clearActiveDraft();
+  setSelectedElement(null);
+  projectToAllReadyCards();
+  scheduleAutoSave();
+}
+
 export function clearSession(): void {
+  if (isDraftLocked()) return;
   if (!canWriteWorkspace()) return;
   try {
     localStorage.removeItem(storageKey(projectId()));
@@ -486,8 +332,10 @@ export function clearSession(): void {
     // ignore
   }
 
-  clearWorkspaceLog();
+  clearComments();
+  clearActiveDraft();
   clearClipboardHandoff();
+  clearDrafts();
   resetStructuralDeleteProjection();
   removeManagedSheet();
   setSelectedElement(null);
@@ -532,25 +380,14 @@ export function scheduleAutoSave(): void {
   }, AUTOSAVE_DEBOUNCE_MS);
 }
 
-/**
- * Canvas mode/card/camera changes persist immediately (synchronous) so a
- * refresh always restores the workspace, even inside the edit-autosave
- * debounce window. Edit autosave stays coalesced behind the trailing timer.
- */
-export function scheduleCanvasSave(): void {
-  if (!autoSaveEnabled) return;
-  if (persistSession()) autoSaveDirty = false;
-}
+export function scheduleCanvasSave(): void { scheduleAutoSave(); }
 
-function flushAutoSave(): void {
+export function flushAutoSave(): void {
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
     autosaveTimer = null;
   }
   if (!autoSaveDirty) return;
-  // Keep the normal lease gate on the unload path. The controller registers
-  // this listener before releaseLease, so a current owner can flush a first
-  // write without allowing a stale tab to overwrite the new owner's session.
   if (persistSession()) autoSaveDirty = false;
 }
 

@@ -5,9 +5,10 @@ import { mountInspector, unmountInspector } from "../index.ts";
 import { getSelectedElement, setSelectedElement, setSelectedElements } from "../selection/selectionStore.ts";
 import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { appendChange, clearWorkspace, getChangesList } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList } from "../changes/changesLog.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
-import { setCanvasMode } from "../canvas/canvasStore.ts";
+import { addCanvasCard, getCanvasCards, removeCanvasCard } from "../canvas/canvasStore.ts";
+import { setCanvasMode } from "../canvas/viewStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
@@ -37,7 +38,7 @@ describe("InspectorShell", () => {
     act(() => {
       unmountInspector();
     });
-    clearWorkspace();
+    clearActiveDraft();
     clearComments();
     clearRestoreCount();
     releaseLease();
@@ -220,7 +221,8 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("keeps session clearing below the changes accordion when changes are present", () => {
+  it("clears changes below the accordion without removing canvas frames", () => {
+    const card = addCanvasCard(window.location.href);
     act(() => {
       appendChange({
         cid: "Button",
@@ -245,6 +247,20 @@ describe("InspectorShell", () => {
     });
     expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
     expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+    expect(getCanvasCards().find((candidate) => candidate.id === card.id)).toEqual(card);
+    removeCanvasCard(card.id);
+  });
+
+  it("resets canvas frames from the bottom of the settings menu", () => {
+    addCanvasCard(window.location.href);
+    act(() => { mountInspector(host); });
+    const shadow = host.shadowRoot!;
+    act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-button"]')!.click(); });
+    const button = shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-canvas"]')!;
+    expect(button.textContent).toBe("Reset canvas");
+    expect(button.parentElement?.lastElementChild).toBe(button);
+    act(() => { button.click(); });
+    expect(getCanvasCards()).toEqual([]);
   });
 
   it("clears persisted comments when comments are the only pending changes", () => {

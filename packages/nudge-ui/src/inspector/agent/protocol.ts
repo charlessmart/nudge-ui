@@ -1,4 +1,5 @@
 import type {
+  AgentActivity,
   AgentStatusSnapshot,
   CanvasCommand,
   CanvasCommandAcknowledgement,
@@ -28,6 +29,7 @@ export {
   isAgentSketchCaptureMetadata,
   isAgentSketchMetadata,
   isAgentStatusUpdate,
+  isAgentActivity,
   isAllowedOrigin,
   isCanvasCommand,
   isCanvasGroup,
@@ -41,6 +43,8 @@ export {
 } from "@nudge-ui/agent-protocol";
 
 export type {
+  AgentActivity,
+  BridgeActivityEvent,
   AgentConnectionState,
   AgentProjectIdentity,
   AgentPromptRequest,
@@ -151,6 +155,7 @@ export interface AgentEventSubscription {
 
 /** Events delivered by the companion's SSE stream. */
 export type AgentBridgeEvent =
+  | { readonly type: "activity"; readonly activity: AgentActivity }
   | { readonly type: "status"; readonly status: AgentStatusSnapshot }
   | { readonly type: "connected"; readonly status: AgentStatusSnapshot }
   | { readonly type: "disconnected"; readonly reason?: string }

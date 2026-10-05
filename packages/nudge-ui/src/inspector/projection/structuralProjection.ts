@@ -1,3 +1,5 @@
+import type { FrameProjection } from "../canvas/projection.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import {
   captureRenderedInstance,
   matchesRenderedInstanceEvidence,
@@ -6,10 +8,10 @@ import {
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
 import {
-  resetWorkspaceChanges,
-  workspaceChangeStore,
-  type WorkspaceChangesSnapshot,
-} from "../changes/workspaceChanges.ts";
+  resetDraftChanges,
+  draftChangeStore,
+  type DraftChangesSnapshot,
+} from "../changes/draftChanges.ts";
 import type {
   StructuralChange,
   StructuralDelete,
@@ -174,6 +176,8 @@ interface DocumentProjectionState {
 }
 
 interface CanvasReports {
+  draftId: string;
+  draftRevision: number;
   revision: number;
   reports: StructuralProjectionReport[];
 }
@@ -273,7 +277,7 @@ function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[
   return [...snapshot];
 }
 
-function projectStructuralChanges(snapshot: WorkspaceChangesSnapshot): void {
+function projectStructuralChanges(snapshot: DraftChangesSnapshot): void {
   reprojectKnownDocuments(snapshot.structuralChanges);
 }
 
@@ -290,8 +294,8 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
     ...(route ? { route } : {}),
     ...(state ? { state } : {}),
   };
-  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
-  projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  if (!draftChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(draftChangeStore.getSnapshot());
   return change;
 }
 
@@ -335,13 +339,13 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
-  projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  if (!draftChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(draftChangeStore.getSnapshot());
   return change;
 }
 
 export function getStructuralChanges(): readonly StructuralChange[] {
-  return workspaceChangeStore.getSnapshot().structuralChanges;
+  return draftChangeStore.getSnapshot().structuralChanges;
 }
 
 export function getStructuralDeletes(): readonly StructuralDelete[] {
@@ -350,8 +354,8 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  const changed = workspaceChangeStore.revertStructuralChangeRecord(changeId);
-  if (changed) projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  const changed = draftChangeStore.revertStructuralChangeRecord(changeId);
+  if (changed) projectStructuralChanges(draftChangeStore.getSnapshot());
   return changed;
 }
 
@@ -367,9 +371,9 @@ export function reconcileVerifiedStructuralChanges(
   verifiedIds: ReadonlySet<string>,
 ): number {
   if (verifiedIds.size === 0) return 0;
-  const removed = workspaceChangeStore.reconcileWorkspaceChanges(new Set(), verifiedIds);
+  const removed = draftChangeStore.reconcileActiveDraftChanges(new Set(), verifiedIds);
   if (removed === 0) return 0;
-  projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  projectStructuralChanges(draftChangeStore.getSnapshot());
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
     reportsByCanvasCard.set(cardId, {
       ...canvasReports,
@@ -382,7 +386,7 @@ export function reconcileVerifiedStructuralChanges(
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
 export function subscribeStructuralChanges(listener: () => void): () => void {
-  return workspaceChangeStore.subscribe(listener);
+  return draftChangeStore.subscribe(listener);
 }
 
 /** Compatibility name retained while the controller moved to a full union. */
@@ -681,16 +685,18 @@ export function recordCanvasStructuralProjectionReports(
   cardId: string,
   revision: number,
   reports: readonly StructuralProjectionReport[],
+  projection?: FrameProjection,
 ): void {
   if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isStructuralProjectionReport)) return;
-  const expected = new Set(getStructuralChanges().map((change) => change.id));
+  const expected = projection ? new Set(projection.structuralChanges.map((record) => record.id)) : new Set(getStructuralChanges().map((change) => change.id));
   if (reports.length !== expected.size || new Set(reports.map((report) => report.changeId)).size !== reports.length
     || reports.some((report) => !expected.has(report.changeId))) return;
   const existing = reportsByCanvasCard.get(cardId);
   if (existing && revision < existing.revision) return;
   const next = reports.map((report) => ({ ...report }));
   if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
-  reportsByCanvasCard.set(cardId, { revision, reports: next });
+  const current = getActiveDraftChanges();
+  reportsByCanvasCard.set(cardId, { revision, reports: next, draftId: projection?.draftId ?? current.draftId, draftRevision: projection?.draftRevision ?? current.revision });
   notifyDiagnostics();
 }
 
@@ -723,6 +729,7 @@ export function getStructuralChangeDiagnostics(changeId: string): StructuralChan
   const host = reportsByDocument.get(document)?.find((report) => report.changeId === changeId);
   if (host) diagnostics.push({ ...host, document: "Inspect" });
   for (const [cardId, entry] of reportsByCanvasCard) {
+    if (entry.draftId !== getActiveDraftChanges().draftId || entry.draftRevision !== getDraftChanges(entry.draftId).revision) continue;
     const report = entry.reports.find((candidate) => candidate.changeId === changeId);
     if (report) diagnostics.push({ ...report, document: `Canvas ${cardId}` });
   }
@@ -744,7 +751,7 @@ export function resetStructuralDeleteProjection(): void {
   reportsByCanvasCard.clear();
   nextStructuralId = 1;
   diagnosticRevision = 0;
-  resetWorkspaceChanges();
+  resetDraftChanges();
   notifyDiagnostics();
 }
 

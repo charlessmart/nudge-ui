@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearWorkspace, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { getActiveDraftChanges, setActiveDraft } from "../changes/draftChanges.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
@@ -30,7 +31,7 @@ function styleChange(rawValue = "rgb(255, 0, 0)"): ElementChangeRecord {
 describe("clipboard prompt handoff", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
-    clearWorkspace();
+    clearActiveDraft();
     clearClipboardHandoff();
     document.head.replaceChildren();
     const card = document.createElement("div");
@@ -44,7 +45,7 @@ describe("clipboard prompt handoff", () => {
 
   afterEach(() => {
     clearClipboardHandoff();
-    clearWorkspace();
+    clearActiveDraft();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -64,6 +65,11 @@ describe("clipboard prompt handoff", () => {
 
     expect(getChangesList()).toEqual([]);
     expect(getClipboardHandoffSnapshot()).toBeNull();
+    expect(getLastClipboardReconciledCount()).toBe(1);
+    const draftId = getActiveDraftChanges().draftId;
+    setActiveDraft("other-page");
+    expect(getLastClipboardReconciledCount()).toBe(0);
+    setActiveDraft(draftId);
     expect(getLastClipboardReconciledCount()).toBe(1);
     stop();
   });

@@ -109,7 +109,12 @@ describe("the Vite host with no framework", () => {
     }));
 
   it("asks nothing of module resolution", withProject((root, plugin) => {
-    expect(plugin.config!({ root }, { command: "serve" })).toBeUndefined();
+    const config = plugin.config!({ root }, { command: "serve" }) as {
+      resolve?: unknown;
+      server?: { watch?: { ignored?: string[] } };
+    };
+    expect(config?.resolve).toBeUndefined();
+    expect(config?.server?.watch?.ignored).toContain("**/.nudge/**");
   }));
 
   it("serves no framework virtual module", withProject((_root, plugin) => {

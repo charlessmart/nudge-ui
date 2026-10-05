@@ -1,9 +1,11 @@
+import { contentSourceUrl } from "./frameContent.ts";
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   persistSession,
   hydrateSession,
   clearSession,
+  clearSelectedFrameChanges,
   serializeSession,
   storageKey,
   SCHEMA_VERSION,
@@ -14,27 +16,35 @@ import {
   clearRestoreCount,
   resetAutoSave,
 } from "./sessionStore.ts";
-import { clearWorkspace, getChangesList, appendChange } from "../changes/changesLog.ts";
-import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/changesLog.ts";
-import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
+import { clearActiveDraft, getChangesList, appendChange } from "../changes/changesLog.ts";
+import type { ElementChangeRecord } from "../changes/changesLog.ts";
 import {
-  getCanvasMode,
   getCanvasCards,
-  getBoardCamera,
-  setCanvasMode,
   addCanvasCard,
-  appendCanvasComparisonGroup,
-  getCanvasComparisonGroups,
+  addCanvasIteration,
+  duplicateCard,
+  hydrateCanvasStore,
+  appendAgentRouteCards,
+  setFrameGroup,
+  getFrameGroups,
   removeCanvasCard as removeCanvasCardStore,
-  setBoardCamera,
   focusCard,
   getFocusedCardId,
   resizeCard,
+  selectCard,
 } from "./canvasStore.ts";
+import {
+  getCanvasMode,
+  getBoardCamera,
+  setCanvasMode,
+  setCanvasPresentation,
+  getCanvasPresentation,
+  setBoardCamera,
+} from "./viewStore.ts";
+import { activateDraftForCard, getDraftContentsForCard, loadDrafts, resetDrafts } from "../drafts/store.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
-  createStructuralMove,
   applyStructuralProjection,
   getStructuralChanges,
   resetStructuralDeleteProjection,
@@ -70,52 +80,10 @@ function makeElementChange(
   };
 }
 
-function makeTokenChange(
-  overrides: Partial<TokenChangeRecord> = {},
-): TokenChangeRecord {
-  return {
-    kind: "token",
-    tokenName: "--color-surface-raised",
-    file: "src/theme.css",
-    line: 6,
-    selector: ':root[data-theme="dark"]',
-    property: "--color-surface-raised",
-    rawValue: "#abcdef",
-    oldRawValue: "#00ff00",
-    context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
-    contextLabel: 'root[data-theme="dark"]',
-    source: { file: "src/theme.css", line: 6, component: "Global token" },
-    ...overrides,
-    important: overrides.important ?? false,
-  };
-}
-
-function makeComponentChange(): ComponentChangeRecord {
-  return makeComponentChangeRecord();
-}
-
-function makeTextChange(overrides: Partial<TextContentChangeRecord> = {}): TextContentChangeRecord {
-  return {
-    kind: "text-content",
-    id: "text-1",
-    target: {
-      sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" },
-      occurrence: 0,
-      props: "tone:muted",
-      ariaLabel: null,
-      beforeText: "Original",
-    },
-    source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
-    selector: '[data-cid="Copy"][data-src*="src/Copy.tsx:8:3"]',
-    before: "Original",
-    after: "Updated",
-    authoredAs: "literal",
-    ...overrides,
-  };
-}
-
 function resetAllState(): void {
-  clearWorkspace();
+  resetDrafts();
+  localStorage.removeItem(`nudge-ui-drafts:${nudgeUiProjectId}:v2`);
+  clearActiveDraft();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
@@ -139,17 +107,46 @@ describe("sessionStore persistence", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("serializes and persists current changes", () => {
+  it("restores linked views as independent frames in their recorded order", () => {
+    const original = addCanvasCard(localUrl("/first"));
+    const copy = duplicateCard(original.id)!;
+    persistSession();
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    expect(hydrateSession().restored).toBe(true);
+    const restored = getCanvasCards();
+    expect(restored.map((card) => card.id)).toEqual([original.id, copy.id]);
+    expect(restored.map((card) => card.groupId)).toEqual([undefined, undefined]);
+    expect(restored[1]!.x).toBeGreaterThan(restored[0]!.x + restored[0]!.width);
+  });
+
+  it("restores legacy linked layouts without retaining movement groups", () => {
+    const original = addCanvasCard(localUrl("/first"));
+    const copy = duplicateCard(original.id)!;
+    persistSession();
+    const session = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
+    session.groups = [{ id: "old-breakpoints", kind: "linked" }];
+    for (const card of session.cards) card.groupId = "old-breakpoints";
+    session.cards[1].x = 850;
+    session.cards[1].y = 650;
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+
+    expect(hydrateSession().restored).toBe(true);
+    expect(getCanvasCards()).toMatchObject([
+      { id: original.id, x: original.x, y: original.y, groupId: undefined },
+      { id: copy.id, x: 850, y: 650, groupId: undefined },
+    ]);
+    expect(getFrameGroups()).toEqual([]);
+  });
+
+  it("persists geometry and handoff metadata without duplicating draft intent", () => {
     appendChange(makeElementChange());
     persistSession();
-
-    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!);
+    const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
     expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(parsed.projectId).toBe(nudgeUiProjectId);
-    expect(parsed.changes).toHaveLength(1);
-    expect(parsed.changes[0].selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(parsed.changes).toBeUndefined();
+    expect(parsed.structuralChanges).toBeUndefined();
+    expect(getChangesList()).toHaveLength(1);
   });
 
   it("persists the latest copied-prompt checkpoint with the durable session", () => {
@@ -158,12 +155,11 @@ describe("sessionStore persistence", () => {
     persistSession();
 
     clearClipboardHandoff();
-    clearWorkspace();
-    expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 1 });
+    clearActiveDraft();
+    expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 0 });
 
     expect(getClipboardHandoffSnapshot()).toMatchObject({
-      changes: [{ key: expect.any(String), fingerprint: expect.any(String) }],
-      structuralChanges: [],
+      drafts: [{ owner: { target: { kind: "application" } }, changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
     });
   });
 
@@ -218,132 +214,13 @@ describe("sessionStore persistence", () => {
     }
   });
 
-  it("serializes a durable rendered-instance change", () => {
-    appendChange(makeElementChange({
-      scope: "rendered-instance",
-      instanceOverride: {
-        id: "override-1",
-        target: {
-          sourceSite: { cid: "Button", src: "src/Button.tsx:1:1" },
-          locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
-        },
-      },
-    }));
-    persistSession();
 
-    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!);
-    expect(parsed.changes).toHaveLength(1);
-    expect(parsed.changes[0]).toMatchObject({
-      scope: "rendered-instance",
-      instanceOverride: { id: "override-1", target: { locator: { occurrence: 1, text: "Two" } } },
-    });
-  });
 
-  it("serializes and hydrates a durable rendered-text change", () => {
-    const element = document.createElement("p");
-    element.dataset.cid = "Copy";
-    element.dataset.src = "src/Copy.tsx:8:3";
-    element.dataset.cprops = "tone:muted";
-    element.textContent = "Original";
-    document.body.append(element);
 
-    appendChange(makeTextChange());
-    persistSession();
-    const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
-    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(parsed.changes[0]).toMatchObject({
-      kind: "text-content",
-      target: { sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" }, beforeText: "Original" },
-      before: "Original",
-      after: "Updated",
-    });
 
-    clearWorkspace();
-    document.body.replaceChildren(element);
-    const result = hydrateSession();
-    expect(result.restored).toBe(true);
-    expect(getChangesList()).toMatchObject([{ kind: "text-content", after: "Updated" }]);
-    expect(element.textContent).toBe("Updated");
-  });
 
-  it("round-trips the exact text-node path for mixed Canvas projections", () => {
-    const element = document.createElement("button");
-    element.dataset.cid = "Copy";
-    element.dataset.src = "src/Copy.tsx:8:3";
-    element.dataset.cprops = "tone:muted";
-    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    icon.innerHTML = "<path d=\"M0 0h4v4H0z\" />";
-    const label = document.createElement("span");
-    label.textContent = "Original";
-    element.append(icon, label);
-    document.body.append(element);
 
-    appendChange(makeTextChange({
-      target: {
-        ...makeTextChange().target,
-        textNodePath: [1, 0],
-      },
-    }));
-    persistSession();
-    const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
-    expect(parsed.changes[0].target.textNodePath).toEqual([1, 0]);
 
-    clearWorkspace();
-    document.body.replaceChildren(element);
-    hydrateSession();
-    expect(element.querySelector("path")).not.toBeNull();
-    expect(element.querySelector("span")?.textContent).toBe("Updated");
-    expect(getChangesList()[0]).toMatchObject({ target: { textNodePath: [1, 0] } });
-  });
-
-  it("serializes canonical structural deletes and moves without document-local artefacts", () => {
-    const parent = document.createElement("section");
-    parent.dataset.cid = "List";
-    parent.dataset.src = "src/List.tsx:4:1";
-    const first = document.createElement("button");
-    first.dataset.cid = "Item";
-    first.dataset.src = "src/List.tsx:8:1";
-    first.textContent = "First";
-    const second = first.cloneNode(true) as HTMLElement;
-    second.textContent = "Second";
-    parent.append(first, second);
-    document.body.append(parent);
-    createStructuralDelete(second, "delete-1");
-    createStructuralMove(first, { parent, before: null }, "move-1");
-
-    const json = JSON.stringify(serializeSession());
-    expect(json).toContain('"structuralChanges"');
-    expect(json).toContain('"kind":"delete"');
-    expect(json).toContain('"kind":"move"');
-    expect(json).not.toContain("nudge-ui-deleted");
-    expect(json).not.toContain("placeholder");
-    expect(json).not.toContain("elementId");
-  });
-
-  it("serializes token changes without element identity fields", () => {
-    appendChange(makeTokenChange());
-    persistSession();
-
-    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
-    const parsed = JSON.parse(raw!);
-    expect(parsed.changes).toHaveLength(1);
-    expect(parsed.changes[0].kind).toBe("token");
-    expect(parsed.changes[0].rawValue).toBe("#abcdef");
-    expect(parsed.changes[0].oldRawValue).toBe("#00ff00");
-  });
-
-  it("serializes canonical intent without preview diagnostics", () => {
-    // Guard against re-introducing transient preview state on the durable
-    // record: ElementChangeRecord has no previewResult field, so this can only
-    // fail if preview diagnostics leak back into canonical intent.
-    appendChange(makeElementChange());
-    const session = serializeSession();
-    const json = JSON.stringify(session);
-    expect(json).not.toContain("previewResult");
-    expect(json).not.toContain("computedValue");
-  });
 
   it("serializes card and camera state", () => {
     setCanvasMode("canvas");
@@ -357,7 +234,7 @@ describe("sessionStore persistence", () => {
     const parsed = JSON.parse(raw!);
     expect(parsed.mode).toBe("canvas");
     expect(parsed.cards).toHaveLength(1);
-    expect(parsed.cards[0].url).toBe(localUrl("/about"));
+    expect(parsed.cards[0].content.url).toBe(localUrl("/about"));
     expect(parsed.cards[0].title).toBe("About");
     expect(parsed.cards[0]).toMatchObject({ x: 24, y: 36, width: 731, height: 509 });
     expect(parsed.camera.x).toBe(100);
@@ -381,71 +258,40 @@ describe("sessionStore hydration", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("hydrates changes back into the change log", () => {
-    appendChange(makeElementChange());
-    appendChange(makeTokenChange());
+  it("restores the focused iteration from drafts after hydrating layout", () => {
+    const original = addCanvasCard(localUrl("/first"));
+    const artifactId = "550e8400-e29b-41d4-a716-446655440000";
+    const iteration = addCanvasIteration(original.id, artifactId)!;
+    loadDrafts(nudgeUiProjectId);
+    activateDraftForCard(original.id);
+    appendChange(makeElementChange({ rawValue: "red" }));
+    activateDraftForCard(iteration.id);
+    appendChange(makeElementChange({ rawValue: "blue" }));
+    focusCard(iteration.id);
     persistSession();
+    resetDrafts();
+    clearActiveDraft();
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
 
-    clearWorkspace();
-    expect(getChangesList()).toHaveLength(0);
+    expect(hydrateSession()).toEqual({ restored: true, changeCount: 0 });
+    expect(getChangesList()).toEqual([]);
+    loadDrafts(nudgeUiProjectId);
+    activateDraftForCard(getFocusedCardId()!);
 
-    const result = hydrateSession();
-    expect(result.restored).toBe(true);
-    expect(result.changeCount).toBe(2);
-    expect(getChangesList()).toHaveLength(2);
+    expect(getChangesList()).toMatchObject([{ rawValue: "blue" }]);
+    expect(getDraftContentsForCard(original.id)?.changes).toMatchObject([{ rawValue: "red" }]);
   });
 
-  it("hydrates structural changes without history and restores their document projection", () => {
-    const target = document.createElement("button");
-    target.dataset.cid = "Item";
-    target.dataset.src = "src/List.tsx:8:1";
-    target.textContent = "Second";
-    document.body.append(target);
-    createStructuralDelete(target, "delete-1");
+  it("restores geometry without replacing the current draft's intent", () => {
     persistSession();
-
-    resetStructuralDeleteProjection();
-    document.body.replaceChildren(target);
-    const result = hydrateSession();
-
-    expect(result.changeCount).toBe(1);
-    expect(getStructuralChanges()).toMatchObject([{ id: "delete-1", kind: "delete" }]);
-    expect(target.isConnected).toBe(false);
+    appendChange(makeElementChange({ rawValue: "purple" }));
+    expect(hydrateSession()).toEqual({ restored: true, changeCount: 0 });
+    expect(getChangesList()).toMatchObject([{ rawValue: "purple" }]);
   });
 
-  it("rejects structural payloads with generated marker or document-local fields", () => {
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify({
-      schemaVersion: SCHEMA_VERSION,
-      projectId: nudgeUiProjectId,
-      mode: "inspect",
-      inspectUrl: window.location.href,
-      cards: [],
-      camera: { x: 0, y: 0, zoom: 1 },
-      changes: [],
-      structuralChanges: [{
-        id: "delete-1",
-        kind: "delete",
-        target: {
-          sourceSite: { cid: "Item", src: "src/List.tsx:8:1" },
-          locator: { kind: "evidence", occurrence: 0, props: null, text: "Second" },
-        },
-        marker: "data-projection-instance",
-      }],
-    }));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
 
-  it("hydration creates no undo entries (restoreChangeRecords clears undo stack)", () => {
-    appendChange(makeElementChange());
-    persistSession();
 
-    clearWorkspace();
-    hydrateSession();
-
-    expect(getChangesList()).toHaveLength(1);
-  });
 
   it("hydrates canvas mode, cards, and camera", () => {
     setCanvasMode("canvas");
@@ -464,7 +310,7 @@ describe("sessionStore hydration", () => {
     expect(result.restored).toBe(true);
     expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toHaveLength(1);
-    expect(getCanvasCards()[0]!.url).toBe(localUrl("/about"));
+    expect(contentSourceUrl(getCanvasCards()[0]!.content)).toBe(localUrl("/about"));
     expect(getCanvasCards()[0]).toMatchObject({ x: 24, y: 36, width: 731, height: 509 });
     expect(getFocusedCardId()).toBe(card.id);
 
@@ -504,7 +350,6 @@ describe("sessionStore hydration", () => {
       mode: "inspect",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
-      changes: [],
     });
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
@@ -512,7 +357,7 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
-  it.each(["changes", "comparisonGroups"] as const)("discards a current session without %s", (field) => {
+  it.each(["cards", "camera", "clipboardHandoff"] as const)("discards a current session without %s", (field) => {
     const session = serializeSession() as unknown as Record<string, unknown>;
     delete session[field];
     localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
@@ -531,23 +376,7 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(legacyKey)).not.toBeNull();
   });
 
-  it("discards a current session with a non-array changes field", () => {
-    const session = serializeSession() as unknown as Record<string, unknown>;
-    session.changes = {};
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
-
-  it("discards a component change with a null target", () => {
-    const session = serializeSession() as unknown as Record<string, unknown>;
-    session.changes = [{ ...makeComponentChange(), target: null }];
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
-
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
 
   it("returns no restoration for project ID mismatch", () => {
     const session = JSON.stringify({
@@ -556,7 +385,6 @@ describe("sessionStore hydration", () => {
       mode: "inspect",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
-      changes: [],
     });
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
@@ -570,7 +398,6 @@ describe("sessionStore hydration", () => {
       mode: "unknown",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
-      changes: [],
     });
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
@@ -584,70 +411,16 @@ describe("sessionStore hydration", () => {
       mode: "canvas",
       cards: [{ id: 123, url: null }],
       camera: { x: 0, y: 0, zoom: 1 },
-      changes: [],
     });
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
 
-  it("returns no restoration for malformed change data (missing selector)", () => {
-    const session = JSON.stringify({
-      schemaVersion: SCHEMA_VERSION,
-      projectId: nudgeUiProjectId,
-      mode: "inspect",
-      cards: [],
-      camera: { x: 0, y: 0, zoom: 1 },
-      changes: [{ property: "color", source: { file: "x", line: 1, component: "X" } }],
-    });
-    localStorage.setItem(storageKey(nudgeUiProjectId), session);
-    const result = hydrateSession();
-    expect(result.restored).toBe(false);
-  });
 
-  it("rejects duplicate durable text IDs during hydration", () => {
-    const session = serializeSession();
-    session.changes = [
-      makeTextChange(),
-      makeTextChange({ id: "text-1", after: "Second" }),
-    ];
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
 
-  it("rejects a restored repeated expression source-site override", () => {
-    const session = serializeSession();
-    session.changes = [makeComponentChange() as typeof session.changes[number]];
-    const malformed = session.changes[0] as Extract<typeof session.changes[number], { kind: "component-prop" }>;
-    malformed.authoredAs = "expression";
-    malformed.scope = "source-site";
-    malformed.evidence = {
-      occurrence: 0,
-      props: null,
-      ariaLabel: null,
-      beforeText: "primary",
-      mountedCount: 2,
-    };
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
-
-  it.each(["marker", "projectionMarker", "scope"])("rejects malformed text records with legacy %s fields", (field) => {
-    const session = serializeSession();
-    const malformed = {
-      ...makeTextChange(),
-      [field]: field === "scope" ? "runtime-preview" : "data-projection-text",
-    };
-    session.changes = [malformed as typeof session.changes[number]];
-    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
-
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
-  });
 
   it("returns no restoration for bad camera data", () => {
     const session = JSON.stringify({
@@ -656,7 +429,6 @@ describe("sessionStore hydration", () => {
       mode: "inspect",
       cards: [],
       camera: { x: "not-a-number", y: 0, zoom: 1 },
-      changes: [],
     });
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
@@ -678,38 +450,57 @@ describe("sessionStore hydration", () => {
     expect(cards[0]!.title).toBeNull();
   });
 
-  it("round-trips agent comparison group ownership with its cards", () => {
+  it("round-trips agent-presented linked frames through the session", () => {
     setCanvasMode("canvas");
-    appendCanvasComparisonGroup({
-      id: "agent-landing-iterations",
-      label: "Landing page iterations",
-      agentId: "paired-agent",
-      routes: [
-        { url: localUrl("/landing-a"), label: "A" },
-        { url: localUrl("/landing-b"), label: "B" },
-      ],
-    });
+    setFrameGroup({ id: "agent-landing-iterations", kind: "agent", label: "Landing alternatives", agentId: "agent", routes: [{ url: localUrl("/landing-a") }, { url: localUrl("/landing-b") }] });
+    appendAgentRouteCards("agent-landing-iterations", [
+      { url: localUrl("/landing-a"), title: "A" },
+      { url: localUrl("/landing-b"), title: "B" },
+    ]);
     persistSession();
 
     for (const card of getCanvasCards()) removeCanvasCardStore(card.id);
-    expect(getCanvasComparisonGroups()).toEqual([]);
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
     hydrateSession();
+    expect(getFrameGroups()).toMatchObject([{ id: "agent-landing-iterations", kind: "agent", label: "Landing alternatives", agentId: "agent" }]);
 
-    expect(getCanvasComparisonGroups()).toMatchObject([{
-      id: "agent-landing-iterations",
-      label: "Landing page iterations",
-      owner: "agent",
-      agentId: "paired-agent",
-      routes: [{ label: "A" }, { label: "B" }],
-    }]);
-    expect(getCanvasCards()).toHaveLength(2);
-    expect(getCanvasCards().every((card) => card.comparisonGroupId === "agent-landing-iterations")).toBe(true);
+    expect(getCanvasCards().map((card) => ({ url: contentSourceUrl(card.content), title: card.title, groupId: card.groupId })))
+      .toEqual([
+        { url: localUrl("/landing-a"), title: "A", groupId: "agent-landing-iterations" },
+        { url: localUrl("/landing-b"), title: "B", groupId: "agent-landing-iterations" },
+      ]);
   });
 });
 
 describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
+
+  it("clears only the selected draft and preserves canvas geometry and other frame edits", () => {
+    resetDrafts();
+    const original = addCanvasCard(localUrl("/first"));
+    const artifactId = "550e8400-e29b-41d4-a716-446655440000";
+    const iteration = addCanvasIteration(original.id, artifactId)!;
+    loadDrafts(nudgeUiProjectId);
+    activateDraftForCard(original.id);
+    appendChange(makeElementChange({ rawValue: "red" }));
+    activateDraftForCard(iteration.id);
+    appendChange(makeElementChange({ rawValue: "blue" }));
+    selectCard(iteration.id);
+    setBoardCamera({ x: 100, y: 200, zoom: 0.7 });
+    const geometry = getCanvasCards();
+    try {
+      clearSelectedFrameChanges();
+      expect(getDraftContentsForCard(iteration.id)?.changes).toEqual([]);
+      expect(getDraftContentsForCard(original.id)?.changes[0]).toMatchObject({ rawValue: "red" });
+      expect(getCanvasCards()).toEqual(geometry);
+      expect(getBoardCamera()).toEqual({ x: 100, y: 200, zoom: 0.7 });
+      persistSession();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
+    } finally {
+      resetDrafts();
+    }
+  });
 
   it("removes localStorage entry", () => {
     appendChange(makeElementChange());
@@ -722,7 +513,7 @@ describe("sessionStore clear session", () => {
 
   it("clears all changes from the log", () => {
     appendChange(makeElementChange());
-    appendChange(makeTokenChange());
+    appendChange(makeElementChange({ property: "color", rawValue: "purple" }));
     expect(getChangesList()).toHaveLength(2);
 
     clearSession();
@@ -867,87 +658,10 @@ describe("sessionStore round trip", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("full round-trip preserves element changes", () => {
-    appendChange(makeElementChange());
-    appendChange(makeElementChange({
-      property: "color",
-      newToken: null,
-      oldToken: null,
-      rawValue: "red",
-    }));
-    persistSession();
 
-    clearWorkspace();
-    hydrateSession();
 
-    const restored = getChangesList();
-    expect(restored).toHaveLength(2);
-    expect(restored[0]!.property).toBe("background");
-    expect(restored[1]!.property).toBe("color");
-    expect((restored[1] as ElementChangeRecord).rawValue).toBe("red");
-  });
 
-  it("full round-trip preserves standalone source columns and runtime evidence", () => {
-    appendChange(makeElementChange({
-      cid: "nudge-ui-runtime-1",
-      file: "",
-      line: 0,
-      column: 0,
-      selector: '[data-cid="nudge-ui-runtime-1"][data-src="nudge-ui:unknown:1"]',
-      source: { file: "", line: 0, component: "nudge-ui-runtime-1" },
-      runtimeEvidence: {
-        tagName: "button",
-        text: "Save",
-        props: null,
-        ariaLabel: "Save changes",
-      },
-    }));
-    persistSession();
 
-    clearWorkspace();
-    hydrateSession();
-
-    expect(getChangesList()).toMatchObject([{
-      column: 0,
-      runtimeEvidence: {
-        tagName: "button",
-        text: "Save",
-        props: null,
-        ariaLabel: "Save changes",
-      },
-    }]);
-  });
-
-  it("full round-trip preserves token changes", () => {
-    appendChange(makeTokenChange());
-    persistSession();
-
-    clearWorkspace();
-    hydrateSession();
-
-    const restored = getChangesList();
-    expect(restored).toHaveLength(1);
-    expect(restored[0]!.kind).toBe("token");
-    if (restored[0]!.kind === "token") {
-      expect((restored[0] as TokenChangeRecord).rawValue).toBe("#abcdef");
-    }
-  });
-
-  it("full round-trip preserves typed component prop changes", () => {
-    appendChange(makeComponentChange());
-    persistSession();
-
-    clearWorkspace();
-    hydrateSession();
-
-    expect(getChangesList()).toMatchObject([{
-      kind: "component-prop",
-      target: { componentId: "src/ui/Button#Button" },
-      before: { kind: "value", value: "primary" },
-      after: "secondary",
-      authoredAs: "literal",
-    }]);
-  });
 
   it("full round-trip preserves canvas state", () => {
     setCanvasMode("canvas");
@@ -1005,4 +719,19 @@ describe("sessionStore exclusions", () => {
     expect(raw).not.toContain("previewResult");
     expect(raw).not.toContain("computedValue");
   });
+});
+
+it("restores the canvas presentation and preserves the camera when returning from Focus", () => {
+  addCanvasCard(localUrl("/page"));
+  setCanvasPresentation("canvas");
+  const camera = { x: 320, y: -80, zoom: 0.7 };
+  setBoardCamera(camera);
+  persistSession();
+  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  expect(hydrateSession().restored).toBe(true);
+  expect(getCanvasPresentation()).toBe("canvas");
+  setCanvasPresentation("focus");
+  setCanvasPresentation("canvas");
+  expect(getBoardCamera()).toEqual(camera);
+  resetAllState();
 });
