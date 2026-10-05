@@ -1,197 +1,127 @@
-# `@nudge-ui/mcp`
+# @nudge-ui/mcp
 
-> **Early alpha:** This integration can make breaking changes while host
-> support and the setup workflow stabilize.
+Send design changes from Nudge UI directly to your coding agent.
+`@nudge-ui/mcp` connects the browser editor to an MCP-capable agent so it can
+receive your edits, comments, and sketches, implement them, and report progress
+back to the editor.
 
-`@nudge-ui/mcp` connects a local Nudge inspector to an MCP-capable coding
-agent. The development server owns the browser bridge. The agent host starts a
-small stdio adapter installed independently of any checkout. Each tool call supplies
-the checkout or application being edited.
+It also lets the agent present app routes as labeled comparison groups in
+Canvas. For example, ask it to create design variations and show them side by
+side for review.
 
-## Configure an agent
+This package is an optional companion to
+[`nudge-ui`](https://www.npmjs.com/package/nudge-ui). You can use Nudge's copied
+prompts without installing it.
 
-Run `npx nudge-ui agent setup` from an application, or
-`npm create nudge-ui@latest -- --agent-only`. Setup installs:
+> **Early alpha:** Host support and setup are still evolving. Expect breaking
+> changes and differences in how agent hosts handle long-running listening calls.
 
-- A project-local `@nudge-ui/mcp` dependency for the development server's bridge.
-- A versioned adapter under `~/.nudge-ui/adapters/<initializer-version>/` using npm.
+## Get started
 
-Setup registers the adapter globally with an absolute Node executable and adapter
-entry path. The entry contains no application path, origin, or port. npm must be
-available even when the application uses pnpm, Yarn, or Bun. The adapter version
-comes from the initializer; the bridge version follows the application package.
-
-Before changing agent settings, setup starts a fresh MCP client, completes
-initialization, and checks that the tools support connection-time selection.
-This verifies the executable, not whether an already running agent host has
-reloaded it. Fully quit and restart the host after migration.
-
-When testing a local `@nudge-ui/mcp` tarball, pass the same artifact to setup:
+If Nudge UI is already installed, run this from the application directory:
 
 ```sh
-npx nudge-ui agent setup --mcp-package /absolute/path/to/nudge-ui-mcp.tgz
+npx nudge-ui agent setup
 ```
 
-This installs the local build for both the application's project bridge and the
-reusable adapter. Without the override, the adapter is intentionally resolved
-from the published registry and may not contain local changes.
+For a new Nudge installation, run `npm create nudge-ui@latest` and choose to
+connect a coding agent. To configure only the agent integration, use:
 
-Setup backs up existing `nudge_ui` settings, replaces the global entry, and removes
-the current project's overriding entry. Other agent settings are preserved.
-Run setup once in other projects that still have legacy overrides; setup does
-not scan unrelated repositories. New checkouts need the bridge dependency and
-framework integration, but no project-specific MCP registration.
+```sh
+npm create nudge-ui@latest -- --agent-only
+```
 
-To configure a host manually, use the Node executable and managed adapter entry
-printed by setup, with no `--workspace-root` argument. A bare `nudge-mcp` command
-also works if that executable is installed independently and available on the
-host's PATH.
+Then:
 
-Run diagnostics from an application:
+1. Fully restart your coding-agent host to load the MCP configuration.
+2. Start your app's development server and open Nudge in the browser.
+3. Ask the agent to **listen to Nudge in this workspace**.
+4. Make visual edits, add comments or sketches, and send the request from Nudge.
+
+The agent receives the request, applies it using its normal permissions and
+approval flow, verifies the result, reports status, and listens for the next
+request. Keep that agent turn active while sending changes. Delivery confirms
+that the agent received a request; it does not confirm implementation.
+
+## How it connects
+
+Setup installs two parts:
+
+- **Project bridge:** A local `@nudge-ui/mcp` development dependency. The Nudge
+  framework integration starts the bridge with your development server.
+- **Agent adapter:** A reusable MCP stdio process under `~/.nudge-ui/adapters/`,
+  registered globally with your selected agent hosts.
+
+The adapter discovers running apps through a private local session registry.
+It can serve multiple checkouts and Git worktrees without a separate agent
+registration for each one. Each app still needs its Nudge integration and
+bridge dependency. Setup requires npm for the reusable adapter, even if the app
+uses pnpm, Yarn, or Bun. The package requires Node.js 20 or later.
+
+## MCP tools
+
+| Tool | Purpose |
+| --- | --- |
+| `nudge_list_sessions` | Discover running apps in the requested workspace. |
+| `nudge_listen` | Wait for the next implementation request. `nudge_connect` is an alias. |
+| `nudge_get_status` | Read connection and request status. |
+| `nudge_report_activity` | Highlight Canvas frames associated with a file read or edit. |
+| `nudge_report_status` | Report working, completed, failed, or interrupted status. |
+| `nudge_read_canvas` | Read Canvas groups and focus. |
+| `nudge_present_routes` | Present same-origin app routes in a labeled comparison group. |
+| `nudge_focus_canvas_group` | Focus a comparison group. |
+| `nudge_fit_canvas` | Fit all frames into view. |
+| `nudge_remove_canvas_group` | Remove an agent-owned comparison group. |
+| `nudge_diagnose` | Diagnose local session discovery and connectivity. |
+| `nudge_release` | Stop listening and release the session for another agent. |
+
+Supply `workspaceRoot` on every tool call, using the absolute path of the
+checkout or application being edited. For example, call `nudge_list_sessions`
+with:
+
+```json
+{
+  "workspaceRoot": "/absolute/path/to/my-app"
+}
+```
+
+If multiple sessions match, select the app's `sessionId` and include it on
+subsequent calls alongside `workspaceRoot`. The adapter does not infer the
+current project from its working directory or select a different checkout as
+a fallback. One adapter can claim a session at a time.
+
+## Troubleshooting
+
+Run diagnostics from the app directory:
 
 ```sh
 npx nudge-ui agent doctor
 ```
 
-The doctor distinguishes descriptor, reachable, matching-unreachable, invalid,
-and incompatible-protocol counts. Failed loopback probes do not prove that a
-bridge never registered: a sandbox can block local networking. Retry diagnostics
-outside the command sandbox when appropriate. Credentials are never printed.
-The output includes the resolved registry path and the workspace/application
-scope, even when the registry has no sessions.
-The reusable MCP adapter exposes the same diagnostics through `nudge_diagnose`.
+Diagnostics report the registry path, workspace scope, reachable sessions, and
+invalid, unreachable, or incompatible registrations. If another agent owns the
+session, ask it to stop listening and call `nudge_release`.
 
-## Project integration
+After updating the adapter, fully restart the agent host. Updating the project's bridge dependency alone does not update the
+managed adapter. Update Nudge UI and rerun agent setup, or use the latest
+initializer's `--agent-only` mode to update the agent integration.
 
-Framework adapters start and stop the project bridge with the development
-server:
+The MCP adapter delivers requests through an active tool call. It cannot start
+a new agent turn after the host has ended the conversation or stopped waiting.
+If a listening call times out, ask the agent to listen again and adjust the
+host's MCP timeout if supported.
 
-```ts
-import { startProjectBridge } from "@nudge-ui/mcp/project";
+## Custom integrations
 
-const runtime = await startProjectBridge({
-  workspaceRoot: process.cwd(),
-  appRoot: process.cwd(),
-  projectId: "my-app",
-  origin: "http://localhost:5173",
-  allowedOrigins: ["http://127.0.0.1:5173"],
-});
+Guided setup handles standard framework and agent integrations. For manual
+stdio configuration, the `startProjectBridge` API, local tarball testing,
+and OpenCode configuration, see
+the [coding-agent guide](https://github.com/charlessmart/nudge-ui/blob/main/docs/agent-integration.md).
 
-// Give browser code only these non-secret values.
-console.log(runtime.browser.bridgeUrl, runtime.browser.projectId);
+## Links
 
-await runtime.close();
-```
-
-`origin` must be the actual canonical development origin after the framework
-chooses its port. `workspaceRoot` defaults to the Git worktree root when one is
-available and otherwise defaults to `appRoot`. `appRoot` distinguishes several
-applications running from one monorepo.
-
-Each live bridge registers a random session ID, canonical workspace and app
-paths, optional Git common directory and branch metadata, origin, and loopback
-endpoint. The descriptor is mode `0600` inside a mode `0700` registry. It also
-contains a private random credential used only between the bridge and adapter.
-
-The adapter lists live local sessions through `nudge_list_sessions`. Supply
-`workspaceRoot` on every tool call, including status, Canvas, and release. Use
-the absolute checkout root or application directory being edited. The adapter
-does not infer a task's project from its process working directory.
-
-For example, the first discovery call is:
-
-```json
-{
-  "name": "nudge_list_sessions",
-  "arguments": {
-    "workspaceRoot": "/path/to/nudge-examples"
-  }
-}
-```
-
-Selection is automatic only when the supplied scope contains one live session.
-If several applications match, also supply the chosen `sessionId` and repeat
-both arguments on subsequent calls. A workspace mismatch never falls back to
-the only session elsewhere. Independent selections can run concurrently within
-one MCP connection. Each selection stays bound to its application through
-restarts; old requests are not replayed. An explicit stale session ID requires
-rediscovery before listening again.
-
-Existing configurations with `--workspace-root` remain restricted to that scope
-until migrated. Branch names and shared Git metadata never authorize selecting
-another checkout.
-
-## OpenCode configuration
-
-The setup integration delegates OpenCode file handling to `add-mcp`. It
-preserves the documented V2 shape, `mcp.servers.<name>`, and also preserves the
-legacy `mcp.<name>` shape when that is what an existing file uses. Setup tests
-both layouts and migrates only the Nudge entry.
-
-OpenCode's CLI does not currently provide a Nudge-specific removal command. To
-remove only Nudge's registration, use `add-mcp` and select the scope explicitly:
-
-```sh
-npx add-mcp remove nudge_ui --global --agent opencode --yes
-npx add-mcp remove nudge_ui --agent opencode --yes
-```
-
-Run the first command for the global registration and the second for a project
-override. These commands leave other MCP servers in place.
-
-One adapter owns a selected project session until it closes. Other adapters
-receive a claimed-session error instead of taking browser work. A heartbeat
-allows the bridge to recover a claim after an adapter process is killed. Call
-`nudge_release` when the user stops listening so another adapter can claim the
-session without restarting the MCP host.
-
-## Request execution and host limitations
-
-Ask the agent to listen to Nudge and implement requests until you ask it to stop.
-Keep that turn active while sending changes from the browser. Both `nudge_listen`
-and its alias `nudge_connect` return an `implementation_request` with an explicit
-execution directive, the prompt, request ID, and supplied workspace and session
-scope. Existing `prompt`, revision, and sketch fields remain available.
-
-The agent implements the request using its host's normal approval flow, verifies
-the result, reports the outcome through `nudge_report_status`, and opens another
-listening call. A successful browser dispatch means the bridge delivered the
-request; it does not prove that the agent edited source files.
-
-An MCP tool result continues an active tool call. This adapter cannot start a new
-model turn after the host ends the conversation, abandons a background call, or
-stops consuming its result. Resuming an idle conversation requires a host-specific
-event-to-turn integration or a persistent runner that owns the agent session.
-The adapter does not launch another coding agent or bypass host permissions.
-These limitations apply to any agent harness using this listening workflow.
-
-Codex defaults to a 60-second MCP tool timeout. For longer waits, add
-`tool_timeout_sec = 3600` to the existing `[mcp_servers.nudge_ui]` section of
-`~/.codex/config.toml`, preserving its command and arguments. See the
-[Codex MCP configuration documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
-Other hosts have their own tool timeouts and background-call behavior. Increasing
-the timeout allows a longer active wait; it does not enable idle-turn wake-up.
-
-After updating the adapter, restart the agent host to reload the executable and
-server instructions. For local builds, use the tarball setup override described
-above; changing the project bridge alone does not update the managed adapter.
-
-## Legacy coupled mode
-
-Passing `--origin` retains the previous behavior in which the MCP process also
-owns its browser bridge:
-
-```sh
-pnpm exec nudge-mcp \
-  --project-id my-app \
-  --origin http://localhost:5173 \
-  --workspace-root /path/to/my-app
-```
-
-This deprecated mode prints a warning and remains available for custom
-integrations during migration. New framework integrations should use the
-project-owned bridge.
-
-The agent calls `nudge_listen`, applies the delivered prompt, reports the
-result through `nudge_report_status`, and listens again. Canvas tools remain
-limited to routes from the paired application origin and agent-owned groups.
+[Nudge UI](https://www.npmjs.com/package/nudge-ui) ·
+[Initializer](https://www.npmjs.com/package/create-nudge-ui) ·
+[Repository](https://github.com/charlessmart/nudge-ui) ·
+[Issues](https://github.com/charlessmart/nudge-ui/issues) ·
+[MIT license](https://github.com/charlessmart/nudge-ui/blob/main/LICENSE)

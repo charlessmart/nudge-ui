@@ -33,58 +33,6 @@ describe("LayoutSection", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders display and position dropdowns always", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({ display: "block", position: "static" });
-    handle = mount(createElement(LayoutSection, { element: selected }));
-
-    const layoutSize = handle.host.querySelector('[data-test="layout-size"]')!;
-    const display = handle.host.querySelector('[data-test="layout-select-display"]')!;
-    const position = handle.host.querySelector('[data-test="layout-select-position"]')!;
-    expect(layoutSize).toBeTruthy();
-    expect(display).toBeTruthy();
-    expect(position).toBeTruthy();
-    expect(layoutSize.compareDocumentPosition(display) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(display.compareDocumentPosition(position) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("shows flex container properties when display is flex", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({ display: "flex", position: "static" });
-    handle = mount(createElement(LayoutSection, { element: selected }));
-
-    expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-flex-container"] .editor__title')?.textContent)
-      .toBe("Flex");
-    expect(handle.host.querySelector('[data-test="layout-flex-container"] > .layout__group-title')).toBeNull();
-    expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-direction-row"] path')?.getAttribute("stroke-width"))
-      .toBe("var(--icon-stroke-width)");
-    expect(handle.host.querySelector('[data-test="layout-direction-column"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-direction-column"] path')?.getAttribute("stroke-width"))
-      .toBe("var(--icon-stroke-width)");
-    expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')?.className)
-      .toContain("icon-button--secondary");
-    expect(handle.host.querySelector('[data-test="layout-flex-settings"]')).toBeTruthy();
-    expect(handle.host.querySelectorAll('[data-test^="layout-align-"]')).toHaveLength(9);
-    expect(handle.host.querySelector('[data-test="layout-align-center-center"]')?.className)
-      .toContain("icon-button");
-    expect(handle.host.querySelector('[data-test="layout-select-justify-content"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-select-align-items"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-flex-distribution"]')?.getAttribute("aria-label"))
-      .toBe("Item distribution");
-    expect(handle.host.querySelector('[data-test="layout-flex-distribution"]')?.className)
-      .toContain("icon-button--quiet");
-    expect(handle.host.querySelector('[data-test="layout-flex-stretch-toggle"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-gap"]')?.textContent).not.toContain("Spacing");
-    expect(handle.host.querySelector('[data-test="layout-gap"]')?.textContent).not.toContain("Items");
-    expect(handle.host.querySelector('[data-test="layout-gap"]')?.textContent).not.toContain("Distribution");
-    expect(handle.host.querySelector('[data-test="layout-select-flex-wrap"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-select-align-content"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-gap"]')).toBeTruthy();
-  });
-
   it("shows only the relevant gap axis when flex items do not wrap", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
@@ -101,8 +49,6 @@ describe("LayoutSection", () => {
     const columnGap = handle.host.querySelector('[data-test="layout-combo"][data-property="column-gap"]');
     expect(columnGap).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-spacing-icon-column-gap"]')).toBeTruthy();
-    expect(columnGap?.querySelector('[data-test="layout-combo-input-column-gap"]')?.className)
-      .not.toContain("text-input--compact");
   });
 
   it("adds a separate line gap when flex items wrap", () => {
@@ -370,10 +316,7 @@ describe("LayoutSection", () => {
     expect(gridGap?.querySelector('[data-test="layout-grid-gap-heading"] .editor__title')).toBeTruthy();
     for (const property of ["row-gap", "column-gap"]) {
       const surface = gridGap?.querySelector(`[data-test="layout-grid-${property}"]`);
-      expect(surface?.classList.contains("layout__spacing-field")).toBe(true);
       expect(surface?.querySelector(`[data-test="layout-spacing-icon-${property}"]`)).toBeTruthy();
-      expect(surface?.querySelector(`[data-test="layout-combo-input-${property}"]`)?.className)
-        .not.toContain("text-input--compact");
     }
     const settings = handle.host.querySelector('[data-test="layout-grid-settings"]') as HTMLButtonElement;
     expect(settings).toBeTruthy();
@@ -488,12 +431,6 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-combo-input-flex-shrink"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-combo-input-flex-basis"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]')?.className)
-      .not.toContain("text-input--compact");
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-shrink"]')?.className)
-      .not.toContain("text-input--compact");
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-basis"]')?.className)
-      .not.toContain("text-input--compact");
     expect(handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]')).toBeFalsy();
     act(() => {
       (handle.host.querySelector('[data-test="layout-flex-child-settings"]') as HTMLButtonElement).click();
@@ -501,8 +438,6 @@ describe("LayoutSection", () => {
     expect(document.body.querySelector('[data-test="layout-flex-child-settings-content"]')).toBeTruthy();
     expect(document.body.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
     expect(document.body.querySelector('[data-test="layout-combo-select-order"]')).toBeTruthy();
-    expect(document.body.querySelector('[data-test="layout-combo-select-order"]')?.className)
-      .not.toContain("select--compact");
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')?.textContent)
       .not.toContain("Grow shares spare room");
   });

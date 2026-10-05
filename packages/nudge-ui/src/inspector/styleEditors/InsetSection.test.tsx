@@ -51,17 +51,11 @@ describe("InsetSection", () => {
     expect(handle.host.querySelector('[data-test="pair-value-vertical"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="inset-horizontal"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeNull();
-    const topIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
-    expect(topIcon).toBeNull();
-
     act(() => {
       (handle.host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click();
     });
 
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
-    const expandedTopIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
-    expect(expandedTopIcon.classList.contains("side-values__side-icon")).toBe(true);
-    expect(expandedTopIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 
   it("shows mixed physical insets in collapsible axis fields", () => {

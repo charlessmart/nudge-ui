@@ -19,7 +19,7 @@
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
-  cursor: help;
+  cursor: default;
 }
 
 .at-rule-indicator::before {

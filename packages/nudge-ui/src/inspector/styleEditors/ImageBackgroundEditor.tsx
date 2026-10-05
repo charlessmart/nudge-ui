@@ -37,13 +37,14 @@ interface ImageBackgroundEditorProps {
   elements: readonly HTMLElement[];
   value: string;
   mixed: boolean;
+  sizingValues?: { size: string; repeat: string };
   onUpload(value: string): boolean;
   onCss(value: string): boolean;
   onSizing(declarations: StyleDeclaration[]): boolean;
 }
 
 /** Preview uploaded images through the existing workspace style edits. */
-export function ImageBackgroundEditor({ element, elements, value, mixed, onUpload, onCss, onSizing }: ImageBackgroundEditorProps): ReactElement {
+export function ImageBackgroundEditor({ element, elements, value, mixed, sizingValues, onUpload, onCss, onSizing }: ImageBackgroundEditorProps): ReactElement {
   const input = useRef<HTMLInputElement>(null);
   const reader = useRef<FileReader | null>(null);
   const request = useRef(0);
@@ -55,8 +56,8 @@ export function ImageBackgroundEditor({ element, elements, value, mixed, onUploa
   const [sizingDraft, setSizingDraft] = useState<{ element: HTMLElement; revision: number; value: string } | null>(null);
   const src = mixed ? null : imageUrl(value);
   const title = src ? image?.src === src ? image.name : imageName(src, element.ownerDocument.baseURI) : null;
-  const computedSize = getStateStyleValue(element, "background-size", "auto");
-  const computedRepeat = getStateStyleValue(element, "background-repeat", "repeat");
+  const computedSize = sizingValues?.size ?? getStateStyleValue(element, "background-size", "auto");
+  const computedRepeat = sizingValues?.repeat ?? getStateStyleValue(element, "background-repeat", "repeat");
   const computedSizing = computedRepeat === "repeat" && /^(?:auto|auto auto)$/.test(computedSize) ? "tile"
     : computedSize === "auto auto" ? "auto" : computedSize;
   const sizing = sizingDraft?.element === element && sizingDraft.revision === getActiveDraftChanges().revision ? sizingDraft.value : computedSizing;

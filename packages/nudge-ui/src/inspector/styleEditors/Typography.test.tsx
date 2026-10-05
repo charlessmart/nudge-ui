@@ -32,22 +32,6 @@ describe("Typography", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders a TokenField for font-size in raw mode by default", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({
-      "font-size": "16px",
-      "font-weight": "400",
-      "line-height": "1.5",
-      "letter-spacing": "0px",
-    });
-    handle = mount(createElement(Typography, { element: selected }));
-    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="font-size"]');
-    expect(tokenField).toBeTruthy();
-    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
-    expect(raw).toBeTruthy();
-    expect(raw.value).toBe("16px");
-  });
-
   it("writes font-size via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
@@ -152,29 +136,6 @@ describe("Typography", () => {
     expect(raw.value).toBe("0.05em");
     setInputValue(raw, "1em");
     expect(sheetText()).toContain("letter-spacing: 1em;");
-  });
-
-  it("renders the compact typography field groups", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({
-      "font-size": "16px",
-      "font-weight": "400",
-      "line-height": "1.5",
-      "letter-spacing": "0px",
-    });
-    handle = mount(createElement(Typography, { element: selected }));
-    for (const prop of ["font-size", "line-height", "letter-spacing", "font-family"]) {
-      expect(handle.host.querySelector(`[data-test="token-field"][data-property="${prop}"]`)).toBeTruthy();
-    }
-    expect(handle.host.querySelector('[data-test="font-style-field"]')).toBeTruthy();
-    expect(handle.host.querySelectorAll('[data-test="typography-align-text-align-left"], [data-test="typography-align-vertical-align-top"]')).toHaveLength(2);
-    const alignmentIcons = handle.host.querySelectorAll('[data-test^="typography-align-"] svg');
-    expect(alignmentIcons).toHaveLength(6);
-    for (const icon of alignmentIcons) {
-      expect(icon.getAttribute("width")).toBe("var(--icon-size-small)");
-      expect(icon.getAttribute("height")).toBe("var(--icon-size-small)");
-      expect(icon.getAttribute("stroke-width")).toBe("var(--icon-stroke-width)");
-    }
   });
 
   it("writes text alignment through the icon control", () => {

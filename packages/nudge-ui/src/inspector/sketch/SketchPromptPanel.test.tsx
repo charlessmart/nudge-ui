@@ -34,8 +34,6 @@ describe("SketchPromptPanel", () => {
 
     const input = host.querySelector<HTMLTextAreaElement>('[data-test="sketch-prompt-input"]');
     if (!input) throw new Error("Sketch note input did not mount");
-    expect(input.rows).toBe(2);
-    expect(input.placeholder).toBe("Add a note to your sketch");
 
     act(() => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
@@ -69,7 +67,7 @@ describe("SketchPromptPanel", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("keeps Escape available for cancelling without rendering a cancel button", () => {
+  it("cancels the sketch note with Escape", () => {
     const onCancel = vi.fn();
     act(() => root.render(
       <SketchPromptPanel
@@ -81,14 +79,8 @@ describe("SketchPromptPanel", () => {
       />,
     ));
 
-    const prompt = host.querySelector('[data-test="sketch-prompt"]');
-    const footer = host.querySelector('[data-test="sketch-prompt"] .sketch__prompt-footer');
-    const cancel = host.querySelector<HTMLButtonElement>('[data-test="sketch-prompt-cancel"]');
     const input = host.querySelector<HTMLTextAreaElement>('[data-test="sketch-prompt-input"]');
-    if (!prompt || !footer || !input) throw new Error("Sketch prompt did not mount");
-    expect(prompt.querySelector(".sketch__prompt-input-surface")).toBeNull();
-    expect(prompt.querySelector<HTMLButtonElement>('[data-test="sketch-prompt-done"]')?.classList.contains("button--compact")).toBe(true);
-    expect(cancel).toBeNull();
+    if (!input) throw new Error("Sketch note input did not mount");
 
     act(() => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));

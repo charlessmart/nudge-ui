@@ -40,7 +40,7 @@
   flex-shrink: 0;
   width: 1px;
   height: var(--control-height-small);
-  margin-inline: var(--space-4);
+  margin-inline: 0;
   background: var(--border-subtle);
 }
 

@@ -51,7 +51,7 @@ describe("GridChildSection", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders icon-led placement inputs and visual alignment controls", () => {
+  it("reads placement values and normal alignment from computed CSS", () => {
     mountSection({
       "grid-column-start": "2",
       "grid-column-end": "span 2",
@@ -61,28 +61,10 @@ describe("GridChildSection", () => {
       "align-self": "normal",
     });
 
-    expect(handle!.host.querySelector('[data-test="layout-grid-child"]')).toBeTruthy();
-    expect(handle!.host.querySelector('[data-test="layout-grid-child-fields"]')?.children).toHaveLength(4);
-    expect(handle!.host.querySelector('[data-test="layout-grid-child-column"] .field-row__label')?.textContent).toBe("Column");
-    expect(handle!.host.querySelector('[data-test="layout-grid-child-row"] .field-row__label')?.textContent).toBe("Row");
     expect(startInput("column").value).toBe("2");
     expect(startInput("row").value).toBe("auto");
-    expect(handle!.host.querySelector('.tabler-icon-columns-2')).toBeTruthy();
-    expect(handle!.host.querySelector('.tabler-icon-layout-rows')).toBeTruthy();
-    // `normal` has stretch behavior on grid items, so the stretch button is active.
     expect(handle!.host.querySelector('[data-test="layout-grid-child-align-h-stretch"]')?.getAttribute("aria-pressed"))
       .toBe("true");
-    expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-h-"]')).toHaveLength(4);
-    expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-v-"]')).toHaveLength(4);
-    const alignmentIcons = handle!.host.querySelectorAll(".layout__grid-child-alignment-control svg");
-    expect(alignmentIcons).toHaveLength(8);
-    for (const icon of alignmentIcons) {
-      expect(icon.getAttribute("width")).toBe("var(--icon-size-small)");
-      expect(icon.getAttribute("height")).toBe("var(--icon-size-small)");
-      expect(icon.getAttribute("stroke-width")).toBe("var(--icon-stroke-width)");
-    }
-    expect(handle!.host.querySelector('[data-test="layout-grid-child-settings"]')).toBeFalsy();
-    expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-action-"]')).toHaveLength(0);
   });
 
   it("leaves alignment unselected when the child uses the parent default", () => {

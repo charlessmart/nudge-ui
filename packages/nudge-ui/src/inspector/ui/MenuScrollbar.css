@@ -1,0 +1,19 @@
+:is(.select__popup, .select__list--searchable, .popover-listbox__popup, .popover-listbox__list--searchable, .settings__body, .settings__nav, .settings__content) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+:is(.select__popup, .select__list--searchable, .popover-listbox__popup, .popover-listbox__list--searchable, .settings__body, .settings__nav, .settings__content)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:is(.select__popup, .select__list--searchable, .popover-listbox__popup, .popover-listbox__list--searchable, .settings__body, .settings__nav, .settings__content)::-webkit-scrollbar-track,
+:is(.select__popup, .select__list--searchable, .popover-listbox__popup, .popover-listbox__list--searchable, .settings__body, .settings__nav, .settings__content)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:is(.select__popup, .select__list--searchable, .popover-listbox__popup, .popover-listbox__list--searchable, .settings__body, .settings__nav, .settings__content)::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-4);
+}

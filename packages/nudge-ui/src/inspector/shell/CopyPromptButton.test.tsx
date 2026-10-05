@@ -411,7 +411,7 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     expect(container.querySelector('[data-test="agent-verified-hint"]')?.textContent)
-      .toBe("Agent changes verified.");
+      .toBe("Changes implemented");
     expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
   });

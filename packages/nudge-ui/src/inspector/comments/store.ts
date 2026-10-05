@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { isRenderedInstanceRef, type RenderedInstanceRef } from "../changes/editModel.ts";
 import { useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
 import { contentEditTarget } from "../canvas/frameContent.ts";
 import { documentTarget, targetKey, type DraftTarget } from "../drafts/model.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -18,6 +19,7 @@ export interface ElementComment {
 
 let comments: readonly ElementComment[] = [];
 let loadedKey: string | null = null;
+let loadedDemo = false;
 const listeners = new Set<() => void>();
 const toolListeners = new Set<() => void>();
 let commentToolActive = false;
@@ -36,10 +38,12 @@ function isComment(value: unknown): value is ElementComment {
 
 export function getComments(): readonly ElementComment[] {
   const key = storageKey();
-  if (loadedKey !== key) {
+  const demo = getNudgeUiRuntimeConfig().demo === true;
+  if (loadedKey !== key || loadedDemo !== demo) {
     loadedKey = key;
+    loadedDemo = demo;
     try {
-      const saved: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+      const saved: unknown = demo ? [] : JSON.parse(localStorage.getItem(key) ?? "[]");
       comments = Array.isArray(saved) ? saved.filter(isComment) : [];
     } catch {
       comments = [];
@@ -48,9 +52,19 @@ export function getComments(): readonly ElementComment[] {
   return comments;
 }
 
+export function loadComments(): void {
+  loadedKey = null;
+  clearRevision += 1;
+  getComments();
+  for (const listener of listeners) listener();
+}
+
 function publish(next: readonly ElementComment[]): void {
+  if (!canWriteWorkspace()) return;
   comments = next;
-  try { localStorage.setItem(storageKey(), JSON.stringify(next)); } catch { /* Keep comments in memory when storage is unavailable. */ }
+  if (getNudgeUiRuntimeConfig().demo !== true) {
+    try { localStorage.setItem(storageKey(), JSON.stringify(next)); } catch {}
+  }
   for (const listener of listeners) listener();
 }
 
@@ -89,6 +103,7 @@ export function getCommentClearRevision(): number { return clearRevision; }
 
 /** Clears saved notes and invalidates any open or saving comment draft. */
 export function clearComments(target?: DraftTarget): void {
+  if (!canWriteWorkspace()) return;
   getComments();
   clearRevision += 1;
   const cleared = new Set((target ? getCommentsForTarget(target) : getComments()).map((comment) => comment.id));

@@ -2,7 +2,7 @@ import { getDraftChanges } from "../changes/draftChanges.ts";
 import { documentTarget, targetKey } from "../drafts/model.ts";
 import { isCanvasProjectionRevisionCurrent, projectDraftToDocument } from "../canvas/projection.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
-import { commentRoute, getComments, removeComment } from "./store.ts";
+import { commentRoute, getCommentClearRevision, getComments, removeComment } from "./store.ts";
 
 const documentReads = new WeakMap<Document, Promise<unknown>>();
 const readingDocuments = new WeakSet<Document>();
@@ -34,6 +34,7 @@ export function readCommentSource<T>(doc: Document, read: () => T): Promise<T | 
 
 /** Changed, uniquely located elements resolve after handoff; missing and ambiguous targets remain. */
 export async function reconcileComments(doc: Document): Promise<void> {
+  const revision = getCommentClearRevision();
   const sent = getComments().filter((item) => item.handedOff && item.route === commentRoute(doc));
   if (sent.length === 0) return;
   const resolved = await readCommentSource(doc, () => sent.filter((item) => {
@@ -41,6 +42,7 @@ export async function reconcileComments(doc: Document): Promise<void> {
     const element = resolveCommentElement(doc, item.target);
     return element !== null && commentFingerprint(element) !== item.baseline;
   }));
+  if (revision !== getCommentClearRevision()) return;
   for (const item of resolved ?? []) {
     if (getComments().some((current) => current.id === item.id && current.note === item.note && current.handedOff)) removeComment(item.id);
   }

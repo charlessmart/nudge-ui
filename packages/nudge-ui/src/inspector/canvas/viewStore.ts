@@ -62,7 +62,7 @@ export function setCanvasPresentation(next: CanvasPresentation): void {
   notify();
 }
 
-/** Shift temporarily enables app interaction without changing the selected tool. */
+/** Holding A temporarily enables app interaction without changing the selected tool. */
 export function setTemporaryAppInteraction(value: boolean): void {
   if (temporaryAppInteraction === value) return;
   temporaryAppInteraction = value;

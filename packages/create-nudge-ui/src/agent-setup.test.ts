@@ -5,6 +5,7 @@ import { agents } from "add-mcp";
 import { afterEach, describe, expect, it } from "vitest";
 import { configureProjectAgents, manualAgentConfiguration, planAgentSetup } from "./agent-setup.ts";
 
+const releaseVersion = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 const temporaryDirectories: string[] = [];
 const originalCodexPath = agents.codex.configPath;
 const originalCodexDetectGlobalInstall = agents.codex.detectGlobalInstall;
@@ -40,7 +41,7 @@ describe("reusable agent setup", () => {
     expect(JSON.stringify(a.serverConfig)).not.toContain(second.projectRoot);
     expect(JSON.stringify(a.serverConfig)).not.toContain("--workspace-root");
     expect(a.packageSpecifier).toBe("@nudge-ui/mcp@0.1.9");
-    expect(a.adapterInstallCommand.args).toContain("@nudge-ui/mcp@0.2.2");
+    expect(a.adapterInstallCommand.args).toContain(`@nudge-ui/mcp@${releaseVersion}`);
   });
 
   it("uses a local MCP tarball for both the project bridge and reusable adapter", () => {

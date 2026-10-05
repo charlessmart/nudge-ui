@@ -314,7 +314,7 @@ export interface WheelPanMessage extends RendererMessage {
   deltaY: number;
 }
 
-/** Keeps held Shift synchronized when keyboard focus moves into an iframe. */
+/** Keeps the A key state synchronized when keyboard focus moves into an iframe. */
 export interface AppInteractionModifierMessage extends RendererMessage {
   type: "app-interaction-modifier";
   held: boolean;

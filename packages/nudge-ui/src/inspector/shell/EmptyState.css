@@ -21,6 +21,7 @@
 
 .empty-state__canvas .empty-state__title {
   margin-bottom: var(--space-24);
+  font-weight: var(--font-weight-label);
 }
 
 .empty-state__canvas p {

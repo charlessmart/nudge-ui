@@ -83,7 +83,7 @@ function SketchLayer({
         <span className="sketch-layers__copy-label">
           {copied
             ? <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
-            : <IconCopy size="var(--icon-size-small)" aria-hidden="true" />}
+            : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
           <span className="sketch-layers__name">
             {copied ? "Copied" : `Copy sketch note${multiple ? ` ${index + 1}` : ""}`}
           </span>

@@ -70,13 +70,13 @@ export async function createIteration(cardId: string, position?: { x: number; y:
   }
 }
 
-/** Removes a frame and discards its draft's history once no frame shows that content. */
-export function removeFrame(cardId: string): boolean {
+export function removeFrame(cardId: string, { undoable = true }: { undoable?: boolean } = {}): boolean {
   const card = getCanvasCards().find((candidate) => candidate.id === cardId);
-  if (!card || isDraftLocked()) return false;
+  if (!card || isDraftLocked() || !canWriteWorkspace()) return false;
   const draftId = draftIdForContent(card.content);
   batchCanvasChanges(() => {
-    removeCanvasCard(cardId);
+    removeCanvasCard(cardId, { undoable });
+    if (undoable) return;
     if (getCanvasCards().some((candidate) => draftIdForContent(candidate.content) === draftId)) return;
     if (card.content.kind === "iteration") forgetDraft(draftId);
     else discardDraftHistory(draftId);

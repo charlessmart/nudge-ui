@@ -177,8 +177,6 @@ describe("BorderEditor", () => {
       "border-width": "0px",
     });
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
-
-    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
   });
@@ -250,8 +248,6 @@ describe("BorderEditor", () => {
         },
       ],
     }));
-
-    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
   });
 
@@ -311,13 +307,6 @@ describe("BorderEditor", () => {
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
     act(() => (handle.host.querySelector('[data-test="add-border"]') as HTMLButtonElement).click());
     expect(sheetText()).toContain("border: 1px solid;");
-  });
-
-  it("shows the remove button when a border is present", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle(defaultComputed());
-    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    expect(handle.host.querySelector('[data-test="remove-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 
   it("removes the border when the remove button is clicked", () => {

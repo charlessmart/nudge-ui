@@ -25,7 +25,7 @@ confusing an experiment with the live app.
 Open Nudge on the current page in **Focus** view. Switch to **Canvas** to pan,
 zoom, arrange frames, and resize their viewports. Focus any frame for detailed
 work, then return to the same canvas arrangement. Use **Use app normally**, or
-hold Shift on the canvas, to interact with the page instead of selecting elements
+hold `A` on the canvas, to interact with the page instead of selecting elements
 for editing.
 
 ### 2. Compare responsive layouts and related pages

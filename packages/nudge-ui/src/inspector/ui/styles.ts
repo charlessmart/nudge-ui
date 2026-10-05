@@ -13,6 +13,7 @@ import disclosureStyles from "./Disclosure.css?inline";
 import statusCalloutStyles from "./StatusCallout.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
+import menuScrollbarStyles from "./MenuScrollbar.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import tooltipStyles from "./Tooltip.css?inline";
@@ -53,6 +54,7 @@ export const UI_STYLES = [
   statusCalloutStyles,
   colorSwatchStyles,
   popoverListboxStyles,
+  menuScrollbarStyles,
   inspectorPopoverStyles,
   sideValuesFieldStyles,
   tooltipStyles,

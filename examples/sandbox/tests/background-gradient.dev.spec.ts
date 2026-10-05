@@ -10,7 +10,7 @@ function field(page: import("@playwright/test").Page, label: string) {
 async function selectGradient(page: import("@playwright/test").Page): Promise<void> {
   await openEditor(page, "/color-conformance");
   const frame = await getAppFrame(page);
-  await frame.addStyleTag({ content: `${SUBJECT} { --gradient-start: #ef4444; background-image: linear-gradient(35deg, var(--gradient-start) 0%, rgba(0, 0, 255, .4) 100%); }` });
+  await frame.addStyleTag({ content: `${SUBJECT} { --gradient-start: #ef4444; background-color: transparent; background-image: linear-gradient(35deg, var(--gradient-start) 0%, rgba(0, 0, 255, .4) 100%); }` });
   await appLocator(page, SUBJECT).click();
   await expect(field(page, "Gradient angle")).toHaveValue("35deg");
 }
@@ -64,7 +64,7 @@ test("dev: clicking the track adds stops and dragging preserves the selected col
 
 test("dev: switches between image, solid, and new gradient backgrounds", async ({ page }) => {
   await selectGradient(page);
-  await page.getByRole("button", { name: "Image", exact: true }).click();
+  await page.locator(".background-editor__layer").first().getByRole("button", { name: "Image", exact: true }).click();
   await page.locator('[data-test="background-image-upload"]').setInputFiles({
     name: "test-background.svg", mimeType: "image/svg+xml",
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="#2563eb"/><circle cx="60" cy="40" r="25" fill="#ef4444"/></svg>'),
@@ -77,9 +77,9 @@ test("dev: switches between image, solid, and new gradient backgrounds", async (
   await page.getByRole("option", { name: "Fit", exact: true }).click();
   await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundSize)).toBe("contain");
   await page.screenshot({ path: "/tmp/nudge-image-background.png" });
-  await page.getByRole("button", { name: "Solid", exact: true }).click();
-  await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundImage)).toBe("none");
-  await page.getByRole("button", { name: "Gradient", exact: true }).click();
+  await page.locator(".background-editor__layer").first().getByRole("button", { name: "Solid", exact: true }).click();
+  await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("linear-gradient(rgb(255, 255, 255), rgb(255, 255, 255))");
+  await page.locator(".background-editor__layer").first().getByRole("button", { name: "Gradient", exact: true }).click();
   await expect(field(page, "Gradient angle")).toHaveValue("90deg");
   await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("linear-gradient(90deg");
 });
@@ -130,11 +130,57 @@ test("dev: inspects an existing CSS image and undoes sizing changes", async ({ p
 
 test("dev: rejects an unreadable image without changing the background", async ({ page }) => {
   await selectGradient(page);
-  await page.getByRole("button", { name: "Image", exact: true }).click();
+  await page.locator(".background-editor__layer").first().getByRole("button", { name: "Image", exact: true }).click();
   await page.locator('[data-test="background-image-upload"]').setInputFiles({
     name: "broken.png", mimeType: "image/png", buffer: Buffer.from("not image data"),
   });
   await expect(page.getByRole("alert")).toContainText("This image could not be loaded");
   await expect(page.getByRole("button", { name: "Upload image", exact: true })).toBeEnabled();
   await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundImage)).toBe("none");
+});
+
+
+test("dev: edits and blends stacked backgrounds while preserving the image and base color", async ({ page }) => {
+  await page.route("**/layered-background.svg", (route) => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="24"><rect width="48" height="24" fill="green"/></svg>',
+  }));
+  await openEditor(page, "/color-conformance");
+  const frame = await getAppFrame(page);
+  await frame.addStyleTag({ content: `${SUBJECT} { background-color: rgb(20, 40, 60); background-image: linear-gradient(35deg, red, transparent), url("/layered-background.svg"); background-size: auto, contain; }` });
+  await appLocator(page, SUBJECT).click();
+  const layers = page.locator(".background-editor__layer");
+  await expect(layers).toHaveCount(3);
+  await field(page, "Background Color").fill("#14283c");
+  await field(page, "Background Color").blur();
+  await field(page, "Gradient angle").fill("120");
+  await field(page, "Gradient angle").blur();
+  const blend = layers.nth(0).getByRole("combobox", { name: "Background blending mode" });
+  await expect(layers.nth(2).getByRole("combobox", { name: "Background blending mode" })).toHaveCount(0);
+  await expect.poll(() => blend.locator("svg").last().evaluate((icon) => {
+    const style = getComputedStyle(icon);
+    return { width: style.width, height: style.height, strokeWidth: style.strokeWidth };
+  })).toEqual({ width: "16px", height: "16px", strokeWidth: "1.5px" });
+  await blend.click();
+  await expect.poll(async () => {
+    const trigger = await blend.boundingBox();
+    const popup = await page.locator(".select__popup").boundingBox();
+    if (!trigger || !popup) return Infinity;
+    return Math.max(
+      Math.abs(popup.x + popup.width - trigger.x - trigger.width),
+      Math.abs(popup.y + popup.height - trigger.y + 4),
+    );
+  }).toBeLessThan(8);
+  await page.getByRole("option", { name: "Multiply", exact: true }).click();
+  await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { image: style.backgroundImage, color: style.backgroundColor, blend: style.backgroundBlendMode, size: style.backgroundSize };
+  })).toMatchObject({
+    image: expect.stringContaining("120deg"), color: "rgb(20, 40, 60)", blend: "multiply, normal", size: "auto, contain",
+  });
+  await expect(page.getByAltText("Background image thumbnail")).toBeVisible();
+  await page.screenshot({ path: "/tmp/nudge-background-layers.png" });
+  await layers.nth(0).getByRole("button", { name: "Remove background layer" }).click();
+  await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("layered-background.svg");
+  await expect.poll(() => appLocator(page, SUBJECT).evaluate((el) => getComputedStyle(el).backgroundSize)).toBe("contain");
 });

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowsDiff, IconMinus, IconPlus } from "@tabler/icons-react";
+import { IconArrowsDiff, IconDroplet, IconMinus, IconPlus } from "@tabler/icons-react";
 import { replaceColorPreservingOpacity, withColorOpacity } from "../../css/value-semantics/colorSemantics.ts";
 import { interpretTokenValue } from "../../css/value-semantics/tokenInterpretation.ts";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
@@ -15,19 +15,75 @@ import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { Select } from "../ui/Select.tsx";
 import { ImageBackgroundEditor } from "./ImageBackgroundEditor.tsx";
 import type { StyleDeclaration } from "../tokens/editActions.ts";
-import { ColorPicker, isEmptyColorValue } from "./ColorPicker.tsx";
+import { backgroundDeclarations, backgroundMode, BACKGROUND_BLEND_MODES, newBackgroundLayer, readBackgroundLayers } from "./backgroundLayers.ts";
+import type { BackgroundLayer, BackgroundMode } from "./backgroundLayers.ts";
 import type { ColorPickerProps } from "./ColorPicker.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { defaultGradient, parseGradient, serializeGradient } from "./gradientValue.ts";
 import type { GradientStop, GradientType, GradientValue } from "./gradientValue.ts";
 
-type BackgroundMode = "solid" | "gradient" | "image";
 const MODES = [{ value: "solid", label: "Solid" }, { value: "gradient", label: "Gradient" }, { value: "image", label: "Image" }] as const;
 const TYPES = [{ value: "linear", label: "Linear" }, { value: "radial", label: "Radial" }, { value: "conic", label: "Conic" }];
 
-function backgroundMode(value: string): BackgroundMode {
-  if (!value || value === "none") return "solid";
-  return /(?:repeating-)?(?:linear|radial|conic)-gradient\(/.test(value) ? "gradient" : "image";
+/** Background layers are displayed in CSS paint order, with the top layer first. */
+export function BackgroundEditor(props: ColorPickerProps): ReactElement {
+  const { element, selection, onAfterEdit } = props;
+  const el = element.domElement;
+  const elements = selection?.domElements ?? [el];
+  const source = readBackgroundLayers((property, fallback) => getStateStyleValue(el, property, fallback));
+  const base = source.at(-1);
+  const authoredColor = props.tokenRow?.property === "background-color"
+    ? props.tokenRow.authored ?? props.tokenRow.declaredValue : undefined;
+  if (base?.baseColor && authoredColor) {
+    const table = Object.fromEntries((props.entries ?? getNudgeUiTokenEntries()).map((entry) => [entry.name, entry]));
+    const resolved = interpretTokenValue(authoredColor, { table }).resolvedValue;
+    if (colorValueToHex(resolved) && colorValueToHex(resolved) === colorValueToHex(base.value)) base.value = authoredColor;
+  }
+  const [draft, setDraft] = useState<{ element: HTMLElement; elements: readonly HTMLElement[]; revision: number; layers: BackgroundLayer[] } | null>(null);
+  const activeDraft = draft?.element === el && draft.revision === getActiveDraftChanges().revision
+    && draft.elements.length === elements.length && draft.elements.every((element, index) => element === elements[index]) ? draft : null;
+  const layers = activeDraft?.layers ?? source;
+  const properties = ["background-color", "background-image", "background-blend-mode", "background-size", "background-repeat", "background-position"];
+  const mixed = !activeDraft && elements.some((element) => properties.some((property) =>
+    selection?.getProperty(property)?.value.kind === "mixed"
+      || getStateStyleValue(element, property) !== getStateStyleValue(el, property)));
+  const blockedBy = inlineBlockedBy(elements, ...properties);
+
+  function commit(next: BackgroundLayer[]): boolean {
+    const previous = backgroundDeclarations(layers);
+    const declarations = backgroundDeclarations(next).filter((declaration) =>
+      mixed || previous.find((current) => current.property === declaration.property)?.value !== declaration.value);
+    if (inlineBlockedBy(elements, ...declarations.map((declaration) => declaration.property))) return false;
+    if (declarations.length && !setStyles(selection?.target ?? el, declarations).length) return false;
+    setDraft({ element: el, elements: [...elements], revision: getActiveDraftChanges().revision, layers: next });
+    onAfterEdit?.();
+    return true;
+  }
+
+  return <div className="editor background-editor" data-test="background-editor">
+    <div className="editor__title-row">
+      <div className="editor__title">Background</div>
+      <InlineStyleWarning blockedBy={blockedBy} />
+      <IconButton variant="quiet" label="Add background layer" disabled={blockedBy !== null}
+        onClick={() => commit([{ ...newBackgroundLayer(), baseColor: mixed || layers.length === 0 }, ...(mixed ? [] : layers)])}>
+        <IconPlus aria-hidden="true" />
+      </IconButton>
+    </div>
+    {mixed ? <div className="background-editor__hint">Mixed backgrounds. Add a layer to replace them.</div> : layers.map((layer, index) =>
+      <div className="background-editor__layer" role="group" aria-label={`Background layer ${index + 1}`} key={index}>
+        <BackgroundLayerEditor {...props} layer={layer} baseColor={layer.baseColor && layer.mode === "solid"} bottomLayer={index === layers.length - 1}
+          onChange={(next) => commit(layers.map((current, i) => i === index ? next : current))}
+          onRemove={() => commit(layers.filter((_, i) => i !== index))} />
+      </div>)}
+  </div>;
+}
+
+interface BackgroundLayerEditorProps extends ColorPickerProps {
+  layer: BackgroundLayer;
+  baseColor: boolean;
+  bottomLayer: boolean;
+  onChange(layer: BackgroundLayer): boolean;
+  onRemove(): void;
 }
 
 function previewColor(color: ReturnType<typeof interpretTokenValue>): string {
@@ -35,39 +91,34 @@ function previewColor(color: ReturnType<typeof interpretTokenValue>): string {
   return result?.ok ? result.value : color.resolvedValue;
 }
 
-/** Edit computed background images without interpreting gradient tokens. */
-export function BackgroundEditor(props: ColorPickerProps): ReactElement {
-  const { element, selection, onAfterEdit, entries } = props;
+function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement {
+  const { element, selection, entries, layer, baseColor, bottomLayer, onChange, onRemove } = props;
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const tokenTable = Object.fromEntries(allEntries.map((entry) => [entry.name, entry]));
   const el = element.domElement;
   const elements = selection?.domElements ?? [el];
-  const target = selection?.target ?? el;
-  const source = getStateStyleValue(el, "background-image", "none");
-  const [draft, setDraft] = useState<{ element: HTMLElement; revision: number; value: string; mode: BackgroundMode; gradient?: GradientValue; elements: readonly HTMLElement[] } | null>(null);
-  // The renderer applies workspace edits asynchronously. Keep this revision
-  // authoritative until another edit or undo changes the workspace.
-  const activeDraft = draft?.element === el && draft.revision === getActiveDraftChanges().revision
-    && draft.elements.length === elements.length && draft.elements.every((element, index) => element === elements[index]) ? draft : null;
-  const value = activeDraft?.value ?? source;
-  const mode = activeDraft?.mode ?? backgroundMode(value);
-  const mixed = selection && selection.domElements.length > 1
-    && (selection.getProperty("background-image")?.value.kind === "mixed"
-      || elements.some((element) => getStateStyleValue(element, "background-image", "none") !== source));
-  const gradient = mixed && !activeDraft ? null : activeDraft?.gradient ?? parseGradient(value);
-  const blockedBy = inlineBlockedBy(elements, "background-image");
+  const { value, mode } = layer;
+  const gradient = layer.gradient ?? parseGradient(value);
+  const blockedBy = inlineBlockedBy(elements, baseColor ? "background-color" : "background-image");
   const dragCommit = useRef<ReturnType<typeof createChangeHistoryGroup> | null>(null);
 
   function commit(nextValue: string, nextMode: BackgroundMode = backgroundMode(nextValue), nextGradient?: GradientValue, declarations: StyleDeclaration[] = []): boolean {
-    if (blockedBy || !setStyles(target, [{ property: "background-image", value: nextValue }, ...declarations]).length) return false;
-    setDraft({ element: el, revision: getActiveDraftChanges().revision, value: nextValue, mode: nextMode, gradient: nextGradient, elements });
-    onAfterEdit?.();
-    return true;
+    if (blockedBy) return false;
+    const next = {
+      ...layer, value: nextValue, mode: nextMode, gradient: nextGradient,
+      baseColor: layer.baseColor || (nextMode === "solid" && mode !== "solid" && bottomLayer),
+    };
+    for (const declaration of declarations) {
+      if (declaration.property === "background-size") next.size = declaration.value;
+      if (declaration.property === "background-repeat") next.repeat = declaration.value;
+      if (declaration.property === "background-position") next.position = declaration.value;
+    }
+    return onChange(next);
   }
   function commitGradient(next: GradientValue): void { commit(serializeGradient(next), "gradient", next); }
   function changeMode(next: BackgroundMode): void {
-    if (next === mode && !mixed) return;
-    if (next === "solid") commit("none", next);
+    if (next === mode) return;
+    if (next === "solid") commit("#ffffff", next);
     else if (next === "gradient") commitGradient(defaultGradient());
     else commit("none", next);
   }
@@ -96,33 +147,52 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
       entries={[]} committedValue={current} label={label} mixed={mixedValue} blockedBy={blockedBy}
       onCommitRaw={onCommit} onSelectToken={() => false} onUnlink={onCommit} /></ControlSurface>;
   }
-  const toolbar = <SegmentedControl aria-label="Background type" value={mixed && !activeDraft ? null : mode}
-    options={MODES} onChange={changeMode} disabled={blockedBy !== null} />;
+  const toolbar = <div className="background-editor__type-row">
+    <SegmentedControl aria-label="Background type" value={mode}
+      options={MODES} onChange={changeMode} disabled={blockedBy !== null} />
+    {!baseColor ? <Select iconOnly aria-label="Background blending mode" title={`Blend mode: ${layer.blend}`}
+      value={layer.blend} options={BACKGROUND_BLEND_MODES}
+      popupPosition={{ side: "top", align: "end" }}
+      disabled={inlineBlockedBy(elements, "background-blend-mode") !== null}
+      onValueChange={(blend) => onChange({ ...layer, blend })}>
+      <IconDroplet aria-hidden="true" />
+    </Select> : <span className="background-editor__blend-space" aria-hidden="true" />}
+    <IconButton variant="quiet" label="Remove background layer" disabled={blockedBy !== null}
+      onClick={onRemove}><IconMinus aria-hidden="true" /></IconButton>
+  </div>;
 
-  if (mode === "solid" && (!mixed || activeDraft)) return <ColorPicker {...props} property="background-color" title="Background" toolbar={toolbar}
-    present={elements.some((element) => !isEmptyColorValue(getStateStyleValue(element, "background-color")))} />;
-
-  return <div className="editor background-editor" data-test="background-editor">
-    <div className="editor__title-row">
-      <div className="editor__title">Background</div>
-      <InlineStyleWarning blockedBy={blockedBy} />
-      <IconButton variant="quiet" label="Remove background image" disabled={blockedBy !== null || value === "none"}
-        onClick={() => commit("none", "solid")}><IconMinus size={16} aria-hidden="true" /></IconButton>
-    </div>
+  const color = interpretTokenValue(value, { table: tokenTable });
+  if (mode === "solid") return <div className="background-editor__solid" data-property={baseColor ? "background-color" : "background-image"}>
     {toolbar}
-    {mode === "image" ? <ImageBackgroundEditor element={el} elements={elements} value={value} mixed={Boolean(mixed && !activeDraft)}
+    <ControlSurface><TokenValueField property={baseColor ? "background-color" : "background-image"} semanticSlot="color" domElement={el} isColor
+      entries={allEntries} committedValue={color.tokenName ? value : colorValueToHex(value) ?? value}
+      activeTokenName={color.tokenName} resolvedValue={previewColor(color)} opacity={color.opacity}
+      label="Background Color" blockedBy={blockedBy}
+      onCommitRaw={(raw) => {
+        const result = replaceColorPreservingOpacity(value, raw, { tokenTable });
+        if (result.ok) commit(result.value, "solid");
+      }}
+      onSelectToken={(token) => {
+        const result = replaceColorPreservingOpacity(value, `var(${token.name})`, { tokenTable });
+        return result.ok && commit(result.value, "solid");
+      }}
+      onUnlink={(raw) => commit(raw, "solid")}
+      onCommitOpacity={(opacity) => {
+        const result = withColorOpacity(value, opacity);
+        return result.ok && commit(result.value, "solid");
+      }} /></ControlSurface>
+  </div>;
+
+  return <div className="background-editor__content">
+    {toolbar}
+    {mode === "image" ? <ImageBackgroundEditor element={el} elements={elements} value={value} mixed={false} sizingValues={{ size: layer.size, repeat: layer.repeat }}
       onCss={(raw) => commit(raw, "image")}
       onUpload={(image) => commit(image, "image", undefined, [
         { property: "background-size", value: "cover" },
         { property: "background-repeat", value: "no-repeat" },
         { property: "background-position", value: "center" },
       ])}
-      onSizing={(declarations) => {
-        if (!setStyles(target, declarations).length) return false;
-        setDraft({ element: el, revision: getActiveDraftChanges().revision, value, mode: "image", elements });
-        onAfterEdit?.();
-        return true;
-      }} /> : gradient && mode === "gradient" ? <div className="background-editor__gradient">
+      onSizing={(declarations) => commit(value, "image", undefined, declarations)} /> : gradient && mode === "gradient" ? <div className="background-editor__gradient">
       <div className="background-editor__track" data-test="gradient-track" aria-label="Gradient stops"
         style={{ backgroundImage: serializeGradient({ ...gradient, type: "linear", angle: 90, prelude: "", repeating: false,
           stops: gradient.stops.map((stop) => ({ ...stop, color: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) })) }) }}
@@ -167,9 +237,9 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
         }) : null}
         <IconButton variant="quiet" label="Reverse gradient" disabled={blockedBy !== null}
           onClick={() => commitGradient({ ...gradient, stops: [...gradient.stops].reverse().map((stop) => ({ ...stop, position: 100 - stop.position })) })}>
-          <IconArrowsDiff size={16} aria-hidden="true" /></IconButton>
+          <IconArrowsDiff aria-hidden="true" /></IconButton>
         <IconButton variant="quiet" label="Add gradient stop" disabled={blockedBy !== null} onClick={() => addStop()}>
-          <IconPlus size={16} aria-hidden="true" /></IconButton>
+          <IconPlus aria-hidden="true" /></IconButton>
       </div>
       {gradient.stops.map((stop, index) => ({ stop, index })).sort((a, b) => a.stop.position - b.stop.position).map(({ stop, index }) => {
         const color = interpretTokenValue(stop.color, { table: tokenTable });
@@ -191,17 +261,17 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
               updateStop(index, { color: result.value });
             }} /></ControlSurface>
           <IconButton variant="quiet" label={`Remove stop ${index + 1}`} disabled={blockedBy !== null || gradient.stops.length <= 2}
-            onClick={() => removeStop(index)}><IconMinus size={16} aria-hidden="true" /></IconButton>
+            onClick={() => removeStop(index)}><IconMinus aria-hidden="true" /></IconButton>
         </div>;
       })}
     </div> : <div className="background-editor__raw">
-      {mode === "gradient" ? <div className="background-editor__hint">{mixed ? "Mixed backgrounds. Enter CSS or choose a type to replace them." : "Edit this background using CSS."}</div> : null}
+      {mode === "gradient" ? <div className="background-editor__hint">Edit this background using CSS.</div> : null}
       {rawField("Background image CSS", value, (raw) => {
         if (typeof CSS !== "undefined" && !CSS.supports("background-image", raw)) return;
         commit(raw, mode);
-      }, Boolean(mixed && !activeDraft))}
+      }, false)}
       {mode === "gradient" ? <IconButton variant="quiet" label="Add linear gradient" disabled={blockedBy !== null}
-        onClick={() => commitGradient(defaultGradient())}><IconPlus size={16} aria-hidden="true" /></IconButton> : null}
+        onClick={() => commitGradient(defaultGradient())}><IconPlus aria-hidden="true" /></IconButton> : null}
     </div>}
   </div>;
 }

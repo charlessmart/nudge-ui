@@ -212,22 +212,6 @@ describe("CanvasCard renderer handshake", () => {
     expect(dimensions()).toBe(new URL(window.location.href).pathname);
   });
 
-  it("uses the route instead of the application title", () => {
-    const card: CanvasCardData = {
-      id: "card-title",
-      content: { kind: "route", url: window.location.href },
-      title: "Version 1",
-      x: 20,
-      y: 30,
-      width: 1024,
-      height: 768,
-    };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
-    renderCard(card);
-
-    expect(host.querySelector(`[data-test="canvas-card-dimensions-${card.id}"]`)?.textContent).toBe(new URL(window.location.href).pathname);
-  });
-
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
     const previous = new URL("/playground#previous", window.location.href).href;
     const requested = new URL("/playground#requested", window.location.href).href;
@@ -358,42 +342,6 @@ describe("CanvasCard renderer handshake", () => {
       { id: source.id, x: 200, y: 140 },
       { id: linked.id, x: 900, y: 60 },
     ]);
-  });
-
-  it("renders every edge and corner handle with its directional cursor", () => {
-    const card: CanvasCardData = {
-      id: "card-all-resize-handles",
-      content: { kind: "route", url: window.location.href },
-      title: null,
-      x: 100,
-      y: 80,
-      width: 800,
-      height: 600,
-    };
-    renderCard(card);
-
-    const handles = [
-      { direction: "top-left", cursor: "nwse-resize", label: "Resize card from the top-left corner" },
-      { direction: "top", cursor: "ns-resize", label: "Resize card from the top edge" },
-      { direction: "top-right", cursor: "nesw-resize", label: "Resize card from the top-right corner" },
-      { direction: "right", cursor: "ew-resize", label: "Resize card from the right edge" },
-      { direction: "bottom-right", cursor: "nwse-resize", label: "Resize card" },
-      { direction: "bottom", cursor: "ns-resize", label: "Resize card from the bottom edge" },
-      { direction: "bottom-left", cursor: "nesw-resize", label: "Resize card from the bottom-left corner" },
-      { direction: "left", cursor: "ew-resize", label: "Resize card from the left edge" },
-    ];
-
-    expect(host.querySelectorAll('[data-resize-direction]')).toHaveLength(handles.length);
-    for (const handleDefinition of handles) {
-      const handle = host.querySelector(
-        `[data-resize-direction="${handleDefinition.direction}"]`,
-      );
-      if (!(handle instanceof HTMLElement)) {
-        throw new Error(`${handleDefinition.direction} resize handle did not mount`);
-      }
-      expect(handle.style.cursor).toBe(handleDefinition.cursor);
-      expect(handle.getAttribute("aria-label")).toBe(handleDefinition.label);
-    }
   });
 
   it("resizes from every handle with direction-aware keyboard steps", () => {

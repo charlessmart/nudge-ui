@@ -36,6 +36,7 @@ import { releaseDocumentProjection } from "../projection/structuralProjection.ts
 import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { disposeInlineTextEdit, isInlineTextEditingActive } from "../inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
@@ -96,9 +97,12 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const [creatingIteration, setCreatingIteration] = useState(false);
   const [iterationError, setIterationError] = useState<string | null>(null);
   const camera = useBoardCamera();
+  const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasCards = useCanvasCards();
   const canRemove = canvasCards.length > 1;
-  const frameLabel = getCanvasCardLabel(card, canvasCards);
+  const frameLabel = runtimeConfig.demo === true && runtimeConfig.demoCardLabels?.length && card.title
+    ? card.title
+    : getCanvasCardLabel(card, canvasCards);
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
@@ -349,7 +353,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             if (!id) return;
             iterationId = id;
             if (cancelled) {
-              removeFrame(id);
+              removeFrame(id, { undoable: false });
               selectCard(card.id);
             } else setCardPosition(id, position.x, position.y);
           });
@@ -368,7 +372,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       setIsDragging(false);
       cancelled = true;
       if (iterationId) {
-        removeFrame(iterationId);
+        removeFrame(iterationId, { undoable: false });
         selectCard(card.id);
       }
     }
@@ -492,13 +496,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       {presentation === "canvas" ? <>
         <div
           className="canvas-card__header"
-          style={{ bottom: `calc(100% + var(--space-8) * ${toolbarScale})`, minHeight: `calc(var(--control-height-xlarge) * ${toolbarScale})` }}
-          onPointerDown={handleToolbarPointerDown}
+          style={{ bottom: "100%", minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
         >
           <div
             className="canvas-card__drag-surface"
             style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
             data-test={`canvas-card-drag-${card.id}`}
+            onPointerDown={handleToolbarPointerDown}
           >
             <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
               <span className="canvas-card__dimensions" data-test={`canvas-card-dimensions-${card.id}`}>
@@ -552,7 +556,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
                 </Tooltip>
               ) : null}
               {onCreateIteration ? (
-                <Tooltip content="Unlinked HTML version" shortcut="Option + Drag" stableTrigger>
+                <Tooltip content="Unlinked HTML version" stableTrigger>
                   <Button variant="quiet" size="default" data-test={`canvas-card-create-iteration-${card.id}`} disabled={creatingIteration || loadState !== "ready"} onClick={() => void handleIteration()}>
                     <IconArtboard size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
                     {creatingIteration ? "Creating…" : "Iteration"}

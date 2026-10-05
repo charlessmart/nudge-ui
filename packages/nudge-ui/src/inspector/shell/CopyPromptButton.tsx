@@ -1,6 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
 import { iterationId } from "../canvas/frameContent.ts";
-import { applicationTarget } from "../drafts/model.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
@@ -65,8 +64,6 @@ export function CopyPromptButton({
   const canvasCards = useCanvasCards();
   const activeContent = canvasCards.find((card) => card.id === activeDraftCardId)?.content;
   const activeArtifactId = iterationId(activeContent);
-  const sourcePage = activeContent?.kind === "iteration" ? new URL(applicationTarget(activeContent.sourceUrl).route) : null;
-  const sourceRoute = sourcePage ? `${sourcePage.pathname}${sourcePage.search}` : "";
   const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document, activeDraftCardId));
   const pendingSketches = visibleSketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
@@ -371,7 +368,7 @@ export function CopyPromptButton({
                   <IconBoltFilled className="copy-prompt__menu-icon copy-prompt__menu-icon--live" size="var(--icon-size-small)" aria-hidden="true" />
                   <span className="copy-prompt__menu-content">
                     <span className="copy-prompt__menu-title">Copy prompt for live app</span>
-                    <span className="copy-prompt__menu-description">Implement this design on <code>{sourceRoute}</code></span>
+                    <span className="copy-prompt__menu-description">Implement design in real app</span>
                   </span>
                 </Menu.Item>
               </Menu.Popup>
@@ -414,8 +411,8 @@ export function CopyPromptButton({
         </p>
       ) : null}
       {agentCompletionStatus === "verified" ? (
-        <p className="copy-prompt__hint" data-test="agent-verified-hint" role="status">
-          Agent changes verified.
+        <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="agent-verified-hint" role="status">
+          Changes implemented
         </p>
       ) : null}
       {sketchFallback ? (

@@ -6,6 +6,7 @@ import {
   setCanvasHistoryActivator,
 } from "../canvas/canvasStore.ts";
 import { subscribeCanvasView } from "../canvas/viewStore.ts";
+import { loadComments } from "../comments/store.ts";
 import { loadDrafts, activateDraft, activateDraftForCard, draftIdForCard, subscribeDrafts } from "../drafts/store.ts";
 import { applicationTarget, targetKey } from "../drafts/model.ts";
 import { getActiveDraftChanges } from "../changes/draftChanges.ts";
@@ -24,6 +25,7 @@ import { releaseDetachedIterations } from "./timeline.ts";
 export function startWorkspaceController() {
   const config = getNudgeUiRuntimeConfig();
   const persistent = config.demo !== true;
+  loadComments();
   loadDrafts(config.projectId, { persistent });
   const result = persistent ? hydrateSession() : { restored: false };
   const save = persistent ? scheduleAutoSave : () => undefined;

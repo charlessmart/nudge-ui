@@ -20,8 +20,14 @@ interface Draft {
 
 interface Anchor { readonly left: number; readonly top: number }
 
+function sameAnchor(left: Anchor | null | undefined, right: Anchor | null | undefined): boolean {
+  return left?.left === right?.left && left?.top === right?.top;
+}
+
 function anchorFor(iframe: HTMLIFrameElement, element: HTMLElement): Anchor | null {
   if (!element.isConnected || iframe.contentDocument !== element.ownerDocument) return null;
+  // Focus view keeps other frames mounted, but their pins must stay hidden.
+  if (getComputedStyle(iframe).visibility !== "visible") return null;
   const frame = iframe.getBoundingClientRect();
   const rect = element.getBoundingClientRect();
   const scale = frame.width / (iframe.clientWidth || frame.width);
@@ -97,7 +103,9 @@ export function CommentsOverlay(): ReactElement | null {
       bindings.current.clear();
       return;
     }
-    let timer: ReturnType<typeof setTimeout>;
+    let animationFrame = 0;
+    let previousAnchors: ReadonlyMap<string, Anchor> | null = null;
+    let previousDraftAnchor: Anchor | null | undefined;
     const refresh = (): void => {
       const next = new Map<string, Anchor>();
       const offsets = new Map<string, number>();
@@ -123,14 +131,22 @@ export function CommentsOverlay(): ReactElement | null {
           }
         }
       }
-      setAnchors(next);
+      if (!previousAnchors || previousAnchors.size !== next.size
+        || [...next].some(([key, anchor]) => !sameAnchor(previousAnchors?.get(key), anchor))) {
+        previousAnchors = next;
+        setAnchors(next);
+      }
       const current = draftRef.current;
-      setDraftAnchor(current ? anchorFor(current.iframe, current.element) : null);
+      const nextDraftAnchor = current ? anchorFor(current.iframe, current.element) : null;
+      if (previousDraftAnchor === undefined || !sameAnchor(previousDraftAnchor, nextDraftAnchor)) {
+        previousDraftAnchor = nextDraftAnchor;
+        setDraftAnchor(nextDraftAnchor);
+      }
       if (current && (!current.element.isConnected || current.iframe.contentDocument !== current.element.ownerDocument)) setDraft(null);
-      timer = setTimeout(refresh, 100);
+      animationFrame = requestAnimationFrame(refresh);
     };
     refresh();
-    return () => clearTimeout(timer);
+    return () => cancelAnimationFrame(animationFrame);
   }, [comments, draft]);
 
   useEffect(() => {

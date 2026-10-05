@@ -23,22 +23,22 @@ describe("BackgroundEditor", () => {
     } }));
     expect(button("Solid")).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
-    act(() => button("Add Background Color").click());
+    act(() => button("Add background layer").click());
     expect(button("Solid")).not.toBeNull();
     expect(handle.host.querySelector('[data-property="background-color"] [data-test="token-field"]')).not.toBeNull();
-    act(() => button("Remove Background Color").click());
+    act(() => button("Remove background layer").click());
     expect(button("Solid")).toBeNull();
-    expect(button("Add Background Color")).not.toBeNull();
+    expect(button("Add background layer")).not.toBeNull();
   });
 
   it("returns to an empty section when the only background image is removed", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-image": "linear-gradient(red, blue)", "background-color": "transparent" });
     handle = mount(createElement(BackgroundEditor, { element: selected }));
-    act(() => button("Remove background image").click());
+    act(() => button("Remove background layer").click());
     expect(button("Gradient")).toBeNull();
     expect(input("Background image CSS")).toBeNull();
-    expect(button("Add Background Color")).not.toBeNull();
+    expect(button("Add background layer")).not.toBeNull();
     expect(sheetText()).toContain("background-image: none");
   });
 
@@ -78,23 +78,71 @@ describe("BackgroundEditor", () => {
     expect(sheetText()).toContain("conic-gradient(from 60deg, blue 0%, red 100%)");
   });
 
-  it("switches to solid by clearing the image layer", () => {
+  it("changes a gradient to a solid layer without removing the base color", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({ "background-image": "linear-gradient(red, blue)", "background-color": "rgb(255, 255, 255)" });
+    mockComputedStyle({ "background-image": "linear-gradient(red, blue)", "background-color": "rgb(20, 40, 60)" });
     handle = mount(createElement(BackgroundEditor, { element: selected }));
-    act(() => button("Solid").click());
-    expect(sheetText()).toContain("background-image: none");
+    const top = handle.host.querySelector('[aria-label="Background layer 1"]')!;
+    act(() => top.querySelector<HTMLButtonElement>('button[aria-label="Solid"]')!.click());
+    expect(sheetText()).toContain("background-image: linear-gradient(#ffffff, #ffffff)");
+    expect(getChangeRecords().some((record) => record.property === "background-color")).toBe(false);
     expect(input("Gradient angle")).toBeNull();
-    expect(handle.host.querySelector('[data-property="background-color"]')).not.toBeNull();
   });
 
-  it("preserves layered backgrounds in a CSS field", () => {
+  it("edits one gradient while preserving the image and base color beneath it", () => {
     const { selected } = makeSelected();
-    const value = "linear-gradient(red, blue), url(example.png)";
-    mockComputedStyle({ "background-image": value });
+    mockComputedStyle({ "background-image": "linear-gradient(red, blue), url(example.png)", "background-color": "rgb(20, 40, 60)", "background-size": "auto, contain" });
     handle = mount(createElement(BackgroundEditor, { element: selected }));
-    expect(input("Background image CSS").value).toBe(value);
-    expect(getChangeRecords()).toHaveLength(0);
+    expect(handle.host.querySelectorAll('.background-editor__layer')).toHaveLength(3);
+    setInputValue(input("Gradient angle"), "125");
+    expect(sheetText()).toContain("linear-gradient(125deg, red 0%, blue 100%), url(example.png)");
+    expect(getChangeRecords().some((record) => record.property === "background-color")).toBe(false);
+    expect(handle.host.querySelector<HTMLImageElement>(".image-background__thumb")?.getAttribute("src")).toBe("example.png");
+  });
+
+  it("adds and removes a solid overlay without losing the underlying gradient", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "linear-gradient(red, blue)", "background-color": "transparent" });
+    handle = mount(createElement(BackgroundEditor, { element: selected }));
+    act(() => button("Add background layer").click());
+    setInputValue(input("Background Color"), "#00ff00");
+    expect(sheetText()).toContain("background-image: linear-gradient(#00ff00, #00ff00), linear-gradient(red, blue)");
+    act(() => button("Remove background layer").click());
+    expect(input("Gradient angle")).not.toBeNull();
+    expect(sheetText()).not.toContain("#00ff00");
+    expect(getChangeRecords().filter((record) => record.property === "background-image")).toHaveLength(0);
+  });
+
+  it("sets the selected layer blend mode and preserves the other layer mode", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "linear-gradient(red, blue), url(example.png)", "background-blend-mode": "normal, screen" });
+    handle = mount(createElement(BackgroundEditor, { element: selected }));
+    setSelectValue(button("Background blending mode"), "multiply");
+    expect(sheetText()).toContain("background-blend-mode: multiply, screen");
+    expect(getChangeRecords()).toHaveLength(1);
+  });
+
+  it("removes an image and its sizing and blend entries together", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "url(first.png), url(second.png)", "background-size": "cover, contain", "background-blend-mode": "multiply, screen" });
+    handle = mount(createElement(BackgroundEditor, { element: selected }));
+    act(() => button("Remove background layer").click());
+    expect(sheetText()).toContain("background-image: url(second.png)");
+    expect(sheetText()).toContain("background-size: contain");
+    expect(sheetText()).toContain("background-blend-mode: screen");
+  });
+
+  it("shows the base color token and preserves it when the gradient changes", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "linear-gradient(red, blue)", "background-color": "rgb(0, 136, 204)" });
+    handle = mount(createElement(BackgroundEditor, { element: selected,
+      entries: [{ name: "--color-ocean", value: "#0088cc", source: "test.css:1" }],
+      tokenRow: { property: "background-color", authored: "var(--color-ocean)", declaredValue: "var(--color-ocean)", resolvedValue: "rgb(0, 136, 204)",
+        tokenName: "--color-ocean", confidence: "exact", evidence: { reason: "test" } },
+    }));
+    expect(handle.host.querySelector('[aria-label="Background Color"] [data-test="token-chip"]')?.textContent).toContain("--color-ocean");
+    setInputValue(input("Gradient angle"), "125");
+    expect(getChangeRecords().some((record) => record.property === "background-color")).toBe(false);
   });
 
   it("blocks edits when an inline background shorthand owns the cascade", () => {

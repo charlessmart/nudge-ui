@@ -1,6 +1,6 @@
 .comment-pin {
   position: fixed;
-  z-index: calc(var(--z-index) - 1);
+  z-index: 10;
   display: grid;
   place-items: center;
   width: var(--icon-size-large);
@@ -17,13 +17,13 @@
 .comment-editor-backdrop {
   position: fixed;
   inset: 0;
-  z-index: calc(var(--z-index) - 1);
+  z-index: 11;
   pointer-events: auto;
 }
 
 .comment-editor {
   position: fixed;
-  z-index: var(--z-index);
+  z-index: 12;
   display: flex;
   align-items: center;
   gap: var(--space-4);

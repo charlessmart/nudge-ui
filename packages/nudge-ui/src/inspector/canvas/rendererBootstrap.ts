@@ -29,6 +29,7 @@ import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
+import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -315,33 +316,6 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let boardScrollPans = false;
   let nativeAppInteraction = false;
 
-  const onAppLinkClick = (event: MouseEvent): void => {
-    if (!ownsRendererBootstrap(owner) || !boardGesturesEnabled || !nativeAppInteraction) return;
-    if (!event.shiftKey || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.defaultPrevented || !findClosestAnchor(event.target)) return;
-
-    // Shift enables app interaction on the canvas. Replay link clicks without
-    // it so both framework routers and browser navigation treat them normally.
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    event.target?.dispatchEvent(new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: event.view,
-      detail: event.detail,
-      button: event.button,
-      buttons: event.buttons,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      screenX: event.screenX,
-      screenY: event.screenY,
-      relatedTarget: event.relatedTarget,
-    }));
-  };
-  document.addEventListener("click", onAppLinkClick, true);
-  owner.listenerRemovers.push(() => document.removeEventListener("click", onAppLinkClick, true));
-
   const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
     if (!ownsRendererBootstrap(owner)) return;
     const identity = getRendererIdentity();
@@ -403,7 +377,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (event.key === "Shift" && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
+    if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
     if (boardGesturesEnabled && !nativeAppInteraction && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();
@@ -415,7 +389,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onKeyUp = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (event.key === "Shift") sendAppInteractionModifier(event.shiftKey);
+    if (event.code === APP_INTERACTION_KEY) sendAppInteractionModifier(false);
     if (event.code === "Space") {
       spaceHeld = false;
       sendSpaceState();

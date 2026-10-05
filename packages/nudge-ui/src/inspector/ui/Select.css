@@ -13,6 +13,17 @@
   cursor: not-allowed;
 }
 
+.select.select--icon-only {
+  width: var(--control-height-large);
+  justify-content: center;
+  padding: 0;
+}
+
+.select--icon-only > .select__value,
+.select--icon-only > .select__icon {
+  display: none;
+}
+
 .select__value,
 .select [data-slot="select-value"] {
   min-width: 0;

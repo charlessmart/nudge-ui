@@ -13,7 +13,7 @@ import {
   discardDraftHistory,
 } from "../workspace/timeline.ts";
 export {
-  recordCanvasCreation,
+  recordCanvasChange,
   discardCanvasHistory,
   discardDraftHistory,
   clearSessionUndoHistory,

@@ -38,7 +38,7 @@ test("scrolling pans the canvas and Use app normally restores nested iframe scro
   expect(await camera()).toEqual(panned);
 });
 
-test("Shift temporarily enables app interaction across iframe focus and the icon pins it", async ({ page }) => {
+test("Holding A temporarily enables app interaction across iframe focus and the icon pins it", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   await waitForCanvasTransition(page);
@@ -48,54 +48,57 @@ test("Shift temporarily enables app interaction across iframe focus and the icon
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await iframe.contentFrame().locator("body").evaluate((body) => {
     const button = body.ownerDocument.createElement("button");
-    button.id = "shift-app-button";
+    button.id = "app-interaction-button";
     button.textContent = "App action";
     button.style.cssText = "position:fixed;left:80px;top:80px;width:200px;height:80px;z-index:1000;";
     button.dataset.clicks = "0";
     button.onclick = () => { button.dataset.clicks = String(Number(button.dataset.clicks) + 1); };
     body.append(button);
     const input = body.ownerDocument.createElement("input");
-    input.id = "shift-app-input";
+    input.id = "app-interaction-input";
     body.append(input);
   });
-  const action = iframe.contentFrame().locator("#shift-app-button");
+  const action = iframe.contentFrame().locator("#app-interaction-button");
   await page.keyboard.press("i");
   await expect(normal).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.down("Shift");
+  await expect(normal).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.up("Shift");
+  await page.keyboard.down("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
   await action.click();
   await expect(action).toHaveAttribute("data-clicks", "1");
-  await page.keyboard.up("Shift");
+  await page.keyboard.up("A");
   await expect(normal).toHaveAttribute("aria-pressed", "false");
   await action.click();
   await expect(action).toHaveAttribute("data-clicks", "1");
 
-  // Shift starts inside the iframe this time; release must reach the controller
+  // A starts inside the iframe this time; release must reach the controller
   // even though inspector interactions were suspended by its keydown.
-  await page.keyboard.down("Shift");
+  await page.keyboard.down("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
   await normal.click();
-  await page.keyboard.up("Shift");
+  await page.keyboard.up("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.down("Shift");
-  await page.keyboard.up("Shift");
+  await page.keyboard.down("A");
+  await page.keyboard.up("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
   await normal.click();
   await expect(normal).toHaveAttribute("aria-pressed", "false");
 
   await pan.click();
-  await page.keyboard.down("Shift");
+  await page.keyboard.down("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.up("Shift");
+  await page.keyboard.up("A");
   await expect(pan).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Select", exact: true }).click();
-  await iframe.contentFrame().locator("#shift-app-input").focus();
-  await page.keyboard.down("Shift");
+  await iframe.contentFrame().locator("#app-interaction-input").focus();
+  await page.keyboard.down("A");
   await expect(normal).toHaveAttribute("aria-pressed", "false");
-  await page.keyboard.up("Shift");
+  await page.keyboard.up("A");
 });
 
-test("Shift app interaction opens links on the canvas without opening a browser tab", async ({ page, context }) => {
+test("Holding A opens links on the canvas without opening a browser tab", async ({ page, context }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   await waitForCanvasTransition(page);
@@ -103,18 +106,18 @@ test("Shift app interaction opens links on the canvas without opening a browser 
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await iframe.contentFrame().locator("body").evaluate((body) => {
     const link = body.ownerDocument.createElement("a");
-    link.id = "shift-app-link";
-    link.href = "/#shift-link-destination";
+    link.id = "app-interaction-link";
+    link.href = "/#app-interaction-destination";
     link.textContent = "App link";
     link.style.cssText = "position:fixed;left:80px;top:80px;width:200px;height:80px;background:white;z-index:1000;";
     body.append(link);
   });
   const initialPages = context.pages().length;
-  await page.keyboard.down("Shift");
+  await page.keyboard.down("A");
   await expect(page.getByRole("button", { name: "Use app normally", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await iframe.contentFrame().locator("#shift-app-link").click();
+  await iframe.contentFrame().locator("#app-interaction-link").click();
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
-  await expect.poll(() => page.locator(".canvas-card__iframe").last().contentFrame().locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#shift-link-destination");
-  await page.keyboard.up("Shift");
+  await expect.poll(() => page.locator(".canvas-card__iframe").last().contentFrame().locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#app-interaction-destination");
+  await page.keyboard.up("A");
   expect(context.pages()).toHaveLength(initialPages);
 });

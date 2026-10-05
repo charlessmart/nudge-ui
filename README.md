@@ -1,282 +1,117 @@
 # Nudge UI
 
-## What this is
+Nudge UI is a development-only visual inspector that turns browser edits into
+requests for your coding agent. Inspect a running app, preview design changes,
+add comments and sketches, and copy a structured prompt or send it through MCP.
 
-Nudge UI is a development-only visual inspector for editing UI in the browser.
-It identifies rendered elements, explains their live CSS, previews changes, and
-creates a structured prompt for a coding agent. It does not edit application
-source files. Production builds receive no inspector bootstrap, identity
-attributes, or token data.
+Nudge previews changes to your app without editing application source files.
+Your coding agent implements the request. You can also explore independent HTML
+iterations before choosing a design to apply to the app.
 
-<img width="2888" height="1614" alt="image" src="https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74" />
+![Nudge UI visual inspector](https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74)
 
+## Get started
 
-## Install
-
-Run the framework-detecting initializer from the application root:
+Run the initializer from your application's root directory:
 
 ```sh
 npm create nudge-ui@latest
 ```
 
-The initializer detects Next.js, Astro, Vite with React, or static HTML,
-installs `nudge-ui`, and updates the host configuration. Use an explicit
-framework when detection is ambiguous:
+It detects Next.js, Astro, Vite with React, or static HTML, installs `nudge-ui`,
+and configures the integration. It also offers to connect a coding agent.
+Start your app with its usual development command and open the local URL.
+For static HTML, use the `nudge-ui serve` command printed by setup.
+
+In a monorepo, run setup inside the app directory. If detection is ambiguous,
+select `nextjs`, `astro`, `vite-react`, or `standalone` with `--framework`:
 
 ```sh
 npm create nudge-ui@latest -- --framework astro
 ```
 
-### Manual installation
+Published packages require Node.js 20 or later; your framework may require a
+newer version. This repository requires Node.js 22.12 or later and pnpm 10.
 
-One package serves every host. Install it, then import the subpath matching
-the build tool:
+## Packages
 
-```sh
-pnpm add -D nudge-ui
-```
+Only these three packages are published to npm:
 
-| Host | Subpath |
-| --- | --- |
-| Vite with React | `nudge-ui/vite` |
-| Next.js | `nudge-ui/next` |
-| Astro | `nudge-ui/astro` |
-| Static HTML | `nudge-ui/static`, plus the `nudge-ui` command |
-
-Peer dependencies on Vite, Next.js, Astro, React, and React DOM are all
-optional, so installing `nudge-ui` never asks for a toolchain the project does
-not use.
-
-The examples in this repository use `workspace:*`; an external project should
-use the published package or a local build.
-
-### Vite and React
-
-Add the Vite adapter after the React plugin in `vite.config.ts`:
-
-```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { withNudgeUi } from "nudge-ui/vite";
-
-export default withNudgeUi(defineConfig({
-  plugins: [react()],
-}));
-```
-
-Pass `debug: true` to enable experimental Inspector features such as DOM
-parent and child navigation:
-
-```ts
-export default withNudgeUi(defineConfig({
-  plugins: [react()],
-}), { debug: true });
-```
-
-For a monorepo, pass authored workspace package directories explicitly with
-`sourceRoots`. Dependency and generated-output paths remain outside the
-adapter's source scope.
-
-### Next.js
-
-Wrap the Next.js configuration:
-
-```ts
-import { withNudgeUi } from "nudge-ui/next";
-
-const nextConfig = {};
-
-export default withNudgeUi(nextConfig);
-```
-
-The wrapper adds dev-only source instrumentation, the inspector mount, and the
-local manifest transport. It supports Next.js 15.3 through 16.x.
-
-### Astro
-
-Register the integration in `astro.config.ts`:
-
-```ts
-import { defineConfig } from "astro/config";
-import { nudgeUiAstro } from "nudge-ui/astro";
-
-export default defineConfig({
-  integrations: [nudgeUiAstro()],
-});
-```
-
-Automated installs use `withNudgeUi(defineConfig(...))`; the explicit
-`nudgeUiAstro()` form above remains supported.
-
-### Static HTML
-
-```sh
-pnpm exec nudge-ui serve ./prototype
-```
-
-The standalone host serves the directory on loopback, instruments HTML in
-memory, watches source files, and reloads the browser after changes. It does
-not serve dot-prefixed files or directories, including `.env` files.
-
-## Use the editor
-
-Opening any page of the development server loads it in the Nudge editor. The
-canvas toolbar has these tools:
-
-| Tool | Shortcut | Behavior |
+| Package | Purpose | Documentation |
 | --- | --- | --- |
-| Select | `I` | Use the app normally. Nudge doesn't intercept clicks. In Canvas view, links open in a new card. |
-| Design | `V` | Click elements to inspect and edit them. The app doesn't receive the click. |
-| Comment | `C` | Select an element and leave a note for your coding agent. |
-| Sketch | `P` | Draw on the page. |
+| [`nudge-ui`](https://www.npmjs.com/package/nudge-ui) | Browser inspector, Canvas workspace, and framework integrations. | [Setup and usage](packages/nudge-ui/README.md) |
+| [`create-nudge-ui`](https://www.npmjs.com/package/create-nudge-ui) | Add Nudge to an existing app and optionally configure a coding agent. | [Commands and options](packages/create-nudge-ui/README.md) |
+| [`@nudge-ui/mcp`](https://www.npmjs.com/package/@nudge-ui/mcp) | Connect the editor to a coding agent for requests, status, and Canvas comparisons. | [Agent workflow and tools](packages/mcp/README.md) |
 
-In Design, clicks made by scripts, such as `element.click()`, still reach the
-app. Only clicks from a person become selections.
+For manual installation, install `nudge-ui` as a development dependency and
+use the host subpath: `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, or
+`nudge-ui/static`. See the [package README](packages/nudge-ui/README.md#manual-installation)
+for configuration examples and supported versions.
 
-Comments are saved locally for each page and included when you copy or send a
-prompt. Click a comment pin to edit or delete its note. After handoff, Nudge
-automatically removes the comment when the target's rendered content or
-appearance changes at the same viewport size. It checks with inspector previews
-removed. This is a change detection heuristic, not proof that the agent satisfied
-the note. Missing or ambiguous targets keep their comments. Hold Space to pan
-the canvas.
+## Design in the browser
 
-## Turn Nudge off
+Select an element to inspect its live CSS and source context. Preview changes
+to layout, spacing, typography, colors, backgrounds, borders, shadows, text,
+design tokens, and supported component props. Undo and redo let you revisit
+edits and frame changes.
 
-Nudge is on by default in development. To see the plain app:
+| Tool | Shortcut | Action |
+| --- | --- | --- |
+| Select | `V` | Select elements to inspect and edit. |
+| Comment | `C` | Leave a note on an element for your agent. |
+| Pencil | `P` | Draw and add sketch notes. |
+| Use app normally | Hold `A` in Canvas | Interact with the app. This tool is also available in the toolbar. |
 
-- **One tab:** add `?nudge-ui=off` to the URL. The tab stays off as you
-  navigate. Add `?nudge-ui=on` to turn it back on.
-- **One run:** start the development server with `NUDGE_UI=0`, for example
-  `NUDGE_UI=0 pnpm dev`.
-- **Permanently:** pass `enabled: false`. For example,
-  `withNudgeUi(config, { enabled: false })` or `nudgeUiAstro({ enabled: false })`.
+Hold `Space` to pan the canvas. Open app routes in frames and resize them to
+compare viewport sizes. **Duplicate** creates a linked live frame.
+**Iteration** captures an independent HTML design with its own edits.
 
-## Screenshots and end-to-end tests
-
-Automated browsers get the plain app. When `navigator.webdriver` is `true`, as
-in Playwright, Puppeteer, Selenium, and headless Chrome, Nudge doesn't load the
-editor or intercept clicks, so screenshots and tests see the app at its real
-URL. The browser console logs one line saying so.
-
-To test with Nudge in an automated browser, use either of these:
-
-- Add `?nudge-ui=on` to the first URL the test opens.
-- Start the development server with `NUDGE_UI=1`.
+HTML iterations are stored under `.nudge/artifacts/`. They capture rendered
+HTML and CSS without the app's scripts. You can ask an agent to refine an
+iteration, then use **Copy prompt for live app** to implement that design in
+application source. The [usage guide](packages/nudge-ui/README.md#use-the-editor)
+also explains local persistence and comment reconciliation.
 
 ## Connect a coding agent
 
-> **Early alpha:** The MCP integration is still under heavy testing. Expect
-> breaking changes, incomplete host compatibility, and other rough edges. Do
-> not rely on it for production workflows yet.
-
-### Guided setup
-
-Run the initializer from the application directory:
-
-```sh
-npm create nudge-ui@latest
-```
-
-Choose **Connect a coding agent**, then select your agent. The initializer
-installs the local bridge dependency and a reusable adapter outside your repositories.
-It registers the adapter globally and migrates the current project's old override,
-with configuration backups. Start the application with its usual development
-command. Fully restart the agent after migration, then ask it to **listen to Nudge**.
-
-For an existing Nudge installation, run:
+Agent setup is offered during initialization. To add or repair it later, run
+this from the app directory:
 
 ```sh
 npx nudge-ui agent setup
 ```
 
-Setup is also available directly through the initializer:
+Setup installs the project bridge dependency and a reusable adapter outside
+your repositories, then registers the adapter globally for your selected agents.
+Fully restart your agent host, start the app, and ask the agent
+to **listen to Nudge in this workspace**. Keep that turn active while sending
+changes.
 
-```sh
-npm create nudge-ui@latest -- --agent-only
-```
+The agent can receive edits, comments, and sketches, report progress, and
+present same-origin routes as Canvas comparison groups. Copied prompts work
+without MCP. The MCP integration is early alpha; see the
+[coding-agent guide](docs/agent-integration.md) for setup details, session scope,
+host limitations, and custom integrations.
 
-Use `--agent <agent-id>` to select an agent without the interactive selection,
-`--no-mcp` to skip agent setup during initialization, and `--dry-run` to inspect
-planned changes. Package installation itself does not prompt or modify agent
-configuration. Setup verifies MCP initialization and tool discovery before
-changing agent settings. The adapter is versioned under `~/.nudge-ui/adapters/`;
-it does not depend on the repository where setup was run.
-
-When testing a local `@nudge-ui/mcp` tarball, pass it explicitly so the project
-bridge and reusable adapter use the same build:
-
-```sh
-npx nudge-ui agent setup --mcp-package /absolute/path/to/nudge-ui-mcp.tgz
-```
-
-This option is intended for local package testing. Omit it for normal setup so
-the adapter is installed from the published registry.
-
-### Using MCP
-
-MCP (Model Context Protocol) lets a coding agent receive a design request from
-the browser and send status, Canvas, and route commands back to the running
-development server. Nudge keeps the bridge in the application and the reusable
-agent adapter separate, so one agent registration can serve multiple checkouts.
-See the [MCP integration guide](packages/mcp/README.md) for host setup,
-diagnostics, and migration details.
-
-When `@nudge-ui/mcp` is installed, the development integration starts a local
-browser bridge. The agent's MCP process discovers that bridge using a private
-local session registry. 
-
-
-Ask the agent to call `nudge_listen` with `workspaceRoot` set to the absolute
-checkout or application path. It must repeat that scope on status and Canvas
-calls. If several sessions match, it must also supply the selected `sessionId`.
-
-Agents can also push to the canvas e.g. to create variations of different pages, or show a page in different states. Ask the agent to create variations and push them to canvas as different frames
-
-New checkouts and worktrees share the adapter registration. Each application
-still needs its bridge dependency. Run setup once in any existing project that
-has a legacy MCP override to migrate that override.
-
-### Migrating from `--origin`
-
-Older registrations started the browser bridge inside the MCP process with
-`--origin`. Run setup from the application to install the project-owned bridge,
-migrate the agent entry, and create the reusable adapter:
-
-```sh
-npx nudge-ui agent setup
-```
-
-Fully quit and restart the agent host after setup. Then ask it to list or listen
-for Nudge using the absolute checkout or application path on every call:
-
-```json
-{
-  "workspaceRoot": "/absolute/path/to/the-application"
-}
-```
-
-Existing `--origin` entries remain supported for custom integrations, but new
-setup should use the project-owned bridge.
-
-### Diagnose a connection
-
-Run diagnostics from the application directory:
+For diagnostics, run:
 
 ```sh
 npx nudge-ui agent doctor
 ```
 
-The doctor prints the resolved session-registry path and the workspace and
-application scope before reporting session counts. The same fields are
-available from the adapter's `nudge_diagnose` tool, including when no sessions
-are registered.
+## Development and automated tests
 
-The inspector's connection panel provides status and recovery instructions.
-Disconnecting explicitly revokes the browser connection. Legacy configurations
-with `--project-id`, `--origin`, and `--workspace-root` remain supported during
-migration; see the [MCP package documentation](packages/mcp/README.md).
+Nudge is enabled by default in development. Standard production builds contain
+no inspector bootstrap, identity attributes, or token data.
 
+- **One tab:** Add `?nudge-ui=off`. Add `?nudge-ui=on` to enable it again.
+- **One server run:** Start with `NUDGE_UI=0`, for example `NUDGE_UI=0 pnpm dev`.
+- **Framework configuration:** Pass `enabled: false`, for example
+  `withNudgeUi(config, { enabled: false })` or `nudgeUiAstro({ enabled: false })`.
+
+Automated browsers with `navigator.webdriver` enabled get the plain app.
+To test the editor, add `?nudge-ui=on` to the first URL or start the development
+server with `NUDGE_UI=1`.
 
 ## Implementation
 
@@ -293,19 +128,25 @@ The repository separates its public products from private implementation:
 
 - `packages/nudge-ui` — the inspector, shared compiler and CSS model, and the
   Vite, Next.js, Astro, and static HTML hosts.
-- `packages/mcp` — the optional MCP stdio server and authenticated local
-  browser companion.
+- `packages/mcp` — the optional MCP stdio adapter and project-owned local
+  browser bridge.
 - `packages/create-nudge-ui` — framework detection, package installation, and
   host configuration.
 - `packages/agent-protocol` — private shared browser bridge and Canvas command
   contracts compiled into `nudge-ui` and `@nudge-ui/mcp`.
 - `packages/compatibility` — private compatibility fixtures shared by tests.
+- `packages/package-css-fixture` — private package-stylesheet discovery fixtures.
 - `examples` — real consumer applications used for end-to-end verification.
 
 Stable `data-*` attributes provide identity across framework re-renders. The
 inspector never writes preview styles inline on tracked elements. These rules
 keep source identity, browser evidence, and preview behavior independent of a
 particular build tool or styling system.
+
+Host adapters remain isolated from sibling hosts, except for Astro's integration
+with Vite. Browser-facing transport and CSS model modules remain free of Node
+imports. See the [host-subpath decision](docs/adr/0023-one-package-with-host-subpaths.md)
+and [export policy](docs/adr/0025-supported-and-internal-export-subpaths.md).
 
 ## Test harness
 
@@ -325,10 +166,11 @@ pnpm lint
 pnpm test:unit
 ```
 
-The default CI verification job runs `build:packages`, `typecheck`, `lint`,
-and `test:unit`. `test:unit` is the fast, required suite; it does not run the
-inspector UI-integration profile or consumer browser suites. CI also runs the
-packed-consumer smoke tests in a separate job:
+The default CI verification job runs `check:boundaries`, `build:packages`,
+`typecheck`, `lint`, and `test:unit`. `test:unit` is the fast, required suite;
+it does not run the inspector UI-integration profile or consumer browser suites.
+CI also checks production purity for each host and runs the packed-consumer
+smoke tests in separate jobs:
 
 ```sh
 pnpm test:packed-consumers
@@ -355,14 +197,25 @@ particularly risky or low-signal code patterns; its findings do not block CI.
 
 ## Releases
 
-All public packages use one version. Update their `package.json` versions,
-merge the change to `main`, then create and push an annotated stable SemVer tag:
+All three public packages use the same version. Update their `package.json`
+versions and merge the release changes to `main`. Validate the intended stable
+SemVer tag and verify the package archives before tagging. For example, if the
+new package version is `0.2.3`:
 
 ```sh
-git tag -a v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
+pnpm release:validate -- v0.2.3
+pnpm package:verify
+git tag -a v0.2.3 -m "Release v0.2.3"
+git push origin v0.2.3
 ```
 
+The [release workflow](.github/workflows/publish.yml) validates the tag, builds
+and tests the packages, verifies their archives, and stages all three on npm.
+Review the staged packages in npm's Staged Packages page and approve them with
+2FA to publish. Pushing the tag alone does not publish them.
+
+To retry staging an existing release tag, run the workflow manually with its
+`tag` input. Packages already published at that version are skipped.
 
 ## License
 

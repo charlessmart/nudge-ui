@@ -164,9 +164,13 @@
   font-size: var(--font-size-base);
 }
 
-.dom-navigator__trigger:hover,
+.dom-navigator__trigger:hover {
+  background: var(--surface-well);
+  color: var(--surface-raised-2x);
+}
+
 .dom-navigator__trigger:focus-visible {
-  background: var(--accent);
+  background: var(--surface-well);
   color: var(--surface-raised-2x);
   outline: 1px solid currentColor;
   outline-offset: -3px;

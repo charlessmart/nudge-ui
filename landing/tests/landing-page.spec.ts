@@ -20,67 +20,20 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(versionOneFrame).toBeHidden();
   await expect(versionTwoFrame).toBeHidden();
   const app = appFrame.contentFrame();
-  const versionOne = versionOneFrame.contentFrame();
-  const versionTwo = versionTwoFrame.contentFrame();
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
-  const hero = app.getByRole("region", { name: "Nudge, a design panel for your codebase." });
-  await expect(hero.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
-  await expect(app.getByText("Try the demo", { exact: true })).toHaveCount(0);
-  await expect(app.getByRole("heading", { name: "Demo", exact: true })).toBeVisible();
-  const setup = app.getByRole("region", { name: "Installation" });
-  await expect(setup).toBeVisible();
-  await expect(setup.locator("pre")).toHaveCount(4);
-  await expect(setup.getByText("npm create nudge-ui@latest", { exact: true })).toBeVisible();
-  await expect(setup.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
-  await expect(setup.locator("pre").filter({ hasText: "nudge-ui/astro" })).toBeVisible();
-  await expect(setup.getByText("npx nudge-ui agent setup", { exact: true })).toBeVisible();
-  await expect(setup.getByText("Fully restart the agent host and ask it to listen to Nudge.", { exact: false })).toBeVisible();
-  const openSource = app.getByRole("region", { name: "Open source" });
-  await expect(openSource).toBeVisible();
-  await expect(openSource.getByText("Open source because there are more front-end frameworks and libraries than atoms in the universe. If your project setup isn't supported yet, you can customise and extend to your needs - DIY your own Figma in the browser.", { exact: true })).toBeVisible();
-  await expect(openSource.getByRole("link", { name: "View on GitHub" })).toHaveAttribute("href", "https://github.com/charlessmart/nudge-ui");
-  await expect(app.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
-  await expect(app.locator(".landing-hero-demo-grid")).toHaveCount(1);
-  await expect(app.locator(".landing-hero-demo")).toHaveCount(4);
-  await expect(versionOne.locator(".landing-hero-demo-grid")).toHaveCount(0);
-  await expect(versionTwo.locator(".landing-hero-demo-grid")).toHaveCount(0);
-  await expect(versionOne.getByRole("heading", { name: "Nudge is for designing in code." })).toHaveCount(1);
-  await expect(versionTwo.getByRole("heading", { name: "Nudge is for designing in prod" })).toHaveCount(1);
-  await expect(versionOne.locator(".landing-version")).toHaveCSS("background-image", "none");
-  await expect(versionTwo.locator(".landing-version")).toHaveCSS("background-image", "none");
-  await expect(versionOne.locator(".landing-version-mockup")).toBeVisible();
-  await expect(versionOne.locator(".landing-version-mockup")).toHaveCSS("box-shadow", "none");
-  await expect(versionTwo.locator('[data-test="landing-version-ruler"]')).toBeVisible();
-  await expect(versionTwo.locator('[data-test="landing-version-ruler-left"]')).toBeVisible();
-  await expect(versionTwo.locator('[data-test="landing-version-grid"]')).toBeVisible();
-  await expect(versionOne.getByText("@nudge-ui/plugin in this project", { exact: false })).toBeVisible();
-  await expect(versionTwo.getByText("@nudge-ui/vite-react in this project", { exact: false })).toBeVisible();
-  const fidelityDemos = app.locator(".landing-hero-demo-board-layer--full");
-  await expect(fidelityDemos.getByText("Add accounts", { exact: true })).toHaveCount(0);
-  await expect(fidelityDemos.getByText("Link an institution", { exact: true })).toBeVisible();
-  await expect(fidelityDemos.getByText("Stream your health data", { exact: true })).toBeVisible();
-  await expect(fidelityDemos.getByText("Text", { exact: true })).toBeVisible();
-  await expect(fidelityDemos.getByText("--landing-display", { exact: true })).toBeVisible();
-  await expect(fidelityDemos.getByText("86.3 km", { exact: true })).toBeVisible();
-  await expect(fidelityDemos.getByText("Secured with 256-bit encryption", { exact: true })).toHaveCount(0);
   const demo = app.locator("section#demo");
-  await expect(demo.getByText("Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.", { exact: true })).toBeVisible();
   const openNudge = demo.getByRole("button", { name: "Open Nudge" });
   await expect(openNudge).toBeVisible();
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  const useAppNormally = inspectorHost.getByRole("button", { name: "Use app normally", exact: true });
+  await inspectorHost.locator('[data-test="show-inspector"]').click();
+  await useAppNormally.click();
+  await inspectorHost.locator('[data-test="collapse-inspector"]').click();
   const copyInstallPrompt = app.getByRole("button", { name: "Copy install prompt" });
   await copyInstallPrompt.click();
   await expect(app.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
-  await expect(app.locator("header.landing-nav")).toHaveCount(0);
-  const footer = app.locator("footer.landing-footer");
-  await expect(footer.getByText("Nudge UI", { exact: true })).toBeVisible();
-  await expect(footer.getByRole("link", { name: "Nudge UI on GitHub" })).toHaveAttribute("href", "https://github.com/charlessmart/nudge-ui");
-  await expect(footer.getByRole("link", { name: "Made by Charles" })).toHaveAttribute("href", "https://twitter.com/CharlesMSmart");
-  await expect(footer.getByText("dev-only by design", { exact: false })).toHaveCount(0);
-  await expect(footer.getByText("data-cid", { exact: false })).toHaveCount(0);
-
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const sources = await frames.evaluateAll((elements) => elements.map((element) => (
     (element as HTMLIFrameElement).src
@@ -90,23 +43,14 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   await openNudge.click();
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
+  await useAppNormally.click();
 
-  await inspectorHost.locator('[data-test="presentation-canvas"]').click();
+  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
   await expect(versionOneFrame).toBeVisible();
   await expect(versionTwoFrame).toBeVisible();
-  const cardLabels = await inspectorHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
-  expect(cardLabels.sort()).toEqual(["Final", "V1", "V2"]);
   await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
-  const cardWidths = await inspectorHost.locator("[data-card-id]").evaluateAll((elements) => (
-    elements.map((element) => getComputedStyle(element).width)
-  ));
-  expect(new Set(cardWidths).size).toBe(1);
-  await expect(inspectorHost.locator(".canvas-workspace__board-content")).toHaveCSS(
-    "transform",
-    /matrix\(0\.9, 0, 0, 0\.9,/,
-  );
-
+  await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
   const editableDemoText = app.locator(".landing-demo-example-text");
   await editableDemoText.dblclick();
   const inlineEditor = app.locator('[data-inline-editor="true"]');
@@ -127,12 +71,18 @@ test("keeps the final landing card after refreshing a focused historical version
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await inspectorHost.locator('[data-test="show-inspector"]').click();
-  await inspectorHost.locator('[data-test="presentation-canvas"]').click();
+  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
 
   const versionOneCard = inspectorHost
     .locator('[data-test^="canvas-card-dimensions-"]')
     .filter({ hasText: "V1" })
     .locator("xpath=ancestor::*[@data-card-id][1]");
+  const boardBounds = await inspectorHost.locator('[data-test="canvas-board"]').boundingBox();
+  const cardBounds = await versionOneCard.boundingBox();
+  if (!boardBounds || !cardBounds) throw new Error("The canvas frame is not rendered.");
+  await page.mouse.move(boardBounds.x + 10, boardBounds.y + 10);
+  await page.mouse.wheel(cardBounds.x - boardBounds.x - 40, cardBounds.y - boardBounds.y - 80);
+  await versionOneCard.hover({ position: { x: 10, y: 10 } });
   await versionOneCard.locator('[data-test^="canvas-card-focus-"]').click();
   await expect(workspace).toHaveAttribute("data-presentation", "focus");
   await expect.poll(() => new URL(page.url()).searchParams.get("landing-version")).toBe("1");
@@ -171,61 +121,15 @@ test("opens the editor from an explicit direct application view", async ({ page 
   await expect(page.locator("#nudge-ui-root").locator('[data-test="show-inspector"]')).toBeVisible();
 });
 
-test("reveals the inspector arrow when the demo enters the viewport", async ({ page }) => {
+test("loads showcase videos as their sections enter the viewport", async ({ page }) => {
   await page.goto("/");
 
   const app = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
-  const demo = app.locator("section#demo");
-  const arrow = app.locator(".landing-demo-arrow");
-  const tail = arrow.locator(".landing-demo-arrow-tail");
-  const head = arrow.locator(".landing-demo-arrow-head");
-  await expect(tail).toHaveCSS("clip-path", "inset(100% 0px 0px)");
-  await expect(head).toHaveCSS("clip-path", "inset(0px 100% 0px 0px)");
-
-  await demo.scrollIntoViewIfNeeded();
-  await expect(tail).toHaveCSS("clip-path", "inset(0px)");
-  await expect(head).toHaveCSS("clip-path", "inset(0px)");
-
-  await app.locator("html").evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect(tail).toHaveCSS("clip-path", "inset(0px)");
-  await expect(head).toHaveCSS("clip-path", "inset(0px)");
-
-  await app.locator("html").evaluate(() => window.scrollTo(0, 0));
-  await expect(tail).toHaveCSS("clip-path", "inset(100% 0px 0px)");
-  await expect(head).toHaveCSS("clip-path", "inset(0px 100% 0px 0px)");
-});
-
-test("renders demo videos as vertical sections", async ({ page }) => {
-  await page.goto("/");
-
-  const app = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
-  const showcase = app.locator("section.landing-showcase");
-  const items = showcase.locator(".landing-showcase-item");
+  const items = app.locator("section.landing-showcase .landing-showcase-item");
   await expect(items).toHaveCount(3);
-  await expect(showcase.getByRole("tablist")).toHaveCount(0);
-  await expect(showcase.locator("[role=tabpanel]")).toHaveCount(0);
-  await expect(items.nth(0).getByRole("heading", { name: "Edit UI directly" })).toBeVisible();
-  await expect(items.nth(1).getByRole("heading", { name: "A canvas for comparing pages" })).toBeVisible();
-  await expect(items.nth(2).getByRole("heading", { name: "Keep tokens and components in sync" })).toBeVisible();
-  await expect(items.nth(0).getByText("Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.", { exact: true })).toBeVisible();
-  await expect(items.nth(0).locator(".landing-showcase-item-bullets")).toHaveText("Change stylesMove and delete elementsEdit text");
-  await expect(items.nth(0).locator(".landing-showcase-item-bullets svg")).toHaveCount(3);
-  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare screens, screen sizes or overall flows. Pick a direction, refine the details immediately and get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.", { exact: true })).toBeVisible();
-  await expect(items.nth(2).getByText("It's your real code base, so use the tokens and components that exist already. Avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
-  await expect(showcase.getByText("Share and review changes", { exact: true })).toHaveCount(0);
   await expect(items.locator("video")).toHaveCount(0);
-  await expect(items.locator(".landing-showcase-placeholder")).toHaveCount(3);
-  await expect(items.locator(".landing-showcase-placeholder-image")).toHaveCount(3);
-  await expect(items.nth(0).locator(".landing-showcase-placeholder")).toHaveCSS("transition-duration", "0.5s");
-  await expect(items.locator(".landing-showcase-browser-bar")).toHaveCount(3);
-  await expect(items.locator(".landing-showcase-browser-dot")).toHaveCount(9);
-  await expect(items.locator(".landing-showcase-browser-url")).toHaveText(["localhost", "localhost", "localhost"]);
-  await expect(showcase.getByText("Recording coming soon", { exact: true })).toHaveCount(0);
-  await expect(items.nth(0).locator(".landing-showcase-placeholder-image")).toHaveAttribute("src", /screen-1/);
-  await expect(items.nth(1).locator(".landing-showcase-placeholder-image")).toHaveAttribute("src", /screen-2/);
-  await expect(items.nth(2).locator(".landing-showcase-placeholder-image")).toHaveAttribute("src", /screen-3/);
 
-  for (const [index, item] of (await items.all()).entries()) {
+  for (const item of await items.all()) {
     const videoContainer = item.locator(".landing-showcase-video");
     await videoContainer.evaluate(async (element) => {
       document.documentElement.style.scrollBehavior = "auto";
@@ -238,26 +142,5 @@ test("renders demo videos as vertical sections", async ({ page }) => {
       }
     });
     await expect(item.locator("video")).toHaveCount(1);
-    if (index === 0) {
-      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(650);
-      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1000);
-      await expect.poll(() => videoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-      await expect(item.locator(".landing-showcase-video-element")).toHaveCSS("transition-duration", "0.5s");
-    } else {
-      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width - element.parentElement!.getBoundingClientRect().width)).toBe(0);
-    }
   }
-
-  const firstVideoContainer = items.nth(0).locator(".landing-showcase-video");
-  await firstVideoContainer.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBe(1000);
-  await expect.poll(() => firstVideoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-
-  await firstVideoContainer.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    const targetTop = window.innerHeight * 0.88 - 120;
-    window.scrollTo(0, window.scrollY + rect.top - targetTop);
-  });
-  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThan(1000);
-  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(650);
 });

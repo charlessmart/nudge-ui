@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adjacentCanvasZoomLevel, closestCanvasZoomLevel } from "./CanvasToolbar.tsx";
-import { canvasToolForCode, canvasToolForEvent } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasToolForCode, canvasToolForEvent } from "./keyboardShortcuts.ts";
 
 describe("canvas toolbar zoom presets", () => {
   it("snaps arbitrary canvas zoom to the nearest preset", () => {
@@ -25,8 +25,8 @@ describe("canvas toolbar keyboard shortcuts", () => {
     expect(canvasToolForCode(code)).toBe(tool);
   });
 
-  it("does not activate app interaction with I", () => {
-    expect(canvasToolForCode("KeyI")).toBeNull();
+  it("does not map the app interaction key to a canvas tool", () => {
+    expect(canvasToolForCode(APP_INTERACTION_KEY)).toBeNull();
   });
 
   it("ignores modifiers and repeated keydown events", () => {

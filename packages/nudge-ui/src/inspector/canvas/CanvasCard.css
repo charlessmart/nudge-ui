@@ -55,14 +55,9 @@
   bottom: calc(100% + var(--space-8));
   justify-content: flex-end;
   z-index: 3;
-  cursor: grab;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-}
-
-.canvas-card.is-dragging .canvas-card__header {
-  cursor: grabbing;
 }
 
 .canvas-card__drag-surface {
@@ -70,7 +65,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  margin-right: auto;
   min-width: 0;
   min-height: var(--control-height-large);
   padding: 0;
@@ -130,22 +126,21 @@
   position: absolute;
   left: 50%;
   flex-shrink: 0;
-  max-width: 0;
+  width: max-content;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translate(-50%, var(--space-4));
+  transform: translate(-50%, calc(-24px + var(--space-4)));
   transition: opacity 140ms ease-out, transform 140ms ease-out, visibility 140ms;
 }
 
 .canvas-card:hover .canvas-card__floating-toolbar,
 .canvas-card:focus-within .canvas-card__floating-toolbar,
 .canvas-card__floating-toolbar[data-busy="true"] {
-  max-width: none;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, -24px);
 }
 
 .canvas-card__actions.canvas-toolbar {
@@ -155,13 +150,16 @@
   white-space: nowrap;
 }
 
+.canvas-card__actions .canvas-toolbar__divider {
+  margin-inline: 0;
+}
+
 @media (hover: none) {
   .canvas-card.is-selected .canvas-card__floating-toolbar {
-    max-width: none;
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, -24px);
   }
 }
 

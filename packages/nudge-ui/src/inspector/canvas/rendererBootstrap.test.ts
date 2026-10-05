@@ -248,8 +248,22 @@ describe("bootstrapRenderer teardown", () => {
   });
 });
 
-describe("bootstrapRenderer link targets", () => {
-  it("removes Shift from app link clicks only during canvas app interaction", () => {
+describe("bootstrapRenderer app interaction", () => {
+  it("reports the A key while focus is inside the iframe", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+    dispatchParentReady();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", key: "a" }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "app-interaction-modifier", held: true }));
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "ShiftLeft", key: "Shift" }));
+    expect(messages(postMessage).filter((message) => message.type === "app-interaction-modifier")).toHaveLength(1);
+
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyA", key: "a" }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "app-interaction-modifier", held: false }));
+  });
+
+  it("preserves Shift-modified link clicks for the application", () => {
     handle = bootstrapRenderer();
     dispatchParentReady();
     const link = document.createElement("a");
@@ -257,30 +271,20 @@ describe("bootstrapRenderer link targets", () => {
     const child = document.createElement("span");
     link.append(child);
     document.body.append(link);
-    const received: boolean[] = [];
+    let receivedShift = false;
     link.addEventListener("click", (event) => {
-      received.push(event.shiftKey);
-      expect(event.target).toBe(child);
+      receivedShift = event.shiftKey;
       event.preventDefault();
     });
-    const setMode = (enabled: boolean, panScroll: boolean) => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled, panScroll, ...identity },
-        origin: window.location.origin,
-        source: window,
-      }));
-    };
-    const click = (metaKey = false) => child.dispatchEvent(new MouseEvent("click", {
-      bubbles: true, cancelable: true, shiftKey: true, metaKey,
+
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: true, panScroll: false, ...identity },
+      origin: window.location.origin,
+      source: window,
     }));
-    setMode(true, false);
-    click();
-    click(true);
-    setMode(false, false);
-    click();
-    setMode(true, true);
-    click();
-    expect(received).toEqual([false, true, true, true]);
+    child.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true }));
+
+    expect(receivedShift).toBe(true);
   });
 
   function sendLinkTargetState(openInCard: boolean): void {

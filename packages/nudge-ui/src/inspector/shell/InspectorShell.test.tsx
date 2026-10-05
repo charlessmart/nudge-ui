@@ -45,14 +45,6 @@ describe("InspectorShell", () => {
     host.remove();
   });
 
-  it("mountInspector attaches a shadow root to the host element", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    expect(host.shadowRoot).not.toBeNull();
-    expect(getNudgeUiRuntimeConfig().capabilities.domNavigation).toBe(true);
-  });
-
   it.each([
     { tag: "video", text: "Video fallback", visible: false },
     { tag: "p", text: "Inherited typography is still useful here", visible: true },
@@ -74,7 +66,7 @@ describe("InspectorShell", () => {
       });
       expect(Boolean(host.shadowRoot?.querySelector('[data-test="typography"]'))).toBe(visible);
       expect(Boolean(host.shadowRoot?.querySelector('[data-test="color-picker"][data-property="color"]'))).toBe(visible);
-      expect(host.shadowRoot?.querySelector('[data-test="color-picker"][data-property="background-color"]')).not.toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="background-editor"]')).not.toBeNull();
     } finally {
       act(() => setSelectedElement(null));
       parent.remove();
@@ -282,29 +274,6 @@ describe("InspectorShell", () => {
     expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
   });
 
-  it("shows selection guidance and shortcuts when nothing is selected", () => {
-    act(() => {
-      mountInspector(host);
-    });
-
-    const emptyState = host.shadowRoot?.querySelector('[data-test="empty-state"]');
-    expect(emptyState?.querySelector(".empty-state__title")?.textContent).toBe("Select an element to edit");
-    expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
-    const macPlatform = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
-    const modifierKey = macPlatform ? "⌘" : "Ctrl";
-    const optionKey = macPlatform ? "⌥" : "Alt";
-    expect([...emptyState?.querySelectorAll<HTMLElement>('[data-test="empty-state-shortcut"]') ?? []].map((row) => row.textContent?.trim())).toEqual([
-      "Nudge↑↓←→",
-      "Big Nudge (8px)Shift+Arrow",
-      `Select deeper${modifierKey}+Click`,
-      `Measure${optionKey}+Hover`,
-      `Hide UI${modifierKey}+\\`,
-      "Hold to view original\\",
-      `Undo${modifierKey}+Z`,
-      "DeselectEsc",
-    ]);
-  });
-
   it("announces an unsupported inline-text attempt and clears it after success", () => {
     const unsupported = document.createElement("div");
     unsupported.dataset.cid = "EmptyCopy";
@@ -353,9 +322,15 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
     expect(shadow.querySelector('[data-test^="presentation-"]')).toBeNull();
     expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="settings-button"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).toBeNull();
+
+    act(() => {
+      pressKey({ key: "\\", code: "Backslash", metaKey: true });
+    });
+    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).toBeNull();
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {

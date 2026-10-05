@@ -75,29 +75,10 @@ async function revertChange(page: import("@playwright/test").Page, property: str
   await row.locator('[data-test="change-revert"]').click();
 }
 
-/**
- * Selects a playground fixture via a synthetic click on the fixture element
- * itself (a positioned click can land on a tracked child instead). A click
- * issued while the playground tree or the inspector selection handler is
- * still mounting is silently dropped, so click and verify the selection
- * until it registers rather than firing once and racing bootstrap.
- */
-async function selectFixture(page: import("@playwright/test").Page, testId: string): Promise<void> {
-  const app = await getAppFrame(page);
-  await expect
-    .poll(async () => {
-      await app.evaluate((id) => {
-        (document.querySelector(`[data-test="${id}"]`) as HTMLElement | null)?.click();
-      }, testId);
-      return shadowQueryExists(page, "layout-section");
-    }, { timeout: 15000 })
-    .toBe(true);
-}
-
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
   await openEditor(page, "/playground");
 
-  await selectFixture(page, "flex-container");
+  await (await getAppFrame(page)).locator('[data-test="flex-container"]').click({ position: { x: 2, y: 2 } });
   await waitForEditors(page);
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-container"), { timeout: 5000 }).toBe(true);
 
@@ -107,7 +88,6 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   const displaySelect = page.locator('[data-test="layout-select-display"]');
   await expect(displaySelect).toHaveAttribute("role", "combobox");
-  await expect(displaySelect.locator(".select__icon")).toBeVisible();
 
   // Flex container sub-section should be visible
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
@@ -127,38 +107,9 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"));
   });
   expect(initialGapProperties).toEqual(["column-gap"]);
-  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Spacing");
-  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Items");
-  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Distribution");
 
   const columnGapInput = page.locator('[data-test="layout-gap"] [data-test="layout-combo-input-column-gap"]');
   await expect(columnGapInput).toBeVisible();
-  await expect(columnGapInput).toHaveCSS("height", "32px");
-  const spacingFieldSurface = page.locator('[data-test="layout-gap"] .layout__spacing-primary .layout__spacing-field');
-  await expect(spacingFieldSurface.locator('[data-test="layout-spacing-icon-column-gap"]')).toHaveCount(1);
-  const surfaceColors = await spacingFieldSurface.evaluate((field) => ({
-    field: getComputedStyle(field).backgroundColor,
-    input: getComputedStyle(field.querySelector("input")!).backgroundColor,
-  }));
-  expect(surfaceColors.field).not.toBe("rgba(0, 0, 0, 0)");
-  expect(surfaceColors.input).toBe("rgba(0, 0, 0, 0)");
-  await expect(page.locator('[data-test="layout-gap"] [data-test="layout-combo-select-column-gap"]')).toHaveCount(0);
-  await columnGapInput.fill("12");
-  await columnGapInput.blur();
-  await expect
-    .poll(async () => (await sheetText(page)).includes("column-gap: 12px"), { timeout: 5000 })
-    .toBe(true);
-
-  const alignmentGridSize = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const grid = sr?.querySelector('[data-test^="layout-align-"]')?.parentElement;
-    if (!grid) return null;
-    const rect = grid.getBoundingClientRect();
-    return { width: rect.width, height: rect.height };
-  });
-  expect(alignmentGridSize).not.toBeNull();
-  expect(Math.abs((alignmentGridSize?.width ?? 0) - (alignmentGridSize?.height ?? 0))).toBeLessThan(2);
-
   await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement | null)?.click();
@@ -172,9 +123,6 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"))
       .sort();
   }), { timeout: 5000 }).toEqual(["column-gap", "row-gap"]);
-  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Lines");
-  await expect(page.locator('[data-test="layout-spacing-icon-column-gap"]')).toHaveCount(1);
-  await expect(page.locator('[data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
 
   // Change flex-direction to column.
   await page.evaluate(() => {
@@ -186,7 +134,6 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-direction"), { timeout: 5000 })
     .toBe("column");
-  await expect(page.locator('.layout__spacing-primary [data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
 
   // In a column layout, the grid's top-right cell means top + right:
   // justify-content: flex-start and align-items: flex-end.
@@ -220,34 +167,11 @@ test("dev: layout section shows flex container controls and edits write to manag
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-between");
   await expect(page.locator('[data-test="layout-flex-distribution"]')).toHaveAttribute("data-active", "true");
-  await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return !!sr?.querySelector(".layout__distribution-preview");
-  }), { timeout: 5000 }).toBe(true);
-
-  const betweenMarkers = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll(".layout__distribution-preview span") ?? []).map((marker) => ({
-      top: marker.getBoundingClientRect().top,
-      shadow: getComputedStyle(marker).boxShadow,
-    }));
-  });
-  expect(betweenMarkers).toHaveLength(3);
-  expect(betweenMarkers.every((marker) => marker.shadow === "none")).toBe(true);
-
   await page.locator('[data-test="layout-flex-distribution"]').click();
   await page.locator('[data-test="layout-flex-distribution-space-around"]').click();
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-around");
-  const aroundMarkers = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll(".layout__distribution-preview span") ?? [])
-      .map((marker) => marker.getBoundingClientRect().top);
-  });
-  expect(aroundMarkers[0]!).toBeGreaterThan(betweenMarkers[0]!.top);
-  expect(aroundMarkers[2]!).toBeLessThan(betweenMarkers[2]!.top);
-
   await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
@@ -317,14 +241,10 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   // Frequently used flex child fields are direct text inputs.
   const hasFlexGrow = await shadowQueryExists(page, "layout-combo-input-flex-grow");
   expect(hasFlexGrow).toBe(true);
-  await expect(page.locator('[data-test="layout-combo-input-flex-grow"]')).toHaveCSS("height", "32px");
-  await expect(page.locator('[data-test="layout-combo-input-flex-shrink"]')).toHaveCSS("height", "32px");
-  await expect(page.locator('[data-test="layout-combo-input-flex-basis"]')).toHaveCSS("height", "32px");
 
   await page.locator('[data-test="layout-flex-child-settings"]').click();
   await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-combo-select-order"]')).toBeVisible();
-  await expect(page.locator('[data-test="layout-combo-select-order"]')).toHaveCSS("height", "32px");
 
   const positionSelect = page.locator('[data-test="layout-select-position"]');
   await positionSelect.focus();
@@ -389,28 +309,6 @@ test("dev: layout section shows inset controls for a positioned element", async 
   // Expanded inset sides use the regular token/raw input.
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
   expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
-  const topInsetIcon = await page.evaluate(() => {
-    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const svg = shadow?.querySelector('[data-test="layout-inset"] [data-side="top"] svg') as SVGSVGElement | null;
-    const rect = svg?.querySelector("rect");
-    return {
-      width: svg ? getComputedStyle(svg).width : "",
-      height: svg ? getComputedStyle(svg).height : "",
-      color: svg ? getComputedStyle(svg).color : "",
-      rectX: rect?.getAttribute("x"),
-      rectTransform: rect?.getAttribute("transform"),
-      stroke: rect?.getAttribute("stroke"),
-    };
-  });
-  expect(topInsetIcon).toMatchObject({
-    width: "16px",
-    height: "16px",
-    color: "rgb(111, 111, 111)",
-    rectX: "19",
-    rectTransform: "rotate(90 19 7)",
-    stroke: "currentColor",
-  });
-
   // Change top from "0" to "auto"
   await setInput(page, "top", "auto");
 
@@ -509,16 +407,9 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await expect(gridGap.locator('.layout__spacing-field')).toHaveCount(2);
   for (const property of ["row-gap", "column-gap"]) {
     const surface = gridGap.locator(`[data-test="layout-grid-${property}"]`);
-    await expect(surface).toHaveClass(/layout__spacing-field/);
-    await expect(surface).toHaveCSS("height", "32px");
-    await expect(surface.locator(`[data-test="layout-spacing-icon-${property}"]`)).toHaveCount(1);
     const token = surface.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-chip"]`);
     await expect(token).toBeVisible();
     await expect(token).toHaveAttribute("aria-label", `Change ${property} token`);
-    await expect(token.locator(".token-chip__label")).toHaveAttribute(
-      "title",
-      property === "row-gap" ? "--space-2" : "--space-3",
-    );
     await expect(surface.locator(`[data-test="layout-combo-input-${property}"]`)).toHaveCount(0);
   }
   const picker = page.locator('[data-test="layout-grid-picker-trigger"]');

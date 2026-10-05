@@ -1,9 +1,10 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
-import type { ButtonHTMLAttributes, ReactElement } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { portalContainer } from "./portalContainer.ts";
+import { IconButton } from "./IconButton.tsx";
 
 export interface SelectOption {
   value: string;
@@ -22,7 +23,11 @@ export type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChang
   groups?: SelectGroup[];
   placeholder?: string;
   compact?: boolean;
+  /** Uses the shared icon button as the trigger; requires an accessible label. */
+  iconOnly?: boolean;
   appearance?: ControlAppearance;
+  /** Overrides popup placement, including text alignment for icon-only triggers. */
+  popupPosition?: Pick<ComponentProps<typeof BaseSelect.Positioner>, "side" | "align" | "alignItemWithTrigger">;
   searchable?: boolean;
   searchPlaceholder?: string;
   searchAriaLabel?: string;
@@ -41,7 +46,9 @@ function NativeSelect({
   groups = [],
   placeholder,
   compact,
+  iconOnly,
   appearance = "default",
+  popupPosition,
   searchable: _searchable,
   searchPlaceholder: _searchPlaceholder,
   searchAriaLabel: _searchAriaLabel,
@@ -68,8 +75,9 @@ function NativeSelect({
     >
       <BaseSelect.Trigger
         {...triggerProps}
+        render={iconOnly ? <IconButton label={props["aria-label"] ?? "Select option"} /> : undefined}
         disabled={disabled}
-        className={`select${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`}
+        className={`select${iconOnly ? " select--icon-only" : ""}${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`}
       >
         <BaseSelect.Value className="select__value" placeholder={placeholder}>
           {selectedOption?.label ?? (value || undefined)}
@@ -80,7 +88,8 @@ function NativeSelect({
         {children}
       </BaseSelect.Trigger>
       <BaseSelect.Portal container={portalContainer()}>
-        <BaseSelect.Positioner className="select__positioner" sideOffset={4}>
+        <BaseSelect.Positioner className="select__positioner" sideOffset={4} {...popupPosition}
+          alignItemWithTrigger={iconOnly ? false : popupPosition?.alignItemWithTrigger}>
           <BaseSelect.Popup className="select__popup">
             <BaseSelect.List className="select__list">
               {options.map((option) => <SelectItem key={option.value} option={option} />)}
@@ -112,7 +121,9 @@ function SearchableSelect({
   groups = [],
   placeholder,
   compact,
+  iconOnly,
   appearance = "default",
+  popupPosition,
   searchable: _searchable,
   searchPlaceholder = "Search…",
   searchAriaLabel = "Search options",
@@ -141,7 +152,7 @@ function SearchableSelect({
   }
 
   const { onValueChange: _onValueChange, ...triggerProps } = props;
-  const triggerClassName = `select${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`;
+  const triggerClassName = `select${iconOnly ? " select--icon-only" : ""}${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`;
 
   return (
     <BaseCombobox.Root
@@ -154,6 +165,7 @@ function SearchableSelect({
     >
       <BaseCombobox.Trigger
         {...triggerProps}
+        render={iconOnly ? <IconButton label={props["aria-label"] ?? "Select option"} /> : undefined}
         data-test={dataTest}
         disabled={disabled}
         className={triggerClassName}
@@ -169,7 +181,7 @@ function SearchableSelect({
         {children}
       </BaseCombobox.Trigger>
       <BaseCombobox.Portal container={portalContainer()}>
-        <BaseCombobox.Positioner className="select__positioner" sideOffset={4}>
+        <BaseCombobox.Positioner className="select__positioner" sideOffset={4} side={popupPosition?.side} align={popupPosition?.align}>
           <BaseCombobox.Popup className="select__popup select__popup--searchable">
             <BaseCombobox.Input
               className="select__search-input"

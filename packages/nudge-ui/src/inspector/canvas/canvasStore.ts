@@ -1,6 +1,7 @@
 import type { FrameContent } from "./frameContent.ts";
-import { iterationId, contentSourceUrl } from "./frameContent.ts";
-import { recordCanvasCreation, discardCanvasHistory, isDraftLocked } from "../changes/draftChanges.ts";
+import { iterationId, contentSourceUrl, contentEditTarget } from "./frameContent.ts";
+import { recordCanvasChange, discardCanvasHistory, isDraftLocked, forgetDraft } from "../changes/draftChanges.ts";
+import { targetKey } from "../drafts/model.ts";
 import { useSyncExternalStore } from "react";
 import {
   DEFAULT_CAMERA,
@@ -209,18 +210,12 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
     }
     notify();
   };
-  recordCanvasCreation({
+  recordCanvasChange({
     cardIds: [...createdIds],
     undo: () => restore(false),
     redo: () => restore(true),
     dispose: () => {
-      for (const artifactId of new Set(created.flatMap((card) => card.content.kind === "iteration" ? [card.content.artifactId] : []))) {
-        if (!cards.some((card) => iterationId(card.content) === artifactId)) {
-          void removeHtmlArtifact(artifactId).catch((error: unknown) => {
-            console.warn("Nudge UI could not remove an unused HTML iteration:", error);
-          });
-        }
-      }
+      for (const card of created) releaseUnusedIteration(card);
     },
   });
 }
@@ -231,20 +226,48 @@ function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
   if (removedIds.has(focusedCardId ?? "")) focusedCardId = fallbackId;
 }
 
-export function removeCanvasCard(id: string): void {
+function releaseUnusedIteration(card: CanvasCard): void {
+  const artifactId = iterationId(card.content);
+  if (!artifactId || cards.some((candidate) => iterationId(candidate.content) === artifactId)) return;
+  forgetDraft(targetKey(contentEditTarget(card.content)));
+  void removeHtmlArtifact(artifactId).catch((error: unknown) => {
+    console.warn("Nudge UI could not remove an unused HTML iteration:", error);
+  });
+}
+
+function recordRemoval(before: readonly CanvasCard[], removed: CanvasCard): void {
+  let snapshot = removed;
+  const group = removed.groupId ? getFrameGroup(removed.groupId) : undefined;
+  recordCanvasChange({
+    cardIds: [removed.id],
+    undo: () => {
+      cards = reinsertInRecordedOrder(cards, before.map((card) => card.id === removed.id ? snapshot : card), new Set([removed.id]));
+      if (group) setFrameGroup(group);
+      selectCard(removed.id);
+      activateHistoryCard(removed.id);
+      focusCanvasCards([removed.id]);
+    },
+    redo: () => {
+      snapshot = cards.find((card) => card.id === removed.id) ?? snapshot;
+      cards = cards.filter((card) => card.id !== removed.id);
+      selectFallbackAfterRemoval(new Set([removed.id]));
+      notify();
+    },
+    dispose: () => releaseUnusedIteration(snapshot),
+  });
+}
+
+export function removeCanvasCard(id: string, { undoable = false }: { undoable?: boolean } = {}): void {
   if (isDraftLocked()) return;
-  const removedArtifactId = iterationId(cards.find((card) => card.id === id)?.content);
   const removed = cards.find((card) => card.id === id);
   if (!removed) return;
-  discardCanvasHistory(id);
+  const before = cards;
+  if (!undoable) discardCanvasHistory(id);
   cards = cards.filter((c) => c.id !== id);
   selectFallbackAfterRemoval(new Set([id]));
+  if (undoable) recordRemoval(before, removed);
   notify();
-  if (removedArtifactId && !cards.some((card) => iterationId(card.content) === removedArtifactId)) {
-    void removeHtmlArtifact(removedArtifactId).catch((error: unknown) => {
-      console.warn("Nudge UI could not remove the HTML iteration:", error);
-    });
-  }
+  if (!undoable) releaseUnusedIteration(removed);
 }
 
 /**

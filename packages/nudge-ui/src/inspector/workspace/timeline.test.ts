@@ -8,6 +8,7 @@ import { draftChangeStore, getActiveDraftChanges, resetDraftChanges, clearSessio
 import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import type { StructuralMove } from "../changes/structuralTypes.ts";
 import { activateDraftForCard, draftIdForCard, getDraftContentsForCard, resetDrafts, clearSavedIterationDraft, getDraftsSnapshot } from "../drafts/store.ts";
+import { removeFrame } from "./commands.ts";
 
 const style: ElementChangeRecord = {
   cid: "Heading", file: "iteration.html", line: 1, selector: '[data-cid="Heading"]',
@@ -136,4 +137,49 @@ it("keeps a later frame drag when undo removes a linked view", () => {
   expect(draftChangeStore.undoChange()).toBe(true);
   expect(getCanvasCards()).toHaveLength(1);
   expect(getCanvasCards()[0]).toMatchObject({ id: source.id, x: source.x + 120, y: source.y + 80 });
+});
+
+it("restores a deleted live frame and its edits before undoing the earlier edit", () => {
+  const source = original();
+  const removed = activateIframeWorkspace(new URL("/other", window.location.href).href, { width: 400, height: 600 })!;
+  selectCard(removed.id);
+  activateDraftForCard(removed.id);
+  draftChangeStore.commitChangeRecords([style]);
+  setCardPosition(removed.id, 1200, 80);
+  const snapshot = getCanvasCards().find((card) => card.id === removed.id)!;
+
+  expect(removeFrame(removed.id)).toBe(true);
+  expect(getCanvasCards().map((card) => card.id)).toEqual([source.id]);
+  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(getCanvasCards().find((card) => card.id === removed.id)).toEqual(snapshot);
+  expect(getSelectedCardId()).toBe(removed.id);
+  expect(getDraftContentsForCard(removed.id)?.changes).toEqual([style]);
+  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(getDraftContentsForCard(removed.id)?.changes).toEqual([]);
+  draftChangeStore.redoChange();
+  draftChangeStore.redoChange();
+  expect(getCanvasCards().map((card) => card.id)).toEqual([source.id]);
+  draftChangeStore.undoChange();
+  expect(getDraftContentsForCard(removed.id)?.changes).toEqual([style]);
+});
+
+it("keeps a deleted iteration's file and draft available until removal can no longer be undone", () => {
+  const source = original();
+  const iteration = addCanvasIteration(source.id, "artifact-deleted")!;
+  selectCard(iteration.id);
+  activateDraftForCard(iteration.id);
+  clearSessionUndoHistory();
+  draftChangeStore.commitChangeRecords([text]);
+  const draftId = draftIdForCard(iteration.id)!;
+
+  removeFrame(iteration.id);
+  expect(fetch).not.toHaveBeenCalled();
+  expect(getDraftsSnapshot().drafts.find((draft) => draft.id === draftId)?.contents.changes).toEqual([text]);
+  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(getSelectedCardId()).toBe(iteration.id);
+  expect(getDraftContentsForCard(iteration.id)?.changes).toEqual([text]);
+  draftChangeStore.redoChange();
+  clearSessionUndoHistory();
+  expect(fetch).toHaveBeenCalledWith("/__nudge_ui__/artifacts/artifact-deleted", { method: "DELETE", keepalive: true });
+  expect(getDraftsSnapshot().drafts.some((draft) => draft.id === draftId)).toBe(false);
 });

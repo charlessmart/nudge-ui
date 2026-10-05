@@ -152,7 +152,7 @@
 }
 
 .copy-prompt__menu-title {
-  font-weight: var(--font-weight-label);
+  font-weight: var(--font-weight-base);
 }
 
 .copy-prompt__menu-description {
@@ -217,6 +217,10 @@
 
 .copy-prompt__hint--centered {
   text-align: center;
+}
+
+.copy-prompt__hint--implemented {
+  font-size: var(--font-size-base);
 }
 
 .copy-prompt__hint code {

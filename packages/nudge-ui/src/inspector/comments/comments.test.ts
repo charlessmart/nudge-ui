@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
-import { clearComments, commentRoute, getComments, getCommentsForTarget, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
+import { clearComments, commentRoute, getComments, getCommentsForTarget, loadComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
 import { applicationTarget, htmlTarget } from "../drafts/model.ts";
+import { projectDraftToDocument } from "../canvas/projection.ts";
 import { reconcileComments } from "./verification.ts";
 
 // The renderer transport is the boundary; DOM identity and fingerprinting remain real.
 vi.mock("../canvas/projection.ts", () => ({
-  projectDraftToDocument: async () => 1,
+  projectDraftToDocument: vi.fn(async () => 1),
   isCanvasProjectionRevisionCurrent: () => true,
 }));
 
@@ -121,4 +122,31 @@ describe("element comments", () => {
     markCommentsHandedOff([saved]);
     expect(getComments()[0]?.handedOff).toBe(false);
   });
+  it("keeps rehydrated notes when an older reconciliation finishes after takeover", async () => {
+    const button = target();
+    const saved = comment(button);
+    saveComment(saved);
+    markCommentsHandedOff([saved]);
+    button.textContent = "Publish";
+    let startRead!: () => void;
+    let finishRead!: (revision: number) => void;
+    const started = new Promise<void>((resolve) => { startRead = resolve; });
+    const pending = new Promise<number>((resolve) => { finishRead = resolve; });
+    vi.mocked(projectDraftToDocument).mockImplementationOnce(() => {
+      startRead();
+      return pending;
+    });
+    const checking = reconcileComments(document);
+    await started;
+    const latest = { ...saved, baseline: "new-owner-baseline", handedOff: true };
+    const key = Object.keys(localStorage).find((key) => key.endsWith(":comments:v1"))!;
+    localStorage.setItem(key, JSON.stringify([latest]));
+    loadComments();
+    finishRead(1);
+    await checking;
+
+    expect(getComments()).toEqual([latest]);
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual([latest]);
+  });
+
 });

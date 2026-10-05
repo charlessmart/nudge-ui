@@ -52,7 +52,7 @@ export function recordEdit(entry: Omit<EditHistoryEntry, "kind" | "group">, equa
   notify();
 }
 
-export function recordCanvasCreation(entry: Omit<CanvasHistoryEntry, "kind">): void {
+export function recordCanvasChange(entry: Omit<CanvasHistoryEntry, "kind">): void {
   discardRedo();
   undoStack.push({ kind: "canvas", ...entry });
   notify();
@@ -98,13 +98,16 @@ export function discardCanvasHistory(cardId: string): void {
 }
 
 export function clearSessionUndoHistory(): void {
-  discardRedo();
+  const discarded = [...undoStack, ...redoStack];
   undoStack = [];
+  redoStack = [];
+  for (const entry of discarded) if (entry.kind === "canvas") entry.dispose();
   notify();
 }
 
 export function releaseDetachedIterations(): void {
   discardRedo();
+  for (const entry of undoStack) if (entry.kind === "canvas") entry.dispose();
   notify();
 }
 

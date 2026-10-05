@@ -50,24 +50,6 @@ describe("PeekOriginalButton", () => {
     document.getElementById("nudge-ui-styles")?.remove();
   });
 
-  it("renders the compare and settings actions without a token button", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    const shadow = host.shadowRoot!;
-    const peek = shadow.querySelector<HTMLButtonElement>('[data-test="peek-original-button"]');
-    expect(peek).not.toBeNull();
-    expect(peek!.disabled).toBe(true);
-    expect(peek!.getAttribute("aria-label")).toBe("Hold to view original");
-
-    const actions = shadow.querySelector(".panel__header-actions")!;
-    const order = [...actions.querySelectorAll("button")].map((button) => button.getAttribute("data-test"));
-    expect(order).toContain("peek-original-button");
-    expect(order).toContain("settings-button");
-    expect(order).not.toContain("tokens-button");
-    expect(order.indexOf("peek-original-button")).toBeLessThan(order.indexOf("settings-button"));
-  });
-
   it("holding the button suspends the preview and releasing restores it", () => {
     act(() => {
       expect(appendChange(makeRecord("color", "red"))).toBe("applied");

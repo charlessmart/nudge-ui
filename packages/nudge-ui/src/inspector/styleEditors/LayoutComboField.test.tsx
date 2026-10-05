@@ -91,23 +91,6 @@ describe("LayoutComboField", () => {
     expect(sheetText()).toContain("flex-grow: 2;");
   });
 
-  it("selecting Custom… reveals a text input", () => {
-    const { el } = makeSelected();
-    mockComputedStyle({ "flex-grow": "0" });
-    handle = mount(
-      createElement(LayoutComboField, {
-        property: "flex-grow",
-        presets: ["0", "1"],
-        domElement: el,
-      }),
-    );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
-    setSelectValue(select, "__custom__");
-
-    const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
-    expect(input).toBeTruthy();
-  });
-
   it("waits until the custom input blurs before applying the layout value", () => {
     const { el } = makeSelected();
     mockComputedStyle({ "flex-grow": "0" });

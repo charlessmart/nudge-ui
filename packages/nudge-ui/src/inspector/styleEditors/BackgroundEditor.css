@@ -109,3 +109,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.background-editor__layer,
+.background-editor__content,
+.background-editor__solid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.background-editor__layer + .background-editor__layer {
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.background-editor__type-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.background-editor__type-row > .segmented-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.background-editor__blend-space {
+  flex: none;
+  width: var(--control-height-large);
+  height: var(--control-height-large);
+}
+
+.background-editor__type-row .segmented-control__button {
+  padding-inline: var(--space-4);
+}

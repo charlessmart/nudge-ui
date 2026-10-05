@@ -88,7 +88,7 @@ import {
   CanvasToolbar,
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
-import { canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
@@ -96,7 +96,7 @@ import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/i
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
-import { setSelectedElement } from "../selection/selectionStore.ts";
+import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
 
@@ -475,10 +475,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (mode === "canvas" && event.key === "Shift" && !event.repeat && !isEditableEvent(event)) setTemporaryAppInteraction(true);
+      if (mode === "canvas" && event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableEvent(event)) setTemporaryAppInteraction(true);
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === "Shift") setTemporaryAppInteraction(event.shiftKey);
+      if (event.code === APP_INTERACTION_KEY) setTemporaryAppInteraction(false);
     };
     const onBlur = () => {
       if (!document.hasFocus()) setTemporaryAppInteraction(false);
@@ -776,6 +776,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     function onKeyDown(e: KeyboardEvent): void {
       if (mode !== "canvas" || presentation !== "canvas" || sketchActive || interactionTool === "select") return;
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
+        if (e.defaultPrevented || getSelectedElements().length > 0 || getCanvasCards().length < 2) return;
         const selectedCardId = getSelectedCardId();
         if (!selectedCardId) return;
         e.preventDefault();
@@ -854,7 +855,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
       if (zoom && sketchActive) return;
-      if (!zoom && (interactionTool === "select" || !board || !e.composedPath().includes(board))) return;
+      const path = e.composedPath();
+      // Comment pins overlay the board without being its DOM descendants.
+      const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));
+      if (!zoom && (interactionTool === "select" || !board || (!path.includes(board) && !overCommentPin))) return;
       e.preventDefault();
       e.stopPropagation();
       if (zoom) zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
@@ -929,7 +933,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
-          {!sketchActive ? (
+          {inspectorOpen && !sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}
               sketchEnabled={sketchAvailable}
@@ -938,7 +942,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ) : null}
         </div>
       </div>
-      {sketchActive ? (
+      {inspectorOpen && sketchActive ? (
         <div
           className="canvas-toolbar__portal"
           data-test="canvas-toolbar-portal"

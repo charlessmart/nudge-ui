@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
 import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
-import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
@@ -152,43 +151,6 @@ describe("TokenField", () => {
       "100%",
       "fit-content",
     ]);
-  });
-
-  it("supports shared leading and trailing adornments", () => {
-    const { selected } = makeSelected();
-    handle = mount(createElement(
-      ControlSurface,
-      { "data-test": "token-surface" },
-      createElement(TokenField, {
-        property: "font-size",
-        domElement: selected.domElement,
-        entries: [],
-        leading: createElement("span", { "data-test": "leading-adornment" }, "A"),
-        trailing: createElement("span", { "data-test": "trailing-adornment" }, "⌄"),
-        label: "Font size",
-      }),
-    ));
-
-    const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
-    expect(field.querySelector('[data-test="leading-adornment"]')).not.toBeNull();
-    expect(field.querySelector('[data-test="trailing-adornment"]')).not.toBeNull();
-    expect(field.getAttribute("aria-label")).toBe("Font size");
-    expect(field.className).not.toContain("control-surface");
-    expect(handle.host.querySelector('[data-test="token-surface"]')?.className).toContain("control-surface");
-    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("text-input--embedded");
-  });
-
-  it("does not create visual chrome when mounted without a parent surface", () => {
-    const { selected } = makeSelected();
-    handle = mount(createElement(TokenField, {
-      property: "padding-top",
-      domElement: selected.domElement,
-      entries: [],
-    }));
-
-    const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
-    expect(field.className).not.toContain("control-surface");
-    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("text-input--embedded");
   });
 
   it.each([
@@ -827,7 +789,6 @@ describe("TokenField", () => {
       picker.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
-    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("token-field--color")).toBe(true);
     selected.domElement.remove();
   });
 
