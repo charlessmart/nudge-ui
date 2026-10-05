@@ -1,12 +1,9 @@
 # Nudge UI
 
-Nudge UI is a development-only visual inspector that turns browser edits into
-requests for your coding agent. Inspect a running app, preview design changes,
+Nudge, a design panel for your codebase. 
+It is a development-only visual inspector that turns browser edits into
+prompts for your coding agent. Inspect a running app, preview design changes,
 add comments and sketches, and copy a structured prompt or send it through MCP.
-
-Nudge previews changes to your app without editing application source files.
-Your coding agent implements the request. You can also explore independent HTML
-iterations before choosing a design to apply to the app.
 
 ![Nudge UI visual inspector](https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74)
 
