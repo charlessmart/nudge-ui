@@ -40,6 +40,7 @@ import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
+import { installFrameScrollbarStyles } from "./frameScrollbarStyles.ts";
 import {
   getCanvasResizeEdges,
   resizeCanvasRect,
@@ -137,6 +138,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     session.registerCleanup(() => releaseDocumentProjection(frameDocument));
     session.registerCleanup(() => disposeInlineTextEdit("frame-disposed", frameDocument));
     session.registerCleanup(startClipboardHandoffController(frameDocument));
+    session.registerCleanup(installFrameScrollbarStyles(frameDocument));
     documentSessionRef.current = { document: frameDocument, session };
   }, [disposeDocumentSession, documentOwner]);
 

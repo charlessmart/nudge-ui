@@ -169,6 +169,10 @@ describe("CanvasElementOverlay", () => {
     expect(fill?.style.top).toBe("50px");
     expect(fill?.style.width).toBe("200px");
     expect(fill?.style.height).toBe("20px");
+    const badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
+    expect(badge?.textContent).toBe("20px");
+    expect(badge?.style.left).toBe("200px");
+    expect(badge?.style.top).toBe("60px");
     expect(host.querySelector('[data-test="canvas-hover-outline"]')).toBeNull();
     expect(host.querySelectorAll('[data-test="canvas-selected-outline"]')).toHaveLength(1);
 
@@ -264,6 +268,7 @@ describe("CanvasElementOverlay", () => {
     const guide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
     expect(guide).not.toBeNull();
     expect(guide?.style.top).toBe("73px");
+    expect(host.querySelector('[data-test="canvas-spacing-value-badge"]')).toBeNull();
 
     act(() => {
       window.dispatchEvent(new MessageEvent("message", {

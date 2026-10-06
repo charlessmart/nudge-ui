@@ -223,6 +223,27 @@
   font-size: var(--font-size-base);
 }
 
+.copy-prompt__hint-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.copy-prompt__hint-action:hover {
+  color: var(--text-primary);
+}
+
+.copy-prompt__hint-action:focus-visible {
+  border-radius: var(--radius-4);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .copy-prompt__hint code {
   font-family: var(--font-mono);
 }

@@ -1,5 +1,6 @@
 import type {
   ComponentOverride,
+  ComponentRootInvocation,
   ComponentRuntimeAdapter,
   EditableComponentTarget,
   RuntimeComponentTarget,
@@ -7,6 +8,7 @@ import type {
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   copyComponentOverrides,
+  copyRootInvocations,
   copyRuntimeTarget,
   getHostRuntimeAdapters,
   registerHostRuntimeAdapter,
@@ -54,6 +56,26 @@ export function inspectComponentTargets(element: HTMLElement): RuntimeComponentT
     }
   }
   return targets;
+}
+
+/**
+ * Returns the invocations, nearest first, whose entire rendered output is this
+ * element. Null means no enabled runtime could read the element's ancestry.
+ */
+export function inspectRootInvocations(element: HTMLElement): ComponentRootInvocation[] | null {
+  let invocations: ComponentRootInvocation[] | null = null;
+  const ownerGlobal = element.ownerDocument.defaultView ?? globalThis;
+  for (const adapter of enabledRuntimeAdapters(ownerGlobal)) {
+    if (!adapter.rootInvocations) continue;
+    try {
+      const inspected = adapter.rootInvocations(element);
+      if (inspected === null || inspected === undefined) continue;
+      invocations = [...(invocations ?? []), ...copyRootInvocations(inspected)];
+    } catch (error) {
+      diagnoseAdapter(adapter, error instanceof Error ? error.message : String(error));
+    }
+  }
+  return invocations;
 }
 
 function diagnoseAdapter(adapter: ComponentRuntimeAdapter, detail: string): void {

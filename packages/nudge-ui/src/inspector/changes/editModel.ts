@@ -21,7 +21,25 @@ export interface RenderedInstanceRef {
     text: string | null;
     /** An accessible name can distinguish icon-only repeated controls. */
     ariaLabel?: string | null;
+    /**
+     * The component invocation whose entire output is this element. Present
+     * only when evidence alone cannot tell identical outputs apart.
+     */
+    invocation?: InvocationRef;
   };
+}
+
+/** A component callsite, as stamped by the compiler, and its component name. */
+export interface InvocationRef {
+  callsiteId: string;
+  componentName: string;
+}
+
+function isInvocationRef(value: unknown): value is InvocationRef {
+  return isRecord(value)
+    && hasOnlyKeys(value, ["callsiteId", "componentName"])
+    && typeof value.callsiteId === "string" && value.callsiteId.length > 0 && value.callsiteId.length <= 1024
+    && typeof value.componentName === "string" && value.componentName.length > 0 && value.componentName.length <= 256;
 }
 
 export interface RenderedInstanceOverride {
@@ -43,12 +61,13 @@ export function isRenderedInstanceRef(value: unknown): value is RenderedInstance
     || typeof source.cid !== "string"
     || typeof source.src !== "string"
     || !isRecord(locator)
-    || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"])) return false;
+    || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel", "invocation"])) return false;
   return locator.kind === "evidence"
     && Number.isSafeInteger(locator.occurrence) && (locator.occurrence as number) >= 0
     && (typeof locator.props === "string" || locator.props === null)
     && (typeof locator.text === "string" || locator.text === null)
-    && (locator.ariaLabel === undefined || typeof locator.ariaLabel === "string" || locator.ariaLabel === null);
+    && (locator.ariaLabel === undefined || typeof locator.ariaLabel === "string" || locator.ariaLabel === null)
+    && (locator.invocation === undefined || isInvocationRef(locator.invocation));
 }
 
 export function isRenderedInstanceOverride(value: unknown): value is RenderedInstanceOverride {

@@ -13,7 +13,9 @@ import {
   type PreviewableChangeRecord,
 } from "../changes/changesLog.ts";
 import { verifyPreview } from "../projection/managedStylesheet.ts";
-import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
+import { resolveMovedRenderedInstance } from "../projection/renderedInstance.ts";
+import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
+import { boundRuntimeEvidence, normalizeRuntimeTag } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import {
   documentStateKey,
   type StructuralChange,
@@ -55,13 +57,6 @@ export interface HandoffSnapshot {
   readonly structuralChanges: readonly StructuralChange[];
 }
 
-/**
- * User-facing agent completion state, named once.
- * "completed" means the agent finished; "verified" means completed work was
- * positively reconciled against source-rendered output.
- */
-export type AgentCompletionStatus = "completed" | "verified";
-
 const dispatches = new Map<number, HandoffSnapshot>();
 
 function stableJsonValue(value: unknown): unknown {
@@ -95,16 +90,37 @@ function requestedStyleValue(change: PreviewableChangeRecord): string {
   return change.rawValue ?? "";
 }
 
+function queryTargets(doc: Document, selector: string | null): HTMLElement[] {
+  if (!selector) return [];
+  try {
+    return Array.from(doc.querySelectorAll<HTMLElement>(selector));
+  } catch {
+    return [];
+  }
+}
+
+/** Resolves current style targets, following a source site whose position shifted. */
+function styleTargets(change: PreviewableChangeRecord, doc: Document): HTMLElement[] {
+  if (isTokenChange(change)) return queryTargets(doc, change.selector);
+  // The projection marker is lifted for verification; evidence names the instance.
+  if (change.scope === "rendered-instance") {
+    const resolved = change.instanceOverride
+      ? resolveMovedRenderedInstance(doc, change.instanceOverride.target)
+      : null;
+    return resolved?.status === "resolved" ? [resolved.element] : [];
+  }
+  const targets = queryTargets(doc, selectorForManagedChange(change));
+  const evidence = change.sourceEvidence;
+  if (targets.length > 0 || !evidence || change.column === undefined) return targets;
+  const site = relocateSourceSite(doc, { cid: change.cid, src: `${change.file}:${change.line}:${change.column}` }, (element) =>
+    normalizeRuntimeTag(element.tagName) === evidence.tagName
+    && boundRuntimeEvidence(element.getAttribute("data-cprops")) === evidence.props);
+  return site ? queryTargets(doc, sourceSiteSelector(site.cid, site.src)) : [];
+}
+
 function verifyStyle(change: PreviewableChangeRecord, doc: Document): boolean {
   if (!isTokenChange(change) && (change.state ?? "base") !== "base") return false;
-  const selector = selectorForManagedChange(change);
-  if (!selector) return false;
-  let targets: HTMLElement[];
-  try {
-    targets = Array.from(doc.querySelectorAll<HTMLElement>(selector));
-  } catch {
-    return false;
-  }
+  const targets = styleTargets(change, doc);
   const requested = requestedStyleValue(change);
   return requested.length > 0
     && targets.length > 0
@@ -112,11 +128,20 @@ function verifyStyle(change: PreviewableChangeRecord, doc: Document): boolean {
 }
 
 function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc: Document): boolean {
-  const resolved = resolveTextProjectionTarget(doc, change.target, change.after);
+  let target = change.target;
+  let resolved = resolveTextProjectionTarget(doc, target, change.after);
+  if (resolved.status === "missing") {
+    const sourceSite = relocateSourceSite(doc, target.sourceSite, (element) =>
+      element.getAttribute("data-cprops") === target.props && element.getAttribute("aria-label") === target.ariaLabel);
+    if (sourceSite) {
+      target = { ...target, sourceSite };
+      resolved = resolveTextProjectionTarget(doc, target, change.after);
+    }
+  }
   if (resolved.status !== "resolved") return false;
-  const node = resolveTextProjectionTextNode(resolved.element, change.target, change.after);
+  const node = resolveTextProjectionTextNode(resolved.element, target, change.after);
   if (node) return node.nodeValue === change.after;
-  return change.target.textNodePath === undefined
+  return target.textNodePath === undefined
     && change.after.length === 0
     && (resolved.element.textContent ?? "") === "";
 }
@@ -139,7 +164,7 @@ function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolea
   }
   return currentRoute === change.route
     && documentStateKey(doc) === change.state
-    && resolveRenderedInstance(doc, change.target).status === "missing";
+    && resolveMovedRenderedInstance(doc, change.target).status === "missing";
 }
 
 /**
@@ -149,13 +174,13 @@ function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolea
  * stay unverified instead of trusting rendered placement alone.
  */
 function verifyStructuralMove(change: StructuralMove, doc: Document): boolean {
-  const target = resolveRenderedInstance(doc, change.target);
+  const target = resolveMovedRenderedInstance(doc, change.target);
   if (target.status !== "resolved") return false;
-  const parent = resolveRenderedInstance(doc, change.destination.parent);
+  const parent = resolveMovedRenderedInstance(doc, change.destination.parent);
   if (parent.status !== "resolved") return false;
   if (target.element.parentElement !== parent.element) return false;
   if (!change.destination.before) return target.element.nextElementSibling === null;
-  const before = resolveRenderedInstance(doc, change.destination.before);
+  const before = resolveMovedRenderedInstance(doc, change.destination.before);
   return before.status === "resolved" && target.element.nextElementSibling === before.element;
 }
 
@@ -340,6 +365,22 @@ function handoffDocument(owner: HandoffOwner): Document | null {
     if (doc && documentBelongsToHandoff(doc, owner)) return doc;
   }
   return owner.target.kind === "application" && !isEditorShellDocument() ? document : null;
+}
+
+/** Returns the records captured for one dispatch until it is reconciled. */
+export function getAgentDispatch(revision: number): HandoffSnapshot | null {
+  return dispatches.get(revision) ?? null;
+}
+
+/** Records in the owner draft that still equal what a handoff sent. */
+export function unchangedHandoffRecords(snapshot: HandoffSnapshot): Pick<HandoffSnapshot, "changes" | "structuralChanges"> {
+  const sent = new Set(snapshot.changes.map(handoffChangeFingerprint));
+  const sentStructural = new Set(snapshot.structuralChanges.map(handoffStructuralFingerprint));
+  const current = getDraftChanges(snapshot.owner.draftId);
+  return {
+    changes: current.changes.filter((change) => sent.has(handoffChangeFingerprint(change))),
+    structuralChanges: current.structuralChanges.filter((change) => sentStructural.has(handoffStructuralFingerprint(change))),
+  };
 }
 
 /** Reconciles the captured records for one completed connected-agent request. */

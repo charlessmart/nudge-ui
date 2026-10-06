@@ -298,7 +298,10 @@ function renderedInstanceDescription(ref: RenderedInstanceRef): string {
 function structuralChangeLine(change: StructuralChange): string {
   const target = renderedInstanceDescription(change.target);
   if (change.kind === "delete") {
-    return `- Remove ${target} from the source.`;
+    const invocation = change.target.locator.invocation;
+    return invocation
+      ? `- Remove the ${promptText(`<${invocation.componentName}>`)} invocation at ${invocation.callsiteId} from the source; keep its other invocations. It renders ${target}.`
+      : `- Remove ${target} from the source.`;
   }
   const before = change.destination.before;
   const sourceParent = sourceSiteLabel(change.source.parent);
@@ -321,6 +324,7 @@ function renderedInstanceKey(ref: RenderedInstanceRef): string {
     locator.props,
     locator.text,
     locator.ariaLabel ?? null,
+    locator.invocation?.callsiteId ?? null,
   ]);
 }
 

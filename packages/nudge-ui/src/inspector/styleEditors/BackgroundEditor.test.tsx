@@ -145,6 +145,28 @@ describe("BackgroundEditor", () => {
     expect(getChangeRecords().some((record) => record.property === "background-color")).toBe(false);
   });
 
+  it("shows the base color token authored through the background shorthand", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "none", "background-color": "rgb(0, 136, 204)" });
+    handle = mount(createElement(BackgroundEditor, { element: selected,
+      entries: [{ name: "--color-ocean", value: "#0088cc", source: "test.css:1" }],
+      tokenRow: { property: "background", authored: "var(--color-ocean)", declaredValue: "var(--color-ocean)", resolvedValue: "#0088cc",
+        tokenName: "--color-ocean", confidence: "exact", evidence: { reason: "test" } },
+    }));
+    expect(handle.host.querySelector('[aria-label="Background Color"] [data-test="token-chip"]')?.textContent).toContain("--color-ocean");
+  });
+
+  it("shows the base color token when the browser computes it in color(srgb) syntax", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-image": "none", "background-color": "color(srgb 0 0.588235 1 / 0.06)" });
+    handle = mount(createElement(BackgroundEditor, { element: selected,
+      entries: [{ name: "--accent-surface-subtle", value: "color(srgb 0 0.588235 1 / 0.06)", source: "test.css:1" }],
+      tokenRow: { property: "background-color", authored: "var(--accent-surface-subtle)", declaredValue: "var(--accent-surface-subtle)",
+        resolvedValue: "color(srgb 0 0.588235 1 / 0.06)", tokenName: "--accent-surface-subtle", confidence: "exact", evidence: { reason: "test" } },
+    }));
+    expect(handle.host.querySelector('[aria-label="Background Color"] [data-test="token-chip"]')?.textContent).toContain("--accent-surface-subtle");
+  });
+
   it("blocks edits when an inline background shorthand owns the cascade", () => {
     const { selected, el } = makeSelected();
     el.style.background = "red";

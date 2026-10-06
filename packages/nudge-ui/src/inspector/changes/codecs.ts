@@ -56,6 +56,7 @@ export interface SerializableElementChange {
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
   runtimeEvidence?: NonNullable<ElementChangeRecord["runtimeEvidence"]>;
+  sourceEvidence?: NonNullable<ElementChangeRecord["sourceEvidence"]>;
   scope?: EditScope;
   instanceOverride?: RenderedInstanceOverride;
   state?: NonNullable<ElementChangeRecord["state"]>;
@@ -119,7 +120,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || !hasOnlyKeys(value, [
       "kind", "cid", "file", "line", "column", "selector", "property",
       "sourceProperty", "sourceAuthoredValue", "oldToken", "newToken", "rawValue",
-      "oldRawValue", "source", "runtimeEvidence", "scope", "instanceOverride", "state",
+      "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "instanceOverride", "state",
     ])
     || (value.kind !== undefined && value.kind !== "element")
     || typeof value.cid !== "string"
@@ -136,6 +137,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || (value.rawValue !== undefined && typeof value.rawValue !== "string")
     || (value.oldRawValue !== undefined && typeof value.oldRawValue !== "string")
     || (value.runtimeEvidence !== undefined && !isRuntimeElementEvidenceValue(value.runtimeEvidence))
+    || (value.sourceEvidence !== undefined && !isSourceElementEvidenceValue(value.sourceEvidence))
     || !isEditScopeValue(value.scope)
     || (value.instanceOverride !== undefined && value.scope !== "rendered-instance")
     || (value.scope === "rendered-instance" && !isRenderedInstanceOverride(value.instanceOverride))
@@ -219,6 +221,7 @@ export function serializeElementChange(change: ElementChangeRecord): Serializabl
     oldRawValue: change.oldRawValue,
     source: change.source,
     runtimeEvidence: change.runtimeEvidence ? { ...change.runtimeEvidence } : undefined,
+    sourceEvidence: change.sourceEvidence ? { ...change.sourceEvidence } : undefined,
     scope: change.scope === "rendered-instance" ? "rendered-instance" : "source-site",
     instanceOverride: change.scope === "rendered-instance" ? change.instanceOverride : undefined,
     state: change.state,
@@ -306,6 +309,7 @@ export function deserializeElementChange(serialized: SerializableElementChange):
     oldRawValue: serialized.oldRawValue,
     source: serialized.source,
     runtimeEvidence: serialized.runtimeEvidence ? { ...serialized.runtimeEvidence } : undefined,
+    sourceEvidence: serialized.sourceEvidence ? { ...serialized.sourceEvidence } : undefined,
     scope: serialized.scope ?? "source-site",
     instanceOverride: serialized.scope === "rendered-instance" ? serialized.instanceOverride : undefined,
     state: serialized.state,
@@ -447,6 +451,13 @@ function isRuntimeElementEvidenceValue(value: unknown): value is NonNullable<Ele
     && (typeof value.text === "string" || value.text === null)
     && (typeof value.props === "string" || value.props === null)
     && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
+}
+
+function isSourceElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["sourceEvidence"]> {
+  return isRecord(value)
+    && hasOnlyKeys(value, ["tagName", "props"])
+    && typeof value.tagName === "string"
+    && (typeof value.props === "string" || value.props === null);
 }
 
 function isTokenRefValue(value: unknown): value is SerializableTokenRef | null {

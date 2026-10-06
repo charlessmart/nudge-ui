@@ -32,7 +32,7 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
   const elements = selection?.domElements ?? [el];
   const source = readBackgroundLayers((property, fallback) => getStateStyleValue(el, property, fallback));
   const base = source.at(-1);
-  const authoredColor = props.tokenRow?.property === "background-color"
+  const authoredColor = props.tokenRow?.property === "background-color" || props.tokenRow?.property === "background"
     ? props.tokenRow.authored ?? props.tokenRow.declaredValue : undefined;
   if (base?.baseColor && authoredColor) {
     const table = Object.fromEntries((props.entries ?? getNudgeUiTokenEntries()).map((entry) => [entry.name, entry]));

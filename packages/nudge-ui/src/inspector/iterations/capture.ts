@@ -1,4 +1,5 @@
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
+import { FRAME_SCROLLBAR_STYLE_ID } from "../canvas/frameScrollbarStyles.ts";
 
 /** Captures the visible DOM of a same-origin frame as a script-free HTML iteration. */
 export async function captureHtmlIteration(frame: HTMLIFrameElement): Promise<string> {
@@ -45,7 +46,7 @@ export async function captureHtmlIteration(frame: HTMLIFrameElement): Promise<st
   copy.querySelectorAll("base").forEach((element) => element.remove());
   (copy.querySelector("head") ?? copy).prepend(base);
   copy.querySelectorAll('script, iframe, object, embed, meta[http-equiv="refresh"], meta[http-equiv="Content-Security-Policy"], link[rel=modulepreload], link[rel=preload]').forEach((element) => element.remove());
-  copy.querySelectorAll("[data-nudge-ui-mount], #nudge-ui-root").forEach((element) => element.remove());
+  copy.querySelectorAll(`[data-nudge-ui-mount], #nudge-ui-root, #${FRAME_SCROLLBAR_STYLE_ID}`).forEach((element) => element.remove());
   copy.querySelectorAll("a, form").forEach((element) => {
     element.removeAttribute("href");
     element.removeAttribute("action");

@@ -1,8 +1,9 @@
 import type { FrameProjection } from "../canvas/projection.ts";
 import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
+import { inspectRootInvocations } from "../componentSemantics/adapterRegistry.ts";
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { sourceSiteSelector } from "../selection/sourceSite.ts";
+import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 import { isRenderedInstanceOverride } from "../changes/editModel.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef, SourceSiteRef } from "../changes/editModel.ts";
 
@@ -93,26 +94,69 @@ export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | 
 /**
  * Resolves exactly one element, or declines to apply. Occurrence documents the
  * captured placement, but structural previews can legitimately change it.
- * Evidence must therefore identify one current candidate before an edit can
- * be applied.
+ * Evidence, narrowed by a recorded invocation when present, must therefore
+ * identify one current candidate before an edit can be applied.
  */
 export function resolveRenderedInstance(doc: Document, ref: RenderedInstanceRef): ResolutionResult {
   const sourceCandidates = candidates(doc, ref.sourceSite);
-  const { props, text, ariaLabel = null } = ref.locator;
+  const { props, text, ariaLabel = null, invocation } = ref.locator;
   // An ordinal alone is not an identity for a repeated source site.
-  if (sourceCandidates.length > 1 && props === null && text === null && ariaLabel === null) {
+  if (!invocation && sourceCandidates.length > 1 && props === null && text === null && ariaLabel === null) {
     return { status: "ambiguous" };
   }
-  const matchingEvidence = sourceCandidates.filter((element) =>
+  let matchingEvidence = sourceCandidates.filter((element) =>
     element.getAttribute("data-cprops") === props
     && normalizedText(element) === text
     && element.getAttribute("aria-label") === ariaLabel);
+  if (invocation) {
+    const scoped: HTMLElement[] = [];
+    for (const element of matchingEvidence) {
+      const invocations = inspectRootInvocations(element);
+      // Without readable ancestry, absence of the invocation proves nothing.
+      if (invocations === null) return { status: "ambiguous" };
+      if (invocations.some((candidate) => candidate.callsiteId === invocation.callsiteId)) scoped.push(element);
+    }
+    matchingEvidence = scoped;
+  }
   if (matchingEvidence.length === 0) return { status: "missing" };
   // Evidence alone is never enough to choose between two identical rendered
   // outputs. This is particularly important for structural anchors: applying
   // one move to an arbitrary identical parent would reorder the wrong group.
   if (matchingEvidence.length > 1) return { status: "ambiguous" };
   return { status: "resolved", element: matchingEvidence[0]! };
+}
+
+/**
+ * Resolves a reference whose source position may have moved since capture.
+ * A relocated site still renders matching authored evidence, so an evidence
+ * miss there is reported as ambiguous rather than as proof of absence.
+ */
+export function resolveMovedRenderedInstance(doc: Document, ref: RenderedInstanceRef): ResolutionResult {
+  const exact = resolveRenderedInstance(doc, ref);
+  if (exact.status !== "missing") return exact;
+  const { props, ariaLabel = null } = ref.locator;
+  const sourceSite = relocateSourceSite(doc, ref.sourceSite, (element) =>
+    element.getAttribute("data-cprops") === props && element.getAttribute("aria-label") === ariaLabel);
+  if (!sourceSite) return exact;
+  const moved = resolveRenderedInstance(doc, { ...ref, sourceSite });
+  return moved.status === "missing" ? { status: "ambiguous" } : moved;
+}
+
+/**
+ * Captures identity for a structural target. When evidence matches several
+ * identical outputs, the nearest component invocation whose entire output is
+ * this element can still identify it. Otherwise the evidence-only reference
+ * is returned and resolves as ambiguous.
+ */
+export function captureStructuralTarget(el: HTMLElement): RenderedInstanceRef | null {
+  const ref = captureRenderedInstance(el);
+  if (!ref || resolveRenderedInstance(el.ownerDocument, ref).status !== "ambiguous") return ref;
+  for (const invocation of inspectRootInvocations(el) ?? []) {
+    const scoped: RenderedInstanceRef = { ...ref, locator: { ...ref.locator, invocation } };
+    const resolved = resolveRenderedInstance(el.ownerDocument, scoped);
+    if (resolved.status === "resolved" && resolved.element === el) return scoped;
+  }
+  return ref;
 }
 
 /** Checks stable source/evidence fields without treating a post-move ordinal as identity. */

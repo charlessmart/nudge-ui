@@ -6,6 +6,7 @@ import {
   createElement,
   createRef,
   forwardRef,
+  Fragment,
   StrictMode,
   type ReactElement,
 } from "react";
@@ -21,6 +22,7 @@ import {
   getReactCallsiteMultiplicity,
   instrumentReactComponent,
   inspectReactComponentTargets,
+  inspectReactRootInvocations,
   resetReactComponentRuntime,
   replaceReactComponentOverrides,
 } from "./reactRuntime.tsx";
@@ -331,5 +333,56 @@ describe("React component runtime adapter", () => {
     act(() => replaceReactComponentOverrides([]));
     expect(renderCount).toBeGreaterThan(afterRemoval);
     expect(button().getAttribute("variant")).toBe("primary");
+  });
+
+  describe("root invocations", () => {
+    const metaAt = (componentName: string, line: number) => ({
+      callsiteId: `src/App.tsx:${line}:7`,
+      componentId: `src/App.tsx#${componentName}`,
+      componentName,
+      file: "src/App.tsx",
+      line,
+      column: 7,
+      authoredProps: {},
+    });
+
+    function renderIntoHost(element: ReactElement): HTMLElement {
+      const host = document.createElement("div");
+      document.body.append(host);
+      root = createRoot(host);
+      act(() => root?.render(element));
+      return host;
+    }
+
+    it("lists every invocation whose entire output is the element, nearest first", () => {
+      const Toolbar = (): ReactElement => createElement("div", { id: "toolbar" }, createElement("span", { id: "tool" }));
+      const Stage = (): ReactElement => instrumentReactComponent(createElement(Toolbar), metaAt("Toolbar", 20));
+      const host = renderIntoHost(instrumentReactComponent(createElement(Stage), metaAt("Stage", 10)));
+
+      expect(inspectReactRootInvocations(host.querySelector("#toolbar") as HTMLElement)).toEqual([
+        { callsiteId: "src/App.tsx:20:7", componentName: "Toolbar" },
+        { callsiteId: "src/App.tsx:10:7", componentName: "Stage" },
+      ]);
+    });
+
+    it("returns no invocation for an element nested inside a component's output", () => {
+      const Toolbar = (): ReactElement => createElement("div", null, createElement("span", { id: "tool" }));
+      const host = renderIntoHost(instrumentReactComponent(createElement(Toolbar), metaAt("Toolbar", 20)));
+
+      expect(inspectReactRootInvocations(host.querySelector("#tool") as HTMLElement)).toEqual([]);
+    });
+
+    it("excludes an invocation that renders more than one root", () => {
+      const Pair = (): ReactElement => createElement(Fragment, null,
+        createElement("div", { id: "first" }),
+        createElement("div", { id: "second" }));
+      const host = renderIntoHost(instrumentReactComponent(createElement(Pair), metaAt("Pair", 20)));
+
+      expect(inspectReactRootInvocations(host.querySelector("#first") as HTMLElement)).toEqual([]);
+    });
+
+    it("returns null for an element React did not render", () => {
+      expect(inspectReactRootInvocations(document.createElement("div"))).toBeNull();
+    });
   });
 });

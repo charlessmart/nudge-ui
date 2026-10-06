@@ -34,3 +34,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0028: Reusable agent adapter with connection-time project selection](./0028-reusable-agent-adapter.md)
 - [ADR-0029: Astro Markdown source identity](./0029-astro-markdown-source-identity.md)
 - [ADR-0030: Canvas drafts, frames, and HTML iterations](./0030-canvas-drafts-frames-and-html-iterations.md) (supersedes edit-intent ownership and frame identity in ADR-0027)
+- [ADR-0031: Invocation-scoped structural deletes](./0031-invocation-scoped-structural-deletes.md)

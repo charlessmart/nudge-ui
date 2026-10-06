@@ -69,6 +69,12 @@ export interface RuntimeComponentTarget {
   mountedCount?: number;
 }
 
+/** A component invocation whose entire rendered output is one DOM element. */
+export interface ComponentRootInvocation {
+  callsiteId: string;
+  componentName: string;
+}
+
 export interface ComponentPropContract {
   name: string;
   control: "select" | "boolean" | "text";
@@ -105,4 +111,10 @@ export interface ComponentRuntimeAdapter {
    * fail closed instead of broadening a semantic override.
    */
   getCallsiteMultiplicity?(callsiteId: string): number | null | undefined;
+  /**
+   * Return, nearest first, the invocations whose entire rendered output is
+   * this element. A runtime that cannot read the element's ancestry must
+   * return null so structural identity fails closed.
+   */
+  rootInvocations?(element: HTMLElement): ComponentRootInvocation[] | null;
 }

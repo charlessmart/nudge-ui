@@ -213,7 +213,7 @@ function TypographyDemo({ wireframe = false }: { wireframe?: boolean } = {}): Re
       <div className="landing-hero-demo-heading landing-hero-demo-heading--small">Text</div>
 
       <div className="landing-hero-demo-typography">
-        <TypographyField kind="font-family" value="--landing-display" token />
+        <TypographyField kind="font-family" value="--font-family" token />
         <TypographyField kind="font-style" value="Semibold" trailing />
 
         <div className="landing-hero-demo-type-metrics">
@@ -318,7 +318,7 @@ export function HeroDemoGrid({ variant = "hero" }: { variant?: "hero" | "review"
           className={`landing-hero-demo landing-hero-demo--${id}`}
           key={id}
           // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
-          style={{ "--landing-hero-demo-wireframe-delay": `${1400 + index * 600}ms` } as CSSProperties}
+          style={{ "--landing-hero-demo-index": index, "--landing-hero-demo-wireframe-delay": `${1400 + index * 600}ms` } as CSSProperties}
         >
           <div className="landing-hero-demo-card">
             <div className="landing-hero-demo-board-layer landing-hero-demo-board-layer--wireframe">

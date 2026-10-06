@@ -1,34 +1,75 @@
+/* Mirrors packages/nudge-ui/src/inspector/ui/Foundation.css. */
 :root {
-  --surface-canvas: #F5F5F4;
-  --surface-raised: #ffffff;
-  --surface-raised-2x: #ffffff;
-  --surface-sunken: #f4f3f0;
-  --surface-inverse: #1f201e;
-  --surface-well: hsla(0, 0%, 0%, 0.05);
-  --surface-well-2x: hsla(0, 0%, 0%, 0.10);
+  --surface-panel: #F5F5F4;
   --surface-control: var(--surface-well);
   --surface-control-hover: var(--surface-well-2x);
-  --text-primary: #20211f;
-  --text-secondary: #6d6e69;
-  --text-tertiary: #969791;
-  --text-inverse: #ffffff;
-  --border-tertiary: #ebece8;
-  --border-subtle: #dfdfda;
-  --border-strong: #c4c5bf;
-  --neutral-subtle: #e8e8e5;
-  /* Spacing token names match their pixel values and stay on a 4px grid. */
-  --space-0: 0px;
+  --surface-raised: #FAFAFA;
+  --surface-raised-2x: #fff;
+  --surface-raised-hover: #F5F5F4;
+  --surface-well: hsla(0, 0%, 0%, 0.05);
+  --surface-well-2x: hsla(0, 0%, 0%, 0.10);
+
+  --border-subtle: hsla(0, 0%, 0%, 0.1);
+  --border-medium: hsla(0, 0%, 0%, 0.2);
+  --border-strong: #d8d8d8;
+
+  --text-primary: #242424;
+  --text-secondary: #6f6f6f;
+  --text-muted: #777777;
+  --text-muted-subtle: #a1a1a1;
+
+  --accent: #0096ff;
+  --accent-surface: rgba(0, 176, 255, 0.15);
+  --warning: #d97706;
+  --warning-text: #9a5b00;
+  --warning-surface: #fff6e5;
+  --danger: #df4b4b;
+  --danger-text: #bd3636;
+  --danger-surface: rgba(223, 75, 75, 0.2);
+  --success: #2e7d52;
+
+  --space-0: 0;
   --space-4: 4px;
   --space-8: 8px;
   --space-12: 12px;
   --space-16: 16px;
   --space-20: 20px;
   --space-24: 24px;
-  --space-28: 28px;
   --space-32: 32px;
-  --space-36: 36px;
   --space-40: 40px;
   --space-48: 48px;
+
+  --radius-0: 0;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-pill: 999px;
+
+  --radius-control: var(--radius-8);
+  --shadow-outline: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+
+  --font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Landing-only tokens with no inspector equivalent. */
+:root {
+  --surface-inverse: #1f201e;
+  --accent-surface-subtle: color-mix(in srgb, var(--accent) 6%, transparent);
+  --surface-inverse-hover: #343532;
+  --text-inverse: #fff;
+  --palette-blue: #2563eb;
+  --palette-amber: #e9a800;
+  --palette-green: #16a34a;
+  --palette-rose: #e11d48;
+  --surface-brand: var(--palette-blue);
+  /* Page-scale spacing continues the inspector's 4px grid. */
+  --space-28: 28px;
+  --space-36: 36px;
   --space-56: 56px;
   --space-64: 64px;
   --space-72: 72px;
@@ -40,8 +81,13 @@
   --space-140: 140px;
   --landing-page-max-width: 1000px;
   --landing-content-max-width: 650px;
-  --landing-display: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --landing-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  /* Shared blur-and-slide reveal for the hero cards and feature bento. */
+  --landing-reveal-distance: var(--space-32);
+  --landing-reveal-blur: 8px;
+  --landing-reveal-fade-duration: 600ms;
+  --landing-reveal-move-duration: 1100ms;
+  --landing-reveal-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 * {
@@ -74,13 +120,13 @@ a {
   background-color: var(--surface-raised-2x);
   background-image: linear-gradient(
     to bottom,
-    var(--surface-canvas) 0,
+    var(--surface-panel) 0,
     var(--surface-raised-2x) 100%
   );
   background-repeat: no-repeat;
   background-size: 100% 100vh;
   color: var(--text-primary);
-  font-family: var(--landing-display);
+  font-family: var(--font-family);
 }
 
 .landing > main {
@@ -199,11 +245,6 @@ a {
   padding-bottom: var(--space-112);
 }
 
-.landing-showcase-list {
-  display: flex;
-  flex-direction: column;
-}
-
 .landing-showcase-item {
   display: flex;
   flex-direction: column;
@@ -223,14 +264,6 @@ a {
   flex-direction: column;
   align-items: flex-start;
   row-gap: var(--space-8);
-}
-
-.landing-showcase-placeholder-index {
-  color: var(--text-tertiary);
-  font-family: var(--landing-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .landing-showcase-item-title {
@@ -282,9 +315,9 @@ a {
   max-width: 100%;
   align-self: center;
   overflow: hidden;
-  border: 2px solid var(--surface-raised);
-  border-radius: 10px;
-  background: var(--surface-raised);
+  border: 2px solid var(--surface-raised-2x);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 10%);
   will-change: width;
 }
@@ -296,7 +329,7 @@ a {
   height: 30px;
   align-items: center;
   padding: var(--space-0) var(--space-12);
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   pointer-events: none;
 }
 
@@ -329,7 +362,7 @@ a {
   position: absolute;
   left: 50%;
   padding: var(--space-4) var(--space-12);
-  border-radius: 5px;
+  border-radius: var(--radius-4);
   background: rgb(0 0 0 / 6%);
   color: rgb(0 0 0 / 48%);
   font-size: 10px;
@@ -342,7 +375,7 @@ a {
   width: 100%;
   overflow: hidden;
   aspect-ratio: 16 / 9;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
 }
 
 .landing-showcase-video-element,
@@ -390,7 +423,7 @@ a {
 }
 
 .landing-install-label {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 15px;
 }
 
@@ -400,7 +433,7 @@ a {
   gap: var(--space-16);
   padding: var(--space-8) var(--space-8) var(--space-8) var(--space-16);
   border: 0 solid;
-  border-radius: 16px;
+  border-radius: var(--radius-16);
   background: var(--surface-well);
 }
 
@@ -408,7 +441,7 @@ a {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -421,7 +454,7 @@ a {
   flex: none;
   padding: var(--space-8) var(--space-16);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   background: var(--surface-inverse);
   color: var(--text-inverse);
   font: inherit;
@@ -431,8 +464,9 @@ a {
   transition: background-color 160ms ease, transform 160ms ease;
 }
 
-.landing-install-copy:hover {
-  background: #343532;
+.landing-button.landing-install-copy:hover,
+.landing-button.landing-install-copy:focus-visible {
+  background: var(--surface-inverse);
 }
 
 .landing-install-copy:active {
@@ -568,7 +602,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   gap: var(--space-8);
   padding: var(--space-8) var(--space-12);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   font: inherit;
   font-size: 13px;
   line-height: 1.4;
@@ -582,7 +616,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 
 .landing-button--secondary {
   border-color: var(--border-subtle);
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   color: var(--text-primary);
 }
 
@@ -593,13 +627,13 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 
 .landing-button--primary:hover,
 .landing-button--primary:focus-visible {
-  background: #343532;
+  background: var(--surface-inverse-hover);
 }
 
 .landing-button--secondary:hover,
 .landing-button--secondary:focus-visible {
   border-color: var(--border-strong);
-  background: var(--surface-sunken);
+  background: var(--surface-raised-hover);
 }
 
 .landing-button--tertiary:hover,
@@ -622,55 +656,6 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   padding: var(--space-8) var(--space-16);
   border: 0;
   line-height: 1.2;
-}
-
-.landing-demo-examples {
-  display: flex;
-  width: 100%;
-  gap: var(--space-16);
-  align-items: stretch;
-}
-
-.landing-demo-example {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-16);
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  text-align: center;
-}
-
-.landing-demo-example-text {
-  color: var(--text-primary);
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.landing-demo-example-badge {
-  padding: var(--space-8) var(--space-12);
-  border-radius: 9999px;
-  background: rgb(37 99 235 / 10%);
-  color: rgb(37 99 235 / 80%);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.landing-demo-example-buttons {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.landing-demo-example-buttons .landing-button {
-  width: 100%;
 }
 
 .landing-setup {
@@ -712,7 +697,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   overflow: auto;
   padding: var(--space-16);
   border: 0 solid;
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   background: var(--surface-well);
   color: var(--text-primary);
   font-family: var(--landing-mono);
@@ -742,7 +727,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 .landing-setup-note code,
 .landing-setup-lead code {
   padding: var(--space-4);
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   background: var(--surface-well);
   color: var(--text-primary);
   font-family: var(--landing-mono);
@@ -806,7 +791,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   flex-wrap: wrap;
   gap: var(--space-16);
   padding: var(--space-28) var(--space-0) var(--space-36);
-  color: var(--text-tertiary);
+  color: var(--text-muted-subtle);
   font-size: 13px;
 }
 
@@ -884,8 +869,8 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   width: 100%;
   height: clamp(360px, 48vw, 630px);
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: var(--surface-canvas);
+  border-radius: var(--radius-16);
+  background: var(--surface-panel);
 }
 
 .landing-version-hero-side {
@@ -917,8 +902,8 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   padding: var(--space-12) var(--space-16);
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: var(--surface-sunken);
+  border-radius: var(--radius-8);
+  background: var(--surface-well);
   color: var(--text-primary);
   font-family: var(--landing-mono);
   font-size: 12px;
@@ -1044,10 +1029,6 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 
   .landing-setup-content {
     gap: var(--space-32);
-  }
-
-  .landing-demo-examples {
-    flex-direction: column;
   }
 
   .landing-demo-arrow {

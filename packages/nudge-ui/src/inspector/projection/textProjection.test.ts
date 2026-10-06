@@ -76,6 +76,27 @@ describe("text projection identity and diagnostics", () => {
     expect(isTextProjectionReport({ changeId: "text-1", status: "applied", marker: "forbidden" })).toBe(false);
   });
 
+  it("keeps application output that a source update rendered under the projection", async () => {
+    const element = appendCopy("Original");
+    applyTextContentProjection(document, [makeChange()]);
+    expect(element.textContent).toBe("Updated");
+
+    // The framework repaints the implemented copy into the projected node.
+    element.firstChild!.nodeValue = "Updated";
+    await flushMutationValidation();
+    applyTextContentProjection(document, []);
+
+    expect(element.textContent).toBe("Updated");
+  });
+
+  it("restores the original copy when the application never rendered the projected value", () => {
+    const element = appendCopy("Original");
+    applyTextContentProjection(document, [makeChange()]);
+    applyTextContentProjection(document, []);
+
+    expect(element.textContent).toBe("Original");
+  });
+
   it("marks the host, reports application, and restores only its own projected value", async () => {
     const element = appendCopy("Original");
     const change = makeChange();

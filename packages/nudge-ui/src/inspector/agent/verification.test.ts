@@ -31,6 +31,24 @@ function styleChange(property: string, rawValue: string): ElementChangeRecord {
   };
 }
 
+function movedCard(src: string): HTMLElement {
+  const card = document.createElement("div");
+  card.dataset.cid = "Card";
+  card.dataset.src = src;
+  card.dataset.cprops = 'className="card"';
+  return card;
+}
+
+/** A source-site edit captured at line 4, before an edit above it shifted the file. */
+function movedStyleChange(): ElementChangeRecord {
+  return {
+    ...styleChange("color", "rgb(255, 0, 0)"),
+    column: 3,
+    selector: '[data-cid="Card"][data-src="src/Card.tsx:4:3"]',
+    sourceEvidence: { tagName: "div", props: 'className="card"' },
+  };
+}
+
 function addItem(text: string): HTMLElement {
   const el = document.createElement("button");
   el.dataset.cid = "RepeatedItem";
@@ -227,6 +245,43 @@ describe("agent completion verification", () => {
 
     await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
     expect(getStructuralChanges()).toEqual([]);
+  });
+
+  it("verifies a style edit whose source site moved to another line", async () => {
+    const card = movedCard("src/Card.tsx:9:3");
+    document.body.replaceChildren(card);
+    appendChange(movedStyleChange());
+    recordAgentDispatch(42, getChangesList());
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+
+    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(1);
+    expect(getChangesList()).toEqual([]);
+  });
+
+  it("keeps a moved style edit when its authored evidence matches several lines", async () => {
+    document.body.replaceChildren(movedCard("src/Card.tsx:9:3"), movedCard("src/Card.tsx:14:3"));
+    appendChange(movedStyleChange());
+    recordAgentDispatch(42, getChangesList());
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+
+    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(0);
+    expect(getChangesList()).toHaveLength(1);
+  });
+
+  it("keeps a structural delete whose element only moved to another line", async () => {
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-moved")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    target.dataset.src = "src/App.tsx:15:5";
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
   });
 
   it("keeps a structural delete whose element the source still renders", async () => {

@@ -97,6 +97,40 @@ function hasInlineTextEditor(element: HTMLElement): boolean {
   return element.querySelector('[data-inline-editor="true"]') !== null;
 }
 
+/**
+ * What the application last rendered into each projected Text node. A source
+ * update can render the projected value itself, so restoring `before` would
+ * overwrite real application output that the framework will not repaint.
+ */
+let applicationText = new WeakMap<Text, string>();
+
+function isInlineEditorNode(node: Node): boolean {
+  return node.nodeType === 1 && ((node as HTMLElement).matches('[data-inline-editor="true"]')
+    || hasInlineTextEditor(node as HTMLElement));
+}
+
+function recordApplicationWrites(records: readonly MutationRecord[]): void {
+  // The inline editor swaps its wrapper back for the original node, writing
+  // the draft, in one task. That write belongs to the editor.
+  if (records.some((record) => record.type === "childList"
+    && [...record.addedNodes, ...record.removedNodes].some(isInlineEditorNode))) return;
+  for (const record of records) {
+    if (record.type !== "characterData" || !isTextNode(record.target)) continue;
+    if (applicationText.has(record.target)) applicationText.set(record.target, record.target.nodeValue ?? "");
+  }
+}
+
+/** Writes projection-owned text without mistaking it for an application render. */
+function writeProjectedText(state: DocumentProjectionState, node: Text, value: string): void {
+  const pending = state.observer?.takeRecords() ?? [];
+  if (pending.length > 0) {
+    recordApplicationWrites(pending);
+    scheduleValidation(state.doc, state);
+  }
+  node.nodeValue = value;
+  state.observer?.takeRecords();
+}
+
 function readProjectionMarkers(element: HTMLElement): TextProjectionMarkerMap {
   const raw = element.getAttribute(TEXT_PROJECTION_ATTR);
   if (!raw) return new Map();
@@ -148,6 +182,7 @@ function removeProjectionMarker(element: HTMLElement, target: TextProjectionTarg
 }
 
 interface DocumentProjectionState {
+  doc: Document;
   applied: Map<string, AppliedTextProjection>;
   emptyAffordances: Map<string, HTMLElement>;
   snapshotKey: string | null;
@@ -520,7 +555,7 @@ function textProjectionIdentityMatches(
     && element.getAttribute("aria-label") === change.target.ariaLabel;
 }
 
-function restoreAppliedProjection(applied: AppliedTextProjection): void {
+function restoreAppliedProjection(state: DocumentProjectionState, applied: AppliedTextProjection): void {
   const element = applied.element;
   if (!element || !element.isConnected) return;
   if (!hasProjectionMarker(element, applied.change.target, applied.change.id)) return;
@@ -531,7 +566,9 @@ function restoreAppliedProjection(applied: AppliedTextProjection): void {
   const textNode = resolveTextProjectionTextNode(element, applied.change.target, applied.change.after);
   if (!textHostIsSafe(element, applied.change.after.length === 0, applied.change.target)) return;
   if (textNode) {
-    textNode.nodeValue = applied.change.before;
+    const rendered = applicationText.get(textNode);
+    applicationText.delete(textNode);
+    writeProjectedText(state, textNode, rendered ?? applied.change.before);
   } else if (applied.change.target.textNodePath === undefined
     && applied.change.after.length === 0
     && (element.textContent ?? "") === "") {
@@ -571,6 +608,7 @@ function validationStatus(applied: AppliedTextProjection): TextProjectionStatus 
  */
 function resolvePendingProjection(
   doc: Document,
+  state: DocumentProjectionState,
   applied: AppliedTextProjection,
 ): TextProjectionStatus {
   if (applied.status !== "missing" && applied.status !== "ambiguous") {
@@ -586,7 +624,8 @@ function resolvePendingProjection(
     if (applied.change.target.textNodePath !== undefined) return "overridden";
     element.textContent = applied.change.after;
   } else {
-    textNode.nodeValue = applied.change.after;
+    if (!applicationText.has(textNode)) applicationText.set(textNode, textNode.nodeValue ?? "");
+    writeProjectedText(state, textNode, applied.change.after);
   }
   applied.element = element;
   return "applied";
@@ -595,7 +634,7 @@ function resolvePendingProjection(
 function validateAppliedProjection(doc: Document, state: DocumentProjectionState): void {
   let changed = false;
   for (const applied of state.applied.values()) {
-    const status = resolvePendingProjection(doc, applied);
+    const status = resolvePendingProjection(doc, state, applied);
     if (status !== applied.status) {
       applied.status = status;
       changed = true;
@@ -618,6 +657,7 @@ function getDocumentState(doc: Document): DocumentProjectionState {
   const existing = documentStates.get(doc);
   if (existing) return existing;
   const state: DocumentProjectionState = {
+    doc,
     applied: new Map(),
     emptyAffordances: new Map(),
     snapshotKey: null,
@@ -626,7 +666,10 @@ function getDocumentState(doc: Document): DocumentProjectionState {
   };
   const Observer = doc.defaultView?.MutationObserver;
   if (Observer && doc.documentElement) {
-    state.observer = new Observer(() => scheduleValidation(doc, state));
+    state.observer = new Observer((records) => {
+      recordApplicationWrites(records);
+      scheduleValidation(doc, state);
+    });
     state.observer.observe(doc.documentElement, {
       childList: true,
       subtree: true,
@@ -677,7 +720,7 @@ export function applyTextContentProjection(
   for (const [id, applied] of previous) {
     if (incomingIds.has(id)) continue;
     removeEmptyTextAffordance(state, id);
-    restoreAppliedProjection(applied);
+    restoreAppliedProjection(state, applied);
     if (applied.element) removeProjectionMarker(applied.element, applied.change.target, id);
   }
 
@@ -686,14 +729,14 @@ export function applyTextContentProjection(
   for (const change of changes) {
     const existing = previous.get(change.id);
     if (existing && JSON.stringify(existing.change) === JSON.stringify(change)) {
-      existing.status = resolvePendingProjection(doc, existing);
+      existing.status = resolvePendingProjection(doc, state, existing);
       next.set(change.id, existing);
       continue;
     }
 
     if (existing) {
       removeEmptyTextAffordance(state, change.id);
-      restoreAppliedProjection(existing);
+      restoreAppliedProjection(state, existing);
       if (existing.element) removeProjectionMarker(existing.element, existing.change.target, change.id);
     }
 
@@ -711,8 +754,10 @@ export function applyTextContentProjection(
       next.set(change.id, { change, element: null, status: "missing" });
       continue;
     }
-    if (textNode) textNode.nodeValue = change.after;
-    else element.textContent = change.after;
+    if (textNode) {
+      if (!applicationText.has(textNode)) applicationText.set(textNode, textNode.nodeValue ?? "");
+      writeProjectedText(state, textNode, change.after);
+    } else element.textContent = change.after;
     next.set(change.id, { change, element, status: "applied" });
   }
   state.applied = next;
@@ -821,6 +866,7 @@ export function resetTextProjectionState(): void {
     }
   }
   documentStates = new Map();
+  applicationText = new WeakMap();
   canonicalChanges = new Map();
   reportsByDocument = new WeakMap();
   reportsByCanvasCard.clear();

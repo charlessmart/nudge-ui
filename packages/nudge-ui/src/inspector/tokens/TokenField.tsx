@@ -198,10 +198,12 @@ function primaryFontFamily(value: string): string {
 }
 
 function rgbToHex(value: string): string | null {
-  const match = value.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
-  if (!match) return null;
-  return `#${[match[1], match[2], match[3]]
-    .map((part) => Math.max(0, Math.min(255, Math.round(Number(part)))).toString(16).padStart(2, "0"))
+  const rgb = value.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
+  const srgb = rgb ? null : value.match(/^color\(\s*srgb\s+([\d.e+-]+)\s+([\d.e+-]+)\s+([\d.e+-]+)/i);
+  const channels = rgb ? [rgb[1], rgb[2], rgb[3]].map(Number) : srgb ? [srgb[1], srgb[2], srgb[3]].map((part) => Number(part) * 255) : null;
+  if (!channels || channels.some((channel) => !Number.isFinite(channel))) return null;
+  return `#${channels
+    .map((channel) => Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, "0"))
     .join("")}`;
 }
 

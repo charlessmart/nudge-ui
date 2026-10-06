@@ -1,7 +1,7 @@
 # Nudge UI
 
-Nudge, a design panel for your codebase. 
-It is a development-only visual inspector that turns browser edits into
+A design panel for your codebase. 
+Nudge is a development-only visual inspector that turns browser edits into
 prompts for your coding agent. Inspect a running app, preview design changes,
 add comments and sketches, and copy a structured prompt or send it through MCP.
 
@@ -9,14 +9,46 @@ add comments and sketches, and copy a structured prompt or send it through MCP.
 
 ## Get started
 
-Run the initializer from your application's root directory:
+Run from your application's root directory:
 
 ```sh
 npm create nudge-ui@latest
 ```
 
-It detects Next.js, Astro, Vite with React, or static HTML, installs `nudge-ui`,
-and configures the integration. It also offers to connect a coding agent.
+## Usage
+
+| Shortcut | Action |
+| --- | --- |
+| `V` | Select elements|
+| `C` | Comment tool |
+| `P` | Pencil tool |
+| Hold `A` | Interact with the app normally. |
+| `Shift`-click | Select multiple elements. |
+| `⌘`/`Ctrl`-click | Select the deepest element under the pointer. |
+| Hold `Alt` | Measure distances between elements. |
+| `Esc` | Clear the selection. |
+| `Delete` / `Backspace` | Delete the selected element. |
+| Arrow keys | Move the selected element before or after its siblings. |
+| `Shift` + `↑` / `↓` in a value field | Nudge the value by 8px. |
+| `Shift` + drag a spacing handle | Snap spacing to 8px steps. |
+| `⌘`/`Ctrl` + `\` | Show or hide the inspector. |
+| Hold `\` | Peek at the original, unedited app. |
+
+### Canvas
+The canvas allows you to open multiple pages of you app to compare flows, responsiveness and state.
+
+**Duplicate** creates a live frame, a view into your running app.
+
+**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`. 
+
+You can ask an agent to refine an iteration, then use **Copy prompt for live app** to implement that design in application source. 
+
+## Install
+
+The initializer detects Next.js, Astro, Vite with React, or static HTML,
+installs `nudge-ui`, and configures the integration. It also offers to connect
+a coding agent.
+
 Start your app with its usual development command and open the local URL.
 For static HTML, use the `nudge-ui serve` command printed by setup.
 
@@ -30,35 +62,12 @@ npm create nudge-ui@latest -- --framework astro
 Published packages require Node.js 20 or later; your framework may require a
 newer version. This repository requires Node.js 22.12 or later and pnpm 10.
 
-## Manual install
+### Manual install
 
 For manual installation, install `nudge-ui` as a development dependency and
 use the host subpath: `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, or
-`nudge-ui/static`. See the [package README](packages/nudge-ui/README.md#manual-installation)
-for configuration examples and supported versions.
-
-## Design in the browser
-
-
-| Tool | Shortcut | Action |
-| --- | --- | --- |
-| Select | `V` | Select elements to inspect and edit. |
-| Comment | `C` | Leave a note on an element for your agent. |
-| Pencil | `P` | Draw and add sketch notes. |
-| Use app normally | Hold `A` | Interact with the app. |
-| Pan | `Space` | Move around canvas |
-
-Open app routes in frames and resize them to
-compare viewport sizes. 
-
-**Duplicate** creates a linked live frame.
-
-**Iteration** captures an independent HTML design with its own edits.
-HTML iterations are stored under `.nudge/artifacts/`. They capture rendered
-HTML and CSS without the app's scripts. You can ask an agent to refine an
-iteration, then use **Copy prompt for live app** to implement that design in
-application source. The [usage guide](packages/nudge-ui/README.md#use-the-editor)
-also explains local persistence and comment reconciliation.
+`nudge-ui/static`. 
+See the [package README](packages/nudge-ui/README.md#manual-installation) for configuration examples and supported versions.
 
 ## Connect a coding agent
 

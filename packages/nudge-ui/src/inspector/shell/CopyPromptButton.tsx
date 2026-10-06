@@ -23,7 +23,13 @@ import { getStructuralChanges, subscribeStructuralChanges } from "../projection/
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { getAgentClient, useAgentClient } from "../agent/client.ts";
 import { createAgentPresentationAdapter } from "../canvas/agentPresentation.ts";
-import { verifyAndReconcileAgentDispatch, type AgentCompletionStatus } from "../agent/verification.ts";
+import {
+  captureHandoffOwner,
+  getAgentDispatch,
+  verifyAndReconcileAgentDispatch,
+  type HandoffSnapshot,
+} from "../agent/verification.ts";
+import { clearSentItems, getSentItems, sentItemCount } from "../workspace/sentItems.ts";
 import {
   getClipboardHandoffRevision,
   getLastClipboardReconciledCount,
@@ -81,7 +87,9 @@ export function CopyPromptButton({
   const [preparing, setPreparing] = useState(false);
   const handoffBusy = useRef(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
+  const [agentOutcome, setAgentOutcome] = useState<{ readonly removed: number; readonly dispatch: HandoffSnapshot | null } | null>(null);
+  const [clipboardPhase, setClipboardPhase] = useState<"idle" | "copied" | "away" | "returned">("idle");
+  const [undoClear, setUndoClear] = useState<(() => void) | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{ readonly handoff: PreparedHandoff; readonly error: string } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
@@ -126,6 +134,7 @@ export function CopyPromptButton({
     const revision = agent.request?.changeRevision;
     if (agent.state !== "completed" || revision === undefined) return;
     let active = true;
+    const dispatch = getAgentDispatch(revision);
     void verifyAndReconcileAgentDispatch(revision)
       .then(async (removed) => {
         for (const [, iframe] of getRegisteredFrames()) {
@@ -137,13 +146,13 @@ export function CopyPromptButton({
         if (!active) return;
         const latest = agentRef.current;
         if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
-        setAgentCompletionStatus(removed > 0 ? "verified" : null);
+        setAgentOutcome({ removed, dispatch });
       })
       .catch(() => {
         if (!active) return;
         const latest = agentRef.current;
         if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
-        setAgentCompletionStatus(null);
+        setAgentOutcome({ removed: 0, dispatch });
       });
     return () => {
       active = false;
@@ -254,7 +263,9 @@ export function CopyPromptButton({
       setSaveMessage(error instanceof Error ? error.message : "The HTML iteration could not be saved.");
       return;
     }
-    setAgentCompletionStatus(null);
+    setAgentOutcome(null);
+    setUndoClear(null);
+    setClipboardPhase("idle");
     setSketchFallback(null);
     const outcome = await deliverHandoff(prepared, runtimeConfig.projectId, canSend ? agentClient : null);
     if (outcome.kind === "sketch-failed") {
@@ -263,6 +274,39 @@ export function CopyPromptButton({
     }
     if (outcome.kind === "sent") return;
     setCopied(true);
+    setClipboardPhase("copied");
+  }
+
+  useEffect(() => {
+    if (clipboardPhase !== "copied" && clipboardPhase !== "away") return;
+    // Focus moving into a canvas frame is not a return from the agent.
+    const onBlur = (): void => {
+      if (!(document.activeElement instanceof HTMLIFrameElement)) setClipboardPhase("away");
+    };
+    const onFocus = (): void => setClipboardPhase((phase) => phase === "away" ? "returned" : phase);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [clipboardPhase]);
+
+  useEffect(() => {
+    if (!undoClear) return;
+    const timer = window.setTimeout(() => setUndoClear(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [undoClear]);
+
+  const handoffOwner = captureHandoffOwner(activeDraftCardId);
+  const sentItems = getSentItems(handoffOwner.draftId, handoffOwner.target, agentOutcome?.dispatch ?? null);
+  const remainingCount = sentItemCount(sentItems);
+  const showImplemented = (agentOutcome?.removed ?? 0) > 0 || reconciledCount > 0
+    || (remainingCount > 0 && (agentOutcome !== null || clipboardPhase === "returned"));
+
+  function clearRemaining(): void {
+    const restore = clearSentItems(sentItems);
+    if (restore) setUndoClear(() => restore);
   }
 
   useEffect(() => {
@@ -400,19 +444,37 @@ export function CopyPromptButton({
           </div>
         </StatusCallout>
       ) : null}
-      {reconciledCount > 0 ? (
-        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="clipboard-reconciled-hint" role="status">
-          {reconciledCount} Implemented changes
+      {undoClear ? (
+        <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="handoff-cleared-hint" role="status">
+          Cleared stale edits.{" "}
+          <button
+            type="button"
+            className="copy-prompt__hint-action"
+            data-test="handoff-undo-clear"
+            onClick={() => {
+              undoClear();
+              setUndoClear(null);
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      ) : showImplemented ? (
+        <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="handoff-implemented-hint" role="status">
+          Changes implemented.
+          {remainingCount > 0 ? (
+            <>
+              {" "}
+              <button type="button" className="copy-prompt__hint-action" data-test="handoff-clear-remaining" onClick={clearRemaining}>
+                Clear stale edits
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
       {saveMessage ? (
         <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="iteration-save-hint" role="status">
           {saveMessage}
-        </p>
-      ) : null}
-      {agentCompletionStatus === "verified" ? (
-        <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="agent-verified-hint" role="status">
-          Changes implemented
         </p>
       ) : null}
       {sketchFallback ? (

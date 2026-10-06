@@ -2,6 +2,7 @@ import type { FrameProjection } from "../canvas/projection.ts";
 import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import {
   captureRenderedInstance,
+  captureStructuralTarget,
   matchesRenderedInstanceEvidence,
   resolveRenderedInstance,
 } from "./renderedInstance.ts";
@@ -283,7 +284,7 @@ function projectStructuralChanges(snapshot: DraftChangesSnapshot): void {
 
 /** Captures a delete intent once, in the controller, at the user gesture. */
 export function createStructuralDelete(element: HTMLElement, id = structuralId()): StructuralDelete | null {
-  const target = captureRenderedInstance(element);
+  const target = captureStructuralTarget(element);
   if (!target) return null;
   const route = documentRoute(element.ownerDocument);
   const state = documentStateKey(element.ownerDocument, element);

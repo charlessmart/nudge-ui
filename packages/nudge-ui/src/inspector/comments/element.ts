@@ -1,16 +1,23 @@
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
-import { sourceSiteSelector } from "../selection/sourceSite.ts";
+import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 
 /** Retains a changed target only when its source site still identifies one output. */
 export function resolveCommentElement(doc: Document, target: RenderedInstanceRef): HTMLElement | null {
   const exact = resolveRenderedInstance(doc, target);
   if (exact.status === "resolved") return exact.element;
-  const selector = sourceSiteSelector(target.sourceSite.cid, target.sourceSite.src);
+  const { props, ariaLabel } = target.locator;
+  const sourceSite = relocateSourceSite(doc, target.sourceSite, (element) =>
+    element.getAttribute("data-cprops") === props && element.getAttribute("aria-label") === (ariaLabel ?? null));
+  if (sourceSite) {
+    const moved = resolveRenderedInstance(doc, { ...target, sourceSite });
+    if (moved.status === "resolved") return moved.element;
+  }
+  const site = sourceSite ?? target.sourceSite;
+  const selector = sourceSiteSelector(site.cid, site.src);
   if (!selector) return null;
   const candidates = Array.from(doc.querySelectorAll<HTMLElement>(selector));
   if (candidates.length === 1) return candidates[0]!;
-  const { props, ariaLabel } = target.locator;
   if (!props && !ariaLabel) return null;
   const matching = candidates.filter((element) => element.getAttribute("data-cprops") === props
     && element.getAttribute("aria-label") === (ariaLabel ?? null));

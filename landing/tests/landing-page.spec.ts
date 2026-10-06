@@ -51,10 +51,10 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(versionTwoFrame).toBeVisible();
   await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
-  const editableDemoText = app.locator(".landing-demo-example-text");
+  const editableDemoText = app.locator(".landing-bento-text-heading");
   await editableDemoText.dblclick();
   const inlineEditor = app.locator('[data-inline-editor="true"]');
-  await expect(inlineEditor).toHaveText("Edit me");
+  await expect(inlineEditor).toHaveText("Try it out");
   await inlineEditor.fill("Edited in iframe");
   await inlineEditor.press("Enter");
   await expect(editableDemoText).toHaveText("Edited in iframe");
@@ -121,26 +121,24 @@ test("opens the editor from an explicit direct application view", async ({ page 
   await expect(page.locator("#nudge-ui-root").locator('[data-test="show-inspector"]')).toBeVisible();
 });
 
-test("loads showcase videos as their sections enter the viewport", async ({ page }) => {
+test("loads the showcase video as it enters the viewport", async ({ page }) => {
   await page.goto("/");
 
   const app = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
-  const items = app.locator("section.landing-showcase .landing-showcase-item");
-  await expect(items).toHaveCount(3);
-  await expect(items.locator("video")).toHaveCount(0);
+  const showcase = app.locator("section.landing-showcase");
+  const videoContainer = showcase.locator(".landing-showcase-video");
+  await expect(videoContainer).toHaveCount(1);
+  await expect(showcase.locator("video")).toHaveCount(0);
 
-  for (const item of await items.all()) {
-    const videoContainer = item.locator(".landing-showcase-video");
-    await videoContainer.evaluate(async (element) => {
-      document.documentElement.style.scrollBehavior = "auto";
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        const rect = element.getBoundingClientRect();
-        const targetScrollY = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
-        window.scrollTo(0, targetScrollY);
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      }
-    });
-    await expect(item.locator("video")).toHaveCount(1);
-  }
+  await videoContainer.evaluate(async (element) => {
+    document.documentElement.style.scrollBehavior = "auto";
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const rect = element.getBoundingClientRect();
+      const targetScrollY = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
+      window.scrollTo(0, targetScrollY);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    }
+  });
+  await expect(showcase.locator("video")).toHaveCount(1);
 });

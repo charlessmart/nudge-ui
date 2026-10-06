@@ -1,7 +1,7 @@
 {
   "name": "nudge-ui",
-  "version": "0.2.3",
-  "description": "Development-only visual UI inspector. One package, one subpath per host.",
+  "version": "0.2.4",
+  "description": "A design panel for your codebase. Development only.",
   "license": "MIT",
   "repository": {
     "type": "git",

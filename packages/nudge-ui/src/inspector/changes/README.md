@@ -37,7 +37,7 @@ document, live document session, and verification attempt.
 
 | Variant | Operation | Target and scope | Evidence and baseline |
 | --- | --- | --- | --- |
-| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by the instrumentation `cid` (component/site id), `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. Preview outcomes live in `previewDiagnostics.ts`. |
+| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by the instrumentation `cid` (component/site id), `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. `sourceEvidence` retains the authored tag and `data-cprops` used to relocate a shifted source site during verification. Preview outcomes live in `previewDiagnostics.ts`. |
 | `TokenChangeRecord` | Change a token value in the managed stylesheet and in the eventual source token definition. | The token is identified by `tokenName`, source file/line, `selector`, and `context`. This variant has no `scope`, instrumentation `cid`, or rendered-instance target. | `oldRawValue` is the baseline and `rawValue` is the requested value. `context` and `contextLabel` preserve conditional CSS context; `source` identifies the authored token location. Preview outcomes live in `previewDiagnostics.ts`. |
 | `ComponentChangeRecord` | Change one component prop. | `target` identifies the framework, component definition, callsite, component name, and source location. `scope` is `source-site` or `rendered-instance`; `createComponentPropChange` defaults it to `source-site`. | `before` is a value or default baseline; `after` is the requested value; `authoredAs` describes the authored prop form. Optional `evidence` records the rendered invocation, including occurrence, props, accessible name, original text, and mounted count. |
 | `TextContentChangeRecord` | Replace rendered text with `after`. | `target.sourceSite` identifies the instrumented site. `scope` is `source-site` or `rendered-instance`; `id` identifies the text change. `selector` is the source-site projection selector, not a complete rendered identity. | `before` and `target.beforeText` are the baseline. `target` also carries bounded props, accessible name, occurrence, and optional `textNodePath`; the path is document-local evidence. Optional `evidence` records the semantic component binding. `authoredAs` describes the source text form. |
@@ -80,7 +80,10 @@ These are different facts and must not be represented by one universal status.
 
 - [`projection/renderedInstance.ts`](../projection/renderedInstance.ts) resolves
   a `RenderedInstanceRef` as `resolved`, `missing`, or `ambiguous`. An ordinal
-  alone cannot select among identical outputs.
+  alone cannot select among identical outputs. A structural delete may record
+  `locator.invocation`, the component callsite whose entire output is the
+  target; resolution then requires it and is `ambiguous` when no runtime can
+  read a candidate's ancestry (ADR-0031).
 - [`projection/textProjection.ts`](../projection/textProjection.ts) resolves a
   `TextProjectionTarget` with the same three outcomes. It may use before/after
   text evidence, but it does not use `occurrence` alone.
@@ -110,7 +113,11 @@ These are different facts and must not be represented by one universal status.
   positive source verification after the inspector preview is removed. It can
   reconcile style, text, and structural records when the source result is
   observable. Component prop records remain unresolved because rendered output
-  cannot prove that the source prop was edited.
+  cannot prove that the source prop was edited. When an edit shifts a target's
+  `file:line:column`, verification follows it only to the single other
+  position in the same file and component whose authored evidence matches
+  (`data-cprops`, plus tag for `sourceEvidence` or `aria-label` for rendered
+  references). Live previews never relocate.
 - `CommitResult` from [`draftChanges.ts`](./draftChanges.ts) is a
   canonical write result: `applied`, `unchanged`, or `blocked`. It is neither a
   target-resolution status nor a preview result. `blocked` must remain distinct

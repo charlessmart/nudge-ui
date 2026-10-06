@@ -93,6 +93,8 @@ export interface DraftChangeStore {
   ): boolean;
   commitStructuralChange(change: StructuralChange): boolean;
   revertStructuralChangeRecord(changeId: string): boolean;
+  /** Replaces the active draft as one undoable edit. */
+  commitContents(next: DraftContents): boolean;
   reconcileActiveDraftChanges(
     verifiedKeys: ReadonlySet<string>,
     verifiedStructuralIds: ReadonlySet<string>,
@@ -243,6 +245,10 @@ function revertStructuralChangeRecordImpl(changeId: string): boolean {
   return structuralChanges.length !== contents.structuralChanges.length && commit({ ...contents, structuralChanges });
 }
 
+function commitContentsImpl(next: DraftContents): boolean {
+  return !sameDraftContents(draftState().contents, next) && commit(next);
+}
+
 export function reconcileDraftChanges(id: string, verifiedKeys: ReadonlySet<string>, verifiedStructuralIds: ReadonlySet<string>): number {
   if (!canEditDraft(id)) return 0;
   const draft = draftState(id);
@@ -325,6 +331,7 @@ export const draftChangeStore: DraftChangeStore = {
   discardChangeRecords: discardChangeRecordsImpl,
   commitStructuralChange: commitStructuralChangeImpl,
   revertStructuralChangeRecord: revertStructuralChangeRecordImpl,
+  commitContents: commitContentsImpl,
   reconcileActiveDraftChanges: reconcileActiveDraftChangesImpl,
   undoChange: () => replay("undo"),
   redoChange: () => replay("redo"),

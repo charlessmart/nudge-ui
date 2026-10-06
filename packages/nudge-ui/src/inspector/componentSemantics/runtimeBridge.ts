@@ -1,6 +1,7 @@
 import type {
   ComponentFramework,
   ComponentOverride,
+  ComponentRootInvocation,
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
@@ -10,6 +11,7 @@ export type {
   ComponentFramework,
   ComponentInvocationMeta,
   ComponentOverride,
+  ComponentRootInvocation,
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
@@ -153,6 +155,26 @@ export function copyRuntimeTarget(
     props,
     ...(target.mountedCount === undefined ? {} : { mountedCount: target.mountedCount }),
   };
+}
+
+/** Copies a host Adapter's root invocations into plain protocol data. */
+export function copyRootInvocations(
+  invocations: readonly ComponentRootInvocation[],
+): ComponentRootInvocation[] {
+  if (!Array.isArray(invocations)) {
+    throw new TypeError("Nudge UI received invalid root invocations from a host Adapter.");
+  }
+  return invocations.map((invocation) => {
+    if (invocation === null
+      || typeof invocation !== "object"
+      || typeof invocation.callsiteId !== "string"
+      || invocation.callsiteId.length === 0
+      || typeof invocation.componentName !== "string"
+      || invocation.componentName.length === 0) {
+      throw new TypeError("Nudge UI received an invalid root invocation from a host Adapter.");
+    }
+    return { callsiteId: invocation.callsiteId, componentName: invocation.componentName };
+  });
 }
 
 /** Copies override commands before dispatching them into a host Adapter. */

@@ -68,6 +68,8 @@ interface FrameOverlayState {
   spacing: SpacingDescriptor | null;
   spacingGuides: Rect[];
   spacingAreas: Rect[];
+  /** Value badge for the spacing handle under the pointer. */
+  spacingHandleBadge: { point: { x: number; y: number }; value: number } | null;
 }
 
 interface FrameMeasureState {
@@ -493,6 +495,9 @@ export function CanvasElementOverlay(): ReactElement | null {
           borders,
           spacingGuides: affordance?.affectedGuides ?? [],
           spacingAreas: affordance?.affectedAreas ?? [],
+          spacingHandleBadge: current.spacingHandleBadge && affordance
+            ? { ...current.spacingHandleBadge, value: affordance.value }
+            : current.spacingHandleBadge,
         };
       });
     };
@@ -537,6 +542,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           : null;
         const spacingGuides = matchingAffordance?.affectedGuides ?? [];
         const spacingAreas = matchingAffordance?.affectedAreas ?? [];
+        const handleAffordance = msg.spacing && hoverElement
+          ? getSpacingAffordanceForDescriptor(hoverElement, msg.spacing)
+          : null;
+        const spacingHandleBadge = hoverPoint
+          && handleAffordance
+          && spacingDescriptorMatches(handleAffordance, msg.spacing)
+          ? { point: hoverPoint, value: handleAffordance.value }
+          : null;
         setHover({
           iframe: sourceIframe,
           identity: { elementId: msg.elementId },
@@ -546,6 +559,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
           spacingGuides,
           spacingAreas,
+          spacingHandleBadge,
         });
       } else if (data.type === "element-measure-state") {
         const msg = data;
@@ -724,8 +738,10 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
   const projectedSpacingGuides = hover?.spacingGuides.map((guide) => projectRect(hover.iframe, guide, projectionZoom)) ?? [];
   const projectedSpacingAreas = hover?.spacingAreas.map((area) => projectRect(hover.iframe, area, projectionZoom)) ?? [];
-  const projectedSpacingBadge = spacingDragBadge
-    ? projectPoint(spacingDragBadge.iframe, spacingDragBadge.point.x, spacingDragBadge.point.y, projectionZoom)
+  const spacingBadge = spacingDragBadge
+    ?? (hover?.spacingHandleBadge ? { iframe: hover.iframe, ...hover.spacingHandleBadge } : null);
+  const projectedSpacingBadge = spacingBadge
+    ? projectPoint(spacingBadge.iframe, spacingBadge.point.x, spacingBadge.point.y, projectionZoom)
     : null;
   const hoverSpacing = hover?.spacing ?? null;
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
@@ -820,14 +836,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           aria-hidden="true"
         />
       ))}
-      {projectedSpacingBadge && spacingDragBadge ? (
+      {projectedSpacingBadge && spacingBadge ? (
         <div
           className="canvas-spacing-value-badge"
           data-test="canvas-spacing-value-badge"
           style={{ left: projectedSpacingBadge.x, top: projectedSpacingBadge.y }}
           aria-hidden="true"
         >
-          {spacingValueCss(spacingDragBadge.value)}
+          {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
       {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrame instanceof HTMLIFrameElement ? (

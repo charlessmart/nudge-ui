@@ -12,7 +12,7 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "../agent/protocol.ts";
-import { clearActiveDraft, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { getSketches, initializeSketchStore, markSketchesDispatching, markSketchesHandingOff, resetSketchStore, saveSketch } from "../sketch/store.ts";
@@ -410,13 +410,13 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
     await flush();
 
-    expect(container.querySelector('[data-test="agent-verified-hint"]')?.textContent)
-      .toBe("Changes implemented");
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
+      .toBe("Changes implemented.");
     expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
   });
 
-  it("reports completed-but-unverified work while preserving remaining edits", async () => {
+  it("offers to clear completed-but-unverified edits and undo the clear", async () => {
     document.head.querySelectorAll("style").forEach((el) => el.remove());
     document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
     const transport = new ButtonTransport();
@@ -459,8 +459,18 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
     await flush();
 
-    expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
+      .toBe("Changes implemented. Clear stale edits");
+    expect(getChangesList()).toHaveLength(1);
+
+    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-clear-remaining"]')!.click());
+    expect(getChangesList()).toEqual([]);
+    expect(container.querySelector('[data-test="handoff-cleared-hint"]')?.textContent)
+      .toBe("Cleared stale edits. Undo");
+
+    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-undo-clear"]')!.click());
+    expect(getChangesList()).toEqual([change()]);
+    expect(container.querySelector('[data-test="handoff-cleared-hint"]')).toBeNull();
   });
 
   it("shows plain completion when nothing was in flight", async () => {
@@ -500,7 +510,7 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
     await flush();
 
-    expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')).toBeNull();
     expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
   });
 
@@ -524,6 +534,28 @@ describe("CopyPromptButton agent handoff", () => {
     expect(getClipboardHandoffSnapshot()).toMatchObject({
       drafts: [{ changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
     });
+  });
+
+  it("offers to clear a copied handoff once the user returns from the agent", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = null;
+    configureAgentBridgeTransport(transport);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(async () => undefined) } });
+    act(() => {
+      restoreChangeRecords([change()]);
+      root.render(<CopyPromptButton />);
+    });
+    await flush();
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!.click(); });
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')).toBeNull();
+
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    act(() => { window.dispatchEvent(new Event("focus")); });
+
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
+      .toBe("Changes implemented. Clear stale edits");
+    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-clear-remaining"]')!.click());
+    expect(getChangesList()).toEqual([]);
   });
 
 });

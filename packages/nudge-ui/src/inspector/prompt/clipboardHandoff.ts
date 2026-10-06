@@ -115,6 +115,12 @@ function matchingRecords(snapshot: ClipboardDraftHandoff) {
   };
 }
 
+/** Records in one draft that still equal its copied, unverified snapshot. */
+export function getClipboardHandoffRecords(draftId: string): { changes: ChangeRecord[]; structuralChanges: StructuralChange[] } {
+  const snapshot = checkpoints.get(draftId);
+  return snapshot ? matchingRecords(snapshot) : { changes: [], structuralChanges: [] };
+}
+
 function pruneCheckpoints(): void {
   let changed = false;
   for (const [id, snapshot] of checkpoints) {

@@ -14,6 +14,7 @@ import {
 import type {
   ComponentInvocationMeta,
   ComponentOverride,
+  ComponentRootInvocation,
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
@@ -36,9 +37,16 @@ interface BoundaryProps {
 
 type FiberLike = {
   type?: unknown;
+  tag?: number;
   memoizedProps?: BoundaryProps;
   return?: FiberLike | null;
+  child?: FiberLike | null;
+  sibling?: FiberLike | null;
 };
+
+/** React work tags for host output that has no string element type. */
+const HOST_PORTAL_TAG = 4;
+const HOST_TEXT_TAG = 6;
 
 let overridesByCallsite = new Map<string, Readonly<Record<string, unknown>>>();
 const listeners = new Set<() => void>();
@@ -223,6 +231,37 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
   return targets;
 }
 
+function isHostOutput(fiber: FiberLike): boolean {
+  return typeof fiber.type === "string" || fiber.tag === HOST_TEXT_TAG || fiber.tag === HOST_PORTAL_TAG;
+}
+
+/** Counts top-level host outputs below a fiber, stopping once there are two. */
+function hostOutputCount(fiber: FiberLike): number {
+  let count = 0;
+  const visit = (parent: FiberLike): void => {
+    for (let child = parent.child ?? null; child && count < 2; child = child.sibling ?? null) {
+      if (isHostOutput(child)) count += 1;
+      else visit(child);
+    }
+  };
+  visit(fiber);
+  return count;
+}
+
+export function inspectReactRootInvocations(element: HTMLElement): ComponentRootInvocation[] | null {
+  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return null;
+  const host = findFiber(element);
+  if (!host) return null;
+  const invocations: ComponentRootInvocation[] = [];
+  for (let fiber = host.return ?? null; fiber && !isHostOutput(fiber); fiber = fiber.return ?? null) {
+    if (!isBoundaryType(fiber.type) || !fiber.memoizedProps?.meta) continue;
+    if (hostOutputCount(fiber) !== 1) break;
+    const { callsiteId, componentName } = fiber.memoizedProps.meta;
+    invocations.push({ callsiteId, componentName });
+  }
+  return invocations;
+}
+
 export function replaceReactComponentOverrides(overrides: ComponentOverride[]): void {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return;
   const next = new Map<string, Record<string, unknown>>();
@@ -242,6 +281,7 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   inspect: inspectReactComponentTargets,
   replaceOverrides: replaceReactComponentOverrides,
   getCallsiteMultiplicity: getReactCallsiteMultiplicity,
+  rootInvocations: inspectReactRootInvocations,
 };
 
 registerHostRuntimeAdapter(reactComponentRuntimeAdapter);

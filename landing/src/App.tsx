@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { IconArrowsMove, IconEdit, IconPalette } from "@tabler/icons-react";
-import editDirectlyPoster from "../assets/screen-1.png";
-import editDirectlyVideo from "../assets/screen-1.mp4";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { IconArrowsMove, IconComponents, IconEdit, IconLayoutGrid, IconMessageCircle, IconPalette, IconSend, IconSketching } from "@tabler/icons-react";
+import demoVideo from "../assets/demo.mp4";
 import inspectorArrowHead from "../assets/arrow-head.svg";
 import inspectorArrowTail from "../assets/arrow-tail.svg";
-import exploreCanvasPoster from "../assets/screen-2.png";
-import exploreCanvasVideo from "../assets/screen2.mp4";
-import syncTokensPoster from "../assets/screen-3.png";
-import syncTokensVideo from "../assets/screen3.mp4";
+import demoPoster from "../assets/screen-1.png";
+import { FeatureBento } from "./components/FeatureBento";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
+import { LandingButton } from "./components/LandingButton";
 
 const installPrompt = "Run npm create nudge-ui@latest in this project";
 const OPEN_NUDGE_EVENT = "nudge-ui:open";
@@ -20,34 +18,22 @@ const manualSetupCode = [
 ].join(String.fromCharCode(10));
 const agentSetupCode = "npx nudge-ui agent setup";
 
-const showcaseVideos = [
-  {
-    id: "edit-directly",
-    title: "Edit UI directly",
-    description: "Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.",
-    bullets: [
-      { Icon: IconPalette, label: "Change styles" },
-      { Icon: IconArrowsMove, label: "Move and delete elements" },
-      { Icon: IconEdit, label: "Edit text" },
-    ],
-    src: editDirectlyVideo,
-    poster: editDirectlyPoster,
-  },
-  {
-    id: "explore-canvas",
-    title: "A canvas for comparing pages",
-    description: "Open different pages in a canvas view to compare screens, screen sizes or overall flows. Pick a direction, refine the details immediately and get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.",
-    src: exploreCanvasVideo,
-    poster: exploreCanvasPoster,
-  },
-  {
-    id: "sync-tokens-components",
-    title: "Keep tokens and components in sync",
-    description: "It's your real code base, so use the tokens and components that exist already. Avoid agents churning out custom CSS for every button.",
-    src: syncTokensVideo,
-    poster: syncTokensPoster,
-  },
-] as const;
+const showcaseVideo = {
+  title: "Edit the interface directly",
+  description: "Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.",
+  bullets: [
+    { Icon: IconPalette, label: "Change styles" },
+    { Icon: IconArrowsMove, label: "Move and delete elements" },
+    { Icon: IconEdit, label: "Edit text" },
+    { Icon: IconComponents, label: "Use your tokens and components" },
+    { Icon: IconLayoutGrid, label: "Compare pages on a canvas" },
+    { Icon: IconMessageCircle, label: "Comment on elements" },
+    { Icon: IconSketching, label: "Sketch over the page" },
+    { Icon: IconSend, label: "Hand off to your agent" },
+  ],
+  src: demoVideo,
+  poster: demoPoster,
+} as const;
 
 function CopyIcon(): ReactNode {
   return (
@@ -134,14 +120,12 @@ const showcaseControls: ShowcaseControls = {
   visibilityThreshold: 1,
 };
 
-function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; opacity: number; isFullWidth: boolean } {
+function useShowcaseWidth(controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; opacity: number; isFullWidth: boolean } {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(`${controls.initialWidth}px`);
-  const [isFullWidth, setIsFullWidth] = useState(!animate);
+  const [isFullWidth, setIsFullWidth] = useState(false);
 
   useEffect(() => {
-    if (!animate) return;
-
     const element = ref.current;
     if (!element) return;
 
@@ -187,9 +171,9 @@ function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: 
       reducedMotion.removeEventListener("change", scheduleUpdate);
       if (frame !== 0) window.cancelAnimationFrame(frame);
     };
-  }, [animate, controls.initialWidth, controls.scrollSpeed, controls.startViewport]);
+  }, [controls.initialWidth, controls.scrollSpeed, controls.startViewport]);
 
-  return { ref, width: animate ? width : "100%", opacity: 1, isFullWidth: animate ? isFullWidth : true };
+  return { ref, width, opacity: 1, isFullWidth };
 }
 
 function useShowcaseInView(
@@ -222,15 +206,13 @@ function useShowcaseInView(
 }
 
 function ShowcaseVideo({
-  animate,
   controls,
   video,
 }: {
-  animate: boolean;
   controls: ShowcaseControls;
-  video: (typeof showcaseVideos)[number];
+  video: typeof showcaseVideo;
 }): ReactNode {
-  const { ref, width, opacity, isFullWidth } = useShowcaseWidth(animate, controls);
+  const { ref, width, opacity, isFullWidth } = useShowcaseWidth(controls);
   const isInView = useShowcaseInView(ref, controls.visibilityThreshold);
   const shouldLoadVideo = useShowcaseInView(ref, controls.visibilityThreshold, "320px 0px");
   const [videoReady, setVideoReady] = useState(false);
@@ -322,34 +304,22 @@ function ShowcaseVideo({
 
 function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
   return (
-    <section className="landing-showcase landing-inner" aria-label="Nudge UI demos">
-      <div className="landing-showcase-list">
-        {showcaseVideos.map((video, index) => {
-          return (
-            <article className="landing-showcase-item" key={video.id}>
-              <ShowcaseVideo
-                animate={index === 0}
-                controls={controls}
-                video={video}
-              />
-              <div className="landing-showcase-item-header landing-content-column">
-                <h2 className="landing-showcase-item-title">{video.title}</h2>
-                <p className="landing-showcase-item-description">{video.description}</p>
-                {"bullets" in video ? (
-                  <ul className="landing-showcase-item-bullets">
-                    {video.bullets.map(({ Icon, label }) => (
-                      <li key={label}>
-                        <Icon size={18} stroke={1.6} aria-hidden="true" />
-                        <span>{label}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+    <section className="landing-showcase landing-inner" aria-label="Nudge UI demo">
+      <article className="landing-showcase-item">
+        <ShowcaseVideo controls={controls} video={showcaseVideo} />
+        <div className="landing-showcase-item-header landing-content-column">
+          <h2 className="landing-showcase-item-title">{showcaseVideo.title}</h2>
+          <p className="landing-showcase-item-description">{showcaseVideo.description}</p>
+          <ul className="landing-showcase-item-bullets">
+            {showcaseVideo.bullets.map(({ Icon, label }) => (
+              <li key={label}>
+                <Icon size={18} stroke={1.6} aria-hidden="true" />
+                <span>{label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </article>
     </section>
   );
 }
@@ -405,21 +375,6 @@ function InstallCommand(): ReactNode {
   );
 }
 
-type LandingButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "tertiary";
-};
-
-function LandingButton({ children, className, variant = "primary", ...props }: LandingButtonProps): ReactNode {
-  return (
-    <button
-      {...props}
-      className={`landing-button landing-button--${variant}${className ? ` ${className}` : ""}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function DemoIntro(): ReactNode {
   const demoRef = useRef<HTMLElement>(null);
   const [isDemoPastTrigger, setIsDemoPastTrigger] = useState(false);
@@ -463,7 +418,7 @@ function DemoIntro(): ReactNode {
       </span>
       <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
       <div className="landing-demo-content landing-content-column">
-        <p className="landing-demo-description">Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.</p>
+        <p className="landing-demo-description">Open Nudge and try the loop yourself: rewrite the copy, swap a token or drag the spacing below, and see it immediately.</p>
         <LandingButton
           type="button"
           variant="primary"
@@ -475,25 +430,8 @@ function DemoIntro(): ReactNode {
             <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </LandingButton>
-
-        <div className="landing-demo-examples" aria-label="Editable examples">
-          <div className="landing-demo-example">
-            <p className="landing-demo-example-text">Edit me</p>
-          </div>
-
-          <div className="landing-demo-example">
-            <span className="landing-demo-example-badge">Adjust me</span>
-          </div>
-
-          <div className="landing-demo-example">
-            <div className="landing-demo-example-buttons">
-              <LandingButton type="button" variant="primary">Primary</LandingButton>
-              <LandingButton type="button" variant="secondary">Secondary</LandingButton>
-              <LandingButton type="button" variant="tertiary">Tertiary</LandingButton>
-            </div>
-          </div>
-        </div>
       </div>
+      <FeatureBento />
     </section>
   );
 }
@@ -511,7 +449,7 @@ export function App(): ReactNode {
                 <p className="landing-hero-intro">
                   Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
                 </p>
-                <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
+                <p className="landing-install-label">Ask your agent to install:</p>
                 <InstallCommand />
               </div>
             </div>

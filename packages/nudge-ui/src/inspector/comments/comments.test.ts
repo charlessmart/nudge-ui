@@ -77,6 +77,38 @@ describe("element comments", () => {
     expect(getComments()).toEqual([]);
   });
 
+  it("resolves a handed-off note whose target moved to another line of its file", async () => {
+    const list = document.createElement("ul");
+    list.dataset.cid = "App";
+    list.dataset.src = "src/App.tsx:307:12";
+    list.dataset.cprops = 'className="bullets"';
+    list.innerHTML = "<li>One</li>";
+    document.body.append(list);
+    const saved = { ...comment(list), handedOff: true };
+    saveComment(saved);
+
+    list.dataset.src = "src/App.tsx:312:12";
+    list.innerHTML = "<li>One</li><li>Two</li>";
+    await reconcileComments(document);
+
+    expect(getComments()).toEqual([]);
+  });
+
+  it("keeps a moved note when its authored evidence matches several lines", async () => {
+    const button = target();
+    const saved = { ...comment(button), handedOff: true };
+    saveComment(saved);
+
+    button.dataset.src = "src/App.tsx:14:3";
+    button.textContent = "Publish";
+    const twin = target("Publish");
+    twin.dataset.src = "src/App.tsx:20:3";
+
+    expect(resolveCommentElement(document, saved.target)).toBeNull();
+    await reconcileComments(document);
+    expect(getComments()).toHaveLength(1);
+  });
+
   it("keeps an unsent note when the page changes", async () => {
     const button = target();
     const saved = comment(button);

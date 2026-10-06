@@ -150,8 +150,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const activatedTargetRef = useRef<string | null>(null);
   const demoSeededRef = useRef(false);
   const previousPresentationRef = useRef(presentation);
-  const focusCardRectRef = useRef<RectSnapshot | null>(null);
-  const canvasEntryAnimationRef = useRef<Animation | null>(null);
+  const presentationAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
@@ -174,74 +173,55 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
 
   useLayoutEffect(() => {
+    const previousPresentation = previousPresentationRef.current;
+    previousPresentationRef.current = presentation;
+    if (previousPresentation === presentation) return;
+    presentationAnimationRef.current?.cancel();
+    presentationAnimationRef.current = null;
+    if (!presentationTransitioning) return;
+
     const board = boardRef.current;
+    const card = cards.find((candidate) => candidate.id === presentationCardId);
     const cardElement = presentationCardId
       ? board?.querySelector<HTMLElement>(`[data-card-id="${presentationCardId}"]`)
       : null;
-    const boardContent = board?.querySelector<HTMLElement>('[data-test="canvas-board-content"]');
+    if (!board || !card || !cardElement || typeof cardElement.animate !== "function" || camera.zoom <= 0) return;
 
-    if (presentation === "focus") {
-      canvasEntryAnimationRef.current?.cancel();
-      canvasEntryAnimationRef.current = null;
-      if (boardContent) boardContent.style.transition = "";
-      if (cardElement) cardElement.style.transition = "";
-      focusCardRectRef.current = cardElement ? snapshotRect(cardElement.getBoundingClientRect()) : null;
-    } else if (
-      presentation === "canvas"
-      && previousPresentationRef.current === "focus"
-      && presentationTransitioning
-      && cardElement
-      && boardContent
-      && focusCardRectRef.current
-      && typeof cardElement.animate === "function"
-    ) {
-      // Commit the final layout before measuring it. The old implementation
-      // transitioned both the camera and the card's position, which made the
-      // nested scale and translation produce a sideways drift.
-      boardContent.style.transition = "none";
-      cardElement.style.transition = "none";
-      const oldRect = focusCardRectRef.current;
-      const newRect = snapshotRect(cardElement.getBoundingClientRect());
-      if (newRect.width > 0 && newRect.height > 0 && camera.zoom > 0) {
-        const oldCenterX = oldRect.left + oldRect.width / 2;
-        const oldCenterY = oldRect.top + oldRect.height / 2;
-        const newCenterX = newRect.left + newRect.width / 2;
-        const newCenterY = newRect.top + newRect.height / 2;
-        const localTranslateX = (oldCenterX - newCenterX) / camera.zoom;
-        const localTranslateY = (oldCenterY - newCenterY) / camera.zoom;
-        const scaleX = oldRect.width / newRect.width;
-        const scaleY = oldRect.height / newRect.height;
-        const animation = cardElement.animate(
-          [
-            {
-              transformOrigin: "center center",
-              transform: `translate(${localTranslateX}px, ${localTranslateY}px) scale(${scaleX}, ${scaleY})`,
-            },
-            { transformOrigin: "center center", transform: "none" },
-          ],
-          { duration: PRESENTATION_TRANSITION_MS, easing: "ease", fill: "both" },
-        );
-        canvasEntryAnimationRef.current = animation;
-        void animation.finished.then(() => {
-          if (canvasEntryAnimationRef.current !== animation) return;
-          canvasEntryAnimationRef.current = null;
-          animation.cancel();
-          boardContent.style.transition = "";
-          cardElement.style.transition = "";
-        }).catch(() => {
-          if (canvasEntryAnimationRef.current !== animation) return;
-          canvasEntryAnimationRef.current = null;
-          boardContent.style.transition = "";
-          cardElement.style.transition = "";
-        });
-      } else {
-        boardContent.style.transition = "";
-        cardElement.style.transition = "";
-      }
-    }
+    // The previous layout is already gone, so derive it: focus fills the
+    // board, and canvas places the card through the camera.
+    const boardRect = snapshotRect(board.getBoundingClientRect());
+    const canvasRect: RectSnapshot = {
+      left: boardRect.left + camera.x + card.x * camera.zoom,
+      top: boardRect.top + camera.y + card.y * camera.zoom,
+      width: card.width * camera.zoom,
+      height: card.height * camera.zoom,
+    };
+    const oldRect = presentation === "focus" ? canvasRect : boardRect;
+    const localScale = presentation === "focus" ? 1 : camera.zoom;
+    const newRect = snapshotRect(cardElement.getBoundingClientRect());
+    if (newRect.width <= 0 || newRect.height <= 0) return;
 
-    previousPresentationRef.current = presentation;
-  }, [camera.zoom, presentation, presentationCardId, presentationTransitioning]);
+    const localTranslateX = (oldRect.left + oldRect.width / 2 - (newRect.left + newRect.width / 2)) / localScale;
+    const localTranslateY = (oldRect.top + oldRect.height / 2 - (newRect.top + newRect.height / 2)) / localScale;
+    const scaleX = oldRect.width / newRect.width;
+    const scaleY = oldRect.height / newRect.height;
+    const animation = cardElement.animate(
+      [
+        {
+          transformOrigin: "center center",
+          transform: `translate(${localTranslateX}px, ${localTranslateY}px) scale(${scaleX}, ${scaleY})`,
+        },
+        { transformOrigin: "center center", transform: "none" },
+      ],
+      { duration: PRESENTATION_TRANSITION_MS, easing: "ease", fill: "both" },
+    );
+    presentationAnimationRef.current = animation;
+    void animation.finished.then(() => {
+      if (presentationAnimationRef.current !== animation) return;
+      presentationAnimationRef.current = null;
+      animation.cancel();
+    }).catch(() => undefined);
+  }, [camera, cards, presentation, presentationCardId, presentationTransitioning]);
 
   useLayoutEffect(() => {
     const board = boardRef.current;

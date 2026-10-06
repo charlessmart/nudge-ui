@@ -20,6 +20,12 @@ export interface RuntimeElementEvidence {
   ariaLabel: string | null;
 }
 
+/** Bounded authored facts for one annotated element. */
+export interface SourceElementEvidence {
+  tagName: string;
+  props: string | null;
+}
+
 export interface ElementChangeRecord {
   kind?: "element";
   cid: string;
@@ -40,6 +46,8 @@ export interface ElementChangeRecord {
   source: { file: string; line: number; component: string };
   /** Present when the selected element has a document-local runtime identity. */
   runtimeEvidence?: RuntimeElementEvidence;
+  /** Authored facts that relocate the source site after its position shifts. */
+  sourceEvidence?: SourceElementEvidence;
   scope?: EditScope;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;

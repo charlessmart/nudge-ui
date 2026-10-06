@@ -27,6 +27,7 @@ interface SourceFields {
   line: number;
   column: number;
   runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
+  sourceEvidence?: ElementChangeRecord["sourceEvidence"];
 }
 
 function sourceFields(el: HTMLElement): SourceFields {
@@ -64,6 +65,10 @@ function sourceFields(el: HTMLElement): SourceFields {
     file: parsed.file,
     line: parsed.line,
     column: parsed.column,
+    sourceEvidence: {
+      tagName: normalizeRuntimeTag(el.tagName),
+      props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
+    },
   };
 }
 
@@ -135,6 +140,7 @@ export function swapTokens(
         newToken: change.newToken,
         source: { file: source.file, line: source.line, component: cid },
         runtimeEvidence: source.runtimeEvidence,
+        sourceEvidence: source.sourceEvidence,
         state,
         ...scopePlan.get(el),
       };
@@ -224,6 +230,7 @@ function buildStyleRecord(
     oldRawValue: (oldRawValue ?? getStateStyleValue(el, property)) || undefined,
     source: { file: source.file, line: source.line, component: cid },
     runtimeEvidence: source.runtimeEvidence,
+    sourceEvidence: source.sourceEvidence,
     state,
     ...scopePlan.get(el),
   } satisfies ElementChangeRecord;

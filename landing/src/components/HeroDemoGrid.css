@@ -7,7 +7,10 @@
 .landing-hero-demo-card {
   display: grid;
   min-width: 0;
-  animation: landing-hero-demo-card-enter 500ms ease-out both;
+  --landing-hero-demo-enter-delay: calc(var(--landing-hero-demo-index, 0) * 120ms + 200ms);
+  animation:
+    landing-hero-demo-card-fade var(--landing-reveal-fade-duration) ease var(--landing-hero-demo-enter-delay) both,
+    landing-hero-demo-card-drop var(--landing-reveal-move-duration) var(--landing-reveal-ease) var(--landing-hero-demo-enter-delay) both;
 }
 
 .landing-hero-demo-board-layer {
@@ -40,15 +43,17 @@
   animation: none;
 }
 
-@keyframes landing-hero-demo-card-enter {
+@keyframes landing-hero-demo-card-fade {
   from {
-    filter: blur(16px);
+    filter: blur(var(--landing-reveal-blur));
     opacity: 0;
   }
+}
 
-  to {
-    filter: blur(0);
-    opacity: 1;
+/* Mirrors the bento reveal, entering from above instead of below. */
+@keyframes landing-hero-demo-card-drop {
+  from {
+    transform: translateY(calc(var(--landing-reveal-distance) * -1)) scale(0.98);
   }
 }
 
@@ -72,8 +77,8 @@
   gap: var(--space-24);
   padding: var(--space-24);
   border: 1px solid var(--border-subtle);
-  border-radius: 24px;
-  background: var(--surface-raised);
+  border-radius: var(--radius-24);
+  background: var(--surface-raised-2x);
   color: var(--text-primary);
   font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   width: min(520px, 100%);
@@ -196,10 +201,10 @@
 }
 
 .landing-hero-demo-board--wireframe {
-  --landing-wireframe-blue: rgb(37 99 235 / 58%);
-  --landing-wireframe-blue-surface: rgb(37 99 235 / 6%);
-  border-color: rgb(37 99 235 / 36%);
-  background: rgb(37 99 235 / 4%);
+  --landing-wireframe-blue: color-mix(in srgb, var(--accent) 64%, transparent);
+  --landing-wireframe-blue-surface: var(--accent-surface-subtle);
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
   color: var(--landing-wireframe-blue);
 }
 
@@ -213,7 +218,7 @@
   align-items: center;
   gap: var(--space-4);
   transform: translateY(-50%);
-  color: #dc2626;
+  color: var(--danger);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -223,9 +228,9 @@
 
 .landing-hero-demo-wireframe-measure strong {
   padding: var(--space-4) var(--space-8);
-  border-radius: 4px;
-  background: #dc2626;
-  color: #fff;
+  border-radius: var(--radius-4);
+  background: var(--danger);
+  color: var(--surface-raised-2x);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -234,7 +239,7 @@
 .landing-hero-demo-wireframe-measure span:first-child {
   height: 2px;
   flex: 0 0 var(--landing-hero-demo-wireframe-measure-inset, var(--space-24));
-  background: rgb(220 38 38 / 64%);
+  background: color-mix(in srgb, var(--danger) 64%, transparent);
 }
 
 .landing-hero-demo-wireframe-measure--right {
@@ -322,8 +327,8 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: 8px;
-  background: var(--surface-sunken);
+  border-radius: var(--radius-8);
+  background: var(--surface-well);
   color: var(--text-primary);
 }
 
@@ -394,7 +399,7 @@
   gap: var(--space-8);
   padding: var(--space-0) var(--space-12);
   border-radius: 10px;
-  background: var(--surface-sunken);
+  background: var(--surface-well);
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 21px;
@@ -417,8 +422,8 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border: 2px solid var(--surface-raised);
-  border-radius: 9999px;
+  border: 2px solid var(--surface-raised-2x);
+  border-radius: var(--radius-pill);
   color: var(--text-inverse);
   font-size: 11px;
   font-weight: 600;
@@ -470,7 +475,7 @@
   gap: var(--space-8);
   padding: var(--space-4) var(--space-12) var(--space-4) var(--space-4);
   border: 1px solid var(--border-subtle);
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
 }
 
 .landing-hero-demo-chip .landing-hero-demo-bank-mark {
@@ -559,8 +564,8 @@
   gap: var(--space-12);
   padding: var(--space-0);
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: var(--surface-raised);
+  border-radius: var(--radius-16);
+  background: var(--surface-raised-2x);
 }
 
 .landing-hero-demo-board--health:not(.landing-hero-demo-board--wireframe) {
@@ -591,7 +596,7 @@
       rgb(255 255 255 / 0%) 36%,
       rgb(255 255 255 / 18%) 55%,
       rgb(255 255 255 / 88%) 83%,
-      var(--surface-raised) 100%
+      var(--surface-raised-2x) 100%
     );
   pointer-events: none;
 }
@@ -634,7 +639,7 @@
   padding-block: var(--space-4);
   padding-inline-start: var(--space-8);
   padding-inline-end: var(--space-4);
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   background: var(--surface-control);
   color: var(--text-primary);
   font-size: 14px;
@@ -678,8 +683,8 @@
   align-items: center;
   flex: 1 1 auto;
   padding-inline: var(--space-8);
-  border-radius: 8px;
-  background: var(--surface-raised);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
 }
 
 .landing-hero-demo-type-field > .landing-hero-demo-icon {
@@ -719,7 +724,7 @@
   min-height: 44px;
   padding: 2px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   background: var(--surface-well);
 }
 
@@ -734,9 +739,9 @@
 
 .landing-hero-demo-type-alignment-option--selected {
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   color: var(--text-primary);
-  box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 2px rgb(0 0 0 / 6%);
+  box-shadow: var(--shadow-control);
 }
 
 .landing-hero-demo-alignment-glyph {
@@ -753,8 +758,8 @@
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
-  border-radius: 9999px;
-  background: #16a34a;
+  border-radius: var(--radius-pill);
+  background: var(--success);
 }
 
 .landing-hero-demo-waveform {
@@ -765,7 +770,7 @@
 
 .landing-hero-demo-waveform path {
   fill: none;
-  stroke: #d4d4d4;
+  stroke: var(--border-strong);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
@@ -778,7 +783,7 @@
 }
 
 .landing-hero-demo-waveform-marker {
-  fill: var(--surface-raised);
+  fill: var(--surface-raised-2x);
   stroke: var(--text-inverse);
   stroke-width: 2;
 }
@@ -811,9 +816,9 @@
   display: block;
   position: static;
   padding: var(--space-4) var(--space-8);
-  border-radius: 9999px;
-  background: rgb(22 163 74 / 10%);
-  color: #16a34a;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -874,7 +879,7 @@
   z-index: 2;
   inset: calc(var(--space-24) - 1px);
   box-sizing: border-box;
-  border: 1px dashed rgb(220 38 38 / 38%);
+  border: 1px dashed color-mix(in srgb, var(--danger) 38%, transparent);
   pointer-events: none;
 }
 
@@ -927,7 +932,7 @@
   z-index: 2;
   inset: calc(var(--space-16) - 1px);
   box-sizing: border-box;
-  border: 1px dashed rgb(220 38 38 / 38%);
+  border: 1px dashed color-mix(in srgb, var(--danger) 38%, transparent);
   pointer-events: none;
 }
 

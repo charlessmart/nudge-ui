@@ -58,8 +58,8 @@ function RulerGrid(): ReactNode {
       <svg viewBox="0 0 1800 1800" preserveAspectRatio="none" focusable="false" fill="none">
         {RULER_TICKS.map((value) => (
           <g key={`grid-line-${value}`}>
-            <line x1={value} y1="0" x2={value} y2="1800" stroke="var(--border-tertiary)" strokeWidth="1" />
-            <line x1="0" y1={value} x2="1800" y2={value} stroke="var(--border-tertiary)" strokeWidth="1" />
+            <line x1={value} y1="0" x2={value} y2="1800" stroke="var(--border-subtle)" strokeWidth="1" />
+            <line x1="0" y1={value} x2="1800" y2={value} stroke="var(--border-subtle)" strokeWidth="1" />
           </g>
         ))}
       </svg>

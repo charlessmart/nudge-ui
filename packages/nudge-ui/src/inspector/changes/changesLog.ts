@@ -51,6 +51,7 @@ export type {
   TextContentChangeRecord,
   TokenChangeRecord,
   RuntimeElementEvidence,
+  SourceElementEvidence,
 } from "./types.ts";
 
 /**
@@ -219,6 +220,14 @@ export function reconcileVerifiedDraftChanges(
   pruneStructuralProjectionReports(verifiedStructuralIds);
   markForVerification(getChangesSnapshot().map(changeKey));
   return removed;
+}
+
+/** Replaces ordinary and structural intent as one undoable edit. */
+export function commitDraftContents(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[]): boolean {
+  if (!draftChangeStore.commitContents({ changes: [...changes], structuralChanges: [...structuralChanges] })) return false;
+  reapply(draftChangeStore.getSnapshot());
+  markForVerification(getChangesSnapshot().map(changeKey));
+  return true;
 }
 
 export function discardChangesForSelector(selector: string): void {
