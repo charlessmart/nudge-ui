@@ -1,0 +1,296 @@
+import { startWorkspaceController } from "./workspace/controller.ts";
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
+import { toggleInspector, setInspectorOpen } from "./shell/openStore.ts";
+import { setSelectedElement } from "./selection/selectionStore.ts";
+import { removeManagedSheet } from "./projection/managedStylesheet.ts";
+import {
+  isInspectorToggleShortcut,
+  isOriginalPreviewShortcut,
+  SEND_PROMPT_HOTKEY_EVENT,
+} from "./shell/shortcuts.ts";
+import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import { isKeyboardShortcutMessage, type FrameIdentity } from "./canvas/frameProtocol.ts";
+import { subscribeCanvasRendererMessages } from "./canvas/rendererMessageRouter.ts";
+import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
+import {
+  setRestoreCount,
+} from "./canvas/sessionStore.ts";
+import { getChangesList } from "./drafts/store.ts";
+import {
+  acquireLease,
+  enableWriteGuard,
+  hasWriteLease,
+  subscribeOwnership,
+} from "./canvas/workspaceLease.ts";
+import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
+import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
+import { AppShell } from "./shell/AppShell.tsx";
+import { installInspectionBridge } from "./inspection/bridge.ts";
+import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
+import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
+import { setCanvasMode } from "./canvas/viewStore.ts";
+import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
+import {
+  clearClipboardHandoff,
+} from "./prompt/clipboardHandoff.ts";
+import {
+  createWorkspace,
+  InspectorSessionProvider,
+  type InspectorSession,
+} from "./session/index.ts";
+import { clearSketchClipboardHandoff } from "./sketch/handoff.ts";
+import { cancelSketchInteraction, isSketchInteractionActive } from "./sketch/interaction.ts";
+import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
+import { initializeSketchStore } from "./sketch/store.ts";
+
+let hostElement: HTMLElement | null = null;
+let reactRoot: Root | null = null;
+let lockedRoot: Root | null = null;
+const workspace = createWorkspace();
+let inspectorSession: InspectorSession | null = null;
+let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
+let workspaceController: ReturnType<typeof startWorkspaceController> | null = null;
+let unsubscribeOwnership: (() => void) | null = null;
+let removeInspectionBridge: (() => void) | null = null;
+
+let keyboardPeekHeld = false;
+
+function onKeydown(e: KeyboardEvent): void {
+  if (isSketchInteractionActive()) return;
+  if (isInspectorToggleShortcut(e)) {
+    toggleInspector();
+    e.preventDefault();
+    return;
+  }
+  if (isOriginalPreviewShortcut(e)) {
+    keyboardPeekHeld = true;
+    setOriginalPreviewActive(true);
+    e.preventDefault();
+  }
+}
+
+function onKeyup(e: KeyboardEvent): void {
+  // Release only a keyboard-started peek so a button-held preview survives
+  // unrelated Backslash keyups (e.g. the panel-toggle shortcuts pressed
+  // mid-hold). A guarded keydown never sets the flag, so this stays a no-op
+  // for keyups without a matching hold.
+  if (e.code === "Backslash" && keyboardPeekHeld) {
+    keyboardPeekHeld = false;
+    setOriginalPreviewActive(false);
+  }
+}
+
+function onRendererKeyboardShortcut(message: unknown, identity: FrameIdentity): void {
+  if (!isKeyboardShortcutMessage(message, identity)) return;
+  if (message.code === "KeyS" && message.phase === "keydown") {
+    window.dispatchEvent(new Event(SEND_PROMPT_HOTKEY_EVENT));
+    return;
+  }
+  if (message.code !== "Backslash") return;
+  if (message.phase === "keydown") {
+    keyboardPeekHeld = true;
+    setOriginalPreviewActive(true);
+  } else if (keyboardPeekHeld) {
+    keyboardPeekHeld = false;
+    setOriginalPreviewActive(false);
+  }
+}
+
+function disposeInspectorSession(): void {
+  const session = inspectorSession;
+  inspectorSession = null;
+  session?.dispose();
+}
+
+export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
+  const runtimeConfig = getNudgeUiRuntimeConfig();
+  const explicitDemo = isDemoRuntime();
+  if (!isNudgeUiDev() && !explicitDemo) return;
+
+  if (explicitDemo) {
+    rendererBootstrapHandle?.teardown();
+    rendererBootstrapHandle = null;
+    // ADR-0014: only the configured demo runtime opens the shared dev gate
+    // for its own document. The bundle mode name alone must never flip it,
+    // so every build without both opt-ins stays governed by ADR-0002.
+    setNudgeUiHostDevFlag(true);
+    if (runtimeConfig.capabilities.canvas && isCanvasRenderer()) {
+      rendererBootstrapHandle = bootstrapRenderer() ?? null;
+      return;
+    }
+    // The public demo shares the iframe editor while keeping the write lease,
+    // persistence, and agent bridge disabled.
+    setCanvasMode("canvas");
+    workspaceController?.dispose();
+    workspaceController = startWorkspaceController();
+    mountInspector(inspectorHost);
+    setInspectorOpen(false);
+    return;
+  }
+
+  if (!runtimeConfig.capabilities.canvas) {
+    // A project can be reopened with a runtime that does not expose Canvas.
+    // Clear any stale in-memory mode before mounting the static inspector.
+    setCanvasMode("inspect");
+  }
+
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
+
+  removeInspectionBridge?.();
+  removeInspectionBridge = installInspectionBridge();
+
+  if (getNudgeUiRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
+    rendererBootstrapHandle = bootstrapRenderer() ?? null;
+    return;
+  }
+
+  enableWriteGuard();
+  const leaseGranted = acquireLease();
+  if (!leaseGranted) {
+    mountLockedNotice(inspectorHost);
+    return;
+  }
+
+  startController(inspectorHost);
+}
+
+function startController(inspectorHost: HTMLElement): void {
+  if (!hasWriteLease()) {
+    mountLockedNotice(inspectorHost);
+    return;
+  }
+
+  if (lockedRoot) {
+    lockedRoot.unmount();
+    lockedRoot = null;
+  }
+
+  void initializeSketchStore(getNudgeUiRuntimeConfig().projectId).catch(() => undefined);
+
+  unsubscribeOwnership?.();
+  unsubscribeOwnership = subscribeOwnership((hasLease) => {
+    if (!hasLease) { workspaceController?.dispose(); workspaceController = null; mountLockedNotice(inspectorHost); }
+  });
+
+  workspaceController?.dispose();
+  const result = startWorkspaceController();
+  workspaceController = result;
+  if (result.restored) {
+    setRestoreCount(getChangesList().length + getStructuralChanges().length);
+    const restored = getChangesList();
+    if (restored.length > 0) {
+      startStaleDetection(restored);
+    }
+  }
+  if (getNudgeUiRuntimeConfig().capabilities.canvas) {
+    // Normal controllers always host the iframe workspace. Hydration runs
+    // first so this mode change cannot discard cards, camera, or edits.
+    setCanvasMode("canvas");
+  }
+
+  mountInspector(inspectorHost);
+}
+
+function mountLockedNotice(host: HTMLElement): void {
+  if (reactRoot) {
+    reactRoot.unmount();
+    reactRoot = null;
+  }
+  try {
+    disposeInspectorSession();
+  } finally {
+    cancelStaleDetection();
+    setInspectorOpen(false);
+    cancelInlineTextEdit();
+    cancelSketchInteraction();
+    clearSketchClipboardHandoff();
+    setSelectedElement(null);
+    removeManagedSheet();
+    releaseDocumentProjection(document);
+    hostElement = null;
+    unsubscribeOwnership?.();
+    unsubscribeOwnership = null;
+  }
+
+  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  if (!lockedRoot) {
+    lockedRoot = createRoot(shadow);
+  }
+  lockedRoot.render(createElement(LockedWorkspaceNotice, {
+    onTakeover: () => startController(host),
+  }));
+}
+
+export function mountInspector(host: HTMLElement): void {
+  const demo = isDemoRuntime();
+  if (!demo && !hasWriteLease()) return;
+  const runtimeConfig = getNudgeUiRuntimeConfig();
+  if (runtimeConfig.capabilities.domNavigation !== true) {
+    configureNudgeUiRuntime({
+      ...runtimeConfig,
+      capabilities: { ...runtimeConfig.capabilities, domNavigation: true },
+    });
+  }
+  if (lockedRoot) {
+    lockedRoot.unmount();
+    lockedRoot = null;
+  }
+  if (!hostElement) hostElement = host;
+  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  if (!reactRoot) {
+    reactRoot = createRoot(shadow);
+    inspectorSession = workspace.createInspectorSession(host);
+    inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
+    inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {
+      onRendererKeyboardShortcut(message, frame.identity);
+    }));
+    reactRoot.render(createElement(
+      InspectorSessionProvider,
+      { inspector: inspectorSession, documentSession: null },
+      createElement(AppShell),
+    ));
+    window.addEventListener("keydown", onKeydown);
+    window.addEventListener("keyup", onKeyup);
+  }
+  setInspectorOpen(true);
+}
+
+export function unmountInspector(): void {
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
+  workspaceController?.dispose();
+  workspaceController = null;
+  unsubscribeOwnership?.();
+  unsubscribeOwnership = null;
+  if (lockedRoot) {
+    lockedRoot.unmount();
+    lockedRoot = null;
+  }
+  cancelStaleDetection();
+  cancelInlineTextEdit();
+  cancelSketchInteraction();
+  setSelectedElement(null);
+  if (reactRoot) {
+    reactRoot.unmount();
+    reactRoot = null;
+  }
+  try {
+    disposeInspectorSession();
+  } finally {
+    // Document-session cleanup already releases host projection when a
+    // session exists; release directly as well so projection applied outside
+    // a session (gestures, workspace projection) cannot leak across unmount.
+    releaseDocumentProjection(document);
+    clearClipboardHandoff();
+    clearSketchClipboardHandoff();
+    removeManagedSheet();
+    removeInspectionBridge?.();
+    removeInspectionBridge = null;
+    hostElement = null;
+  }
+}

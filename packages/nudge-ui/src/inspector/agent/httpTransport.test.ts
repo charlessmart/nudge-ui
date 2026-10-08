@@ -75,6 +75,16 @@ it("does not borrow bridge configuration from an unrelated preview", () => {
   expect(getConfiguredAgentBridgeEndpoint()).toBeUndefined();
 });
 
+it("stays offline when the host published no bridge endpoint", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+
+  const status = await new HttpAgentBridgeTransport({}).discover({ projectId: "unconfigured-project", origin: window.location.origin });
+
+  expect(status).toBeNull();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
 it("uses the deliberate takeover endpoint without sending another browser token", async () => {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
     protocolVersion: AGENT_PROTOCOL_VERSION,

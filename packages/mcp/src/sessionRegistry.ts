@@ -1,6 +1,6 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import { AGENT_PROTOCOL_VERSION, type AgentStatusSnapshot } from "@nudge-ui/agent-protocol";
+import { AGENT_PROTOCOL_VERSION } from "@nudge-ui/agent-protocol";
 import { ProjectSessionResponseError, readSessionHealth, type SessionHealth } from "./projectSessionClient.ts";
 import type { StoredProjectSession } from "./project.ts";
 
@@ -76,33 +76,13 @@ type SessionProbe =
 
 async function probeSession(descriptor: StoredProjectSession): Promise<SessionProbe> {
   try {
-    const health: unknown = await readSessionHealth(descriptor, PROBE_TIMEOUT_MS);
-    if (!isSessionHealth(health) || health.projectId !== descriptor.projectId) return { kind: "invalid" };
+    const health = await readSessionHealth(descriptor, PROBE_TIMEOUT_MS);
+    if (health.projectId !== descriptor.projectId) return { kind: "invalid" };
     return { kind: "live", session: { descriptor, health } };
   } catch (error) {
     // An HTTP response proves that the endpoint exists. Network and timeout errors are unreachable.
     return { kind: error instanceof ProjectSessionResponseError ? "invalid" : "unreachable" };
   }
-}
-
-function isSessionHealth(value: unknown): value is SessionHealth {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const health = value as Record<string, unknown>;
-  return typeof health.projectId === "string"
-    && health.available === true
-    && typeof health.claimed === "boolean"
-    && isAgentStatusSnapshot(health.status);
-}
-
-function isAgentStatusSnapshot(value: unknown): value is AgentStatusSnapshot {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const status = value as Record<string, unknown>;
-  return status.protocolVersion === AGENT_PROTOCOL_VERSION
-    && typeof status.projectId === "string"
-    && (status.connection === "offline" || status.connection === "listening" || status.connection === "paired" || status.connection === "working")
-    && typeof status.listenerActive === "boolean"
-    && typeof status.paired === "boolean"
-    && (status.request === null || (typeof status.request === "object" && !Array.isArray(status.request)));
 }
 
 function isLoopbackEndpoint(value: unknown): value is string {

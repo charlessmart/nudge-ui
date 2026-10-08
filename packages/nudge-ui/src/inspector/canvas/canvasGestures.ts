@@ -31,14 +31,3 @@ export function zoomCameraAtPointer(
     zoom,
   };
 }
-
-export function iframePointToClientPoint(
-  iframeRect: ClientRect,
-  point: ClientPoint,
-  cameraZoom: number,
-): ClientPoint {
-  return {
-    x: iframeRect.left + point.x * cameraZoom,
-    y: iframeRect.top + point.y * cameraZoom,
-  };
-}

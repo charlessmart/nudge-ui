@@ -1,5 +1,5 @@
 import type { FrameProjection } from "../canvas/projection.ts";
-import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
 import { inspectRootInvocations } from "../componentSemantics/adapterRegistry.ts";
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";

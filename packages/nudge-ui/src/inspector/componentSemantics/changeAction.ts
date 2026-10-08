@@ -1,4 +1,4 @@
-import { appendChange } from "../changes/changesLog.ts";
+import { appendChange } from "../drafts/store.ts";
 import type {
   ComponentPropContract,
   ComponentPropValue,

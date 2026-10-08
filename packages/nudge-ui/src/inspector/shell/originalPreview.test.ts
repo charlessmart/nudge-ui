@@ -4,7 +4,7 @@ import {
   appendChange,
   clearActiveDraft,
   getChangesList,
-} from "../changes/changesLog.ts";
+} from "../drafts/store.ts";
 import { changeKey } from "../changes/model.ts";
 import { getPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import type { TokenEntry } from "../../css/model/index.ts";

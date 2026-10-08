@@ -1,60 +1,188 @@
 import { useSyncExternalStore } from "react";
 import { getCanvasCards, selectCard, focusCanvasCards, activateIframeWorkspace } from "../canvas/canvasStore.ts";
 import { contentEditTarget, type FrameContent } from "../canvas/frameContent.ts";
-import {
-  deserializeChange,
-  isSerializableChange,
-  serializeChange,
-  type SerializableChange,
-} from "../changes/codecs.ts";
-import {
-  getActiveDraftChanges,
-  getDraftChanges,
-  restoreDraftChanges,
-  subscribeDraftChanges,
-  setActiveDraft,
-  clearDraftChanges,
-  listDraftIds,
-  resetDraftChanges,
-  type DraftContents,
-} from "../changes/draftChanges.ts";
-import { refreshDraftPreview } from "../changes/changesLog.ts";
-import { isStructuralChange } from "../projection/structuralProjection.ts";
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
+import { createDraftPreview } from "../changes/draftPreview.ts";
+import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
+import type { ChangeRecord } from "../changes/types.ts";
+import type { StructuralChange } from "../changes/structuralTypes.ts";
+import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
+import type { StyleRule } from "../projection/managedStylesheet.ts";
 import { getSketchStoreSnapshot, subscribeSketchStore } from "../sketch/store.ts";
 import type { SketchDocument } from "../sketch/model.ts";
-import { documentTarget, isDraftTarget, targetFromKey, targetKey, type Draft, type DraftTarget, type DraftSnapshot } from "./model.ts";
+import { sessionTimeline } from "../workspace/timeline.ts";
+import { createDraftStore, type CommitResult, type DraftChangesSnapshot } from "./draftStore.ts";
+import { targetFromKey, targetKey, type Draft, type DraftContents, type DraftSnapshot } from "./model.ts";
 
-interface PersistedDraft {
-  readonly target: DraftTarget;
-  readonly revision: number;
-  readonly contents: { readonly changes: readonly SerializableChange[]; readonly structuralChanges: DraftContents["structuralChanges"] };
-}
+const preview = createDraftPreview(() => drafts.getActive());
 
-interface PersistedDrafts {
-  readonly schemaVersion: 2;
-  readonly projectId: string;
-  readonly drafts: readonly PersistedDraft[];
-  readonly sketchOwners: Readonly<Record<string, string>>;
-}
+/** The Workspace's drafts, wired to the Canvas lease, session timeline, local storage, and host preview. */
+const drafts = createDraftStore({
+  canWrite: () => canWriteWorkspace(),
+  timeline: sessionTimeline,
+  storage: {
+    read: (key) => localStorage.getItem(key),
+    write: (key, value) => localStorage.setItem(key, value),
+    remove: (key) => localStorage.removeItem(key),
+  },
+  sketches: { getSnapshot: () => getSketchStoreSnapshot(), subscribe: (listener) => subscribeSketchStore(listener) },
+  project: (snapshot, event) => preview.project(snapshot, event),
+});
 
-let projectId = "";
-let persistent = true;
-/** Overrides the capture-URL owner for sketches drawn while another draft was active. */
-const sketchOwners = new Map<string, string>();
 const contentDrafts = new WeakMap<FrameContent, string>();
-const listeners = new Set<() => void>();
-let snapshot: DraftSnapshot | null = null;
 
-function publish(): void {
-  snapshot = null;
-  for (const listener of listeners) listener();
+export function getActiveDraftChanges(): DraftChangesSnapshot {
+  return drafts.getActive();
 }
 
-subscribeDraftChanges(publish);
-subscribeSketchStore(publish);
+export function subscribeActiveDraftChanges(listener: () => void): () => void {
+  return drafts.subscribeActive(listener);
+}
 
-function storageKey(): string { return `nudge-ui-drafts:${projectId}:v2`; }
+export function getDraftChanges(id: string): DraftChangesSnapshot {
+  return drafts.get(id);
+}
+
+export function listDraftIds(): readonly string[] {
+  return drafts.ids();
+}
+
+export function getDraft(id: string): Draft | null {
+  return drafts.getDraft(id);
+}
+
+export function getDraftsSnapshot(): DraftSnapshot {
+  return drafts.getSnapshot();
+}
+
+export function subscribeDrafts(listener: () => void): () => void {
+  return drafts.subscribe(listener);
+}
+
+export function useDrafts(): DraftSnapshot {
+  return useSyncExternalStore(subscribeDrafts, getDraftsSnapshot, getDraftsSnapshot);
+}
+
+export function canEditDraft(id?: string): boolean {
+  return drafts.canEdit(id);
+}
+
+export function isDraftLocked(id?: string): boolean {
+  return drafts.isLocked(id);
+}
+
+export function lockDraft(id: string): () => void {
+  return drafts.lock(id);
+}
+
+function activeChanges(): ChangeRecord[] {
+  // SAFETY: The public change model is the concrete record union stored by
+  // the workspace snapshot; React consumers keep the mutable array type.
+  return drafts.getActive().changes as ChangeRecord[];
+}
+
+export function useChanges(): ChangeRecord[] {
+  return useSyncExternalStore(subscribeActiveDraftChanges, activeChanges, activeChanges);
+}
+
+export function getChangesList(): ChangeRecord[] {
+  return [...activeChanges()];
+}
+
+export function getPendingRules(): StyleRule[] {
+  return buildManagedStyleRules(activeChanges());
+}
+
+export interface AppendChangesOptions {
+  /** The rendered target captured for each change key at commit time. */
+  verificationTargets?: ReadonlyMap<string, HTMLElement | null>;
+}
+
+/** Appends records and reports whether canonical workspace state changed. */
+export function appendChanges(incoming: readonly ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
+  return drafts.commitChanges(incoming, options.verificationTargets);
+}
+
+export function appendChange(change: ChangeRecord): CommitResult {
+  return drafts.commitChanges([change]);
+}
+
+export function revertChange(change: ChangeRecord): void {
+  drafts.revertChange(change);
+}
+
+export function discardChangesForSelector(selector: string): void {
+  drafts.discardChanges({ kind: "selector", selector });
+}
+
+/** Relink removes every CSS declaration owned by one durable rendered target. */
+export function discardChangesForInstanceOverride(overrideId: string): void {
+  drafts.discardChanges({ kind: "instance-override", id: overrideId });
+}
+
+export function commitStructuralChange(change: StructuralChange): boolean {
+  return drafts.commitStructuralChange(change);
+}
+
+export function revertStructuralChange(changeId: string): boolean {
+  return drafts.revertStructuralChange(changeId);
+}
+
+/** Replaces ordinary and structural intent as one undoable edit. */
+export function commitDraftContents(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[]): boolean {
+  return drafts.commitContents({ changes, structuralChanges });
+}
+
+export function undo(): boolean {
+  return drafts.undo();
+}
+
+export function redo(): boolean {
+  return drafts.redo();
+}
+
+/**
+ * Removes source-verified records without letting older undo snapshots
+ * resurrect their previews. Newer, unsent edits and their history survive.
+ */
+export function reconcileDraftChanges(
+  id: string,
+  verifiedKeys: ReadonlySet<string>,
+  verifiedStructuralIds: ReadonlySet<string>,
+): number {
+  return drafts.reconcile(id, verifiedKeys, verifiedStructuralIds);
+}
+
+/** Clears the active draft and its edit steps, preserving other session history. */
+export function clearActiveDraft(): void {
+  if (!drafts.canEdit()) return;
+  // A pending blur/composition timer must not be able to append a draft after
+  // the canonical set has been cleared.
+  cancelInlineTextForClear();
+  drafts.clearActive();
+}
+
+/** Drops a draft whose content no longer exists, such as a deleted iteration. */
+export function forgetDraft(id: string): void {
+  drafts.forget(id);
+}
+
+export function loadDrafts(projectId: string, options: { persistent?: boolean } = {}): void {
+  drafts.load(projectId, options);
+}
+
+export function persistDrafts(): void {
+  drafts.persist();
+}
+
+/** Discards stored and in-memory drafts for the current project. */
+export function clearDrafts(): void {
+  drafts.discardAll();
+}
+
+export function resetDrafts(): void {
+  drafts.reset();
+}
 
 export function draftIdForContent(content: FrameContent): string {
   let id = contentDrafts.get(content);
@@ -70,108 +198,13 @@ export function draftIdForCard(cardId: string): string | null {
   return card ? draftIdForContent(card.content) : null;
 }
 
-export function sketchOwner(document: SketchDocument): string | null {
-  const owner = sketchOwners.get(document.id);
-  if (owner) return owner;
-  try { return targetKey(documentTarget(document.capture.url)); } catch { return null; }
-}
-
-function readDraft(id: string, target: DraftTarget): Draft {
-  const workspace = getDraftChanges(id);
-  return {
-    id,
-    target,
-    revision: workspace.revision,
-    contents: { changes: workspace.changes, structuralChanges: workspace.structuralChanges },
-    sketchIds: getSketchStoreSnapshot().documents.filter((document) => sketchOwner(document) === id).map((document) => document.id),
-  };
-}
-
-export function getDraft(id: string): Draft | null {
-  const target = targetFromKey(id);
-  return target ? readDraft(id, target) : null;
-}
-
 export function getDraftForCard(cardId: string): Draft | null {
   const id = draftIdForCard(cardId);
-  return id ? getDraft(id) : null;
+  return id ? drafts.getDraft(id) : null;
 }
 
 export function getDraftContentsForCard(cardId: string): DraftContents | null {
-  const draft = getDraftForCard(cardId);
-  return draft ? { changes: draft.contents.changes, structuralChanges: draft.contents.structuralChanges } : null;
-}
-
-export function persistDrafts(): void {
-  if (!projectId || !persistent || !canWriteWorkspace()) return;
-  const sketches = getSketchStoreSnapshot();
-  const liveSketches = new Set(sketches.documents.map((document) => document.id));
-  const value: PersistedDrafts = {
-    schemaVersion: 2, projectId,
-    drafts: listDraftIds().flatMap((id) => {
-      const target = targetFromKey(id);
-      const workspace = getDraftChanges(id);
-      if (!target || workspace.changes.length + workspace.structuralChanges.length === 0) return [];
-      return [{
-        target,
-        revision: workspace.revision,
-        contents: {
-          changes: workspace.changes.flatMap((change) => {
-            const serialized = serializeChange(change);
-            return serialized ? [serialized] : [];
-          }),
-          structuralChanges: workspace.structuralChanges,
-        },
-      }];
-    }),
-    sketchOwners: Object.fromEntries([...sketchOwners].filter(([id]) => !sketches.ready || liveSketches.has(id))),
-  };
-  try {
-    localStorage.setItem(storageKey(), JSON.stringify(value));
-  } catch {
-    return;
-  }
-}
-
-function validPersisted(value: unknown): value is PersistedDrafts {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as PersistedDrafts;
-  if (candidate.schemaVersion !== 2 || candidate.projectId !== projectId || !Array.isArray(candidate.drafts)) return false;
-  const targets = new Set<string>();
-  for (const draft of candidate.drafts) {
-    if (!draft || !isDraftTarget(draft.target) || targets.has(targetKey(draft.target))
-      || !Number.isSafeInteger(draft.revision) || draft.revision < 1
-      || !draft.contents || !Array.isArray(draft.contents.changes) || !draft.contents.changes.every(isSerializableChange)
-      || !Array.isArray(draft.contents.structuralChanges) || !draft.contents.structuralChanges.every(isStructuralChange)) return false;
-    const textIds = draft.contents.changes.filter((change: SerializableChange) => change.kind === "text-content").map((change: SerializableChange) => "id" in change ? change.id : "");
-    if (new Set(textIds).size !== textIds.length) return false;
-    targets.add(targetKey(draft.target));
-  }
-  return !!candidate.sketchOwners && typeof candidate.sketchOwners === "object" && !Array.isArray(candidate.sketchOwners)
-    && Object.values(candidate.sketchOwners).every((id) => typeof id === "string" && targetFromKey(id) !== null);
-}
-
-/** Replaces every in-memory draft with the stored drafts, so a tab that takes over never writes stale edits. */
-export function loadDrafts(nextProjectId: string, options: { persistent?: boolean } = {}): void {
-  projectId = nextProjectId;
-  persistent = options.persistent ?? true;
-  sketchOwners.clear();
-  resetDraftChanges();
-  try {
-    const raw = persistent ? localStorage.getItem(storageKey()) : null;
-    const stored: unknown = raw ? JSON.parse(raw) : null;
-    if (validPersisted(stored)) {
-      for (const draft of stored.drafts) {
-        restoreDraftChanges(targetKey(draft.target), { changes: draft.contents.changes.map(deserializeChange), structuralChanges: draft.contents.structuralChanges }, draft.revision);
-      }
-      for (const [sketchId, draftId] of Object.entries(stored.sketchOwners)) sketchOwners.set(sketchId, draftId);
-    }
-  } catch {
-    resetDraftChanges();
-    sketchOwners.clear();
-  }
-  publish();
-  refreshDraftPreview();
+  return getDraftForCard(cardId)?.contents ?? null;
 }
 
 export function activateDraftForCard(cardId: string): void {
@@ -180,9 +213,7 @@ export function activateDraftForCard(cardId: string): void {
 }
 
 export function activateDraft(draftId: string, preferredCardId?: string): void {
-  const previous = getActiveDraftChanges().draftId;
-  setActiveDraft(draftId, () => revealDraft(draftId, preferredCardId));
-  if (previous !== draftId) refreshDraftPreview();
+  drafts.activate(draftId, () => revealDraft(draftId, preferredCardId));
 }
 
 function revealDraft(draftId: string, preferredCardId: string | undefined): void {
@@ -205,7 +236,7 @@ function revealDraft(draftId: string, preferredCardId: string | undefined): void
 
 export function clearSavedIterationDraft(cardId: string, expectedRevision?: number): boolean {
   const draftId = draftIdForCard(cardId);
-  return !!draftId && clearDraftChanges(draftId, expectedRevision);
+  return !!draftId && drafts.clear(draftId, expectedRevision);
 }
 
 /** Returns the first preferred frame that exists, then the first frame. */
@@ -214,47 +245,16 @@ export function getEditableCardId(...preferredCardIds: readonly (string | null |
   return preferredCardIds.find((id): id is string => !!id && cards.some((card) => card.id === id)) ?? cards[0]?.id ?? null;
 }
 
+export function sketchOwner(document: SketchDocument): string | null {
+  return drafts.sketchOwner(document);
+}
+
 export function assignSketchToDraft(draftId: string, sketchId: string): void {
-  if (sketchOwners.get(sketchId) === draftId || !targetFromKey(draftId)) return;
-  sketchOwners.set(sketchId, draftId);
-  publish();
+  drafts.assignSketch(draftId, sketchId);
 }
 
 export function sketchBelongsToCard(document: SketchDocument, cardId: string | null): boolean {
-  if (!projectId || !cardId) return true;
+  if (!drafts.getSnapshot().projectId || !cardId) return true;
   const draftId = draftIdForCard(cardId);
-  return !!draftId && sketchOwner(document) === draftId;
-}
-
-export function subscribeDrafts(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getDraftsSnapshot(): DraftSnapshot {
-  if (!snapshot) {
-    const ids = new Set([...listDraftIds(), ...getSketchStoreSnapshot().documents.flatMap((document) => sketchOwner(document) ?? [])]);
-    snapshot = { projectId, drafts: [...ids].flatMap((id) => getDraft(id) ?? []) };
-  }
-  return snapshot;
-}
-
-export function useDrafts(): DraftSnapshot { return useSyncExternalStore(subscribeDrafts, getDraftsSnapshot, getDraftsSnapshot); }
-
-/** Discards stored and in-memory drafts for the current project. */
-export function clearDrafts(): void {
-  if (projectId && persistent && canWriteWorkspace()) {
-    try { localStorage.removeItem(storageKey()); } catch { return; }
-  }
-  sketchOwners.clear();
-  resetDraftChanges();
-  publish();
-}
-
-export function resetDrafts(): void {
-  projectId = "";
-  persistent = true;
-  sketchOwners.clear();
-  resetDraftChanges();
-  publish();
+  return !!draftId && drafts.sketchOwner(document) === draftId;
 }

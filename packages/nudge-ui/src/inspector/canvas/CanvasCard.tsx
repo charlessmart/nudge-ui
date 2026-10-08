@@ -9,6 +9,7 @@ import {
   updateCardUrl,
   resizeCard,
   setCardPosition,
+  beginCardGeometryChange,
   selectCard,
   getSelectedCardId,
   useSelectedCardId,
@@ -17,10 +18,8 @@ import {
 } from "./canvasStore.ts";
 import { useBoardCamera, type CanvasPresentation } from "./viewStore.ts";
 import { IconArrowsDiagonal, IconCopy, IconCornerLeftDown, IconBoltFilled, IconArtboard, IconTrash } from "@tabler/icons-react";
-import {
-  PROTOCOL_VERSION,
-} from "./frameProtocol.ts";
-import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { connectFrame } from "./frameConnection.ts";
+import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument } from "./projection.ts";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -199,13 +198,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   /** The controller half of the handshake: announce workspace identity. */
   function sendParentReady(): void {
-    iframeRef.current?.contentWindow?.postMessage({
-      type: "parent-ready",
-      protocolVersion: PROTOCOL_VERSION,
-      projectId: PROJECT_ID,
-      workspaceId: WORKSPACE_ID,
-      cardId: card.id,
-    }, window.location.origin);
+    if (iframeRef.current) connectFrame(card.id, iframeRef.current).post({ type: "parent-ready" });
   }
 
   function adoptFrameRuntime(runtime: NudgeUiRuntimeConfig): void {
@@ -229,8 +222,8 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   }, [isSelected]);
 
   useEffect(() => {
-    return subscribeCanvasRendererMessages(({ cardId, message: data }) => {
-      if (cardId !== card.id) return;
+    return subscribeCanvasRendererMessages(({ frame, message: data }) => {
+      if (frame.cardId !== card.id) return;
       // A renderer whose runtime finished booting after the iframe load event
       // asks for the identity announcement it may have missed.
       if (data.type === "renderer-hello") {
@@ -325,6 +318,8 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     e.stopPropagation();
     e.preventDefault();
     const iterationDrag = e.altKey && !!onCreateIteration && loadState === "ready" && !creatingIteration;
+    // Iteration creation history already records where the new frame was dropped.
+    const commitMove = iterationDrag ? null : beginCardGeometryChange(card.id);
     let moved = false;
     let iterationId: string | undefined;
     let creationStarted = false;
@@ -373,6 +368,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       cleanup();
       setIsDragging(false);
       cancelled = true;
+      commitMove?.();
       if (iterationId) {
         removeFrame(iterationId, { undoable: false });
         selectCard(card.id);
@@ -381,6 +377,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     function onUp(): void {
       cleanup();
       setIsDragging(false);
+      commitMove?.();
       if (iterationId) setCardPosition(iterationId, position.x, position.y);
     }
     dragCleanupRef.current?.();
@@ -411,6 +408,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       width: card.width,
       height: card.height,
     };
+    const commitResize = beginCardGeometryChange(card.id);
 
     function onMove(ev: PointerEvent): void {
       if (ev.pointerId !== pointerId) return;
@@ -429,6 +427,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       target.removeEventListener("lostpointercapture", onLostPointerCapture);
       if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
       if (resizeCleanupRef.current === cleanup) resizeCleanupRef.current = null;
+      commitResize();
     }
 
     function onUp(ev: PointerEvent): void {
@@ -473,7 +472,9 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     const edges = getCanvasResizeEdges(direction);
     if ((delta.x !== 0 && edges.horizontal === null) || (delta.y !== 0 && edges.vertical === null)) return;
     const next = resizeCanvasRect(card, direction, delta);
+    const commitResize = beginCardGeometryChange(card.id);
     resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
+    commitResize();
   }
 
   return (

@@ -1,4 +1,4 @@
-import { getActiveDraftChanges, getDraftChanges } from "./draftChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 
 /** A logical document is stable while its live document may be replaced. */

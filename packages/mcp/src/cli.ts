@@ -1,90 +1,27 @@
-import { createHash } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
-import { basename, resolve } from "node:path";
-import { defaultBridgePort } from "@nudge-ui/agent-protocol";
+import { resolve } from "node:path";
 import { diagnoseProjectSessions, discoverProjectSessions } from "./discovery.ts";
-import {
-  createAgentCompanion,
-  createDiscoveredAgentAdapter,
-  type AgentCompanion,
-} from "./server.ts";
+import { createDiscoveredAgentAdapter } from "./server.ts";
 
 export interface CliOptions {
   readonly command: "serve" | "doctor";
-  readonly projectId: string;
-  readonly origin?: string;
   readonly workspaceRoot?: string;
-  readonly host: "127.0.0.1" | "::1" | "localhost";
-  readonly port: number;
-  readonly commandTimeoutMs: number;
   readonly help: boolean;
 }
 
-export interface CliEnvironment {
-  readonly CI?: string;
-  readonly INIT_CWD?: string;
-  readonly NUDGE_UI_PROJECT_ID?: string;
-  readonly NUDGE_UI_ORIGIN?: string;
-  readonly NUDGE_UI_WORKSPACE_ROOT?: string;
-  readonly NUDGE_UI_BRIDGE_HOST?: string;
-  readonly NUDGE_UI_BRIDGE_PORT?: string;
-  readonly NUDGE_UI_COMMAND_TIMEOUT_MS?: string;
-}
+export type CliEnvironment = Readonly<Record<string, string | undefined>>;
 
-const DEFAULT_PORT = 0;
-const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
-const PAGE_PROBE_TIMEOUT_MS = 1_500;
+const REMOVED_OPTIONS = new Set(["--origin", "--project-id", "--host", "--port", "--command-timeout-ms", "--workspace-root"]);
+const REMOVED_ENVIRONMENT = [
+  "NUDGE_UI_PROJECT_ID",
+  "NUDGE_UI_ORIGIN",
+  "NUDGE_UI_WORKSPACE_ROOT",
+  "NUDGE_UI_BRIDGE_HOST",
+  "NUDGE_UI_BRIDGE_PORT",
+  "NUDGE_UI_COMMAND_TIMEOUT_MS",
+] as const;
 
-export interface PageLaunchDependencies {
-  readonly fetch: typeof fetch;
-  readonly platform: NodeJS.Platform;
-  readonly spawn: (
-    command: string,
-    args: readonly string[],
-    options: { detached: true; stdio: "ignore" },
-  ) => Pick<ChildProcess, "unref">;
-  readonly warn: (message: string) => void;
-}
-
-const PAGE_LAUNCH_DEPENDENCIES: PageLaunchDependencies = {
-  fetch: globalThis.fetch,
-  platform: process.platform,
-  spawn: (command, args, options) => spawn(command, args, options),
-  warn: (message) => process.stderr.write(`${message}\n`),
-};
-
-/** Opens a reachable paired project page using the platform URL handler. */
-export async function openPairedPage(
-  pageUrl: string,
-  dependencies: PageLaunchDependencies = PAGE_LAUNCH_DEPENDENCIES,
-): Promise<boolean> {
-  try {
-    const response = await dependencies.fetch(pageUrl, {
-      method: "GET",
-      signal: AbortSignal.timeout(PAGE_PROBE_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error(`page returned ${response.status}`);
-    const command = dependencies.platform === "darwin"
-      ? { executable: "open", args: [pageUrl] }
-      : dependencies.platform === "win32"
-        ? { executable: "cmd", args: ["/c", "start", "", pageUrl] }
-        : { executable: "xdg-open", args: [pageUrl] };
-    const child = dependencies.spawn(command.executable, command.args, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
-    return true;
-  } catch (error) {
-    const detail = error instanceof Error ? ` (${error.message})` : "";
-    dependencies.warn(`[nudge-ui] paired page is unavailable${detail}; open ${pageUrl} manually`);
-    return false;
-  }
-}
-
-function projectIdFor(root: string): string {
-  const name = basename(root);
-  return name.length > 0 ? name : `project-${createHash("sha256").update(root).digest("hex").slice(0, 24)}`;
+function removedConfiguration(name: string): TypeError {
+  return new TypeError(`${name} configured the removed coupled or startup-workspace mode. Rerun \`npx nudge-ui agent setup\` in the project to register the reusable adapter.`);
 }
 
 function valueAfter(argv: readonly string[], index: number, flag: string): string {
@@ -93,94 +30,43 @@ function valueAfter(argv: readonly string[], index: number, flag: string): strin
   return value;
 }
 
-function parseInteger(value: string, flag: string, maximum: number): number {
-  if (!/^\d+$/.test(value)) throw new TypeError(`${flag} must be a non-negative integer`);
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed > maximum) throw new TypeError(`${flag} is out of range`);
-  return parsed;
-}
-
-/** Parses only project-scoped, host-neutral CLI options. */
+/** Serving takes no options; `doctor` accepts a diagnostic scope. */
 export function parseCliArguments(
   argv: readonly string[] = process.argv.slice(2),
   environment: CliEnvironment = process.env,
 ): CliOptions {
   const command = argv[0] === "doctor" ? "doctor" : "serve";
   const argumentsToParse = command === "doctor" ? argv.slice(1) : argv;
-  const root = resolve(environment.NUDGE_UI_WORKSPACE_ROOT ?? environment.INIT_CWD ?? process.cwd());
-  let projectId = environment.NUDGE_UI_PROJECT_ID ?? projectIdFor(root);
-  let origin = environment.NUDGE_UI_ORIGIN;
-  // SAFETY: NUDGE_UI_BRIDGE_HOST is trusted operator config for a loopback-bound dev bridge; CliOptions["host"] is its declared address union.
-  let host = (environment.NUDGE_UI_BRIDGE_HOST ?? "127.0.0.1") as CliOptions["host"];
-  let port = environment.NUDGE_UI_BRIDGE_PORT === undefined
-    ? DEFAULT_PORT
-    : parseInteger(environment.NUDGE_UI_BRIDGE_PORT, "NUDGE_UI_BRIDGE_PORT", 65_535);
-  let commandTimeoutMs = environment.NUDGE_UI_COMMAND_TIMEOUT_MS === undefined
-    ? DEFAULT_COMMAND_TIMEOUT_MS
-    : parseInteger(environment.NUDGE_UI_COMMAND_TIMEOUT_MS, "NUDGE_UI_COMMAND_TIMEOUT_MS", 60_000);
-  let workspaceRoot = environment.NUDGE_UI_WORKSPACE_ROOT === undefined ? undefined : root;
+  let workspaceRoot: string | undefined;
   let help = false;
-  let explicitPort = environment.NUDGE_UI_BRIDGE_PORT !== undefined;
 
   for (let index = 0; index < argumentsToParse.length; index += 1) {
-    const argument = argumentsToParse[index];
-    switch (argument) {
-      case "--help":
-      case "-h":
-        help = true;
-        break;
-      case "--project-id":
-        projectId = valueAfter(argumentsToParse, index, argument);
-        index += 1;
-        break;
-      case "--origin":
-        origin = valueAfter(argumentsToParse, index, argument);
-        index += 1;
-        break;
-      case "--workspace-root":
-        workspaceRoot = resolve(valueAfter(argumentsToParse, index, argument));
-        index += 1;
-        break;
-      case "--host": {
-        const candidate = valueAfter(argumentsToParse, index, argument);
-        if (candidate !== "127.0.0.1" && candidate !== "::1" && candidate !== "localhost") {
-          throw new TypeError("--host must be 127.0.0.1, ::1, or localhost");
-        }
-        host = candidate;
-        index += 1;
-        break;
-      }
-      case "--port":
-        port = parseInteger(valueAfter(argumentsToParse, index, argument), argument, 65_535);
-        explicitPort = true;
-        index += 1;
-        break;
-      case "--command-timeout-ms":
-        commandTimeoutMs = parseInteger(valueAfter(argumentsToParse, index, argument), argument, 60_000);
-        if (commandTimeoutMs === 0) throw new TypeError("--command-timeout-ms must be greater than zero");
-        index += 1;
-        break;
-      default:
-        throw new TypeError(`Unknown option ${argument}`);
+    const argument = argumentsToParse[index]!;
+    if (argument === "--help" || argument === "-h") {
+      help = true;
+    } else if (command === "doctor" && argument === "--workspace-root") {
+      workspaceRoot = resolve(valueAfter(argumentsToParse, index, argument));
+      index += 1;
+    } else if (REMOVED_OPTIONS.has(argument)) {
+      throw removedConfiguration(argument);
+    } else {
+      throw new TypeError(`Unknown option ${argument}`);
     }
   }
-  if (projectId.length === 0 || projectId.length > 256) throw new TypeError("--project-id must be a bounded non-empty string");
-  if (!explicitPort) port = defaultBridgePort(projectId);
-  return { command, projectId, origin, workspaceRoot, host, port, commandTimeoutMs, help };
+  if (command === "serve") {
+    const removed = REMOVED_ENVIRONMENT.find((name) => environment[name] !== undefined);
+    if (removed) throw removedConfiguration(removed);
+  }
+  return { command, ...(workspaceRoot === undefined ? {} : { workspaceRoot }), help };
 }
 
 export const CLI_USAGE = `Usage: nudge-mcp [doctor] [options]
 
-Starts a standard MCP stdio adapter. It discovers the bridge owned by the
-running project unless --origin selects the legacy coupled mode.
+Starts a standard MCP stdio adapter that discovers the bridges owned by running
+projects. Every tool call names the checkout or application it targets.
 
 Options:
-  --project-id <id>             Stable project pairing identity
-  --origin <origin>             Exact app origin required for browser pairing
-  --workspace-root <path>       Optional legacy project restriction; omitted for reusable adapters
-  --host <loopback>             127.0.0.1, ::1, or localhost
-  --port <port>                 Bridge port; default is deterministic per project, 0 is ephemeral
-  --command-timeout-ms <ms>     Canvas acknowledgement timeout
+  --workspace-root <path>       doctor only: limit diagnostics to one checkout or application
   --help                        Show this message
 `;
 
@@ -210,7 +96,9 @@ export async function runCli(
       ...(matches.length === 0
         ? ["[nudge-ui] no reachable compatible bridge matches; inspect the diagnostics above or start the development server"]
         : matches.map((session) => {
-          const state = session.status.connection === "working"
+          const state = session.status.connection === "delivered"
+            ? "awaiting acknowledgment"
+            : session.status.connection === "working"
             ? "working"
             : session.status.listenerActive ? "listening" : "available";
           return `[nudge-ui] ${state}: ${session.projectId} (${session.origin})${session.claimed ? " [claimed]" : ""}`;
@@ -218,62 +106,30 @@ export async function runCli(
     ].join("\n") + "\n");
     return;
   }
-  if (!options.origin) {
-    const adapter = await createDiscoveredAgentAdapter({ workspaceRoot: options.workspaceRoot });
-    let stopping = false;
-    let resolveAdapterWait: (() => void) | null = null;
-    const stop = (): void => {
-      if (stopping) return;
-      stopping = true;
-      void adapter.close();
-      resolveAdapterWait?.();
-    };
-    process.once("SIGINT", stop);
-    process.once("SIGTERM", stop);
-    try {
-      await adapter.start();
-      await new Promise<void>((resolveAdapter) => {
-        const finish = (): void => resolveAdapter();
-        // Keep a direct resolver so signal handlers terminate even though
-        // installing a signal handler suppresses Node's default process exit.
-        resolveAdapterWait = finish;
-        process.stdin.once("end", finish);
-        process.once("exit", finish);
-      });
-    } finally {
-      process.off("SIGINT", stop);
-      process.off("SIGTERM", stop);
-      await adapter.close();
-    }
-    return;
-  }
-  process.stderr.write("[nudge-ui] --origin uses deprecated coupled mode. Rerun agent setup to use project-owned bridges and avoid port collisions.\n");
-  const companion: AgentCompanion = createAgentCompanion({
-    ...options,
-    workspaceRoot: options.workspaceRoot ?? resolve(environment.INIT_CWD ?? process.cwd()),
-    onControllerUnavailable: (pageUrl) => openPairedPage(pageUrl).then(() => undefined),
-  });
+  const adapter = createDiscoveredAgentAdapter();
   let stopping = false;
+  let resolveAdapterWait: (() => void) | null = null;
   const stop = (): void => {
     if (stopping) return;
     stopping = true;
-    void companion.close();
+    void adapter.close();
+    resolveAdapterWait?.();
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
-    const started = await companion.start();
-    // stdout belongs to MCP stdio. Keep discovery information on stderr so it
-    // can be observed by a host without corrupting JSON-RPC framing.
-    process.stderr.write(`[nudge-ui] browser bridge listening at ${started.address.url}\n`);
-    await new Promise<void>((resolveWait) => {
-      const close = (): void => resolveWait();
-      companion.bridge.httpServer.once("close", close);
-      process.once("exit", close);
+    await adapter.start();
+    await new Promise<void>((resolveAdapter) => {
+      const finish = (): void => resolveAdapter();
+      // Keep a direct resolver so signal handlers terminate even though
+      // installing a signal handler suppresses Node's default process exit.
+      resolveAdapterWait = finish;
+      process.stdin.once("end", finish);
+      process.once("exit", finish);
     });
   } finally {
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
-    await companion.close();
+    await adapter.close();
   }
 }

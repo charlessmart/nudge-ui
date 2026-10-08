@@ -1,16 +1,15 @@
 import {
   isRendererMessageFor,
+  isRendererMessageType,
   PROTOCOL_VERSION,
-  type FrameIdentity,
-  type FrameProtocolMessage,
+  type RendererToControllerMessage,
 } from "./frameProtocol.ts";
-import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { connectFrame, type FrameConnection } from "./frameConnection.ts";
+import { findCanvasFrameBySource } from "./projection.ts";
 
 export interface CanvasRendererMessage {
-  cardId: string;
-  iframe: HTMLIFrameElement;
-  identity: FrameIdentity;
-  message: FrameProtocolMessage;
+  frame: FrameConnection;
+  message: RendererToControllerMessage;
 }
 
 type CanvasRendererMessageListener = (event: CanvasRendererMessage) => void;
@@ -19,27 +18,21 @@ const listeners = new Set<CanvasRendererMessageListener>();
 
 function routeRendererMessage(event: MessageEvent): void {
   if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") return;
-  const frame = findCanvasFrameBySource(event.source);
-  if (!frame) return;
-  const identity = {
-    projectId: PROJECT_ID,
-    workspaceId: WORKSPACE_ID,
-    cardId: frame.cardId,
-  };
+  const source = findCanvasFrameBySource(event.source);
+  if (!source) return;
+  const frame = connectFrame(source.cardId, source.iframe);
   // SAFETY: The object guard above makes the optional discriminator fields safe to inspect.
-  const candidate = event.data as { type?: string; protocolVersion?: number };
+  const candidate = event.data as { type?: unknown; protocolVersion?: unknown };
+  if (!isRendererMessageType(candidate.type)) return;
   if (candidate.type === "renderer-hello") {
     if (candidate.protocolVersion !== PROTOCOL_VERSION) return;
-  } else if (!isRendererMessageFor(event.data, identity)) {
+  } else if (!isRendererMessageFor(event.data, frame.identity)) {
     return;
   }
 
-  const routed = {
-    ...frame,
-    identity,
-    // SAFETY: Subscribers narrow the discriminated protocol union before reading message-specific fields.
-    message: event.data as FrameProtocolMessage,
-  };
+  // SAFETY: The type is a known renderer message; subscribers narrow it and
+  // apply the strict per-message schema before trusting message-specific fields.
+  const routed = { frame, message: event.data as RendererToControllerMessage };
   for (const listener of listeners) listener(routed);
 }
 

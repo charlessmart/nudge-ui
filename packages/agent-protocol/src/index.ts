@@ -7,7 +7,7 @@
  * pulling the companion into a browser bundle.
  */
 
-export const AGENT_PROTOCOL_VERSION = 2 as const;
+export const AGENT_PROTOCOL_VERSION = 3 as const;
 
 export const AGENT_PROTOCOL_LIMITS = {
   projectId: 256,
@@ -37,26 +37,8 @@ export const AGENT_PROTOCOL_LIMITS = {
   routeTitle: 512,
   routeCount: 64,
   canvasCardCount: 128,
+  agentClientName: 120,
 } as const;
-
-/**
- * Returns the default project-specific loopback port used by the CLI.
- *
- * The value is deterministic so a browser can probe the companion without a
- * port file, while the range stays high enough to avoid common dev servers.
- * Callers may still override it with an explicit port when a collision occurs.
- */
-export function defaultBridgePort(projectId: string): number {
-  if (!nonEmptyString(projectId, AGENT_PROTOCOL_LIMITS.projectId)) {
-    throw new TypeError("projectId must be a bounded non-empty string");
-  }
-  let hash = 2_166_136_261;
-  for (let index = 0; index < projectId.length; index += 1) {
-    hash ^= projectId.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return 30_000 + ((hash >>> 0) % 20_000);
-}
 
 export type AgentProtocolVersion = typeof AGENT_PROTOCOL_VERSION;
 
@@ -211,16 +193,16 @@ export interface AgentDeliveredPrompt extends AgentPromptRequest {
   readonly attachments?: readonly AgentSketchAttachment[];
 }
 
-export type AgentRequestStatus = "working" | "completed" | "failed" | "interrupted";
+export type AgentRequestStatus = "delivered" | "working" | "completed" | "failed" | "interrupted";
 
 export interface AgentRequestOutcome {
   readonly requestId: string;
-  readonly status: AgentRequestStatus;
+  readonly status: Exclude<AgentRequestStatus, "delivered">;
   readonly summary?: string;
   readonly error?: string;
 }
 
-export type AgentConnectionState = "offline" | "listening" | "paired" | "working";
+export type AgentConnectionState = "offline" | "listening" | "paired" | "delivered" | "working";
 
 export interface AgentStatusSnapshot {
   readonly protocolVersion: AgentProtocolVersion;
@@ -349,7 +331,7 @@ export interface StatusEventRequest {
 
 export interface AgentStatusUpdate {
   readonly requestId: string;
-  readonly status: AgentRequestStatus;
+  readonly status: Exclude<AgentRequestStatus, "delivered">;
   readonly summary?: string;
   readonly error?: string;
 }
@@ -358,6 +340,32 @@ export interface ProtocolErrorShape {
   readonly code: string;
   readonly message: string;
 }
+
+/** Options a development host passes to the optional project bridge. */
+export interface ProjectBridgeStartOptions {
+  readonly appRoot: string;
+  readonly projectId: string;
+  readonly origin: string;
+  /** Other explicit browser origins, such as loopback aliases on the same port. */
+  readonly allowedOrigins?: readonly string[];
+}
+
+/** The started project bridge as seen by the development host that owns it. */
+export interface ProjectBridgeHandle {
+  readonly browser: {
+    readonly projectId: string;
+    readonly origin: string;
+    readonly bridgeUrl: string;
+  };
+  close(): Promise<void>;
+}
+
+/**
+ * The `startProjectBridge` export of `@nudge-ui/mcp/project`. Hosts load it
+ * dynamically from the application's own dependencies, so this type is the
+ * only compile-time link between the two packages.
+ */
+export type StartProjectBridge = (options: ProjectBridgeStartOptions) => Promise<ProjectBridgeHandle>;
 
 const ORIGIN_PROTOCOLS = new Set(["http:", "https:"]);
 
@@ -701,6 +709,149 @@ export function isCanvasCommand(value: unknown): value is CanvasCommand {
     default:
       return false;
   }
+}
+
+export function isAgentDeliveredPrompt(value: unknown): value is AgentDeliveredPrompt {
+  if (!isRecord(value)) return false;
+  const { attachments, ...request } = value;
+  return isAgentPromptRequest(request)
+    && (attachments === undefined || (Array.isArray(attachments)
+      && attachments.length <= AGENT_PROTOCOL_LIMITS.sketchCount
+      && attachments.every(isAgentSketchAttachment)));
+}
+
+function isCanvasCommandError(value: unknown): value is CanvasCommandError {
+  return isRecord(value) && hasOnlyKeys(value, ["code", "message"])
+    && nonEmptyString(value.code, 128)
+    && typeof value.message === "string" && value.message.length <= AGENT_PROTOCOL_LIMITS.prompt;
+}
+
+/** A Canvas acknowledgement or result; a successful one never carries an error. */
+export function isCanvasCommandResult(value: unknown): value is CanvasCommandResult {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["commandId", "ok", "state", "group", "error"])) return false;
+  return nonEmptyString(value.commandId, AGENT_PROTOCOL_LIMITS.commandId)
+    && typeof value.ok === "boolean"
+    && (value.state === undefined || isCanvasState(value.state))
+    && (value.group === undefined || isCanvasGroup(value.group))
+    && (value.error === undefined || (!value.ok && isCanvasCommandError(value.error)));
+}
+
+/** The connection state shown for a pairing, a listener, and the current request. */
+export function deriveConnectionState(
+  status: Pick<AgentStatusSnapshot, "listenerActive" | "paired" | "request">,
+): AgentConnectionState {
+  if (status.request?.status === "delivered") return "delivered";
+  if (status.request?.status === "working") return "working";
+  if (status.paired) return "paired";
+  if (status.listenerActive) return "listening";
+  return "offline";
+}
+
+function isRequestStatus(value: unknown): value is AgentRequestStatus {
+  return value === "delivered" || value === "working" || value === "completed" || value === "failed" || value === "interrupted";
+}
+
+function decodeStatusRequest(value: unknown): AgentStatusSnapshot["request"] | undefined {
+  if (value === null || value === undefined) return null;
+  if (!isRecord(value)) return undefined;
+  const { status, summary, error, ...request } = value;
+  if (!isRequestStatus(status) || !isAgentPromptRequest(request)
+    || !optionalString(summary, AGENT_PROTOCOL_LIMITS.prompt)
+    || !optionalString(error, AGENT_PROTOCOL_LIMITS.prompt)) return undefined;
+  return {
+    ...request,
+    status,
+    ...(summary === undefined ? {} : { summary }),
+    ...(error === undefined ? {} : { error }),
+  };
+}
+
+/**
+ * Decodes a status snapshot from any peer. Unknown fields are dropped and the
+ * connection state is recomputed, so a snapshot can never claim a state its
+ * own fields contradict.
+ */
+export function decodeAgentStatusSnapshot(value: unknown): AgentStatusSnapshot | null {
+  if (!isRecord(value)
+    || value.protocolVersion !== AGENT_PROTOCOL_VERSION
+    || !nonEmptyString(value.projectId, AGENT_PROTOCOL_LIMITS.projectId)
+    || (value.connection !== "offline" && value.connection !== "listening"
+      && value.connection !== "paired" && value.connection !== "delivered" && value.connection !== "working")
+    || typeof value.listenerActive !== "boolean"
+    || typeof value.paired !== "boolean"
+    || !(value.pageUrl === undefined || value.pageUrl === null
+      || nonEmptyString(value.pageUrl, AGENT_PROTOCOL_LIMITS.routeUrl))) return null;
+  const request = decodeStatusRequest(value.request);
+  if (request === undefined) return null;
+  const fields = { listenerActive: value.listenerActive, paired: value.paired, request };
+  return {
+    protocolVersion: AGENT_PROTOCOL_VERSION,
+    projectId: value.projectId,
+    connection: deriveConnectionState(fields),
+    ...fields,
+    ...(value.pageUrl === undefined ? {} : { pageUrl: value.pageUrl }),
+    ...(typeof value.agentClientName === "string" && value.agentClientName.length > 0
+      ? { agentClientName: value.agentClientName.slice(0, AGENT_PROTOCOL_LIMITS.agentClientName) }
+      : {}),
+  };
+}
+
+/**
+ * Decodes the event inside a bridge envelope. A Canvas command is passed
+ * through as received: the Canvas controller validates it so a malformed
+ * command still receives an error acknowledgement instead of a timeout.
+ */
+export function decodeBridgeEvent(value: unknown): BridgeEvent | null {
+  if (!isRecord(value)) return null;
+  switch (value.type) {
+    case "status":
+    case "connected": {
+      const status = decodeAgentStatusSnapshot(value.status);
+      return status ? { type: value.type, status } : null;
+    }
+    case "disconnected":
+      return {
+        type: "disconnected",
+        ...(nonEmptyString(value.reason, AGENT_PROTOCOL_LIMITS.prompt) ? { reason: value.reason } : {}),
+      };
+    case "activity":
+      return isAgentActivity(value.activity) ? { type: "activity", activity: value.activity } : null;
+    case "canvas-command":
+      // SAFETY: the Canvas controller validates the command before acting on it.
+      return isRecord(value.command) ? { type: "canvas-command", command: value.command as unknown as CanvasCommand } : null;
+    default:
+      return null;
+  }
+}
+
+/** Decodes a pairing or takeover response for the exact project and origin requested. */
+export function decodePairingResponse(
+  value: unknown,
+  expected: Pick<PairingRequest, "projectId" | "origin">,
+): PairingResponse | null {
+  if (!isRecord(value)
+    || value.protocolVersion !== AGENT_PROTOCOL_VERSION
+    || value.projectId !== expected.projectId
+    || value.origin !== expected.origin
+    || !nonEmptyString(value.sessionToken, AGENT_PROTOCOL_LIMITS.sessionToken)
+    || !(value.pageUrl === undefined || nonEmptyString(value.pageUrl, AGENT_PROTOCOL_LIMITS.routeUrl))) return null;
+  const status = decodeAgentStatusSnapshot(value.status);
+  if (!status) return null;
+  return {
+    protocolVersion: AGENT_PROTOCOL_VERSION,
+    projectId: expected.projectId,
+    origin: expected.origin,
+    sessionToken: value.sessionToken,
+    ...(value.pageUrl === undefined ? {} : { pageUrl: value.pageUrl }),
+    status,
+  };
+}
+
+/** Decodes the accepted-prompt response for the project that dispatched it. */
+export function decodePromptDispatchResponse(value: unknown, projectId: string): PromptDispatchResponse | null {
+  if (!isRecord(value) || (value.status !== "delivered" && value.status !== "working") || !isAgentPromptRequest(value.request)
+    || value.request.projectId !== projectId) return null;
+  return { request: value.request, status: value.status };
 }
 
 /** Creates a stable protocol error shape without exposing thrown values. */

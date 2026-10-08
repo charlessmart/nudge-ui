@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createHtmlIterationCoordinator, type HtmlIterationStorage } from "./coordinator.ts";
-import { activateDraftForCard, loadDrafts, resetDrafts, getDraftContentsForCard } from "../drafts/store.ts";
+import {
+  activateDraftForCard,
+  appendChanges,
+  clearActiveDraft,
+  getActiveDraftChanges,
+  getDraftContentsForCard,
+  loadDrafts,
+  resetDrafts,
+} from "../drafts/store.ts";
 import { hydrateCanvasStore } from "../canvas/canvasStore.ts";
-import { draftChangeStore, resetDraftChanges } from "../changes/draftChanges.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import type { HtmlArtifactRevision } from "../../transport/artifacts.ts";
 
@@ -43,20 +50,20 @@ function gate() {
 }
 
 beforeEach(() => {
-  resetDrafts(); resetDraftChanges(); localStorage.clear();
+  resetDrafts(); localStorage.clear();
   hydrateCanvasStore("canvas", [
     { id: "original", content: { kind: "route", url: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 },
     { id: "iteration", content: { kind: "iteration", artifactId: "artifact", sourceUrl: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 },
   ], { x: 0, y: 0, zoom: 1 });
   loadDrafts("iterations");
   activateDraftForCard("original");
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   activateDraftForCard("iteration");
 });
-afterEach(() => { resetDrafts(); resetDraftChanges(); });
+afterEach(() => { resetDrafts(); });
 
 it("saves and settles the iteration while preserving the original draft", async () => {
-  draftChangeStore.commitChangeRecords([{ ...style, rawValue: "blue" }]);
+  appendChanges([{ ...style, rawValue: "blue" }]);
   const storage = new MemoryIterations();
   const coordinator = createHtmlIterationCoordinator(storage);
 
@@ -70,7 +77,7 @@ it("saves and settles the iteration while preserving the original draft", async 
 });
 
 it("keeps browser intent and agent output when the loaded editing base is stale", async () => {
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   const storage = new MemoryIterations();
   storage.html = "Agent design";
   storage.revision = { document: external, preview: base };
@@ -79,11 +86,11 @@ it("keeps browser intent and agent output when the loaded editing base is stale"
 
   expect(storage.html).toBe("Agent design");
   expect(getDraftContentsForCard("iteration")?.changes).toMatchObject([{ rawValue: "red" }]);
-  expect(draftChangeStore.getSnapshot().canUndo).toBe(true);
+  expect(getActiveDraftChanges().canUndo).toBe(true);
 });
 
 it("keeps newer edits made while the rendered document is being captured", async () => {
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   const storage = new MemoryIterations();
   const capturing = gate();
   const finishCapture = gate();
@@ -91,7 +98,7 @@ it("keeps newer edits made while the rendered document is being captured", async
     capturing.release(); await finishCapture.promise; return "Red design";
   });
   await capturing.promise;
-  draftChangeStore.commitChangeRecords([{ ...style, rawValue: "purple" }]);
+  appendChanges([{ ...style, rawValue: "purple" }]);
   finishCapture.release();
 
   await expect(pending).rejects.toThrow("changed while saving");
@@ -100,19 +107,19 @@ it("keeps newer edits made while the rendered document is being captured", async
 });
 
 it("holds only the saved draft stable during file commit and releases it on failure", async () => {
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   const storage = new MemoryIterations();
   storage.fail = true;
   let commitResult: unknown;
   storage.beforeCommit = async () => {
-    commitResult = draftChangeStore.commitChangeRecords([{ ...style, rawValue: "purple" }]);
+    commitResult = appendChanges([{ ...style, rawValue: "purple" }]);
   };
 
   await expect(createHtmlIterationCoordinator(storage).prepare("iteration", "artifact", base, async () => "Red design")).rejects.toThrow("Storage unavailable");
 
   expect(commitResult).toBe("blocked");
   expect(getDraftContentsForCard("iteration")?.changes).toMatchObject([{ rawValue: "red" }]);
-  expect(draftChangeStore.commitChangeRecords([{ ...style, rawValue: "green" }])).toBe("applied");
+  expect(appendChanges([{ ...style, rawValue: "green" }])).toBe("applied");
 });
 
 it("promotes external edits only when the iteration has no pending intent", async () => {
@@ -120,10 +127,10 @@ it("promotes external edits only when the iteration has no pending intent", asyn
   storage.html = "Agent design";
   storage.revision = { document: external, preview: base };
   const coordinator = createHtmlIterationCoordinator(storage);
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   expect(await coordinator.refresh("iteration", "artifact", base, () => true)).toBe(false);
   expect(storage.revision.preview).toBe(base);
-  draftChangeStore.clearActiveDraftChanges();
+  clearActiveDraft();
   expect(await coordinator.refresh("iteration", "artifact", base, () => true)).toBe(true);
   expect(storage.revision.preview).toBe(external);
   expect(storage.html).toBe("Agent design");
@@ -136,7 +143,7 @@ it("defers promotion when edits begin while checking for agent changes", async (
   storage.beforeRead = async () => { reading.release(); await finishRead.promise; };
   const pending = createHtmlIterationCoordinator(storage).refresh("iteration", "artifact", base, () => true);
   await reading.promise;
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   finishRead.release();
   expect(await pending).toBe(false);
   expect(storage.revision.preview).toBe(base);
@@ -145,7 +152,7 @@ it("defers promotion when edits begin while checking for agent changes", async (
 
 
 it("queues external refresh behind an in-flight handoff", async () => {
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   const storage = new MemoryIterations();
   const committing = gate();
   const finishCommit = gate();

@@ -1,7 +1,7 @@
 import { changeKey } from "../changes/model.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
-import { getDraftChanges, getActiveDraftChanges, subscribeActiveDraftChanges } from "../changes/draftChanges.ts";
+import { getDraftChanges, getActiveDraftChanges, subscribeActiveDraftChanges } from "../drafts/store.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {
   captureHandoffOwner,

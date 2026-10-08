@@ -15,10 +15,9 @@ import {
   isCanvasProjectionRevisionCurrent,
   projectToAllReadyCards,
 } from "../canvas/projection.ts";
-import { draftIdForContent, getDraftForCard } from "../drafts/store.ts";
+import { canEditDraft, draftIdForContent, forgetDraft, getDraftForCard, isDraftLocked } from "../drafts/store.ts";
 import { createHtmlArtifact, removeHtmlArtifact } from "../iterations/client.ts";
 import { captureHtmlIteration } from "../iterations/capture.ts";
-import { canEditDraft, forgetDraft, isDraftLocked } from "../changes/draftChanges.ts";
 import { discardDraftHistory } from "./timeline.ts";
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
 import { isInlineTextEditingActive } from "../inline-text/inlineTextEditor.ts";

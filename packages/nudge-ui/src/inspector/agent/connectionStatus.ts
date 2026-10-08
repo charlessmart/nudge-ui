@@ -1,13 +1,17 @@
+import { useEffect, useState } from "react";
 import type { AgentClientSnapshot } from "./client.ts";
 
 export type AgentConnectionStatusKind =
   | "unavailable"
   | "connecting"
+  | "delivered"
+  | "delivered-disconnected"
   | "working-disconnected"
   | "working"
   | "paired-elsewhere"
   | "not-found"
   | "ready-to-connect"
+  | "connected"
   | "connected-not-listening"
   | "listening";
 
@@ -37,6 +41,11 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
       action: { kind: "takeover", label: "Take over" },
     };
   }
+  if (snapshot.state === "delivered" || snapshot.request?.status === "delivered") {
+    return snapshot.paired
+      ? { kind: "delivered", label: "Connected · Awaiting agent acknowledgment", tone: "accent" }
+      : { kind: "delivered-disconnected", label: "Disconnected · Agent acknowledgment unknown", tone: "warning" };
+  }
   if (!snapshot.paired && (snapshot.state === "working" || snapshot.request?.status === "working")) {
     return { kind: "working-disconnected", label: "Disconnected · Last work status unknown", tone: "warning" };
   }
@@ -62,4 +71,25 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
     tone: "accent",
     action: { kind: "connect", label: "Connect" },
   };
+}
+
+/** Gives the agent time to rearm after completing a request before showing a reminder. */
+export function useAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentConnectionStatus {
+  const status = getAgentConnectionStatus(snapshot);
+  const completedRequestId = status.kind === "connected-not-listening" && snapshot.request?.status === "completed"
+    ? snapshot.request.requestId
+    : undefined;
+  const [reminderRequestId, setReminderRequestId] = useState<string>();
+
+  useEffect(() => {
+    setReminderRequestId(undefined);
+    if (!completedRequestId) return;
+    const timeout = setTimeout(() => setReminderRequestId(completedRequestId), 5_000);
+    return () => clearTimeout(timeout);
+  }, [completedRequestId]);
+
+  if (completedRequestId && reminderRequestId !== completedRequestId) {
+    return { kind: "connected", label: "MCP connected", tone: "accent" };
+  }
+  return status;
 }

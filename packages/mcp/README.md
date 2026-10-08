@@ -64,6 +64,7 @@ uses pnpm, Yarn, or Bun. The package requires Node.js 20 or later.
 | --- | --- |
 | `nudge_list_sessions` | Discover running apps in the requested workspace. |
 | `nudge_listen` | Wait for the next implementation request. `nudge_connect` is an alias. |
+| `nudge_get_request` | Recover an unacknowledged request and its sketch images by request ID. |
 | `nudge_get_status` | Read connection and request status. |
 | `nudge_report_activity` | Highlight Canvas frames associated with a file read or edit. |
 | `nudge_report_status` | Report working, completed, failed, or interrupted status. |
@@ -108,6 +109,23 @@ initializer's `--agent-only` mode to update the agent integration.
 
 The MCP adapter delivers requests through an active tool call. It cannot start
 a new agent turn after the host has ended the conversation or stopped waiting.
+If the host wraps tools in `functions.exec` and returns a running cell ID,
+keep the agent turn active and collect the result with `functions.wait`. A wrapper
+yield does not complete the listening call.
+
+A browser dispatch enters `delivered` while awaiting agent acknowledgment. The
+agent must call `nudge_report_status` with `working` before starting work. If a
+listening result was not collected, call `nudge_listen` again to recover the same
+prompt and sketch images. `nudge_get_request` also supports explicit recovery by ID. Recovery
+does not acknowledge or redispatch the request. Attachment bytes are retained in
+memory until acknowledgment or interruption; no requests survive a bridge restart.
+
+Unacknowledged deliveries expire after 60 seconds and become `interrupted`.
+Recovery does not extend this deadline. The terminal outcome remains visible until
+the agent listens again; the browser can then resend the prompt. Late
+acknowledgments cannot revive an interrupted request. Both the project bridge and
+adapter must use protocol version 3; upgrade both and restart them together.
+
 If a listening call times out, ask the agent to listen again and adjust the
 host's MCP timeout if supported.
 

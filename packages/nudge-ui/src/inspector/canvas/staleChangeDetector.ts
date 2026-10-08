@@ -1,13 +1,11 @@
-import { draftIdForCard } from "../drafts/store.ts";
-import type {
-  ChangeRecord,
-  PreviewableChangeRecord,
-  TokenChangeRecord,
-} from "../changes/changesLog.ts";
+import { draftIdForCard, getActiveDraftChanges } from "../drafts/store.ts";
 import {
   isPreviewableChange,
   isTokenChange,
-} from "../changes/changesLog.ts";
+  type ChangeRecord,
+  type PreviewableChangeRecord,
+  type TokenChangeRecord,
+} from "../changes/types.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
@@ -18,13 +16,11 @@ import {
   type PreviewAttempt,
   type PreviewDocument,
 } from "../changes/previewDiagnostics.ts";
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
-import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { getCanvasMode } from "./viewStore.ts";
-import { isRendererMessageFor } from "./frameProtocol.ts";
 import type { TokenDefinition } from "../../css/model/index.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
@@ -35,6 +31,7 @@ let verificationTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingChanges: PreviewableChangeRecord[] | null = null;
 let pendingAttempts = new Map<string, PreviewAttempt>();
+let stopFrameReady: (() => void) | null = null;
 
 export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
 
@@ -237,21 +234,9 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
     notifyPreviewDiagnostics();
   }, VERIFICATION_TIMEOUT_MS);
 
-  window.addEventListener("message", handleFrameReady);
-}
-
-function handleFrameReady(event: MessageEvent): void {
-  if (event.origin !== window.location.origin) return;
-  const msg = event.data;
-  const frame = findCanvasFrameBySource(event.source);
-  if (!frame || !isRendererMessageFor(msg, {
-    projectId: PROJECT_ID,
-    workspaceId: WORKSPACE_ID,
-    cardId: frame.cardId,
-  }) || msg.type !== "frame-ready") return;
-  if (!pendingChanges) return;
-
-  scheduleStaleCheck();
+  stopFrameReady ??= subscribeCanvasRendererMessages(({ message }) => {
+    if (message.type === "frame-ready" && pendingChanges) scheduleStaleCheck();
+  });
 }
 
 export function cancelStaleDetection(): void {
@@ -265,7 +250,8 @@ export function cancelStaleDetection(): void {
   }
   pendingChanges = null;
   pendingAttempts = new Map();
-  window.removeEventListener("message", handleFrameReady);
+  stopFrameReady?.();
+  stopFrameReady = null;
   notifyPreviewDiagnostics();
 }
 

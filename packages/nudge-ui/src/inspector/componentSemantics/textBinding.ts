@@ -9,11 +9,13 @@ import type {
 } from "./types.ts";
 import {
   captureTextProjectionTarget,
+  hasSafeMixedDescendants,
+  isInApplicationEditingHost,
+  isUnsafeTextHost,
   resolveTextProjectionTextNode,
   textProjectionSelector,
 } from "../projection/textProjection.ts";
-import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
-import type { TextBindingEvidence, TextProjectionScope } from "../inline-text/textChangeBoundary.ts";
+import type { TextBindingEvidence, TextProjectionScope, TextProjectionTarget } from "../changes/editModel.ts";
 
 /** The order used when more than one visible prop has the same value. */
 export const VISIBLE_TEXT_PROP_PRIORITY = [
@@ -32,25 +34,6 @@ const STRUCTURAL_TEXT_PROPS = new Set([
   "src",
   "role",
   "style",
-]);
-
-const UNSAFE_TEXT_TAGS = new Set(["SCRIPT", "STYLE", "TEXTAREA", "OPTION"]);
-const UNSAFE_MIXED_DESCENDANT_TAGS = new Set([
-  ...UNSAFE_TEXT_TAGS,
-  "INPUT",
-  "SELECT",
-  "BUTTON",
-  "A",
-  "B",
-  "STRONG",
-  "I",
-  "EM",
-  "U",
-  "MARK",
-  "CODE",
-  "S",
-  "DEL",
-  "INS",
 ]);
 
 function isStructuralTextProp(name: string): boolean {
@@ -151,10 +134,6 @@ function isApplicationEditingTextNode(element: HTMLElement, textNode: Text): boo
     && (editingHost === element || element.contains(editingHost) || editingHost.contains(element));
 }
 
-function isUnsafeSemanticHost(element: HTMLElement): boolean {
-  return UNSAFE_TEXT_TAGS.has(element.tagName);
-}
-
 function isVisibleTextProp(name: string): name is typeof VISIBLE_TEXT_PROP_PRIORITY[number] {
   return VISIBLE_TEXT_PROP_PRIORITY.some((candidate) => candidate === name);
 }
@@ -201,28 +180,12 @@ function textNodesFor(element: HTMLElement): Text[] {
 }
 
 function isSafeRenderedTextHost(element: HTMLElement, textNode: Text): boolean {
-  if (UNSAFE_TEXT_TAGS.has(element.tagName)) return false;
-  const editingHost = element.closest<HTMLElement>("[contenteditable]");
-  if (editingHost
-    && editingHost.getAttribute("data-inline-editor") !== "true"
-    && editingHost.getAttribute("contenteditable") !== "false") return false;
+  if (isUnsafeTextHost(element) || isInApplicationEditingHost(element)) return false;
   if (element.children.length === 0) {
     const directTextNodes = Array.from(element.childNodes).filter((node) => node.nodeType === 3);
     return directTextNodes.length === 1 && directTextNodes[0] === textNode;
   }
-  if (!element.contains(textNode)) return false;
-  // A line break is layout structure, not rich text content. When the exact
-  // text node is captured, wrapping that node leaves the <br> in place and
-  // preserves both lines. Other inline formatting remains rejected because
-  // replacing text inside it would silently flatten authored markup.
-  for (const descendant of Array.from(element.querySelectorAll<HTMLElement>("*"))) {
-    if (UNSAFE_MIXED_DESCENDANT_TAGS.has(descendant.tagName)) return false;
-    const descendantEditingHost = descendant.closest<HTMLElement>("[contenteditable]");
-    if (descendantEditingHost
-      && descendantEditingHost.getAttribute("data-inline-editor") !== "true"
-      && descendantEditingHost.getAttribute("contenteditable") !== "false") return false;
-  }
-  return true;
+  return element.contains(textNode) && hasSafeMixedDescendants(element);
 }
 
 function textNodeAtPoint(element: HTMLElement, point?: { x: number; y: number }): Text | null {
@@ -502,7 +465,7 @@ export function resolveTextBinding(
   // markup is intentionally not included: a confident semantic component
   // binding may still own a nested text node, while rendered fallback keeps
   // its stricter direct-leaf requirement.
-  if (isUnsafeSemanticHost(element)) {
+  if (isUnsafeTextHost(element)) {
     return {
       kind: "rejected",
       reason: "unsafe-target",

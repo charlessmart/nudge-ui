@@ -5,7 +5,7 @@ import { mountInspector, unmountInspector } from "../index.ts";
 import { getSelectedElement, setSelectedElement, setSelectedElements } from "../selection/selectionStore.ts";
 import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { appendChange, clearActiveDraft, getChangesList } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList } from "../drafts/store.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
 import { addCanvasCard, getCanvasCards, removeCanvasCard } from "../canvas/canvasStore.ts";
 import { setCanvasMode } from "../canvas/viewStore.ts";

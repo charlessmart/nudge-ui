@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearActiveDraft, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
-import { getActiveDraftChanges, setActiveDraft } from "../changes/draftChanges.ts";
+import {
+  activateDraft,
+  appendChange,
+  clearActiveDraft,
+  getActiveDraftChanges,
+  getChangesList,
+} from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
@@ -67,9 +73,9 @@ describe("clipboard prompt handoff", () => {
     expect(getClipboardHandoffSnapshot()).toBeNull();
     expect(getLastClipboardReconciledCount()).toBe(1);
     const draftId = getActiveDraftChanges().draftId;
-    setActiveDraft("other-page");
+    activateDraft("other-page");
     expect(getLastClipboardReconciledCount()).toBe(0);
-    setActiveDraft(draftId);
+    activateDraft(draftId);
     expect(getLastClipboardReconciledCount()).toBe(1);
     stop();
   });

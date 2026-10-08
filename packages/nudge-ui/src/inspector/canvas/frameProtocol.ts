@@ -5,6 +5,7 @@ import type { ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
+import type { RendererCursor } from "../ui/customCursors.ts";
 
 // v21 adds the Comment tool cursor and C shortcut.
 // v20 adds Shift state to element drag messages so spacing handles can snap
@@ -320,6 +321,98 @@ export interface AppInteractionModifierMessage extends RendererMessage {
   held: boolean;
 }
 
+/** Tells a renderer whether the inspector is open and which cursor its gestures show. */
+export interface InspectorInteractionStateMessage extends RendererMessage {
+  type: "inspector-interaction-state";
+  open: boolean;
+  interactionsEnabled: boolean;
+  cursor: RendererCursor;
+  /** CSS cursor for the Comment tool; the controller renders it. */
+  commentCursor?: string;
+}
+
+/** Messages a renderer sends to the controller. */
+export type RendererToControllerMessage =
+  | RendererHelloMessage
+  | FrameReadyMessage
+  | FrameRuntimeMessage
+  | FrameMetadataMessage
+  | FrameLoadError
+  | ProjectionAppliedMessage
+  | StructuralProjectionReportMessage
+  | RenderedInstanceProjectionReportMessage
+  | TextProjectionReportMessage
+  | NavigationIntentMessage
+  | ElementHoverMessage
+  | ElementMeasureStateMessage
+  | ElementClickMessage
+  | InlineTextIntentMessage
+  | ElementDeselectMessage
+  | ElementDragStartMessage
+  | ElementDragMoveMessage
+  | ElementDragEndMessage
+  | ElementDeleteMessage
+  | ElementNudgeMessage
+  | HistoryRequestMessage
+  | InspectorToggleRequestMessage
+  | InspectorOpenRequestMessage
+  | KeyboardShortcutMessage
+  | PanStartMessage
+  | PanMoveMessage
+  | PanEndMessage
+  | PanModifierMessage
+  | ZoomMessage
+  | WheelPanMessage
+  | AppInteractionModifierMessage;
+
+/** Messages the controller sends to a renderer. */
+export type ControllerToRendererMessage =
+  | ParentReadyMessage
+  | ReplaceStylesMessage
+  | LinkTargetStateMessage
+  | PanModifierMessage
+  | MeasureModifierMessage
+  | BoardGestureStateMessage
+  | InspectorInteractionStateMessage;
+
+const RENDERER_MESSAGE_TYPES: Record<RendererToControllerMessage["type"], true> = {
+  "renderer-hello": true,
+  "frame-ready": true,
+  "frame-runtime": true,
+  "frame-metadata": true,
+  "frame-error": true,
+  "projection-applied": true,
+  "structural-projection-report": true,
+  "rendered-instance-projection-report": true,
+  "text-projection-report": true,
+  "navigation-intent": true,
+  "element-hover": true,
+  "element-measure-state": true,
+  "element-click": true,
+  "inline-text-intent": true,
+  "element-deselect": true,
+  "element-drag-start": true,
+  "element-drag-move": true,
+  "element-drag-end": true,
+  "element-delete": true,
+  "element-nudge": true,
+  "history-request": true,
+  "inspector-toggle-request": true,
+  "inspector-open-request": true,
+  "keyboard-shortcut": true,
+  "pan-start": true,
+  "pan-move": true,
+  "pan-end": true,
+  "pan-modifier": true,
+  "zoom": true,
+  "wheel-pan": true,
+  "app-interaction-modifier": true,
+};
+
+export function isRendererMessageType(type: unknown): type is RendererToControllerMessage["type"] {
+  return typeof type === "string" && Object.hasOwn(RENDERER_MESSAGE_TYPES, type);
+}
+
 export type FrameProtocolMessage =
   | ParentReadyMessage
   | RendererHelloMessage
@@ -356,7 +449,8 @@ export type FrameProtocolMessage =
   | BoardGestureStateMessage
   | ZoomMessage
   | WheelPanMessage
-  | AppInteractionModifierMessage;
+  | AppInteractionModifierMessage
+  | InspectorInteractionStateMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
 

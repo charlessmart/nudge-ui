@@ -1,9 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import {
-  PROTOCOL_VERSION,
-  isElementClickMessage,
-  isInlineTextIntentMessage,
-} from "./frameProtocol.ts";
+import { isElementClickMessage, isInlineTextIntentMessage } from "./frameProtocol.ts";
 import { useCanvasCards } from "./canvasStore.ts";
 import {
   useBoardCamera,
@@ -24,7 +20,8 @@ import {
 import overlayStyles from "./CanvasElementOverlay.css?inline";
 import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { changeKey } from "../changes/model.ts";
-import { getChanges, redo, subscribeChanges, undo, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { getActiveDraftChanges, redo, subscribeActiveDraftChanges, undo } from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../overlay/dropGuide.ts";
@@ -32,8 +29,8 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
-import { projectMeasurementSegments } from "./measurementProjection.ts";
-import { getRegisteredFrames, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { getRegisteredFrames } from "./projection.ts";
+import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
@@ -113,24 +110,6 @@ interface PendingSpacingCommit {
   originalInlinePriority: string;
 }
 
-function projectRect(iframe: HTMLIFrameElement, rect: Rect, zoom: number): Rect {
-  const frameRect = iframe.getBoundingClientRect();
-  return {
-    left: frameRect.left + rect.left * zoom,
-    top: frameRect.top + rect.top * zoom,
-    width: rect.width * zoom,
-    height: rect.height * zoom,
-  };
-}
-
-function projectPoint(iframe: HTMLIFrameElement, x: number, y: number, zoom: number) {
-  const frameRect = iframe.getBoundingClientRect();
-  return {
-    x: frameRect.left + x * zoom,
-    y: frameRect.top + y * zoom,
-  };
-}
-
 function spacingBadgeForDrag(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
@@ -166,37 +145,17 @@ function spacingGuideStyle(rect: Rect): CSSProperties {
   });
 }
 
-function findFrameElement(iframe: HTMLIFrameElement, elementId: string, cid: string, src: string): HTMLElement | null {
-  const doc = iframe.contentDocument;
-  if (!doc) return null;
-  if (!/^r\d+$/.test(elementId)) return null;
-  const candidates = doc.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}="${elementId}"]`);
-  if (candidates.length !== 1) return null;
-  const candidate = candidates[0] ?? null;
-  if (
-    !candidate
-    || candidate.getAttribute("data-cid") !== cid
-    || (candidate.getAttribute("data-src") ?? "") !== src
-  ) return null;
-  const frameWindow = doc.defaultView;
-  return frameWindow && candidate instanceof frameWindow.HTMLElement ? candidate : null;
-}
-
-function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDropGuide | null {
-  if (!guide) return null;
-  const iframe = guide.document.defaultView?.frameElement;
-  if (!(iframe instanceof HTMLIFrameElement)) return null;
-  const iframeRect = iframe.getBoundingClientRect();
-  const project = (rect: DropGuide["line"], scaleWidth: boolean, scaleHeight: boolean): DropGuide["line"] => ({
-    left: iframeRect.left + rect.left * zoom,
-    top: iframeRect.top + rect.top * zoom,
-    width: scaleWidth ? rect.width * zoom : rect.width,
-    height: scaleHeight ? rect.height * zoom : rect.height,
-  });
+function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null {
+  const iframe = guide?.document.defaultView?.frameElement;
+  if (!guide || !(iframe instanceof HTMLIFrameElement)) return null;
+  const viewport = measureFrameViewport(iframe);
   return {
     orientation: guide.orientation,
-    line: project(guide.line, guide.orientation === "horizontal", guide.orientation === "vertical"),
-    target: project(guide.target, true, true),
+    line: toViewportRect(viewport, guide.line, {
+      width: guide.orientation === "horizontal",
+      height: guide.orientation === "vertical",
+    }),
+    target: toViewportRect(viewport, guide.target),
   };
 }
 
@@ -297,7 +256,7 @@ function releasePendingSpacingCommits(
  * change, so the inline never outlives the intent behind it. */
 function reconcilePendingSpacingCommits(pending: PendingSpacingCommit[]): void {
   if (pending.length === 0) return;
-  const survivingKeys = new Set(getChanges().map(changeKey));
+  const survivingKeys = new Set(getActiveDraftChanges().changes.map(changeKey));
   let write = 0;
   for (const commit of pending) {
     if (commit.keys.some((key) => survivingKeys.has(key))) {
@@ -337,17 +296,6 @@ function pushPendingSpacingCommit(
   };
 }
 
-function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
-  iframe.contentWindow?.postMessage({
-    type: "measure-modifier",
-    protocolVersion: PROTOCOL_VERSION,
-    projectId: PROJECT_ID,
-    workspaceId: WORKSPACE_ID,
-    cardId,
-    altKey,
-  }, window.location.origin);
-}
-
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
@@ -367,10 +315,9 @@ export function CanvasElementOverlay(): ReactElement | null {
     setHover(null);
     setMeasureState(null);
   }, [layoutTransitioning]);
-  const projectionZoom = presentation === "focus" ? 1 : camera.zoom;
   const cards = useCanvasCards(); // Projected geometry must follow card drag and resize updates.
   const cardGeometryKey = cards.map((card) => `${card.id}:${card.x}:${card.y}:${card.width}:${card.height}`).join("|");
-  const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${projectionZoom}:${cardGeometryKey}`;
+  const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${camera.zoom}:${cardGeometryKey}`;
   const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
   const spacingDragRef = useRef<CanvasSpacingDragState | null>(null);
@@ -378,7 +325,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const [spacingDragBadge, setSpacingDragBadge] = useState<CanvasSpacingBadgeState | null>(null);
   const measureAltKeyRef = useRef(false);
   const dropGuide = useDropGuide("canvas");
-  const projectedDropGuide = projectGuideToCanvas(dropGuide, projectionZoom);
+  const projectedDropGuide = projectGuideToCanvas(dropGuide);
 
   const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
   const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
@@ -391,17 +338,15 @@ export function CanvasElementOverlay(): ReactElement | null {
     : [];
   const selectedPrimaryIndex = selectedElements.findIndex((candidate) => candidate.domElement === selected?.domElement);
   const selectedLocalRect = selectedRects[selectedPrimaryIndex >= 0 ? selectedPrimaryIndex : 0] ?? null;
-  const selectedFrameRect = selectedInCanvas
-    ? toRect(selectedFrame.getBoundingClientRect())
+  const selectedFrameViewport = selectedInCanvas ? measureFrameViewport(selectedFrame) : null;
+  const selectedRect = selectedFrameViewport && selectedLocalRect
+    ? toViewportRect(selectedFrameViewport, selectedLocalRect)
     : null;
-  const selectedRect = selectedInCanvas && selectedLocalRect
-    ? projectRect(selectedFrame, selectedLocalRect, projectionZoom)
-    : null;
-  const projectedSelectedGeometry = selectedInCanvas
+  const projectedSelectedGeometry = selectedFrameViewport
     ? selectedRects.flatMap((rect, index) => {
       const element = selectedElements[index];
       return rect && element
-        ? [{ element, rect: projectRect(selectedFrame, rect, projectionZoom) }]
+        ? [{ element, rect: toViewportRect(selectedFrameViewport, rect) }]
         : [];
     })
     : [];
@@ -428,7 +373,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     const broadcastMeasureModifier = (altKey: boolean): void => {
       measureAltKeyRef.current = altKey;
       for (const [cardId, iframe] of getRegisteredFrames()) {
-        sendMeasureModifier(iframe, cardId, altKey);
+        connectFrame(cardId, iframe).post({ type: "measure-modifier", altKey });
       }
     };
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -463,7 +408,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   // it: undo/redo/revert/clear remove the record synchronously, so restore the
   // authored declaration before the renderer's next replace-styles lands.
   useEffect(() => {
-    return subscribeChanges(() => {
+    return subscribeActiveDraftChanges(() => {
       reconcilePendingSpacingCommits(pendingSpacingCommitsRef.current);
     });
   }, []);
@@ -502,19 +447,14 @@ export function CanvasElementOverlay(): ReactElement | null {
       });
     };
 
-    const unsubscribe = subscribeCanvasRendererMessages(({
-      cardId: sourceCardId,
-      iframe: sourceIframe,
-      identity: frameIdentity,
-      message: data,
-    }) => {
+    const unsubscribe = subscribeCanvasRendererMessages(({ frame, message: data }) => {
       if (data.type === "renderer-hello" || data.type === "frame-ready") {
-        sendMeasureModifier(sourceIframe, sourceCardId, measureAltKeyRef.current);
+        frame.post({ type: "measure-modifier", altKey: measureAltKeyRef.current });
       }
       if (data.type === "renderer-hello") return;
 
       if (data.type === "projection-applied") {
-        releasePendingSpacingCommits(pendingSpacingCommitsRef.current, sourceIframe);
+        releasePendingSpacingCommits(pendingSpacingCommitsRef.current, frame.iframe);
         return;
       }
 
@@ -524,18 +464,17 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         if (!msg.cid) return;
         if (msg.rect === null) {
-          setHover((current) => current?.cardId === sourceCardId ? null : current);
+          setHover((current) => current?.cardId === frame.cardId ? null : current);
           return;
         }
         const spacingDescriptor = msg.hoverSpacing ?? msg.spacing ?? null;
         const hoverPoint = msg.point ?? null;
-        const hoverElement = spacingDescriptor
-          ? findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src)
-          : null;
+        const hoverElement = spacingDescriptor ? frame.element(msg) : null;
+        const frameDocument = frame.document();
         const hoverAffordance = spacingDescriptor && hoverElement
           ? getSpacingAffordanceForDescriptor(hoverElement, spacingDescriptor)
-          : spacingDescriptor && hoverPoint && sourceIframe.contentDocument
-            ? getSpacingHoverAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
+          : spacingDescriptor && hoverPoint && frameDocument
+            ? getSpacingHoverAtPoint(frameDocument, hoverPoint.x, hoverPoint.y)
             : null;
         const matchingAffordance = spacingDescriptorMatches(hoverAffordance, spacingDescriptor)
           ? hoverAffordance
@@ -551,11 +490,11 @@ export function CanvasElementOverlay(): ReactElement | null {
           ? { point: hoverPoint, value: handleAffordance.value }
           : null;
         setHover({
-          iframe: sourceIframe,
+          iframe: frame.iframe,
           identity: { elementId: msg.elementId },
           rect: msg.rect,
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
-          cardId: sourceCardId,
+          cardId: frame.cardId,
           spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
           spacingGuides,
           spacingAreas,
@@ -564,23 +503,23 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (data.type === "element-measure-state") {
         const msg = data;
         setMeasureState({
-          iframe: sourceIframe,
+          iframe: frame.iframe,
           altKey: msg.altKey,
           pointerOverPage: msg.pointerOverPage,
         });
       } else if (data.type === "element-click") {
-        if (!isElementClickMessage(data, frameIdentity)) return;
+        if (!isElementClickMessage(data, frame.identity)) return;
         const msg = data;
         if (!msg.cid) return;
-        handleElementClick(msg, sourceIframe, sourceCardId);
+        handleElementClick(msg, frame);
       } else if (data.type === "inline-text-intent") {
-        if (!isInlineTextIntentMessage(data, frameIdentity)) return;
+        if (!isInlineTextIntentMessage(data, frame.identity)) return;
         if (getSelectedElements().length > 1) return;
         const emptyProjection = data.emptyProjectionId
-          ? Array.from(sourceIframe.contentDocument?.querySelectorAll<Element>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`) ?? [])
+          ? Array.from(frame.document()?.querySelectorAll<Element>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`) ?? [])
             .find((candidate) => candidate.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) === data.emptyProjectionId)
           : null;
-        const element = emptyProjection ?? findFrameElement(sourceIframe, data.elementId, data.cid, data.src);
+        const element = emptyProjection ?? frame.element(data);
         if (!element) return;
         handleInlineTextEditIntent(data.intent === "double-click"
           ? { kind: "double-click", target: element, point: data.point }
@@ -599,22 +538,23 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (data.type === "element-drag-start") {
         if (getSelectedElements().length > 1) return;
         const msg = data;
-        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
+        const element = frame.element(msg);
         if (!element) return;
         clearSpacingDrag(spacingDragRef);
         dragRef.current = null;
         const startPoint = msg.startPoint ?? msg.point;
+        const frameDocument = frame.document();
         const spacing = msg.spacing
           ? getSpacingAffordanceForDescriptor(element, msg.spacing)
-          : sourceIframe.contentDocument
-            ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, startPoint.x, startPoint.y)
+          : frameDocument
+            ? getSpacingAffordanceAtPoint(frameDocument, startPoint.x, startPoint.y)
             : null;
         const isSpacingDrag = spacing
           && spacing.element === element
           && (!msg.spacing || spacingDescriptorMatches(spacing, msg.spacing));
         if (isSpacingDrag) {
           spacingDragRef.current = {
-            iframe: sourceIframe,
+            iframe: frame.iframe,
             element,
             affordance: spacing,
             start: startPoint,
@@ -630,23 +570,23 @@ export function CanvasElementOverlay(): ReactElement | null {
           refreshSpacingPreviewOverlay(spacingDragRef.current);
           return;
         }
-        dragRef.current = { iframe: sourceIframe, element };
+        dragRef.current = { iframe: frame.iframe, element };
         const selectedElement = resolveSelectionFromElement(element);
         if (selectedElement) setSelectedElement(selectedElement);
-        updateDropGuide(msg.point, sourceIframe);
+        updateDropGuide(msg.point);
       } else if (data.type === "element-drag-move") {
         const spacing = spacingDragRef.current;
-        if (spacing && spacing.iframe === sourceIframe) {
+        if (spacing && spacing.iframe === frame.iframe) {
           applySpacingPreview(spacing, data.point, data.shiftKey === true);
           setSpacingDragBadge(spacingBadgeForDrag(spacing, data.point));
           refreshSpacingPreviewOverlay(spacing);
           return;
         }
-        updateDropGuide(data.point, sourceIframe);
+        updateDropGuide(data.point);
       } else if (data.type === "element-drag-end") {
         const msg = data;
         const spacing = spacingDragRef.current;
-        if (spacing && spacing.iframe === sourceIframe) {
+        if (spacing && spacing.iframe === frame.iframe) {
           spacingDragRef.current = null;
           setSpacingDragBadge(null);
           if (msg.cancelled) {
@@ -657,7 +597,7 @@ export function CanvasElementOverlay(): ReactElement | null {
             const records = commitSpacingDrag(spacing);
             if (records.length > 0) {
               pushPendingSpacingCommit(pendingSpacingCommitsRef.current, {
-                iframe: sourceIframe,
+                iframe: frame.iframe,
                 element: spacing.element,
                 property: spacing.affordance.property,
                 committedValue: spacingValueCss(spacing.currentValue),
@@ -676,8 +616,9 @@ export function CanvasElementOverlay(): ReactElement | null {
           return;
         }
         const current = dragRef.current;
-        if (!msg.cancelled && current && current.iframe === sourceIframe && sourceIframe.contentDocument) {
-          const drop = getDropLocationAtPoint(sourceIframe.contentDocument, current.element, msg.point.x, msg.point.y);
+        const frameDocument = frame.document();
+        if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
+          const drop = getDropLocationAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
           if (drop) moveElement(current.element, drop);
           const selectedElement = resolveSelectionFromElement(current.element);
           if (selectedElement) setSelectedElement(selectedElement);
@@ -686,15 +627,13 @@ export function CanvasElementOverlay(): ReactElement | null {
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
         if (getSelectedElements().length !== 1) return;
-        const msg = data;
-        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
+        const element = frame.element(data);
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (data.type === "element-nudge") {
         if (getSelectedElements().length !== 1) return;
-        const msg = data;
-        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
-        const record = element ? nudgeElement(element, msg.key) : null;
+        const element = frame.element(data);
+        const record = element ? nudgeElement(element, data.key) : null;
         if (element && record) {
           const selectedElement = resolveSelectionFromElement(element);
           if (selectedElement) setSelectedElement(selectedElement);
@@ -712,15 +651,16 @@ export function CanvasElementOverlay(): ReactElement | null {
         setInspectorOpen(true);
       }
 
-      function updateDropGuide(point: { x: number; y: number }, iframe: HTMLIFrameElement): void {
+      function updateDropGuide(point: { x: number; y: number }): void {
         const current = dragRef.current;
-        if (!current || current.iframe !== iframe || !iframe.contentDocument) return;
-        const drop = getDropLocationAtPoint(iframe.contentDocument, current.element, point.x, point.y);
+        const frameDocument = frame.document();
+        if (!current || current.iframe !== frame.iframe || !frameDocument) return;
+        const drop = getDropLocationAtPoint(frameDocument, current.element, point.x, point.y);
         if (!drop) {
           clearDropGuide("canvas");
           return;
         }
-        showDropGuide("canvas", iframe.contentDocument, drop);
+        showDropGuide("canvas", frameDocument, drop);
       }
     });
     return () => {
@@ -735,13 +675,14 @@ export function CanvasElementOverlay(): ReactElement | null {
   if (inlineTextSession && inlineTextSession.host.ownerDocument === selected?.domElement.ownerDocument) return null;
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
-  const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
-  const projectedSpacingGuides = hover?.spacingGuides.map((guide) => projectRect(hover.iframe, guide, projectionZoom)) ?? [];
-  const projectedSpacingAreas = hover?.spacingAreas.map((area) => projectRect(hover.iframe, area, projectionZoom)) ?? [];
+  const hoverViewport = hover ? measureFrameViewport(hover.iframe) : null;
+  const projectedHoverRect = hover && hoverViewport ? toViewportRect(hoverViewport, hover.rect) : null;
+  const projectedSpacingGuides = hover && hoverViewport ? hover.spacingGuides.map((guide) => toViewportRect(hoverViewport, guide)) : [];
+  const projectedSpacingAreas = hover && hoverViewport ? hover.spacingAreas.map((area) => toViewportRect(hoverViewport, area)) : [];
   const spacingBadge = spacingDragBadge
     ?? (hover?.spacingHandleBadge ? { iframe: hover.iframe, ...hover.spacingHandleBadge } : null);
   const projectedSpacingBadge = spacingBadge
-    ? projectPoint(spacingBadge.iframe, spacingBadge.point.x, spacingBadge.point.y, projectionZoom)
+    ? toViewportPoint(measureFrameViewport(spacingBadge.iframe), spacingBadge.point)
     : null;
   const hoverSpacing = hover?.spacing ?? null;
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
@@ -749,7 +690,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const showGuideOverlay = Boolean(
     selectedElements.length === 1
     && selectedRect
-    && selectedFrameRect
+    && selectedFrameViewport
     && measureStateForSelectedFrame?.altKey
     && measureStateForSelectedFrame.pointerOverPage,
   );
@@ -767,15 +708,16 @@ export function CanvasElementOverlay(): ReactElement | null {
     && hoverInSelectedFrame
     && !isSelfHover,
   );
-  const measurementSegments = showMeasurement && selectedFrameRect && selectedLocalRect && hoverInSelectedFrame
-    ? projectMeasurementSegments(
-      selectedFrameRect,
-      getMeasurementGeometry(selectedLocalRect, hoverInSelectedFrame.rect, {
-        selectedBorders: selectedBorders ?? undefined,
-        hoveredBorders: hoverInSelectedFrame.borders,
-      }).segments,
-      projectionZoom,
-    )
+  // Segment distances stay in frame CSS pixels so labels read the same at any board zoom.
+  const measurementSegments = showMeasurement && selectedFrameViewport && selectedLocalRect && hoverInSelectedFrame
+    ? getMeasurementGeometry(selectedLocalRect, hoverInSelectedFrame.rect, {
+      selectedBorders: selectedBorders ?? undefined,
+      hoveredBorders: hoverInSelectedFrame.borders,
+    }).segments.map((segment) => ({
+      ...segment,
+      from: toViewportPoint(selectedFrameViewport, segment.from),
+      to: toViewportPoint(selectedFrameViewport, segment.to),
+    }))
     : [];
 
   if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
@@ -783,11 +725,11 @@ export function CanvasElementOverlay(): ReactElement | null {
   return (
     <>
       <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>
-      {showGuideOverlay && selectedRect && selectedFrameRect ? (
+      {showGuideOverlay && selectedRect && selectedFrameViewport ? (
         <MeasurementGuideOverlay
           testId="canvas-measurement-overlay"
           selectedRect={selectedRect}
-          guideViewport={selectedFrameRect}
+          guideViewport={selectedFrameViewport}
           segments={measurementSegments}
         />
       ) : null}
@@ -846,13 +788,13 @@ export function CanvasElementOverlay(): ReactElement | null {
           {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
-      {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrame instanceof HTMLIFrameElement ? (
+      {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
         <DomNavigator
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
-            ? projectRect(selectedFrame, toRect(element.getBoundingClientRect()), projectionZoom)
+            ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
             : null}
         />
       ) : null}

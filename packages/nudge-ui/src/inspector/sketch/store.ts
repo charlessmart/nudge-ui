@@ -397,7 +397,7 @@ export function markSketchesHandingOff(
 
 export function settleSketchDispatch(
   batchRevision: number | undefined,
-  state: "working" | "completed" | "failed" | "interrupted",
+  state: "delivered" | "working" | "completed" | "failed" | "interrupted",
   agentRequestId?: string,
   localBatchId?: string,
 ): Promise<boolean> {
@@ -435,7 +435,7 @@ export function settleSketchDispatch(
       }
       return true;
     }
-    const nextHandoffs = changes.map((handoff) => updateHandoff(handoff, state === "working" ? {
+    const nextHandoffs = changes.map((handoff) => updateHandoff(handoff, (state === "delivered" || state === "working") ? {
       state: "handing-off",
       transport: "direct",
       ...(agentRequestId ? { agentRequestId } : {}),

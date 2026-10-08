@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { IconRobot } from "@tabler/icons-react";
 import { useAgentClient, type AgentClientSnapshot } from "../agent/client.ts";
-import { getAgentConnectionStatus } from "../agent/connectionStatus.ts";
+import { useAgentConnectionStatus } from "../agent/connectionStatus.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -75,7 +75,7 @@ export function AgentStatusButton({ onOpenSettings }: AgentStatusButtonProps): R
 export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButtonProps & {
   agent: AgentClientSnapshot;
 }): ReactElement {
-  const status = getAgentConnectionStatus(agent);
+  const status = useAgentConnectionStatus(agent);
   const connected = agent.paired || agent.pairedElsewhere;
   const listening = connected && agent.listenerActive;
 

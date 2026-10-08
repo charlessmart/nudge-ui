@@ -1,9 +1,10 @@
-import { draftIdForCard } from "../drafts/store.ts";
-import { getDraftChanges, getActiveDraftChanges, type DraftContents } from "../changes/draftChanges.ts";
+import { draftIdForCard, getDraftChanges, getActiveDraftChanges } from "../drafts/store.ts";
+import type { DraftContents } from "../drafts/model.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { getCanvasMode } from "./viewStore.ts";
-import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
+import type { ReplaceStylesMessage } from "./frameProtocol.ts";
+import { connectFrame } from "./frameConnection.ts";
 import {
   clearCanvasRenderedInstanceProjectionReports,
   setCanonicalRenderedInstanceOverrides,
@@ -25,14 +26,6 @@ import {
 } from "../projection/draftProjection.ts";
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
-
-export const PROJECT_ID = typeof window !== "undefined" && window.location?.origin
-  ? window.location.origin
-  : "";
-
-export const WORKSPACE_ID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-  ? crypto.randomUUID()
-  : `ws-${Date.now()}`;
 
 let revision = 0;
 let lastRulesKey: string | null = null;
@@ -216,23 +209,17 @@ function sendProjectionMessage(
   componentOverrides: readonly ReplaceStylesMessage["componentOverrides"][number][],
   canonical = false,
 ): void {
-  const win = iframe.contentWindow;
-  if (!win) return;
-  const msg: ReplaceStylesMessage = {
+  if (!iframe.contentWindow) return;
+  markProjectionSent(cardId, iframe, rev, canonical);
+  connectFrame(cardId, iframe).post({
     type: "replace-styles",
-    protocolVersion: PROTOCOL_VERSION,
-    projectId: PROJECT_ID,
-    workspaceId: WORKSPACE_ID,
-    cardId,
     css,
     revision: rev,
     instanceOverrides: [...instanceOverrides],
     structuralChanges: [...structuralChanges],
     textContentChanges: [...textContentChanges],
     componentOverrides: [...componentOverrides],
-  };
-  markProjectionSent(cardId, iframe, rev, canonical);
-  win.postMessage(msg, window.location.origin);
+  });
 }
 
 /** Temporarily projects a snapshot through the renderer that owns the document. */

@@ -6,10 +6,9 @@ import {
   isElementChange,
   isTextContentChange,
   isTokenChange,
-  useChanges,
-  revertChange,
-} from "../changes/changesLog.ts";
-import type { ChangeRecord } from "../changes/changesLog.ts";
+  type ChangeRecord,
+} from "../changes/types.ts";
+import { useChanges, revertChange } from "../drafts/store.ts";
 import { StaleChangeIndicator } from "../canvas/StaleChangeIndicator.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";

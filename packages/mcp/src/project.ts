@@ -4,7 +4,7 @@ import { chmod, lstat, mkdir, open, realpath, rename, rm } from "node:fs/promise
 import { userInfo } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { AGENT_PROTOCOL_VERSION, canonicalOrigin } from "@nudge-ui/agent-protocol";
+import { AGENT_PROTOCOL_VERSION, canonicalOrigin, type StartProjectBridge } from "@nudge-ui/agent-protocol";
 import { createLoopbackBridge, type BridgeAddress, type BrowserBridge } from "./bridge.ts";
 
 const execFileAsync = promisify(execFile);
@@ -153,7 +153,7 @@ async function closeProjectBridge(descriptorPath: string, bridge: BrowserBridge)
  * adapters. The descriptor contains a private control credential and is never
  * suitable for browser bundles or user-facing tool results.
  */
-export async function startProjectBridge(options: ProjectBridgeOptions): Promise<ProjectBridgeRuntime> {
+export const startProjectBridge = (async (options: ProjectBridgeOptions): Promise<ProjectBridgeRuntime> => {
   const origin = canonicalOrigin(options.origin);
   if (!origin) throw new TypeError("origin must be a canonical HTTP(S) origin");
   const metadata = await workspaceMetadata(options.appRoot, options.workspaceRoot);
@@ -201,4 +201,4 @@ export async function startProjectBridge(options: ProjectBridgeOptions): Promise
     browser: { projectId, origin, bridgeUrl: address.url },
     close,
   };
-}
+}) satisfies StartProjectBridge;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { clearActiveDraft, getChangesList, appendChange } from "../changes/changesLog.ts";
-import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, appendChange } from "./store.ts";
+import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/types.ts";
 import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
 import { activateDraftForCard, loadDrafts, persistDrafts, resetDrafts } from "./store.ts";
 import { hydrateCanvasStore } from "../canvas/canvasStore.ts";

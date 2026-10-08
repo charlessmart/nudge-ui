@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "../index.ts";
-import { appendChange, clearActiveDraft } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
 import { isOriginalPreviewActive, setOriginalPreviewActive } from "./originalPreview.ts";
 

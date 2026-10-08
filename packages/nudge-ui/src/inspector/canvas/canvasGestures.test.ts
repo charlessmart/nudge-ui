@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
+import { zoomCameraAtPointer } from "./canvasGestures.ts";
 
 describe("canvas gesture coordinate conversion", () => {
   it("keeps the world point under the pointer fixed while zooming", () => {
@@ -13,13 +13,5 @@ describe("canvas gesture coordinate conversion", () => {
     expect(next.zoom).toBeCloseTo(1.02);
     expect(next.x).toBeCloseTo(8.2);
     expect(next.y).toBeCloseTo(18.4);
-  });
-
-  it("projects iframe-local coordinates through the board camera", () => {
-    expect(iframePointToClientPoint(
-      { left: 100, top: 50 },
-      { x: 40, y: 30 },
-      1.5,
-    )).toEqual({ x: 160, y: 95 });
   });
 });

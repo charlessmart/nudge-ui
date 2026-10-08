@@ -1,23 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type {
-  ElementChangeRecord,
-  PreviewableChangeRecord,
-  TokenChangeRecord,
-} from "../changes/changesLog.ts";
-import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
 import {
-  clearActiveDraft,
-  getChangesList,
   isElementChange,
   isPreviewableChange,
-  restoreChangeRecords,
-} from "../changes/changesLog.ts";
+  type ElementChangeRecord,
+  type PreviewableChangeRecord,
+  type TokenChangeRecord,
+} from "../changes/types.ts";
+import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
 import { getCanvasPreviewDocument, registerCardFrame, unregisterCardFrame } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
-import { activateDraftForCard } from "../drafts/store.ts";
+import { activateDraftForCard, clearActiveDraft, getActiveDraftChanges, getChangesList } from "../drafts/store.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
-import { makeComponentChange } from "../changes/_testUtils.ts";
+import { makeComponentChange, replaceActiveDraft } from "../changes/_testUtils.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
@@ -26,7 +21,6 @@ import {
   publishPreviewDiagnostic,
   resetPreviewDiagnostics,
 } from "../changes/previewDiagnostics.ts";
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 
 const TOKEN_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const TOKEN_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -127,7 +121,7 @@ describe("staleChangeDetector", () => {
   describe("element change verification", () => {
     it("marks restored element changes as unverified on start", () => {
       const change = makeElementChange();
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       const changes = getPreviewableChanges();
       const attempt = beginPreviewAttempt(getHostPreviewDocument(), getActiveDraftChanges().revision)!;
@@ -147,7 +141,7 @@ describe("staleChangeDetector", () => {
       const change = makeElementChange({
         selector: '[data-cid="Missing"][data-src*="Missing.tsx:1"]',
       });
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -166,7 +160,7 @@ describe("staleChangeDetector", () => {
       setupMockElements('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
 
       const change = makeElementChange();
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -190,7 +184,7 @@ describe("staleChangeDetector", () => {
       activateDraftForCard(card.id);
 
       const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -224,7 +218,7 @@ describe("staleChangeDetector", () => {
         file: "src/Deleted.tsx",
         line: 1,
       });
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -258,7 +252,7 @@ describe("staleChangeDetector", () => {
         property: "margin",
         rawValue: "16px",
       });
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -287,7 +281,7 @@ describe("staleChangeDetector", () => {
       const change = makeElementChange({
         selector: '[data-cid="Gone"][data-src*="Gone.tsx:1"]',
       });
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
 
@@ -304,7 +298,7 @@ describe("staleChangeDetector", () => {
     it("cancels the verification timer", () => {
       vi.useFakeTimers();
       const change = makeElementChange();
-      restoreChangeRecords([change]);
+      replaceActiveDraft([change]);
 
       startStaleDetection(getChangesList());
       expect(isVerificationPending()).toBe(true);

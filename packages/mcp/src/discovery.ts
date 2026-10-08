@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import type {
-  AgentPromptRequest,
+  AgentDeliveredPrompt,
   AgentStatusSnapshot,
   AgentStatusUpdate,
   CanvasCommandResult,
 } from "@nudge-ui/agent-protocol";
-import type { CanvasCommandInput } from "./bridge.ts";
+import type { CanvasCommandInput } from "./bridgeSession.ts";
 import { ProjectSessionClient } from "./projectSessionClient.ts";
 import { inspectProjectSessions, readLiveProjectSessions } from "./sessionRegistry.ts";
 import { matchesApplication, selectProjectSession } from "./sessionSelection.ts";
@@ -59,7 +59,7 @@ export async function discoverProjectSessions(
   }).sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 }
 
-/** Routes MCP tools to a live project in the adapter's exact worktree. */
+/** Routes MCP tools to one selected live project, following it across bridge restarts. */
 export class DiscoveredProjectRouter {
   readonly workspaceRoot: string;
   readonly applicationRoot: string;
@@ -86,20 +86,6 @@ export class DiscoveredProjectRouter {
     return router;
   }
 
-  static async create(workspaceRoot: string, registryRoot = defaultSessionRegistryRoot()): Promise<DiscoveredProjectRouter> {
-    const applicationRoot = await realpath(requireAbsoluteWorkspaceRoot(workspaceRoot));
-    return new DiscoveredProjectRouter(
-      await resolveWorkspaceRoot(applicationRoot),
-      applicationRoot,
-      resolve(registryRoot),
-      randomUUID(),
-    );
-  }
-
-  async listSessions(): Promise<DiscoveredProjectSession[]> {
-    return await discoverProjectSessions(this.applicationRoot, this.registryRoot);
-  }
-
   private connectToSession(sessionId?: string): Promise<ProjectSessionClient> {
     const connection = this.connectionQueue.then(() => this.selectSession(sessionId));
     this.connectionQueue = connection.then(() => undefined, () => undefined);
@@ -120,7 +106,7 @@ export class DiscoveredProjectRouter {
     return this.client;
   }
 
-  async waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentPromptRequest> {
+  async waitForPrompt(signal?: AbortSignal, sessionId?: string, agentClientName?: string): Promise<AgentDeliveredPrompt> {
     const releaseGeneration = this.releaseGeneration;
     const client = await this.connectToSession(sessionId);
     if (releaseGeneration !== this.releaseGeneration) {
@@ -138,6 +124,11 @@ export class DiscoveredProjectRouter {
       if (replacement === client) throw error;
       return await replacement.waitForPrompt(signal, agentClientName);
     }
+  }
+
+  async getRequest(requestId: string): Promise<AgentDeliveredPrompt> {
+    const client = await this.connectToSession();
+    return await client.getRequest(requestId);
   }
 
   async getStatus(): Promise<AgentStatusSnapshot> {

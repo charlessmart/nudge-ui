@@ -1,4 +1,4 @@
-import { getDraftChanges } from "../changes/draftChanges.ts";
+import { getDraftChanges } from "../drafts/store.ts";
 import { documentTarget, targetKey } from "../drafts/model.ts";
 import { isCanvasProjectionRevisionCurrent, projectDraftToDocument } from "../canvas/projection.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";

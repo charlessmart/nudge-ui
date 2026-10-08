@@ -1,5 +1,6 @@
 import type { TokenDefinition, TokenEntry } from "../../css/model/index.ts";
-import { getChangesList, getPendingRules, isPreviewableChange } from "../changes/changesLog.ts";
+import { getChangesList, getPendingRules } from "../drafts/store.ts";
+import { isPreviewableChange } from "../changes/types.ts";
 import { changeKey } from "../changes/model.ts";
 import { getAnyPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import { detectFramework } from "../prompt/detectFramework.ts";

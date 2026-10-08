@@ -1,7 +1,7 @@
 import type { HtmlArtifactRevision } from "../../transport/artifacts.ts";
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
-import { getDraftForCard, getDraftContentsForCard, clearSavedIterationDraft } from "../drafts/store.ts";
-import { lockDraft, type DraftContents } from "../changes/draftChanges.ts";
+import { getDraftForCard, getDraftContentsForCard, clearSavedIterationDraft, lockDraft } from "../drafts/store.ts";
+import type { DraftContents } from "../drafts/model.ts";
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
 import { projectDraftToDocument, isCanvasProjectionRevisionCurrent, projectToAllReadyCards } from "../canvas/projection.ts";
 import { isInlineTextEditingActive } from "../inline-text/inlineTextEditor.ts";

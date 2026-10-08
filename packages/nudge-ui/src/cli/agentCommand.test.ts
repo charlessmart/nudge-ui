@@ -31,11 +31,15 @@ describe("agent commands", () => {
       devDependencies: { "@nudge-ui/mcp": "0.2.0" },
     }));
     mkdirSync(join(packageRoot, "dist"), { recursive: true });
-    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "@nudge-ui/mcp", main: "dist/index.js" }));
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
+      name: "@nudge-ui/mcp",
+      main: "dist/index.js",
+      bin: { "nudge-mcp": "./dist/server.mjs" },
+    }));
     writeFileSync(join(packageRoot, "dist", "index.js"), "");
     const command = planAgentCommand(["doctor"], root);
     expect(command.executable).toBe(process.execPath);
-    expect(command.args).toEqual([join(packageRoot, "dist", "cli.mjs"), "doctor", "--workspace-root", root]);
+    expect(command.args).toEqual([join(packageRoot, "dist", "server.mjs"), "doctor", "--workspace-root", root]);
   });
 
   it("explains how to recover when MCP is not installed", () => {

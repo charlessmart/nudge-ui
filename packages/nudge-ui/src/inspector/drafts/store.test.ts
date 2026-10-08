@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadActiveDraftChanges } from "../changes/changesLog.ts";
+import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { hydrateCanvasStore, type CanvasCard } from "../canvas/canvasStore.ts";
 import type { SketchDocument } from "../sketch/model.ts";
@@ -49,7 +49,7 @@ function sketch(id: string, path: string): SketchDocument {
 
 function edit(cardId: string, rawValue: string): void {
   activateDraftForCard(cardId);
-  loadActiveDraftChanges([change(rawValue)], []);
+  replaceActiveDraft([change(rawValue)], []);
 }
 
 beforeEach(() => {
@@ -136,7 +136,7 @@ describe("draft persistence", () => {
 it("keeps newer intent when a save tries to clear an older draft revision", () => {
   edit("home", "red");
   const saved = getDraftForCard("home")!;
-  loadActiveDraftChanges([change("blue")], []);
+  replaceActiveDraft([change("blue")], []);
   expect(clearSavedIterationDraft("home", saved.revision)).toBe(false);
   expect(getDraftContentsForCard("home")?.changes).toMatchObject([{ rawValue: "blue" }]);
 });

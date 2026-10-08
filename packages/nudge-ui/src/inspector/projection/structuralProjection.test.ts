@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearActiveDraft, loadActiveDraftChanges, redo, undo } from "../changes/changesLog.ts";
+import {
+  clearActiveDraft,
+  getActiveDraftChanges,
+  reconcileDraftChanges,
+  redo,
+  resetDrafts,
+  undo,
+} from "../drafts/store.ts";
+import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import {
   applyStructuralDeleteProjection,
   applyStructuralProjection,
@@ -10,7 +18,6 @@ import {
   getStructuralDeletes,
   getStructuralChanges,
   getStructuralProjectionReports,
-  reconcileVerifiedStructuralChanges,
   recordCanvasStructuralProjectionReports,
   resetStructuralDeleteProjection,
   revertStructuralChange,
@@ -27,6 +34,7 @@ function add(text: string): HTMLElement {
 
 describe("structural delete projection", () => {
   beforeEach(() => {
+    resetDrafts();
     resetStructuralDeleteProjection();
     document.body.replaceChildren();
   });
@@ -65,6 +73,7 @@ describe("structural delete projection", () => {
     add("0.1");
     const target = add("0.2");
     const change = createStructuralDelete(target, "delete-1")!;
+    resetStructuralDeleteProjection();
     target.textContent = "updated";
 
     expect(applyStructuralDeleteProjection(document, [change]))
@@ -157,6 +166,7 @@ describe("structural delete projection", () => {
     const second = add("0.2");
     parent.append(first, second);
     const change = createStructuralMove(second, { parent, before: first }, "move-1")!;
+    resetStructuralDeleteProjection();
     first.textContent = "changed";
 
     expect(applyStructuralProjection(document, [change]))
@@ -173,6 +183,7 @@ describe("structural delete projection", () => {
     const second = add("0.2");
     parent.append(first, second);
     const change = createStructuralMove(second, { parent, before: first }, "move-1")!;
+    resetStructuralDeleteProjection();
     second.textContent = "changed";
 
     expect(applyStructuralProjection(document, [change]))
@@ -330,6 +341,7 @@ describe("structural delete projection", () => {
     document.body.append(source, destination);
 
     const change = createStructuralMove(target, { parent: destination, before: null }, "move-conflict")!;
+    resetStructuralDeleteProjection();
     destination.append(target);
 
     expect(applyStructuralProjection(document, [change])).toEqual([
@@ -348,6 +360,7 @@ describe("structural delete projection", () => {
     const second = add("0.2");
     parent.append(first, second);
     const change = createStructuralMove(second, { parent, before: first }, "move-1")!;
+    resetStructuralDeleteProjection();
     const duplicateParent = parent.cloneNode(false) as HTMLElement;
     duplicateParent.textContent = parent.textContent;
     document.body.append(duplicateParent);
@@ -377,7 +390,8 @@ describe("structural delete projection", () => {
     createStructuralDelete(second, "delete-review");
     applyStructuralProjection(document, getStructuralChanges());
 
-    expect(reconcileVerifiedStructuralChanges(new Set(["delete-verified"]))).toBe(1);
+    const draftId = getActiveDraftChanges().draftId;
+    expect(reconcileDraftChanges(draftId, new Set(), new Set(["delete-verified"]))).toBe(1);
     expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-review"]);
 
     while (undo()) {
@@ -440,7 +454,7 @@ describe("structural delete projection", () => {
     const captured = createStructuralDelete(target, "delete-1")!;
     clearActiveDraft();
 
-    loadActiveDraftChanges([], [captured]);
+    replaceActiveDraft([], [captured]);
 
     expect(getStructuralChanges()).toEqual([captured]);
     expect(document.body.textContent).toBe("0.1");

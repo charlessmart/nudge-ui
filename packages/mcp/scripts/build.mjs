@@ -16,9 +16,10 @@ const sharedOptions = {
   logLevel: "silent",
 };
 
-// cli.mjs is the published server entry.
+// cli.mjs is the published server entry and the `nudge-mcp` bin.
 await build({
   entryPoints: [resolve(packageRoot, "src/cli-entry.ts")],
   outfile: output,
+  banner: { js: "#!/usr/bin/env node" },
   ...sharedOptions,
 });

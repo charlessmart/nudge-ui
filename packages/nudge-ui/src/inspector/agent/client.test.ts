@@ -15,7 +15,7 @@ import type {
 
 function status(overrides: Partial<AgentStatusSnapshot> = {}): AgentStatusSnapshot {
   return {
-    protocolVersion: 2,
+    protocolVersion: 3,
     projectId: "fixture-project",
     connection: "listening",
     listenerActive: true,
@@ -56,7 +56,7 @@ class FakeTransport implements AgentBridgeTransport {
     if (this.pairingError) throw this.pairingError;
     if (this.pairingResult) return this.pairingResult;
     return {
-      protocolVersion: 2,
+      protocolVersion: 3,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",
@@ -67,7 +67,7 @@ class FakeTransport implements AgentBridgeTransport {
   async takeOver(): Promise<PairingResponse> {
     this.takeOverCalls += 1;
     return {
-      protocolVersion: 2,
+      protocolVersion: 3,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "takeover-session",
@@ -339,7 +339,7 @@ describe("AgentClient", () => {
     expect(client.getSnapshot()).toMatchObject({ state: "connected", listenerActive: true });
 
     const dispatch = client.dispatchPrompt("Send after the listener starts", 22);
-    expect(client.getSnapshot().state).toBe("working");
+    expect(client.getSnapshot().state).toBe("delivered");
     transport.dispatchResult.resolve({
       request: {
         requestId: "listener-ready-request",
@@ -347,10 +347,33 @@ describe("AgentClient", () => {
         prompt: "Send after the listener starts",
         changeRevision: 22,
       },
-      status: "working",
+      status: "delivered",
     });
-    await expect(dispatch).resolves.toMatchObject({ status: "working" });
+    await expect(dispatch).resolves.toMatchObject({ status: "delivered" });
     expect(transport.dispatchCalls).toHaveLength(1);
+    expect(client.getSnapshot()).toMatchObject({ state: "delivered", request: { status: "delivered" } });
+    transport.emitStatus(status({
+      connection: "working", paired: true, listenerActive: false,
+      request: { requestId: "listener-ready-request", projectId: "fixture-project", prompt: "Send after the listener starts", changeRevision: 22, status: "working" },
+    }));
+    expect(client.getSnapshot()).toMatchObject({ state: "working", request: { status: "working" } });
+  });
+
+  it("does not regress an acknowledged request when its dispatch response arrives late", async () => {
+    const transport = new FakeTransport();
+    const client = new AgentClient({ projectId: "fixture-project", origin: window.location.origin, transport, discoveryIntervalMs: 0 });
+    client.start();
+    await flush();
+    await client.connect();
+    const dispatch = client.dispatchPrompt("Update the header", 24);
+    const request = { requestId: "acknowledged-request", projectId: "fixture-project", prompt: "Update the header", changeRevision: 24 };
+    transport.emitStatus(status({ connection: "working", paired: true, listenerActive: false, request: { ...request, status: "working" } }));
+    transport.dispatchResult.resolve({ request, status: "delivered" });
+    await dispatch;
+    expect(client.getSnapshot()).toMatchObject({ state: "working", request: { requestId: "acknowledged-request", status: "working" } });
+    transport.emitStatus(status({ connection: "delivered", paired: true, listenerActive: false, request: { ...request, status: "delivered" } }));
+    expect(client.getSnapshot()).toMatchObject({ state: "working", connection: "working", request: { status: "working" } });
+    client.stop();
   });
 
   it("refreshes discovery when the UI asks to check the connection again", async () => {
@@ -393,7 +416,7 @@ describe("AgentClient", () => {
     await flush();
     await client.connect();
     const dispatch = client.dispatchPrompt("Preserve this request", 23);
-    expect(client.getSnapshot()).toMatchObject({ request: { status: "working", changeRevision: 23 } });
+    expect(client.getSnapshot()).toMatchObject({ request: { status: "delivered", changeRevision: 23 } });
 
     transport.restoredStatus = null;
     transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
@@ -403,9 +426,9 @@ describe("AgentClient", () => {
       companionReachable: true,
       paired: false,
       listenerActive: false,
-      request: { status: "working", changeRevision: 23 },
+      request: { status: "delivered", changeRevision: 23 },
     });
-    expect(client.getSnapshot().connection).toBe("working");
+    expect(client.getSnapshot().connection).toBe("delivered");
 
     transport.dispatchResult.resolve({
       request: {
@@ -414,7 +437,7 @@ describe("AgentClient", () => {
         prompt: "Preserve this request",
         changeRevision: 23,
       },
-      status: "working",
+      status: "delivered",
     });
     await dispatch;
   });
@@ -464,7 +487,7 @@ describe("AgentClient", () => {
     await client.checkConnection();
     expect(transport.discoverCalls).toBe(1);
     pairing.resolve({
-      protocolVersion: 2,
+      protocolVersion: 3,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",
@@ -491,7 +514,7 @@ describe("AgentClient", () => {
     expect(client.getSnapshot().state).toBe("connected");
 
     const first = client.dispatchPrompt("Change the heading", 12);
-    expect(client.getSnapshot().state).toBe("working");
+    expect(client.getSnapshot().state).toBe("delivered");
     await expect(client.dispatchPrompt("Do not send twice", 13)).resolves.toBeNull();
     transport.dispatchResult.resolve({
       request: {
@@ -603,7 +626,7 @@ describe("AgentClient", () => {
       transport.eventHandlers?.onDisconnect("stream closed");
       expect(client.getSnapshot()).toMatchObject({
         state: "disconnected",
-        request: { status: "working" },
+        request: { status: "delivered" },
       });
       await vi.advanceTimersByTimeAsync(25);
 

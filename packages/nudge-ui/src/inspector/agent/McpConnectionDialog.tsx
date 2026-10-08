@@ -10,7 +10,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import type { AgentClientSnapshot } from "./client.ts";
-import { getAgentConnectionStatus } from "./connectionStatus.ts";
+import { useAgentConnectionStatus } from "./connectionStatus.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { Button } from "../ui/Button.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";
@@ -94,20 +94,24 @@ export function McpConnectionContent({
     "Start the application normally. Reload the agent if needed, then listen to Nudge.",
   ].join("\n"), [setupCommand]);
   const doctorCommand = "nudge-ui agent doctor";
-  const status = getAgentConnectionStatus(snapshot);
+  const status = useAgentConnectionStatus(snapshot);
   const showConnectionStatus = status.kind !== "not-found"
     || Boolean(snapshot.error || checkError || snapshot.request?.summary || snapshot.request?.error);
   const canConnect = snapshot.companionReachable
     && !snapshot.paired
     && !snapshot.pairedElsewhere
     && snapshot.state !== "pairing"
+    && snapshot.state !== "delivered"
     && snapshot.state !== "working"
+    && snapshot.request?.status !== "delivered"
     && snapshot.request?.status !== "working";
-  const canDisconnect = snapshot.paired || snapshot.request?.status === "working";
+  const canDisconnect = snapshot.paired || snapshot.request?.status === "working" || snapshot.request?.status === "delivered";
   const canTakeOver = snapshot.companionReachable
     && snapshot.pairedElsewhere
     && snapshot.state !== "pairing"
+    && snapshot.state !== "delivered"
     && snapshot.state !== "working"
+    && snapshot.request?.status !== "delivered"
     && snapshot.request?.status !== "working";
 
   async function handleCheckAgain(): Promise<void> {

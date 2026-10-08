@@ -4,7 +4,7 @@ import { IconPhoto, IconUpload } from "@tabler/icons-react";
 import { TokenValueField } from "../tokens/TokenField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { StyleDeclaration } from "../tokens/editActions.ts";
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges } from "../drafts/store.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { Button } from "../ui/Button.tsx";
 import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";

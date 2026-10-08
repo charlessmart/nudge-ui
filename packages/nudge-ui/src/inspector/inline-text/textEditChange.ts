@@ -3,7 +3,7 @@ import type { TextBindingCandidate, TextBindingChoice, TextEditBinding } from ".
 import type { ComponentInvocationEvidence } from "../componentSemantics/types.ts";
 import type { ChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import { captureTextProjectionTarget, textProjectionSelector } from "../projection/textProjection.ts";
-import type { TextProjectionScope, TextProjectionTarget } from "./textChangeBoundary.ts";
+import type { TextProjectionScope, TextProjectionTarget } from "../changes/editModel.ts";
 
 /** Binding and scope decisions, independent of native editor lifecycle state. */
 export interface TextEditDecision {

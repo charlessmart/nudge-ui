@@ -1,17 +1,16 @@
-import { draftIdForCard } from "../drafts/store.ts";
+import { draftIdForCard, getActiveDraftChanges, getDraftChanges, reconcileDraftChanges } from "../drafts/store.ts";
 import { getCanvasCards } from "../canvas/canvasStore.ts";
 import { getRegisteredFrames, getCanvasCardIdForDocument } from "../canvas/projection.ts";
 import { applicationTarget, targetFromKey, targetKey, type DraftTarget } from "../drafts/model.ts";
 import { changeKey, tokenReference } from "../changes/model.ts";
 import { selectorForManagedChange } from "../changes/managedStyleProjection.ts";
-import { getActiveDraftChanges, getDraftChanges, reconcileDraftChanges } from "../changes/draftChanges.ts";
 import {
   isComponentChange,
   isTextContentChange,
   isTokenChange,
   type ChangeRecord,
   type PreviewableChangeRecord,
-} from "../changes/changesLog.ts";
+} from "../changes/types.ts";
 import { verifyPreview } from "../projection/managedStylesheet.ts";
 import { resolveMovedRenderedInstance } from "../projection/renderedInstance.ts";
 import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";

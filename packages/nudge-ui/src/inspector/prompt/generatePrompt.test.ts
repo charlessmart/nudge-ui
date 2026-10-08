@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { countPromptChanges, generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/changesLog.ts";
+import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";

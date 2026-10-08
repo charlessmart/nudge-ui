@@ -1,5 +1,11 @@
 import type { FrameProjection } from "../canvas/projection.ts";
-import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
+import {
+  commitStructuralChange,
+  getActiveDraftChanges,
+  getDraftChanges,
+  revertStructuralChange as revertDraftStructuralChange,
+  subscribeActiveDraftChanges,
+} from "../drafts/store.ts";
 import {
   captureRenderedInstance,
   captureStructuralTarget,
@@ -8,11 +14,6 @@ import {
 } from "./renderedInstance.ts";
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
-import {
-  resetDraftChanges,
-  draftChangeStore,
-  type DraftChangesSnapshot,
-} from "../changes/draftChanges.ts";
 import type {
   StructuralChange,
   StructuralDelete,
@@ -278,8 +279,10 @@ function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[
   return [...snapshot];
 }
 
-function projectStructuralChanges(snapshot: DraftChangesSnapshot): void {
-  reprojectKnownDocuments(snapshot.structuralChanges);
+/** The Draft store already re-projected the host; this covers every other known document. */
+function projectStructuralChanges(): void {
+  const changes = getStructuralChanges();
+  for (const doc of documentStates.keys()) applyStructuralProjection(doc, changes);
 }
 
 /** Captures a delete intent once, in the controller, at the user gesture. */
@@ -295,8 +298,8 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
     ...(route ? { route } : {}),
     ...(state ? { state } : {}),
   };
-  if (!draftChangeStore.commitStructuralChange(change)) return null;
-  projectStructuralChanges(draftChangeStore.getSnapshot());
+  if (!commitStructuralChange(change)) return null;
+  projectStructuralChanges();
   return change;
 }
 
@@ -340,13 +343,13 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  if (!draftChangeStore.commitStructuralChange(change)) return null;
-  projectStructuralChanges(draftChangeStore.getSnapshot());
+  if (!commitStructuralChange(change)) return null;
+  projectStructuralChanges();
   return change;
 }
 
 export function getStructuralChanges(): readonly StructuralChange[] {
-  return draftChangeStore.getSnapshot().structuralChanges;
+  return getActiveDraftChanges().structuralChanges;
 }
 
 export function getStructuralDeletes(): readonly StructuralDelete[] {
@@ -355,39 +358,14 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  const changed = draftChangeStore.revertStructuralChangeRecord(changeId);
-  if (changed) projectStructuralChanges(draftChangeStore.getSnapshot());
+  const changed = revertDraftStructuralChange(changeId);
+  if (changed) projectStructuralChanges();
   return changed;
-}
-
-/**
- * Removes source-verified structural intents without leaving an undo path that
- * can recreate their browser-only previews.
- *
- * Agent completion can verify a subset of one dispatched snapshot. The
- * remaining records and their useful history stay intact while every verified
- * ID is pruned from canonical state, undo/redo snapshots, and Canvas reports.
- */
-export function reconcileVerifiedStructuralChanges(
-  verifiedIds: ReadonlySet<string>,
-): number {
-  if (verifiedIds.size === 0) return 0;
-  const removed = draftChangeStore.reconcileActiveDraftChanges(new Set(), verifiedIds);
-  if (removed === 0) return 0;
-  projectStructuralChanges(draftChangeStore.getSnapshot());
-  for (const [cardId, canvasReports] of reportsByCanvasCard) {
-    reportsByCanvasCard.set(cardId, {
-      ...canvasReports,
-      reports: canvasReports.reports.filter((report) => !verifiedIds.has(report.changeId)),
-    });
-  }
-  notifyDiagnostics();
-  return removed;
 }
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
 export function subscribeStructuralChanges(listener: () => void): () => void {
-  return draftChangeStore.subscribe(listener);
+  return subscribeActiveDraftChanges(listener);
 }
 
 /** Compatibility name retained while the controller moved to a full union. */
@@ -627,14 +605,6 @@ function validationStatus(local: AppliedStructuralChange): StructuralProjectionS
     : "overridden";
 }
 
-/** Rebuild already-mounted document adapters from canonical data only. */
-function reprojectKnownDocuments(changes: readonly StructuralChange[] = getStructuralChanges()): void {
-  for (const [doc, state] of documentStates) {
-    rebuildForSnapshot(doc, state, changes);
-    storeReports(doc, reportsForSnapshot(state, state.snapshot));
-  }
-}
-
 function validateAppliedPreview(doc: Document, state: DocumentProjectionState): void {
   let changed = false;
   for (const local of state.applied.values()) {
@@ -752,7 +722,6 @@ export function resetStructuralDeleteProjection(): void {
   reportsByCanvasCard.clear();
   nextStructuralId = 1;
   diagnosticRevision = 0;
-  resetDraftChanges();
   notifyDiagnostics();
 }
 

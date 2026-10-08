@@ -1,9 +1,7 @@
 import type { TokenEntry } from "../../css/model/index.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
-import {
-  appendChanges,
-} from "../changes/changesLog.ts";
-import type { ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChanges } from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import { canPlanBatchEditScopes, planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../selection/editScope.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../shell/styleState.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
@@ -72,8 +70,8 @@ function sourceFields(el: HTMLElement): SourceFields {
   };
 }
 
-export type { ChangeRecord } from "../changes/changesLog.ts";
-export { getPendingRules, getChangesList as getChangeRecords, clearActiveDraft as resetPendingRules } from "../changes/changesLog.ts";
+export type { ChangeRecord } from "../changes/types.ts";
+export { getPendingRules, getChangesList as getChangeRecords, clearActiveDraft as resetPendingRules } from "../drafts/store.ts";
 
 export interface StyleEditMetadata {
   sourceProperty?: string;

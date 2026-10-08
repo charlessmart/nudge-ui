@@ -41,9 +41,10 @@ preserved. Each checkout needs the bridge dependency and framework integration;
 the global MCP registration can be reused across checkouts.
 
 To configure a host manually, use the Node executable and managed adapter entry
-printed by setup, with no `--workspace-root` argument. A bare `nudge-mcp` command
-also works if that executable is installed independently and available on the
-host's PATH.
+printed by setup, with no arguments. A bare `nudge-mcp` command also works if
+that executable is installed independently and available on the host's PATH.
+The adapter refuses the removed coupled-mode and startup-workspace options and
+environment variables; rerun setup to migrate a configuration that passes them.
 
 Run diagnostics from an application:
 
@@ -145,6 +146,24 @@ Keep that turn active while sending changes from the browser. Both `nudge_listen
 and its alias `nudge_connect` return an `implementation_request` with an explicit
 execution directive, the prompt, request ID, and supplied workspace and session
 scope, along with the prompt, revision, and sketch metadata.
+
+If a tool wrapper such as Codex's `functions.exec` yields a running cell ID,
+the agent must keep the turn active and collect the result with `functions.wait`.
+A wrapper yield is not a listener timeout or a completed request.
+
+Browser dispatch sets the request to `delivered`. The UI shows that it is awaiting
+agent acknowledgment. The agent calls `nudge_report_status` with `working` before
+reading or editing files. If the listening result was not collected, call
+`nudge_listen` again to recover the same request and sketch images. For explicit
+recovery by ID, use `nudge_get_status` followed by `nudge_get_request`. Retrieval does not acknowledge or redispatch the
+request. Recovery is available until acknowledgment or interruption, and retained
+attachment bytes are then released. Requests remain in memory only.
+
+Unacknowledged deliveries expire after 60 seconds and become `interrupted`.
+Recovery does not extend this deadline. The terminal outcome remains visible until
+the agent listens again; the browser can then resend the prompt. Late
+acknowledgments cannot revive an interrupted request. Both the project bridge and
+adapter must use protocol version 3; upgrade both and restart them together.
 
 The agent implements the request using its host's normal approval flow, verifies
 the result, reports the outcome through `nudge_report_status`, and opens another

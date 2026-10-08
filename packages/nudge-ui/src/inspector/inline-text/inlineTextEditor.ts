@@ -1,6 +1,5 @@
-import { canEditDraft } from "../changes/draftChanges.ts";
+import { appendChange, canEditDraft } from "../drafts/store.ts";
 import { useSyncExternalStore } from "react";
-import { appendChange } from "../changes/changesLog.ts";
 import { registerInlineTextClearHandler } from "./inlineTextLifecycle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import {
@@ -19,7 +18,7 @@ import {
   type TextEditRejectionReason,
 } from "../componentSemantics/textBinding.ts";
 import type { ChangeRecord } from "../changes/types.ts";
-import type { TextProjectionScope } from "./textChangeBoundary.ts";
+import type { TextProjectionScope } from "../changes/editModel.ts";
 import {
   captureTextProjectionTarget,
   EMPTY_TEXT_PROJECTION_ATTR,

@@ -2,9 +2,8 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { activateIframeWorkspace, getCanvasCards, hydrateCanvasStore } from "../canvas/canvasStore.ts";
 import { acquireLease, enableWriteGuard, hasWriteLease, releaseLease } from "../canvas/workspaceLease.ts";
-import { draftChangeStore } from "../changes/draftChanges.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
-import { getDraftsSnapshot, getDraftContentsForCard, resetDrafts } from "../drafts/store.ts";
+import { appendChanges, getDraftsSnapshot, getDraftContentsForCard, resetDrafts } from "../drafts/store.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { clearComments, getCommentClearRevision, getComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "../comments/store.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
@@ -44,7 +43,7 @@ it("flushes the newest edits before releasing ownership after a controller resta
   controller = startWorkspaceController();
   controller.dispose();
   controller = startWorkspaceController();
-  draftChangeStore.commitChangeRecords([change]);
+  appendChanges([change]);
 
   window.dispatchEvent(new Event("beforeunload"));
 
@@ -56,7 +55,7 @@ it("flushes the newest edits before releasing ownership after a controller resta
 it("initializes demo drafts without saving the workspace or releasing a lease", () => {
   configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
   controller = startWorkspaceController();
-  expect(draftChangeStore.commitChangeRecords([change])).toBe("applied");
+  expect(appendChanges([change])).toBe("applied");
   window.dispatchEvent(new Event("beforeunload"));
   controller.dispose();
 
@@ -68,7 +67,7 @@ it("initializes demo drafts without saving the workspace or releasing a lease", 
 
 it("reloads drafts saved by another tab when this tab takes over again", () => {
   controller = startWorkspaceController();
-  draftChangeStore.commitChangeRecords([change]);
+  appendChanges([change]);
   controller.dispose();
   localStorage.removeItem("nudge-ui-drafts:controller-restart:v2");
 

@@ -14,13 +14,7 @@ import {
   startPreviewDocumentSession,
   subscribePreviewDiagnostics,
 } from "./previewDiagnostics.ts";
-import {
-  commitChangeRecords,
-  getActiveDraftChanges,
-  resetDraftChanges,
-  restoreActiveDraftChanges,
-  undoChange,
-} from "./draftChanges.ts";
+import { appendChanges, getActiveDraftChanges, resetDrafts, undo } from "../drafts/store.ts";
 
 const change: ElementChangeRecord = {
   cid: "Button",
@@ -43,7 +37,7 @@ const result = {
 
 describe("preview diagnostics", () => {
   beforeEach(() => {
-    resetDraftChanges();
+    resetDrafts();
     resetPreviewDiagnostics();
   });
 
@@ -78,7 +72,7 @@ describe("preview diagnostics", () => {
     const attempt = beginPreviewAttempt(document)!;
     publishPreviewDiagnostic(attempt, changeKey(change), result);
 
-    restoreActiveDraftChanges({ changes: [change], structuralChanges: [] }, () => undefined);
+    appendChanges([change]);
 
     // A new commit must not delete earlier diagnostics. The revision stamp
     // rejects late publishes per key, but reads survive until overwritten.
@@ -96,11 +90,11 @@ describe("preview diagnostics", () => {
       rawValue: "blue",
       oldRawValue: "white",
     };
-    expect(commitChangeRecords([change], () => undefined)).toBe("applied");
+    expect(appendChanges([change])).toBe("applied");
     const firstAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
     expect(publishPreviewDiagnostic(firstAttempt, changeKey(change), result)).toBe(true);
 
-    expect(commitChangeRecords([secondChange], () => undefined)).toBe("applied");
+    expect(appendChanges([secondChange])).toBe("applied");
     // Earlier diagnostics survive the second commit; the new change verifies
     // at the new revision without wiping the first.
     expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
@@ -125,13 +119,13 @@ describe("preview diagnostics", () => {
   });
 
   it("publishes diagnostics without changing canonical state or history", () => {
-    expect(commitChangeRecords([change], () => undefined)).toBe("applied");
+    expect(appendChanges([change])).toBe("applied");
     const before = getActiveDraftChanges();
     const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
 
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(true);
     expect(getActiveDraftChanges()).toEqual(before);
-    expect(undoChange(() => undefined)).toBe(true);
+    expect(undo()).toBe(true);
   });
 
   it("invalidates late results when a logical document receives a new session", () => {

@@ -28,6 +28,7 @@ export interface PopoverListboxProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   searchAriaLabel?: string;
+  searchOnKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   placeholder?: string;
   inputRef?: Ref<HTMLInputElement>;
   inputClassName?: string;
@@ -57,6 +58,7 @@ export function PopoverListbox({
   searchable = false,
   searchPlaceholder = "Search…",
   searchAriaLabel = "Search options",
+  searchOnKeyDown,
   placeholder,
   inputRef,
   inputClassName,
@@ -118,7 +120,7 @@ export function PopoverListbox({
             </Combobox.Trigger>
           </Tooltip>
           <Combobox.Portal container={portalContainer()}>
-            <Combobox.Positioner className="popover-listbox__positioner">
+            <Combobox.Positioner className="popover-listbox__positioner" sideOffset={4}>
               <Combobox.Popup className={cx("popover-listbox__popup", searchable && "popover-listbox__popup--searchable")}>
                 {searchable ? (
                   <>
@@ -127,6 +129,7 @@ export function PopoverListbox({
                       placeholder={searchPlaceholder}
                       aria-label={searchAriaLabel}
                       data-test={triggerDataTest ? `${triggerDataTest}-search` : "popover-listbox-search"}
+                      onKeyDown={searchOnKeyDown}
                     />
                     <Combobox.Empty className="popover-listbox__empty">
                       No matching options.
@@ -168,7 +171,7 @@ export function PopoverListbox({
             disabled={disabled}
           />
           <Autocomplete.Portal container={portalContainer()}>
-            <Autocomplete.Positioner className="popover-listbox__positioner">
+            <Autocomplete.Positioner className="popover-listbox__positioner" sideOffset={4}>
               <Autocomplete.Popup className="popover-listbox__popup">
                 <Autocomplete.List className="popover-listbox__list">
                   {items.map((item) => (

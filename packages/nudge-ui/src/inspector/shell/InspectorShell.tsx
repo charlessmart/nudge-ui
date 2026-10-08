@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { IconLayoutSidebarRight } from "@tabler/icons-react";
-import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
+import { useInspectorOpen, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
   useSelectedElements,
@@ -31,7 +31,7 @@ import { AppearanceSection } from "../styleEditors/AppearanceSection.tsx";
 import { BoxShadowEditor } from "../styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "../styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { discardChangesForInstanceOverride, undo, redo } from "../changes/changesLog.ts";
+import { discardChangesForInstanceOverride, undo, redo } from "../drafts/store.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "../selection/editScope.ts";
 import { canEditStyles } from "../tokens/editActions.ts";
 import { Button } from "../ui/Button.tsx";
@@ -84,9 +84,6 @@ function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): Reso
   }
   return null;
 }
-
-export { toggleInspector, setInspectorOpen };
-export type { SelectedElement } from "../selection/selectionStore.ts";
 
 function nodeMatchesSelector(node: Node, selector: string | null): boolean {
   if (!selector || node.nodeType !== node.ELEMENT_NODE) return false;

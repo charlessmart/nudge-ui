@@ -6,11 +6,11 @@ import {
   clearActiveDraft,
   getChangesList,
   getPendingRules,
-  isTextContentChangeValue,
   redo,
   undo,
-  type TextContentChangeRecord,
-} from "../changes/changesLog.ts";
+} from "../drafts/store.ts";
+import { isTextContentChangeValue } from "../changes/editModel.ts";
+import type { TextContentChangeRecord } from "../changes/types.ts";
 import { serializeChange } from "../changes/codecs.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 

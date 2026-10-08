@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore, type ReactElement } from "react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { PeekOriginalIcon } from "./PeekOriginalIcon.tsx";
-import { draftChangeStore } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges, subscribeActiveDraftChanges } from "../drafts/store.ts";
 import {
   setOriginalPreviewActive,
   useOriginalPreviewActive,
@@ -10,9 +10,9 @@ import {
 
 function useDraftChangeCount(): number {
   return useSyncExternalStore(
-    draftChangeStore.subscribe,
+    subscribeActiveDraftChanges,
     () => {
-      const snapshot = draftChangeStore.getSnapshot();
+      const snapshot = getActiveDraftChanges();
       return snapshot.changes.length + snapshot.structuralChanges.length;
     },
     () => 0,

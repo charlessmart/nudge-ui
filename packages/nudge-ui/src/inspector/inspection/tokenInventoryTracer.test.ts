@@ -4,7 +4,7 @@ import { createTokenInventory } from "../../css/token-inventory/index.ts";
 import type { TokenDefinition, TokenEntry } from "../../css/model/index.ts";
 import { applyRules, verifyPreview } from "../projection/managedStylesheet.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
-import type { ElementChangeRecord } from "../changes/changesLog.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import { createBrowserCssInspection } from "./browserCssInspection.ts";
 
 const TRACER_CSS = `:root {

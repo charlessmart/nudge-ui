@@ -3,11 +3,24 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/run
 import { iterationId } from "../canvas/frameContent.ts";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activateIframeWorkspace, addCanvasIteration, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, selectCard, setCardPosition } from "../canvas/canvasStore.ts";
-import { draftChangeStore, getActiveDraftChanges, resetDraftChanges, clearSessionUndoHistory } from "../changes/draftChanges.ts";
+import { activateIframeWorkspace, addCanvasIteration, beginCardGeometryChange, duplicateCard, getCanvasCards, getSelectedCardId, hydrateCanvasStore, resizeCard, selectCard, setCardPosition } from "../canvas/canvasStore.ts";
+import { clearSessionUndoHistory } from "./timeline.ts";
 import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
 import type { StructuralMove } from "../changes/structuralTypes.ts";
-import { activateDraftForCard, draftIdForCard, getDraftContentsForCard, resetDrafts, clearSavedIterationDraft, getDraftsSnapshot } from "../drafts/store.ts";
+import {
+  activateDraftForCard,
+  appendChanges,
+  clearActiveDraft,
+  clearSavedIterationDraft,
+  commitStructuralChange,
+  draftIdForCard,
+  getActiveDraftChanges,
+  getDraftContentsForCard,
+  getDraftsSnapshot,
+  redo,
+  resetDrafts,
+  undo,
+} from "../drafts/store.ts";
 import { removeFrame } from "./commands.ts";
 
 const style: ElementChangeRecord = {
@@ -34,13 +47,12 @@ const runtime = getNudgeUiRuntimeConfig();
 beforeEach(() => {
   configureNudgeUiRuntime({ ...runtime, projectId: "session-test", demo: true });
   resetDrafts();
-  resetDraftChanges();
   hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   localStorage.clear();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
   controller = startWorkspaceController();
 });
-afterEach(() => { controller.dispose(); configureNudgeUiRuntime(runtime); resetDrafts(); resetDraftChanges(); vi.unstubAllGlobals(); });
+afterEach(() => { controller.dispose(); configureNudgeUiRuntime(runtime); resetDrafts(); vi.unstubAllGlobals(); });
 
 function original() {
   const card = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
@@ -50,47 +62,47 @@ function original() {
 
 it("undoes text, DOM movement, and iteration creation in order, then redoes the same frame and draft", () => {
   const source = original();
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   const iteration = addCanvasIteration(source.id, "artifact-1")!;
   selectCard(iteration.id);
   activateDraftForCard(iteration.id);
-  draftChangeStore.commitStructuralChange(move);
-  draftChangeStore.commitChangeRecords([text]);
+  commitStructuralChange(move);
+  appendChanges([text]);
   selectCard(source.id);
   activateDraftForCard(source.id);
 
-  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(undo()).toBe(true);
   expect(getSelectedCardId()).toBe(iteration.id);
   expect(getActiveDraftChanges()).toMatchObject({ changes: [], structuralChanges: [move] });
   expect(getDraftContentsForCard(source.id)?.changes).toMatchObject([style]);
-  draftChangeStore.undoChange();
+  undo();
   expect(getActiveDraftChanges().structuralChanges).toEqual([]);
-  draftChangeStore.undoChange();
+  undo();
   expect(getCanvasCards().map((card) => card.id)).toEqual([source.id]);
   expect(getActiveDraftChanges().changes).toMatchObject([style]);
   expect(fetch).not.toHaveBeenCalled();
 
-  draftChangeStore.redoChange();
+  redo();
   expect(iterationId(getCanvasCards().find((card) => card.id === iteration.id)?.content)).toBe("artifact-1");
   expect(getSelectedCardId()).toBe(iteration.id);
-  draftChangeStore.redoChange();
-  draftChangeStore.redoChange();
+  redo();
+  redo();
   expect(getActiveDraftChanges()).toMatchObject({ changes: [text], structuralChanges: [move] });
 });
 
 it("restores linked placement and releases an undone artifact when new edits discard redo", () => {
   const source = original();
   const linked = duplicateCard(source.id)!;
-  draftChangeStore.undoChange();
+  undo();
   expect(getCanvasCards()).toHaveLength(1);
   expect(getCanvasCards()[0]?.groupId).toBeUndefined();
-  draftChangeStore.redoChange();
+  redo();
   expect(getCanvasCards()[1]?.id).toBe(linked.id);
   expect(getCanvasCards()[1]).toMatchObject({ id: linked.id, x: linked.x, y: linked.y });
   const iteration = addCanvasIteration(linked.id, "artifact-2")!;
-  draftChangeStore.undoChange();
+  undo();
   expect(fetch).not.toHaveBeenCalled();
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   expect(fetch).toHaveBeenCalledWith("/__nudge_ui__/artifacts/artifact-2", { method: "DELETE", keepalive: true });
   expect(getActiveDraftChanges().canRedo).toBe(false);
 });
@@ -99,9 +111,9 @@ it("clears only the active draft's edit steps and keeps canvas creation undoable
   const source = original();
   const iteration = addCanvasIteration(source.id, "artifact-3")!;
   activateDraftForCard(iteration.id);
-  draftChangeStore.commitChangeRecords([text]);
-  draftChangeStore.clearActiveDraftChanges();
-  expect(draftChangeStore.undoChange()).toBe(true);
+  appendChanges([text]);
+  clearActiveDraft();
+  expect(undo()).toBe(true);
   expect(getCanvasCards()).toHaveLength(1);
   clearSessionUndoHistory();
   expect(getActiveDraftChanges().canRedo).toBe(false);
@@ -112,18 +124,18 @@ it("committing an iteration clears its stored intent without clearing frame crea
   const iteration = addCanvasIteration(source.id, "artifact-4")!;
   const draftId = draftIdForCard(iteration.id)!;
   activateDraftForCard(iteration.id);
-  draftChangeStore.commitChangeRecords([text]);
+  appendChanges([text]);
   clearSavedIterationDraft(iteration.id);
   expect(getDraftsSnapshot().drafts.find((item) => item.id === draftId)?.contents.changes).toEqual([]);
   expect(getActiveDraftChanges().changes).toEqual([]);
-  draftChangeStore.undoChange();
+  undo();
   expect(getCanvasCards()).toHaveLength(1);
 });
 
 it("releases detached iterations when the page exits, but preserves them in the back-forward cache", () => {
   const source = original();
   const iteration = addCanvasIteration(source.id, "artifact-exit")!;
-  draftChangeStore.undoChange();
+  undo();
   window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
   expect(fetch).not.toHaveBeenCalled();
   window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
@@ -134,9 +146,45 @@ it("keeps a later frame drag when undo removes a linked view", () => {
   const source = original();
   const linked = duplicateCard(source.id)!;
   setCardPosition(source.id, source.x + 120, source.y + 80);
-  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(undo()).toBe(true);
   expect(getCanvasCards()).toHaveLength(1);
   expect(getCanvasCards()[0]).toMatchObject({ id: source.id, x: source.x + 120, y: source.y + 80 });
+});
+
+it("undoes a frame move before the edit that preceded it, then redoes the move", () => {
+  const source = original();
+  appendChanges([style]);
+  const commit = beginCardGeometryChange(source.id);
+  setCardPosition(source.id, source.x + 10, source.y + 10);
+  setCardPosition(source.id, source.x + 300, source.y + 120);
+  commit();
+
+  expect(undo()).toBe(true);
+  expect(getCanvasCards()[0]).toMatchObject({ x: source.x, y: source.y });
+  expect(getActiveDraftChanges().changes).toMatchObject([style]);
+  expect(undo()).toBe(true);
+  expect(getActiveDraftChanges().changes).toEqual([]);
+  redo();
+  redo();
+  expect(getCanvasCards()[0]).toMatchObject({ x: source.x + 300, y: source.y + 120 });
+  expect(getActiveDraftChanges().changes).toMatchObject([style]);
+});
+
+it("undoes a frame resize as one step and ignores gestures that leave the frame unchanged", () => {
+  const source = original();
+  const click = beginCardGeometryChange(source.id);
+  click();
+  expect(getActiveDraftChanges().canUndo).toBe(false);
+
+  const commit = beginCardGeometryChange(source.id);
+  resizeCard(source.id, 640, 480, { x: source.x - 20, y: source.y });
+  resizeCard(source.id, 600, 400, { x: source.x - 40, y: source.y });
+  commit();
+  commit();
+
+  expect(undo()).toBe(true);
+  expect(getCanvasCards()[0]).toMatchObject({ x: source.x, y: source.y, width: source.width, height: source.height });
+  expect(getActiveDraftChanges().canUndo).toBe(false);
 });
 
 it("restores a deleted live frame and its edits before undoing the earlier edit", () => {
@@ -144,22 +192,22 @@ it("restores a deleted live frame and its edits before undoing the earlier edit"
   const removed = activateIframeWorkspace(new URL("/other", window.location.href).href, { width: 400, height: 600 })!;
   selectCard(removed.id);
   activateDraftForCard(removed.id);
-  draftChangeStore.commitChangeRecords([style]);
+  appendChanges([style]);
   setCardPosition(removed.id, 1200, 80);
   const snapshot = getCanvasCards().find((card) => card.id === removed.id)!;
 
   expect(removeFrame(removed.id)).toBe(true);
   expect(getCanvasCards().map((card) => card.id)).toEqual([source.id]);
-  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(undo()).toBe(true);
   expect(getCanvasCards().find((card) => card.id === removed.id)).toEqual(snapshot);
   expect(getSelectedCardId()).toBe(removed.id);
   expect(getDraftContentsForCard(removed.id)?.changes).toEqual([style]);
-  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(undo()).toBe(true);
   expect(getDraftContentsForCard(removed.id)?.changes).toEqual([]);
-  draftChangeStore.redoChange();
-  draftChangeStore.redoChange();
+  redo();
+  redo();
   expect(getCanvasCards().map((card) => card.id)).toEqual([source.id]);
-  draftChangeStore.undoChange();
+  undo();
   expect(getDraftContentsForCard(removed.id)?.changes).toEqual([style]);
 });
 
@@ -169,16 +217,16 @@ it("keeps a deleted iteration's file and draft available until removal can no lo
   selectCard(iteration.id);
   activateDraftForCard(iteration.id);
   clearSessionUndoHistory();
-  draftChangeStore.commitChangeRecords([text]);
+  appendChanges([text]);
   const draftId = draftIdForCard(iteration.id)!;
 
   removeFrame(iteration.id);
   expect(fetch).not.toHaveBeenCalled();
   expect(getDraftsSnapshot().drafts.find((draft) => draft.id === draftId)?.contents.changes).toEqual([text]);
-  expect(draftChangeStore.undoChange()).toBe(true);
+  expect(undo()).toBe(true);
   expect(getSelectedCardId()).toBe(iteration.id);
   expect(getDraftContentsForCard(iteration.id)?.changes).toEqual([text]);
-  draftChangeStore.redoChange();
+  redo();
   clearSessionUndoHistory();
   expect(fetch).toHaveBeenCalledWith("/__nudge_ui__/artifacts/artifact-deleted", { method: "DELETE", keepalive: true });
   expect(getDraftsSnapshot().drafts.some((draft) => draft.id === draftId)).toBe(false);

@@ -15,6 +15,13 @@ describe("temporary agent activity", () => {
     expect(getAgentActivity("activity-test").targets).toEqual([]);
     expect(getAgentActivity("activity-test").target).toBeUndefined();
   });
+  it("retains submitted frames while awaiting acknowledgment without showing work", () => {
+    beginActivityDispatch("activity-test", "dispatch-1", ["frame-1", "frame-2"]);
+    synchronizeAgentActivity("activity-test", "request-1", false, "dispatch-1", true);
+    expect(getAgentActivity("activity-test")).toEqual({ requestId: null, targets: [], files: [] });
+    synchronizeAgentActivity("activity-test", "request-1", true, "dispatch-1");
+    expect(getAgentActivity("activity-test").targets).toEqual(["frame-1", "frame-2"]);
+  });
   it("expires file attribution while the request remains working", () => {
     vi.useFakeTimers();
     synchronizeAgentActivity("activity-test", "request-1", true);

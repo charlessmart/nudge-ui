@@ -12,7 +12,9 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "../agent/protocol.ts";
-import { clearActiveDraft, getChangesList, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList } from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
+import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { getSketches, initializeSketchStore, markSketchesDispatching, markSketchesHandingOff, resetSketchStore, saveSketch } from "../sketch/store.ts";
@@ -28,7 +30,7 @@ import {
 
 function listeningStatus(overrides: Partial<AgentStatusSnapshot> = {}): AgentStatusSnapshot {
   return {
-    protocolVersion: 2,
+    protocolVersion: 3,
     projectId: "handoff-project",
     connection: "listening",
     listenerActive: true,
@@ -65,7 +67,7 @@ class ButtonTransport implements AgentBridgeTransport {
 
   async pair(): Promise<PairingResponse> {
     return {
-      protocolVersion: 2,
+      protocolVersion: 3,
       projectId: "handoff-project",
       origin: window.location.origin,
       sessionToken: "button-session",
@@ -76,7 +78,7 @@ class ButtonTransport implements AgentBridgeTransport {
   async takeOver(): Promise<PairingResponse> {
     this.takeOvers += 1;
     return {
-      protocolVersion: 2,
+      protocolVersion: 3,
       projectId: "handoff-project",
       origin: window.location.origin,
       sessionToken: "replacement-session",
@@ -99,7 +101,7 @@ class ButtonTransport implements AgentBridgeTransport {
         prompt: request.prompt,
         changeRevision: request.changeRevision,
       },
-      status: "working",
+      status: "delivered",
     };
   }
 }
@@ -195,17 +197,17 @@ describe("CopyPromptButton agent handoff", () => {
     transport.discoveredStatus = null;
     configureAgentBridgeTransport(transport);
     act(() => {
-      restoreChangeRecords([change(), { ...change(), property: "background-color" }]);
+      replaceActiveDraft([change(), { ...change(), property: "background-color" }]);
       root.render(<CopyPromptButton />);
     });
     await flush();
 
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("2");
 
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
 
-    act(() => restoreChangeRecords([]));
+    act(() => replaceActiveDraft([]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
@@ -229,7 +231,7 @@ describe("CopyPromptButton agent handoff", () => {
 
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Copy prompt");
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
   });
 
@@ -253,7 +255,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')).toBeNull();
   });
 
-  it("changes Connect into Send and disables the control while one prompt is working", async () => {
+  it("disables sending until the delivered prompt is acknowledged, then shows agent work", async () => {
     const transport = new ButtonTransport();
     configureAgentBridgeTransport(transport);
     act(() => root.render(<CopyPromptButton />));
@@ -265,12 +267,18 @@ describe("CopyPromptButton agent handoff", () => {
     expect(button.textContent).toContain("Send prompt");
     expect(button.disabled).toBe(true);
 
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
     expect(button.disabled).toBe(false);
     await act(async () => { button.click(); });
 
     expect(transport.dispatches).toHaveLength(1);
     expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
+    expect(button.textContent).toContain("Awaiting agent");
+    expect(button.disabled).toBe(true);
+    act(() => transport.eventHandlers?.onEvent({ type: "status", status: listeningStatus({
+      connection: "working", paired: true, listenerActive: false,
+      request: { requestId: "button-request", projectId: "handoff-project", prompt: transport.dispatches[0]!.prompt, status: "working" },
+    }) }));
     expect(button.textContent).toContain("Agent working");
     expect(button.disabled).toBe(true);
   });
@@ -283,7 +291,7 @@ describe("CopyPromptButton agent handoff", () => {
 
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
     await act(async () => { button.click(); });
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
 
     const event = new KeyboardEvent("keydown", {
       bubbles: true,
@@ -380,7 +388,7 @@ describe("CopyPromptButton agent handoff", () => {
     authored.textContent = '[data-cid="Heading"] { color: red; }';
     document.head.append(authored);
 
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
     await act(async () => { button.click(); });
     const revision = transport.dispatches[0]?.changeRevision;
     expect(revision).toBeDefined();
@@ -430,7 +438,7 @@ describe("CopyPromptButton agent handoff", () => {
     target.dataset.cid = "Heading";
     document.body.append(target);
 
-    act(() => restoreChangeRecords([change()]));
+    act(() => replaceActiveDraft([change()]));
     await act(async () => { button.click(); });
     const revision = transport.dispatches[0]?.changeRevision;
     expect(revision).toBeDefined();
@@ -489,7 +497,7 @@ describe("CopyPromptButton agent handoff", () => {
     });
 
     const revision = 987_654;
-    act(() => restoreChangeRecords([]));
+    act(() => replaceActiveDraft([]));
     recordAgentDispatch(revision, []);
     act(() => {
       transport.eventHandlers?.onEvent({
@@ -521,7 +529,7 @@ describe("CopyPromptButton agent handoff", () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     act(() => {
-      restoreChangeRecords([change()]);
+      replaceActiveDraft([change()]);
       root.render(<CopyPromptButton />);
     });
     await flush();
@@ -542,7 +550,7 @@ describe("CopyPromptButton agent handoff", () => {
     configureAgentBridgeTransport(transport);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(async () => undefined) } });
     act(() => {
-      restoreChangeRecords([change()]);
+      replaceActiveDraft([change()]);
       root.render(<CopyPromptButton />);
     });
     await flush();

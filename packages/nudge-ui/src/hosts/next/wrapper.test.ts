@@ -299,14 +299,8 @@ describe("withNudgeUi — development output shape", () => {
     const config = wrapperFor();
 
     const transpile = config.transpilePackages as string[];
-    for (const required of [
-      "nudge-ui",
-      "../../inspector/index.ts",
-      "../../css/index.ts",
-    ]) {
-      expect(transpile).toContain(required);
-    }
-    expect(transpile).not.toContain("../vite/index.ts");
+    expect(transpile).toContain("nudge-ui");
+    expect(transpile.filter((entry) => entry.includes("/"))).toEqual([]);
   });
 
   it("proxies /__nudge_ui__ to a live loopback sidecar before user rewrites", async () => {

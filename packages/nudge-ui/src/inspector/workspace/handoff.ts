@@ -8,7 +8,7 @@ import { getCommentsForTarget, markCommentsHandedOff, type ElementComment } from
 import { applicationTarget } from "../drafts/model.ts";
 import { prepareHtmlIterationHandoff } from "../iterations/coordinator.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
-import { getDraftChanges } from "../changes/draftChanges.ts";
+import { getDraftChanges } from "../drafts/store.ts";
 import { recordClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { generatePrompt, type FrameworkHints } from "../prompt/generatePrompt.ts";

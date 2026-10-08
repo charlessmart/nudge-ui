@@ -16,8 +16,8 @@ import {
   clearRestoreCount,
   resetAutoSave,
 } from "./sessionStore.ts";
-import { clearActiveDraft, getChangesList, appendChange } from "../changes/changesLog.ts";
-import type { ElementChangeRecord } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, appendChange } from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import {
   getCanvasCards,
   addCanvasCard,

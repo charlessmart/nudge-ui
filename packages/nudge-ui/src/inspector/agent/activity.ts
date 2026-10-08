@@ -33,12 +33,12 @@ export function beginActivityDispatch(projectId: string, dispatchId: string, tar
 }
 
 /** Dispatch and status are the only authority for the layer's lifetime. */
-export function synchronizeAgentActivity(projectId: string, requestId: string | undefined, working: boolean, dispatchId?: string): void {
+export function synchronizeAgentActivity(projectId: string, requestId: string | undefined, working: boolean, dispatchId?: string, awaitingAcknowledgment = false): void {
   const state = project(projectId);
   if (!working || !requestId) {
     if (state.timer) clearTimeout(state.timer);
     state.timer = undefined;
-    state.dispatch = undefined;
+    if (!awaitingAcknowledgment) state.dispatch = undefined;
     if (state.snapshot !== EMPTY) publish(state, EMPTY);
     return;
   }

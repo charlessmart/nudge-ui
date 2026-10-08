@@ -1,7 +1,6 @@
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
 import { clearComments } from "../comments/store.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
-import { canEditDraft, getActiveDraftChanges, isDraftLocked } from "../changes/draftChanges.ts";
 import {
   getFrameGroups,
   isFrameGroup,
@@ -22,7 +21,6 @@ import {
   type CanvasMode,
 } from "./viewStore.ts";
 import { applyRules } from "../projection/managedStylesheet.ts";
-import { clearActiveDraft } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
@@ -38,7 +36,15 @@ import {
   isClipboardHandoffSnapshot,
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
-import { activateDraftForCard, clearDrafts, persistDrafts } from "../drafts/store.ts";
+import {
+  activateDraftForCard,
+  canEditDraft,
+  clearActiveDraft,
+  clearDrafts,
+  getActiveDraftChanges,
+  isDraftLocked,
+  persistDrafts,
+} from "../drafts/store.ts";
 
 const SCHEMA_VERSION = 17;
 const STORAGE_PREFIX = "nudge-ui";

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "../componentSemantics/adapterRegistry.ts";
 import type { ComponentRuntimeAdapter } from "../componentSemantics/types.ts";
-import { clearActiveDraft, getChangesList, redo, undo } from "../changes/changesLog.ts";
-import * as changesLog from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, redo, undo } from "../drafts/store.ts";
+import * as draftStore from "../drafts/store.ts";
 import { serializeChange } from "../changes/codecs.ts";
 import {
   beginInlineTextEdit,
@@ -1112,7 +1112,7 @@ describe("inlineTextEditor", () => {
     const result = beginInlineTextEdit(element);
     if ("kind" in result) throw new Error(result.message);
     result.host.textContent = "Uncommitted draft";
-    const append = vi.spyOn(changesLog, "appendChange")
+    const append = vi.spyOn(draftStore, "appendChange")
       .mockReturnValue("blocked");
     try {
       expect(result.commit()).toBeNull();

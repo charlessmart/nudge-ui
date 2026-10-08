@@ -1,74 +1,37 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { defaultBridgePort } from "@nudge-ui/agent-protocol";
-import { openPairedPage, parseCliArguments, type PageLaunchDependencies } from "./cli.ts";
+import { parseCliArguments } from "./cli.ts";
 
 describe("nudge-mcp CLI", () => {
-  it("parses doctor as a diagnostic command without requiring bridge options", () => {
-    expect(parseCliArguments(["doctor", "--workspace-root", "/workspace/product-site"], {})).toMatchObject({
+  it("parses doctor as a diagnostic command scoped to a workspace", () => {
+    expect(parseCliArguments(["doctor", "--workspace-root", "/workspace/product-site"], {})).toEqual({
       command: "doctor",
       workspaceRoot: "/workspace/product-site",
-      origin: undefined,
-    });
-  });
-
-  it("derives a stable project identity and discovery port with an explicit origin", () => {
-    const options = parseCliArguments([], {
-      INIT_CWD: "/workspace/product-site",
-      NUDGE_UI_ORIGIN: "http://localhost:5173",
-    });
-
-    expect(options).toMatchObject({
-      projectId: "product-site",
-      workspaceRoot: undefined,
-      origin: "http://localhost:5173",
-      port: defaultBridgePort("product-site"),
+      help: false,
     });
   });
 
   it("does not bind a reusable adapter to the host working directory", () => {
-    expect(parseCliArguments([], { INIT_CWD: "/unrelated/checkout" }).workspaceRoot).toBeUndefined();
+    expect(parseCliArguments([], { INIT_CWD: "/unrelated/checkout" })).toEqual({ command: "serve", help: false });
   });
 
-  it("opens a reachable page through the platform URL handler", async () => {
-    const unref = vi.fn();
-    const spawn = vi.fn(() => ({ unref }));
-    const warn = vi.fn();
-    const dependencies: PageLaunchDependencies = {
-      fetch: vi.fn(async () => new Response("ok")) as typeof fetch,
-      platform: "darwin",
-      spawn,
-      warn,
-    };
-
-    await expect(openPairedPage("http://localhost:5173/landing", dependencies)).resolves.toBe(true);
-    expect(spawn).toHaveBeenCalledWith(
-      "open",
-      ["http://localhost:5173/landing"],
-      { detached: true, stdio: "ignore" },
-    );
-    expect(unref).toHaveBeenCalledOnce();
-    expect(warn).not.toHaveBeenCalled();
+  it("rejects a removed coupled-mode option with a setup instruction", () => {
+    expect(() => parseCliArguments(["--origin", "http://localhost:5173"], {}))
+      .toThrow(/--origin .*npx nudge-ui agent setup/);
   });
 
-  it("leaves a useful manual URL when the remembered dev page is unavailable", async () => {
-    const warn = vi.fn();
-    const dependencies: PageLaunchDependencies = {
-      fetch: vi.fn(async () => new Response("missing", { status: 404 })) as typeof fetch,
-      platform: "linux",
-      spawn: vi.fn(() => ({ unref: vi.fn() })),
-      warn,
-    };
-
-    await expect(openPairedPage("http://localhost:5173/missing", dependencies)).resolves.toBe(false);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("open http://localhost:5173/missing manually"));
-    expect(dependencies.spawn).not.toHaveBeenCalled();
+  it("rejects a startup workspace when serving", () => {
+    expect(() => parseCliArguments(["--workspace-root", "/workspace/product-site"], {}))
+      .toThrow(/--workspace-root .*npx nudge-ui agent setup/);
   });
 
-  it("invokes runCli explicitly from executable entries instead of relying on module auto-run", async () => {
-    const bin = await readFile(fileURLToPath(new URL("../bin/nudge-mcp.mjs", import.meta.url)), "utf8");
-    expect(bin).toMatch(/runCli\(/);
+  it("rejects legacy environment configuration when serving", () => {
+    expect(() => parseCliArguments([], { NUDGE_UI_WORKSPACE_ROOT: "/workspace/product-site" }))
+      .toThrow(/NUDGE_UI_WORKSPACE_ROOT .*npx nudge-ui agent setup/);
+  });
+
+  it("invokes runCli explicitly from the executable entry instead of relying on module auto-run", async () => {
     const entry = await readFile(fileURLToPath(new URL("./cli-entry.ts", import.meta.url)), "utf8");
     expect(entry).toMatch(/runCli\(\)\.catch/);
   });

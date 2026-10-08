@@ -30,11 +30,12 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 import { cx } from "../ui/classNames.ts";
 import { TokenChip } from "./TokenChip.tsx";
 import { startDragPointerLock } from "./dragPointerLock.ts";
-import { createChangeHistoryGroup } from "../changes/draftChanges.ts";
+import { createChangeHistoryGroup } from "../workspace/timeline.ts";
 import { isMultiTarget, type EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "../styleEditors/inlineAuthored.ts";
 import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { isMacPlatform } from "../shell/shortcuts.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -385,6 +386,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }, [suggestions]);
 
   function handleSuggestionSelect(value: string): void {
+    if (value === DETACH_VALUE) {
+      handleDelink();
+      return;
+    }
     const rawSuggestion = decodeRawSuggestion(value);
     if (rawSuggestion !== null) {
       selectedFromPopover.current = true;
@@ -689,7 +694,18 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             searchable
             searchPlaceholder="Search tokens…"
             searchAriaLabel="Search tokens"
-            items={[...rawSuggestionItems, ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName))]}
+            searchOnKeyDown={(event) => {
+              if (fieldDisabled || !isDetachKey(event)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setTokenPickerOpen(false);
+              handleDelink();
+            }}
+            items={[
+              detachItem(),
+              ...rawSuggestionItems,
+              ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName)),
+            ]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}
             disabled={fieldDisabled}
@@ -697,21 +713,23 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
               handleSuggestionSelect(value);
             }}
           />
-          <TokenChip.Action>
-            <Tooltip stableTrigger>
-              <IconButton
-                variant="quiet"
-                size="compact"
-                style={{ borderRadius: "var(--radius-4)" }}
-                label="Replace with raw value"
-                data-test="delink-btn"
-                disabled={fieldDisabled}
-                onClick={handleDelink}
-              >
-                <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
-              </IconButton>
-            </Tooltip>
-          </TokenChip.Action>
+          {chipVariant === "small" ? null : (
+            <TokenChip.Action>
+              <Tooltip stableTrigger>
+                <IconButton
+                  variant="quiet"
+                  size="compact"
+                  style={{ borderRadius: "var(--radius-4)" }}
+                  label="Detach token"
+                  data-test="delink-btn"
+                  disabled={fieldDisabled}
+                  onClick={handleDelink}
+                >
+                  <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />
+                </IconButton>
+              </Tooltip>
+            </TokenChip.Action>
+          )}
         </TokenChip>
         {opacityControl}
         <AtRuleIndicator atRules={fieldAtRules} />
@@ -955,6 +973,23 @@ function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>)
 }
 
 const RAW_SUGGESTION_PREFIX = "\u0000raw:";
+const DETACH_VALUE = "\u0000detach";
+
+function detachItem() {
+  return {
+    value: DETACH_VALUE,
+    label: "Detach token",
+    "data-test": "detach-token-item",
+    leading: <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />,
+    trailing: <kbd className="token-shortcut">{isMacPlatform() ? "⌫" : "Del"}</kbd>,
+  };
+}
+
+function isDetachKey(event: React.KeyboardEvent<HTMLInputElement>): boolean {
+  return (event.key === "Backspace" || event.key === "Delete")
+    && event.currentTarget.value === ""
+    && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
 
 function rawSuggestion(value: string) {
   return {

@@ -9,7 +9,7 @@ import { selectTokens } from "../../css/value-semantics/index.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { getChangeRecords, resetPendingRules } from "./editActions.ts";
-import { isElementChange } from "../changes/changesLog.ts";
+import { isElementChange } from "../changes/types.ts";
 import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 

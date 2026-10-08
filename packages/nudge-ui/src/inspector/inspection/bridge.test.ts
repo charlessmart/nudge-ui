@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TokenDefinition } from "../../css/model/index.ts";
-import { clearActiveDraft } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../drafts/store.ts";
 import { inspectElement, installInspectionBridge } from "./bridge.ts";
 
 const catalog: TokenDefinition[] = [

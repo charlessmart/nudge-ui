@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearActiveDraft, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getChangesList, resetDrafts } from "../drafts/store.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
@@ -62,7 +63,7 @@ describe("agent completion verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
-    clearActiveDraft();
+    resetDrafts();
     resetAgentVerification();
     resetStructuralDeleteProjection();
     document.head.replaceChildren();

@@ -29,7 +29,7 @@ async function bridge(appRoot: string, registryRoot: string, projectId: string) 
 }
 
 async function sendPrompt(runtime: ProjectBridgeRuntime, prompt: string) {
-  const pairing = runtime.bridge.pairBrowser(runtime.session.projectId, runtime.session.origin);
+  const pairing = runtime.bridge.pairBrowser(runtime.session.origin);
   return await fetch(`${runtime.address.url}/prompt`, {
     method: "POST", headers: { Origin: runtime.session.origin, "Content-Type": "application/json" },
     body: JSON.stringify({ projectId: runtime.session.projectId, sessionToken: pairing.sessionToken, prompt }),
@@ -43,7 +43,7 @@ function textContent(result: Record<string, unknown>) {
 describe("reusable MCP adapter", () => {
   it("loads its tools without a dev server or startup workspace", async () => {
     const paths = await fixture();
-    const adapter = await createDiscoveredAgentAdapter({ registryRoot: paths.registryRoot });
+    const adapter = createDiscoveredAgentAdapter({ registryRoot: paths.registryRoot });
     const client = new Client({ name: "test", version: "1" });
     const [a, b] = InMemoryTransport.createLinkedPair();
     cleanup.push(() => adapter.close(), () => client.close());
@@ -75,7 +75,7 @@ describe("reusable MCP adapter", () => {
     const paths = await fixture();
     const first = await bridge(paths.first, paths.registryRoot, "portfolio");
     const second = await bridge(paths.second, paths.registryRoot, "examples");
-    const adapter = await createDiscoveredAgentAdapter({ registryRoot: paths.registryRoot });
+    const adapter = createDiscoveredAgentAdapter({ registryRoot: paths.registryRoot });
     const client = new Client({ name: "test", version: "1" });
     const [a, b] = InMemoryTransport.createLinkedPair();
     cleanup.push(() => adapter.close(), () => client.close());
@@ -105,7 +105,7 @@ describe("reusable MCP adapter", () => {
     } });
     expect(status.isError).not.toBe(true);
     expect(first.bridge.getStatus().request?.status).toBe("completed");
-    expect(second.bridge.getStatus().request?.status).toBe("working");
+    expect(second.bridge.getStatus().request?.status).toBe("delivered");
     await client.callTool({ name: "nudge_release", arguments: { workspaceRoot: paths.first } });
     expect(first.bridge.getStatus().agentClientName).toBeUndefined();
     expect(second.bridge.getStatus().agentClientName).toBe("test");
@@ -160,8 +160,8 @@ describe("reusable MCP adapter", () => {
     const adminRouter = await routing.target({ workspaceRoot: paths.first, sessionId: admin.session.sessionId });
     await expect(siteRouter.getStatus()).resolves.toMatchObject({ projectId: "site" });
     await expect(adminRouter.getStatus()).resolves.toMatchObject({ projectId: "admin" });
-    const sitePairing = site.bridge.pairBrowser(site.session.projectId, site.session.origin);
-    const adminPairing = admin.bridge.pairBrowser(admin.session.projectId, admin.session.origin);
+    const sitePairing = site.bridge.pairBrowser(site.session.origin);
+    const adminPairing = admin.bridge.pairBrowser(admin.session.origin);
     const siteCommand = siteRouter.dispatchCanvasCommand({ type: "read-state", commandId: "site-read" });
     const adminCommand = adminRouter.dispatchCanvasCommand({ type: "read-state", commandId: "admin-read" });
     const acknowledge = async (runtime: ProjectBridgeRuntime, sessionToken: string, commandId: string) => {
@@ -193,9 +193,10 @@ describe("reusable MCP adapter", () => {
     const unreachable = await diagnoseProjectSessions(paths.first, paths.registryRoot);
     expect(unreachable).toMatchObject({ descriptorCount: 1, matchingUnreachableCount: 1, reachableCount: 0 });
     expect(unreachable.guidance.join(" ")).toContain("sandbox");
-    await writeFile(path, JSON.stringify({ ...descriptor, protocolVersion: 999 }), { mode: 0o600 });
+    await writeFile(path, JSON.stringify({ ...descriptor, protocolVersion: 2 }), { mode: 0o600 });
     const incompatible = await diagnoseProjectSessions(paths.first, paths.registryRoot);
     expect(incompatible).toMatchObject({ descriptorCount: 1, incompatibleCount: 1, matchingUnreachableCount: 0 });
+    expect(incompatible.guidance.join(" ")).toContain("Upgrade the reusable adapter");
     expect(JSON.stringify(incompatible)).not.toContain(descriptor.controlToken);
   });
 });

@@ -257,13 +257,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   const nextConfig: NudgeUiNextConfig = { ...source };
 
   // --- transpilePackages -------------------------------------------------
-  // Workspace Nudge UI packages ship raw TypeScript that SWC refuses to
-  // compile from node_modules unless listed (see feature-plan appendix).
-  const nudgeUiPackages = [
-    "nudge-ui",
-    "../../inspector/index.ts",
-    "../../css/index.ts",
-  ];
+  const nudgeUiPackages = ["nudge-ui"];
   const userTranspile = Array.isArray(source.transpilePackages)
     ? source.transpilePackages
     : [];

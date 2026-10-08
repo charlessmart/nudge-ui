@@ -1,4 +1,4 @@
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges } from "../drafts/store.ts";
 import { useSyncExternalStore } from "react";
 import {
   captureViewport,

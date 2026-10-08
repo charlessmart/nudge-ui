@@ -15,12 +15,10 @@ import {
   isCanvasProjectionRevisionCurrent,
   projectToAllReadyCards,
   projectDraftToDocument,
-  PROJECT_ID,
   recordCanvasProjectionApplied,
   sendProjectionToCard,
-  WORKSPACE_ID,
 } from "./projection.ts";
-import { appendChange, clearActiveDraft, getPendingRules } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft, getPendingRules } from "../drafts/store.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
@@ -214,15 +212,6 @@ describe("projection", () => {
     expect(after.revision).toBe(before.revision + 1);
     expect(after.css).toBe("");
     expect(after.structuralChanges).toMatchObject([{ id: "move-2", kind: "move" }]);
-  });
-
-  it("PROJECT_ID is derived from window.location.origin", () => {
-    expect(PROJECT_ID).toBe(window.location.origin);
-  });
-
-  it("WORKSPACE_ID is a non-empty string", () => {
-    expect(typeof WORKSPACE_ID).toBe("string");
-    expect(WORKSPACE_ID.length).toBeGreaterThan(0);
   });
 
   it("frame registry tracks registered iframes", () => {

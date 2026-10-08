@@ -26,6 +26,7 @@ import {
   type AgentCanvasAcknowledgementRequest,
   type PairingResponse,
   type PromptDispatchResponse,
+  deriveConnectionState,
 } from "./protocol.ts";
 
 export type AgentClientState =
@@ -34,6 +35,7 @@ export type AgentClientState =
   | "available"
   | "pairing"
   | "connected"
+  | "delivered"
   | "working"
   | "completed"
   | "failed"
@@ -169,13 +171,6 @@ function setAutoConnectDisabled(projectId: string, disabled: boolean): void {
     // Privacy settings can disable storage. The current document still keeps
     // the explicit disconnect preference in memory.
   }
-}
-
-function statusForConnection(status: AgentStatusSnapshot): AgentStatusSnapshot["connection"] {
-  if (status.connection === "working" || status.request?.status === "working") return "working";
-  if (status.paired) return "paired";
-  if (status.listenerActive) return "listening";
-  return "offline";
 }
 
 function hashRevision(value: string): number {
@@ -398,7 +393,7 @@ export class AgentClient {
     if (!this.enabled || !this.started || this.pairingAbort || this.paired || !this.companionReachable) return false;
     this.autoConnectSuppressed = false;
     setAutoConnectDisabled(this.projectId, false);
-    if (this.connection === "working" || this.activeRequest?.status === "working") return false;
+    if (this.connection === "working" || this.connection === "delivered" || this.activeRequest?.status === "working" || this.activeRequest?.status === "delivered") return false;
     const idleListenerActive = this.listenerActive;
     const idleCompanionReachable = this.companionReachable;
     this.connection = idleListenerActive ? "listening" : "offline";
@@ -475,7 +470,7 @@ export class AgentClient {
   }
 
   /**
-   * Dispatches one immutable prompt revision. The request enters `working`
+   * Dispatches one immutable prompt revision. The request enters `delivered`
    * synchronously, before the transport promise resolves, so the UI cannot
    * issue a second prompt while the first one is in flight.
    */
@@ -485,7 +480,7 @@ export class AgentClient {
     options: { readonly clientDispatchId?: string; readonly attachments?: readonly AgentSketchAttachment[] } = {},
   ): Promise<PromptDispatchResponse | null> {
     if (!this.enabled || !this.started || !this.paired || !this.listenerActive || !this.sessionToken) return null;
-    if (!prompt || this.activeRequest?.status === "working") return null;
+    if (!prompt || this.activeRequest?.status === "working" || this.activeRequest?.status === "delivered") return null;
     const localRequestId = randomId("request");
     const request: AgentPromptDispatch = {
       projectId: this.projectId,
@@ -503,9 +498,9 @@ export class AgentClient {
       ...(changeRevision === undefined ? {} : { changeRevision }),
       ...(options.clientDispatchId === undefined ? {} : { clientDispatchId: options.clientDispatchId }),
       ...(sketches === undefined ? {} : { sketches }),
-      status: "working",
+      status: "delivered",
     };
-    this.connection = "working";
+    this.connection = "delivered";
     this.lastError = undefined;
     this.publish();
     const abortController = new AbortController();
@@ -523,8 +518,9 @@ export class AgentClient {
           }
           : this.activeRequest;
       }
-      if (response?.status && response.status !== "working") {
+      if (response?.status) {
         this.applyRequestStatus(response.status, response.request.requestId);
+        this.publish();
       }
       return response ?? null;
     } catch (error) {
@@ -546,7 +542,7 @@ export class AgentClient {
     if (this.autoConnect) setAutoConnectDisabled(this.projectId, true);
     const token = this.sessionToken;
     const active = this.activeRequest;
-    if (active?.status === "working") {
+    if (active?.status === "working" || active?.status === "delivered") {
       this.activeRequest = { ...active, status: "interrupted", error: reason };
     }
     this.dispatchAbort?.abort();
@@ -591,7 +587,7 @@ export class AgentClient {
           this.publish();
         } else {
           this.companionReachable = true;
-          if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
+          if (this.connection !== "paired" && this.connection !== "working" && this.connection !== "delivered" && !this.pairingAbort) {
             // Discovery is unauthenticated. Another browser tab can own the
             // pairing, so do not adopt `paired` until this tab restores the
             // shared token. The next poll runs restore first in case a sibling
@@ -609,7 +605,7 @@ export class AgentClient {
               && !autoConnectDisabled(this.projectId)) void this.connect();
           }
         }
-      } else if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
+      } else if (this.connection !== "paired" && this.connection !== "working" && this.connection !== "delivered" && !this.pairingAbort) {
         this.connection = "offline";
         this.listenerActive = false;
         this.companionReachable = false;
@@ -619,7 +615,7 @@ export class AgentClient {
         this.publish();
       }
     } catch (error) {
-      if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
+      if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working" && this.connection !== "delivered" && !this.pairingAbort) {
         this.connection = "offline";
         this.listenerActive = false;
         this.companionReachable = false;
@@ -722,7 +718,7 @@ export class AgentClient {
     this.agentClientName = status.agentClientName;
     this.paired = status.paired;
     this.pairedElsewhere = pairedElsewhere;
-    this.connection = statusForConnection(status);
+    this.connection = deriveConnectionState(status);
     if (status.paired && this.discoveryTimer !== null) {
       clearTimeout(this.discoveryTimer);
       this.discoveryTimer = null;
@@ -737,15 +733,15 @@ export class AgentClient {
         status.request.clientDispatchId,
         status.request.sketches,
       );
-    } else if (status.listenerActive && status.paired && this.activeRequest?.status !== "working") {
+    } else if (status.listenerActive && status.paired && this.activeRequest?.status !== "working" && this.activeRequest?.status !== "delivered") {
       // A re-armed MCP listen call is the lifecycle boundary for the previous
       // terminal request. Drop only that terminal status; newer edits remain
       // in the inspector's canonical change log.
       this.activeRequest = null;
-    } else if (this.activeRequest?.status === "working" && status.connection !== "working") {
+    } else if ((this.activeRequest?.status === "working" || this.activeRequest?.status === "delivered") && status.connection !== this.activeRequest.status) {
       // The bridge may omit a request during a brief re-arm transition. Do
       // not mark a local request interrupted until the stream disconnects.
-      this.connection = "working";
+      this.connection = this.activeRequest.status;
     }
     if (!status.paired && this.sessionToken) {
       this.handleDisconnect("The agent bridge pairing expired.");
@@ -775,10 +771,15 @@ export class AgentClient {
     sketches?: readonly AgentSketchMetadata[],
   ): void {
     const active = this.activeRequest;
+    // A dispatch response can arrive after an SSE acknowledgment or outcome.
+    if (status === "delivered" && active && active.status !== "delivered") {
+      this.connection = active.status === "working" ? "working" : this.paired ? "paired" : "offline";
+      return;
+    }
     if (active && active.requestId !== requestId && active.localRequestId !== requestId) {
       // A fresh server id can arrive before the POST response. Associate it
-      // with the one local request that was just marked working.
-      if (active.status !== "working") return;
+      // with the one local request awaiting acknowledgment.
+      if (active.status !== "working" && active.status !== "delivered") return;
       this.activeRequest = { ...active, requestId };
     }
     if (!this.activeRequest) {
@@ -805,7 +806,7 @@ export class AgentClient {
         ...(error === undefined ? {} : { error }),
       };
     }
-    if (status === "working") this.connection = "working";
+    if (status === "working" || status === "delivered") this.connection = status;
     else if (this.paired) this.connection = "paired";
   }
 
@@ -859,6 +860,7 @@ export class AgentClient {
     if (!this.enabled) return "disabled";
     if (this.connection === "offline") return "disconnected";
     if (this.connection === "listening") return "available";
+    if (this.connection === "delivered" || this.activeRequest?.status === "delivered") return "delivered";
     if (this.connection === "working" || this.activeRequest?.status === "working") return "working";
     if (this.activeRequest?.status === "completed") return "completed";
     if (this.activeRequest?.status === "failed") return "failed";
@@ -868,7 +870,13 @@ export class AgentClient {
 
   private publish(stateOverride?: AgentClientState): void {
     this.snapshot = Object.freeze(this.makeSnapshot(stateOverride));
-    synchronizeAgentActivity(this.projectId, this.snapshot.request?.requestId, this.snapshot.paired && this.snapshot.request?.status === "working", this.snapshot.request?.clientDispatchId);
+    synchronizeAgentActivity(
+      this.projectId,
+      this.snapshot.request?.requestId,
+      this.snapshot.paired && this.snapshot.request?.status === "working",
+      this.snapshot.request?.clientDispatchId,
+      this.snapshot.paired && this.snapshot.request?.status === "delivered",
+    );
     for (const listener of this.listeners) listener();
   }
 }

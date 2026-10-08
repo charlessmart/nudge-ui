@@ -3,7 +3,7 @@ import { IconCheck, IconTrash } from "@tabler/icons-react";
 import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
-import { RENDERER_ELEMENT_ID_ATTR } from "../canvas/rendererCidIndex.ts";
+import { measureFrameViewport, toViewportPoint } from "../canvas/frameConnection.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -28,12 +28,10 @@ function anchorFor(iframe: HTMLIFrameElement, element: HTMLElement): Anchor | nu
   if (!element.isConnected || iframe.contentDocument !== element.ownerDocument) return null;
   // Focus view keeps other frames mounted, but their pins must stay hidden.
   if (getComputedStyle(iframe).visibility !== "visible") return null;
-  const frame = iframe.getBoundingClientRect();
+  const frame = measureFrameViewport(iframe);
   const rect = element.getBoundingClientRect();
-  const scale = frame.width / (iframe.clientWidth || frame.width);
-  const left = frame.left + rect.right * scale;
-  const top = frame.top + rect.top * scale;
-  if (top < frame.top || top > frame.bottom || left < frame.left || left > frame.right) return null;
+  const { x: left, y: top } = toViewportPoint(frame, { x: rect.right, y: rect.top });
+  if (top < frame.top || top > frame.top + frame.height || left < frame.left || left > frame.left + frame.width) return null;
   return { left, top };
 }
 
@@ -83,16 +81,15 @@ export function CommentsOverlay(): ReactElement | null {
     return () => window.removeEventListener("keydown", dismissOnEscape, true);
   }, [draft]);
 
-  useEffect(() => subscribeCanvasRendererMessages(({ iframe, message }) => {
+  useEffect(() => subscribeCanvasRendererMessages(({ frame, message }) => {
     if (message.type === "element-click" && isCommentToolActive()) {
-      const element = iframe.contentDocument?.querySelector<HTMLElement>(`[${RENDERER_ELEMENT_ID_ATTR}="${message.elementId}"]`);
-      if (element && element.getAttribute("data-cid") === message.cid && (element.getAttribute("data-src") ?? "") === message.src) {
-        openDraft({ element, iframe });
-      }
+      const element = frame.element(message);
+      if (element) openDraft({ element, iframe: frame.iframe });
     }
     if (message.type === "element-deselect") setDraft(null);
-    if (message.type === "frame-ready" && iframe.contentDocument) {
-      void reconcileComments(iframe.contentDocument).catch(() => undefined);
+    const frameDocument = frame.document();
+    if (message.type === "frame-ready" && frameDocument) {
+      void reconcileComments(frameDocument).catch(() => undefined);
     }
   }), []);
 

@@ -162,6 +162,17 @@ function verifyPackage(packageRoot) {
     );
   }
   if (packageJson.name === "@nudge-ui/mcp") {
+    const expectedExports = [".", "./project"];
+    const actualExports = Object.keys(packageJson.exports ?? {});
+    assert(
+      actualExports.length === expectedExports.length
+        && expectedExports.every((subpath) => actualExports.includes(subpath)),
+      `@nudge-ui/mcp export surface changed: ${actualExports.join(", ")}.`,
+    );
+    assert(
+      tarFile(tarball, "package/dist/cli.mjs").startsWith("#!/usr/bin/env node\n"),
+      "@nudge-ui/mcp bin entry is missing its node shebang.",
+    );
     assert(!entries.includes("package/scripts/postinstall.mjs"), "MCP package must not ship an install-time postinstall script.");
     assert(!entries.some((entry) => entry === "package/dist/registrar.mjs"), "MCP package must not ship the obsolete registrar artifact.");
     assert(!Object.prototype.hasOwnProperty.call(packageJson.exports ?? {}, "./registrar"), "MCP package must not export the obsolete registrar API.");

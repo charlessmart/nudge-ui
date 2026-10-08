@@ -4,15 +4,16 @@ import {
   appendChange,
   appendChanges,
   revertChange,
-  reconcileVerifiedChanges,
+  reconcileDraftChanges,
   clearActiveDraft,
+  getActiveDraftChanges,
   getChangesList,
   getPendingRules,
-  subscribeChanges,
+  subscribeActiveDraftChanges,
   undo,
   redo,
-} from "./changesLog.ts";
-import type { ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
+} from "../drafts/store.ts";
+import type { ComponentChangeRecord, ElementChangeRecord } from "./types.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { makeComponentChange } from "./_testUtils.ts";
 import { changeKey } from "./model.ts";
@@ -65,7 +66,7 @@ function makeInstanceOverride(): RenderedInstanceOverride {
   };
 }
 
-describe("changesLog", () => {
+describe("draft editing and preview", () => {
   beforeEach(() => {
     clearActiveDraft();
     document.getElementById("nudge-ui-styles")?.remove();
@@ -90,7 +91,7 @@ describe("changesLog", () => {
 
   it("subscribe fires when a change is appended", () => {
     let calls = 0;
-    const unsub = subscribeChanges(() => {
+    const unsub = subscribeActiveDraftChanges(() => {
       calls += 1;
     });
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
@@ -211,13 +212,14 @@ describe("changesLog", () => {
     expect(getPendingRules()).toHaveLength(0);
   });
 
-  it("reconcileVerifiedChanges removes only verified records and undo cannot restore them", () => {
+  it("reconcile removes only verified records and undo cannot restore them", () => {
     const verified = makeRecord("background", COLOR_B, COLOR_A);
     const unsent = makeRecord("color", COLOR_C, COLOR_A);
     appendChange(verified);
     appendChange(unsent);
 
-    expect(reconcileVerifiedChanges(new Set([changeKey(verified)]))).toBe(1);
+    const draftId = getActiveDraftChanges().draftId;
+    expect(reconcileDraftChanges(draftId, new Set([changeKey(verified)]), new Set())).toBe(1);
     expect(getChangesList()).toMatchObject([{ property: "color" }]);
 
     expect(undo()).toBe(true);

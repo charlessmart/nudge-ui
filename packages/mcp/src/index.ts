@@ -1,8 +1,5 @@
 export {
-  createAgentCompanion,
   createDiscoveredAgentAdapter,
-  type AgentCompanion,
-  type AgentCompanionOptions,
   type DiscoveredAgentAdapter,
 } from "./server.ts";
 export {
@@ -23,14 +20,12 @@ export {
   type BrowserBridge,
   type BrowserBridgeOptions,
   type BridgeAddress,
-  type BridgeClock,
-  type CanvasCommandInput,
 } from "./bridge.ts";
 export {
-  openPairedPage,
-  parseCliArguments,
-  runCli,
-  type CliOptions,
-  type PageLaunchDependencies,
-} from "./cli.ts";
+  BridgeSessionError,
+  type BridgeClock,
+  type BridgeSessionErrorCode,
+  type CanvasCommandInput,
+  type ListenOptions,
+} from "./bridgeSession.ts";
 export * from "./protocol.ts";

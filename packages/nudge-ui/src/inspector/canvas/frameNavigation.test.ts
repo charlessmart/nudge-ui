@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, it } from "vitest";
 import { addCanvasCard, getCanvasCards, hydrateCanvasStore, addCanvasIteration, findCardByNormalizedUrl, activateIframeWorkspace, updateCardUrl } from "./canvasStore.ts";
-import { clearSessionUndoHistory, resetDraftChanges } from "../changes/draftChanges.ts";
+import { resetDrafts } from "../drafts/store.ts";
+import { clearSessionUndoHistory } from "../workspace/timeline.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 
-beforeEach(() => { hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 }); resetDraftChanges(); clearSessionUndoHistory(); });
+beforeEach(() => { hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 }); resetDrafts(); clearSessionUndoHistory(); });
 
 it("does not mistake an HTML iteration for a live route", () => {
   const source = addCanvasCard(new URL("/", window.location.origin).href);

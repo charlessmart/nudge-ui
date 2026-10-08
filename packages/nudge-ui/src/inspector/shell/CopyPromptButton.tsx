@@ -11,10 +11,10 @@ import {
   IconPlugConnected,
   IconSend,
 } from "@tabler/icons-react";
-import { useChanges } from "../changes/changesLog.ts";
+import { useChanges } from "../drafts/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
 import { loadCustomInstructions, saveCustomInstructions } from "../prompt/promptSettings.ts";
-import { getAgentConnectionStatus } from "../agent/connectionStatus.ts";
+import { useAgentConnectionStatus } from "../agent/connectionStatus.ts";
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog.tsx";
 import { Button } from "../ui/Button.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
@@ -171,16 +171,18 @@ export function CopyPromptButton({
   }, [agent.request?.changeRevision, agent.request?.requestId, agent.request?.clientDispatchId, agent.request?.sketches, agent.request?.status]);
 
   const connecting = agent.state === "pairing";
+  const delivered = agent.state === "delivered" || agent.request?.status === "delivered";
   const working = agent.state === "working" || agent.request?.status === "working";
   const canConnect = agent.companionReachable
     && agent.listenerActive
     && !agent.paired
     && !connecting
-    && !working;
-  const canSend = agent.paired && agent.listenerActive && !working;
+    && !working
+    && !delivered;
+  const canSend = agent.paired && agent.listenerActive && !working && !delivered;
   const changeCount = countPromptChanges(changes, structuralChanges, canSend ? pendingSketches.length : 0) + comments.length;
-  const disabled = preparing || connecting || working || (!canConnect && !hasChanges);
-  const agentStatus = getAgentConnectionStatus(agent);
+  const disabled = preparing || connecting || working || delivered || (!canConnect && !hasChanges);
+  const agentStatus = useAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
 
   const label = preparing
@@ -189,19 +191,21 @@ export function CopyPromptButton({
     ? "Copied!"
     : connecting
       ? "Connecting…"
-      : working
-        ? "Agent working…"
-        : canConnect && !activeArtifactId
-          ? "Connect agent"
-          : canSend && !activeArtifactId
-            ? "Send prompt"
-            : "Copy prompt";
+      : delivered
+        ? "Awaiting agent…"
+        : working
+          ? "Agent working…"
+          : canConnect && !activeArtifactId
+            ? "Connect agent"
+            : canSend && !activeArtifactId
+              ? "Send prompt"
+              : "Copy prompt";
 
   const icon = copied
     ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
     : !activeArtifactId && (canConnect || connecting)
       ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-      : !activeArtifactId && (canSend || working)
+      : !activeArtifactId && (canSend || working || delivered)
         ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
         : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
 

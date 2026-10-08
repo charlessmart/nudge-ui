@@ -6,7 +6,7 @@ import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
-import { undo, redo } from "../changes/changesLog.ts";
+import { undo, redo } from "../drafts/store.ts";
 import {
   makeSelected,
   mount,
@@ -722,6 +722,47 @@ describe("TokenField", () => {
     act(() => {
       (handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement).click();
     });
+
+    expect(handle.host.querySelector('[data-test="raw-input"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+  });
+
+  it("detaches with Backspace while the token menu search is empty", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+      chipVariant: "small",
+    }));
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    const search = document.querySelector('[data-test="token-chip-search"]') as HTMLInputElement;
+    act(() => {
+      search.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+    });
+
+    expect(handle.host.querySelector('[data-test="raw-input"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+  });
+
+  it("detaches from the first token menu item", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+      chipVariant: "small",
+    }));
+    expect(handle.host.querySelector('[data-test="delink-btn"]')).toBeNull();
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    const items = document.querySelectorAll(".popover-listbox__item");
+    expect(items[0]?.getAttribute("data-test")).toBe("detach-token-item");
+    expect(items[0]?.textContent).toContain("Detach token");
+    act(() => (items[0] as HTMLElement).click());
 
     expect(handle.host.querySelector('[data-test="raw-input"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();

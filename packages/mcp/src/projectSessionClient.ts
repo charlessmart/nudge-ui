@@ -1,13 +1,18 @@
-import type { AgentActivity } from "@nudge-ui/agent-protocol";
 import { randomUUID } from "node:crypto";
+import {
+  decodeAgentStatusSnapshot,
+  isAgentDeliveredPrompt,
+  isCanvasCommandResult,
+} from "@nudge-ui/agent-protocol";
 import type {
-  AgentPromptRequest,
+  AgentActivity,
+  AgentDeliveredPrompt,
   AgentStatusSnapshot,
   AgentStatusUpdate,
   CanvasCommand,
   CanvasCommandResult,
 } from "@nudge-ui/agent-protocol";
-import type { CanvasCommandInput } from "./bridge.ts";
+import type { CanvasCommandInput } from "./bridgeSession.ts";
 import type { StoredProjectSession } from "./project.ts";
 import { AGENT_CONTROL_ENDPOINTS } from "./protocol.ts";
 
@@ -38,9 +43,28 @@ interface RequestOptions {
   readonly timeoutMs?: number | null;
 }
 
+/** Returns the decoded response body, or null when its shape is invalid. */
+type ResponseDecoder<T> = (body: unknown) => T | null;
+
+const ignoreBody: ResponseDecoder<void> = () => undefined;
+
+function decodeSessionHealth(body: unknown): SessionHealth | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const health = body as Record<string, unknown>;
+  const status = decodeAgentStatusSnapshot(health.status);
+  if (typeof health.projectId !== "string" || health.available !== true
+    || typeof health.claimed !== "boolean" || !status) return null;
+  return { projectId: health.projectId, available: true, claimed: health.claimed, status };
+}
+
+function guarded<T>(guard: (body: unknown) => body is T): ResponseDecoder<T> {
+  return (body) => guard(body) ? body : null;
+}
+
 async function requestJson<T>(
   session: StoredProjectSession,
   path: string,
+  decode: ResponseDecoder<T>,
   init: RequestInit = {},
   { signal, timeoutMs = CONTROL_TIMEOUT_MS }: RequestOptions = {},
 ): Promise<T> {
@@ -54,21 +78,27 @@ async function requestJson<T>(
       ...init.headers,
     },
   });
-  const body = await response.json().catch(() => undefined) as { error?: { message?: string } } | undefined;
+  const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
+    const error = (body as { error?: { message?: unknown } } | undefined)?.error;
     throw new ProjectSessionResponseError(
       response.status,
-      body?.error?.message ?? `Nudge project bridge returned ${response.status}.`,
+      typeof error?.message === "string" ? error.message : `Nudge project bridge returned ${response.status}.`,
     );
   }
-  return body as T;
+  const decoded = decode(body);
+  if (decoded === null) {
+    throw new ProjectSessionResponseError(response.status, `Nudge project bridge returned an invalid ${path} response.`);
+  }
+  return decoded;
 }
 
+/** Reads and validates a bridge's health; an invalid body is a classified response error. */
 export async function readSessionHealth(
   session: StoredProjectSession,
   timeoutMs = CONTROL_TIMEOUT_MS,
 ): Promise<SessionHealth> {
-  return await requestJson(session, AGENT_CONTROL_ENDPOINTS.health, {}, { timeoutMs });
+  return await requestJson(session, AGENT_CONTROL_ENDPOINTS.health, decodeSessionHealth, {}, { timeoutMs });
 }
 
 /** Owns one project's claim, heartbeat, and authenticated control requests. */
@@ -85,18 +115,18 @@ export class ProjectSessionClient {
     this.agentId = agentId;
   }
 
-  private async send<T>(path: string, payload = {}, options?: RequestOptions): Promise<T> {
-    return await requestJson<T>(this.descriptor, path, {
+  private async send<T>(path: string, decode: ResponseDecoder<T>, payload = {}, options?: RequestOptions): Promise<T> {
+    return await requestJson(this.descriptor, path, decode, {
       method: "POST",
       body: JSON.stringify({ agentId: this.agentId, ...payload }),
     }, options);
   }
 
   private async acquireClaim(): Promise<void> {
-    await this.send(AGENT_CONTROL_ENDPOINTS.claim);
+    await this.send(AGENT_CONTROL_ENDPOINTS.claim, ignoreBody);
     this.claimed = true;
     this.heartbeat = setInterval(() => {
-      void this.send(AGENT_CONTROL_ENDPOINTS.heartbeat).catch(() => undefined);
+      void this.send(AGENT_CONTROL_ENDPOINTS.heartbeat, ignoreBody).catch(() => undefined);
     }, 10_000);
     this.heartbeat.unref();
   }
@@ -113,9 +143,19 @@ export class ProjectSessionClient {
     }
   }
 
-  async waitForPrompt(signal?: AbortSignal, agentClientName?: string): Promise<AgentPromptRequest> {
+  async waitForPrompt(signal?: AbortSignal, agentClientName?: string): Promise<AgentDeliveredPrompt> {
     await this.claim();
-    return await this.send(AGENT_CONTROL_ENDPOINTS.listen, { agentClientName }, { signal, timeoutMs: null });
+    return await this.send(
+      AGENT_CONTROL_ENDPOINTS.listen,
+      guarded(isAgentDeliveredPrompt),
+      { agentClientName },
+      { signal, timeoutMs: null },
+    );
+  }
+
+  async getRequest(requestId: string): Promise<AgentDeliveredPrompt> {
+    await this.claim();
+    return await this.send(AGENT_CONTROL_ENDPOINTS.request, guarded(isAgentDeliveredPrompt), { requestId });
   }
 
   async getStatus(): Promise<AgentStatusSnapshot> {
@@ -125,18 +165,23 @@ export class ProjectSessionClient {
 
   async reportActivity(activity: AgentActivity): Promise<void> {
     await this.claim();
-    await this.send(AGENT_CONTROL_ENDPOINTS.activity, { activity });
+    await this.send(AGENT_CONTROL_ENDPOINTS.activity, ignoreBody, { activity });
   }
 
   async updateRequestStatus(update: AgentStatusUpdate): Promise<AgentStatusSnapshot> {
     await this.claim();
-    return await this.send(AGENT_CONTROL_ENDPOINTS.reportStatus, { update });
+    return await this.send(AGENT_CONTROL_ENDPOINTS.reportStatus, decodeAgentStatusSnapshot, { update });
   }
 
   async dispatchCanvasCommand(input: CanvasCommandInput): Promise<CanvasCommandResult> {
     await this.claim();
     const command = { ...input, commandId: input.commandId ?? randomUUID() } as CanvasCommand;
-    return await this.send(AGENT_CONTROL_ENDPOINTS.canvas, { command }, { timeoutMs: CANVAS_TIMEOUT_MS });
+    return await this.send(
+      AGENT_CONTROL_ENDPOINTS.canvas,
+      guarded(isCanvasCommandResult),
+      { command },
+      { timeoutMs: CANVAS_TIMEOUT_MS },
+    );
   }
 
   async close(): Promise<void> {
@@ -146,6 +191,6 @@ export class ProjectSessionClient {
     this.claimed = false;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
-    await this.send(AGENT_CONTROL_ENDPOINTS.release).catch(() => undefined);
+    await this.send(AGENT_CONTROL_ENDPOINTS.release, ignoreBody).catch(() => undefined);
   }
 }

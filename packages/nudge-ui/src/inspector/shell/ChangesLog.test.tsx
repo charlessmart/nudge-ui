@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { appendChange, clearActiveDraft } from "../changes/changesLog.ts";
+import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import {
   createStructuralDelete,
   createStructuralMove,
@@ -190,6 +190,7 @@ describe("ChangesLog", () => {
     target.dataset.src = "src/List.tsx:8:1";
     document.body.appendChild(target);
     createStructuralDelete(target, "delete-item");
+    resetStructuralDeleteProjection();
     recordCanvasStructuralProjectionReports("card-1", 1, [{
       changeId: "delete-item",
       status: "missing",

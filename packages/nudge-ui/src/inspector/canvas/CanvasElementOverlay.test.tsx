@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { clearActiveDraft, getChangesList, undo } from "../changes/changesLog.ts";
+import { clearActiveDraft, getChangesList, undo } from "../drafts/store.ts";
 import {
   cancelInlineTextEdit,
   getInlineTextDiagnostic,
@@ -16,12 +16,8 @@ import {
   PROTOCOL_VERSION,
   type FrameIdentity,
 } from "./frameProtocol.ts";
-import {
-  PROJECT_ID,
-  WORKSPACE_ID,
-  registerCardFrame,
-  unregisterCardFrame,
-} from "./projection.ts";
+import { registerCardFrame, unregisterCardFrame } from "./projection.ts";
+import { PROJECT_ID, WORKSPACE_ID } from "./frameConnection.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

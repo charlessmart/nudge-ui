@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setStyle, setStyles, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
-import { redo, undo } from "../changes/changesLog.ts";
+import { redo, undo } from "../drafts/store.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";

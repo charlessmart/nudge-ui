@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getSelectedElement, getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 import { PROTOCOL_VERSION, type ElementClickMessage } from "./frameProtocol.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
+import { connectFrame } from "./frameConnection.ts";
 
 function createFrame(): HTMLIFrameElement {
   const iframe = document.createElement("iframe");
@@ -45,7 +46,7 @@ describe("handleElementClick", () => {
 
     expect(button instanceof window.HTMLElement).toBe(false);
 
-    handleElementClick(clickMessage(), iframe, "card-1");
+    handleElementClick(clickMessage(), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()?.domElement).toBe(button);
     expect(getSelectedElement()?.domElement.ownerDocument).toBe(frameDocument);
@@ -59,7 +60,7 @@ describe("handleElementClick", () => {
     button.setAttribute("data-renderer-id", "r1");
     frameDocument.body.appendChild(button);
 
-    handleElementClick(clickMessage({ src: "" }), iframe, "card-1");
+    handleElementClick(clickMessage({ src: "" }), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()?.domElement).toBe(button);
     expect(getSelectedElement()?.src).toBe("");
@@ -96,7 +97,7 @@ describe("handleElementClick", () => {
       overrides: new FrameMap(),
     });
 
-    handleElementClick(clickMessage(), iframe, "card-1");
+    handleElementClick(clickMessage(), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()?.componentTargets).toMatchObject([{
       framework: "react",
@@ -108,14 +109,14 @@ describe("handleElementClick", () => {
   it("does not counterfeit a selection with the iframe body when identity is stale", () => {
     const iframe = createFrame();
 
-    handleElementClick(clickMessage(), iframe, "card-1");
+    handleElementClick(clickMessage(), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()).toBeNull();
   });
 
   it("fails closed when the renderer identity is missing", () => {
     const iframe = createFrame();
-    handleElementClick(clickMessage({ elementId: "r404" }), iframe, "card-1");
+    handleElementClick(clickMessage({ elementId: "r404" }), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()).toBeNull();
   });
@@ -134,7 +135,7 @@ describe("handleElementClick", () => {
     }
 
     frameDocument.body.prepend(buttons[1]!);
-    handleElementClick(clickMessage({ elementId: "r2" }), iframe, "card-1");
+    handleElementClick(clickMessage({ elementId: "r2" }), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()?.domElement).toBe(buttons[1]);
   });
@@ -151,8 +152,8 @@ describe("handleElementClick", () => {
       return button;
     });
 
-    handleElementClick(clickMessage({ elementId: "r1" }), iframe, "card-1");
-    handleElementClick(clickMessage({ elementId: "r2", additive: true }), iframe, "card-1");
+    handleElementClick(clickMessage({ elementId: "r1" }), connectFrame("card-1", iframe));
+    handleElementClick(clickMessage({ elementId: "r2", additive: true }), connectFrame("card-1", iframe));
 
     expect(getSelectedElements().map((selected) => selected.domElement)).toEqual(buttons);
     expect(getSelectedElement()?.domElement).toBe(buttons[1]);
@@ -167,7 +168,7 @@ describe("handleElementClick", () => {
     button.setAttribute("data-renderer-id", "r1");
     frameDocument.body.appendChild(button);
 
-    handleElementClick(clickMessage({ elementId: "r2" }), iframe, "card-1");
+    handleElementClick(clickMessage({ elementId: "r2" }), connectFrame("card-1", iframe));
 
     expect(getSelectedElement()).toBeNull();
   });
@@ -183,11 +184,11 @@ describe("handleElementClick", () => {
       frameDocument.body.appendChild(button);
     }
 
-    handleElementClick(clickMessage(), iframe, "card-1");
+    handleElementClick(clickMessage(), connectFrame("card-1", iframe));
     expect(getSelectedElement()).toBeNull();
 
     frameDocument.body.lastElementChild?.remove();
-    handleElementClick(clickMessage(), iframe, "card-1");
+    handleElementClick(clickMessage(), connectFrame("card-1", iframe));
     expect(getSelectedElement()?.domElement).toBe(frameDocument.body.firstElementChild);
   });
 });

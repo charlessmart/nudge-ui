@@ -16,7 +16,7 @@ import {
   getInlineTextDiagnostic,
   getInlineTextSession,
 } from "../inline-text/inlineTextEditor.ts";
-import { clearActiveDraft } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../drafts/store.ts";
 
 // jsdom marks every dispatched event untrusted; tests choose which clicks count as a person's.
 const clickPolicy = { userClick: true };

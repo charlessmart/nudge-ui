@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { useSyncExternalStore } from "react";
-import type { ChangeRecord } from "../changes/changesLog.ts";
-import { isPreviewableChange, isTokenChange } from "../changes/changesLog.ts";
+import { isPreviewableChange, isTokenChange, type ChangeRecord } from "../changes/types.ts";
 import { changeKey } from "../changes/model.ts";
 import {
   getAnyPreviewDiagnostic,

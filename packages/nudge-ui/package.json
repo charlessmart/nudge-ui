@@ -80,7 +80,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:unit:watch": "vitest --config vitest.unit.config.ts",
-    "test:ui-integration": "vitest run src/inspector/styleEditors/LayoutSection.test.tsx src/inspector/styleEditors/LayoutComboField.test.tsx src/inspector/tokens/TokenDropdown.test.tsx src/inspector/ui/ui.test.tsx src/inspector/styleEditors/LayoutDropdown.test.tsx src/inspector/tokens/TokenField.test.tsx src/inspector/styleEditors/Typography.test.tsx src/inspector/styleEditors/BorderEditor.test.tsx src/inspector/styleEditors/AspectRatioField.test.tsx",
+    "test:ui-integration": "vitest run --config vitest.ui.config.ts",
     "test:unit:full": "vitest run"
   },
   "dependencies": {

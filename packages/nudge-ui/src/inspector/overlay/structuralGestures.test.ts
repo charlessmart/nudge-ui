@@ -9,7 +9,7 @@ import {
   nudgeElement,
 } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { clearActiveDraft } from "../changes/changesLog.ts";
+import { clearActiveDraft } from "../drafts/store.ts";
 import { getStructuralChangeDiagnostics, getStructuralChanges, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 function fixture() {

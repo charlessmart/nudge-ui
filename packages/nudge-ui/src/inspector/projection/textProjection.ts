@@ -1,5 +1,5 @@
 import type { FrameProjection } from "../canvas/projection.ts";
-import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import {
@@ -9,12 +9,12 @@ import {
   type TextProjectionTarget,
   type TextProjectionScope,
   type TextBindingEvidence,
-} from "../inline-text/textChangeBoundary.ts";
+} from "../changes/editModel.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
 
 /** Strict JSON boundary guard for a text projection target. */
 export const isTextProjectionTarget = isTextProjectionTargetValue;
-export type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+export type { TextProjectionTarget } from "../changes/editModel.ts";
 
 /** Raw report shape at the renderer postMessage boundary. */
 interface TextProjectionReportObject {
@@ -270,16 +270,27 @@ export function resolveTextProjectionTextNode(
   return matches.length === 1 ? matches[0]! : null;
 }
 
-function hasSafeMixedDescendants(element: HTMLElement): boolean {
+/** Whether an element's text is code, form state, or other non-prose content. */
+export function isUnsafeTextHost(element: Element): boolean {
+  return UNSAFE_TEXT_TAGS.has(element.tagName);
+}
+
+/** Whether an application-owned editing region contains the element. */
+export function isInApplicationEditingHost(element: Element): boolean {
+  const editingHost = element.closest<HTMLElement>("[contenteditable]");
+  return Boolean(editingHost
+    && editingHost.getAttribute("data-inline-editor") !== "true"
+    && editingHost.getAttribute("contenteditable") !== "false");
+}
+
+/** Whether replacing one text node inside the element keeps its authored markup. */
+export function hasSafeMixedDescendants(element: HTMLElement): boolean {
   // <br> only controls line layout. The projection targets one exact text
   // node, so keeping the break while changing that node is safe; formatting
   // descendants below still reject a flattening text projection.
   for (const descendant of Array.from(element.querySelectorAll<HTMLElement>("*"))) {
     if (UNSAFE_MIXED_DESCENDANT_TAGS.has(descendant.tagName)) return false;
-    const editingHost = descendant.closest<HTMLElement>("[contenteditable]");
-    if (editingHost
-      && editingHost.getAttribute("data-inline-editor") !== "true"
-      && editingHost.getAttribute("contenteditable") !== "false") return false;
+    if (isInApplicationEditingHost(descendant)) return false;
   }
   return true;
 }
@@ -289,11 +300,7 @@ function textHostIsSafe(
   allowEmpty = false,
   target?: Pick<TextProjectionTarget, "textNodePath"> & Partial<Pick<TextProjectionTarget, "beforeText">>,
 ): boolean {
-  if (UNSAFE_TEXT_TAGS.has(element.tagName)) return false;
-  const editingHost = element.closest<HTMLElement>("[contenteditable]");
-  if (editingHost
-    && editingHost.getAttribute("data-inline-editor") !== "true"
-    && editingHost.getAttribute("contenteditable") !== "false") return false;
+  if (isUnsafeTextHost(element) || isInApplicationEditingHost(element)) return false;
   if (allowEmpty && element.childNodes.length === 0) return true;
   if (target?.textNodePath) {
     const textNode = nodeAtPath(element, target.textNodePath)

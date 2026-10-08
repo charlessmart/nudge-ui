@@ -7,6 +7,7 @@ import {
   resetReactComponentRuntime,
 } from "../componentSemantics/reactRuntime.tsx";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
+import { resetDrafts } from "../drafts/store.ts";
 import { captureStructuralTarget, resolveRenderedInstance } from "./renderedInstance.ts";
 import {
   applyStructuralProjection,
@@ -58,6 +59,7 @@ describe("structural delete of a shared component's root", () => {
   }
 
   beforeEach(() => {
+    resetDrafts();
     resetStructuralDeleteProjection();
     resetReactComponentRuntime();
     document.body.replaceChildren();

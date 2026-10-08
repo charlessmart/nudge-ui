@@ -40,8 +40,11 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
 }
 
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
-  const delink = page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="delink-btn"]');
-  if (await delink.count()) await delink.click();
+  const chip = page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="token-chip"]');
+  if (await chip.count()) {
+    await chip.click();
+    await page.locator('[data-test="detach-token-item"]').click();
+  }
   await page.evaluate((v) => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(

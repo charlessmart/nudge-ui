@@ -7,9 +7,15 @@ import {
 } from "../canvas/canvasStore.ts";
 import { subscribeCanvasView } from "../canvas/viewStore.ts";
 import { loadComments } from "../comments/store.ts";
-import { loadDrafts, activateDraft, activateDraftForCard, draftIdForCard, subscribeDrafts } from "../drafts/store.ts";
+import {
+  loadDrafts,
+  activateDraft,
+  activateDraftForCard,
+  draftIdForCard,
+  getActiveDraftChanges,
+  subscribeDrafts,
+} from "../drafts/store.ts";
 import { applicationTarget, targetKey } from "../drafts/model.ts";
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
 import {
   hydrateSession,
   enableAutoSave,

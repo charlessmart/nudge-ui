@@ -6,7 +6,8 @@ import { interpretTokenValue } from "../../css/value-semantics/tokenInterpretati
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { colorValueToHex, TokenValueField } from "../tokens/TokenField.tsx";
 import { setStyles } from "../tokens/editActions.ts";
-import { createChangeHistoryGroup, getActiveDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges } from "../drafts/store.ts";
+import { createChangeHistoryGroup } from "../workspace/timeline.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { IconButton } from "../ui/IconButton.tsx";

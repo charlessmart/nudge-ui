@@ -1,7 +1,7 @@
 import { changeKey } from "../changes/model.ts";
-import { commitDraftContents, type ChangeRecord } from "../changes/changesLog.ts";
+import { commitDraftContents, getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
+import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
-import { getActiveDraftChanges, getDraftChanges } from "../changes/draftChanges.ts";
 import { unchangedHandoffRecords, type HandoffSnapshot } from "../agent/verification.ts";
 import { getClipboardHandoffRecords } from "../prompt/clipboardHandoff.ts";
 import { getComments, getCommentsForTarget, removeComment, saveComment, type ElementComment } from "../comments/store.ts";

@@ -1,29 +1,12 @@
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, parse } from "node:path";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { StartProjectBridge } from "@nudge-ui/agent-protocol";
+import { findProjectMcpRoot } from "../project/mcpPackage.ts";
 
 export interface ProjectBridgeBrowserConfig {
   readonly baseUrl: string;
   readonly autoConnect: true;
-}
-
-interface ProjectBridgeRuntime {
-  readonly browser: {
-    readonly projectId: string;
-    readonly origin: string;
-    readonly bridgeUrl: string;
-  };
-  close(): Promise<void>;
-}
-
-interface ProjectBridgeModule {
-  startProjectBridge(options: {
-    appRoot: string;
-    projectId: string;
-    origin: string;
-    allowedOrigins?: readonly string[];
-  }): Promise<ProjectBridgeRuntime>;
 }
 
 const runningBridges = new Map<
@@ -64,7 +47,7 @@ async function launchOptionalProjectBridge(
 ): Promise<{ browser: ProjectBridgeBrowserConfig; close(): Promise<void> } | null> {
   let modulePath: string;
   try {
-    if (!isPnpRuntime() && !hasProjectInstalledMcp(input.appRoot)) {
+    if (findProjectMcpRoot(input.appRoot) === null) {
       runningBridges.delete(key);
       return null;
     }
@@ -75,7 +58,7 @@ async function launchOptionalProjectBridge(
   }
 
   try {
-    const loaded = await import(pathToFileURL(modulePath).href) as Partial<ProjectBridgeModule>;
+    const loaded = await import(pathToFileURL(modulePath).href) as { startProjectBridge?: StartProjectBridge };
     if (typeof loaded.startProjectBridge !== "function") {
       throw new Error("the project bridge export is unavailable");
     }
@@ -105,20 +88,6 @@ async function launchOptionalProjectBridge(
     input.warn?.(`[nudge-ui] MCP project bridge failed to start: ${detail}`);
     runningBridges.delete(key);
     return null;
-  }
-}
-
-function isPnpRuntime(): boolean {
-  return typeof (process.versions as NodeJS.ProcessVersions & { pnp?: unknown }).pnp === "string";
-}
-
-function hasProjectInstalledMcp(appRoot: string): boolean {
-  let directory = appRoot;
-  const root = parse(directory).root;
-  for (;;) {
-    if (existsSync(join(directory, "node_modules", "@nudge-ui", "mcp", "package.json"))) return true;
-    if (directory === root) return false;
-    directory = dirname(directory);
   }
 }
 

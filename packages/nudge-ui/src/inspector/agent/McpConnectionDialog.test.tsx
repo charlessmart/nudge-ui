@@ -103,6 +103,21 @@ describe("McpConnectionDialog", () => {
     expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("false");
   });
 
+  it("shows delivered requests as awaiting acknowledgment instead of working", () => {
+    act(() => root.render(
+      <McpConnectionDialog
+        open projectId="fixture-project" origin="http://localhost:5173"
+        snapshot={snapshot({ state: "delivered", connection: "delivered", paired: true,
+          request: { requestId: "delivered-request", status: "delivered" } })}
+        onOpenChange={() => undefined} onConnect={() => undefined} onTakeOver={() => undefined}
+        onDisconnect={() => undefined} onCheckAgain={async () => undefined}
+      />,
+    ));
+    expect(document.body.querySelector('[data-test="mcp-connection-status"]')?.textContent)
+      .toContain("Awaiting agent acknowledgment");
+    expect(document.body.querySelector('[data-test="mcp-disconnect"]')).not.toBeNull();
+  });
+
   it("offers idle pairing and connection recovery as rendered actions", async () => {
     const onConnect = vi.fn(() => Promise.resolve(true));
     const onDisconnect = vi.fn();

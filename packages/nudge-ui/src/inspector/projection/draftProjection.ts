@@ -17,7 +17,7 @@ import { componentChangeToOverride } from "../componentSemantics/changeModel.ts"
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import { isComponentChange, type TextContentChangeRecord } from "../changes/types.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
-import type { DraftContents } from "../changes/draftChanges.ts";
+import type { DraftContents } from "../drafts/model.ts";
 
 export interface DraftProjectionSource extends DraftContents {
   readonly revision: number;

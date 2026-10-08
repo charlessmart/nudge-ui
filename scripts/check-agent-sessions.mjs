@@ -25,7 +25,7 @@ async function verifyAgentSession() {
     await prepareProject(root);
     await connectAdapter(client, root);
     // The adapter must start successfully before the project is running.
-    await callTool(client, 'nudge_list_sessions');
+    await callTool(client, 'nudge_list_sessions', { workspaceRoot: root });
 
     server = createStandaloneServer({ rootDirectory: root, port: 0 });
     const address = await server.start();
@@ -34,7 +34,7 @@ async function verifyAgentSession() {
       body: { origin: browser.origin, pageUrl: `${browser.origin}/index.html` },
     });
     const session = await findProjectSession(client, root);
-    await verifyPromptHandoff(client, browser, session.sessionId, pairing.sessionToken);
+    await verifyPromptHandoff(client, browser, { workspaceRoot: root, sessionId: session.sessionId }, pairing.sessionToken);
 
     await client.close();
     await server.close();
@@ -62,7 +62,7 @@ async function prepareProject(root) {
 async function connectAdapter(client, root) {
   await client.connect(new StdioClientTransport({
     command: process.execPath,
-    args: [join(repositoryRoot, 'packages/mcp/dist/cli.mjs'), '--workspace-root', root],
+    args: [join(repositoryRoot, 'packages/mcp/dist/cli.mjs')],
     cwd: root,
     stderr: 'pipe',
   }));
@@ -78,7 +78,7 @@ async function readBrowserConnection(origin) {
 }
 
 async function findProjectSession(client, root) {
-  const payload = await callTool(client, 'nudge_list_sessions');
+  const payload = await callTool(client, 'nudge_list_sessions', { workspaceRoot: root });
   const sessions = Array.isArray(payload) ? payload : payload.sessions;
   const session = sessions.find((item) => item.appRoot === root);
   assert.ok(session?.matchesWorkspace, JSON.stringify(payload));
@@ -86,8 +86,8 @@ async function findProjectSession(client, root) {
   return session;
 }
 
-async function verifyPromptHandoff(client, browser, sessionId, sessionToken) {
-  const listening = callTool(client, 'nudge_listen', { sessionId });
+async function verifyPromptHandoff(client, browser, scope, sessionToken) {
+  const listening = callTool(client, 'nudge_listen', scope);
   // Observe rejection immediately while waiting for the listener's health signal.
   void listening.catch(() => undefined);
   await waitForListener(browser);
@@ -97,7 +97,16 @@ async function verifyPromptHandoff(client, browser, sessionId, sessionToken) {
   });
   const request = await listening;
   assert.equal(request.prompt, 'Change the fixture heading spacing.');
+  const delivered = await callTool(client, 'nudge_get_status', scope);
+  assert.equal(delivered.request.status, 'delivered');
+  const recovered = await callTool(client, 'nudge_get_request', { ...scope, requestId: request.requestId });
+  assert.equal(recovered.requestId, request.requestId);
+  assert.equal(recovered.prompt, request.prompt);
+  await callTool(client, 'nudge_report_status', { ...scope, requestId: request.requestId, status: 'working' });
+  const working = await callTool(client, 'nudge_get_status', scope);
+  assert.equal(working.request.status, 'working');
   await callTool(client, 'nudge_report_status', {
+    ...scope,
     requestId: request.requestId,
     status: 'completed',
     summary: 'Fixture verified',

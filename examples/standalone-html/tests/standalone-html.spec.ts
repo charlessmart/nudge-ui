@@ -34,7 +34,8 @@ async function setRawValue(
   await expect(field).toBeVisible();
   const raw = field.locator('[data-test="raw-input"]');
   if (await raw.count() === 0) {
-    await field.locator('[data-test="delink-btn"]').click();
+    await field.locator('[data-test="token-chip"]').click();
+    await page.locator('[data-test="detach-token-item"]').click();
     await expect(raw).toHaveCount(1);
   }
   await raw.evaluate((element, nextValue) => {

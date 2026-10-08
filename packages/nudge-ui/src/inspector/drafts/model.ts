@@ -1,5 +1,12 @@
 import { normalizeUrl, normalizedUrlKey } from "../canvas/normalizeUrl.ts";
-import type { DraftContents } from "../changes/draftChanges.ts";
+import type { ChangeRecord } from "../changes/types.ts";
+import type { StructuralChange } from "../changes/structuralTypes.ts";
+
+/** The canonical intent of one draft: ordinary records and structural records. */
+export interface DraftContents {
+  readonly changes: readonly ChangeRecord[];
+  readonly structuralChanges: readonly StructuralChange[];
+}
 
 export type DraftTarget =
   | { readonly kind: "application"; readonly route: string }

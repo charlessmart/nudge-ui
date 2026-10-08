@@ -32,7 +32,7 @@ function startPromptListener(bridge: BrowserBridge): PromptListener {
   const abort = new AbortController();
   return {
     abort,
-    promise: bridge.waitForPrompt(abort.signal).catch(() => null),
+    promise: bridge.waitForPrompt({ signal: abort.signal }).catch(() => null),
   };
 }
 
@@ -97,7 +97,7 @@ test.describe("Nudge MCP browser bridge", () => {
     await expect.poll(() => bridge.getStatus().paired).toBe(true);
     expect(bridge.getStatus().listenerActive).toBe(false);
     await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy prompt");
-    await expect(connectionStatus).toContainText("Project connected · Ask agent to listen");
+    await expect(connectionStatus).toContainText("MCP Ready - Ask agent to listen");
 
     const listener = startPromptListener(bridge);
     try {
@@ -123,7 +123,7 @@ test.describe("Nudge MCP browser bridge", () => {
     const button = page.locator('[data-test="settings-button"]');
     await expect(button.locator(".agent-status-button__avatar")).toHaveCount(3);
     const firstAbort = new AbortController();
-    const first = bridge.waitForPrompt(firstAbort.signal, undefined, "codex-mcp-client").catch(() => null);
+    const first = bridge.waitForPrompt({ signal: firstAbort.signal, agentClientName: "codex-mcp-client" }).catch(() => null);
     const secondAbort = new AbortController();
     let second: Promise<PromptRequest | null> | undefined;
     try {
@@ -134,7 +134,7 @@ test.describe("Nudge MCP browser bridge", () => {
 
       firstAbort.abort();
       await first;
-      second = bridge.waitForPrompt(secondAbort.signal, undefined, "unrecognized-client").catch(() => null);
+      second = bridge.waitForPrompt({ signal: secondAbort.signal, agentClientName: "unrecognized-client" }).catch(() => null);
       await expect(button.getByRole("img", { name: "Agent", exact: true })).toBeVisible();
       await expect(button.locator(".agent-status-button__avatar .tabler-icon-robot")).toBeVisible();
       await expect(button.locator(".agent-status-button__avatar")).toHaveCount(1);
@@ -172,7 +172,10 @@ test.describe("Nudge MCP browser bridge", () => {
     expect(request.prompt).toContain("# Requested design changes");
     expect(request.prompt).toContain("## Structural changes");
     expect(request.changeRevision).toEqual(expect.any(Number));
-    expect(bridge.getStatus().request?.status).toBe("working");
+    expect(bridge.getStatus().request?.status).toBe("delivered");
+    await expect(send).toContainText("Awaiting agent");
+    bridge.updateRequestStatus({ requestId: request.requestId, status: "working" });
+    await expect(send).toContainText("Agent working");
 
     bridge.updateRequestStatus({
       requestId: request.requestId,
@@ -205,6 +208,7 @@ test.describe("Nudge MCP browser bridge", () => {
     await page.locator('[data-test="copy-prompt"]').click();
     const request = await activeListener!.promise;
     if (!request) throw new Error("No browser request was delivered.");
+    bridge.updateRequestStatus({ requestId: request.requestId, status: "working" });
     const labels = page.locator(".canvas-agent-activity__label");
     await expect(labels).toHaveText(["Agent working…", "Agent working…"]);
     bridge.reportActivity({ requestId: request.requestId, operation: "read", file: match[1]! });

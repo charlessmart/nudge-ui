@@ -6,7 +6,7 @@ import type {
   TextContentChangeRecord,
 } from "../changes/types.ts";
 import type { StructuralDelete } from "../changes/structuralTypes.ts";
-import type { DraftChangesSnapshot } from "../changes/draftChanges.ts";
+import type { DraftChangesSnapshot } from "../drafts/draftStore.ts";
 import {
   applyDraftProjection,
   compileDraftProjection,

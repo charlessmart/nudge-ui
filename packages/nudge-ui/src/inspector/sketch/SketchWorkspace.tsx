@@ -1,5 +1,5 @@
 import { assignSketchToDraft } from "../drafts/store.ts";
-import { getActiveDraftChanges } from "../changes/draftChanges.ts";
+import { getActiveDraftChanges } from "../drafts/store.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { renderAnnotatedPng } from "./raster.ts";

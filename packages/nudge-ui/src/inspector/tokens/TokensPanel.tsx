@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "../../css/model/index.ts";
-import { isTokenChange, useChanges } from "../changes/changesLog.ts";
-import type { TokenChangeRecord } from "../changes/changesLog.ts";
+import { isTokenChange, type TokenChangeRecord } from "../changes/types.ts";
+import { useChanges } from "../drafts/store.ts";
 import { TextInput } from "../ui/TextInput.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";

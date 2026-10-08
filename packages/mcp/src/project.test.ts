@@ -3,18 +3,20 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import type { AgentDeliveredPrompt, AgentStatusUpdate } from "@nudge-ui/agent-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DiscoveredProjectRouter, discoverProjectSessions } from "./discovery.ts";
+import { AdapterRouting } from "./adapterRouting.ts";
+import { discoverProjectSessions } from "./discovery.ts";
 import { defaultSessionRegistryRoot, startProjectBridge, type ProjectBridgeRuntime } from "./project.ts";
 
 const running: ProjectBridgeRuntime[] = [];
-const routers: DiscoveredProjectRouter[] = [];
-const listeners: ReturnType<DiscoveredProjectRouter["waitForPrompt"]>[] = [];
+const adapters: AdapterRouting[] = [];
+const listeners: Promise<AgentDeliveredPrompt>[] = [];
 const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   try {
-    await Promise.all(routers.splice(0).map((router) => router.close()));
+    await Promise.all(adapters.splice(0).map((adapter) => adapter.close()));
   } finally {
     await Promise.all(running.splice(0).map((runtime) => runtime.close()));
     await Promise.allSettled(listeners.splice(0));
@@ -31,7 +33,7 @@ async function fixture(name: string): Promise<{ registryRoot: string; workspaceR
 }
 
 async function dispatch(runtime: ProjectBridgeRuntime, prompt: string): Promise<Response> {
-  const pairing = runtime.bridge.pairBrowser(runtime.session.projectId, runtime.session.origin);
+  const pairing = runtime.bridge.pairBrowser(runtime.session.origin);
   return await fetch(`${runtime.address.url}/prompt`, {
     method: "POST",
     headers: { Origin: runtime.session.origin, "Content-Type": "application/json" },
@@ -43,13 +45,21 @@ async function dispatch(runtime: ProjectBridgeRuntime, prompt: string): Promise<
   });
 }
 
-async function createRouter(workspaceRoot: string, registryRoot: string): Promise<DiscoveredProjectRouter> {
-  const router = await DiscoveredProjectRouter.create(workspaceRoot, registryRoot);
-  routers.push(router);
-  return router;
+/** One MCP adapter whose tool calls all name the same workspace path. */
+function createAgent(workspaceRoot: string, registryRoot: string) {
+  const adapter = new AdapterRouting(registryRoot);
+  adapters.push(adapter);
+  const target = (sessionId?: string) => adapter.target({ workspaceRoot, sessionId });
+  return {
+    waitForPrompt: async (signal?: AbortSignal, sessionId?: string) => await (await target(sessionId)).waitForPrompt(signal),
+    getStatus: async () => await (await target()).getStatus(),
+    updateRequestStatus: async (update: AgentStatusUpdate) => await (await target()).updateRequestStatus(update),
+    release: async () => await (await target()).release(),
+    close: () => adapter.close(),
+  };
 }
 
-function trackListener(request: ReturnType<DiscoveredProjectRouter["waitForPrompt"]>) {
+function trackListener(request: Promise<AgentDeliveredPrompt>) {
   // Observe errors immediately, including when readiness fails before the test awaits the request.
   void request.catch(() => undefined);
   listeners.push(request);
@@ -104,7 +114,7 @@ describe("project-owned MCP sessions", () => {
     expect((await stat(descriptor)).mode & 0o077).toBe(0);
     expect(JSON.parse(await readFile(descriptor, "utf8"))).toHaveProperty("controlToken");
 
-    const router = await createRouter(first.workspaceRoot, first.registryRoot);
+    const router = createAgent(first.workspaceRoot, first.registryRoot);
     await expect(router.waitForPrompt(undefined, secondRuntime.session.sessionId))
       .rejects.toThrow("not live in this exact workspace");
     const listening = trackListener(router.waitForPrompt());
@@ -163,8 +173,8 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("claim");
     const runtime = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(runtime);
-    const owner = await createRouter(paths.workspaceRoot, paths.registryRoot);
-    const competitor = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const owner = createAgent(paths.workspaceRoot, paths.registryRoot);
+    const competitor = createAgent(paths.workspaceRoot, paths.registryRoot);
     const listening = trackListener(owner.waitForPrompt());
     await waitForListener(runtime);
 
@@ -183,8 +193,8 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("release");
     const runtime = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(runtime);
-    const owner = await createRouter(paths.workspaceRoot, paths.registryRoot);
-    const replacement = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const owner = createAgent(paths.workspaceRoot, paths.registryRoot);
+    const replacement = createAgent(paths.workspaceRoot, paths.registryRoot);
     const abandonedListener = trackListener(owner.waitForPrompt());
     await waitForListener(runtime);
 
@@ -202,7 +212,7 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("restart");
     const first = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(first);
-    const router = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const router = createAgent(paths.workspaceRoot, paths.registryRoot);
     await router.getStatus();
     await first.close();
     running.splice(running.indexOf(first), 1);
@@ -213,7 +223,7 @@ describe("project-owned MCP sessions", () => {
     await waitForListener(restarted);
     expect((await dispatch(restarted, "Request after restart")).status).toBe(202);
     await expect(listening).resolves.toMatchObject({ prompt: "Request after restart" });
-    expect(restarted.bridge.getStatus().request).toMatchObject({ status: "working" });
+    expect(restarted.bridge.getStatus().request).toMatchObject({ status: "delivered" });
     await router.close();
   });
 
@@ -272,10 +282,10 @@ describe("project-owned MCP sessions", () => {
       port: 0,
     });
     running.push(site, admin);
-    const router = await createRouter(otherApp, paths.registryRoot);
+    const router = createAgent(otherApp, paths.registryRoot);
 
     await expect(router.getStatus()).resolves.toMatchObject({ projectId: "admin" });
-    const sessions = await router.listSessions();
+    const sessions = await discoverProjectSessions(otherApp, paths.registryRoot);
     expect(sessions.find((session) => session.sessionId === admin.session.sessionId)?.claimed).toBe(false);
     expect(sessions.find((session) => session.sessionId === site.session.sessionId)?.claimed).toBe(false);
     await router.close();
@@ -294,7 +304,7 @@ describe("project-owned MCP sessions", () => {
       port: 0,
     });
     running.push(admin);
-    const siteRouter = await createRouter(paths.appRoot, paths.registryRoot);
+    const siteRouter = createAgent(paths.appRoot, paths.registryRoot);
 
     await expect(siteRouter.getStatus()).rejects.toThrow("exact application");
     await expect(siteRouter.waitForPrompt(undefined, admin.session.sessionId)).rejects.toThrow("exact application");
@@ -308,7 +318,7 @@ describe("project-owned MCP sessions", () => {
     running.push(runtime);
     const descriptorPath = join(paths.registryRoot, `${runtime.session.sessionId}.json`);
     const staleDescriptor = await readFile(descriptorPath, "utf8");
-    const router = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const router = createAgent(paths.workspaceRoot, paths.registryRoot);
     const abort = new AbortController();
     const listening = trackListener(router.waitForPrompt(abort.signal));
     await waitForListener(runtime);

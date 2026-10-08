@@ -1,4 +1,4 @@
-import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/changesLog.ts";
+import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/types.ts";
 import type {
   ChangeRecord,
   ComponentChangeRecord,
@@ -6,10 +6,10 @@ import type {
   PreviewableChangeRecord,
   TokenChangeRecord,
   TextContentChangeRecord,
-} from "../changes/changesLog.ts";
+} from "../changes/types.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
-import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+import type { TextProjectionTarget } from "../changes/editModel.ts";
 import { canonicalizeChanges, changeKey, tokenReference } from "../changes/model.ts";
 import { getAnyPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import {

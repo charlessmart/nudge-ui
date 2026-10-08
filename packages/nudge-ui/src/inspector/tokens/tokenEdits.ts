@@ -1,5 +1,5 @@
-import { appendChange } from "../changes/changesLog.ts";
-import type { TokenChangeRecord } from "../changes/changesLog.ts";
+import { appendChange } from "../drafts/store.ts";
+import type { TokenChangeRecord } from "../changes/types.ts";
 import type { TokenCatalogRow } from "./catalog.ts";
 
 export function setGlobalTokenValue(row: TokenCatalogRow, value: string): TokenChangeRecord | null {

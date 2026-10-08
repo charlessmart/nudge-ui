@@ -1,6 +1,7 @@
 import type { FrameContent } from "./frameContent.ts";
 import { iterationId, contentSourceUrl, contentEditTarget } from "./frameContent.ts";
-import { recordCanvasChange, discardCanvasHistory, isDraftLocked, forgetDraft } from "../changes/draftChanges.ts";
+import { isDraftLocked, forgetDraft } from "../drafts/store.ts";
+import { recordCanvasChange, discardCanvasHistory } from "../workspace/timeline.ts";
 import { targetKey } from "../drafts/model.ts";
 import { useSyncExternalStore } from "react";
 import {
@@ -490,6 +491,39 @@ export function useFocusedCardId(): string | null {
 export function setCardPosition(id: string, x: number, y: number): void {
   cards = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
   notify();
+}
+
+function cardGeometry(id: string): FrameGeometry | null {
+  const card = cards.find((candidate) => candidate.id === id);
+  return card ? { x: card.x, y: card.y, width: card.width, height: card.height } : null;
+}
+
+/**
+ * Starts a user move or resize. The returned commit records the whole gesture
+ * as one undo step; programmatic placement through `setCardPosition` and
+ * `resizeCard` stays out of history.
+ */
+export function beginCardGeometryChange(id: string): () => void {
+  const before = cardGeometry(id);
+  let committed = false;
+  return () => {
+    if (committed || !before) return;
+    committed = true;
+    const after = cardGeometry(id);
+    if (!after || (after.x === before.x && after.y === before.y && after.width === before.width && after.height === before.height)) return;
+    const restore = (geometry: FrameGeometry) => {
+      if (!cards.some((card) => card.id === id)) return;
+      cards = cards.map((card) => card.id === id ? { ...card, ...geometry } : card);
+      selectCard(id);
+      activateHistoryCard(id);
+    };
+    recordCanvasChange({
+      cardIds: [id],
+      undo: () => restore(before),
+      redo: () => restore(after),
+      dispose: () => undefined,
+    });
+  };
 }
 
 export function hydrateCanvasStore(

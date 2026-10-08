@@ -2,10 +2,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { activateIframeWorkspace, addCanvasIteration, hydrateCanvasStore } from "../canvas/canvasStore.ts";
 import { computeProjectionForCard, resetProjectionRevision, registerCardFrame, unregisterCardFrame, sendProjectionToCard, projectDraftToDocument, projectToAllReadyCards, recordCanvasProjectionApplied, getCanonicalFrameProjection } from "../canvas/projection.ts";
-import { draftChangeStore } from "../changes/draftChanges.ts";
 import type { TextContentChangeRecord } from "../changes/types.ts";
 import { getTextContentChangeDiagnostics, recordCanvasTextProjectionReports, resetTextProjectionState } from "../projection/textProjection.ts";
-import { loadDrafts, activateDraftForCard, getDraftForCard, assignSketchToDraft, sketchBelongsToCard, resetDrafts } from "./store.ts";
+import { loadDrafts, activateDraftForCard, appendChanges, getDraftForCard, assignSketchToDraft, sketchBelongsToCard, resetDrafts } from "./store.ts";
 import type { SketchDocument } from "../sketch/model.ts";
 
 const artifactId = "550e8400-e29b-41d4-a716-446655440000";
@@ -33,7 +32,7 @@ function frames() {
   const live = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
   loadDrafts("projection", { persistent: false });
   activateDraftForCard(live.id);
-  draftChangeStore.commitChangeRecords([text("live-text")]);
+  appendChanges([text("live-text")]);
   const iteration = addCanvasIteration(live.id, artifactId)!;
   return { live, iteration };
 }
@@ -41,14 +40,14 @@ function frames() {
 it("accepts an inactive iteration's reports against its own projection and shows them only for that draft", () => {
   const { live, iteration } = frames();
   activateDraftForCard(iteration.id);
-  draftChangeStore.commitChangeRecords([text("iteration-text")]);
+  appendChanges([text("iteration-text")]);
   const iterationPlan = computeProjectionForCard(iteration.id);
   activateDraftForCard(live.id);
   recordCanvasTextProjectionReports(iteration.id, iterationPlan.revision, [{ changeId: "iteration-text", status: "missing" }], iterationPlan);
   expect(getTextContentChangeDiagnostics("iteration-text")).toEqual([]);
   activateDraftForCard(iteration.id);
   expect(getTextContentChangeDiagnostics("iteration-text")).toMatchObject([{ status: "missing" }]);
-  draftChangeStore.commitChangeRecords([{ ...text("iteration-text"), after: "Newer" }]);
+  appendChanges([{ ...text("iteration-text"), after: "Newer" }]);
   expect(getTextContentChangeDiagnostics("iteration-text")).toEqual([]);
 });
 

@@ -4,10 +4,11 @@
   flex: 1;
   min-width: 0;
   background: var(--surface-raised-2x);
-  margin-right: calc(var(--space-8) * -1);
+  box-shadow: var(--shadow-control);
+  margin-right: calc((var(--space-8) - var(--control-surface-inset, 2px)) * -1);
   align-self: stretch;
   padding-left: var(--space-8);
-  border-radius: calc(var(--radius-control) - 2px);
+  border-radius: calc(var(--radius-control) - var(--control-surface-inset, 2px));
   overflow: hidden;
 }
 
@@ -25,6 +26,8 @@
 
 .token-chip--small {
   flex: 0 1 auto;
+  margin-right: 0;
+  padding-right: var(--space-8);
 }
 
 .token-chip--small > .popover-listbox {
@@ -51,6 +54,8 @@
 
 .token-chip--small .token-chip__trigger {
   width: auto;
+  /* A button's auto width never shrinks below its text; cap it so the label ellipsizes. */
+  max-width: 100%;
 }
 
 .token-chip__picker {
@@ -66,6 +71,7 @@
 .token-chip--small .token-chip__picker {
   display: inline-flex;
   width: auto;
+  max-width: 100%;
   gap: 3px;
 }
 
@@ -110,13 +116,4 @@
 .token-chip:hover > .token-chip__action,
 .token-chip:focus-within > .token-chip__action {
   opacity: 1;
-}
-
-.token-chip--small > .token-chip__action {
-  position: relative;
-  top: auto;
-  right: auto;
-  flex: 0 0 auto;
-  margin-left: 2px;
-  transform: none;
 }
