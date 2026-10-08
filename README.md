@@ -5,7 +5,7 @@ Nudge is a development-only visual inspector that turns browser edits into
 prompts for your coding agent. Inspect a running app, preview design changes,
 add comments and sketches, and copy a structured prompt or send it through MCP.
 
-![Nudge UI visual inspector](https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74)
+<img width="1706" height="1181" alt="Nudge" src="https://github.com/user-attachments/assets/aae1df09-a2cc-4a59-a52a-8063418b2891" />
 
 ## Get started
 
