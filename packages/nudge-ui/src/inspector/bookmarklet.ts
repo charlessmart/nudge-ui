@@ -4,9 +4,21 @@
  * Everything a host normally supplies is derived from the live document:
  * runtime identity is assigned lazily under the pointer, and tokens come from
  * readable stylesheets plus the root's computed custom properties. Source locations,
- * component semantics, Canvas, and the agent bridge are unavailable.
+ * component semantics, iterations, and the agent bridge are unavailable.
+ *
+ * When the page allows same-origin framing, the bookmarklet turns the page
+ * into the iframe editor and injects itself into each renderer frame, so the
+ * full Canvas overlay is available. Otherwise it edits the page in place.
  */
-import { bootstrapNudgeUi, configureNudgeUiRuntime, setInspectorOpen, toggleInspector } from "./index.ts";
+import {
+  bootstrapNudgeUi,
+  configureNudgeUiRuntime,
+  createNudgeUiEditorUrl,
+  isCanvasRenderer,
+  setInspectorOpen,
+  toggleInspector,
+} from "./index.ts";
+import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
@@ -17,6 +29,8 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_BOOKMARKLET__";
 const COMPUTED_ROOT_ID = "computed:root";
+// Read synchronously: `document.currentScript` is only set while the bundle first evaluates.
+const BUNDLE_URL = document.currentScript instanceof HTMLScriptElement ? document.currentScript.src : null;
 
 interface BookmarkletWindow extends Window {
   [LOADED_FLAG]?: true;
@@ -157,6 +171,98 @@ function createMountElement(): HTMLElement {
   return mount;
 }
 
+function runtimeConfig(
+  canvas: boolean,
+  tokens: Partial<Pick<NudgeUiRuntimeConfig, "tokenCatalog" | "tokens" | "tokenDiagnostics" | "tokenGeneration">>,
+): NudgeUiRuntimeConfig {
+  return {
+    projectId: `bookmarklet:${location.origin}`,
+    host: "static-html",
+    framework: "HTML",
+    stylingSystem: "CSS custom properties",
+    capabilities: { canvas, componentSemantics: false, domNavigation: true },
+    features: { canvasIterations: false },
+    componentContracts: [],
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    ...tokens,
+  };
+}
+
+/** Whether the page's own response headers allow a same-origin frame. */
+async function allowsSameOriginFraming(): Promise<boolean> {
+  try {
+    const response = await fetch(location.href, { method: "HEAD", credentials: "include", cache: "no-store" });
+    const frameOptions = response.headers.get("x-frame-options")?.toLowerCase() ?? "";
+    if (frameOptions.includes("deny")) return false;
+    const frameAncestors = /frame-ancestors([^;]*)/i.exec(response.headers.get("content-security-policy") ?? "")?.[1];
+    return frameAncestors === undefined || /'self'|\*/.test(frameAncestors) || frameAncestors.includes(location.origin);
+  } catch {
+    return true;
+  }
+}
+
+/** Replaces the visible page with the editor while the application reloads in its frames. */
+function enterEditorDocument(): HTMLElement {
+  history.replaceState(history.state, "", createNudgeUiEditorUrl(location.href));
+  document.documentElement.setAttribute("data-nudge-ui-editor", "");
+  const style = document.createElement("style");
+  style.setAttribute("data-nudge-ui", "bookmarklet-editor");
+  style.textContent = `body > :not(#${MOUNT_ID}) { display: none !important; }`
+    + `html, body, #${MOUNT_ID} { width: 100%; height: 100%; margin: 0; overflow: hidden; }`;
+  document.head.append(style);
+  return createMountElement();
+}
+
+/** Loads this bundle into every Canvas renderer frame after each navigation. */
+function injectIntoRendererFrames(mount: HTMLElement): void {
+  const root = mount.shadowRoot;
+  if (!root || !BUNDLE_URL) return;
+  const bundleUrl = BUNDLE_URL;
+  const watched = new WeakSet<HTMLIFrameElement>();
+  const inject = (frame: HTMLIFrameElement): void => {
+    const frameDocument = frame.contentDocument;
+    if (!frameDocument?.head || frameDocument.location.href === "about:blank") return;
+    if (frameDocument.querySelector("script[data-nudge-ui-bookmarklet]")) return;
+    const script = frameDocument.createElement("script");
+    script.src = bundleUrl;
+    script.setAttribute("data-nudge-ui-bookmarklet", "");
+    frameDocument.head.append(script);
+  };
+  const watch = (): void => {
+    for (const frame of root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`)) {
+      if (watched.has(frame)) continue;
+      watched.add(frame);
+      frame.addEventListener("load", () => inject(frame));
+      inject(frame);
+    }
+  };
+  new MutationObserver(watch).observe(root, { childList: true, subtree: true });
+  watch();
+}
+
+async function startController(): Promise<void> {
+  const tokens = await collectDocumentTokens();
+  const editor = await allowsSameOriginFraming();
+  configureNudgeUiRuntime(runtimeConfig(editor, tokens));
+  if (editor) {
+    const mount = enterEditorDocument();
+    bootstrapNudgeUi(mount);
+    injectIntoRendererFrames(mount);
+  } else {
+    installLazyRuntimeIdentity(document);
+    bootstrapNudgeUi(createMountElement());
+    setInspectorOpen(true);
+  }
+  console.info(
+    `[nudge-ui] Bookmarklet loaded in ${editor ? "editor" : "in-page"} mode with ${tokens.tokenCatalog.length} tokens`
+      + (tokens.tokenDiagnostics.length > 0 ? ` and ${tokens.tokenDiagnostics.length} stylesheet diagnostics.` : "."),
+    tokens.tokenDiagnostics,
+  );
+}
+
 async function start(): Promise<void> {
   const target = window as BookmarkletWindow;
   if (target[LOADED_FLAG]) {
@@ -164,27 +270,15 @@ async function start(): Promise<void> {
     return;
   }
   target[LOADED_FLAG] = true;
-
-  const tokens = await collectDocumentTokens();
-  installLazyRuntimeIdentity(document);
   setNudgeUiHostDevFlag(true);
-  configureNudgeUiRuntime({
-    projectId: `bookmarklet:${location.origin}`,
-    host: "static-html",
-    framework: "HTML",
-    stylingSystem: "CSS custom properties",
-    capabilities: { canvas: false, componentSemantics: false, domNavigation: true },
-    features: { canvasIterations: false },
-    componentContracts: [],
-    ...tokens,
-  });
-  bootstrapNudgeUi(createMountElement());
-  setInspectorOpen(true);
-  console.info(
-    `[nudge-ui] Bookmarklet loaded with ${tokens.tokenCatalog.length} tokens`
-      + (tokens.tokenDiagnostics.length > 0 ? ` and ${tokens.tokenDiagnostics.length} stylesheet diagnostics.` : "."),
-    tokens.tokenDiagnostics,
-  );
+
+  if (isCanvasRenderer()) {
+    installLazyRuntimeIdentity(document);
+    configureNudgeUiRuntime(runtimeConfig(true, {}));
+    bootstrapNudgeUi(createMountElement());
+    return;
+  }
+  await startController();
 }
 
 void start().catch((error: unknown) => {

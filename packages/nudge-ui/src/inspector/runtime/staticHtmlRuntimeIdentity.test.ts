@@ -110,9 +110,9 @@ describe("static HTML runtime identity", () => {
 });
 
 describe("lazy runtime identity", () => {
-  it("tags only the pointer target, its ancestors, and two levels of descendants", () => {
+  it("tags only the pointer target, its ancestors, siblings, and two levels of descendants", () => {
     document.body.innerHTML = [
-      "<main><section><div id=\"target\"><p><span><em>deep</em></span></p></div></section>",
+      "<main><section><div id=\"target\"><p><span><em>deep</em></span></p></div><nav>sibling</nav></section>",
       "<aside>untouched</aside></main>",
     ].join("");
     dispose = installLazyRuntimeIdentity();
@@ -120,7 +120,7 @@ describe("lazy runtime identity", () => {
     document.getElementById("target")!.dispatchEvent(new Event("pointerover", { bubbles: true }));
 
     const tagged = (selector: string): boolean => document.querySelector(selector)!.hasAttribute("data-cid");
-    expect(["main", "section", "#target", "p", "span"].every(tagged)).toBe(true);
+    expect(["main", "section", "#target", "nav", "p", "span"].every(tagged)).toBe(true);
     expect(tagged("em")).toBe(false);
     expect(tagged("aside")).toBe(false);
   });

@@ -165,7 +165,8 @@ const LAZY_DESCENDANT_DEPTH = 2;
 
 /**
  * Assigns runtime identity only to elements the pointer reaches: the target,
- * its ancestors, and two levels of descendants for the DOM navigator.
+ * its ancestors, two levels of descendants for the DOM navigator, and its
+ * siblings, which structural moves capture as anchors.
  *
  * Unlike `installStaticHtmlRuntimeIdentity`, nothing observes DOM mutations,
  * so a busy application pays no cost for subtrees nobody inspects. Install it
@@ -191,6 +192,7 @@ export function installLazyRuntimeIdentity(doc: Document = document): () => void
       ensureIdentity(current);
     }
     tagDescendants(target, LAZY_DESCENDANT_DEPTH);
+    if (target.parentElement) tagDescendants(target.parentElement, 1);
   }
 
   for (const type of LAZY_IDENTITY_EVENTS) doc.addEventListener(type, onPointer, true);
