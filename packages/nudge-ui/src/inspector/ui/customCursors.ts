@@ -91,21 +91,36 @@ const SKETCH_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" fill=
 </defs>
 </svg>`;
 
-function cursorDataUrl(svg: string): string {
+export type CursorImage = "design-select" | "drag" | "sketch" | "comment";
+
+/**
+ * Base URL for cursor image files, set on `globalThis` before the bundle
+ * evaluates. Pages whose `img-src` blocks `data:` cannot load the default
+ * images; the Chrome extension serves the files from its own origin instead.
+ */
+const CURSOR_IMAGE_BASE = (globalThis as { __NUDGE_UI_CURSOR_IMAGE_BASE__?: unknown }).__NUDGE_UI_CURSOR_IMAGE_BASE__;
+
+function cursorImageUrl(name: CursorImage, svg: string): string {
+  if (typeof CURSOR_IMAGE_BASE === "string") return `${CURSOR_IMAGE_BASE}${name}.svg`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-export const DESIGN_SELECT_CURSOR_URL = cursorDataUrl(DESIGN_SELECT_CURSOR_SVG);
-export const DRAG_CURSOR_URL = cursorDataUrl(DRAG_CURSOR_SVG);
-export const SKETCH_CURSOR_URL = cursorDataUrl(SKETCH_CURSOR_SVG);
+export const DESIGN_SELECT_CURSOR_URL = cursorImageUrl("design-select", DESIGN_SELECT_CURSOR_SVG);
+export const DRAG_CURSOR_URL = cursorImageUrl("drag", DRAG_CURSOR_SVG);
+export const SKETCH_CURSOR_URL = cursorImageUrl("sketch", SKETCH_CURSOR_SVG);
 
 export const DESIGN_SELECT_CURSOR = `url("${DESIGN_SELECT_CURSOR_URL}") 3 4, default`;
+
 /** Cursor SVGs are separate images, so resolve CSS tokens before encoding them. */
 export function createCommentCursor(tokenSource?: Element | null): string {
+  return `url("${cursorImageUrl("comment", commentCursorSvg(tokenSource))}") 3 20, crosshair`;
+}
+
+function commentCursorSvg(tokenSource?: Element | null): string {
   const styles = tokenSource?.ownerDocument.defaultView?.getComputedStyle(tokenSource);
   const token = (name: string): string => styles?.getPropertyValue(name).trim()
     || foundationStyles.match(new RegExp(`${name}:\\s*([^;]+);`))![1]!.trim();
-  const svg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#comment-clip)"><g filter="url(#comment-shadow)">
 <path d="M4.3 16.1L3 20L7.7 19C11.659 20.922 16.608 19.942 19.274 16.707C21.94 13.472 21.5 8.983 18.245 6.206C14.99 3.43 9.926 3.225 6.4 5.726C2.874 8.228 1.976 12.663 4.3 16.1Z" fill="${token("--text-primary")}" stroke="${token("--surface-raised-2x")}" stroke-width="${token("--icon-stroke-width")}" stroke-linecap="round" stroke-linejoin="round"/>
 </g></g>
@@ -121,7 +136,16 @@ export function createCommentCursor(tokenSource?: Element | null): string {
 </filter>
 <clipPath id="comment-clip"><rect width="24" height="24" fill="white"/></clipPath>
 </defs></svg>`;
-  return `url("${cursorDataUrl(svg)}") 3 20, crosshair`;
+}
+
+/** Image files for hosts that serve cursors from a base URL; the comment cursor uses default tokens. */
+export function cursorImageFiles(): Record<CursorImage, string> {
+  return {
+    "design-select": DESIGN_SELECT_CURSOR_SVG,
+    drag: DRAG_CURSOR_SVG,
+    sketch: SKETCH_CURSOR_SVG,
+    comment: commentCursorSvg(),
+  };
 }
 
 export const COMMENT_CURSOR = createCommentCursor();

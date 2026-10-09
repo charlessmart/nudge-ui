@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { IconArtboard, IconBoltFilled, IconSparkles } from "@tabler/icons-react";
 import { useCanvasPresentation } from "../canvas/viewStore.ts";
 import { Disclosure } from "../ui/Disclosure.tsx";
-import gridIllustration from "../ui/assets/grid.svg";
+import { GRID_ILLUSTRATION_SVG } from "../ui/assets/gridIllustration.ts";
 import { getPlatformModifierKey, isMacPlatform } from "./shortcuts.ts";
 
 export function EmptyState(): ReactElement {
@@ -25,7 +25,7 @@ export function EmptyState(): ReactElement {
         </div>
       ) : (
         <>
-          <img className="empty-state__icon" src={gridIllustration} alt="" aria-hidden="true" />
+          <span className="empty-state__icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: GRID_ILLUSTRATION_SVG }} />
           <h2 className="empty-state__title">Select an element to edit</h2>
         </>
       )}

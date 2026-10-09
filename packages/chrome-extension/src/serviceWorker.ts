@@ -1,4 +1,11 @@
-import { BOOT_GLOBAL, PAGE_INSPECTOR_GLOBAL, siteKeyPrefix, type ExtensionBoot } from "./protocol.ts";
+import {
+  BOOT_GLOBAL,
+  CURSOR_IMAGE_BASE_GLOBAL,
+  CURSOR_IMAGE_DIRECTORY,
+  PAGE_INSPECTOR_GLOBAL,
+  siteKeyPrefix,
+  type ExtensionBoot,
+} from "./protocol.ts";
 
 const INSPECTOR_BUNDLE = "nudge-ui.js";
 const STORAGE_BRIDGE = "storage-bridge.js";
@@ -12,8 +19,15 @@ function toggleLoadedInspector(handleName: string): boolean {
   return true;
 }
 
-function publishBoot(bootName: string, boot: ExtensionBoot): void {
-  (window as unknown as Record<string, ExtensionBoot>)[bootName] = boot;
+function publishBoot(globals: Record<string, unknown>): void {
+  Object.assign(window, globals);
+}
+
+// `getURL` returns the per-session `use_dynamic_url` ID only for paths that
+// match a web-accessible entry, so resolve a file rather than the directory.
+function cursorImageBase(): string {
+  const file = "design-select.svg";
+  return chrome.runtime.getURL(`${CURSOR_IMAGE_DIRECTORY}${file}`).slice(0, -file.length);
 }
 
 async function readSiteStorage(origin: string): Promise<Record<string, string>> {
@@ -37,7 +51,8 @@ async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<v
     if (!tab.url) throw new Error("the tab URL is unavailable");
     const boot: ExtensionBoot = { storage: await readSiteStorage(new URL(tab.url).origin) };
     await chrome.scripting.executeScript({ target, files: [STORAGE_BRIDGE] });
-    await chrome.scripting.executeScript({ target, world: "MAIN", func: publishBoot, args: [BOOT_GLOBAL, boot] });
+    const globals = { [BOOT_GLOBAL]: boot, [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
+    await chrome.scripting.executeScript({ target, world: "MAIN", func: publishBoot, args: [globals] });
     await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
   }
   await chrome.action.setBadgeText({ tabId: tab.id, text: "" });

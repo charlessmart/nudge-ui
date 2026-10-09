@@ -38,5 +38,12 @@ await build({
   format: "esm",
 });
 
+const { cursorImageFiles } = await import("nudge-ui/internal/cursor-images");
+const cursorDirectory = resolve(outputDirectory, "cursors");
+mkdirSync(cursorDirectory);
+for (const [name, svg] of Object.entries(cursorImageFiles())) {
+  writeFileSync(resolve(cursorDirectory, `${name}.svg`), svg);
+}
+
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "src/manifest.json"), "utf8"));
 writeFileSync(resolve(outputDirectory, "manifest.json"), `${JSON.stringify({ ...manifest, version }, null, 2)}\n`);
