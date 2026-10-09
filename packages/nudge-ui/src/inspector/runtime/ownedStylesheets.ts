@@ -53,6 +53,14 @@ export function adoptStylesheet(root: StyleRoot, key: string, cssText: string): 
   return sheet;
 }
 
+/** The key a sheet was adopted under, or null for sheets the page adopted itself. */
+export function adoptedStylesheetKey(root: StyleRoot, sheet: CSSStyleSheet): string | null {
+  for (const [key, candidate] of adoptedSheets.get(root) ?? []) {
+    if (candidate === sheet) return key;
+  }
+  return null;
+}
+
 export function getAdoptedStylesheet(root: StyleRoot, key: string): CSSStyleSheet | null {
   return adoptedSheets.get(root)?.get(key) ?? null;
 }
