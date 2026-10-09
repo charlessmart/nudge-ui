@@ -358,4 +358,14 @@ export function startCanvasRenderer(options: Pick<PageInspectorOptions, "adoptSt
   installLazyRuntimeIdentity(document);
   configureNudgeUiRuntime(runtimeConfig(NO_TOKENS));
   bootstrapNudgeUi(createMount());
+  // Renderers inspect their own elements, so they need this document's tokens.
+  const collectTokens = (): void => {
+    void collectDocumentTokens(document).then((tokens) => {
+      if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
+        configureNudgeUiRuntime(runtimeConfig(tokens));
+      }
+    });
+  };
+  collectTokens();
+  if (document.readyState !== "complete") window.addEventListener("load", collectTokens, { once: true });
 }
