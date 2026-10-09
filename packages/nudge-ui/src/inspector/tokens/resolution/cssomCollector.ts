@@ -1,4 +1,5 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
+import { resolveNestedSelector } from "./nestedSelectors.ts";
 import { INTERACTION_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
 import type { AtRuleContext, MatchedRule, StyleDeclaration } from "../../../css/model/index.ts";
 
@@ -487,9 +488,12 @@ export function collectRules(doc: Document) {
       }
       if (isStyleRuleInDocument(rule, doc)) {
         try {
+          const selectorText = inheritedSelector
+            ? resolveNestedSelector(rule.selectorText, inheritedSelector)
+            : rule.selectorText;
           out.push({
-            selectorText: rule.selectorText,
-            specificity: computeSpecificityCore(rule.selectorText),
+            selectorText,
+            specificity: computeSpecificityCore(selectorText),
             declarations: declarationsFromCssom(rule.style),
             source,
             sourceOrder: sourceOrder++,
@@ -499,7 +503,7 @@ export function collectRules(doc: Document) {
             atRules: atRules.length > 0 ? atRules : undefined,
           });
           const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
-          if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText, source);
+          if (nested?.length) walkRules(nested, active, layer, atRules, selectorText, source);
         } catch {
           continue;
         }
