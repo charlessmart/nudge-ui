@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "./canvasFrame.ts";
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { isElementClickMessage, isInlineTextIntentMessage } from "./frameProtocol.ts";
 import { useCanvasCards } from "./canvasStore.ts";
@@ -58,7 +59,7 @@ interface ElementIdentity {
 }
 
 interface FrameOverlayState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   identity: ElementIdentity;
   rect: Rect;
   borders: BorderWidths;
@@ -71,18 +72,18 @@ interface FrameOverlayState {
 }
 
 interface FrameMeasureState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   altKey: boolean;
   pointerOverPage: boolean;
 }
 
 interface CanvasDragState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
 }
 
 interface CanvasSpacingDragState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
   affordance: SpacingAffordance;
   start: { x: number; y: number };
@@ -93,7 +94,7 @@ interface CanvasSpacingDragState {
 }
 
 interface CanvasSpacingBadgeState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   point: { x: number; y: number };
   value: number;
 }
@@ -101,7 +102,7 @@ interface CanvasSpacingBadgeState {
 /** A committed spacing drag whose preview inline is held until the renderer
  * applies the projected managed rule, so the authored value never flashes. */
 interface PendingSpacingCommit {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
   property: string;
   committedValue: string;
@@ -239,7 +240,7 @@ function tryReleasePendingSpacingCommit(commit: PendingSpacingCommit): boolean {
 
 function releasePendingSpacingCommits(
   pending: PendingSpacingCommit[],
-  iframe: HTMLIFrameElement,
+  iframe: CanvasFrame,
 ): void {
   if (pending.length === 0) return;
   let write = 0;

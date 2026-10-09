@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "./canvasFrame.ts";
 import { draftIdForCard, getDraftChanges, getActiveDraftChanges } from "../drafts/store.ts";
 import type { DraftContents } from "../drafts/model.ts";
 import type { CanvasCard } from "./canvasStore.ts";
@@ -40,7 +41,7 @@ export interface FrameProjection extends DraftProjectionPlan<CompiledManagedStyl
 const draftPlans = new Map<string, { peek: boolean; plan: FrameProjection }>();
 
 interface FrameProjectionState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   document: Document | null;
   previewDocument: PreviewDocument;
   sentRevision: number;
@@ -183,7 +184,7 @@ export function resetProjectionRevision(): void {
 
 export function sendProjectionToCard(
   card: Pick<CanvasCard, "id">,
-  iframe: HTMLIFrameElement,
+  iframe: CanvasFrame,
 ): void {
   const win = iframe.contentWindow;
   if (!win) return;
@@ -200,7 +201,7 @@ export function sendProjectionToCard(
 
 function sendProjectionMessage(
   cardId: string,
-  iframe: HTMLIFrameElement,
+  iframe: CanvasFrame,
   rev: number,
   css: string,
   instanceOverrides: readonly ReplaceStylesMessage["instanceOverrides"][number][],
@@ -294,14 +295,14 @@ export function isCanvasCanonicalProjectionRevisionCurrent(doc: Document, expect
   return false;
 }
 
-const frameRegistry = new Map<string, HTMLIFrameElement>();
-const frameSourceRegistry = new Map<string, HTMLIFrameElement>();
+const frameRegistry = new Map<string, CanvasFrame>();
+const frameSourceRegistry = new Map<string, CanvasFrame>();
 
-export function registerCardFrameSource(cardId: string, iframe: HTMLIFrameElement): void {
+export function registerCardFrameSource(cardId: string, iframe: CanvasFrame): void {
   frameSourceRegistry.set(cardId, iframe);
 }
 
-export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): void {
+export function registerCardFrame(cardId: string, iframe: CanvasFrame): void {
   const frameDocument = getFrameDocument(iframe);
   const existing = frameProjectionStates.get(cardId);
   if (!existing || existing.iframe !== iframe || existing.document !== frameDocument) {
@@ -342,13 +343,13 @@ export function unregisterCardFrame(cardId: string): void {
   notifyFrameRegistryListeners();
 }
 
-export function getRegisteredFrames(): ReadonlyMap<string, HTMLIFrameElement> {
+export function getRegisteredFrames(): ReadonlyMap<string, CanvasFrame> {
   return frameRegistry;
 }
 
 export function findCanvasFrameBySource(
   source: MessageEventSource | null,
-): { cardId: string; iframe: HTMLIFrameElement } | null {
+): { cardId: string; iframe: CanvasFrame } | null {
   for (const [cardId, iframe] of frameSourceRegistry) {
     if (iframe.contentWindow === source) return { cardId, iframe };
   }
@@ -356,7 +357,7 @@ export function findCanvasFrameBySource(
 }
 
 /** The registered frame rendering `doc`, which may be the controller document on the page surface. */
-export function findCanvasFrameByDocument(doc: Document | null | undefined): HTMLIFrameElement | null {
+export function findCanvasFrameByDocument(doc: Document | null | undefined): CanvasFrame | null {
   if (!doc) return null;
   for (const iframe of frameRegistry.values()) {
     if (getFrameDocument(iframe) === doc) return iframe;
@@ -373,7 +374,7 @@ export function subscribeFrameRegistry(listener: () => void): () => void {
   };
 }
 
-function getFrameDocument(iframe: HTMLIFrameElement): Document | null {
+function getFrameDocument(iframe: CanvasFrame): Document | null {
   try {
     return iframe.contentDocument;
   } catch {
@@ -381,7 +382,7 @@ function getFrameDocument(iframe: HTMLIFrameElement): Document | null {
   }
 }
 
-function markProjectionSent(cardId: string, iframe: HTMLIFrameElement, sentRevision: number, canonical = false): void {
+function markProjectionSent(cardId: string, iframe: CanvasFrame, sentRevision: number, canonical = false): void {
   const state = frameProjectionStates.get(cardId);
   if (!state || state.iframe !== iframe) return;
   state.sentRevision = Math.max(state.sentRevision, sentRevision);

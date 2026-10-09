@@ -40,6 +40,7 @@ import {
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PageCard } from "./PageCard.tsx";
 import { isPageSurface } from "./pageSurface.ts";
+import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./viewStore.ts";
@@ -397,7 +398,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     if (nextTool === "sketch") {
       if (!sketchEnabled) return;
-      const hostElement = getActiveCanvasFrame();
+      const hostElement = canvasFrameHost(getActiveCanvasFrame());
       if (!hostElement) return;
       stopPanMode();
       setCommentToolActive(false);

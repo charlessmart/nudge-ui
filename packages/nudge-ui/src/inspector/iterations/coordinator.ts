@@ -1,3 +1,4 @@
+import { canvasFrameElement, type CanvasFrame } from "../canvas/canvasFrame.ts";
 import type { HtmlArtifactRevision } from "../../transport/artifacts.ts";
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
 import { getDraftForCard, getDraftContentsForCard, clearSavedIterationDraft, lockDraft } from "../drafts/store.ts";
@@ -77,14 +78,14 @@ export function createHtmlIterationCoordinator(storage: HtmlIterationStorage) {
 
 const coordinator = createHtmlIterationCoordinator({ readRevision: readHtmlArtifactRevision, commit: commitHtmlArtifact });
 
-function loadedRevision(frame: HTMLIFrameElement): string {
+function loadedRevision(frame: CanvasFrame): string {
   const revision = frame.contentDocument?.documentElement.getAttribute(HTML_ARTIFACT_REVISION_ATTRIBUTE);
   if (!revision || !/^[a-f0-9]{64}$/.test(revision)) throw new Error("The HTML iteration is still loading. Try again when the frame is ready.");
   return revision;
 }
 
 /** Materializes pending intent before the agent can start editing document.html. */
-export async function prepareHtmlIterationHandoff(cardId: string, artifactId: string, frame: HTMLIFrameElement): Promise<DraftContents> {
+export async function prepareHtmlIterationHandoff(cardId: string, artifactId: string, frame: CanvasFrame): Promise<DraftContents> {
   if (isInlineTextEditingActive()) throw new Error("Finish editing the text before saving this iteration.");
   const contents = getDraftContentsForCard(cardId);
   if (!contents) throw new Error("The iteration draft is no longer available.");
@@ -104,12 +105,13 @@ export async function prepareHtmlIterationHandoff(cardId: string, artifactId: st
       }
       return html;
     });
-    frame.src = `${artifactDocumentUrl(artifactId)}?revision=${Date.now()}`;
+    const element = canvasFrameElement(frame);
+    if (element) element.src = `${artifactDocumentUrl(artifactId)}?revision=${Date.now()}`;
     return workspace;
   } finally { projectToAllReadyCards(); }
 }
 
-export async function refreshHtmlIteration(cardId: string, artifactId: string, frame: HTMLIFrameElement): Promise<boolean> {
+export async function refreshHtmlIteration(cardId: string, artifactId: string, frame: CanvasFrame): Promise<boolean> {
   const document = frame.contentDocument;
   return coordinator.refresh(cardId, artifactId, loadedRevision(frame), () =>
     frame.contentDocument === document && !isInlineTextEditingActive(),

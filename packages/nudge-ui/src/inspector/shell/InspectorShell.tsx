@@ -53,6 +53,7 @@ import {
   useSelectedCardId,
 } from "../canvas/canvasStore.ts";
 import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
+import { canvasFrameHost } from "../canvas/canvasFrame.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
@@ -118,7 +119,7 @@ export function InspectorShell(): ReactElement {
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
-  const sketchHost = selectedCardId || focusedCardId ? getActiveCanvasFrame() : null;
+  const sketchHost = selectedCardId || focusedCardId ? canvasFrameHost(getActiveCanvasFrame()) : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());

@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "../canvas/canvasFrame.ts";
 import { isHtmlArtifactRevision, HTML_ITERATION_CONFLICT, type HtmlArtifactRevision } from "../../transport/artifacts.ts";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../../transport/routes.ts";
 import { captureHtmlIteration } from "./capture.ts";
@@ -29,7 +30,7 @@ export async function commitHtmlArtifact(id: string, expected: HtmlArtifactRevis
   return revision;
 }
 
-export async function createHtmlArtifact(frame: HTMLIFrameElement, sourceUrl: string, title: string, capturedHtml?: string): Promise<string> {
+export async function createHtmlArtifact(frame: CanvasFrame, sourceUrl: string, title: string, capturedHtml?: string): Promise<string> {
   const id = crypto.randomUUID();
   const html = capturedHtml ?? await captureHtmlIteration(frame);
   const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, {

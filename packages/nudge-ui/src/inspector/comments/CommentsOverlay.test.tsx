@@ -6,6 +6,7 @@ import { CommentsOverlay } from "./CommentsOverlay.tsx";
 import { clearComments, commentRoute, saveComment, setCommentToolActive } from "./store.ts";
 import { commentFingerprint, commentViewport } from "./element.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
+import type { CanvasFrame } from "../canvas/canvasFrame.ts";
 import { getPageFrame } from "../canvas/pageSurface.ts";
 import { connectFrame } from "../canvas/frameConnection.ts";
 import { PROTOCOL_VERSION } from "../canvas/frameProtocol.ts";
@@ -44,7 +45,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function target(frame: HTMLIFrameElement): HTMLElement {
+function target(frame: CanvasFrame): HTMLElement {
   const doc = frame.contentDocument!;
   const button = doc.createElement("button");
   button.textContent = "Save";
@@ -82,11 +83,13 @@ it("opens a comment draft on the page surface without unmounting the overlay", (
 });
 
 it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on visible surfaces: %s", (surface) => {
-  const frame = surface === "page" ? getPageFrame() : document.createElement("iframe");
+  let frame = getPageFrame();
   if (surface !== "page") {
-    document.body.append(frame);
-    frame.style.visibility = surface === "hidden iframe" ? "hidden" : "visible";
-    frame.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const iframe = document.createElement("iframe");
+    document.body.append(iframe);
+    iframe.style.visibility = surface === "hidden iframe" ? "hidden" : "visible";
+    iframe.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    frame = iframe;
   }
   const element = target(frame);
   const ref = captureRenderedInstance(element);

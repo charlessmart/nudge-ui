@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "./canvasFrame.ts";
 import { draftIdForCard, getActiveDraftChanges } from "../drafts/store.ts";
 import {
   isPreviewableChange,
@@ -50,7 +51,7 @@ function checkSelectorInDocument(doc: Document, selector: string): boolean {
   }
 }
 
-function checkSelectorInFrame(iframe: HTMLIFrameElement, selector: string): boolean {
+function checkSelectorInFrame(iframe: CanvasFrame, selector: string): boolean {
   try {
     const doc = iframe.contentDocument;
     if (!doc) return false;

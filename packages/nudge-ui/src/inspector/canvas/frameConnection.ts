@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "./canvasFrame.ts";
 import type { Rect } from "../overlay/overlayGeometry.ts";
 import {
   PROTOCOL_VERSION,
@@ -42,7 +43,7 @@ export type ControllerMessageBody = WithoutEnvelope<ControllerToRendererMessage>
 /** One mounted Canvas frame as the controller sees it. */
 export interface FrameConnection {
   readonly cardId: string;
-  readonly iframe: HTMLIFrameElement;
+  readonly iframe: CanvasFrame;
   readonly identity: FrameIdentity;
   /** The renderer's document; null while the frame navigates or blocks access. */
   document(): Document | null;
@@ -53,9 +54,9 @@ export interface FrameConnection {
 }
 
 const RENDERER_ELEMENT_ID = /^r\d+$/;
-const connections = new WeakMap<HTMLIFrameElement, FrameConnection>();
+const connections = new WeakMap<CanvasFrame, FrameConnection>();
 
-export function measureFrameViewport(iframe: HTMLIFrameElement): FrameViewport {
+export function measureFrameViewport(iframe: CanvasFrame): FrameViewport {
   const rect = iframe.getBoundingClientRect();
   return {
     left: rect.left,
@@ -98,7 +99,7 @@ export function findRendererElement(doc: Document | null, ref: RendererElementRe
   return frameWindow && candidate instanceof frameWindow.HTMLElement ? candidate : null;
 }
 
-export function connectFrame(cardId: string, iframe: HTMLIFrameElement): FrameConnection {
+export function connectFrame(cardId: string, iframe: CanvasFrame): FrameConnection {
   const existing = connections.get(iframe);
   if (existing?.cardId === cardId) return existing;
   const identity: FrameIdentity = { projectId: PROJECT_ID, workspaceId: WORKSPACE_ID, cardId };

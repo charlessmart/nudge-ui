@@ -1,8 +1,9 @@
+import type { CanvasFrame } from "../canvas/canvasFrame.ts";
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
 import { FRAME_SCROLLBAR_STYLE_ID } from "../canvas/frameScrollbarStyles.ts";
 
 /** Captures the visible DOM of a same-origin frame as a script-free HTML iteration. */
-export async function captureHtmlIteration(frame: HTMLIFrameElement): Promise<string> {
+export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> {
   const source = frame.contentDocument;
   const view = frame.contentWindow;
   if (!source || !view?.document.documentElement) throw new Error("The frame is not ready to capture.");

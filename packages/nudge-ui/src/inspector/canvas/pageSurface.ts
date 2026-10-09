@@ -1,5 +1,5 @@
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
-import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
+import type { CanvasFrame } from "./canvasFrame.ts";
 
 let pageSurface = false;
 
@@ -15,37 +15,21 @@ export function isPageSurface(): boolean {
   return pageSurface;
 }
 
-const pageFrames = new WeakMap<Window, HTMLIFrameElement>();
+const pageFrames = new WeakMap<Window, CanvasFrame>();
 
-/**
- * Stands in for the renderer iframe. Controller code reads geometry, the
- * document, and the window from it; the page always fills the viewport.
- */
-export function getPageFrame(win: Window = window): HTMLIFrameElement {
+/** The page-surface card's frame: the inspected window, filling the viewport. */
+export function getPageFrame(win: Window = window): CanvasFrame {
   const existing = pageFrames.get(win);
   if (existing) return existing;
-  const doc = win.document;
-  const viewportWidth = () => doc.documentElement.clientWidth;
-  const viewportHeight = () => doc.documentElement.clientHeight;
-  // SAFETY: Every iframe member the controller reads is defined below; the
-  // prototype only makes `instanceof HTMLIFrameElement` checks pass.
-  const frame = Object.create((win as Window & typeof globalThis).HTMLIFrameElement.prototype) as HTMLIFrameElement;
-  Object.defineProperties(frame, {
-    contentWindow: { get: () => win },
-    contentDocument: { get: () => doc },
-    ownerDocument: { get: () => doc },
-    isConnected: { get: () => true },
-    clientWidth: { get: viewportWidth },
-    clientHeight: { get: viewportHeight },
-    src: { get: () => win.location.href, set: () => undefined },
-    getBoundingClientRect: { value: () => new DOMRect(0, 0, viewportWidth(), viewportHeight()) },
-    hasAttribute: { value: (name: string) => name === CANVAS_RENDERER_ATTR },
-    getAttribute: { value: (name: string) => (name === "src" ? win.location.href : name === CANVAS_RENDERER_ATTR ? "" : null) },
-    setAttribute: { value: () => undefined },
-    addEventListener: { value: () => undefined },
-    removeEventListener: { value: () => undefined },
-    focus: { value: () => undefined },
-  });
+  const root = win.document.documentElement;
+  const frame: CanvasFrame = {
+    contentWindow: win,
+    contentDocument: win.document,
+    isConnected: true,
+    get clientWidth() { return root.clientWidth; },
+    get clientHeight() { return root.clientHeight; },
+    getBoundingClientRect: () => new DOMRect(0, 0, root.clientWidth, root.clientHeight),
+  };
   pageFrames.set(win, frame);
   return frame;
 }
