@@ -206,6 +206,25 @@ describe("document revision observer", () => {
     expect(revisionsSnapshot()).toEqual(before);
   });
 
+  it("ignores renderer cursor writes to registered elements' inline style", async () => {
+    const el = document.createElement("div");
+    el.style.color = "red";
+    document.body.appendChild(el);
+    await flushObserver();
+    registerResolutionElement(el);
+
+    const before = revisionsSnapshot();
+    el.style.setProperty("cursor", "ew-resize", "important");
+    el.style.setProperty("--nudge-ui-interaction-cursor", "pointer");
+    el.style.removeProperty("cursor");
+    await flushObserver();
+    expect(revisionsSnapshot()).toEqual(before);
+
+    el.style.color = "blue";
+    await flushObserver();
+    expect(revisionsSnapshot().element).toBeGreaterThan(before.element);
+  });
+
   it("counts a host style element textContent change as a stylesheet revision", async () => {
     const style = document.createElement("style");
     style.textContent = ".a { color: red; }";
