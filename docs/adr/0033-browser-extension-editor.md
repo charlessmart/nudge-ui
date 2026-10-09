@@ -32,15 +32,20 @@ distribution.
   tab, then reloads it with the `nudge-ui=editor` marker:
   - Responses for the tab's same-origin frames lose `X-Frame-Options` and
     `Content-Security-Policy`, so the application can be framed.
-  - The marked top-level response gets `script-src 'none'`, so the
-    application's scripts run only in renderer frames.
+  - The marked top-level response gets a policy that blocks scripts, images,
+    media, fonts, objects, and external stylesheets, and allows only
+    same-origin frames. The application's scripts run only in renderer
+    frames, and the discarded page loads no assets. Inline styles stay allowed
+    for the inspector's own UI.
 
   The service worker then injects the inspector into the editor document. The
-  editor replaces the page content and frames the unmarked URL. Each time a
-  renderer frame loads a document, the editor asks the service worker, through
-  the isolated-world bridge, to inject the bundle into the tab's frames. The
-  bundle starts a renderer only in Canvas renderer frames. Reloading the editor
-  restarts it. A second click loads the unmarked URL and removes the rules.
+  editor replaces the page content and frames the unmarked URL. When a
+  renderer frame's document is parsed, the editor asks the service worker,
+  through the isolated-world bridge, to inject the bundle into frames that do
+  not yet run it. The bundle starts a renderer only in Canvas renderer frames.
+  Reloading the editor restarts it. A second click, or the
+  <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> shortcut, loads the unmarked
+  URL and removes the rules.
 - **Page-surface fallback.** If a redirect drops the marker, the page runs
   normally and the inspector runs inside it. The controller and the renderer
   share the window, and the page is the only Canvas card. Controller code reads
@@ -52,7 +57,8 @@ distribution.
 - **Derived identity.** The project ID is `page:<origin>`. Runtime identity is
   assigned lazily under the pointer. Tokens come from readable stylesheets and
   root custom properties, collected from the renderer frame because the editor
-  document runs no application scripts. Source locations, component semantics,
+  document runs no application scripts. Prompts locate elements by DOM path,
+  because source locations are unavailable. Component semantics,
   HTML iterations, and the agent bridge are unavailable. As in ADR-0032, no
   endpoint is published, so the page has no agent connection; output is the
   copied prompt.
@@ -69,7 +75,8 @@ distribution.
   probe for `<style>` support, which would report a violation to the site. The
   rule collector reads adopted stylesheets, so managed previews remain
   inspectable. Cursor images are web-accessible extension resources served with
-  `use_dynamic_url`; page `img-src` does not govern them. The empty-state
+  `use_dynamic_url`; page `img-src`, including the editor document's, does not
+  govern them. The empty-state
   illustration is inline SVG.
 - **Development gating.** The extension bundle is built with development
   behavior enabled. Application production builds are unchanged, and ADR-0002

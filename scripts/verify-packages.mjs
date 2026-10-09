@@ -125,6 +125,8 @@ function verifyPackage(packageRoot) {
       "./internal/inspector",
       "./internal/component-runtime",
       "./internal/host-runtime",
+      "./internal/page-inspector",
+      "./internal/cursor-images",
       "./internal/next/mount",
     ];
     const actualExports = Object.keys(packageJson.exports ?? {});

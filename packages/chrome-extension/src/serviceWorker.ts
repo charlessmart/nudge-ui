@@ -136,9 +136,18 @@ async function injectInspector(tabId: number, href: string, surface: ExtensionBo
   await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
 }
 
+function needsRenderer(handleName: string): boolean {
+  return window !== window.top && !(handleName in window);
+}
+
 /** The bundle starts a renderer only in Canvas frames and ignores every other frame. */
 async function injectRenderers(tabId: number): Promise<void> {
-  const target = { tabId, allFrames: true };
+  const probes = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true }, world: "MAIN", func: needsRenderer, args: [PAGE_INSPECTOR_GLOBAL],
+  });
+  const frameIds = probes.filter((probe) => probe.result === true).map((probe) => probe.frameId);
+  if (frameIds.length === 0) return;
+  const target = { tabId, frameIds };
   const globals = { [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
   await chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] });
   await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
@@ -172,7 +181,7 @@ async function resumeEditor(tabId: number): Promise<void> {
   const [result] = await chrome.scripting.executeScript({
     target: { tabId }, world: "MAIN", func: readDocument, args: [PAGE_INSPECTOR_GLOBAL],
   });
-  if (!result?.result) throw new Error("the tab URL is unavailable");
+  if (!result?.result) throw new Error("the page cannot be scripted");
   const { href, loaded } = result.result;
   if (isEditorUrl(href)) {
     if (loaded) return;
@@ -183,7 +192,7 @@ async function resumeEditor(tabId: number): Promise<void> {
   }
   await closeEditor(tabId);
   // A redirect dropped the marker and the page ran normally; inspect it in place.
-  if (state.phase === "opening" && !loaded) await injectInspector(tabId, href, "page");
+  if (state.phase === "opening") await injectInspector(tabId, href, "page");
 }
 
 async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
