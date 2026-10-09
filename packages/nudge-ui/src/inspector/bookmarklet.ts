@@ -21,6 +21,18 @@ import {
 } from "./index.ts";
 import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
+import {
+  getCanvasLayoutTransitioning,
+  getCanvasMode,
+  getCanvasPresentation,
+  getCanvasPresentationTransitioning,
+  getTemporaryAppInteraction,
+} from "./canvas/viewStore.ts";
+import { getCanvasCards, getSelectedCardId } from "./canvas/canvasStore.ts";
+import { getRegisteredFrames } from "./canvas/projection.ts";
+import { RENDERER_ELEMENT_ID_ATTR } from "./canvas/rendererCidIndex.ts";
+import { getSelectedElements } from "./selection/selectionStore.ts";
+import { getInlineTextSession } from "./inline-text/inlineTextEditor.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
@@ -269,7 +281,34 @@ async function startController(): Promise<void> {
   );
 }
 
+// Temporary spike diagnostics for hosts that cannot be reproduced locally.
+function installDebugHook(): void {
+  (window as unknown as Record<string, unknown>).__NUDGE_UI_DEBUG__ = () => {
+    const ids = new Map<string, number>();
+    for (const el of document.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}]`)) {
+      const id = el.getAttribute(RENDERER_ELEMENT_ID_ATTR) ?? "";
+      ids.set(id, (ids.get(id) ?? 0) + 1);
+    }
+    const inline = getInlineTextSession();
+    return {
+      mode: getCanvasMode(),
+      presentation: getCanvasPresentation(),
+      presentationTransitioning: getCanvasPresentationTransitioning(),
+      layoutTransitioning: getCanvasLayoutTransitioning(),
+      temporaryAppInteraction: getTemporaryAppInteraction(),
+      inlineTextActive: inline !== null,
+      cards: getCanvasCards().map((card) => card.id),
+      selectedCardId: getSelectedCardId(),
+      registeredFrames: [...getRegisteredFrames().keys()],
+      selectedElements: getSelectedElements().length,
+      rendererIds: ids.size,
+      duplicateRendererIds: [...ids].filter(([, count]) => count > 1).length,
+    };
+  };
+}
+
 async function start(): Promise<void> {
+  installDebugHook();
   const target = window as BookmarkletWindow;
   if (target[LOADED_FLAG]) {
     toggleInspector();

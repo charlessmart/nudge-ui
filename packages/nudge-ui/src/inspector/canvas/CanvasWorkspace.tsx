@@ -807,8 +807,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
+  // Every page card would share the one page renderer, so restored extra cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (
-    <PageCard key={card.id} card={card} documentOwner={inspectorSession} />
+    card.id === presentationCardId ? <PageCard key={card.id} card={card} documentOwner={inspectorSession} /> : null
   ) : (
     <CanvasCard
       key={card.id}

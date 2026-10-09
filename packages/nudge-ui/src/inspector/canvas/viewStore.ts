@@ -78,6 +78,10 @@ export function setCanvasLayoutTransitioning(value: boolean): void {
 
 export function getCanvasLayoutTransitioning(): boolean { return layoutTransitioning; }
 
+export function getCanvasPresentationTransitioning(): boolean { return presentationTransitioning; }
+
+export function getTemporaryAppInteraction(): boolean { return temporaryAppInteraction; }
+
 export function getBoardCamera(): CanvasCamera { return camera; }
 
 export function setBoardCamera(next: CanvasCamera): void {
