@@ -1,7 +1,7 @@
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
 import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
@@ -59,6 +59,8 @@ import {
   isCanvasCanonicalProjectionRevisionCurrent,
   projectToAllReadyCards,
   recordCanvasProjectionApplied,
+  getFrameRegistryVersion,
+  subscribeFrameRegistry,
 } from "./projection.ts";
 import { connectFrame, toViewportPoint, type FrameConnection, type FrameViewport } from "./frameConnection.ts";
 import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
@@ -139,6 +141,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const sketchActive = useSketchInteractionActive();
   const sketchEnabled = isNudgeUiDev() && runtimeConfig.demo !== true;
   const canvasIterationsEnabled = isNudgeUiFeatureEnabled(runtimeConfig.features, "canvasIterations");
+  useSyncExternalStore(subscribeFrameRegistry, getFrameRegistryVersion);
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
 
   const boardRef = useRef<HTMLDivElement>(null);

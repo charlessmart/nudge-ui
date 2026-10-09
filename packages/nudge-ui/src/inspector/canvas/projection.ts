@@ -427,7 +427,15 @@ function notifyProjectionAcknowledgementListeners(): void {
   }
 }
 
+let frameRegistryVersion = 0;
+
+/** Changes whenever a frame registers or unregisters, for `useSyncExternalStore`. */
+export function getFrameRegistryVersion(): number {
+  return frameRegistryVersion;
+}
+
 function notifyFrameRegistryListeners(): void {
+  frameRegistryVersion += 1;
   for (const listener of frameRegistryListeners) {
     try { listener(); } catch { /* ignore */ }
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useInspectorOpen, setInspectorOpen } from "./openStore.ts";
@@ -54,6 +54,7 @@ import {
 } from "../canvas/canvasStore.ts";
 import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { canvasFrameHost } from "../canvas/canvasFrame.ts";
+import { getFrameRegistryVersion, subscribeFrameRegistry } from "../canvas/projection.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
@@ -119,6 +120,7 @@ export function InspectorShell(): ReactElement {
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
+  useSyncExternalStore(subscribeFrameRegistry, getFrameRegistryVersion);
   const sketchHost = selectedCardId || focusedCardId ? canvasFrameHost(getActiveCanvasFrame()) : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
