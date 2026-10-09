@@ -1,4 +1,7 @@
 import { countInspectionWork } from "../../inspection/performanceDiagnostics.ts";
+import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../../runtime/ownedStylesheets.ts";
+
+const PROBE_SHEET_KEY = "nudge-ui-container-probe";
 
 export interface ContainerQueryPair {
   element: HTMLElement;
@@ -37,20 +40,25 @@ export function createContainerQueryEvaluator(doc: Document): ContainerQueryEval
       pending.push({ ...pair, key: conditionKey, marker: `data-container-probe-${id}`, property: `--nudge-container-probe-${id}` });
     }
     if (!doc.head || pending.length === 0) return;
-    const sheet = doc.createElement("style");
-    sheet.setAttribute("data-nudge-ui", "container-probe");
-    sheet.textContent = pending.map(({ conditions, marker, property }) => {
+    const cssText = pending.map(({ conditions, marker, property }) => {
       let rule = `[${marker}] { ${property}: 1 !important; }`;
       for (let index = conditions.length - 1; index >= 0; index--) {
         rule = `@container ${conditions[index]} { ${rule} }`;
       }
       return rule;
     }).join("\n");
+    const sheet = allowsStyleElements(doc) ? doc.createElement("style") : null;
     countInspectionWork(doc, "probePairs", pending.length);
     countInspectionWork(doc, "probeBatches");
     try {
       for (const pair of pending) pair.element.setAttribute(pair.marker, "");
-      doc.head.append(sheet);
+      if (sheet) {
+        sheet.setAttribute("data-nudge-ui", "container-probe");
+        sheet.textContent = cssText;
+        doc.head.append(sheet);
+      } else {
+        adoptStylesheet(doc, PROBE_SHEET_KEY, cssText);
+      }
       const styles = new Map<HTMLElement, CSSStyleDeclaration>();
       for (const pair of pending) {
         let style = styles.get(pair.element);
@@ -61,7 +69,8 @@ export function createContainerQueryEvaluator(doc: Document): ContainerQueryEval
         results.get(pair.element)!.set(pair.key, style?.getPropertyValue(pair.property).trim() === "1");
       }
     } finally {
-      sheet.remove();
+      if (sheet) sheet.remove();
+      else releaseAdoptedStylesheet(doc, PROBE_SHEET_KEY);
       for (const pair of pending) pair.element.removeAttribute(pair.marker);
     }
   }

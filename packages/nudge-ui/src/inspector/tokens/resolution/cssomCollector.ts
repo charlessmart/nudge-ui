@@ -420,13 +420,16 @@ function contextForRule(
     return params ? { kind: "media", params } : null;
   }
   if (/^\s*@container\b/i.test(cssText)) {
-    // CSSContainerRule exposes `conditionText` and `containerName` in modern
-    // engines. Fall back to the serialised prelude so named, style, and newer
+    // CSSContainerRule's `conditionText` is the whole prelude, name included;
+    // only prepend `containerName` for engines whose `conditionText` omits it.
+    // Fall back to the serialised prelude so named, style, and newer
     // container queries remain presentable without hand-parsing their grammar.
     const containerName = record.containerName?.trim();
-    const fromInterfaces = [containerName && containerName !== "none" ? containerName : undefined, record.conditionText?.trim()]
-      .filter((part): part is string => Boolean(part))
-      .join(" ");
+    const condition = record.conditionText?.trim() ?? "";
+    const hasName = Boolean(containerName) && containerName !== "none";
+    const conditionNamed = hasName && condition.startsWith(containerName!)
+      && /^(?:$|[\s(])/.test(condition.slice(containerName!.length));
+    const fromInterfaces = hasName && !conditionNamed ? `${containerName} ${condition}`.trim() : condition;
     const params = fromInterfaces || atRuleParams(cssText, "container");
     return params ? { kind: "container", params } : null;
   }

@@ -114,6 +114,36 @@ test("one refresh shares a batch, skips irrelevant ancestors, and feeds controls
   });
 });
 
+for (const policy of ["default", "strict style-src"] as const) {
+  test(`named container rules resolve under the ${policy} policy`, async ({ page }) => {
+    await page.route("http://container.test/**", (route) => {
+      if (route.request().url().endsWith("/cq.css")) {
+        return route.fulfill({ contentType: "text/css", body: `
+          .shell { container: card / inline-size; width: 480px; }
+          @container card (min-width: 300px) { .cq-child { width: 42px; } }
+        ` });
+      }
+      return route.fulfill({
+        contentType: "text/html",
+        headers: policy === "default" ? {} : { "content-security-policy": "style-src 'self'" },
+        body: '<link rel="stylesheet" href="/cq.css"><div class="shell"><div class="cq-child"></div></div>',
+      });
+    });
+    await page.goto("http://container.test/");
+    await page.addScriptTag({ content: bundle });
+    const result = await page.evaluate(() => {
+      const child = document.querySelector<HTMLElement>(".cq-child")!;
+      const { elements } = window.containerInspection.refresh([child]);
+      return {
+        authored: elements[0]!.properties.find((row) => row.property === "width")?.authored,
+        probeStyles: document.querySelectorAll('[data-nudge-ui="container-probe"]').length,
+        adoptedSheets: document.adoptedStyleSheets.length,
+      };
+    });
+    expect(result).toEqual({ authored: "42px", probeStyles: 0, adoptedSheets: 0 });
+  });
+}
+
 test("a fresh evaluation observes resized containers and cleans up failed reads", async ({ page }) => {
   await page.setContent('<main style="container-type:inline-size;width:800px"><div id="child"></div></main>');
   await page.addScriptTag({ content: bundle });
