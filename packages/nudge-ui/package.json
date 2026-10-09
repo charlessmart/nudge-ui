@@ -77,6 +77,7 @@
   "scripts": {
     "build": "node ../../scripts/build-package.mjs && node ../../scripts/vendor-agent-protocol.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-static-cli.mjs",
     "prepack": "pnpm run build",
+    "bookmarklet": "node scripts/bookmarklet.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:unit:watch": "vitest --config vitest.unit.config.ts",

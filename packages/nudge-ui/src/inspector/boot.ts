@@ -28,6 +28,7 @@ import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeD
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
+import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
@@ -244,6 +245,12 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
+    // Without Canvas the inspector edits the host document in place.
+    const documentSession = getNudgeUiRuntimeConfig().capabilities.canvas
+      ? null
+      : inspectorSession.createDocumentSession(document);
+    documentSession?.registerCleanup(() => disposeBrowserCssInspection(document));
+    documentSession?.registerCleanup(() => releaseDocumentProjection(document));
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
     inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {
@@ -251,8 +258,8 @@ export function mountInspector(host: HTMLElement): void {
     }));
     reactRoot.render(createElement(
       InspectorSessionProvider,
-      { inspector: inspectorSession, documentSession: null },
-      createElement(AppShell),
+      { inspector: inspectorSession, documentSession },
+      createElement(AppShell, { host }),
     ));
     window.addEventListener("keydown", onKeydown);
     window.addEventListener("keyup", onKeyup);
