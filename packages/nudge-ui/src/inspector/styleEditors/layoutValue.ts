@@ -1,7 +1,7 @@
 import { getActiveStyleState } from "../shell/styleState.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
-import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { readInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import type { StringRecord } from "./stringRecord.ts";
 
 const DEFAULT_LAYOUT_VALUES: StringRecord = {
@@ -35,8 +35,7 @@ export function meaningfulLayoutValue(el: HTMLElement, property: string): string
 export function readAuthoredStyleValue(el: HTMLElement, property: string): string | null {
   try {
     const state = getActiveStyleState();
-    const row = getBrowserCssInspection(el.ownerDocument ?? document)
-      .inspect(el, { state }).properties
+    const row = readInspectionSnapshot(el, state)?.properties
       .find((candidate) => candidate.property === property);
     const authored = row?.authored ?? row?.declaredValue;
     if (authored?.trim()) return authored.trim();

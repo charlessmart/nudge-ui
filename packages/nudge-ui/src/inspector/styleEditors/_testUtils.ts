@@ -4,6 +4,9 @@ import { act } from "react";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
+import { publishInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
+import { getActiveStyleState } from "../shell/styleState.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -138,4 +141,11 @@ export function selectOptionValues(select: HTMLElement): string[] {
 
 export function sheetText(): string {
   return getManagedSheetText();
+}
+
+/** Stands in for the inspection hook, which publishes before controls render. */
+export function publishInspection(el: HTMLElement): void {
+  const session = createBrowserCssInspection({ document, tokenKnowledge: { definitions: [], generation: "test" } });
+  publishInspectionSnapshot(el, session.inspect(el, { state: getActiveStyleState() }));
+  session.dispose();
 }

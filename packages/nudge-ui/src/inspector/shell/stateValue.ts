@@ -1,5 +1,5 @@
 import { getActiveStyleState } from "./styleState.ts";
-import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { readInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 
 /** Read an inspector value from the selected authored state, falling back to
@@ -16,8 +16,7 @@ export function getStateStyleValue(el: HTMLElement, property: string, fallback =
     if (state === "base" && !hasLiveInteraction) {
       return getElementComputedStyle(el).getPropertyValue(property).trim() || fallback;
     }
-    const rows = getBrowserCssInspection(el.ownerDocument ?? document)
-      .inspect(el, { state }).properties;
+    const rows = readInspectionSnapshot(el, state)?.properties ?? [];
     const row = rows.find((candidate) => candidate.property === property)
       ?? (property === "background-color" ? rows.find((candidate) => candidate.property === "background") : undefined);
     if (row?.resolvedValue) return row.resolvedValue;

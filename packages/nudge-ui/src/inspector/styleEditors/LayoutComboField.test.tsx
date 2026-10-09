@@ -12,6 +12,7 @@ import {
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
+  publishInspection,
   type MountHandle,
 } from "./_testUtils.ts";
 
@@ -189,6 +190,7 @@ describe("LayoutComboField", () => {
     const authored = "clamp(48px, 8vw, 140px)";
     el.style.setProperty("gap", authored);
     mockComputedStyle({ "column-gap": "139.68px" });
+    publishInspection(el);
     handle = mount(
       createElement(LayoutComboField, {
         property: "column-gap",

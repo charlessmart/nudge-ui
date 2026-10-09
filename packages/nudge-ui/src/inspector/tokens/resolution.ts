@@ -1,6 +1,7 @@
 import { readTailwindV4AlphaUtility, tailwindV4AlphaExpression } from "../../css/dialects/index.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
+import { createContainerQueryEvaluator, type ContainerQueryEvaluator, type ContainerQueryPair } from "./resolution/containerQueryEvaluator.ts";
 import {
   collectRules as collectCssomRules,
   documentRevisions as getDocumentRevisions,
@@ -200,49 +201,20 @@ interface LocalAliasCandidate {
   sourceOrder: number;
 }
 
-let containerProbeSequence = 0;
-
-/**
- * Container conditions are element-relative. CSSOM exposes their text but has
- * no `matches` API, so ask the browser by applying an inert custom property to
- * the selected element inside an equivalent temporary @container wrapper.
- */
-function matchesContainerQuery(el: HTMLElement, params: string): boolean {
-  const doc = el.ownerDocument;
-  if (!doc.head || !params) return false;
-
-  const id = ++containerProbeSequence;
-  const marker = `data-container-probe-${id}`;
-  const property = `--container-probe-${id}`;
-  const style = doc.createElement("style");
-  style.setAttribute("data-nudge-ui", "container-probe");
-  style.textContent = `@container ${params} { [${marker}] { ${property}: 1; } }`;
-
-  el.setAttribute(marker, "");
-  doc.head.appendChild(style);
-  try {
-    return getElementComputedStyle(el).getPropertyValue(property).trim() === "1";
-  } catch {
-    return false;
-  } finally {
-    style.remove();
-    el.removeAttribute(marker);
-  }
-}
-
-function atRulesApplyToElement(el: HTMLElement, atRules: readonly AtRuleContext[] | undefined): boolean {
+function atRulesApplyToElement(
+  el: HTMLElement,
+  atRules: readonly AtRuleContext[] | undefined,
+  evaluator: ContainerQueryEvaluator,
+): boolean {
   const view = el.ownerDocument.defaultView;
-  return (atRules ?? []).every((atRule) => {
-    if (atRule.kind === "container") return matchesContainerQuery(el, atRule.params);
-    if (atRule.kind === "supports") return view?.CSS?.supports(atRule.params) ?? false;
-    return true;
-  });
+  if ((atRules ?? []).some((rule) => rule.kind === "supports" && !view?.CSS?.supports(rule.params))) return false;
+  const conditions = (atRules ?? []).filter((rule) => rule.kind === "container").map((rule) => rule.params);
+  return conditions.length === 0 || evaluator.matches(el, conditions);
 }
 
 function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
-  ruleApplies: (rule: MatchedRule) => boolean,
 ): ReadonlyMap<string, string> {
   // Custom properties inherit independently of the property being resolved.
   // Resolve the winning declaration separately for each element in the
@@ -258,12 +230,14 @@ function collectLocalAliases(
 
   const aliases = new Map<string, string>();
   for (const element of lineage.reverse()) {
+    const ruleApplies = makeRuleApplies(element);
     const candidates = new Map<string, LocalAliasCandidate>();
     rules.forEach((rule, index) => {
       if (rule.active === false) return;
-      if (!ruleApplies(rule)) return;
       const match = matchRuleForElement(element, { rule, selectorText: rule.selectorText });
       if (!match) return;
+      if (!rule.declarations.some((declaration) => declaration.property.startsWith("--"))) return;
+      if (!ruleApplies(rule)) return;
       const sourceOrder = rule.sourceOrder ?? index;
       const { specificity } = match;
       for (const declaration of rule.declarations) {
@@ -319,7 +293,10 @@ interface LineageResolution {
   byElement: Map<HTMLElement, ElementResolution>;
 }
 
-function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
+function makeRuleApplies(
+  el: HTMLElement,
+  evaluator = createContainerQueryEvaluator(el.ownerDocument),
+): (rule: MatchedRule) => boolean {
   const matchingContexts = new Map<string, boolean>();
   return (rule: MatchedRule): boolean => {
     const atRules = rule.atRules;
@@ -327,7 +304,7 @@ function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
     const key = JSON.stringify(atRules);
     const cached = matchingContexts.get(key);
     if (cached !== undefined) return cached;
-    const result = atRulesApplyToElement(el, atRules);
+    const result = atRulesApplyToElement(el, atRules, evaluator);
     matchingContexts.set(key, result);
     return result;
   };
@@ -339,79 +316,86 @@ function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
  * inherited phase. Local aliases are collected per element so no ancestor
  * re-walks the lineage × rules.
  */
+function relevantAncestorRule(rule: MatchedRule): boolean {
+  return rule.declarations.some(({ property }) => property.startsWith("--") || INHERITED_PROPERTIES.has(property));
+}
+
+function lineageElements(el: HTMLElement): HTMLElement[] {
+  const elements: HTMLElement[] = [];
+  for (let current: HTMLElement | null = el; current; current = current.parentElement) elements.unshift(current);
+  return elements;
+}
+
+function queryPairs(el: HTMLElement, matcher: RuleMatcher): ContainerQueryPair[] {
+  const pairs: ContainerQueryPair[] = [];
+  for (const element of lineageElements(el)) {
+    for (const { rule } of matcher.matchesForElement(element).matched) {
+      if (element !== el && !relevantAncestorRule(rule)) continue;
+      if (rule.declarations.length === 0) continue;
+      if (rule.atRules?.some((context) => context.kind === "supports" && !element.ownerDocument.defaultView?.CSS?.supports(context.params))) continue;
+      const conditions = (rule.atRules ?? []).filter((context) => context.kind === "container").map((context) => context.params);
+      if (conditions.length > 0) pairs.push({ element, conditions });
+    }
+  }
+  return pairs;
+}
+
+/** Prepares both cascades together so a selection refresh inserts one probe sheet. */
+export function prefetchContainerQueries(
+  elements: readonly HTMLElement[],
+  state: InteractionState,
+  evaluator: ContainerQueryEvaluator,
+): void {
+  const pairs: ContainerQueryPair[] = [];
+  for (const element of elements) {
+    const { rules } = collectCssomRules(element.ownerDocument);
+    pairs.push(...queryPairs(element, createRuleMatcher(rules, state)));
+    if (state === "base") pairs.push(...queryPairs(element, createRuleMatcher(rules, "stable")));
+  }
+  evaluator.prefetch(pairs);
+}
+
 function resolveLineage(
   el: HTMLElement,
   matcher: RuleMatcher,
+  evaluator: ContainerQueryEvaluator,
 ): LineageResolution {
-  const lineage: HTMLElement[] = [];
-  let current: HTMLElement | null = el;
-  while (current) {
-    lineage.push(current);
-    current = current.parentElement;
-  }
-  lineage.reverse();
-
-  const selectorMatches = new Map<HTMLElement, ElementMatch[]>();
-  const allSelectorMatches = new Map<HTMLElement, ElementMatch[]>();
-  for (const element of lineage) {
-    const { matched, allMatched } = matcher.matchesForElement(element);
-    selectorMatches.set(element, matched);
-    allSelectorMatches.set(element, allMatched);
-  }
-
+  const lineage = lineageElements(el);
+  evaluator.prefetch(queryPairs(el, matcher));
   const byElement = new Map<HTMLElement, ElementResolution>();
-  for (let index = 0; index < lineage.length; index++) {
-    const element = lineage[index]!;
-    const ruleApplies = makeRuleApplies(element);
-    const aliases = new Map<string, string>();
-    for (const lineageElement of lineage.slice(0, index + 1)) {
-      const candidates = new Map<string, LocalAliasCandidate>();
-      for (const match of selectorMatches.get(lineageElement) ?? []) {
-        if (!ruleApplies(match.rule)) continue;
-        const sourceOrder = match.rule.sourceOrder ?? 0;
-        for (const declaration of match.rule.declarations) {
-          if (!declaration.property.startsWith("--")) continue;
-          const candidate: LocalAliasCandidate = {
-            value: declaration.value.trim(),
-            important: declaration.important,
-            layer: match.rule.layer,
-            layerOrder: match.rule.layerOrder,
-            specificity: match.specificity,
-            sourceOrder,
-          };
-          const previous = candidates.get(declaration.property);
-          if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
-            candidates.set(declaration.property, candidate);
-          }
-        }
-      }
-      for (const property of Array.from(lineageElement.style)) {
-        if (!property.startsWith("--")) continue;
+  const inheritedAliases = new Map<string, string>();
+  for (const element of lineage) {
+    const ruleApplies = makeRuleApplies(element, evaluator);
+    const { matched: selectorMatches, allMatched } = matcher.matchesForElement(element);
+    const matched = selectorMatches.filter(({ rule }) =>
+      (element === el || relevantAncestorRule(rule)) && rule.declarations.length > 0 && ruleApplies(rule));
+    const candidates = new Map<string, LocalAliasCandidate>();
+    for (const match of matched) {
+      // Conditions have already been evaluated against the declaration's own
+      // element. Descendants inherit its resulting alias, not its condition.
+      for (const declaration of match.rule.declarations) {
+        if (!declaration.property.startsWith("--")) continue;
         const candidate: LocalAliasCandidate = {
-          value: lineageElement.style.getPropertyValue(property).trim(),
-          important: lineageElement.style.getPropertyPriority(property) === "important",
-          inline: true,
-          specificity: 100000000,
-          sourceOrder: Number.MAX_SAFE_INTEGER,
+          value: declaration.value.trim(), important: declaration.important,
+          layer: match.rule.layer, layerOrder: match.rule.layerOrder,
+          specificity: match.specificity, sourceOrder: match.rule.sourceOrder ?? 0,
         };
-        const previous = candidates.get(property);
-        if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
-          candidates.set(property, candidate);
-        }
+        const previous = candidates.get(declaration.property);
+        if (!previous || compareAuthorCascade(candidate, previous) >= 0) candidates.set(declaration.property, candidate);
       }
-      for (const [name, candidate] of candidates) aliases.set(name, candidate.value);
     }
-    const matched: ElementMatch[] = [];
-    for (const match of selectorMatches.get(element) ?? []) {
-      if (!ruleApplies(match.rule)) continue;
-      matched.push(match);
+    for (const property of Array.from(element.style)) {
+      if (!property.startsWith("--")) continue;
+      const candidate: LocalAliasCandidate = {
+        value: element.style.getPropertyValue(property).trim(),
+        important: element.style.getPropertyPriority(property) === "important", inline: true,
+        specificity: 100000000, sourceOrder: Number.MAX_SAFE_INTEGER,
+      };
+      const previous = candidates.get(property);
+      if (!previous || compareAuthorCascade(candidate, previous) >= 0) candidates.set(property, candidate);
     }
-    byElement.set(element, {
-      element,
-      matched,
-      allMatched: allSelectorMatches.get(element) ?? matched,
-      aliases,
-    });
+    for (const [name, candidate] of candidates) inheritedAliases.set(name, candidate.value);
+    byElement.set(element, { element, matched, allMatched, aliases: new Map(inheritedAliases) });
   }
   return { lineage, byElement };
 }
@@ -547,7 +531,7 @@ export function resolveRuleFixture(
     if (!ruleApplies(rule)) continue;
     matched.push(match);
   }
-  const localAliases = collectLocalAliases(el, rules, ruleApplies);
+  const localAliases = collectLocalAliases(el, rules);
   return rowsFromMatches(el, matched, localAliases, tokenTable, allMatched);
 }
 
@@ -702,10 +686,11 @@ function annotatePaintedValues(
 export function getResolvedProperties(
   el: HTMLElement,
   tokenTable: TokenTable,
+  evaluator = createContainerQueryEvaluator(el.ownerDocument),
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const { rules, inaccessible } = collectCssomRules(doc);
-  const lineage = resolveLineage(el, createRuleMatcher(rules, "live"));
+  const lineage = resolveLineage(el, createRuleMatcher(rules, "live"), evaluator);
   return resolveMatchedProperties(el, tokenTable, lineage, inaccessible, "live");
 }
 
@@ -787,6 +772,7 @@ export function getResolvedPropertiesForState(
   el: HTMLElement,
   tokenTable: TokenTable,
   state: InteractionState,
+  evaluator = createContainerQueryEvaluator(el.ownerDocument),
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
@@ -800,6 +786,7 @@ export function getResolvedPropertiesForState(
   }
   const cached = snapshots.get(state);
   if (cached
+    && queryPairs(el, matcher).length === 0
     && cached.elementRevision === revisions.element
     && cached.stylesheetRevision === revisions.stylesheet
     && cached.tokenTable === tokenTable
@@ -807,7 +794,7 @@ export function getResolvedPropertiesForState(
     return cached.rows;
   }
 
-  const lineage = resolveLineage(el, matcher);
+  const lineage = resolveLineage(el, matcher, evaluator);
   const rows = resolveMatchedProperties(el, tokenTable, lineage, inaccessible, state);
   registerResolutionLineage(el);
   snapshots.set(state, {
@@ -830,6 +817,7 @@ const stableTokenCache = new WeakMap<HTMLElement, ResolvedPropertiesSnapshot>();
 export function getResolvedPropertiesStable(
   el: HTMLElement,
   tokenTable: TokenTable,
+  evaluator = createContainerQueryEvaluator(el.ownerDocument),
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
@@ -838,13 +826,14 @@ export function getResolvedPropertiesStable(
   const dynamicMatchKey = matcher.dynamicMatchKey(el);
   const cached = stableTokenCache.get(el);
   if (cached
+    && queryPairs(el, matcher).length === 0
     && cached.elementRevision === revisions.element
     && cached.stylesheetRevision === revisions.stylesheet
     && cached.tokenTable === tokenTable
     && cached.dynamicMatchKey === dynamicMatchKey) {
     return cached.rows;
   }
-  const lineage = resolveLineage(el, matcher);
+  const lineage = resolveLineage(el, matcher, evaluator);
   const rows = resolveMatchedProperties(el, tokenTable, lineage, inaccessible, "stable");
   stableTokenCache.set(el, {
     elementRevision: revisions.element,

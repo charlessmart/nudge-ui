@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
+import { publishInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import { readAuthoredStyleValue } from "./layoutValue.ts";
+
+function publish(subject: HTMLElement): void {
+  const session = createBrowserCssInspection({ document, tokenKnowledge: { definitions: [], generation: "test" } });
+  publishInspectionSnapshot(subject, session.inspect(subject));
+  session.dispose();
+}
 
 describe("layout authored values", () => {
   beforeEach(() => {
@@ -26,6 +34,7 @@ describe("layout authored values", () => {
     subject.className = "grid-subject";
     document.body.appendChild(subject);
 
+    publish(subject);
     expect(readAuthoredStyleValue(subject, "grid-template-columns"))
       .toBe("repeat(auto-fit, minmax(12rem, 1fr))");
     expect(readAuthoredStyleValue(subject, "grid-template-rows"))
@@ -43,6 +52,7 @@ describe("layout authored values", () => {
     subject.className = "grid-subject";
     document.body.appendChild(subject);
 
+    publish(subject);
     expect(readAuthoredStyleValue(subject, "grid-template-columns"))
       .toBe("repeat(2, minmax(0, 1fr))");
   });
@@ -68,6 +78,7 @@ describe("layout authored values", () => {
       subject.className = "grid-subject";
       document.body.appendChild(subject);
 
+      publish(subject);
       expect(readAuthoredStyleValue(subject, "grid-template-columns"))
         .toBe("repeat(3, minmax(0, 1fr))");
       expect(readAuthoredStyleValue(subject, "grid-template-areas"))
@@ -89,6 +100,7 @@ describe("layout authored values", () => {
     subject.className = "grid-subject";
     document.body.appendChild(subject);
 
+    publish(subject);
     expect(readAuthoredStyleValue(subject, "row-gap"))
       .toBe("clamp(48px, 8vw, 140px)");
     expect(readAuthoredStyleValue(subject, "column-gap"))
@@ -103,6 +115,7 @@ describe("layout authored values", () => {
     subject.className = "grid-subject";
     document.body.appendChild(subject);
 
+    publish(subject);
     expect(readAuthoredStyleValue(subject, "row-gap")).toBe("12px");
     expect(readAuthoredStyleValue(subject, "column-gap"))
       .toBe("clamp(48px, 8vw, 140px)");

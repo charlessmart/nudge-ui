@@ -34,6 +34,7 @@ import { RENDERER_ELEMENT_ID_ATTR } from "./canvas/rendererCidIndex.ts";
 import { getSelectedElements } from "./selection/selectionStore.ts";
 import { getInlineTextSession } from "./inline-text/inlineTextEditor.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
+import { enableInspectionPerformanceDiagnostics } from "./inspection/performanceDiagnostics.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
 import type { InventoryDiagnostic, StylesheetArtifact } from "../css/token-inventory/types.ts";
@@ -321,6 +322,9 @@ async function start(): Promise<void> {
   target[LOADED_FLAG] = { toggle: toggleInspector };
   installDebugHook();
   setNudgeUiHostDevFlag(true);
+  if (BUNDLE_URL && new URL(BUNDLE_URL).searchParams.get("perf") === "1") {
+    enableInspectionPerformanceDiagnostics(document);
+  }
 
   if (isCanvasRenderer()) {
     installLazyRuntimeIdentity(document);
