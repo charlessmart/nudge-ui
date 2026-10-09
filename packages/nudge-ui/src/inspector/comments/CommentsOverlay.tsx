@@ -4,6 +4,8 @@ import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
 import { measureFrameViewport, toViewportPoint } from "../canvas/frameConnection.ts";
+import { getPageFrame } from "../canvas/pageSurface.ts";
+import { getElementComputedStyle, getElementWindow } from "../runtime/domRealm.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -27,8 +29,9 @@ function sameAnchor(left: Anchor | null | undefined, right: Anchor | null | unde
 
 function anchorFor(iframe: HTMLIFrameElement, element: HTMLElement): Anchor | null {
   if (!element.isConnected || iframe.contentDocument !== element.ownerDocument) return null;
-  // Focus view keeps other frames mounted, but their pins must stay hidden.
-  if (getComputedStyle(iframe).visibility !== "visible") return null;
+  // The page frame is synthetic and cannot be passed to DOM style APIs.
+  // Focus view keeps real frames mounted, but their pins must stay hidden.
+  if (iframe !== getPageFrame(getElementWindow(iframe)) && getElementComputedStyle(iframe).visibility !== "visible") return null;
   const frame = measureFrameViewport(iframe);
   const rect = element.getBoundingClientRect();
   const { x: left, y: top } = toViewportPoint(frame, { x: rect.right, y: rect.top });

@@ -18,7 +18,9 @@ import {
   isCanvasRenderer,
   setInspectorOpen,
   toggleInspector,
+  unmountInspector,
 } from "./index.ts";
+import { releaseLease } from "./canvas/workspaceLease.ts";
 import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import {
@@ -44,6 +46,7 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_BOOKMARKLET__";
 const COMPUTED_ROOT_ID = "computed:root";
+let toggleLoadedInspector = toggleInspector;
 // Read synchronously: `document.currentScript` is only set while the bundle first evaluates.
 const BUNDLE_URL = document.currentScript instanceof HTMLScriptElement ? document.currentScript.src : null;
 
@@ -273,10 +276,31 @@ async function startController(): Promise<void> {
     bootstrapNudgeUi(mount);
     injectIntoRendererFrames(mount);
   } else {
-    installLazyRuntimeIdentity(document);
     enablePageSurface();
-    bootstrapNudgeUi(createMountElement());
-    setInspectorOpen(true);
+    let mount: HTMLElement | null = null;
+    let removeIdentityListeners: (() => void) | null = null;
+    const enable = (): void => {
+      setNudgeUiHostDevFlag(true);
+      removeIdentityListeners = installLazyRuntimeIdentity(document);
+      mount = createMountElement();
+      bootstrapNudgeUi(mount);
+      setInspectorOpen(true);
+    };
+    toggleLoadedInspector = () => {
+      if (!mount) {
+        enable();
+        return;
+      }
+      unmountInspector();
+      removeIdentityListeners?.();
+      removeIdentityListeners = null;
+      releaseLease();
+      setInspectorOpen(false);
+      setNudgeUiHostDevFlag(false);
+      mount.remove();
+      mount = null;
+    };
+    enable();
   }
   console.info(
     `[nudge-ui] Bookmarklet loaded in ${editor ? "editor" : "page"} mode with ${tokens.tokenCatalog.length} tokens`
@@ -319,7 +343,7 @@ async function start(): Promise<void> {
     loaded.toggle();
     return;
   }
-  target[LOADED_FLAG] = { toggle: toggleInspector };
+  target[LOADED_FLAG] = { toggle: () => toggleLoadedInspector() };
   installDebugHook();
   setNudgeUiHostDevFlag(true);
   if (BUNDLE_URL && new URL(BUNDLE_URL).searchParams.get("perf") === "1") {
