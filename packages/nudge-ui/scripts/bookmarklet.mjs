@@ -15,7 +15,8 @@ mkdirSync(dirname(output), { recursive: true });
 await build({
   ...baseOptions,
   format: "iife",
-  define: { ...baseOptions.define, "process.env.NODE_ENV": '"development"' },
+  define: { ...baseOptions.define, "process.env.NODE_ENV": '"production"' },
+  minify: true,
   logLevel: "warning",
 });
 

@@ -18,6 +18,8 @@ export interface RuntimeElementEvidence {
   text: string | null;
   props: string | null;
   ariaLabel: string | null;
+  /** Nearest-ancestor selector path; omitted by records captured before it existed. */
+  domPath?: string | null;
 }
 
 /** Bounded authored facts for one annotated element. */

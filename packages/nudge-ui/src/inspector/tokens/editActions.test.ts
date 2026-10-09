@@ -247,6 +247,7 @@ describe("runtime HTML evidence", () => {
       text: "Save this action",
       props: ("  prop:`value`\n" + "x".repeat(140)).slice(0, 120),
       ariaLabel: "  Save\n  this action  ",
+      domPath: "button",
     });
   });
 
@@ -270,6 +271,7 @@ describe("runtime HTML evidence", () => {
       text: "About the studio",
       props: null,
       ariaLabel: null,
+      domPath: "h1",
     });
   });
 });

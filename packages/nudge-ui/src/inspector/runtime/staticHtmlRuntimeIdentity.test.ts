@@ -2,7 +2,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
 import {
+  installLazyRuntimeIdentity,
   installStaticHtmlRuntimeIdentity,
+  runtimeDomPath,
   isRuntimeCreatedElement,
   isRuntimeGeneratedSource,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
@@ -104,5 +106,34 @@ describe("static HTML runtime identity", () => {
     content.append(afterDispose);
     await flushMutations();
     expect(afterDispose.hasAttribute("data-cid")).toBe(false);
+  });
+});
+
+describe("lazy runtime identity", () => {
+  it("tags only the pointer target, its ancestors, and two levels of descendants", () => {
+    document.body.innerHTML = [
+      "<main><section><div id=\"target\"><p><span><em>deep</em></span></p></div></section>",
+      "<aside>untouched</aside></main>",
+    ].join("");
+    dispose = installLazyRuntimeIdentity();
+
+    document.getElementById("target")!.dispatchEvent(new Event("pointerover", { bubbles: true }));
+
+    const tagged = (selector: string): boolean => document.querySelector(selector)!.hasAttribute("data-cid");
+    expect(["main", "section", "#target", "p", "span"].every(tagged)).toBe(true);
+    expect(tagged("em")).toBe(false);
+    expect(tagged("aside")).toBe(false);
+  });
+});
+
+describe("runtime DOM path", () => {
+  it("describes the element by its nearest ancestors and stops at an id", () => {
+    document.body.innerHTML = [
+      "<div id=\"app\"><main data-testid=\"hero\" class=\"card a b c d\">",
+      "<button class=\"ds-b1394h10c\">Go</button></main></div>",
+    ].join("");
+
+    expect(runtimeDomPath(document.querySelector("button")!))
+      .toBe("div#app > main[data-testid=\"hero\"].card.a.b > button.ds-b1394h10c");
   });
 });

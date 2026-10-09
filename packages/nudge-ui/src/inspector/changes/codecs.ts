@@ -445,12 +445,13 @@ function isComponentInvocationEvidenceValue(value: unknown): value is ComponentI
 
 function isRuntimeElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["runtimeEvidence"]> {
   return isRecord(value)
-    && hasOnlyKeys(value, ["reason", "tagName", "text", "props", "ariaLabel"])
+    && hasOnlyKeys(value, ["reason", "tagName", "text", "props", "ariaLabel", "domPath"])
     && (value.reason === undefined || value.reason === "runtime-created" || value.reason === "unannotated")
     && typeof value.tagName === "string"
     && (typeof value.text === "string" || value.text === null)
     && (typeof value.props === "string" || value.props === null)
-    && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
+    && (typeof value.ariaLabel === "string" || value.ariaLabel === null)
+    && (value.domPath === undefined || typeof value.domPath === "string" || value.domPath === null);
 }
 
 function isSourceElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["sourceEvidence"]> {

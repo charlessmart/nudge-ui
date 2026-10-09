@@ -11,6 +11,7 @@ import {
   isRuntimeGeneratedSource,
   normalizeRuntimeTag,
   normalizeRuntimeText,
+  runtimeDomPath,
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 import { changeKey } from "../changes/model.ts";
@@ -39,6 +40,7 @@ function sourceFields(el: HTMLElement): SourceFields {
     text: boundedRenderedText(el),
     props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
     ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
+    domPath: runtimeDomPath(el),
   });
   if (isRuntimeCreatedElement(el) || isRuntimeGeneratedSource(src)) {
     return {

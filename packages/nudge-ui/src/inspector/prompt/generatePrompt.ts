@@ -227,6 +227,7 @@ function runtimeEvidenceLines(group: ElementGroup): string[] {
     "  - Source: unknown; locate the JavaScript or template that creates this runtime DOM.",
     `  - Rendered element: \`<${tagName}>\``,
   ];
+  if (evidence.domPath) lines.push(`  - DOM path: \`${evidence.domPath}\``);
   if (text) lines.push(`  - Text evidence: ${promptText(text)}`);
   if (ariaLabel) lines.push(`  - Accessible name evidence: ${promptText(ariaLabel)}`);
   if (props) lines.push(`  - Props evidence: ${promptText(props)}`);

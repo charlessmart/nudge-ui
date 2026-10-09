@@ -2,13 +2,13 @@
  * Spike entry for loading the inspector into any page without a host Adapter.
  *
  * Everything a host normally supplies is derived from the live document:
- * runtime identity comes from `installStaticHtmlRuntimeIdentity`, and tokens
- * come from the custom properties in readable stylesheets. Source locations,
+ * runtime identity is assigned lazily under the pointer, and tokens come from
+ * readable stylesheets plus the root's computed custom properties. Source locations,
  * component semantics, Canvas, and the agent bridge are unavailable.
  */
 import { bootstrapNudgeUi, configureNudgeUiRuntime, setInspectorOpen, toggleInspector } from "./index.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
-import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
+import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
 import type { InventoryDiagnostic, StylesheetArtifact } from "../css/token-inventory/types.ts";
 import type { TokenCatalogDiagnostic, TokenDeclaration, TokenDefinition } from "../css/model/index.ts";
@@ -16,6 +16,7 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_BOOKMARKLET__";
+const COMPUTED_ROOT_ID = "computed:root";
 
 interface BookmarkletWindow extends Window {
   [LOADED_FLAG]?: true;
@@ -63,6 +64,27 @@ async function collectSheet(sheet: CSSStyleSheet, index: number): Promise<Collec
   }
 }
 
+/**
+ * Custom properties visible on the root element but absent from readable
+ * stylesheets: definitions in cross-origin sheets without CORS, scoped theme
+ * rules the inventory rejects, or variables set from JavaScript.
+ */
+function computedRootDeclarations(definedNames: Set<string>): string | null {
+  const declarations: string[] = [];
+  for (const element of [document.documentElement, document.body]) {
+    const style = getComputedStyle(element);
+    for (let index = 0; index < style.length; index += 1) {
+      const name = style.item(index);
+      if (!name.startsWith("--") || definedNames.has(name)) continue;
+      const value = style.getPropertyValue(name).trim();
+      if (!value) continue;
+      definedNames.add(name);
+      declarations.push(`  ${name}: ${value};`);
+    }
+  }
+  return declarations.length > 0 ? `:root {\n${declarations.join("\n")}\n}` : null;
+}
+
 function mapDiagnostic(diagnostic: InventoryDiagnostic): TokenCatalogDiagnostic {
   return {
     code: diagnostic.code,
@@ -96,6 +118,18 @@ async function collectDocumentTokens(): Promise<Pick<
       } : {}),
     };
     inventory.apply(artifact);
+  }
+  const definedNames = new Set(inventory.snapshot().definitions.map((definition) => definition.cssName));
+  const computed = computedRootDeclarations(definedNames);
+  if (computed) {
+    inventory.apply({
+      buildTool: "browser",
+      id: COMPUTED_ROOT_ID,
+      stage: "authored",
+      provenance: "project",
+      order: -1,
+      content: computed,
+    });
   }
   const snapshot = inventory.snapshot();
   return {
@@ -132,7 +166,7 @@ async function start(): Promise<void> {
   target[LOADED_FLAG] = true;
 
   const tokens = await collectDocumentTokens();
-  installStaticHtmlRuntimeIdentity(document);
+  installLazyRuntimeIdentity(document);
   setNudgeUiHostDevFlag(true);
   configureNudgeUiRuntime({
     projectId: `bookmarklet:${location.origin}`,
