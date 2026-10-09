@@ -5,14 +5,19 @@
  * runtime identity is assigned lazily under the pointer, and tokens come from
  * readable stylesheets plus the root's computed custom properties. Source
  * locations, component semantics, iterations, and the agent bridge are
- * unavailable. The page itself is the only Canvas card, so no framing is needed.
+ * unavailable. In editor mode the application runs in Canvas frames;
+ * otherwise the page itself is the only Canvas card.
  */
 import {
   bootstrapNudgeUi,
   configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
+  isCanvasRenderer,
+  readNudgeUiEditorTarget,
   setInspectorOpen,
   unmountInspector,
 } from "./index.ts";
+import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 import { releaseLease } from "./canvas/workspaceLease.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
@@ -37,10 +42,19 @@ export interface PageInspectorOptions {
   storage?: InspectorStorage;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
+  /**
+   * `"editor"` turns a document whose URL carries the editor marker into the
+   * iframe editor; otherwise the page itself is the only Canvas card.
+   */
+  surface?: "editor" | "page";
+  /** Called whenever an editor renderer frame loads a document. */
+  onRendererFrameLoad?: () => void;
 }
 
 /** Published on `window` so a second injection toggles the first instance. */
 export interface PageInspectorHandle {
+  readonly surface: "editor" | "page" | "renderer";
+  /** Toggles the page inspector, or leaves the editor. */
   toggle(): void;
   /** Starts the `window.__nudgeUiPerformance` counters for this document. */
   enablePerformanceDiagnostics(): void;
@@ -61,13 +75,13 @@ function isNudgeOwnedSheet(sheet: CSSStyleSheet): boolean {
   return owner instanceof Element && owner.hasAttribute("data-nudge-ui");
 }
 
-function sheetId(sheet: CSSStyleSheet, index: number): string {
+function sheetId(sheet: CSSStyleSheet, index: number, base: string): string {
   const owner = sheet.ownerNode;
   const viteId = owner instanceof HTMLElement ? owner.dataset.viteDevId : undefined;
   if (viteId) return viteId;
   if (sheet.href) {
-    const url = new URL(sheet.href, location.href);
-    return url.origin === location.origin ? url.pathname : url.href;
+    const url = new URL(sheet.href, base);
+    return url.origin === new URL(base).origin ? url.pathname : url.href;
   }
   return `inline-style-${index + 1}`;
 }
@@ -76,8 +90,8 @@ function serializeRules(sheet: CSSStyleSheet): string {
   return Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n");
 }
 
-async function collectSheet(sheet: CSSStyleSheet, index: number): Promise<CollectedSheet> {
-  const id = sheetId(sheet, index);
+async function collectSheet(sheet: CSSStyleSheet, index: number, base: string): Promise<CollectedSheet> {
+  const id = sheetId(sheet, index, base);
   try {
     return { id, content: serializeRules(sheet) };
   } catch {
@@ -97,10 +111,12 @@ async function collectSheet(sheet: CSSStyleSheet, index: number): Promise<Collec
  * stylesheets: definitions in cross-origin sheets without CORS, scoped theme
  * rules the inventory rejects, or variables set from JavaScript.
  */
-function computedRootDeclarations(definedNames: Set<string>): string | null {
+function computedRootDeclarations(doc: Document, definedNames: Set<string>): string | null {
   const declarations: string[] = [];
-  for (const element of [document.documentElement, document.body]) {
-    const style = getComputedStyle(element);
+  const view = doc.defaultView ?? window;
+  for (const element of [doc.documentElement, doc.body]) {
+    if (!element) continue;
+    const style = view.getComputedStyle(element);
     for (let index = 0; index < style.length; index += 1) {
       const name = style.item(index);
       if (!name.startsWith("--") || definedNames.has(name)) continue;
@@ -122,12 +138,11 @@ function mapDiagnostic(diagnostic: InventoryDiagnostic): TokenCatalogDiagnostic 
   };
 }
 
-async function collectDocumentTokens(): Promise<Pick<
-  NudgeUiRuntimeConfig,
-  "tokenCatalog" | "tokens" | "tokenDiagnostics" | "tokenGeneration"
->> {
-  const sheets = Array.from(document.styleSheets).filter((sheet) => !isNudgeOwnedSheet(sheet));
-  const collected = await Promise.all(sheets.map(collectSheet));
+type DocumentTokens = Pick<NudgeUiRuntimeConfig, "tokenCatalog" | "tokens" | "tokenDiagnostics" | "tokenGeneration">;
+
+async function collectDocumentTokens(doc: Document): Promise<DocumentTokens> {
+  const sheets = Array.from(doc.styleSheets).filter((sheet) => !isNudgeOwnedSheet(sheet));
+  const collected = await Promise.all(sheets.map((sheet, index) => collectSheet(sheet, index, doc.location.href)));
   const inventory = createTokenInventory();
   for (const [order, sheet] of collected.entries()) {
     const artifact: StylesheetArtifact = {
@@ -148,7 +163,7 @@ async function collectDocumentTokens(): Promise<Pick<
     inventory.apply(artifact);
   }
   const definedNames = new Set(inventory.snapshot().definitions.map((definition) => definition.cssName));
-  const computed = computedRootDeclarations(definedNames);
+  const computed = computedRootDeclarations(doc, definedNames);
   if (computed) {
     inventory.apply({
       buildTool: "browser",
@@ -178,9 +193,9 @@ async function collectDocumentTokens(): Promise<Pick<
   };
 }
 
-function runtimeConfig(
-  tokens: Pick<NudgeUiRuntimeConfig, "tokenCatalog" | "tokens" | "tokenDiagnostics" | "tokenGeneration">,
-): NudgeUiRuntimeConfig {
+const NO_TOKENS: DocumentTokens = { tokenCatalog: [], tokens: [], tokenDiagnostics: [], tokenGeneration: "" };
+
+function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
   return {
     projectId: `page:${location.origin}`,
     host: "static-html",
@@ -193,6 +208,13 @@ function runtimeConfig(
   };
 }
 
+function createMount(): HTMLElement {
+  const mount = document.createElement("div");
+  mount.id = MOUNT_ID;
+  document.body.append(mount);
+  return mount;
+}
+
 /** Mounts the inspector and returns a toggle that fully unmounts and remounts it. */
 function mountPageInspector(): () => void {
   let mount: HTMLElement | null = null;
@@ -200,9 +222,7 @@ function mountPageInspector(): () => void {
   const enable = (): void => {
     setNudgeUiHostDevFlag(true);
     removeIdentityListeners = installLazyRuntimeIdentity(document);
-    mount = document.createElement("div");
-    mount.id = MOUNT_ID;
-    document.body.append(mount);
+    mount = createMount();
     bootstrapNudgeUi(mount);
     setInspectorOpen(true);
   };
@@ -224,6 +244,51 @@ function mountPageInspector(): () => void {
 }
 
 /**
+ * Replaces the page's content with the iframe editor. The application runs in
+ * Canvas renderer frames, which the caller loads the inspector into.
+ */
+function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
+  document.body.replaceChildren();
+  const layout = new CSSStyleSheet();
+  layout.replaceSync(`html, body, #${MOUNT_ID} { width: 100%; height: 100%; margin: 0; overflow: hidden; }`);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, layout];
+  setNudgeUiHostDevFlag(true);
+  const mount = createMount();
+  bootstrapNudgeUi(mount);
+  setInspectorOpen(true);
+
+  const root = mount.shadowRoot;
+  if (!root) return;
+  const watched = new WeakSet<HTMLIFrameElement>();
+  const loaded = (frame: HTMLIFrameElement): void => {
+    const frameDocument = frame.contentDocument;
+    if (!frameDocument || frameDocument.location.href === "about:blank") return;
+    onRendererFrameLoad?.();
+    // Script-built styles exist only in the application frames, not in this document.
+    void collectDocumentTokens(frameDocument).then((tokens) => {
+      if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
+        configureNudgeUiRuntime(runtimeConfig(tokens));
+      }
+    });
+  };
+  const watch = (): void => {
+    for (const frame of root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`)) {
+      if (watched.has(frame)) continue;
+      watched.add(frame);
+      frame.addEventListener("load", () => loaded(frame));
+      loaded(frame);
+    }
+  };
+  new MutationObserver(watch).observe(root, { childList: true, subtree: true });
+  watch();
+}
+
+/** Leaves the editor by loading the application URL it frames. */
+function exitEditor(): void {
+  location.replace(readNudgeUiEditorTarget(location.href) ?? location.href);
+}
+
+/**
  * Starts the inspector on the current page. Running a second bundle copy in
  * the same window toggles the first instance instead, because only the first
  * copy's stores drive the UI.
@@ -235,21 +300,46 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
     loaded.toggle();
     return;
   }
-  let toggle: (() => void) | null = null;
+  const editor = options.surface === "editor" && readNudgeUiEditorTarget(location.href) !== null;
+  let toggle: (() => void) | null = editor ? exitEditor : null;
   target[LOADED_FLAG] = {
+    surface: editor ? "editor" : "page",
     toggle: () => toggle?.(),
     enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
   };
   if (options.storage) configureInspectorStorage(options.storage);
   if (options.adoptStylesheets) preferAdoptedStylesheets();
 
-  const tokens = await collectDocumentTokens();
+  const tokens = await collectDocumentTokens(document);
   configureNudgeUiRuntime(runtimeConfig(tokens));
-  enablePageSurface();
-  toggle = mountPageInspector();
+  if (editor) {
+    mountEditor(options.onRendererFrameLoad);
+  } else {
+    enablePageSurface();
+    toggle = mountPageInspector();
+  }
   console.info(
-    `[nudge-ui] Inspector loaded with ${tokens.tokenCatalog.length} tokens`
+    `[nudge-ui] Inspector loaded in ${editor ? "editor" : "page"} mode with ${tokens.tokenCatalog.length} tokens`
       + (tokens.tokenDiagnostics.length > 0 ? ` and ${tokens.tokenDiagnostics.length} stylesheet diagnostics.` : "."),
     tokens.tokenDiagnostics,
   );
+}
+
+/**
+ * Starts the renderer in an editor's Canvas frame. Does nothing in any other
+ * document, or when the frame already runs one.
+ */
+export function startCanvasRenderer(options: Pick<PageInspectorOptions, "adoptStylesheets"> = {}): void {
+  const target = window as PageInspectorWindow;
+  if (!isCanvasRenderer() || target[LOADED_FLAG]) return;
+  target[LOADED_FLAG] = {
+    surface: "renderer",
+    toggle: () => undefined,
+    enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
+  };
+  if (options.adoptStylesheets) preferAdoptedStylesheets();
+  setNudgeUiHostDevFlag(true);
+  installLazyRuntimeIdentity(document);
+  configureNudgeUiRuntime(runtimeConfig(NO_TOKENS));
+  bootstrapNudgeUi(createMount());
 }

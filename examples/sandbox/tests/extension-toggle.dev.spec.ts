@@ -22,6 +22,10 @@ test("the extension toggle disables page interception and can restart the inspec
     </body></html>`,
   }));
   await page.goto("/extension-toggle-fixture");
+  await page.evaluate(() => {
+    // The service worker publishes this before each top-frame injection.
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+  });
   await page.addScriptTag({ content: inspectorBundle });
   const tool = page.locator('[data-test="canvas-tool-comment"]');
   await expect(tool).toBeVisible();

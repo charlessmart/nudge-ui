@@ -36,4 +36,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0030: Canvas drafts, frames, and HTML iterations](./0030-canvas-drafts-frames-and-html-iterations.md) (supersedes edit-intent ownership and frame identity in ADR-0027)
 - [ADR-0031: Invocation-scoped structural deletes](./0031-invocation-scoped-structural-deletes.md)
 - [ADR-0032: Remove the coupled companion and startup-workspace adapter](./0032-remove-legacy-agent-modes.md) (supersedes the legacy modes retained by ADR-0026 and ADR-0028)
-- [ADR-0033: Browser extension page surface](./0033-browser-extension-page-surface.md) (supersedes ADR-0027's single iframe workspace and ADR-0006's renderer restriction, for the extension only)
+- [ADR-0033: Browser extension editor](./0033-browser-extension-editor.md) (supersedes ADR-0006's renderer restriction for the extension's page-surface fallback)

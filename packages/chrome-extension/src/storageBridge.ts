@@ -1,4 +1,10 @@
-import { siteKeyPrefix, STORAGE_WRITE_EVENT, type StorageWrite } from "./protocol.ts";
+import {
+  INJECT_RENDERERS_MESSAGE,
+  RENDERER_FRAME_LOAD_EVENT,
+  siteKeyPrefix,
+  STORAGE_WRITE_EVENT,
+  type StorageWrite,
+} from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
 
@@ -29,5 +35,10 @@ if (!scope[BRIDGE_FLAG]) {
       ? chrome.storage.local.remove(key)
       : chrome.storage.local.set({ [key]: write.value });
     done.catch((error: unknown) => console.warn("[nudge-ui] Could not save inspector state.", error));
+  });
+  document.addEventListener(RENDERER_FRAME_LOAD_EVENT, () => {
+    chrome.runtime.sendMessage({ type: INJECT_RENDERERS_MESSAGE }).catch((error: unknown) => {
+      console.warn("[nudge-ui] Could not load the inspector into the preview.", error);
+    });
   });
 }
