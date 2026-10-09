@@ -24,6 +24,21 @@ interface EditorTab {
 
 const editorTabKey = (tabId: number) => `editor-tab:${tabId}`;
 
+/**
+ * The editor discards the page it loads into, and starts only once that page
+ * finishes loading, so the page's scripts and assets are blocked. Extension
+ * scripts and resources are exempt; frames may load the application.
+ */
+const EDITOR_DOCUMENT_POLICY = [
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+  "img-src 'none'",
+  "media-src 'none'",
+  "font-src 'none'",
+  "object-src 'none'",
+  "frame-src 'self'",
+].join("; ");
+
 async function readEditorTab(tabId: number): Promise<EditorTab | undefined> {
   const key = editorTabKey(tabId);
   return (await chrome.storage.session.get(key))[key] as EditorTab | undefined;
@@ -61,7 +76,7 @@ async function installEditorRules(tabId: number, origin: string): Promise<number
         condition: { tabIds: [tabId], resourceTypes: ["main_frame"], urlFilter: "nudge-ui=editor" },
         action: {
           type: "modifyHeaders",
-          responseHeaders: [{ header: "content-security-policy", operation: "set", value: "script-src 'none'" }],
+          responseHeaders: [{ header: "content-security-policy", operation: "set", value: EDITOR_DOCUMENT_POLICY }],
         },
       },
     ],

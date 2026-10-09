@@ -47,7 +47,7 @@ export interface PageInspectorOptions {
    * iframe editor; otherwise the page itself is the only Canvas card.
    */
   surface?: "editor" | "page";
-  /** Called whenever an editor renderer frame loads a document. */
+  /** Called whenever an editor renderer frame's document finishes parsing. */
   onRendererFrameLoad?: () => void;
 }
 
@@ -259,24 +259,40 @@ function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
 
   const root = mount.shadowRoot;
   if (!root) return;
-  const watched = new WeakSet<HTMLIFrameElement>();
-  const loaded = (frame: HTMLIFrameElement): void => {
+  const frames = (): NodeListOf<HTMLIFrameElement> =>
+    root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`);
+  const applicationDocument = (frame: HTMLIFrameElement): Document | null => {
     const frameDocument = frame.contentDocument;
-    if (!frameDocument || frameDocument.location.href === "about:blank") return;
-    onRendererFrameLoad?.();
-    // Script-built styles exist only in the application frames, not in this document.
+    return frameDocument && frameDocument.location.href !== "about:blank" ? frameDocument : null;
+  };
+  // A frame's `load` waits for every image, so renderers start once the DOM is ready.
+  const announced = new WeakSet<Document>();
+  const announceReadyDocuments = (): void => {
+    for (const frame of frames()) {
+      const frameDocument = applicationDocument(frame);
+      if (!frameDocument || frameDocument.readyState === "loading" || announced.has(frameDocument)) continue;
+      announced.add(frameDocument);
+      onRendererFrameLoad?.();
+    }
+  };
+  window.setInterval(announceReadyDocuments, 100);
+  // Script-built styles exist only in the application frames, not in this document.
+  const collectFrameTokens = (frame: HTMLIFrameElement): void => {
+    const frameDocument = applicationDocument(frame);
+    if (!frameDocument) return;
     void collectDocumentTokens(frameDocument).then((tokens) => {
       if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
         configureNudgeUiRuntime(runtimeConfig(tokens));
       }
     });
   };
+  const watched = new WeakSet<HTMLIFrameElement>();
   const watch = (): void => {
-    for (const frame of root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`)) {
+    for (const frame of frames()) {
       if (watched.has(frame)) continue;
       watched.add(frame);
-      frame.addEventListener("load", () => loaded(frame));
-      loaded(frame);
+      frame.addEventListener("load", () => collectFrameTokens(frame));
+      collectFrameTokens(frame);
     }
   };
   new MutationObserver(watch).observe(root, { childList: true, subtree: true });
