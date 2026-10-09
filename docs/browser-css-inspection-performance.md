@@ -16,15 +16,11 @@ observe changed container sizes.
 
 ## Measure inspection work
 
-Add `perf=1` to the bookmarklet script URL, for example:
-
-```text
-http://127.0.0.1:5199/bookmarklet.js?surface=page&perf=1
-```
-
-Refresh the host page before loading a new bundle. In the host page's console:
+Open the inspector with the Chrome extension. In the page's console, start
+the counters for that document:
 
 ```js
+window.__NUDGE_UI_PAGE_INSPECTOR__.enablePerformanceDiagnostics();
 window.__nudgeUiPerformance.reset();
 // Select, hover, or drag an element.
 window.__nudgeUiPerformance.read();
@@ -50,6 +46,6 @@ A Chrome trace on a 3,000-item fixture with 24 container conditions recorded:
 | Style recalculation time | 151.8 ms | 3.5 ms |
 
 These measurements describe the local fixture, not Envato. Recheck that host
-with the rebuilt bookmarklet before adding a manual size-query parser. Native
+with the rebuilt extension before adding a manual size-query parser. Native
 batched evaluation currently handles size and style queries without duplicating
 the browser's query semantics.

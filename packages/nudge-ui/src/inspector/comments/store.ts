@@ -1,3 +1,4 @@
+import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { useSyncExternalStore } from "react";
 import { isRenderedInstanceRef, type RenderedInstanceRef } from "../changes/editModel.ts";
 import { useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
@@ -43,7 +44,7 @@ export function getComments(): readonly ElementComment[] {
     loadedKey = key;
     loadedDemo = demo;
     try {
-      const saved: unknown = demo ? [] : JSON.parse(localStorage.getItem(key) ?? "[]");
+      const saved: unknown = demo ? [] : JSON.parse(inspectorStorage()?.getItem(key) ?? "[]");
       comments = Array.isArray(saved) ? saved.filter(isComment) : [];
     } catch {
       comments = [];
@@ -63,7 +64,7 @@ function publish(next: readonly ElementComment[]): void {
   if (!canWriteWorkspace()) return;
   comments = next;
   if (getNudgeUiRuntimeConfig().demo !== true) {
-    try { localStorage.setItem(storageKey(), JSON.stringify(next)); } catch {}
+    try { inspectorStorage()?.setItem(storageKey(), JSON.stringify(next)); } catch {}
   }
   for (const listener of listeners) listener();
 }

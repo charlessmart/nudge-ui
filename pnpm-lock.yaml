@@ -452,6 +452,10 @@ importers:
         version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/chrome-extension:
+    dependencies:
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
     devDependencies:
       '@types/chrome':
         specifier: ^0.3.4
@@ -8576,6 +8580,14 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@26.4.1)(lightningcss@1.33.0))':
+    dependencies:
+      '@vitest/spy': 2.1.9
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 5.4.21(@types/node@26.4.1)(lightningcss@1.33.0)
+
   '@vitest/pretty-format@2.1.9':
     dependencies:
       tinyrainbow: 1.2.0
@@ -11999,7 +12011,7 @@ snapshots:
   vitest@2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@26.4.1)(lightningcss@1.33.0))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9

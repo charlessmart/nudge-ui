@@ -22,10 +22,6 @@ test("the extension toggle disables page interception and can restart the inspec
     </body></html>`,
   }));
   await page.goto("/extension-toggle-fixture");
-  await page.evaluate(() => {
-    // SAFETY: This is the same page-surface flag the extension sets before injection.
-    (window as Window & { __NUDGE_UI_SURFACE__?: string }).__NUDGE_UI_SURFACE__ = "page";
-  });
   await page.addScriptTag({ content: inspectorBundle });
   const tool = page.locator('[data-test="canvas-tool-comment"]');
   await expect(tool).toBeVisible();
@@ -40,7 +36,7 @@ test("the extension toggle disables page interception and can restart the inspec
   const toggle = async (): Promise<void> => {
     await page.evaluate(() => {
       // SAFETY: The injected bundle publishes the callback used by the extension icon.
-      const loaded = (window as Window & { __NUDGE_UI_BOOKMARKLET__?: { toggle(): void } }).__NUDGE_UI_BOOKMARKLET__;
+      const loaded = (window as Window & { __NUDGE_UI_PAGE_INSPECTOR__?: { toggle(): void } }).__NUDGE_UI_PAGE_INSPECTOR__;
       if (!loaded) throw new Error("The inspector bundle did not publish its extension toggle.");
       loaded.toggle();
     });

@@ -1,3 +1,4 @@
+import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
 import { clearComments } from "../comments/store.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
@@ -154,7 +155,7 @@ function persistSessionUnchecked(): boolean {
   try {
     persistDrafts();
     const session = buildSession();
-    localStorage.setItem(storageKey(projectId()), JSON.stringify(session));
+    inspectorStorage()?.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
   } catch {
     // Storage unavailable or quota exceeded — silently ignore
@@ -167,7 +168,7 @@ export function hydrateSession(): HydrationResult {
 
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(storageKey(projectId()));
+    raw = inspectorStorage()?.getItem(storageKey(projectId())) ?? null;
   } catch {
     return { restored: false, changeCount: 0 };
   }
@@ -311,7 +312,7 @@ export function hydrateSession(): HydrationResult {
 
 function safeDiscard(): void {
   try {
-    localStorage.removeItem(storageKey(projectId()));
+    inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
     // ignore
   }
@@ -333,7 +334,7 @@ export function clearSession(): void {
   if (isDraftLocked()) return;
   if (!canWriteWorkspace()) return;
   try {
-    localStorage.removeItem(storageKey(projectId()));
+    inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
     // ignore
   }

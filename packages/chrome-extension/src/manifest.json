@@ -15,6 +15,6 @@
     "service_worker": "service-worker.js",
     "type": "module"
   },
-  "permissions": ["activeTab", "scripting"],
-  "minimum_chrome_version": "116"
+  "permissions": ["activeTab", "scripting", "storage"],
+  "minimum_chrome_version": "130"
 }

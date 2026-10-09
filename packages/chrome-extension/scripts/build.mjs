@@ -2,7 +2,6 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { clientBuildOptions } from "../../../scripts/build-browser-client.mjs";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDirectory = resolve(packageRoot, "dist");
@@ -11,28 +10,32 @@ const { version } = JSON.parse(readFileSync(resolve(packageRoot, "package.json")
 rmSync(outputDirectory, { recursive: true, force: true });
 mkdirSync(outputDirectory, { recursive: true });
 
-// The extension injects the same standalone entry the bookmarklet serves, so
-// both always ship the inspector from one source.
-const inspectorOptions = clientBuildOptions(
-  resolve(packageRoot, "../nudge-ui/src/inspector/bookmarklet.ts"),
-  resolve(outputDirectory, "nudge-ui.js"),
-);
+const shared = { bundle: true, platform: "browser", target: "es2022", logLevel: "warning" };
+
+// Bundles nudge-ui's built output through its package export, so `pnpm build`
+// must build nudge-ui first; the workspace dependency orders that.
 await build({
-  ...inspectorOptions,
+  ...shared,
+  entryPoints: [resolve(packageRoot, "src/inspector.ts")],
+  outfile: resolve(outputDirectory, "nudge-ui.js"),
   format: "iife",
-  define: { ...inspectorOptions.define, "process.env.NODE_ENV": '"production"' },
+  define: { "import.meta.env.DEV": "true", "process.env.NODE_ENV": '"production"' },
+  loader: { ".svg": "dataurl" },
   minify: true,
-  logLevel: "warning",
 });
 
 await build({
+  ...shared,
+  entryPoints: [resolve(packageRoot, "src/storageBridge.ts")],
+  outfile: resolve(outputDirectory, "storage-bridge.js"),
+  format: "iife",
+});
+
+await build({
+  ...shared,
   entryPoints: [resolve(packageRoot, "src/serviceWorker.ts")],
   outfile: resolve(outputDirectory, "service-worker.js"),
-  bundle: true,
   format: "esm",
-  platform: "browser",
-  target: "es2022",
-  logLevel: "warning",
 });
 
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "src/manifest.json"), "utf8"));
