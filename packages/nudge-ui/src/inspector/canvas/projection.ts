@@ -355,6 +355,15 @@ export function findCanvasFrameBySource(
   return null;
 }
 
+/** The registered frame rendering `doc`, which may be the controller document on the page surface. */
+export function findCanvasFrameByDocument(doc: Document | null | undefined): HTMLIFrameElement | null {
+  if (!doc) return null;
+  for (const iframe of frameRegistry.values()) {
+    if (getFrameDocument(iframe) === doc) return iframe;
+  }
+  return null;
+}
+
 const frameRegistryListeners = new Set<() => void>();
 
 export function subscribeFrameRegistry(listener: () => void): () => void {

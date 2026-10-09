@@ -2,23 +2,25 @@ import type { ReactElement } from "react";
 import { InspectorShell } from "./InspectorShell.tsx";
 import { CanvasWorkspace } from "../canvas/CanvasWorkspace.tsx";
 import { CanvasElementOverlay } from "../canvas/CanvasElementOverlay.tsx";
-import { InspectorOverlay } from "../overlay/InspectorOverlay.tsx";
+import { isPageSurface } from "../canvas/pageSurface.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { readNudgeUiEditorTarget } from "../../transport/editor.ts";
 import { TooltipGroup } from "../ui/Tooltip.tsx";
 
 import { CommentsOverlay } from "../comments/CommentsOverlay.tsx";
 
-export function AppShell({ host }: { host: HTMLElement }): ReactElement {
+export function AppShell(): ReactElement {
   const canvasEnabled = useNudgeUiRuntimeConfig().capabilities.canvas;
   const primaryUrl = typeof window === "undefined"
     ? null
-    : readNudgeUiEditorTarget(window.location.href);
+    : isPageSurface()
+      ? window.location.href
+      : readNudgeUiEditorTarget(window.location.href);
   return (
     <TooltipGroup>
       {canvasEnabled ? <CanvasWorkspace primaryUrl={primaryUrl} /> : null}
       {canvasEnabled ? <CanvasElementOverlay /> : null}
-      {canvasEnabled ? <CommentsOverlay /> : <InspectorOverlay host={host} />}
+      {canvasEnabled ? <CommentsOverlay /> : null}
       <InspectorShell />
     </TooltipGroup>
   );

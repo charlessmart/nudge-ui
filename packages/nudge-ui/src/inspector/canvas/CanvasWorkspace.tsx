@@ -38,6 +38,8 @@ import {
   setTemporaryAppInteraction,
 } from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { PageCard } from "./PageCard.tsx";
+import { isPageSurface } from "./pageSurface.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./viewStore.ts";
@@ -122,6 +124,7 @@ export interface CanvasWorkspaceProps {
 
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
+  const pageSurface = isPageSurface();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const inspectorSession = useInspectorSession();
   const inspectorOpen = useInspectorOpen();
@@ -281,6 +284,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [primaryUrl, cards.length, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
+    if (pageSurface) return;
     if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
@@ -552,7 +556,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const syncActiveFrameUrl = (url: string): void => {
         if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
-        if (activeCardId === frame.cardId || getCanvasCards().length === 1) {
+        if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
           activatedTargetRef.current = url;
           window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
         }
@@ -803,7 +807,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
-  const renderCard = (card: CanvasCardData) => (
+  const renderCard = (card: CanvasCardData) => pageSurface ? (
+    <PageCard key={card.id} card={card} documentOwner={inspectorSession} />
+  ) : (
     <CanvasCard
       key={card.id}
       card={card}
@@ -826,6 +832,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"
         data-presentation={presentation}
+        data-surface={pageSurface ? "page" : undefined}
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
         <div
@@ -841,7 +848,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
-          {inspectorOpen && presentation === "focus" ? (
+          {inspectorOpen && presentation === "focus" && !pageSurface ? (
             <div className="canvas-workspace__focus-action" data-test="canvas-show-canvas">
               <Button
                 variant="quiet"

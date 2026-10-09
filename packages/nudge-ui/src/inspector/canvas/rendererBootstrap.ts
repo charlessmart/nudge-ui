@@ -30,6 +30,7 @@ import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
+import { isInspectorUiEvent } from "./pageSurface.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -376,7 +377,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (!ownsRendererBootstrap(owner)) return;
+    if (!ownsRendererBootstrap(owner) || isInspectorUiEvent(event)) return;
     if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
     if (boardGesturesEnabled && !nativeAppInteraction && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;

@@ -5,6 +5,7 @@ import { useSketchStore } from "./store.ts";
 import type { SketchAnnotation, SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
 import { getSketchScrollPosition } from "./capture.ts";
 import { sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
+import { isPageSurface } from "../canvas/pageSurface.ts";
 
 interface SketchFrameOverlayProps {
   readonly iframe: HTMLIFrameElement | null;
@@ -107,7 +108,8 @@ export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready 
     window.addEventListener("resize", refresh);
     frameWindow.addEventListener("resize", refresh);
     frameWindow.addEventListener("scroll", refresh, true);
-    const observer = typeof ResizeObserver === "undefined"
+    // The page-surface frame is a stand-in; window resize already covers it.
+    const observer = typeof ResizeObserver === "undefined" || isPageSurface()
       ? null
       : new ResizeObserver(refresh);
     observer?.observe(iframe);

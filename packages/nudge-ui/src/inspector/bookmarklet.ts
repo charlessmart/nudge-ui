@@ -8,7 +8,8 @@
  *
  * When the page allows same-origin framing, the bookmarklet turns the page
  * into the iframe editor and injects itself into each renderer frame, so the
- * full Canvas overlay is available. Otherwise it edits the page in place.
+ * full Canvas board is available. Otherwise, or with `?surface=page` on the
+ * bundle URL, the page itself becomes the only Canvas card.
  */
 import {
   bootstrapNudgeUi,
@@ -19,6 +20,7 @@ import {
   toggleInspector,
 } from "./index.ts";
 import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
+import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
@@ -172,7 +174,6 @@ function createMountElement(): HTMLElement {
 }
 
 function runtimeConfig(
-  canvas: boolean,
   tokens: Partial<Pick<NudgeUiRuntimeConfig, "tokenCatalog" | "tokens" | "tokenDiagnostics" | "tokenGeneration">>,
 ): NudgeUiRuntimeConfig {
   return {
@@ -180,7 +181,7 @@ function runtimeConfig(
     host: "static-html",
     framework: "HTML",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas, componentSemantics: false, domNavigation: true },
+    capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
     features: { canvasIterations: false },
     componentContracts: [],
     tokenCatalog: [],
@@ -243,21 +244,26 @@ function injectIntoRendererFrames(mount: HTMLElement): void {
   watch();
 }
 
+function requestedSurface(): string | null {
+  return BUNDLE_URL ? new URL(BUNDLE_URL).searchParams.get("surface") : null;
+}
+
 async function startController(): Promise<void> {
   const tokens = await collectDocumentTokens();
-  const editor = await allowsSameOriginFraming();
-  configureNudgeUiRuntime(runtimeConfig(editor, tokens));
+  const editor = requestedSurface() !== "page" && await allowsSameOriginFraming();
+  configureNudgeUiRuntime(runtimeConfig(tokens));
   if (editor) {
     const mount = enterEditorDocument();
     bootstrapNudgeUi(mount);
     injectIntoRendererFrames(mount);
   } else {
     installLazyRuntimeIdentity(document);
+    enablePageSurface();
     bootstrapNudgeUi(createMountElement());
     setInspectorOpen(true);
   }
   console.info(
-    `[nudge-ui] Bookmarklet loaded in ${editor ? "editor" : "in-page"} mode with ${tokens.tokenCatalog.length} tokens`
+    `[nudge-ui] Bookmarklet loaded in ${editor ? "editor" : "page"} mode with ${tokens.tokenCatalog.length} tokens`
       + (tokens.tokenDiagnostics.length > 0 ? ` and ${tokens.tokenDiagnostics.length} stylesheet diagnostics.` : "."),
     tokens.tokenDiagnostics,
   );
@@ -274,7 +280,7 @@ async function start(): Promise<void> {
 
   if (isCanvasRenderer()) {
     installLazyRuntimeIdentity(document);
-    configureNudgeUiRuntime(runtimeConfig(true, {}));
+    configureNudgeUiRuntime(runtimeConfig({}));
     bootstrapNudgeUi(createMountElement());
     return;
   }

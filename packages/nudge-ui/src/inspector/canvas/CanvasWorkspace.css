@@ -86,3 +86,15 @@
 .canvas-workspace__board.is-layout-transitioning .canvas-card__iframe {
   pointer-events: none;
 }
+
+/* The page surface edits the live page under the workspace, so only the
+   toolbar takes pointer input. */
+.canvas-workspace[data-surface="page"],
+.canvas-workspace[data-surface="page"] .canvas-workspace__board {
+  background: transparent;
+  pointer-events: none;
+}
+
+.canvas-workspace[data-surface="page"] .canvas-toolbar {
+  pointer-events: auto;
+}

@@ -29,7 +29,7 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
-import { getRegisteredFrames } from "./projection.ts";
+import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
@@ -146,8 +146,8 @@ function spacingGuideStyle(rect: Rect): CSSProperties {
 }
 
 function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null {
-  const iframe = guide?.document.defaultView?.frameElement;
-  if (!guide || !(iframe instanceof HTMLIFrameElement)) return null;
+  const iframe = findCanvasFrameByDocument(guide?.document);
+  if (!guide || !iframe) return null;
   const viewport = measureFrameViewport(iframe);
   return {
     orientation: guide.orientation,
@@ -327,12 +327,11 @@ export function CanvasElementOverlay(): ReactElement | null {
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide);
 
-  const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
-  const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
-    && selectedFrame.hasAttribute("data-nudge-ui-canvas-renderer");
+  const selectedFrame = findCanvasFrameByDocument(selected?.domElement.ownerDocument);
+  const selectedInCanvas = selectedFrame !== null;
   const selectedRects = selectedInCanvas
     ? selectedElements.map((candidate) => {
-      const frame = candidate.domElement.ownerDocument.defaultView?.frameElement;
+      const frame = findCanvasFrameByDocument(candidate.domElement.ownerDocument);
       return frame === selectedFrame ? toRect(candidate.domElement.getBoundingClientRect()) : null;
     })
     : [];

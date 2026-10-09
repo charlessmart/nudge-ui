@@ -36,5 +36,6 @@ createServer((request, response) => {
 }).listen(port, "127.0.0.1", () => {
   const scriptUrl = `http://127.0.0.1:${port}/bookmarklet.js`;
   const bookmarklet = `javascript:(()=>{const s=document.createElement("script");s.src="${scriptUrl}?t="+Date.now();document.head.append(s)})()`;
-  console.log(`Serving ${scriptUrl}\n\nBookmarklet URL:\n\n${bookmarklet}\n`);
+  const pageBookmarklet = bookmarklet.replace('?t="', '?surface=page&t="');
+  console.log(`Serving ${scriptUrl}\n\nBookmarklet URL:\n\n${bookmarklet}\n\nPage-surface bookmarklet URL:\n\n${pageBookmarklet}\n`);
 });

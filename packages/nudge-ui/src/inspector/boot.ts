@@ -11,6 +11,7 @@ import {
   SEND_PROMPT_HOTKEY_EVENT,
 } from "./shell/shortcuts.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import { isPageSurface } from "./canvas/pageSurface.ts";
 import { isKeyboardShortcutMessage, type FrameIdentity } from "./canvas/frameProtocol.ts";
 import { subscribeCanvasRendererMessages } from "./canvas/rendererMessageRouter.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
@@ -28,7 +29,6 @@ import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeD
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
-import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
@@ -194,6 +194,9 @@ function startController(inspectorHost: HTMLElement): void {
   }
 
   mountInspector(inspectorHost);
+  if (getNudgeUiRuntimeConfig().capabilities.canvas && isPageSurface()) {
+    rendererBootstrapHandle = bootstrapRenderer() ?? null;
+  }
 }
 
 function mountLockedNotice(host: HTMLElement): void {
@@ -245,12 +248,6 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
-    // Without Canvas the inspector edits the host document in place.
-    const documentSession = getNudgeUiRuntimeConfig().capabilities.canvas
-      ? null
-      : inspectorSession.createDocumentSession(document);
-    documentSession?.registerCleanup(() => disposeBrowserCssInspection(document));
-    documentSession?.registerCleanup(() => releaseDocumentProjection(document));
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
     inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {
@@ -258,8 +255,8 @@ export function mountInspector(host: HTMLElement): void {
     }));
     reactRoot.render(createElement(
       InspectorSessionProvider,
-      { inspector: inspectorSession, documentSession },
-      createElement(AppShell, { host }),
+      { inspector: inspectorSession, documentSession: null },
+      createElement(AppShell),
     ));
     window.addEventListener("keydown", onKeydown);
     window.addEventListener("keyup", onKeyup);

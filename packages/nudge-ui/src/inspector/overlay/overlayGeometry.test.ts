@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMarginFills, getMarginGuides } from "./InspectorOverlay.tsx";
+import { getMarginFills, getMarginGuides } from "./overlayGeometry.ts";
 
 describe("getMarginGuides", () => {
   const rect = { left: 100, top: 200, width: 300, height: 120 };
