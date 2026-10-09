@@ -27,9 +27,6 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(openNudge).toBeVisible();
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
   const useAppNormally = inspectorHost.getByRole("button", { name: "Use app normally", exact: true });
-  await inspectorHost.locator('[data-test="show-inspector"]').click();
-  await useAppNormally.click();
-  await inspectorHost.locator('[data-test="collapse-inspector"]').click();
   const copyInstallPrompt = app.getByRole("button", { name: "Copy install prompt" });
   await copyInstallPrompt.click();
   await expect(app.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
@@ -43,7 +40,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   await openNudge.click();
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
-  await useAppNormally.click();
+  await expect(useAppNormally).toHaveAttribute("aria-pressed", "true");
 
   await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
@@ -72,6 +69,7 @@ test("keeps the final landing card after refreshing a focused historical version
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await inspectorHost.locator('[data-test="show-inspector"]').click();
   await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
+  await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
 
   const versionOneCard = inspectorHost
     .locator('[data-test^="canvas-card-dimensions-"]')

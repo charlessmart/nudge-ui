@@ -153,7 +153,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const presentationAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
-  const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>("design");
+  const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true ? "select" : "design");
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
