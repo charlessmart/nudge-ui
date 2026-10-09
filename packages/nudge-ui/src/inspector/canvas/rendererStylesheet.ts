@@ -36,10 +36,16 @@ import {
   type SerializedManagedStyles,
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
+import { adoptStylesheet, allowsStyleElements } from "../runtime/ownedStylesheets.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
 function replaceRendererCss(css: string): void {
+  if (!allowsStyleElements(document)) {
+    adoptStylesheet(document, SHEET_ID, css);
+    notifyBrowserStylesheetChange(document);
+    return;
+  }
   let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!sheet) {
     sheet = document.createElement("style");

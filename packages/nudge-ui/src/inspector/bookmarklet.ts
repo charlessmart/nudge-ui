@@ -47,7 +47,7 @@ const COMPUTED_ROOT_ID = "computed:root";
 const BUNDLE_URL = document.currentScript instanceof HTMLScriptElement ? document.currentScript.src : null;
 
 interface BookmarkletWindow extends Window {
-  [LOADED_FLAG]?: true;
+  [LOADED_FLAG]?: { toggle(): void };
 }
 
 interface CollectedSheet {
@@ -256,7 +256,10 @@ function injectIntoRendererFrames(mount: HTMLElement): void {
   watch();
 }
 
+/** The Chrome extension sets the global before injecting; the bookmarklet uses its bundle URL. */
 function requestedSurface(): string | null {
+  const injected = (window as Window & { __NUDGE_UI_SURFACE__?: unknown }).__NUDGE_UI_SURFACE__;
+  if (typeof injected === "string") return injected;
   return BUNDLE_URL ? new URL(BUNDLE_URL).searchParams.get("surface") : null;
 }
 
@@ -308,13 +311,15 @@ function installDebugHook(): void {
 }
 
 async function start(): Promise<void> {
-  installDebugHook();
   const target = window as BookmarkletWindow;
-  if (target[LOADED_FLAG]) {
-    toggleInspector();
+  // A rerun evaluates a second bundle copy; only the first copy's stores drive the UI.
+  const loaded = target[LOADED_FLAG];
+  if (loaded) {
+    loaded.toggle();
     return;
   }
-  target[LOADED_FLAG] = true;
+  target[LOADED_FLAG] = { toggle: toggleInspector };
+  installDebugHook();
   setNudgeUiHostDevFlag(true);
 
   if (isCanvasRenderer()) {

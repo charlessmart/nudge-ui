@@ -4,6 +4,7 @@ import { requestTakeover } from "./workspaceLease.ts";
 import { Button } from "../ui/Button.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import lockedWorkspaceStyles from "./LockedWorkspaceNotice.css?inline";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface LockedWorkspaceNoticeProps {
   onTakeover: () => void;
@@ -20,7 +21,7 @@ export function LockedWorkspaceNotice({ onTakeover }: LockedWorkspaceNoticeProps
 
   return (
     <>
-      <style data-test="locked-workspace-styles">{`${UI_STYLES}\n${lockedWorkspaceStyles}`}</style>
+      <InspectorStyle testId="locked-workspace-styles" css={`${UI_STYLES}\n${lockedWorkspaceStyles}`} />
       <aside className="locked-notice" data-test="locked-workspace-notice" aria-live="polite">
         <div className="locked-notice__message">
           Nudge UI is open in another tab

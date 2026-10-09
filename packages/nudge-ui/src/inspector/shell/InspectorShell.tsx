@@ -72,6 +72,7 @@ import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
 import { useSketchInteractionActive } from "../sketch/interaction.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -268,7 +269,7 @@ export function InspectorShell(): ReactElement {
 
   return (
     <>
-      <style data-test="inspector-styles">{UI_STYLES}</style>
+      <InspectorStyle testId="inspector-styles" css={UI_STYLES} />
       <div className="panel" data-open={isOpen ? "true" : "false"}>
         <div className="panel__tabs" aria-label="Inspector controls">
           <div

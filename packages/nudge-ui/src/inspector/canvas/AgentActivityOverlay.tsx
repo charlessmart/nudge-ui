@@ -6,6 +6,7 @@ import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
 import { targetKey } from "../drafts/model.ts";
 import { contentEditTarget, type FrameContent } from "./frameContent.ts";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 export interface ActivityAttribution { files: readonly ActivityFile[]; elements: readonly Element[] }
 
@@ -92,6 +93,6 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
       <ThinkingOrb state="solving" size={20} theme="dark" aria-hidden="true" />
       <span>Agent working…</span>
     </span>
-    <style>{activityStyles}</style>
+    <InspectorStyle css={activityStyles} />
   </div>;
 }

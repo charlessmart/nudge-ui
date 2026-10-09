@@ -51,6 +51,7 @@ import {
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigator } from "../overlay/DomNavigator.tsx";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
   elementId: string;
@@ -719,11 +720,11 @@ export function CanvasElementOverlay(): ReactElement | null {
     }))
     : [];
 
-  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
 
   return (
     <>
-      <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>
+      <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />
       {showGuideOverlay && selectedRect && selectedFrameViewport ? (
         <MeasurementGuideOverlay
           testId="canvas-measurement-overlay"

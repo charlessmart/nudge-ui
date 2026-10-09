@@ -98,6 +98,7 @@ import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFram
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
@@ -828,7 +829,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   return (
     <>
-      <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
+      <InspectorStyle testId="canvas-styles" css={WORKSPACE_STYLES} />
       <div
         className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"

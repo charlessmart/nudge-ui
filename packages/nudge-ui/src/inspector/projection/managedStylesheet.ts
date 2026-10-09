@@ -3,6 +3,7 @@ import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectio
 import type { StyleRuleContext } from "../changes/editModel.ts";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 export type { StyleRuleContext } from "../changes/editModel.ts";
@@ -53,6 +54,12 @@ function installManagedHeadGuard(doc: Document): void {
 
 export function ensureManagedSheet(): void {
   const doc = document;
+  if (!allowsStyleElements(doc)) {
+    // Adopted sheets already cascade after every document stylesheet.
+    adoptStylesheet(doc, SHEET_ID, rulesToCssText(managedRules));
+    exposeManagedSheetText(doc);
+    return;
+  }
   // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   let el = doc.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) {
@@ -81,6 +88,10 @@ export function ensureManagedSheet(): void {
     rehydrateManagedSheet(doc, el);
   }
   installManagedHeadGuard(doc);
+  exposeManagedSheetText(doc);
+}
+
+function exposeManagedSheetText(doc: Document): void {
   if (isNudgeUiDev() && doc.defaultView) {
     // Keep the canonical CSS available to dev diagnostics.
     doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
@@ -157,14 +168,22 @@ function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
  * copy for rehydration if a framework moves or reparses that element.
  */
 function rebuildSheetText(rules: StyleRule[]): void {
-  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
-  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (!el) return;
   const desired = rules.map((rule) => ({
     ...rule,
     declarations: { ...rule.declarations },
   }));
   const cssText = rulesToCssText(desired);
+  if (!allowsStyleElements(document)) {
+    const rulesChanged = rulesToCssText(managedRules) !== cssText;
+    managedRules = desired;
+    if (!rulesChanged) return;
+    adoptStylesheet(document, SHEET_ID, cssText);
+    notifyBrowserStylesheetChange(document);
+    return;
+  }
+  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
+  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
+  if (!el) return;
   const rulesChanged = rulesToCssText(managedRules) !== cssText;
   const shouldRetryDroppedRules = el.sheet !== null
     && el.sheet.cssRules.length !== desired.length
@@ -254,6 +273,7 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
 export function removeManagedSheet(): void {
   const el = document.getElementById(SHEET_ID);
   if (el) el.remove();
+  releaseAdoptedStylesheet(document, SHEET_ID);
   managedRules = [];
   failedRehydrationCssText = null;
   notifyBrowserStylesheetChange(document);
