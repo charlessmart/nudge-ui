@@ -40,9 +40,14 @@ export function htmlTarget(artifactId: string): { kind: "html"; artifactId: stri
   return { kind: "html", artifactId, path: `.nudge/artifacts/${artifactId}/document.html` };
 }
 
+/** The HTML iteration artifact ID when the URL addresses an iteration document. */
+export function artifactIdFromUrl(url: string): string | null {
+  return ARTIFACT_PATH.exec(new URL(url, window.location.href).pathname)?.[1] ?? null;
+}
+
 /** Maps a captured document URL to the draft that owns it: an iteration preview or an application page. */
 export function documentTarget(url: string): DraftTarget {
-  const artifactId = ARTIFACT_PATH.exec(new URL(url, window.location.href).pathname)?.[1];
+  const artifactId = artifactIdFromUrl(url);
   return artifactId ? htmlTarget(artifactId) : applicationTarget(url);
 }
 

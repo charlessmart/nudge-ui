@@ -70,7 +70,7 @@ import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
+import { isDemoRuntime, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
 import { useSketchInteractionActive } from "../sketch/interaction.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -116,7 +116,8 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
-  const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
+  const sketchEnabled = isNudgeUiDev()
+    && (!isDemoRuntime() || isNudgeUiFeatureEnabled(runtimeConfig.features, "sketch"));
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();

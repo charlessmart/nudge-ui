@@ -139,7 +139,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const sketchActive = useSketchInteractionActive();
-  const sketchEnabled = isNudgeUiDev() && runtimeConfig.demo !== true;
+  const sketchEnabled = isNudgeUiDev()
+    && (runtimeConfig.demo !== true || isNudgeUiFeatureEnabled(runtimeConfig.features, "sketch"));
   const canvasIterationsEnabled = isNudgeUiFeatureEnabled(runtimeConfig.features, "canvasIterations");
   useSyncExternalStore(subscribeFrameRegistry, getFrameRegistryVersion);
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
@@ -162,7 +163,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning;
+  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
     ? "grabbing"
@@ -465,6 +466,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [handleToolChange, mode, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
+    if (sketchActive) return;
     if (presentation === "focus") {
       if (direction < 0) {
         batchCanvasChanges(() => {
@@ -488,7 +490,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const nextZoom = adjacentCanvasZoomLevel(getBoardCamera().zoom, direction);
     if (nextZoom === null) return;
     setBoardCamera({ ...getBoardCamera(), zoom: nextZoom });
-  }, [presentation]);
+  }, [presentation, sketchActive]);
 
   const showCanvas = useCallback(() => {
     handleZoomStep(-1);
@@ -639,11 +641,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type === "wheel-pan") {
-        if (presentation === "canvas" && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
+        if (presentation === "canvas" && !sketchActive && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
         return;
       }
       if (msg.type === "zoom") {
-        if (presentation !== "canvas") return;
+        if (presentation !== "canvas" || sketchActive) return;
         zoomAtPointer(toViewportPoint(frame.viewport(), msg.point), msg.deltaY);
         return;
       }
@@ -653,6 +655,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return context ? toViewportPoint(context, point) : null;
       };
       if (msg.type === "pan-start") {
+        if (sketchActive) return;
         framePanContextRef.current = frame.viewport();
         const point = pointInBoard(msg.point);
         if (point) startPanning(point);
@@ -698,7 +701,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -794,7 +797,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     function handleGlobalWheel(e: WheelEvent): void {
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
-      if (zoom && sketchActive) return;
+      if (sketchActive) {
+        if (e.composedPath().some((node) => node instanceof Element && node.closest(".sketch__prompt-panel, .sketch__annotation-editor, .panel"))) return;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const path = e.composedPath();
       // Comment pins overlay the board without being its DOM descendants.
       const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));

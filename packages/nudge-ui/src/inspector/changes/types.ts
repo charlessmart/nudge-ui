@@ -10,7 +10,7 @@ import type {
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
   /**
-   * Why the location is unknown; prompts phrase their guidance accordingly.
+   * Why the element has no authored source location.
    * Omitted by legacy records, which are all runtime-created DOM.
    */
   reason?: "runtime-created" | "unannotated";
@@ -26,6 +26,10 @@ export interface RuntimeElementEvidence {
 export interface SourceElementEvidence {
   tagName: string;
   props: string | null;
+  /** Rendered identification details; omitted by older saved changes. */
+  text?: string | null;
+  ariaLabel?: string | null;
+  domPath?: string | null;
 }
 
 export interface ElementChangeRecord {

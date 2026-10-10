@@ -14,6 +14,7 @@ import {
 import type { TokenEntry } from "../../css/model/index.ts";
 import { setActiveStyleState } from "../shell/styleState.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { installStaticHtmlRuntimeIdentity } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
 
@@ -68,6 +69,30 @@ describe("swapToken", () => {
     resetPendingRules();
     document.body.innerHTML = "";
     document.getElementById("nudge-ui-styles")?.remove();
+  });
+
+  it("captures and exports rendered identification alongside an npm source location", () => {
+    const button = makeButton();
+    button.id = "save";
+    button.className = "primary";
+    button.textContent = "  Save\n  this draft  ";
+    button.setAttribute("aria-label", "Save draft action");
+    button.setAttribute("data-cprops", 'variant="primary"');
+    const change = setStyle(button, "font-weight", "400");
+
+    expect(change?.sourceEvidence?.text).toBe("Save this draft");
+    expect(change?.sourceEvidence?.ariaLabel).toBe("Save draft action");
+    expect(change?.sourceEvidence?.domPath).toBe("button#save.primary");
+    const prompt = generatePrompt([change!]);
+    expect(prompt).toContain("## Button (`<button>`)");
+    expect(prompt).toContain("Source: `src/Button.tsx:1:1`");
+    expect(prompt).toContain("Text: `Save this draft`");
+    expect(prompt).toContain("Accessible name: `Save draft action`");
+    expect(prompt).toContain("Props: `variant=\"primary\"`");
+    expect(prompt).toContain("DOM path: `button#save.primary`");
+    expect(prompt).toContain("**Change:** `font-weight`");
+    expect(prompt).not.toContain("data-cid");
+    expect(prompt).not.toContain("data-src");
   });
 
   it("writes a rule keyed by [data-cid][data-src*] mapping property to var(name)", () => {

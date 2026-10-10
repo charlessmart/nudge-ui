@@ -68,6 +68,9 @@ function sourceFields(el: HTMLElement): SourceFields {
     sourceEvidence: {
       tagName: normalizeRuntimeTag(el.tagName),
       props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
+      text: boundedRenderedText(el),
+      ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
+      domPath: runtimeDomPath(el),
     },
   };
 }

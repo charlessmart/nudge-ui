@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   DEFAULT_CUSTOM_INSTRUCTIONS,
   loadCustomInstructions,
@@ -7,22 +8,34 @@ import {
   saveCustomInstructions,
 } from "./promptSettings.ts";
 
-afterEach(() => localStorage.clear());
+const projectId = "prompt-settings-project";
+let previousConfig = getNudgeUiRuntimeConfig();
 
-describe("prompt settings", () => {
-  it("uses the built-in guidance until a project has saved instructions", () => {
-    expect(loadCustomInstructions("prompt-project")).toBe(DEFAULT_CUSTOM_INSTRUCTIONS);
+beforeEach(() => {
+  previousConfig = getNudgeUiRuntimeConfig();
+  localStorage.removeItem(promptSettingsStorageKey(projectId));
+  configureNudgeUiRuntime({ ...previousConfig, projectId, host: "vite-react", framework: "React" });
+});
+
+afterEach(() => {
+  localStorage.removeItem(promptSettingsStorageKey(projectId));
+  configureNudgeUiRuntime(previousConfig);
+});
+
+describe("custom prompt instructions", () => {
+  it("persists and restores instructions in normal runtimes", () => {
+    expect(loadCustomInstructions(projectId)).toBe(DEFAULT_CUSTOM_INSTRUCTIONS);
+
+    saveCustomInstructions(projectId, "Use warm colors.");
+    expect(loadCustomInstructions(projectId)).toBe("Use warm colors.");
+    expect(localStorage.getItem(promptSettingsStorageKey(projectId))).toBe("Use warm colors.");
   });
 
-  it("persists instructions per project and preserves an explicit empty value", () => {
-    saveCustomInstructions("prompt-project", "Use the project's component patterns.");
-    saveCustomInstructions("other-project", "Prefer the existing utility classes.");
+  it("never persists in demo runtimes and always serves the default", () => {
+    configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
 
-    expect(loadCustomInstructions("prompt-project")).toBe("Use the project's component patterns.");
-    expect(loadCustomInstructions("other-project")).toBe("Prefer the existing utility classes.");
-
-    saveCustomInstructions("prompt-project", "");
-    expect(loadCustomInstructions("prompt-project")).toBe("");
-    expect(localStorage.getItem(promptSettingsStorageKey("prompt-project"))).toBe("");
+    saveCustomInstructions(projectId, "Demo instructions");
+    expect(localStorage.getItem(promptSettingsStorageKey(projectId))).toBeNull();
+    expect(loadCustomInstructions(projectId)).toBe(DEFAULT_CUSTOM_INSTRUCTIONS);
   });
 });

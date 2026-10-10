@@ -45,7 +45,7 @@ A Chrome trace on a 3,000-item fixture with 24 container conditions recorded:
 | Style recalculations | 245 | 4 |
 | Style recalculation time | 151.8 ms | 3.5 ms |
 
-These measurements describe the local fixture, not Envato. Recheck that host
-with the rebuilt extension before adding a manual size-query parser. Native
-batched evaluation currently handles size and style queries without duplicating
-the browser's query semantics.
+These measurements describe the local fixture. Validate performance on other
+applications with the rebuilt extension before generalizing these results.
+Native batched evaluation currently handles size and style queries without
+duplicating the browser's query semantics.

@@ -1,15 +1,19 @@
-import { assignSketchToDraft } from "../drafts/store.ts";
-import { getActiveDraftChanges } from "../drafts/store.ts";
+import { canvasFrameHost } from "../canvas/canvasFrame.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
+import { selectCard } from "../canvas/canvasStore.ts";
+import { activateDraftForCard, assignSketchToDraft, getActiveDraftChanges } from "../drafts/store.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { renderAnnotatedPng } from "./raster.ts";
+import { sketchFrameHeading } from "./frameHeading.ts";
 import { closeSketchEditor, completeSketchCapture, beginSketchCapture, cancelSketchInteraction, openSketchEditor, useSketchInteraction } from "./interaction.ts";
 import { initializeSketchStore, saveSketch, useSketchStore } from "./store.ts";
 import { clearSketchClipboardHandoff } from "./handoff.ts";
 import { SketchEditor, type SketchEditorProps } from "./SketchEditor.tsx";
 import { SketchOverlay, type SketchLiveDraft } from "./SketchOverlay.tsx";
 import type { CapturedSketch } from "./capture.ts";
-import type { SketchAnnotation, SketchDocument, SketchStroke } from "./model.ts";
+import type { SketchAnnotation, SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
 import { closeSketchNote, useSketchNote } from "./sketchNote.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 
@@ -92,6 +96,25 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
     ? store.items.find((item) => item.document.id === note.sketchId)?.document ?? null
     : null;
 
+  function selectTarget(point: SketchPoint, lockedTarget: HTMLElement | null): HTMLElement | null {
+    for (const [cardId, frame] of getRegisteredFrames()) {
+      const target = canvasFrameHost(frame);
+      if (!target || !frame.isConnected || getComputedStyle(target).visibility === "hidden") continue;
+      const bounds = frame.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) continue;
+      if (point.x < bounds.left || point.x > bounds.right || point.y < bounds.top || point.y > bounds.bottom) continue;
+      if (lockedTarget && target !== lockedTarget) return null;
+      if (target !== hostElement) {
+        setSelectedElement(null);
+        selectCard(cardId);
+        activateDraftForCard(cardId);
+        beginSketchCapture(interaction.initialTool);
+      }
+      return target;
+    }
+    return null;
+  }
+
   async function save(input: Parameters<SketchEditorProps["onSave"]>[0]): Promise<void> {
     const owner = interaction.draftId ?? getActiveDraftChanges().draftId;
     const saved = await saveSketch(input);
@@ -112,6 +135,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       strokes,
       annotations,
       draft.description,
+      sketchFrameHeading(captured.capture.url),
     );
     const saved = await saveSketch({
       capture: captured.capture,
@@ -137,6 +161,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       noteDocument.strokes,
       noteDocument.annotations ?? [],
       nextDescription,
+      sketchFrameHeading(noteDocument.capture.url),
     );
     await saveSketch({
       id: noteDocument.id,
@@ -159,6 +184,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
           open={liveOpen}
           hostElement={hostElement}
           initialTool={interaction.initialTool}
+          selectTarget={selectTarget}
           onCancel={cancelSketchInteraction}
           onDone={saveLive}
         />

@@ -58,6 +58,7 @@ export interface SketchOverlayProps {
   readonly open: boolean;
   readonly hostElement: HTMLElement;
   readonly initialTool?: SketchEntryTool;
+  readonly selectTarget?: (point: SketchPoint, lockedTarget: HTMLElement | null) => HTMLElement | null;
   readonly onCancel: () => void;
   readonly onDone: (draft: SketchLiveDraft) => Promise<void>;
 }
@@ -68,13 +69,11 @@ function clamp(value: number, maximum: number): number {
 
 function pointFromEvent(
   event: ReactPointerEvent<SVGSVGElement>,
-  canvas: SVGSVGElement,
   viewport: SketchViewport,
 ): SketchPoint {
-  const bounds = canvas.getBoundingClientRect();
   return {
-    x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * viewport.width, viewport.width) + viewport.scrollX,
-    y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * viewport.height, viewport.height) + viewport.scrollY,
+    x: clamp(((event.clientX - viewport.offsetX) / Math.max(1, viewport.displayWidth)) * viewport.width, viewport.width) + viewport.scrollX,
+    y: clamp(((event.clientY - viewport.offsetY) / Math.max(1, viewport.displayHeight)) * viewport.height, viewport.height) + viewport.scrollY,
   };
 }
 
@@ -134,7 +133,7 @@ function annotationEditorStyle(
   };
 }
 
-export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel, onDone }: SketchOverlayProps): ReactElement | null {
+export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTarget, onCancel, onDone }: SketchOverlayProps): ReactElement | null {
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const inspectorOpen = useInspectorOpen();
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
@@ -150,6 +149,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const targetRef = useRef(hostElement);
   const annotationInputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
   const moveState = useRef<SketchMoveState | null>(null);
@@ -159,6 +159,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
 
   useEffect(() => {
     if (!open) return;
+    targetRef.current = hostElement;
     setViewport(getSketchViewport(hostElement));
     // Sketch starts with a freehand pen. The separate Annotate entry point
     // still opens directly in annotation mode without the old live toolbar.
@@ -174,11 +175,14 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     moveState.current = null;
     setSubmitting(false);
     setError(null);
-  }, [hostElement, initialTool, open]);
+  // Choosing the first stroke's frame must preserve the stroke already in progress.
+  }, [initialTool, open]);
 
   useEffect(() => {
     if (!open) return;
+    targetRef.current = hostElement;
     const updateViewport = (): void => setViewport(getSketchViewport(hostElement));
+    updateViewport();
     window.addEventListener("resize", updateViewport);
     window.addEventListener("scroll", updateViewport, true);
     const frameWindow = typeof HTMLIFrameElement !== "undefined"
@@ -246,7 +250,20 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
 
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
     if (submitting || pointerId.current !== null || moveState.current !== null) return;
-    const point = pointFromEvent(event, event.currentTarget, viewport);
+    let drawingViewport = getSketchViewport(targetRef.current);
+    if (selectTarget) {
+      const target = selectTarget({ x: event.clientX, y: event.clientY },
+        strokes.length > 0 || annotations.length > 0 || redoStrokes.length > 0 ? targetRef.current : null);
+      if (!target) return;
+      if (target !== targetRef.current) {
+        targetRef.current = target;
+        drawingViewport = getSketchViewport(target);
+        setViewport(drawingViewport);
+      }
+    }
+    if (event.clientX < drawingViewport.offsetX || event.clientX > drawingViewport.offsetX + drawingViewport.displayWidth
+      || event.clientY < drawingViewport.offsetY || event.clientY > drawingViewport.offsetY + drawingViewport.displayHeight) return;
+    const point = pointFromEvent(event, drawingViewport);
 
     if (tool === "move") {
       event.preventDefault();
@@ -300,7 +317,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     const activeMove = moveState.current;
     if (activeMove?.pointerId === event.pointerId) {
       event.preventDefault();
-      const point = pointFromEvent(event, event.currentTarget, viewport);
+      const point = pointFromEvent(event, viewport);
       const delta = {
         x: point.x - activeMove.lastPoint.x,
         y: point.y - activeMove.lastPoint.y,
@@ -323,7 +340,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
 
     if (pointerId.current !== event.pointerId) return;
     event.preventDefault();
-    const point = pointFromEvent(event, event.currentTarget, viewport);
+    const point = pointFromEvent(event, viewport);
     setDraftPoints((previous) => {
       const last = previous.at(-1);
       if (last && distance(last, point) < 1) return previous;
@@ -502,6 +519,17 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
           <Dialog.Description className="sketch__description sketch__sr-only">
             Draw directly over the live interface, then add a short note for the sketch.
           </Dialog.Description>
+          {selectTarget ? (
+            <svg
+              className="sketch__target-surface"
+              aria-hidden="true"
+              style={{ cursor: SKETCH_CURSOR }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={finishPointer}
+              onPointerCancel={finishPointer}
+            />
+          ) : null}
           <div
             className="sketch__canvas-frame sketch__live-frame"
             style={{

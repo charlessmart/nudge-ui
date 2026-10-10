@@ -10,10 +10,11 @@ import { sketchStrokeOutline } from "./freehand.tsx";
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const SKETCH_NOTE_PADDING = 24;
-const SKETCH_NOTE_TITLE_HEIGHT = 34;
+const SKETCH_NOTE_TITLE_LINE_HEIGHT = 34;
 const SKETCH_NOTE_LINE_HEIGHT = 32;
 const SKETCH_NOTE_FONT = "24px system-ui, sans-serif";
 const SKETCH_NOTE_TITLE_FONT = "600 24px system-ui, sans-serif";
+const SKETCH_NOTE_FALLBACK_HEADING = "Sketch notes";
 
 export interface PngDimensions {
   readonly width: number;
@@ -199,6 +200,18 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+/** Wraps the frame heading that names the sketch target to the panel width. */
+function wrapSketchHeading(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  heading: string,
+): string[] {
+  const text = heading.trim();
+  if (!text) return [];
+  ctx.font = SKETCH_NOTE_TITLE_FONT;
+  return wrapText(ctx, text, Math.max(1, width - SKETCH_NOTE_PADDING * 2));
+}
+
 /** Wraps the description and numbered annotation notes to the panel width. */
 function wrapSketchNotes(
   ctx: CanvasRenderingContext2D,
@@ -218,23 +231,34 @@ function wrapSketchNotes(
   return notes.flatMap((note) => wrapText(ctx, note, textWidth));
 }
 
-function sketchNotePanelHeight(lineCount: number): number {
-  if (lineCount === 0) return 0;
-  return SKETCH_NOTE_PADDING * 2 + SKETCH_NOTE_TITLE_HEIGHT + lineCount * SKETCH_NOTE_LINE_HEIGHT;
+function sketchNotePanelHeight(headingLineCount: number, noteLineCount: number): number {
+  if (headingLineCount + noteLineCount === 0) return 0;
+  return SKETCH_NOTE_PADDING * 2
+    + headingLineCount * SKETCH_NOTE_TITLE_LINE_HEIGHT
+    + noteLineCount * SKETCH_NOTE_LINE_HEIGHT;
 }
 
-function drawSketchNotes(ctx: CanvasRenderingContext2D, width: number, top: number, lines: readonly string[]): void {
+function drawSketchNotes(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  top: number,
+  headingLines: readonly string[],
+  noteLines: readonly string[],
+): void {
   ctx.save();
   ctx.fillStyle = SKETCH_STROKE_COLOR;
-  ctx.fillRect(0, top, width, sketchNotePanelHeight(lines.length));
+  ctx.fillRect(0, top, width, sketchNotePanelHeight(headingLines.length, noteLines.length));
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.font = SKETCH_NOTE_TITLE_FONT;
-  ctx.fillText("Sketch notes", SKETCH_NOTE_PADDING, top + SKETCH_NOTE_PADDING);
+  let y = top + SKETCH_NOTE_PADDING;
+  for (const line of headingLines) {
+    ctx.fillText(line, SKETCH_NOTE_PADDING, y);
+    y += SKETCH_NOTE_TITLE_LINE_HEIGHT;
+  }
   ctx.font = SKETCH_NOTE_FONT;
-  let y = top + SKETCH_NOTE_PADDING + SKETCH_NOTE_TITLE_HEIGHT;
-  for (const line of lines) {
+  for (const line of noteLines) {
     ctx.fillText(line, SKETCH_NOTE_PADDING, y);
     y += SKETCH_NOTE_LINE_HEIGHT;
   }
@@ -248,6 +272,7 @@ export async function renderAnnotatedPng(
   strokes: readonly SketchStroke[],
   annotations: readonly SketchAnnotation[] = [],
   description = "",
+  heading = SKETCH_NOTE_FALLBACK_HEADING,
 ): Promise<{ readonly blob: Blob; readonly width: number; readonly height: number }> {
   await validatePngBlob(originalImage, { width: imageWidth, height: imageHeight });
   if (typeof document === "undefined") throw new Error("Sketch rendering requires a browser document.");
@@ -257,8 +282,9 @@ export async function renderAnnotatedPng(
     canvas.width = imageWidth;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("The browser could not create a sketch canvas.");
+    const headingLines = wrapSketchHeading(context, imageWidth, heading);
     const noteLines = wrapSketchNotes(context, imageWidth, description, annotations);
-    const outputHeight = imageHeight + sketchNotePanelHeight(noteLines.length);
+    const outputHeight = imageHeight + sketchNotePanelHeight(headingLines.length, noteLines.length);
     if (outputHeight > SKETCH_LIMITS.imageEdge) {
       throw new Error("Sketch notes are too long to fit below the captured image.");
     }
@@ -267,7 +293,9 @@ export async function renderAnnotatedPng(
     context.drawImage(image.source, 0, 0, imageWidth, imageHeight);
     drawSketchStrokes(context, strokes);
     drawSketchAnnotations(context, annotations);
-    if (noteLines.length > 0) drawSketchNotes(context, imageWidth, imageHeight, noteLines);
+    if (headingLines.length > 0 || noteLines.length > 0) {
+      drawSketchNotes(context, imageWidth, imageHeight, headingLines, noteLines);
+    }
     const result = await canvasPng(canvas);
     if (result.size > SKETCH_LIMITS.imageBytes) {
       throw new Error("This sketch is too detailed to save within the 2 MiB image limit.");

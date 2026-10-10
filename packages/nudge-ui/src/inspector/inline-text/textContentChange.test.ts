@@ -134,7 +134,7 @@ describe("text-content canonical changes", () => {
     }]);
 
     const prompt = generatePrompt(getChangesList());
-    expect(prompt).toContain("## Rendered text changes");
+    expect(prompt).toContain("## Copy (src/Copy.tsx:8:3)");
     expect(prompt).toContain("`Original copy` → `Updated copy`");
     expect(prompt).toContain("replace the authored literal text");
     expect(prompt).not.toContain("data-cid");

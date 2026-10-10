@@ -1,3 +1,4 @@
+import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 import {
   SKETCH_DATABASE_NAME,
   SKETCH_DATABASE_VERSION,
@@ -61,6 +62,9 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 async function openDatabase(): Promise<IDBDatabase | null> {
   const factory = indexedDbFactory();
   if (!factory) return null;
+  // Demo runtimes (the landing page) are session-only: sketches live in the
+  // in-memory fallback and never touch IndexedDB, so every visit starts clean.
+  if (isDemoRuntime()) return null;
   if (!databasePromise) {
     databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
       let request: IDBOpenDBRequest;

@@ -20,6 +20,7 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { renderAnnotatedPng } from "./raster.ts";
+import { sketchFrameHeading } from "./frameHeading.ts";
 import { SketchSvgLayer } from "./freehand.tsx";
 import {
   findSketchElementAt,
@@ -441,6 +442,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
         strokes,
         committedAnnotations,
         description.trim(),
+        sketchFrameHeading(capture.url),
       );
       await onSave({
         ...(sketchDocument ? { id: sketchDocument.id } : {}),

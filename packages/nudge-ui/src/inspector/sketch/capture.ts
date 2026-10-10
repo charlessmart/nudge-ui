@@ -2,6 +2,7 @@ import { domToBlob } from "modern-screenshot";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { SKETCH_LIMITS } from "./model.ts";
 import { getPngDimensions } from "./raster.ts";
+import { prepareSketchVideoFrames } from "./videoFrames.ts";
 
 const MEDIA_LOAD_TIMEOUT_MS = 500;
 const FONT_READY_TIMEOUT_MS = 2_000;
@@ -341,7 +342,16 @@ async function captureDomFrame(
 
   for (let attempt = 0; attempt < 7; attempt += 1) {
     assertNotAborted(signal);
+    const videoFrames = prepareSketchVideoFrames(surface.document);
     const restoreMedia = suspendOffscreenLazyImages(surface.document, viewport);
+    let restored = false;
+    const restore = (): void => {
+      if (restored) return;
+      restored = true;
+      videoFrames.restore();
+      restoreMedia();
+    };
+    signal?.addEventListener("abort", restore, { once: true });
     let blob: Blob;
     try {
       blob = await domToBlob(surface.document.documentElement, {
@@ -355,17 +365,22 @@ async function captureDomFrame(
           height: `${viewport.height}px`,
           overflow: "hidden",
         },
-        filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node),
+        filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node) && videoFrames.filter(node),
         features: { restoreScrollPosition: true },
         timeout: MEDIA_LOAD_TIMEOUT_MS,
         // Cross-origin Google CSS cannot be read by modern-screenshot. Skipping
         // its font embedding avoids waiting on a stylesheet that the renderer
         // cannot serialize anyway; computed font styles still remain inline.
         font: hasGoogleFontStylesheet(surface.document) ? false : undefined,
-        onCloneEachNode: prepareDomClone,
+        onCloneEachNode: (node) => {
+          prepareDomClone(node);
+          videoFrames.prepareClone(node);
+        },
+        onCloneNode: restore,
       });
     } finally {
-      restoreMedia();
+      signal?.removeEventListener("abort", restore);
+      restore();
     }
     assertNotAborted(signal);
 

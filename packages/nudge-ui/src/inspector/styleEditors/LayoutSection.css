@@ -373,6 +373,7 @@
 }
 
 .layout__spacing-field {
+  align-items: stretch;
   color: var(--text-muted);
 }
 

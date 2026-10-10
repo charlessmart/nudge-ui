@@ -249,3 +249,21 @@ describe("sketch store", () => {
     expect(getSketches()[0]?.status).toBe("pending");
   });
 });
+
+describe("demo runtimes", () => {
+  it("keeps sketches session-only and starts every visit clean", async () => {
+    configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true, projectId });
+    resetSketchStore();
+    resetSketchMemory();
+    await initializeSketchStore(projectId);
+
+    await createSketch("Demo annotation");
+    expect(getSketches()).toHaveLength(1);
+
+    // A fresh visit starts clean: demo mode never persists to browser storage.
+    resetSketchStore();
+    resetSketchMemory();
+    await initializeSketchStore(projectId);
+    expect(getSketches()).toHaveLength(0);
+  });
+});

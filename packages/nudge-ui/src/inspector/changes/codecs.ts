@@ -456,9 +456,12 @@ function isRuntimeElementEvidenceValue(value: unknown): value is NonNullable<Ele
 
 function isSourceElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["sourceEvidence"]> {
   return isRecord(value)
-    && hasOnlyKeys(value, ["tagName", "props"])
+    && hasOnlyKeys(value, ["tagName", "props", "text", "ariaLabel", "domPath"])
     && typeof value.tagName === "string"
-    && (typeof value.props === "string" || value.props === null);
+    && (typeof value.props === "string" || value.props === null)
+    && (value.text === undefined || typeof value.text === "string" || value.text === null)
+    && (value.ariaLabel === undefined || typeof value.ariaLabel === "string" || value.ariaLabel === null)
+    && (value.domPath === undefined || typeof value.domPath === "string" || value.domPath === null);
 }
 
 function isTokenRefValue(value: unknown): value is SerializableTokenRef | null {
