@@ -91,7 +91,12 @@ const SKETCH_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" fill=
 </defs>
 </svg>`;
 
-export type CursorImage = "design-select" | "drag" | "sketch" | "comment";
+const ERASER_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="10" cy="10" r="7" fill="white" fill-opacity="0.6" stroke="black"/>
+<circle cx="10" cy="10" r="8" stroke="white" stroke-opacity="0.8"/>
+</svg>`;
+
+export type CursorImage = "design-select" | "drag" | "sketch" | "eraser" | "comment";
 
 /**
  * Base URL for cursor image files, set on `globalThis` before the bundle
@@ -108,6 +113,7 @@ function cursorImageUrl(name: CursorImage, svg: string): string {
 export const DESIGN_SELECT_CURSOR_URL = cursorImageUrl("design-select", DESIGN_SELECT_CURSOR_SVG);
 export const DRAG_CURSOR_URL = cursorImageUrl("drag", DRAG_CURSOR_SVG);
 export const SKETCH_CURSOR_URL = cursorImageUrl("sketch", SKETCH_CURSOR_SVG);
+export const ERASER_CURSOR_URL = cursorImageUrl("eraser", ERASER_CURSOR_SVG);
 
 export const DESIGN_SELECT_CURSOR = `url("${DESIGN_SELECT_CURSOR_URL}") 3 4, default`;
 
@@ -144,6 +150,7 @@ export function cursorImageFiles(): Record<CursorImage, string> {
     "design-select": DESIGN_SELECT_CURSOR_SVG,
     drag: DRAG_CURSOR_SVG,
     sketch: SKETCH_CURSOR_SVG,
+    eraser: ERASER_CURSOR_SVG,
     comment: commentCursorSvg(),
   };
 }
@@ -152,6 +159,7 @@ export const COMMENT_CURSOR = createCommentCursor();
 export const PAN_CURSOR = "grab";
 export const DRAG_CURSOR = `url("${DRAG_CURSOR_URL}") ${DRAG_CURSOR_HOTSPOT.x} ${DRAG_CURSOR_HOTSPOT.y}, grab`;
 export const SKETCH_CURSOR = `url("${SKETCH_CURSOR_URL}") 3 17, crosshair`;
+export const ERASER_CURSOR = `url("${ERASER_CURSOR_URL}") 10 10, cell`;
 
 export function rendererCursorValue(cursor: RendererCursor, commentCursor = COMMENT_CURSOR): string {
   return cursor === "comment" ? commentCursor : cursor === "drag" ? PAN_CURSOR : DESIGN_SELECT_CURSOR;

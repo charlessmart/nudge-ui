@@ -23,14 +23,16 @@ export const SKETCH_LIMITS = {
 } as const;
 
 export const SKETCH_STROKE_WIDTH = 6;
-export const SKETCH_STROKE_COLOR = "#FF3700";
+export const SKETCH_STROKE_COLOR = "#0096ff";
 export const SKETCH_STROKE_OUTLINE = "";
+/** Pen palette offered by the canvas toolbar, ending with the default blue. */
+export const SKETCH_STROKE_COLORS = ["#f03e1e", "#ff8a00", "#ffc800", "#1fc85a", SKETCH_STROKE_COLOR] as const;
 export const SKETCH_ANNOTATION_RADIUS = 16;
 
-// Keep accepting sketches saved before the annotation color updates. Existing
+// Keep accepting sketches saved before the annotation color update. Existing
 // PNGs remain unchanged until a user edits and saves them again.
 const LEGACY_SKETCH_STROKE_COLOR = "#ef4444";
-const LEGACY_SKETCH_STROKE_COLOR_BLUE = "#0096ff";
+const LEGACY_SKETCH_STROKE_COLOR_ORANGE = "#FF3700";
 const LEGACY_SKETCH_STROKE_OUTLINE = "#111827";
 
 export type SketchStatus = "pending" | "dispatching" | "handing-off" | "needs-review" | "unknown";
@@ -42,7 +44,10 @@ export interface SketchPoint {
   readonly y: number;
 }
 
-type SketchStrokeColor = typeof SKETCH_STROKE_COLOR | typeof LEGACY_SKETCH_STROKE_COLOR | typeof LEGACY_SKETCH_STROKE_COLOR_BLUE;
+export type SketchStrokeColor =
+  | (typeof SKETCH_STROKE_COLORS)[number]
+  | typeof LEGACY_SKETCH_STROKE_COLOR
+  | typeof LEGACY_SKETCH_STROKE_COLOR_ORANGE;
 type SketchStrokeOutline = typeof SKETCH_STROKE_OUTLINE | typeof LEGACY_SKETCH_STROKE_OUTLINE;
 
 export type SketchStrokeKind = "freehand" | "rectangle";
@@ -220,7 +225,9 @@ export function isSketchStroke(value: unknown): value is SketchStroke {
     && isFiniteNumber(stroke.width)
     && stroke.width > 0
     && stroke.width <= 128
-    && (stroke.color === SKETCH_STROKE_COLOR || stroke.color === LEGACY_SKETCH_STROKE_COLOR || stroke.color === LEGACY_SKETCH_STROKE_COLOR_BLUE)
+    && (SKETCH_STROKE_COLORS.some((color) => color === stroke.color)
+      || stroke.color === LEGACY_SKETCH_STROKE_COLOR
+      || stroke.color === LEGACY_SKETCH_STROKE_COLOR_ORANGE)
     && (stroke.outlineColor === SKETCH_STROKE_OUTLINE || stroke.outlineColor === LEGACY_SKETCH_STROKE_OUTLINE)
     && Array.isArray(stroke.points)
     && stroke.points.length > 0

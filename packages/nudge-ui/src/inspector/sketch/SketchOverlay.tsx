@@ -16,7 +16,6 @@ import { getSketchViewport, type SketchViewport } from "./capture.ts";
 import {
   SKETCH_ANNOTATION_RADIUS,
   SKETCH_LIMITS,
-  SKETCH_STROKE_COLOR,
   SKETCH_STROKE_OUTLINE,
   SKETCH_STROKE_WIDTH,
   type SketchAnnotation,
@@ -24,21 +23,33 @@ import {
   type SketchStroke,
 } from "./model.ts";
 import {
+  findErasedSketchStrokeIds,
   findSketchElementAt,
   translateSketchAnnotation,
   translateSketchStroke,
   type SketchElementReference,
 } from "./geometry.ts";
 import type { SketchEntryTool } from "./interaction.ts";
+import { resetSketchDrawingTool, useSketchDrawingTools } from "./drawingTools.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { useInspectorOpen } from "../shell/openStore.ts";
-import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
+import { DRAG_CURSOR, ERASER_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
 import { useTemporaryAppInteraction } from "../canvas/viewStore.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 
-type SketchTool = "move" | "pen" | "rectangle" | "annotate";
+type SketchTool = "move" | "pen" | "eraser" | "rectangle" | "annotate";
+
+/** Eraser reach around the pointer, in sketch coordinates. */
+const ERASER_RADIUS = 8;
+
+function sketchCursor(tool: SketchTool): string {
+  if (tool === "move") return DRAG_CURSOR;
+  if (tool === "eraser") return ERASER_CURSOR;
+  if (tool === "rectangle") return "crosshair";
+  return SKETCH_CURSOR;
+}
 
 interface SketchMoveState {
   readonly pointerId: number;
@@ -137,7 +148,10 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const inspectorOpen = useInspectorOpen();
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
-  const [tool, setTool] = useState<SketchTool>("pen");
+  const drawing = useSketchDrawingTools();
+  const [entryTool, setEntryTool] = useState<SketchEntryTool>("pen");
+  // Annotate is its own entry point; otherwise the canvas toolbar picks the mode.
+  const tool: SketchTool = entryTool === "annotate" ? "annotate" : drawing.tool;
   const [description, setDescription] = useState("");
   const [strokes, setStrokes] = useState<SketchStroke[]>([]);
   const [redoStrokes, setRedoStrokes] = useState<SketchStroke[]>([]);
@@ -154,6 +168,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
   const pointerId = useRef<number | null>(null);
   const moveState = useRef<SketchMoveState | null>(null);
   const draftPointLimitReached = useRef(false);
+  const eraserPoint = useRef<SketchPoint | null>(null);
 
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null;
 
@@ -163,7 +178,8 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     setViewport(getSketchViewport(hostElement));
     // Sketch starts with a freehand pen. The separate Annotate entry point
     // still opens directly in annotation mode without the old live toolbar.
-    setTool(initialTool);
+    setEntryTool(initialTool);
+    resetSketchDrawingTool();
     setDescription("");
     setStrokes([]);
     setRedoStrokes([]);
@@ -173,6 +189,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     setAnnotationDraft("");
     setDraftPoints([]);
     moveState.current = null;
+    eraserPoint.current = null;
     setSubmitting(false);
     setError(null);
   // Choosing the first stroke's frame must preserve the stroke already in progress.
@@ -248,6 +265,13 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     setError(null);
   }
 
+  function eraseAlong(start: SketchPoint, end: SketchPoint): void {
+    setStrokes((current) => {
+      const erased = new Set(findErasedSketchStrokeIds(start, end, current, ERASER_RADIUS));
+      return erased.size === 0 ? current : current.filter((stroke) => !erased.has(stroke.id));
+    });
+  }
+
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
     if (submitting || pointerId.current !== null || moveState.current !== null) return;
     let drawingViewport = getSketchViewport(targetRef.current);
@@ -271,6 +295,15 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
       if (!element) return;
       moveState.current = { pointerId: event.pointerId, element, lastPoint: point };
       event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (tool === "eraser") {
+      event.preventDefault();
+      pointerId.current = event.pointerId;
+      eraserPoint.current = point;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      eraseAlong(point, point);
       return;
     }
 
@@ -341,6 +374,11 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     if (pointerId.current !== event.pointerId) return;
     event.preventDefault();
     const point = pointFromEvent(event, viewport);
+    if (eraserPoint.current) {
+      eraseAlong(eraserPoint.current, point);
+      eraserPoint.current = point;
+      return;
+    }
     setDraftPoints((previous) => {
       const last = previous.at(-1);
       if (last && distance(last, point) < 1) return previous;
@@ -371,6 +409,10 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     } catch {
       // The pointer may already have been released by the browser.
     }
+    if (eraserPoint.current) {
+      eraserPoint.current = null;
+      return;
+    }
     if (draftPointLimitReached.current) {
       draftPointLimitReached.current = false;
       setDraftPoints([]);
@@ -393,7 +435,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
         id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         kind: tool === "rectangle" ? "rectangle" : "freehand",
         width: SKETCH_STROKE_WIDTH,
-        color: SKETCH_STROKE_COLOR,
+        color: drawing.color,
         outlineColor: SKETCH_STROKE_OUTLINE,
         points: points.map((point) => ({ ...point })),
       };
@@ -481,7 +523,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
     id: "draft",
     kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
     width: SKETCH_STROKE_WIDTH,
-    color: SKETCH_STROKE_COLOR,
+    color: drawing.color,
     outlineColor: SKETCH_STROKE_OUTLINE,
     points: (tool === "rectangle" && draftPoints.length > 1
       ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
@@ -523,7 +565,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
             <svg
               className="sketch__target-surface"
               aria-hidden="true"
-              style={{ cursor: SKETCH_CURSOR }}
+              style={{ cursor: sketchCursor(tool) }}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={finishPointer}
@@ -547,7 +589,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
               viewBox={`0 0 ${viewport.width} ${viewport.height}`}
               preserveAspectRatio="none"
               pointerEvents="all"
-              style={{ cursor: tool === "move" ? DRAG_CURSOR : SKETCH_CURSOR }}
+              style={{ cursor: sketchCursor(tool) }}
               tabIndex={0}
               aria-label="Sketch over the live interface"
               onPointerDown={onPointerDown}
