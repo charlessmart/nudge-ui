@@ -68,8 +68,15 @@ distribution.
   the inspector as a synchronous mirror. Writes go through a DOM event to an
   isolated-world bridge, which prefixes keys with its own origin, so a page
   cannot write another origin's data. The workspace lease stays in
-  `localStorage` because it coordinates tabs on one origin. Sketch images stay
-  in the page origin's IndexedDB.
+  `localStorage` because it coordinates tabs on one origin.
+- **Sketch storage.** Sketches are stored in `chrome.storage.local` under
+  `sketch:<origin>|doc:<id>` and `sketch:<origin>|handoff:<id>`, so the
+  inspected site's IndexedDB is never written. The inspector reads and writes
+  them on demand through request and response DOM events. The isolated-world
+  bridge applies the origin prefix, as it does for inspector storage. The
+  service worker doesn't read sketch keys before injection, because they hold
+  screenshots. Images are stored as base64, because `chrome.storage` holds only
+  JSON values.
 - **Content Security Policy.** Extension-injected scripts are not subject to
   page `script-src`. The inspector uses constructable stylesheets and does not
   probe for `<style>` support, which would report a violation to the site. The
@@ -96,6 +103,10 @@ distribution.
 - Frames that redirect to another origin keep their framing headers and do not
   load.
 - The extension requires Chrome 130 or later for `chrome.storage.local.getKeys`.
+- Sketches share the 10 MB `chrome.storage.local` quota with inspector state,
+  because the extension doesn't request `unlimitedStorage`. Base64 encoding
+  increases image size by about a third. The limit of four kept sketches keeps
+  typical usage within the quota.
 - Cross-origin stylesheets without CORS remain unreadable through the CSSOM, so
   their rules and tokens are missing from inspection.
 - Comment pins re-anchor only after their element receives identity, which
