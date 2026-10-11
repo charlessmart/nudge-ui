@@ -9,6 +9,7 @@ export default defineConfig({
     // concurrent files contend for them and a settled batch misses its window.
     fileParallelism: false,
     testTimeout: 20_000,
+    setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
     alias: [
