@@ -1,5 +1,12 @@
 import type { ReactElement } from "react";
-import { IconMessageCircle, IconMessageCircleFilled, IconPointer2, IconSketching } from "@tabler/icons-react";
+import {
+  IconBug,
+  IconBugFilled,
+  IconMessageCircle,
+  IconMessageCircleFilled,
+  IconPointer2,
+  IconSketching,
+} from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import {
@@ -10,6 +17,7 @@ import {
 } from "./CanvasToolIcons.tsx";
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 import { SketchToolOptions } from "./SketchToolOptions.tsx";
+import { DebugToolOptions } from "./DebugToolOptions.tsx";
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
@@ -114,6 +122,16 @@ export function CanvasToolbar({
           onToolChange={onToolChange}
         />
         <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
+        <ToolButton
+          tool="debug"
+          activeTool={tool}
+          label="Debug"
+          shortcut="D"
+          icon={<IconBug size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<IconBugFilled size={ICON_SIZE} aria-hidden="true" />}
+          onToolChange={onToolChange}
+        />
+        <DebugToolOptions open={tool === "debug"} />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">

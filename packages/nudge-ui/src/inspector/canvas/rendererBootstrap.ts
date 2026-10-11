@@ -7,6 +7,7 @@ import {
   setRendererIdentity,
   type ParentReadyMessage,
   type BoardGestureStateMessage,
+  type DebugViewStateMessage,
 } from "./frameProtocol.ts";
 import type {
   FrameMetadataMessage,
@@ -32,6 +33,8 @@ import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/run
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
+import { createRendererDebugView } from "./rendererDebugView.ts";
+import { isDebugViewState } from "./debugView.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -350,11 +353,19 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     sendToParent(message);
   }
 
+  const debugView = createRendererDebugView(document);
+  owner.listenerRemovers.push(() => debugView.dispose());
+
   const onMessage = (event: MessageEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const identity = getRendererIdentity();
     if (!identity || !isRendererMessageFor(event.data, identity)) return;
+    if ((event.data as DebugViewStateMessage).type === "debug-view-state") {
+      const state = (event.data as DebugViewStateMessage).state;
+      if (isDebugViewState(state)) debugView.apply(state);
+      return;
+    }
     if ((event.data as PanModifierMessage).type === "pan-modifier") {
       spaceHeld = (event.data as PanModifierMessage).spaceHeld;
     }

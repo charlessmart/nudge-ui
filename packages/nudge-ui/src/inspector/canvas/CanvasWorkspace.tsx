@@ -91,6 +91,8 @@ import {
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
+import { DEBUG_VIEW_OFF } from "./debugView.ts";
+import { useDebugViewState } from "./debugViewStore.ts";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
@@ -165,7 +167,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning && !sketchActive;
+  // Debug views inspect the running app, so it stays interactive like Select.
+  const appInteractive = interactionTool === "select" || interactionTool === "debug";
+  const debugViewState = useDebugViewState();
+  const activeDebugView = selectedTool === "debug" ? debugViewState : DEBUG_VIEW_OFF;
+  const rendererInteractionsEnabled = !appInteractive && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
     ? "grabbing"
@@ -176,7 +182,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     : interactionTool === "design"
       ? DESIGN_SELECT_CURSOR
       : undefined;
-  const linksOpenInCards = interactionTool === "select" && presentation === "canvas";
+  const linksOpenInCards = appInteractive && presentation === "canvas";
+  const activeDebugViewRef = useRef(activeDebugView);
+  activeDebugViewRef.current = activeDebugView;
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
   const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
 
@@ -318,8 +326,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   const sendBoardGestureState = useCallback((frame: FrameConnection, enabled: boolean) => {
-    frame.post({ type: "board-gesture-state", enabled, panScroll: enabled && interactionTool !== "select" });
-  }, [interactionTool]);
+    frame.post({ type: "board-gesture-state", enabled, panScroll: enabled && !appInteractive });
+  }, [appInteractive]);
 
   useEffect(() => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -329,6 +337,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
     }
   }, [inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState]);
+
+  useEffect(() => {
+    for (const [cardId, iframe] of getRegisteredFrames()) {
+      connectFrame(cardId, iframe).post({ type: "debug-view-state", state: activeDebugView });
+    }
+  }, [activeDebugView]);
 
   const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -392,7 +406,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
-    if (nextTool === "select" && selectedTool === "select") {
+    if ((nextTool === "select" || nextTool === "debug") && selectedTool === nextTool) {
       setInteractionTool("design");
       stopPanMode();
       return;
@@ -628,6 +642,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         );
         sendBoardGestureState(frame, presentation === "canvas");
         frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
+        frame.post({ type: "debug-view-state", state: activeDebugViewRef.current });
       }
       if (msg.type === "pan-modifier") {
         if (presentation !== "canvas") return;
@@ -639,7 +654,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type === "wheel-pan") {
-        if (presentation === "canvas" && !sketchActive && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
+        if (presentation === "canvas" && !sketchActive && !appInteractive) panCanvasByWheel(msg.deltaX, msg.deltaY);
         return;
       }
       if (msg.type === "zoom") {
@@ -699,7 +714,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -715,7 +730,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (mode !== "canvas" || presentation !== "canvas" || sketchActive || interactionTool === "select") return;
+      if (mode !== "canvas" || presentation !== "canvas" || sketchActive || appInteractive) return;
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
         if (e.defaultPrevented || getSelectedElements().length > 0 || getCanvasCards().length < 2) return;
         const selectedCardId = getSelectedCardId();
@@ -751,7 +766,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [broadcastPanModifier, interactionTool, mode, presentation, sketchActive]);
+  }, [appInteractive, broadcastPanModifier, mode, presentation, sketchActive]);
 
   const handleBoardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (presentation !== "canvas" || sketchActive || spaceHeldRef.current || panningRef.current) return;
@@ -804,7 +819,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const path = e.composedPath();
       // Comment pins overlay the board without being its DOM descendants.
       const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));
-      if (!zoom && (interactionTool === "select" || !board || (!path.includes(board) && !overCommentPin))) return;
+      if (!zoom && (appInteractive || !board || (!path.includes(board) && !overCommentPin))) return;
       e.preventDefault();
       e.stopPropagation();
       if (zoom) zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
@@ -816,7 +831,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
+  }, [appInteractive, mode, presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
 
   // Every page card would share the one page renderer, so extra restored cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (

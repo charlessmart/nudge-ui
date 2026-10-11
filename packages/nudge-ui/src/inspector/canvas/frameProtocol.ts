@@ -6,9 +6,10 @@ import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 import type { RendererCursor } from "../ui/customCursors.ts";
+import type { DebugViewState } from "./debugView.ts";
 
 // Bumped on every message-shape change; the controller and renderer must agree exactly.
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 export interface FrameMessage {
   type: string;
@@ -221,7 +222,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 export interface KeyboardShortcutMessage extends RendererMessage {
@@ -291,6 +292,12 @@ export interface InspectorInteractionStateMessage extends RendererMessage {
   commentCursor?: string;
 }
 
+/** Applies Debug tool views (slowed animations, outlines, X-ray) inside a renderer. */
+export interface DebugViewStateMessage extends RendererMessage {
+  type: "debug-view-state";
+  state: DebugViewState;
+}
+
 export type RendererToControllerMessage =
   | RendererHelloMessage
   | FrameReadyMessage
@@ -331,7 +338,8 @@ export type ControllerToRendererMessage =
   | PanModifierMessage
   | MeasureModifierMessage
   | BoardGestureStateMessage
-  | InspectorInteractionStateMessage;
+  | InspectorInteractionStateMessage
+  | DebugViewStateMessage;
 
 const RENDERER_MESSAGE_TYPES = {
   "renderer-hello": true,
@@ -408,7 +416,8 @@ export type FrameProtocolMessage =
   | ZoomMessage
   | WheelPanMessage
   | AppInteractionModifierMessage
-  | InspectorInteractionStateMessage;
+  | InspectorInteractionStateMessage
+  | DebugViewStateMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
 
@@ -441,6 +450,7 @@ export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcu
     || value === "KeyV"
     || value === "KeyC"
     || value === "KeyP"
+    || value === "KeyD"
     || value === "KeyS";
 }
 
