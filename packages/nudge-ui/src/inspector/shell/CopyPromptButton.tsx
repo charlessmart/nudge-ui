@@ -11,6 +11,7 @@ import {
   IconPencil,
   IconPlugConnected,
   IconSend,
+  IconX,
 } from "@tabler/icons-react";
 import { useChanges } from "../drafts/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
@@ -36,9 +37,12 @@ import {
   getLastClipboardReconciledCount,
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
-import { useSketches, settleSketchDispatch } from "../sketch/store.ts";
+import { removeSketch, useSketches, settleSketchDispatch } from "../sketch/store.ts";
 import { SketchThumbnail } from "../sketch/SketchThumbnail.tsx";
 import { copySketchImageOnRequest } from "../sketch/copySketch.ts";
+import { closeSketchNote } from "../sketch/sketchNote.ts";
+import { IconButton } from "../ui/IconButton.tsx";
+import { showToast } from "../ui/Toast.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 import { getFocusedCardId, getSelectedCardId, useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getEditableCardId, sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
@@ -181,6 +185,8 @@ export function CopyPromptButton({
     && !delivered;
   const canSend = agent.paired && agent.listenerActive && !working && !delivered;
   const changeCount = countPromptChanges(changes, structuralChanges, canSend ? pendingSketches.length : 0) + comments.length;
+  // The badge counts every pending sketch, including ones copied separately from the menu.
+  const badgeCount = countPromptChanges(changes, structuralChanges, pendingSketches.length) + comments.length;
   const disabled = preparing || connecting || working || delivered || (!canConnect && !hasChanges);
   const agentStatus = useAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
@@ -339,13 +345,25 @@ export function CopyPromptButton({
     openMcpConnection();
   }
 
+  async function deleteSketch(sketchId: string): Promise<void> {
+    try {
+      if (!await removeSketch(sketchId)) {
+        showToast({ tone: "error", title: "Sketch not deleted", description: "This sketch is being sent and cannot be deleted yet." });
+        return;
+      }
+      closeSketchNote();
+    } catch (error) {
+      showToast({ tone: "error", title: "Sketch not deleted", description: error instanceof Error ? error.message : "The sketch could not be deleted." });
+    }
+  }
+
   const hasMenu = Boolean(activeArtifactId) || visibleSketches.length > 0;
   const styleEditLabel = canConnect ? "Connect agent" : canSend ? "Send style edit prompt" : "Copy style edit prompt";
   const styleEditDescription = canConnect
-    ? "Pair an agent before sending style edits."
+    ? "Pair an agent first"
     : canSend
-      ? "Send style edits to the connected agent."
-      : "Style and content edits made in the inspector.";
+      ? "Send to the connected agent"
+      : "Edits made in the inspector";
 
   const promptButton = (
     <Button
@@ -361,9 +379,9 @@ export function CopyPromptButton({
     >
       {icon}
       {label}
-      {changeCount > 0 ? (
+      {badgeCount > 0 ? (
         <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
-          {changeCount}
+          {badgeCount}
         </span>
       ) : null}
       {hasMenu ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
@@ -425,25 +443,40 @@ export function CopyPromptButton({
                   </Menu.Item>
                 )}
                 {visibleSketches.length > 0 ? <Menu.Separator className="copy-prompt__menu-separator" /> : null}
-                {visibleSketches.map((item, index) => (
-                  <Menu.Item
-                    key={item.document.id}
-                    className="copy-prompt__menu-item copy-prompt__menu-item--sketch"
-                    data-test="copy-sketch"
-                    data-sketch-id={item.document.id}
-                    label={`Copy Sketch ${index + 1}`}
-                    disabled={item.status === "dispatching" || item.status === "handing-off"}
-                    onClick={() => void copySketchImageOnRequest(item.document.annotatedImage)}
-                  >
-                    <SketchThumbnail item={item} />
-                    <span className="copy-prompt__menu-content">
-                      <span className="copy-prompt__menu-title">Copy Sketch {index + 1}</span>
-                      {item.document.description ? (
-                        <span className="copy-prompt__menu-description copy-prompt__menu-description--truncate">{item.document.description}</span>
-                      ) : null}
-                    </span>
-                  </Menu.Item>
-                ))}
+                {visibleSketches.map((item, index) => {
+                  const busy = item.status === "dispatching" || item.status === "handing-off";
+                  return (
+                    <div key={item.document.id} className="copy-prompt__menu-row">
+                      <Menu.Item
+                        className="copy-prompt__menu-item copy-prompt__menu-item--sketch"
+                        data-test="copy-sketch"
+                        data-sketch-id={item.document.id}
+                        label={`Copy Sketch ${index + 1}`}
+                        disabled={busy}
+                        onClick={() => void copySketchImageOnRequest(item.document.annotatedImage)}
+                      >
+                        <SketchThumbnail item={item} />
+                        <span className="copy-prompt__menu-content">
+                          <span className="copy-prompt__menu-title">Copy Sketch {index + 1}</span>
+                          {item.document.description ? (
+                            <span className="copy-prompt__menu-description copy-prompt__menu-description--truncate">{item.document.description}</span>
+                          ) : null}
+                        </span>
+                      </Menu.Item>
+                      <IconButton
+                        className="copy-prompt__menu-delete"
+                        variant="quiet"
+                        size="compact"
+                        label={`Delete Sketch ${index + 1}`}
+                        data-test="copy-sketch-delete"
+                        disabled={busy}
+                        onClick={() => void deleteSketch(item.document.id)}
+                      >
+                        <IconX size="var(--icon-size-small)" aria-hidden="true" />
+                      </IconButton>
+                    </div>
+                  );
+                })}
               </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>

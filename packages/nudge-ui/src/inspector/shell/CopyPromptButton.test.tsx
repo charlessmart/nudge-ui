@@ -211,7 +211,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
-  it("excludes sketch notes from the clipboard prompt count", async () => {
+  it("counts pending sketches in the clipboard prompt badge", async () => {
     await initializeSketchStore("handoff-project");
     const image = new Blob(["png"], { type: "image/png" });
     await saveSketch({
@@ -230,9 +230,9 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Copy prompt");
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
-    act(() => replaceActiveDraft([change()]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
+    act(() => replaceActiveDraft([change()]));
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("2");
   });
 
   it("shows the connected status without a setup action when the agent is not listening", async () => {

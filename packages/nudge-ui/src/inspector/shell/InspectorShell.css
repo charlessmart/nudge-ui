@@ -168,6 +168,27 @@
 
 .copy-prompt__menu-item--sketch {
   align-items: center;
+  padding-right: calc(var(--control-height-small) + var(--space-8));
+}
+
+.copy-prompt__menu-row {
+  position: relative;
+}
+
+.copy-prompt__menu-delete {
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.copy-prompt__menu-row:hover .copy-prompt__menu-delete,
+.copy-prompt__menu-row:focus-within .copy-prompt__menu-delete {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .copy-prompt__menu-item[data-disabled] {
