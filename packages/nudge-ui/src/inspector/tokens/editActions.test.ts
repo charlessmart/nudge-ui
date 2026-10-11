@@ -16,6 +16,8 @@ import { setActiveStyleState } from "../shell/styleState.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { installStaticHtmlRuntimeIdentity } from "../runtime/staticHtmlRuntimeIdentity.ts";
+import { deserializeChange, serializeChange } from "../changes/codecs.ts";
+import { unlinkElement } from "../selection/editScope.ts";
 import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
@@ -273,6 +275,7 @@ describe("runtime HTML evidence", () => {
       props: ("  prop:`value`\n" + "x".repeat(140)).slice(0, 120),
       ariaLabel: "  Save\n  this action  ",
       domPath: "button",
+      elementId: null,
     });
   });
 
@@ -297,6 +300,72 @@ describe("runtime HTML evidence", () => {
       props: null,
       ariaLabel: null,
       domPath: "h1",
+      elementId: null,
     });
+  });
+});
+
+
+describe("style edit prompt targets", () => {
+  beforeEach(() => {
+    resetPendingRules();
+    resetRenderedInstanceState();
+    document.body.innerHTML = '<ul><li><span data-cid="App" data-src="src/App.tsx:317:18">Change styles</span></li><li><span data-cid="App" data-src="src/App.tsx:317:18">Leave comments</span></li><li><span data-cid="App" data-src="src/App.tsx:317:18">Hand off</span></li></ul>';
+  });
+  afterEach(() => { resetPendingRules(); resetRenderedInstanceState(); document.body.innerHTML = ""; });
+
+  function savedPrompt(): string {
+    return generatePrompt(getChangeRecords().map((change) => deserializeChange(serializeChange(change)!)), undefined, [], "", [], []);
+  }
+
+  it("exports a linked edit as a change to every item, with example evidence", () => {
+    const first = document.querySelector<HTMLElement>("span")!;
+    swapToken(first, "color", COLOR_BLUE, COLOR_SUNKEN);
+    const prompt = savedPrompt();
+    expect(prompt).toContain("Example text: `Change styles`");
+    expect(prompt).toContain("for all items rendered at this source location.");
+    expect(prompt).not.toContain("DOM path:");
+    expect(prompt).not.toContain("\n- Text:");
+    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+  });
+
+  it("exports a partial selection as selected items without including their sibling", () => {
+    const items = [...document.querySelectorAll<HTMLElement>("span")];
+    swapToken([items[0]!, items[2]!], "color", COLOR_BLUE, COLOR_SUNKEN);
+    const prompt = savedPrompt();
+    expect(prompt).toContain("Selected items:");
+    expect(prompt).toContain("Text: `Change styles`");
+    expect(prompt).toContain("Text: `Hand off`");
+    expect(prompt).toContain("for these selected items.");
+    expect(prompt).not.toContain("Leave comments");
+    expect(prompt).not.toContain("for all items");
+    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+  });
+
+  it("lists separately authored selected items with their own source locations", () => {
+    const items = [...document.querySelectorAll<HTMLElement>("span")];
+    items[0]!.dataset.src = "src/Toolbar.tsx:10:4";
+    items[2]!.dataset.src = "src/Footer.tsx:20:6";
+    swapToken([items[0]!, items[2]!], "color", COLOR_BLUE, COLOR_SUNKEN);
+    const prompt = savedPrompt();
+    expect(prompt).toContain("Selected items:");
+    expect(prompt).toContain("Source: `src/Toolbar.tsx:10:4`; Text: `Change styles`");
+    expect(prompt).toContain("Source: `src/Footer.tsx:20:6`; Text: `Hand off`");
+    expect(prompt).toContain("for these selected items.");
+    expect(prompt).not.toContain("Leave comments");
+    expect(prompt).not.toContain("for all items");
+    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+  });
+
+  it("exports an unlinked item with specific identification", () => {
+    const item = document.querySelector<HTMLElement>("span")!;
+    unlinkElement(item);
+    swapToken(item, "color", COLOR_BLUE, COLOR_SUNKEN);
+    const prompt = savedPrompt();
+    expect(prompt).toContain("Text: `Change styles`");
+    expect(prompt).toContain("DOM path:");
+    expect(prompt).toContain("for this selected item.");
+    expect(prompt).not.toContain("Example text:");
+    expect(prompt).not.toContain("for all items");
   });
 });

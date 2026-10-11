@@ -16,7 +16,7 @@ export function inlineStyleWarningContent(blockedBy: string | null): ReactElemen
   return (
     <div className="at-rule-tooltip__rules">
       <div className="at-rule-tooltip__rule at-rule-tooltip__rule--active">
-        Set inline (<code>{blockedBy}</code>). Previews can&apos;t beat inline styles — move it to a stylesheet to edit it here.
+        This is set as inline style. Can&apos;t be edited here.
       </div>
     </div>
   );

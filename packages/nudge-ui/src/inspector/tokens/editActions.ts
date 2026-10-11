@@ -41,6 +41,7 @@ function sourceFields(el: HTMLElement): SourceFields {
     props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
     ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
     domPath: runtimeDomPath(el),
+    elementId: boundRuntimeEvidence(el.id || null),
   });
   if (isRuntimeCreatedElement(el) || isRuntimeGeneratedSource(src)) {
     return {
@@ -71,6 +72,7 @@ function sourceFields(el: HTMLElement): SourceFields {
       text: boundedRenderedText(el),
       ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
       domPath: runtimeDomPath(el),
+      elementId: boundRuntimeEvidence(el.id || null),
     },
   };
 }

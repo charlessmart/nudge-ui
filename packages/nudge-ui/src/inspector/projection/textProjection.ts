@@ -1,3 +1,4 @@
+import { boundRuntimeEvidence, normalizeRuntimeTag, runtimeDomPath } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import type { FrameProjection } from "../canvas/projection.ts";
 import { getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
@@ -382,6 +383,9 @@ export function captureTextProjectionTarget(
     props: element.getAttribute("data-cprops"),
     ariaLabel: element.getAttribute("aria-label"),
     beforeText,
+    tagName: normalizeRuntimeTag(element.tagName),
+    elementId: boundRuntimeEvidence(element.id || null),
+    domPath: runtimeDomPath(element),
     ...pathTarget,
   };
 }

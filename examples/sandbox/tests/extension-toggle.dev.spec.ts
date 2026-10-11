@@ -3,16 +3,58 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, test } from "@playwright/test";
+import { installExtensionStorage } from "./extensionStorage.ts";
 
 let inspectorBundle: string;
+let storageBridge: string;
 
 test.beforeAll(async () => {
   const extension = new URL("../../../packages/chrome-extension/", import.meta.url);
   await promisify(execFile)(process.execPath, [fileURLToPath(new URL("scripts/build.mjs", extension))]);
-  inspectorBundle = await readFile(new URL("dist/nudge-ui.js", extension), "utf8");
+  [inspectorBundle, storageBridge] = await Promise.all([
+    readFile(new URL("dist/nudge-ui.js", extension), "utf8"),
+    readFile(new URL("dist/storage-bridge.js", extension), "utf8"),
+  ]);
+});
+
+test("the extension previews selected states with adopted stylesheets and releases them when closed", async ({ page }) => {
+  await installExtensionStorage(page);
+  await page.route("**/extension-state-fixture", (route) => route.fulfill({
+    contentType: "text/html",
+    body: `<!doctype html><html><head><style>
+      button { background: rgb(10, 20, 30); }
+      button:hover { background: rgb(40, 50, 60); }
+      button:active { background: rgb(70, 80, 90); }
+      button:disabled { background: rgb(100, 110, 120); }
+    </style></head><body><button id="action">Save</button></body></html>`,
+  }));
+  await page.goto("/extension-state-fixture");
+  await page.evaluate(() => {
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+  });
+  await page.addScriptTag({ content: storageBridge });
+  await page.addScriptTag({ content: inspectorBundle });
+  await expect(page.locator('[data-test="collapse-inspector"]')).toBeVisible();
+  const button = page.locator("#action");
+  await button.click();
+  const state = page.locator('[data-test="style-state-select"]');
+  await state.click();
+  await page.locator('[data-value="active"]').click();
+  await expect(button).toHaveCSS("background-color", "rgb(70, 80, 90)");
+  await state.click();
+  await page.locator('[data-value="disabled"]').click();
+  await expect(button).toHaveCSS("background-color", "rgb(100, 110, 120)");
+  await expect(button).toBeEnabled();
+  await page.evaluate(() => {
+    const loaded = (window as Window & { __NUDGE_UI_PAGE_INSPECTOR__?: { toggle(): void } }).__NUDGE_UI_PAGE_INSPECTOR__;
+    if (!loaded) throw new Error("The extension inspector did not start.");
+    loaded.toggle();
+  });
+  await expect(button).toHaveCSS("background-color", "rgb(10, 20, 30)");
 });
 
 test("the extension toggle disables page interception and can restart the inspector", async ({ page }) => {
+  await installExtensionStorage(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/extension-toggle-fixture", (route) => route.fulfill({
@@ -26,6 +68,7 @@ test("the extension toggle disables page interception and can restart the inspec
     // The service worker publishes this before each top-frame injection.
     Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
   });
+  await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });
   const tool = page.locator('[data-test="canvas-tool-comment"]');
   await expect(tool).toBeVisible();

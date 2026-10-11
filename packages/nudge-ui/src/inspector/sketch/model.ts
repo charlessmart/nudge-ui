@@ -23,16 +23,25 @@ export const SKETCH_LIMITS = {
 } as const;
 
 export const SKETCH_STROKE_WIDTH = 6;
+/** Default pen color, and the fallback for strokes saved without one. */
 export const SKETCH_STROKE_COLOR = "#0096ff";
+/** Annotation markers and the notes panel; independent of the chosen pen color. */
+export const SKETCH_ACCENT_COLOR = "#0096ff";
 export const SKETCH_STROKE_OUTLINE = "";
-/** Pen palette offered by the canvas toolbar, ending with the default blue. */
-export const SKETCH_STROKE_COLORS = ["#f03e1e", "#ff8a00", "#ffc800", "#1fc85a", SKETCH_STROKE_COLOR] as const;
+/** Pen palette offered by the canvas toolbar. */
+export const SKETCH_PEN_COLORS = [
+  { id: "red", name: "Red", value: "#f03e1e" },
+  { id: "orange", name: "Orange", value: "#ff8a00" },
+  { id: "yellow", name: "Yellow", value: "#ffc800" },
+  { id: "green", name: "Green", value: "#1fc85a" },
+  { id: "blue", name: "Blue", value: SKETCH_STROKE_COLOR },
+] as const;
+export type SketchPenColor = (typeof SKETCH_PEN_COLORS)[number];
 export const SKETCH_ANNOTATION_RADIUS = 16;
 
 // Keep accepting sketches saved before the annotation color update. Existing
 // PNGs remain unchanged until a user edits and saves them again.
 const LEGACY_SKETCH_STROKE_COLOR = "#ef4444";
-const LEGACY_SKETCH_STROKE_COLOR_ORANGE = "#FF3700";
 const LEGACY_SKETCH_STROKE_OUTLINE = "#111827";
 
 export type SketchStatus = "pending" | "dispatching" | "handing-off" | "needs-review" | "unknown";
@@ -45,9 +54,8 @@ export interface SketchPoint {
 }
 
 export type SketchStrokeColor =
-  | (typeof SKETCH_STROKE_COLORS)[number]
-  | typeof LEGACY_SKETCH_STROKE_COLOR
-  | typeof LEGACY_SKETCH_STROKE_COLOR_ORANGE;
+  | SketchPenColor["value"]
+  | typeof LEGACY_SKETCH_STROKE_COLOR;
 type SketchStrokeOutline = typeof SKETCH_STROKE_OUTLINE | typeof LEGACY_SKETCH_STROKE_OUTLINE;
 
 export type SketchStrokeKind = "freehand" | "rectangle";
@@ -123,21 +131,121 @@ export function createSketchFilename(id: string, revision: number): string {
   return `sketch-${id}-r${revision}.png`;
 }
 
-export function isFiniteNumber(value: unknown): value is number {
+// Fields of stored records that have not been validated yet.
+interface CandidateCapture {
+  readonly url?: unknown;
+  readonly title?: unknown;
+  readonly timestamp?: unknown;
+  readonly viewportWidth?: unknown;
+  readonly viewportHeight?: unknown;
+  readonly scrollX?: unknown;
+  readonly scrollY?: unknown;
+  readonly devicePixelRatio?: unknown;
+  readonly host?: unknown;
+  readonly framework?: unknown;
+  readonly imageWidth?: unknown;
+  readonly imageHeight?: unknown;
+}
+
+interface CandidatePoint {
+  readonly x?: unknown;
+  readonly y?: unknown;
+}
+
+interface CandidateAnnotation {
+  readonly id?: unknown;
+  readonly number?: unknown;
+  readonly point?: unknown;
+  readonly description?: unknown;
+}
+
+interface CandidateStroke {
+  readonly id?: unknown;
+  readonly kind?: unknown;
+  readonly width?: unknown;
+  readonly color?: unknown;
+  readonly outlineColor?: unknown;
+  readonly points?: unknown;
+}
+
+interface CandidateDocument {
+  readonly schemaVersion?: unknown;
+  readonly projectId?: unknown;
+  readonly id?: unknown;
+  readonly revision?: unknown;
+  readonly createdAt?: unknown;
+  readonly updatedAt?: unknown;
+  readonly capture?: unknown;
+  readonly description?: unknown;
+  readonly strokes?: unknown;
+  readonly annotations?: unknown;
+  readonly imageWidth?: unknown;
+  readonly imageHeight?: unknown;
+  readonly originalByteSize?: unknown;
+  readonly annotatedByteSize?: unknown;
+  readonly filename?: unknown;
+  readonly originalImage?: unknown;
+  readonly annotatedImage?: unknown;
+}
+
+interface CandidateHandoff {
+  readonly id?: unknown;
+  readonly projectId?: unknown;
+  readonly sketchId?: unknown;
+  readonly sketchRevision?: unknown;
+  readonly localBatchId?: unknown;
+  readonly batchRevision?: unknown;
+  readonly transport?: unknown;
+  readonly agentRequestId?: unknown;
+  readonly timestamp?: unknown;
+  readonly state?: unknown;
+}
+
+export function isFiniteNumber(
+  // Stored sketch fields are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function boundedString(value: unknown, maximum: number, allowEmpty = false): value is string {
+function safeIntegerInRange(
+  // Stored sketch fields are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+  minimum: number,
+  maximum = Number.MAX_SAFE_INTEGER,
+): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum;
+}
+
+function boundedString(
+  // Stored sketch fields are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+  maximum: number,
+  allowEmpty = false,
+): value is string {
   return typeof value === "string" && value.length <= maximum && (allowEmpty || value.length > 0);
 }
 
-function isBlob(value: unknown, mimeType?: string): value is Blob {
+function isBlob(
+  // Stored sketch images are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+  mimeType?: string,
+): value is Blob {
   return typeof Blob !== "undefined"
     && value instanceof Blob
     && (mimeType === undefined || value.type === mimeType);
 }
 
-function validHttpUrl(value: unknown, maximum: number): value is string {
+function validHttpUrl(
+  // Stored sketch fields are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+  maximum: number,
+): value is string {
   if (!boundedString(value, maximum)) return false;
   try {
     const url = new URL(value);
@@ -147,9 +255,22 @@ function validHttpUrl(value: unknown, maximum: number): value is string {
   }
 }
 
-export function isSketchCaptureMetadata(value: unknown): value is SketchCaptureMetadata {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const capture = value as Record<string, unknown>;
+function isPlainObject(
+  // Stored sketch records are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is object {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function isSketchCaptureMetadata(
+  // Capture metadata is read back from storage and parsed here.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchCaptureMetadata {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const capture = value as CandidateCapture;
   const keys = [
     "url",
     "title",
@@ -167,14 +288,9 @@ export function isSketchCaptureMetadata(value: unknown): value is SketchCaptureM
   if (!Object.keys(capture).every((key) => keys.includes(key))) return false;
   return validHttpUrl(capture.url, SKETCH_LIMITS.url)
     && boundedString(capture.title, SKETCH_LIMITS.title, true)
-    && Number.isSafeInteger(capture.timestamp)
-    && (capture.timestamp as number) > 0
-    && Number.isSafeInteger(capture.viewportWidth)
-    && (capture.viewportWidth as number) > 0
-    && (capture.viewportWidth as number) <= 100_000
-    && Number.isSafeInteger(capture.viewportHeight)
-    && (capture.viewportHeight as number) > 0
-    && (capture.viewportHeight as number) <= 100_000
+    && safeIntegerInRange(capture.timestamp, 1)
+    && safeIntegerInRange(capture.viewportWidth, 1, 100_000)
+    && safeIntegerInRange(capture.viewportHeight, 1, 100_000)
     && isFiniteNumber(capture.scrollX)
     && capture.scrollX >= 0
     && isFiniteNumber(capture.scrollY)
@@ -184,17 +300,18 @@ export function isSketchCaptureMetadata(value: unknown): value is SketchCaptureM
     && capture.devicePixelRatio <= 100
     && boundedString(capture.host, 128)
     && boundedString(capture.framework, 128)
-    && Number.isSafeInteger(capture.imageWidth)
-    && (capture.imageWidth as number) > 0
-    && (capture.imageWidth as number) <= SKETCH_LIMITS.imageEdge
-    && Number.isSafeInteger(capture.imageHeight)
-    && (capture.imageHeight as number) > 0
-    && (capture.imageHeight as number) <= SKETCH_LIMITS.imageEdge;
+    && safeIntegerInRange(capture.imageWidth, 1, SKETCH_LIMITS.imageEdge)
+    && safeIntegerInRange(capture.imageHeight, 1, SKETCH_LIMITS.imageEdge);
 }
 
-export function isSketchPoint(value: unknown): value is SketchPoint {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const point = value as Record<string, unknown>;
+export function isSketchPoint(
+  // Stored points are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchPoint {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const point = value as CandidatePoint;
   return Object.keys(point).every((key) => key === "x" || key === "y")
     && isFiniteNumber(point.x)
     && isFiniteNumber(point.y)
@@ -204,30 +321,37 @@ export function isSketchPoint(value: unknown): value is SketchPoint {
     && point.y <= SKETCH_LIMITS.imageEdge;
 }
 
-export function isSketchAnnotation(value: unknown): value is SketchAnnotation {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const annotation = value as Record<string, unknown>;
+export function isSketchAnnotation(
+  // Stored annotations are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchAnnotation {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const annotation = value as CandidateAnnotation;
   return Object.keys(annotation).every((key) => ["id", "number", "point", "description"].includes(key))
     && boundedString(annotation.id, 256)
-    && Number.isSafeInteger(annotation.number)
-    && (annotation.number as number) >= 1
-    && (annotation.number as number) <= SKETCH_LIMITS.annotations
+    && safeIntegerInRange(annotation.number, 1, SKETCH_LIMITS.annotations)
     && isSketchPoint(annotation.point)
     && boundedString(annotation.description, SKETCH_LIMITS.description);
 }
 
-export function isSketchStroke(value: unknown): value is SketchStroke {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const stroke = value as Record<string, unknown>;
+export function isSketchStroke(
+  // Stored strokes are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchStroke {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const stroke = value as CandidateStroke;
   return Object.keys(stroke).every((key) => ["id", "kind", "width", "color", "outlineColor", "points"].includes(key))
     && boundedString(stroke.id, 256)
     && (stroke.kind === undefined || stroke.kind === "freehand" || stroke.kind === "rectangle")
     && isFiniteNumber(stroke.width)
     && stroke.width > 0
     && stroke.width <= 128
-    && (SKETCH_STROKE_COLORS.some((color) => color === stroke.color)
-      || stroke.color === LEGACY_SKETCH_STROKE_COLOR
-      || stroke.color === LEGACY_SKETCH_STROKE_COLOR_ORANGE)
+    && (SKETCH_PEN_COLORS.some((color) => color.value === stroke.color)
+      || stroke.color === LEGACY_SKETCH_STROKE_COLOR)
     && (stroke.outlineColor === SKETCH_STROKE_OUTLINE || stroke.outlineColor === LEGACY_SKETCH_STROKE_OUTLINE)
     && Array.isArray(stroke.points)
     && stroke.points.length > 0
@@ -235,9 +359,34 @@ export function isSketchStroke(value: unknown): value is SketchStroke {
     && stroke.points.every(isSketchPoint);
 }
 
-export function isSketchDocument(value: unknown): value is SketchDocument {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const document = value as Record<string, unknown>;
+function isSketchStrokeList(
+  // Stored stroke lists are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchStroke[] {
+  return Array.isArray(value)
+    && value.length <= SKETCH_LIMITS.strokes
+    && value.every(isSketchStroke);
+}
+
+function isSketchAnnotationList(
+  // Stored annotation lists are untrusted until this check narrows them.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchAnnotation[] {
+  return Array.isArray(value)
+    && value.length <= SKETCH_LIMITS.annotations
+    && value.every(isSketchAnnotation);
+}
+
+export function isSketchDocument(
+  // Sketch documents are read back from storage and parsed here.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchDocument {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const document = value as CandidateDocument;
   return Object.keys(document).every((key) => [
     "schemaVersion",
     "projectId",
@@ -260,43 +409,35 @@ export function isSketchDocument(value: unknown): value is SketchDocument {
     && document.schemaVersion === SKETCH_SCHEMA_VERSION
     && boundedString(document.projectId, 256)
     && boundedString(document.id, 256)
-    && Number.isSafeInteger(document.revision)
-    && (document.revision as number) > 0
-    && Number.isSafeInteger(document.createdAt)
-    && Number.isSafeInteger(document.updatedAt)
+    && safeIntegerInRange(document.revision, 1)
+    && safeIntegerInRange(document.createdAt, Number.MIN_SAFE_INTEGER)
+    && safeIntegerInRange(document.updatedAt, Number.MIN_SAFE_INTEGER)
     && isSketchCaptureMetadata(document.capture)
     && boundedString(document.description, SKETCH_LIMITS.description, true)
-    && Array.isArray(document.strokes)
-    && document.strokes.length <= SKETCH_LIMITS.strokes
-    && document.strokes.every(isSketchStroke)
-    && document.strokes.reduce((total, stroke) => total + (stroke as SketchStroke).points.length, 0) <= SKETCH_LIMITS.points
+    && isSketchStrokeList(document.strokes)
+    && document.strokes.reduce((total, stroke) => total + stroke.points.length, 0) <= SKETCH_LIMITS.points
     && (document.annotations === undefined
-      || (Array.isArray(document.annotations)
-        && document.annotations.length <= SKETCH_LIMITS.annotations
-        && document.annotations.every(isSketchAnnotation)
+      || (isSketchAnnotationList(document.annotations)
         && new Set(document.annotations.map((annotation) => annotation.number)).size === document.annotations.length))
-    && Number.isSafeInteger(document.imageWidth)
-    && (document.imageWidth as number) > 0
-    && (document.imageWidth as number) <= SKETCH_LIMITS.imageEdge
-    && Number.isSafeInteger(document.imageHeight)
-    && (document.imageHeight as number) > 0
-    && (document.imageHeight as number) <= SKETCH_LIMITS.imageEdge
-    && Number.isSafeInteger(document.originalByteSize)
-    && (document.originalByteSize as number) > 0
-    && (document.originalByteSize as number) <= SKETCH_LIMITS.imageBytes
-    && Number.isSafeInteger(document.annotatedByteSize)
-    && (document.annotatedByteSize as number) > 0
-    && (document.annotatedByteSize as number) <= SKETCH_LIMITS.imageBytes
+    && safeIntegerInRange(document.imageWidth, 1, SKETCH_LIMITS.imageEdge)
+    && safeIntegerInRange(document.imageHeight, 1, SKETCH_LIMITS.imageEdge)
+    && safeIntegerInRange(document.originalByteSize, 1, SKETCH_LIMITS.imageBytes)
+    && safeIntegerInRange(document.annotatedByteSize, 1, SKETCH_LIMITS.imageBytes)
     && boundedString(document.filename, 256)
     && isBlob(document.originalImage, "image/png")
     && isBlob(document.annotatedImage, "image/png")
-    && document.originalImage.size === (document.originalByteSize as number)
-    && document.annotatedImage.size === (document.annotatedByteSize as number);
+    && document.originalImage.size === document.originalByteSize
+    && document.annotatedImage.size === document.annotatedByteSize;
 }
 
-export function isSketchHandoffRecord(value: unknown): value is SketchHandoffRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const handoff = value as Record<string, unknown>;
+export function isSketchHandoffRecord(
+  // Handoff records are read back from storage and parsed here.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters
+  value: unknown,
+): value is SketchHandoffRecord {
+  if (!isPlainObject(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const handoff = value as CandidateHandoff;
   return Object.keys(handoff).every((key) => [
     "id",
     "projectId",
@@ -312,14 +453,12 @@ export function isSketchHandoffRecord(value: unknown): value is SketchHandoffRec
     && boundedString(handoff.id, 256)
     && boundedString(handoff.projectId, 256)
     && boundedString(handoff.sketchId, 256)
-    && Number.isSafeInteger(handoff.sketchRevision)
-    && (handoff.sketchRevision as number) > 0
+    && safeIntegerInRange(handoff.sketchRevision, 1)
     && boundedString(handoff.localBatchId, 256)
-    && (handoff.batchRevision === undefined
-      || (Number.isSafeInteger(handoff.batchRevision) && (handoff.batchRevision as number) >= 0))
+    && (handoff.batchRevision === undefined || safeIntegerInRange(handoff.batchRevision, 0))
     && (handoff.transport === "local" || handoff.transport === "clipboard" || handoff.transport === "direct")
     && (handoff.agentRequestId === undefined || boundedString(handoff.agentRequestId, 256))
-    && Number.isSafeInteger(handoff.timestamp)
+    && safeIntegerInRange(handoff.timestamp, Number.MIN_SAFE_INTEGER)
     && (handoff.state === "pending"
       || handoff.state === "dispatching"
       || handoff.state === "handing-off"

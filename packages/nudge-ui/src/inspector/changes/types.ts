@@ -20,6 +20,7 @@ export interface RuntimeElementEvidence {
   ariaLabel: string | null;
   /** Nearest-ancestor selector path; omitted by records captured before it existed. */
   domPath?: string | null;
+  elementId?: string | null;
 }
 
 /** Bounded authored facts for one annotated element. */
@@ -30,6 +31,7 @@ export interface SourceElementEvidence {
   text?: string | null;
   ariaLabel?: string | null;
   domPath?: string | null;
+  elementId?: string | null;
 }
 
 export interface ElementChangeRecord {
@@ -55,6 +57,8 @@ export interface ElementChangeRecord {
   /** Authored facts that relocate the source site after its position shifts. */
   sourceEvidence?: SourceElementEvidence;
   scope?: EditScope;
+  /** Matching rendered items when captured; presentation only, absent in older edits. */
+  sourceInstanceCount?: number;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";

@@ -8,18 +8,37 @@ import type { ReactElement } from "react";
 import { renderAnnotatedPng } from "./raster.ts";
 import { sketchFrameHeading } from "./frameHeading.ts";
 import { closeSketchEditor, completeSketchCapture, beginSketchCapture, cancelSketchInteraction, openSketchEditor, useSketchInteraction } from "./interaction.ts";
-import { initializeSketchStore, saveSketch, useSketchStore } from "./store.ts";
+import { recordCanvasChange } from "../workspace/timeline.ts";
+import { getSketch, initializeSketchStore, removeSketch, saveSketch, useSketchStore } from "./store.ts";
 import { clearSketchClipboardHandoff } from "./handoff.ts";
+import { copySketchImage, saveAndCopySketch } from "./copySketch.ts";
 import { SketchEditor, type SketchEditorProps } from "./SketchEditor.tsx";
 import { SketchOverlay, type SketchLiveDraft } from "./SketchOverlay.tsx";
 import type { CapturedSketch } from "./capture.ts";
-import type { SketchAnnotation, SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
+import type { SketchDocument, SketchPoint, SketchStroke } from "./model.ts";
 import { closeSketchNote, useSketchNote } from "./sketchNote.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 
 export interface SketchWorkspaceProps {
   readonly hostElement: HTMLElement | null;
   readonly projectId: string;
+}
+
+/** Makes saving a new sketch one step in the session undo history. */
+function recordSketchCreation(document: SketchDocument, owner: string): void {
+  let snapshot = document;
+  recordCanvasChange({
+    cardIds: [],
+    undo: () => {
+      snapshot = getSketch(document.id)?.document ?? snapshot;
+      void removeSketch(document.id);
+    },
+    redo: () => {
+      void saveSketch({ ...snapshot, annotations: snapshot.annotations ?? [] })
+        .then((saved) => assignSketchToDraft(owner, saved.id));
+    },
+    dispose: () => undefined,
+  });
 }
 
 function clamp(value: number, maximum: number): number {
@@ -49,28 +68,6 @@ export function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSke
       })),
     }];
   });
-}
-
-function projectLiveAnnotations(draft: SketchLiveDraft, captured: CapturedSketch): SketchAnnotation[] {
-  const scaleX = captured.imageWidth / Math.max(1, draft.viewport.width);
-  const scaleY = captured.imageHeight / Math.max(1, draft.viewport.height);
-  const captureScrollX = captured.capture.scrollX;
-  const captureScrollY = captured.capture.scrollY;
-  const visibleRight = captureScrollX + draft.viewport.width;
-  const visibleBottom = captureScrollY + draft.viewport.height;
-
-  return draft.annotations
-    .filter((annotation) => annotation.point.x >= captureScrollX
-      && annotation.point.x <= visibleRight
-      && annotation.point.y >= captureScrollY
-      && annotation.point.y <= visibleBottom)
-    .map((annotation) => ({
-      ...annotation,
-      point: {
-        x: clamp((annotation.point.x - captureScrollX) * scaleX, captured.imageWidth),
-        y: clamp((annotation.point.y - captureScrollY) * scaleY, captured.imageHeight),
-      },
-    }));
 }
 
 export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps): ReactElement {
@@ -108,7 +105,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
         setSelectedElement(null);
         selectCard(cardId);
         activateDraftForCard(cardId);
-        beginSketchCapture(interaction.initialTool);
+        beginSketchCapture();
       }
       return target;
     }
@@ -118,22 +115,29 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
   async function save(input: Parameters<SketchEditorProps["onSave"]>[0]): Promise<void> {
     const owner = interaction.draftId ?? getActiveDraftChanges().draftId;
     const saved = await saveSketch(input);
-    if (!input.id) assignSketchToDraft(owner, saved.id);
+    if (!input.id) {
+      assignSketchToDraft(owner, saved.id);
+      recordSketchCreation(saved, owner);
+    }
     closeSketchEditor();
+    void copySketchImage(input.annotatedImage);
   }
 
-  async function saveLive(draft: SketchLiveDraft): Promise<void> {
+  function saveLive(draft: SketchLiveDraft): Promise<void> {
+    return saveAndCopySketch(() => saveLiveSketch(draft));
+  }
+
+  async function saveLiveSketch(draft: SketchLiveDraft): Promise<Blob> {
     if (!hostElement) throw new Error("The inspector is no longer available.");
     const owner = interaction.draftId ?? getActiveDraftChanges().draftId;
     const captured = await completeSketchCapture(hostElement);
     const strokes = projectLiveStrokes(draft, captured);
-    const annotations = projectLiveAnnotations(draft, captured);
     const rendered = await renderAnnotatedPng(
       captured.originalImage,
       captured.imageWidth,
       captured.imageHeight,
       strokes,
-      annotations,
+      [],
       draft.description,
       sketchFrameHeading(captured.capture.url),
     );
@@ -141,18 +145,24 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       capture: captured.capture,
       description: draft.description,
       strokes,
-      annotations,
+      annotations: [],
       imageWidth: rendered.width,
       imageHeight: rendered.height,
       originalImage: captured.originalImage,
       annotatedImage: rendered.blob,
     });
     assignSketchToDraft(owner, saved.id);
+    recordSketchCreation(saved, owner);
     closeSketchEditor();
+    return rendered.blob;
   }
 
-  async function saveNote(description: string): Promise<void> {
-    if (!noteDocument) return;
+  function saveNote(description: string): Promise<void> {
+    if (!noteDocument) return Promise.resolve();
+    return saveAndCopySketch(() => saveNoteSketch(noteDocument, description));
+  }
+
+  async function saveNoteSketch(noteDocument: SketchDocument, description: string): Promise<Blob> {
     const nextDescription = description.trim();
     const rendered = await renderAnnotatedPng(
       noteDocument.originalImage,
@@ -175,6 +185,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       annotatedImage: rendered.blob,
     });
     closeSketchNote();
+    return rendered.blob;
   }
 
   return (
@@ -183,7 +194,6 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
         <SketchOverlay
           open={liveOpen}
           hostElement={hostElement}
-          initialTool={interaction.initialTool}
           selectTarget={selectTarget}
           onCancel={cancelSketchInteraction}
           onDone={saveLive}
@@ -248,12 +258,9 @@ function SavedSketchNote({
   );
 }
 
-export function startSketchCapture(
-  hostElement: HTMLElement | null,
-  initialTool: Parameters<typeof beginSketchCapture>[0] = "pen",
-): void {
+export function startSketchCapture(hostElement: HTMLElement | null): void {
   if (!hostElement) return;
-  beginSketchCapture(initialTool);
+  beginSketchCapture();
 }
 
 export function editSketch(sketchId: string): void {

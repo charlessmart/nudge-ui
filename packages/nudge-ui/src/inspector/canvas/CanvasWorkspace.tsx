@@ -92,6 +92,7 @@ import {
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
+import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
@@ -103,7 +104,7 @@ import { getSelectedElements, setSelectedElement } from "../selection/selectionS
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
+const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolOptionsStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 
 interface RectSnapshot {
@@ -153,7 +154,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const framePanContextRef = useRef<FrameViewport | null>(null);
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
-  const activatedTargetRef = useRef<string | null>(null);
+  // Track the consumed primaryUrl prop separately from navigation inside a frame.
+  const activatedPrimaryUrlRef = useRef<string | null>(null);
   const demoSeededRef = useRef(false);
   const previousPresentationRef = useRef(presentation);
   const presentationAnimationRef = useRef<Animation | null>(null);
@@ -232,8 +234,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!primaryUrl || !board) return;
-    if (activatedTargetRef.current === primaryUrl && cards.length > 0) return;
-    activatedTargetRef.current = primaryUrl;
+    if (activatedPrimaryUrlRef.current === primaryUrl && cards.length > 0) return;
+    activatedPrimaryUrlRef.current = primaryUrl;
     const viewport = {
       width: board.clientWidth,
       height: board.clientHeight,
@@ -291,7 +293,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     if (pageSurface) return;
-    if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
+    if (primaryUrl && activatedPrimaryUrlRef.current !== primaryUrl) return;
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
     if (!activeCard) return;
@@ -564,7 +566,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
-          activatedTargetRef.current = url;
           window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
         }
         updateCardUrl(frame.cardId, url);

@@ -42,6 +42,7 @@ import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
+import { useInteractionStatePreview } from "./interactionStatePreview.ts";
 import type { InteractionState } from "./styleState.ts";
 import { getInspectorToggleShortcutLabel, isEditableEvent } from "./shortcuts.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
@@ -117,6 +118,7 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const sketchEnabled = isNudgeUiDev()
+    && !runtimeConfig.inspectionUnavailableReason
     && (!isDemoRuntime() || isNudgeUiFeatureEnabled(runtimeConfig.features, "sketch"));
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
@@ -130,6 +132,7 @@ export function InspectorShell(): ReactElement {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
+  useInteractionStatePreview(selectedElements.length === 1 ? selectedElements[0]!.domElement : null, styleState);
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;  useEffect(() => {
     // A new selection should never inherit an incidental state from the
@@ -173,7 +176,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (sketchActive) return;
+    if (sketchActive || runtimeConfig.inspectionUnavailableReason) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -220,7 +223,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isMultiSelection, selected, sketchActive]);
+  }, [isMultiSelection, selected, sketchActive, runtimeConfig.inspectionUnavailableReason]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(
@@ -242,7 +245,7 @@ export function InspectorShell(): ReactElement {
   const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
   const showText = selectedElements.length > 0 && selectedElements.every((element, index) =>
     isTextRelevant(element.domElement, cssInspection.elements[index]?.properties ?? []));
-  const showInteractionState = !isMultiSelection && availableInteractionStates.length > 2;
+  const showInteractionState = !isMultiSelection && availableInteractionStates.length > 1;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
     if (!selected) return null;
@@ -268,7 +271,8 @@ export function InspectorShell(): ReactElement {
   }
 
   function clearInspectorSession(): void {
-    clearSelectedFrameChanges();
+    // Sketch persistence failures are reported by the sketch store in the panel.
+    void clearSelectedFrameChanges().catch(() => undefined);
   }
 
   return (
@@ -322,9 +326,13 @@ export function InspectorShell(): ReactElement {
               <span>{inlineTextFeedback.message}</span>
             </StatusCallout>
           ) : null}
-          {selected ? (
+          {runtimeConfig.inspectionUnavailableReason ? (
+            <StatusCallout tone="danger" data-test="page-inspection-error" role="status">
+              Can’t load Nudge on this page due to {runtimeConfig.inspectionUnavailableReason}.
+            </StatusCallout>
+          ) : selected ? (
             <>
-              {isMultiSelection || showInteractionState || hasEditScopeCallout ? (
+              {showInteractionState || hasEditScopeCallout ? (
                 <div
                   className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
                   data-test="selection"
@@ -332,11 +340,6 @@ export function InspectorShell(): ReactElement {
                   data-selected-src={selected.src}
                   data-selected-count={selectedElements.length}
                   >
-                    {isMultiSelection ? (
-                      <div className="selection__summary" data-test="multi-selection-summary">
-                        <span className="selection__count">{selectedElements.length} elements selected</span>
-                      </div>
-                    ) : null}
                     {hasEditScopeCallout ? (
                       <StatusCallout
                         tone={editScope === "rendered-instance" ? "neutral" : "accent"}

@@ -8,6 +8,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconCopy,
+  IconPencil,
   IconPlugConnected,
   IconSend,
 } from "@tabler/icons-react";
@@ -36,7 +37,8 @@ import {
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
 import { useSketches, settleSketchDispatch } from "../sketch/store.ts";
-import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
+import { SketchThumbnail } from "../sketch/SketchThumbnail.tsx";
+import { copySketchImageOnRequest } from "../sketch/copySketch.ts";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 import { getFocusedCardId, getSelectedCardId, useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getEditableCardId, sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
@@ -88,8 +90,6 @@ export function CopyPromptButton({
   const handoffBusy = useRef(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [agentOutcome, setAgentOutcome] = useState<{ readonly removed: number; readonly dispatch: HandoffSnapshot | null } | null>(null);
-  const [clipboardPhase, setClipboardPhase] = useState<"idle" | "copied" | "away" | "returned">("idle");
-  const [undoClear, setUndoClear] = useState<(() => void) | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{ readonly handoff: PreparedHandoff; readonly error: string } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
@@ -268,8 +268,6 @@ export function CopyPromptButton({
       return;
     }
     setAgentOutcome(null);
-    setUndoClear(null);
-    setClipboardPhase("idle");
     setSketchFallback(null);
     const outcome = await deliverHandoff(prepared, runtimeConfig.projectId, canSend ? agentClient : null);
     if (outcome.kind === "sketch-failed") {
@@ -278,39 +276,16 @@ export function CopyPromptButton({
     }
     if (outcome.kind === "sent") return;
     setCopied(true);
-    setClipboardPhase("copied");
   }
-
-  useEffect(() => {
-    if (clipboardPhase !== "copied" && clipboardPhase !== "away") return;
-    // Focus moving into a canvas frame is not a return from the agent.
-    const onBlur = (): void => {
-      if (!(document.activeElement instanceof HTMLIFrameElement)) setClipboardPhase("away");
-    };
-    const onFocus = (): void => setClipboardPhase((phase) => phase === "away" ? "returned" : phase);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [clipboardPhase]);
-
-  useEffect(() => {
-    if (!undoClear) return;
-    const timer = window.setTimeout(() => setUndoClear(null), 10_000);
-    return () => window.clearTimeout(timer);
-  }, [undoClear]);
 
   const handoffOwner = captureHandoffOwner(activeDraftCardId);
   const sentItems = getSentItems(handoffOwner.draftId, handoffOwner.target, agentOutcome?.dispatch ?? null);
   const remainingCount = sentItemCount(sentItems);
   const showImplemented = (agentOutcome?.removed ?? 0) > 0 || reconciledCount > 0
-    || (remainingCount > 0 && (agentOutcome !== null || clipboardPhase === "returned"));
+    || (remainingCount > 0 && agentOutcome !== null);
 
   function clearRemaining(): void {
-    const restore = clearSentItems(sentItems);
-    if (restore) setUndoClear(() => restore);
+    clearSentItems(sentItems);
   }
 
   useEffect(() => {
@@ -364,6 +339,14 @@ export function CopyPromptButton({
     openMcpConnection();
   }
 
+  const hasMenu = Boolean(activeArtifactId) || visibleSketches.length > 0;
+  const styleEditLabel = canConnect ? "Connect agent" : canSend ? "Send style edit prompt" : "Copy style edit prompt";
+  const styleEditDescription = canConnect
+    ? "Pair an agent before sending style edits."
+    : canSend
+      ? "Send style edits to the connected agent."
+      : "Style and content edits made in the inspector.";
+
   const promptButton = (
     <Button
       variant="primary"
@@ -374,7 +357,7 @@ export function CopyPromptButton({
       data-copied={copied ? "true" : "false"}
       data-agent-state={agent.state}
       aria-busy={preparing || working || connecting ? "true" : undefined}
-      onClick={activeArtifactId ? undefined : onClick}
+      onClick={hasMenu ? undefined : onClick}
     >
       {icon}
       {label}
@@ -383,48 +366,89 @@ export function CopyPromptButton({
           {changeCount}
         </span>
       ) : null}
-      {activeArtifactId ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
+      {hasMenu ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
     </Button>
   );
 
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      {activeArtifactId ? (
+      {hasMenu ? (
         <Menu.Root key={activeDraftCardId} modal={false}>
           <Menu.Trigger render={promptButton} />
           <Menu.Portal container={portalContainer()}>
             <Menu.Positioner className="inspector-popover__positioner" side="bottom" align="start" sideOffset={6}>
               <Menu.Popup className="inspector-popover__popup copy-prompt__menu" data-test="copy-prompt-menu">
-                <Menu.Item
-                  className="copy-prompt__menu-item"
-                  data-test="copy-iteration-prompt"
-                  label="Copy iteration prompt"
-                  onClick={() => void copyIterationPrompt("iteration")}
-                >
-                  <IconArtboard className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                  <span className="copy-prompt__menu-content">
-                    <span className="copy-prompt__menu-title">Copy iteration prompt</span>
-                    <span className="copy-prompt__menu-description">Continue editing this HTML iteration.</span>
-                  </span>
-                </Menu.Item>
-                <Menu.Item
-                  className="copy-prompt__menu-item"
-                  data-test="copy-iteration-implementation"
-                  label="Copy prompt for live app"
-                  onClick={() => void copyIterationPrompt("application")}
-                >
-                  <IconBoltFilled className="copy-prompt__menu-icon copy-prompt__menu-icon--live" size="var(--icon-size-small)" aria-hidden="true" />
-                  <span className="copy-prompt__menu-content">
-                    <span className="copy-prompt__menu-title">Copy prompt for live app</span>
-                    <span className="copy-prompt__menu-description">Implement design in real app</span>
-                  </span>
-                </Menu.Item>
+                {activeArtifactId ? (
+                  <>
+                    <Menu.Item
+                      className="copy-prompt__menu-item"
+                      data-test="copy-iteration-prompt"
+                      label="Copy iteration prompt"
+                      onClick={() => void copyIterationPrompt("iteration")}
+                    >
+                      <IconArtboard className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                      <span className="copy-prompt__menu-content">
+                        <span className="copy-prompt__menu-title">Copy iteration prompt</span>
+                        <span className="copy-prompt__menu-description">Continue editing this HTML iteration.</span>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Item
+                      className="copy-prompt__menu-item"
+                      data-test="copy-iteration-implementation"
+                      label="Copy prompt for live app"
+                      onClick={() => void copyIterationPrompt("application")}
+                    >
+                      <IconBoltFilled className="copy-prompt__menu-icon copy-prompt__menu-icon--live" size="var(--icon-size-small)" aria-hidden="true" />
+                      <span className="copy-prompt__menu-content">
+                        <span className="copy-prompt__menu-title">Copy prompt for live app</span>
+                        <span className="copy-prompt__menu-description">Implement design in real app</span>
+                      </span>
+                    </Menu.Item>
+                  </>
+                ) : (
+                  <Menu.Item
+                    className="copy-prompt__menu-item"
+                    data-test="copy-style-edit-prompt"
+                    label={styleEditLabel}
+                    disabled={!canConnect && changeCount === 0}
+                    onClick={() => void onClick()}
+                  >
+                    {canConnect
+                      ? <IconPlugConnected className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                      : canSend
+                        ? <IconSend className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                        : <IconPencil className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+                    <span className="copy-prompt__menu-content">
+                      <span className="copy-prompt__menu-title">{styleEditLabel}</span>
+                      <span className="copy-prompt__menu-description">{styleEditDescription}</span>
+                    </span>
+                  </Menu.Item>
+                )}
+                {visibleSketches.length > 0 ? <Menu.Separator className="copy-prompt__menu-separator" /> : null}
+                {visibleSketches.map((item, index) => (
+                  <Menu.Item
+                    key={item.document.id}
+                    className="copy-prompt__menu-item copy-prompt__menu-item--sketch"
+                    data-test="copy-sketch"
+                    data-sketch-id={item.document.id}
+                    label={`Copy Sketch ${index + 1}`}
+                    disabled={item.status === "dispatching" || item.status === "handing-off"}
+                    onClick={() => void copySketchImageOnRequest(item.document.annotatedImage)}
+                  >
+                    <SketchThumbnail item={item} />
+                    <span className="copy-prompt__menu-content">
+                      <span className="copy-prompt__menu-title">Copy Sketch {index + 1}</span>
+                      {item.document.description ? (
+                        <span className="copy-prompt__menu-description copy-prompt__menu-description--truncate">{item.document.description}</span>
+                      ) : null}
+                    </span>
+                  </Menu.Item>
+                ))}
               </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>
         </Menu.Root>
       ) : promptButton}
-      <SketchLayersPanel />
       {statusAction || agentStatus.kind === "connected-not-listening" ? (
         <StatusCallout
           className="copy-prompt__agent-status"
@@ -448,22 +472,7 @@ export function CopyPromptButton({
           </div>
         </StatusCallout>
       ) : null}
-      {undoClear ? (
-        <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="handoff-cleared-hint" role="status">
-          Cleared stale edits.{" "}
-          <button
-            type="button"
-            className="copy-prompt__hint-action"
-            data-test="handoff-undo-clear"
-            onClick={() => {
-              undoClear();
-              setUndoClear(null);
-            }}
-          >
-            Undo
-          </button>
-        </p>
-      ) : showImplemented ? (
+      {showImplemented ? (
         <p className="copy-prompt__hint copy-prompt__hint--centered copy-prompt__hint--implemented" data-test="handoff-implemented-hint" role="status">
           Changes implemented.
           {remainingCount > 0 ? (
@@ -490,7 +499,9 @@ export function CopyPromptButton({
             type="button"
             data-test="sketch-copy-fallback"
             onClick={() => {
-              void copyHandoff(sketchFallback.handoff).then(() => setSketchFallback(null)).catch(() => undefined);
+              void copyHandoff(sketchFallback.handoff).then(() => {
+                setSketchFallback(null);
+              }).catch(() => undefined);
             }}
           >
             Copy prompt

@@ -12,6 +12,7 @@ import { getDraftChanges } from "../drafts/store.ts";
 import { recordClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { generatePrompt, type FrameworkHints } from "../prompt/generatePrompt.ts";
+import { withPromptContext } from "../prompt/promptDocument.ts";
 import {
   createSketchAttachments,
   createSketchHandoffSnapshot,
@@ -65,7 +66,7 @@ export async function prepareHandoff(request: HandoffRequest): Promise<PreparedH
   const generated = generatePrompt([...changes], hints, structuralChanges, request.customInstructions, sketchMetadata, comments);
   const prompt = target.kind === "html"
     ? htmlIterationPrompt(target.artifactId, generated, changes.length + structuralChanges.length + comments.length === 0, sketchMetadata.length > 0, request.customInstructions)
-    : `Page: ${target.route}\nApply the requested changes to this page. Shared source may affect other pages.\n\n${generated}`;
+    : withPromptContext([`Page: ${target.route}`, "Apply the requested changes to this page."], generated);
   return { ...handoff, prompt };
 }
 

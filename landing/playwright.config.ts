@@ -1,10 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = process.env.NUDGE_UI_LANDING_PORT ?? "5180";
+// Defaults to the built public site so tests see exactly what visitors get;
+// NUDGE_UI_LANDING_TARGET=dev runs against the dev server instead.
+const target = process.env.NUDGE_UI_LANDING_TARGET ?? "prod";
+const port = process.env.NUDGE_UI_LANDING_PORT ?? (target === "prod" ? "4180" : "5180");
 const baseURL = `http://localhost:${port}`;
-const target = process.env.NUDGE_UI_LANDING_TARGET ?? "dev";
 const serverCommand = target === "prod"
-  ? `pnpm preview --port ${port} --strictPort`
+  ? `pnpm build && pnpm preview --port ${port} --strictPort`
   : `pnpm dev --port ${port} --strictPort`;
 
 export default defineConfig({
@@ -16,7 +18,8 @@ export default defineConfig({
   webServer: {
     command: serverCommand,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    // A reused preview server could be serving a stale build.
+    reuseExistingServer: target === "dev" && !process.env.CI,
+    timeout: 120_000,
   },
 });

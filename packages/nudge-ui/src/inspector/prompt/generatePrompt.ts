@@ -3,15 +3,12 @@ import type {
   ChangeRecord,
   ComponentChangeRecord,
   ElementChangeRecord,
-  PreviewableChangeRecord,
   TokenChangeRecord,
   TextContentChangeRecord,
 } from "../changes/types.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
-import type { TextProjectionTarget } from "../changes/editModel.ts";
-import { canonicalizeChanges, changeKey, tokenReference } from "../changes/model.ts";
-import { getAnyPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
+import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
   formatComponentPropValue,
@@ -25,6 +22,7 @@ import {
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
 import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
+import { PROMPT_TITLE } from "./promptDocument.ts";
 
 import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
 import { documentTarget } from "../drafts/model.ts";
@@ -91,7 +89,7 @@ function renderPrompt(
   customInstructions: string,
 ): string {
   const lines = [
-    "# Requested design changes",
+    PROMPT_TITLE,
   ];
 
   for (const section of sections) {
@@ -142,28 +140,22 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   return [...map.values()];
 }
 
-function conflictSuffix(rec: PreviewableChangeRecord): string {
-  const result = getAnyPreviewDiagnostic(changeKey(rec))?.result;
-  if (!result || result.status === "applied") return "";
-  return ` — preview conflict: browser computed \`${result.computedValue || "(no value)"}\` (${result.reason ?? "cascade conflict"}); implement the requested value without assuming \`!important\``;
-}
-
 function elementChangeLine(rec: ElementChangeRecord): string {
   const state = rec.state && rec.state !== "base" ? ` (${rec.state})` : "";
   const property = `\`${rec.property}\`${state}`;
   if (rec.newToken && rec.oldToken) {
-    return `- **Change:** ${property}: \`${rec.oldToken.name}\` → \`${rec.newToken.name}\`${conflictSuffix(rec)}`;
+    return `- **Change:** ${property}: \`${rec.oldToken.name}\` → \`${rec.newToken.name}\``;
   }
   if (rec.newToken) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
     // Describe exactly the value the managed stylesheet wrote for this swap
     // (adapter literal or var(cssName)); a bare var(name) would be invalid
     // CSS for adapter tokens whose names are not custom-property names.
-    return `- **Change:** ${property}: ${before}\`${tokenReference(rec.newToken)}\`${conflictSuffix(rec)}`;
+    return `- **Change:** ${property}: ${before}\`${tokenReference(rec.newToken)}\``;
   }
   if (rec.rawValue !== undefined) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    return `- **Change:** ${property}: ${before}\`${rec.rawValue}\`${conflictSuffix(rec)}`;
+    return `- **Change:** ${property}: ${before}\`${rec.rawValue}\``;
   }
   return `- **Change:** ${property}: (no value)`;
 }
@@ -175,27 +167,24 @@ function sourceIntentLine(rec: ElementChangeRecord): string | null {
 }
 
 function tokenChangeLine(rec: TokenChangeRecord): string {
-  return `- **Change:** \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\`${conflictSuffix(rec)}`;
+  return `- **Change:** \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\``;
 }
 
 function componentChangeLine(rec: ComponentChangeRecord): string {
   const sourceGuidance = rec.authoredAs === "literal"
     ? rec.property === "children"
       ? "replace the literal child text"
-      : "replace the invocation prop literal"
+      : ""
     : rec.authoredAs === "default"
       ? "add the prop at this invocation"
       : `preserve the authored ${rec.authoredAs} and update its source logic`;
-  const scope = rec.scope === "rendered-instance"
-    ? "this rendered item only"
-    : "all outputs at this source site";
-  return `- **Change:** \`${rec.property}\`: \`${formatComponentPropBaseline(rec.before)}\` → \`${formatComponentPropValue(rec.after)}\` — ${sourceGuidance}; scope: ${scope}`;
+  return `- **Change:** \`${rec.property}\`: \`${formatComponentPropBaseline(rec.before)}\` → \`${formatComponentPropValue(rec.after)}\`${sourceGuidance ? ` — ${sourceGuidance}` : ""}`;
 }
 
-function textAuthorshipGuidance(authoredAs: TextContentChangeRecord["authoredAs"]): string {
-  if (authoredAs === "literal") return "replace the authored literal text";
-  if (authoredAs === "expression") return "preserve the expression and update its source logic";
-  return "update the source that produces this rendered copy";
+function editScopeLine(scope: "source-site" | "rendered-instance"): string {
+  return scope === "rendered-instance"
+    ? "  - Apply to this selected item only; keep other instances unchanged."
+    : "  - Apply to all items rendered at this source location.";
 }
 
 /** Keep arbitrary rendered copy valid inside the Markdown prompt. */
@@ -206,25 +195,49 @@ function promptText(value: string): string {
   return `${fence}text\n${value}\n${fence}`;
 }
 
-function textEvidenceLines(target: TextProjectionTarget): string[] {
+function textBindingLines(change: TextContentChangeRecord, sourceLocation: string | null): string[] {
   const lines: string[] = [];
-  if (target.sourceSite.src && !isRuntimeGeneratedSource(target.sourceSite.src)) {
-    lines.push(`  - Source site: ${target.sourceSite.cid} (\`${target.sourceSite.src}\`)`);
+  if (change.evidence) {
+    const evidence = change.evidence;
+    const location = evidence.callsiteId === sourceLocation ? "" : ` at ${promptText(evidence.callsiteId)}`;
+    lines.push(`  - Text source: ${promptText(`${evidence.componentName}.${evidence.property}`)}${location} (${evidence.mountedCount} rendered instances).`);
   }
-  const props = boundRuntimeEvidence(target.props);
-  const ariaLabel = boundRuntimeEvidence(target.ariaLabel);
-  if (props) lines.push(`  - Props evidence: ${promptText(props)}`);
-  if (ariaLabel) lines.push(`  - Accessible name evidence: ${promptText(ariaLabel)}`);
   return lines;
 }
 
-function textScopeLines(change: TextContentChangeRecord): string[] {
-  const scope = change.scope === "source-site" ? "source site / all outputs" : "this rendered item only";
-  const lines = [`  - Scope: ${scope}`];
-  if (change.evidence) {
-    lines.push(`  - Semantic evidence: \`${change.evidence.componentName}.${change.evidence.property}\` at callsite \`${change.evidence.callsiteId}\` (${change.evidence.mountedCount} mounted outputs)`);
-  }
+/** Shared presentation for captured facts; these do not change target matching. */
+function targetEvidenceLines(evidence: {
+  text?: string | null;
+  props?: string | null;
+  ariaLabel?: string | null;
+  domPath?: string | null;
+  elementId?: string | null;
+}, example = false): string[] {
+  const text = normalizeRuntimeText(evidence.text ?? null);
+  const ariaLabel = boundRuntimeEvidence(evidence.ariaLabel ?? null);
+  const elementId = boundRuntimeEvidence(evidence.elementId ?? null);
+  const props = boundRuntimeEvidence(evidence.props ?? null);
+  const lines: string[] = [];
+  if (elementId && !example) lines.push(`- Element ID: ${promptText(elementId)}`);
+  if (text) lines.push(`- ${example ? "Example text" : "Text"}: ${promptText(text)}`);
+  if (ariaLabel) lines.push(`- ${example ? "Example accessible name" : "Accessible name"}: ${promptText(ariaLabel)}`);
+  if (props && props !== `id:${elementId}`) lines.push(`- ${example ? "Example props" : "Props"}: ${promptText(props)}`);
+  if (evidence.domPath && !example) lines.push(`- DOM path: ${promptText(evidence.domPath)}`);
   return lines;
+}
+
+function readableTargetLabel(text: string | null, tag?: string): string {
+  if (tag) return elementLabel(tag);
+  const bounded = normalizeRuntimeText(text);
+  return bounded ? `Text: ${inlineHeadingText(bounded)}` : "Element";
+}
+
+/** Use an inline code span even when copy contains Markdown delimiters. */
+function inlineHeadingText(text: string): string {
+  const runs = text.match(/`+/g) ?? [];
+  const delimiter = "`".repeat(Math.max(0, ...runs.map((run) => run.length)) + 1);
+  const padding = text.startsWith("`") || text.endsWith("`") ? " " : "";
+  return `${delimiter}${padding}${text}${padding}${delimiter}`;
 }
 
 function boundedEvidence(value: string | null): string | null {
@@ -256,18 +269,28 @@ function structuralParentIdentityKey(ref: RenderedInstanceRef): string {
   ]);
 }
 
-function elementEvidenceLines(group: ElementGroup): string[] {
+function elementEvidenceLines(group: ElementGroup, example = false): string[] {
   const evidence = group.runtimeEvidence ?? group.sourceEvidence;
-  if (!evidence) return [];
-  const text = normalizeRuntimeText(evidence.text ?? null);
-  const ariaLabel = boundRuntimeEvidence(evidence.ariaLabel ?? null);
-  const props = boundRuntimeEvidence(evidence.props);
-  const lines: string[] = [];
-  if (evidence.domPath) lines.push(`  - DOM path: \`${evidence.domPath}\``);
-  if (text) lines.push(`  - Text: ${promptText(text)}`);
-  if (ariaLabel) lines.push(`  - Accessible name: ${promptText(ariaLabel)}`);
-  if (props) lines.push(`  - Props: ${promptText(props)}`);
-  return lines;
+  return evidence ? targetEvidenceLines(evidence, example)
+    : group.instanceOverride ? targetEvidenceLines(group.instanceOverride.target.locator, example) : [];
+}
+
+/** Combine identical final requests for individually selected elements. */
+function selectedStyleGroupKey(group: ElementGroup): string {
+  const requests = group.changes.map((change) => JSON.stringify([elementChangeLine(change), sourceIntentLine(change)])).sort();
+  return JSON.stringify(["selected-styles", requests]);
+}
+
+function selectedItemLine(group: ElementGroup, sourceLocation: string | null): string {
+  const facts = elementEvidenceLines(group).map((line) => line.slice(2));
+  if (sourceLocation) facts.unshift(`Source: ${promptText(sourceLocation)}`);
+  const invocation = group.instanceOverride?.target.locator.invocation;
+  if (invocation) facts.push(`Component usage: ${promptText(invocation.callsiteId)}`);
+  return `  - ${facts.join("; ") || "Selected element"}`;
+}
+
+function setHeading(label: string, tag: string | undefined): string {
+  return tag ? `${label} (${promptText(`<${normalizeRuntimeTag(tag)}>`)})` : label;
 }
 
 /**
@@ -289,7 +312,7 @@ function hasExactAuthoredCoordinates(
 }
 
 /**
- * Formats one source location for a prompt heading. Exact origins keep the
+ * Formats one source location for a prompt. Exact origins keep the
  * authored column; line-only origins — and sites whose column is unknown —
  * degrade to `file:line` rather than fabricating precision.
  */
@@ -456,16 +479,27 @@ export function generatePrompt(
     const scope = change.scope ?? "source-site";
     const key = JSON.stringify(["component", target.callsiteId, scope, scope === "rendered-instance"
       ? [evidence?.occurrence, evidence?.props, evidence?.ariaLabel] : null]);
-    const group = groupFor(key, `${target.componentName} invocation (${formatSourceLocation(coordinatePolicy, target)})`);
+    const group = groupFor(key, `${target.componentName} component`);
     group.lines.push(componentChangeLine(change));
-    group.details.add(`- Component contract: \`${target.componentId}\``);
+    group.lines.push(editScopeLine(scope));
+    group.details.add(`- Source: ${promptText(formatSourceLocation(coordinatePolicy, target))}`);
     if (evidence) {
-      group.details.add(`- Rendered evidence: ${evidence.mountedCount} mounted outputs`);
-      if (evidence.props) group.details.add(`- Props evidence: ${promptText(boundedEvidence(evidence.props) ?? "")}`);
-      if (evidence.ariaLabel) group.details.add(`- Accessible name evidence: ${promptText(boundedEvidence(evidence.ariaLabel) ?? "")}`);
+      group.details.add(`- Rendered instances: ${evidence.mountedCount}`);
+      if (evidence.props) group.details.add(`- Props: ${promptText(boundedEvidence(evidence.props) ?? "")}`);
+      if (evidence.ariaLabel) group.details.add(`- Accessible name: ${promptText(boundedEvidence(evidence.ariaLabel) ?? "")}`);
       group.details.add(`- Before text: ${promptText(evidence.beforeText)}`);
     }
   }
+
+  const selectedSets = new Map<string, ElementGroup[]>();
+  for (const element of elementGroups) {
+    if (!element.instanceOverride && element.changes[0]?.sourceInstanceCount !== 1) continue;
+    const key = selectedStyleGroupKey(element);
+    const selected = selectedSets.get(key) ?? [];
+    selected.push(element);
+    selectedSets.set(key, selected);
+  }
+  const exportedSets = new Set<string>();
 
   for (const element of elementGroups) {
     const first = element.changes[0]!;
@@ -475,16 +509,40 @@ export function generatePrompt(
       : first.scope === "rendered-instance" && !runtimeCreated ? `style:${element.key}`
         : elementPromptKey(element.cid, src, "source-site");
     const tag = element.runtimeEvidence?.tagName ?? element.sourceEvidence?.tagName;
-    const label = runtimeCreated ? "Element" : `${element.cid} (${formatSourceLocation(coordinatePolicy, element)})`;
-    const group = groupFor(key, label, tag);
-    if (!runtimeCreated && tag) {
-      group.details.add(`- Source: \`${formatSourceLocation(coordinatePolicy, element)}\``);
-      if ((first.scope ?? "source-site") === "source-site") group.details.add("- Scope: all elements rendered from this source location.");
+    const label = readableTargetLabel(element.runtimeEvidence?.text ?? element.sourceEvidence?.text ?? null, tag);
+    const selectedKey = selectedStyleGroupKey(element);
+    const selected = element.instanceOverride || first.sourceInstanceCount === 1 ? selectedSets.get(selectedKey) ?? [] : [];
+    if (selected.length > 1) {
+      if (exportedSets.has(selectedKey)) continue;
+      exportedSets.add(selectedKey);
+      const tags = new Set(selected.map((item) => item.runtimeEvidence?.tagName ?? item.sourceEvidence?.tagName));
+      const group = groupFor(selectedKey, setHeading("Selected elements", tags.size === 1 ? tag : undefined));
+      const locations = selected.map((item) => !item.runtimeEvidence && item.file && !isRuntimeGeneratedSource(item.file)
+        ? formatSourceLocation(coordinatePolicy, item) : null);
+      const sharedLocation = new Set(locations).size === 1 ? locations[0] : null;
+      if (sharedLocation) group.details.add(`- Source: ${promptText(sharedLocation)}`);
+      group.details.add(["- Selected items:", ...selected.map((item, index) =>
+        selectedItemLine(item, sharedLocation ? null : locations[index] ?? null))].join("\n"));
+      for (const change of element.changes) {
+        group.lines.push(`${elementChangeLine(change)} for these selected items.`);
+        const intent = sourceIntentLine(change);
+        if (intent) group.lines.push(intent);
+      }
+      continue;
     }
-    if (element.instanceOverride) group.details.add(`- Applies only to ${renderedInstanceDescription(element.instanceOverride.target)}.`);
-    for (const detail of elementEvidenceLines(element)) group.details.add(detail.trimStart());
+    const linked = !element.instanceOverride && !runtimeCreated && first.scope !== "rendered-instance"
+      && (element.changes.some((change) => (change.sourceInstanceCount ?? 1) > 1)
+        || first.scope === "source-site" && first.sourceInstanceCount === undefined);
+    const group = groupFor(key, label, tag);
+    if (linked) group.heading = setHeading("Linked elements", tag);
+    if (!runtimeCreated) {
+      group.details.add(`- Source: \`${formatSourceLocation(coordinatePolicy, element)}\``);
+    }
+    for (const detail of elementEvidenceLines(element, linked)) group.details.add(detail);
     for (const change of element.changes) {
-      group.lines.push(elementChangeLine(change));
+      const targetSet = linked ? " for all items rendered at this source location."
+        : element.instanceOverride ? " for this selected item." : "";
+      group.lines.push(`${elementChangeLine(change)}${targetSet}`);
       const intent = sourceIntentLine(change);
       if (intent) group.lines.push(intent);
     }
@@ -497,30 +555,39 @@ export function generatePrompt(
     const key = elementPromptKey(target.sourceSite.cid, target.sourceSite.src, scope, {
       kind: "evidence", occurrence: target.occurrence, props: target.props, text: target.beforeText, ariaLabel: target.ariaLabel,
     });
-    const label = runtimeCreated ? "Text" : `${change.source.component || target.sourceSite.cid} (${formatSourceLocation(coordinatePolicy, {
+    const group = groupFor(key, readableTargetLabel(change.before, target.tagName), target.tagName);
+    const sourceLocation = runtimeCreated ? null : formatSourceLocation(coordinatePolicy, {
       cid: target.sourceSite.cid, ...change.source,
-    })})`;
-    const group = groupFor(key, label);
-    group.lines.push(`- **Change:** Rendered text: ${promptText(change.before)} → ${promptText(change.after)} — ${textAuthorshipGuidance(change.authoredAs)}`);
-    // Scope is per request: a note on one output must not widen a text edit.
-    group.lines.push(...textScopeLines(change));
-    for (const detail of textEvidenceLines(target)) group.details.add(detail.trimStart());
+    });
+    if (sourceLocation) group.details.add(`- Source: ${promptText(sourceLocation)}`);
+    group.lines.push(`- **Change:** Replace text ${promptText(change.before)} with ${promptText(change.after)}.`);
+    if (change.scope) group.lines.push(editScopeLine(change.scope));
+    if (change.authoredAs === "expression") group.lines.push("  - Preserve the expression and update its source logic.");
+    group.lines.push(...textBindingLines(change, sourceLocation));
+    for (const detail of targetEvidenceLines({
+      ...target, text: group.heading.startsWith("Text:") ? null : target.beforeText,
+    })) group.details.add(detail);
   }
 
   for (const change of structuralIntent) {
     const ref = change.target;
-    const runtimeCreated = !ref.sourceSite.src || isRuntimeGeneratedSource(ref.sourceSite.src);
-    const group = groupFor(refPromptKey(ref), runtimeCreated ? "Element" : sourceSiteLabel(ref));
+    const group = groupFor(refPromptKey(ref), readableTargetLabel(ref.locator.text));
     group.lines.push(structuralChangeLine(change));
   }
 
   for (const comment of comments) {
     const ref = comment.target;
     const runtimeCreated = !ref.sourceSite.src || isRuntimeGeneratedSource(ref.sourceSite.src);
-    const group = groupFor(refPromptKey(ref), runtimeCreated ? "Element" : `${elementLabel(comment.tag)} (${ref.sourceSite.src})`,
-      runtimeCreated ? comment.tag : undefined);
+    const group = groupFor(refPromptKey(ref), elementLabel(comment.tag), comment.tag);
+    if (!runtimeCreated) {
+      const parsed = /^(.*):(\d+):(\d+)$/.exec(ref.sourceSite.src);
+      const location = parsed ? formatSourceLocation(coordinatePolicy, {
+        cid: ref.sourceSite.cid, file: parsed[1]!, line: Number(parsed[2]), column: Number(parsed[3]),
+      }) : ref.sourceSite.src;
+      group.details.add(`- Source: ${promptText(location)}`);
+    }
     group.details.add(`- Page: ${promptText(comment.route)}`);
-    group.details.add(`- Target: ${renderedInstanceDescription(ref)}`);
+    for (const detail of targetEvidenceLines(ref.locator)) group.details.add(detail);
     group.lines.push(`- **Note:** ${promptText(comment.note)}`);
   }
 

@@ -263,6 +263,35 @@ describe("handleReplaceStyles", () => {
     expect(getLastAppliedRevision()).toBe(1);
   });
 
+  it("tags a saved edit's element with its generated identity so the managed rule matches", () => {
+    document.body.innerHTML = '<main class="hero"><h1 class="title">Charles Smart.</h1><p>Intro</p></main>';
+    const css = '[data-cid="nudge-ui-runtime-7"][data-src="nudge-ui:unknown:7"] { font-weight: 700; }';
+    const applied = handleReplaceStyles(makeMsg({
+      css,
+      runtimeIdentities: [{
+        cid: "nudge-ui-runtime-7",
+        src: "nudge-ui:unknown:7",
+        tagName: "h1",
+        text: "Charles Smart.",
+        props: null,
+        ariaLabel: null,
+        domPath: "main.hero > h1.title",
+        elementId: null,
+      }],
+    }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
+
+    expect(applied).toBe(true);
+    expect(document.querySelector("h1")!.getAttribute("data-cid")).toBe("nudge-ui-runtime-7");
+    expect(getComputedStyle(document.querySelector("h1")!).fontWeight).toBe("700");
+  });
+
+  it("rejects runtime identities that are not generated identities", () => {
+    const result = validateReplaceStyles(makeMsg({
+      runtimeIdentities: [{ cid: "Heading", src: null, tagName: "h1", text: null, props: null, ariaLabel: null, domPath: null, elementId: null }],
+    }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
+    expect(result).toEqual({ valid: false, reason: "runtime identities are invalid" });
+  });
+
   it("acknowledges the revision after applying the complete projection", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage");
     setRendererIdentity({ projectId: TEST_PROJECT, workspaceId: TEST_WORKSPACE, cardId: TEST_CARD_ID });

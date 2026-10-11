@@ -26,7 +26,7 @@ import {
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
-import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { disposeBrowserCssInspection, notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 
 let revision = 0;
 let lastRulesKey: string | null = null;
@@ -155,11 +155,18 @@ export function getCanonicalFrameProjection(cardId: string, expectedRevision: nu
   return plan;
 }
 
-export function restoreCanonicalFrameProjection(doc: Document): void {
+/**
+ * Re-sends the canonical projection after a temporary verification projection
+ * and settles once the renderer acknowledges it, so callers can treat the
+ * acknowledgement's stylesheet invalidation as part of their own work.
+ */
+export async function restoreCanonicalFrameProjection(doc: Document): Promise<void> {
   const id = getCanvasCardIdForDocument(doc);
   const card = getCanvasCards().find((card) => card.id === id);
   const frame = id ? frameRegistry.get(id) : undefined;
-  if (card && frame) sendProjectionToCard(card, frame);
+  if (!card || !frame) return;
+  const sent = sendProjectionToCard(card, frame);
+  if (sent !== null) await waitForProjectionApplied(card.id, doc, sent);
 }
 
 export function getCanvasCardIdForDocument(doc: Document): string | null {
@@ -182,12 +189,13 @@ export function resetProjectionRevision(): void {
   notifyProjectionAcknowledgementListeners();
 }
 
+/** Sends the canonical projection and returns its revision, or null when the frame has no window. */
 export function sendProjectionToCard(
   card: Pick<CanvasCard, "id">,
   iframe: CanvasFrame,
-): void {
+): number | null {
   const win = iframe.contentWindow;
-  if (!win) return;
+  if (!win) return null;
   let plan = computeProjectionForCard(card.id);
   const state = frameProjectionStates.get(card.id);
   if (state && plan.revision < state.sentRevision) {
@@ -195,8 +203,9 @@ export function sendProjectionToCard(
     draftPlans.set(plan.draftId, { peek: isOriginalPreviewActive(), plan });
   }
   if (state) state.canonicalProjection = plan;
-  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = plan;
-  sendProjectionMessage(card.id, iframe, rev, css, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, true);
+  const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, runtimeIdentities } = plan;
+  sendProjectionMessage(card.id, iframe, rev, css, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, runtimeIdentities, true);
+  return rev;
 }
 
 function sendProjectionMessage(
@@ -208,6 +217,7 @@ function sendProjectionMessage(
   structuralChanges: readonly ReplaceStylesMessage["structuralChanges"][number][],
   textContentChanges: readonly ReplaceStylesMessage["textContentChanges"][number][],
   componentOverrides: readonly ReplaceStylesMessage["componentOverrides"][number][],
+  runtimeIdentities: DraftProjectionPlan<CompiledManagedStyles>["runtimeIdentities"],
   canonical = false,
 ): void {
   if (!iframe.contentWindow) return;
@@ -220,6 +230,7 @@ function sendProjectionMessage(
     structuralChanges: [...structuralChanges],
     textContentChanges: [...textContentChanges],
     componentOverrides: [...componentOverrides],
+    ...(runtimeIdentities ? { runtimeIdentities: [...runtimeIdentities] } : {}),
   });
 }
 
@@ -242,9 +253,24 @@ export async function projectDraftToDocument(
     plan.structuralChanges,
     plan.textContentChanges,
     plan.componentOverrides,
+    plan.runtimeIdentities,
   );
-  if (state.appliedRevision === revision && state.sentRevision === revision) return revision;
-  const requestedRevision = revision;
+  return waitForProjectionApplied(cardId, doc, revision);
+}
+
+/**
+ * Resolves with `requestedRevision` once the frame acknowledges it, or null
+ * when a newer projection supersedes it, the frame is replaced, or 2s pass.
+ */
+function waitForProjectionApplied(
+  cardId: string,
+  doc: Document,
+  requestedRevision: number,
+): Promise<number | null> {
+  const initial = frameProjectionStates.get(cardId);
+  if (initial?.appliedRevision === requestedRevision && initial.sentRevision === requestedRevision) {
+    return Promise.resolve(requestedRevision);
+  }
   return new Promise((resolve) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -394,6 +420,11 @@ export function recordCanvasProjectionApplied(cardId: string, appliedRevision: n
   const state = frameProjectionStates.get(cardId);
   if (!state || appliedRevision > state.sentRevision || appliedRevision <= state.appliedRevision) return;
   state.appliedRevision = appliedRevision;
+  // Adopted stylesheet writes in the renderer do not emit DOM mutations or
+  // invalidate the controller's separate CSSOM cache.
+  if (state.document && state.iframe.contentDocument === state.document) {
+    notifyBrowserStylesheetChange(state.document);
+  }
   projectionAcknowledgementVersion += 1;
   notifyProjectionAcknowledgementListeners();
 }

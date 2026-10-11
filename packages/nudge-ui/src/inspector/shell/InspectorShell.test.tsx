@@ -14,6 +14,9 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/run
 import { setInputValue } from "../styleEditors/_testUtils.ts";
 import { clearComments, getComments, saveComment } from "../comments/store.ts";
 import { beginInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
+import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
+import { resetSketchMemory } from "../sketch/persistence.ts";
+import { createSketchHandoffSnapshot, getSketchClipboardHandoffSnapshot, recordSketchClipboardHandoff, resetSketchClipboardHandoff } from "../sketch/handoff.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -43,6 +46,23 @@ describe("InspectorShell", () => {
     clearRestoreCount();
     releaseLease();
     host.remove();
+  });
+
+  it.each(["its security policy", "its service worker"])("explains why inspection is unavailable due to %s", (reason) => {
+    const previous = getNudgeUiRuntimeConfig();
+    try {
+      act(() => {
+        configureNudgeUiRuntime({ ...previous, capabilities: { ...previous.capabilities, canvas: false }, inspectionUnavailableReason: reason });
+        setSelectedElement(null);
+        mountInspector(host);
+      });
+
+      expect(host.shadowRoot?.querySelector('[data-test="page-inspection-error"]')?.textContent)
+        .toBe(`Can’t load Nudge on this page due to ${reason}.`);
+      expect(host.shadowRoot?.querySelector('[data-test="empty-state"]')).toBeNull();
+    } finally {
+      act(() => configureNudgeUiRuntime(previous));
+    }
   });
 
   it.each([
@@ -149,7 +169,7 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("shows a group summary and exposes shared style controls for multi-selection", () => {
+  it("exposes shared style controls for multi-selection without a count label", () => {
     const first = document.createElement("button");
     first.textContent = "First";
     first.dataset.cid = "Heading";
@@ -170,8 +190,7 @@ describe("InspectorShell", () => {
       });
 
       const shadow = host.shadowRoot!;
-      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
-        .toContain("2 elements selected");
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')).toBeNull();
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
       expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
@@ -203,8 +222,7 @@ describe("InspectorShell", () => {
       });
 
       const shadow = host.shadowRoot!;
-      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
-        .toContain("2 elements selected");
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')).toBeNull();
       expect(shadow.querySelector('[data-test="multi-selection-uneditable"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="style-editors"]')).toBeNull();
     } finally {
@@ -272,6 +290,39 @@ describe("InspectorShell", () => {
     const key = Object.keys(localStorage).find((key) => key.endsWith(":comments:v1"))!;
     expect(JSON.parse(localStorage.getItem(key)!)).toEqual([]);
     expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+  });
+
+  it("clears sketches and their clipboard handoff when sketches are the only pending changes", async () => {
+    resetSketchStore();
+    resetSketchMemory();
+    const image = new Blob(["png"], { type: "image/png" });
+    await initializeSketchStore();
+    await saveSketch({
+      capture: {
+        url: window.location.href, title: "Sketch fixture", timestamp: 1,
+        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
+        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
+      },
+      description: "Move this button", strokes: [], imageWidth: 1, imageHeight: 1,
+      originalImage: image, annotatedImage: image,
+    });
+    recordSketchClipboardHandoff(createSketchHandoffSnapshot(getSketches()));
+    try {
+      act(() => mountInspector(host));
+      expect(host.shadowRoot?.querySelector('[data-test="sketch-row"]')).not.toBeNull();
+      const clear = host.shadowRoot?.querySelector<HTMLButtonElement>('[data-test="clear-session"]');
+      expect(clear).not.toBeNull();
+      await act(async () => { clear!.click(); });
+
+      expect(getSketches()).toEqual([]);
+      expect(getSketchClipboardHandoffSnapshot()).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="sketch-row"]')).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+    } finally {
+      resetSketchStore();
+      resetSketchMemory();
+      resetSketchClipboardHandoff();
+    }
   });
 
   it("announces an unsupported inline-text attempt and clears it after success", () => {

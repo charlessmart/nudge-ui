@@ -144,6 +144,9 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 
   await stateSelect.click();
   await page.locator('[data-value="hover"]').click();
+  const previewButton = (await getAppFrame(page)).locator('[data-test="stateful-button"]');
+  await expect.poll(() => previewButton.evaluate((element) => getComputedStyle(element).transform))
+    .toBe("matrix(1, 0, 0, 1, 0, -2)");
   const backgroundField = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(backgroundField).toContainText("--color-accent");
   await expect
@@ -160,6 +163,7 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 
   await expect.poll(() => sheetText(page), { timeout: 5000 })
     .toContain(':hover { background-color: rgb(19, 87, 155); }');
+  await expect(previewButton).toHaveCSS("background-color", "rgb(19, 87, 155)");
 });
 
 test("dev: token unlink action appears over the chip on hover", async ({ page }) => {

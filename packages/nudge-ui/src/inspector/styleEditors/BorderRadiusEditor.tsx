@@ -44,7 +44,13 @@ function cornerAuthoredSignature(rows: ResolvedProperty[], corner: string): stri
   return `${row?.authored ?? row?.declaredValue ?? ""}|${row?.tokenName ?? ""}`;
 }
 
-function cornersAreLinked(rows: ResolvedProperty[]): boolean {
+function cornersAreLinked(rows: ResolvedProperty[], selection?: StyleSelection | null): boolean {
+  if (selection && selection.elements.length > 1) {
+    const values = BORDER_RADIUS_CORNERS.map((corner) => selection.getProperty(corner)?.value);
+    const first = values[0];
+    return first?.kind === "common"
+      && values.every((value) => value?.kind === "common" && value.value === first.value);
+  }
   const signatures = BORDER_RADIUS_CORNERS.map((corner) => cornerAuthoredSignature(rows, corner));
   return new Set(signatures).size === 1;
 }
@@ -81,9 +87,8 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   const { element, selection, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
-  const isGroup = Boolean(selection && selection.elements.length > 1);
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const dataLinked = !isGroup && cornersAreLinked(tokenRows);
+  const dataLinked = cornersAreLinked(tokenRows, selection);
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], "border-radius");
 
   const [userUnlinked, setUserUnlinked] = useState(false);

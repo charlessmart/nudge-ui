@@ -78,7 +78,7 @@ describe("generatePrompt", () => {
     const out = generatePrompt([makeComponentChange()]);
 
     expect(out).toContain(`## Custom instructions\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`);
-    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Button invocation"));
+    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Button component"));
   });
 
   it("appends supplied custom instructions and allows them to be cleared", () => {
@@ -95,9 +95,10 @@ describe("generatePrompt", () => {
     const out = generatePrompt([change]);
     expect(out).not.toContain("## Component prop changes");
     // Callsite coordinates are authored-exact under the default host policy.
-    expect(out).toContain("## Button invocation (src/App.tsx:12:4)");
-    expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
-    expect(out).toContain("Component contract: `src/ui/Button#Button`");
+    expect(out).toContain("Source: `src/App.tsx:12:4`");
+    expect(out).toContain("- **Change:** `variant`: `primary` → `secondary`\n");
+    expect(out).not.toContain("replace the invocation prop literal");
+    expect(out).toContain("Source: `src/App.tsx:12:4`");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
     expect(out).not.toContain("component-callsite:");
@@ -117,11 +118,34 @@ describe("generatePrompt", () => {
         mountedCount: 2,
       },
     })]);
-    expect(out).toContain("scope: all outputs at this source site");
-    expect(out).toContain("Rendered evidence: 2 mounted outputs");
+    expect(out).toContain("Apply to all items rendered at this source location.");
+    expect(out).toContain("Rendered instances: 2");
     expect(out).not.toContain("Rendered occurrence");
-    expect(out).toContain('Props evidence: `label:"Repeated literal"`');
+    expect(out).toContain('Props: `label:"Repeated literal"`');
     expect(out).toContain("Before text: `Repeated literal`");
+  });
+
+  it.each(["rendered-instance", "source-site"] as const)("preserves %s scope in component and text requests", (scope) => {
+    const component = makeComponentChange({
+      property: "label", before: { kind: "value", value: "Repeated literal" }, after: "Updated label", scope,
+      evidence: { occurrence: 1, props: null, ariaLabel: null, beforeText: "Repeated literal", mountedCount: 2 },
+    });
+    const text: TextContentChangeRecord = {
+      kind: "text-content", id: "repeated-text",
+      target: {
+        sourceSite: { cid: "Label", src: "src/App.tsx:12:4" }, occurrence: 1,
+        props: null, ariaLabel: null, beforeText: "Repeated literal",
+      },
+      source: { file: "src/App.tsx", line: 12, column: 4, component: "Label" },
+      selector: '[data-cid="Label"]', before: "Repeated literal", after: "Updated label", authoredAs: "literal", scope,
+      evidence: { callsiteId: "src/App.tsx:12:4", componentName: "Label", property: "text", mountedCount: 2 },
+    };
+    const instruction = scope === "rendered-instance"
+      ? "Apply to this selected item only; keep other instances unchanged."
+      : "Apply to all items rendered at this source location.";
+
+    expect(generatePrompt([component])).toContain(instruction);
+    expect(generatePrompt([text])).toContain(instruction);
   });
 
   it("keeps primitive children authorship guidance in the semantic prompt", () => {
@@ -133,9 +157,9 @@ describe("generatePrompt", () => {
       target: { componentName: "Badge" },
     });
     const out = generatePrompt([change]);
-    expect(out).toContain("## Badge invocation");
+    expect(out).toContain("## Badge component");
     expect(out).toContain("`children`: `Save` → `Publish` — preserve the authored expression and update its source logic");
-    expect(out).toContain("## Badge invocation");
+    expect(out).toContain("## Badge component");
   });
 
   it("tells the agent to replace literal child text", () => {
@@ -213,7 +237,7 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, structural);
 
-    expect(out).toContain("## RepeatedItem");
+    expect(out).toContain("## Text: `Repeated 3`");
     expect(out).toContain("- Remove text `Repeated 3` (src/App.tsx:12:5) from the source.");
     expect(out).toContain("- Move text `Docs` (src/Nav.tsx:8:3) before text `Blog` (src/Nav.tsx:8:3) in Navigation (src/Nav.tsx:4:1).");
     expect(out).not.toContain("rendered occurrence");
@@ -472,7 +496,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Counter"][data-src="src/components/Counter.tsx:14:9"]',
     })]);
 
-    expect(out).toContain("## Counter (src/components/Counter.tsx:14:9)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14:9`");
   });
 
   it("uses exact source coordinates for static HTML changes", () => {
@@ -492,7 +516,7 @@ describe("generatePrompt", () => {
     });
 
     expect(out).not.toContain("Framework:");
-    expect(out).toContain("## html:button (index.html:3:17)");
+    expect(out).toContain("Source: `index.html:3:17`");
     expect(out).not.toContain("data-cid");
   });
 
@@ -513,7 +537,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("## astro:H1 (src/pages/about.astro:12:7)");
+    expect(out).toContain("Source: `src/pages/about.astro:12:7`");
     expect(out).not.toContain("data-cid");
 
     // The host-declared policy decides precision: an astro: element keeps
@@ -522,7 +546,7 @@ describe("generatePrompt", () => {
       framework: "React",
       stylingSystem: "CSS custom properties",
     });
-    expect(otherFrameworkOut).toContain("## astro:H1 (src/pages/about.astro:12:7)");
+    expect(otherFrameworkOut).toContain("Source: `src/pages/about.astro:12:7`");
   });
 
   it("renders React island JSX elements at line precision inside an Astro document", () => {
@@ -543,7 +567,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("## Counter (src/components/Counter.tsx:14)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
     expect(out).not.toContain("(src/components/Counter.tsx:14:");
     expect(out).not.toContain("data-cid");
   });
@@ -563,7 +587,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Hero"][data-src="src/pages/index.astro:8:3"]',
     })], { framework: "Astro", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("## Hero (src/pages/index.astro:8:3)");
+    expect(out).toContain("Source: `src/pages/index.astro:8:3`");
   });
 
   it("renders text changes on JSX elements at line precision inside an Astro document", () => {
@@ -589,7 +613,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("(src/components/Counter.tsx:14)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
     expect(out).not.toContain("(src/components/Counter.tsx:14:");
   });
 
@@ -690,7 +714,7 @@ describe("generatePrompt", () => {
       baseline: "", viewport: "", handedOff: false,
     }]);
 
-    expect(out).toContain("`Save` → `Publish`");
+    expect(out).toContain("Replace text `Save` with `Publish`");
     expect(out).toContain("Remove text `Save` from the source.");
     expect(out).toContain("Make this easier to find");
     expect(out).toContain("Save action");
@@ -769,7 +793,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("Text: `About the studio`");
     expect(out).toContain("Accessible name: `Studio heading`");
     expect(out).toContain("DOM path: `main > h1.title`");
-    expect(out).toContain("Scope: all elements rendered from this source location.");
+    expect(out).not.toContain("Apply to all instances rendered from this source location.");
     expect(out).toContain("**Change:** `font-weight`: `400`");
     expect(out).not.toContain("data-cid");
   });
@@ -810,7 +834,7 @@ describe("generatePrompt", () => {
 
     expect(headingBlock).toContain("Original title");
     expect(headingBlock).toContain("- **Change:** `font-weight`: `600` → `400`");
-    expect(headingBlock).toContain("`Original title` → `New title`");
+    expect(headingBlock).toContain("Replace text `Original title` with `New title`");
     expect(headingBlock).toContain("**Note:** `Keep this on one line`");
     expect(headingBlock).toContain("DOM path: `main > header > h1`");
     expect(out.match(/^## Heading/gm)).toHaveLength(1);
@@ -846,12 +870,13 @@ describe("generatePrompt", () => {
     const sharedBlock = blocks.find((block) => block.includes("`padding`: `16px`"))!;
 
     expect(blocks).toHaveLength(3);
-    expect(firstBlock).toContain("src/Buttons.tsx:12:5");
-    expect(firstBlock).toContain("`First` → `Publish`");
+    expect(firstBlock.match(/src\/Buttons\.tsx:12:5/g)).toHaveLength(1);
+    expect(firstBlock).toContain("Replace text `First` with `Publish`");
     expect(firstBlock).toContain("**Note:** `Primary action`");
-    expect(firstBlock).toContain("this rendered item only");
+    expect(firstBlock).toContain("Apply to this selected item only; keep other instances unchanged.");
     expect(firstBlock).not.toContain("`color`: `blue`");
-    expect(secondBlock).toContain("Applies only to text `Second`");
+    expect(secondBlock).toContain("Text: `Second`");
+    expect(secondBlock).not.toContain("Applies only");
     expect(secondBlock).not.toContain("Publish");
     expect(sharedBlock).not.toContain("Applies only");
     expect(sharedBlock).not.toContain("Publish");
@@ -862,10 +887,10 @@ describe("generatePrompt", () => {
     const children = makeComponentChange({ property: "children", before: { kind: "value", value: "Save" }, after: "Publish" });
     const out = generatePrompt([variant, children]);
 
-    expect(out.match(/^## Button invocation/gm)).toHaveLength(1);
+    expect(out.match(/^## Button component/gm)).toHaveLength(1);
     expect(out).toContain("`variant`: `primary` → `secondary`");
     expect(out).toContain("`children`: `Save` → `Publish`");
-    expect(out).toContain("all outputs at this source site");
+    expect(out).not.toContain("apply to all instances rendered from this source location");
   });
 
   it("keeps base and hover requests explicit inside one element section", () => {
@@ -873,7 +898,7 @@ describe("generatePrompt", () => {
     const hover = { ...base, state: "hover" as const, rawValue: "blue" };
     const out = generatePrompt([base, hover]);
 
-    expect(out.match(/^## Title/gm)).toHaveLength(1);
+    expect(out.match(/^- Source: `src\/Title.tsx:42`/gm)).toHaveLength(1);
     expect(out).toContain("- **Change:** `color`: `red`");
     expect(out).toContain("- **Change:** `color` (hover): `blue`");
   });
@@ -890,7 +915,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("# Requested design changes");
     expect(out).not.toContain("Framework:");
     expect(out).not.toContain("## Changes");
-    expect(out).toContain("## Button (src/Button.tsx:42)");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
     expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
@@ -993,7 +1018,7 @@ describe("generatePrompt", () => {
       rawValue: "12px",
     });
     const out = generatePrompt([a, b]);
-    const headings = out.split("\n").filter((l) => l.startsWith("## Button"));
+    const headings = out.split("\n").filter((l) => l.startsWith("## Element"));
     expect(headings).toHaveLength(1);
     expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
     expect(out).toContain("- **Change:** `border-radius`: `12px`");
@@ -1031,9 +1056,10 @@ describe("generatePrompt", () => {
     });
 
     const out = generatePrompt([first, second]);
-    expect(out).toContain("Applies only to text `First`");
-    expect(out).toContain("Applies only to text `Second`");
-    expect(out.split("\n").filter((line) => line.startsWith("## RepeatedItem"))).toHaveLength(2);
+    expect(out).toContain("Text: `First`");
+    expect(out).toContain("Text: `Second`");
+    expect(out).not.toContain("Applies only");
+    expect(out.split("\n").filter((line) => line.startsWith("## Element"))).toHaveLength(2);
   });
 
   it("renders multiple headings for changes across multiple elements", () => {
@@ -1053,8 +1079,8 @@ describe("generatePrompt", () => {
       newToken: SURFACE_RAISED,
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("## Button (src/Button.tsx:42)");
-    expect(out).toContain("## NavLink (src/components/Header.tsx:58)");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
+    expect(out).toContain("Source: `src/components/Header.tsx:58`");
     expect(out).not.toContain("data-cid");
   });
 
@@ -1123,8 +1149,8 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("## Button (src/Button.tsx:42)");
-    expect(out).toContain("## NavLink (src/components/Header.tsx:42)");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
+    expect(out).toContain("Source: `src/components/Header.tsx:42`");
     expect(out).toContain("`8px`");
     expect(out).toContain("`16px`");
   });

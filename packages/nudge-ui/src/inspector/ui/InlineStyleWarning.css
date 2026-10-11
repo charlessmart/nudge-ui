@@ -8,7 +8,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--warning, #b45309);
+  background: var(--text-secondary);
   color: var(--surface-raised-2x);
   font-size: 11px;
   font-weight: 700;

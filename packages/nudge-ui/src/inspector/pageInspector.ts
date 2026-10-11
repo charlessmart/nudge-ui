@@ -22,6 +22,7 @@ import { releaseLease } from "./canvas/workspaceLease.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { configureInspectorStorage, type InspectorStorage } from "./runtime/inspectorStorage.ts";
+import { configureSketchStorage, type SketchStorage } from "./sketch/persistence.ts";
 import { preferAdoptedStylesheets } from "./runtime/ownedStylesheets.ts";
 import { enableInspectionPerformanceDiagnostics } from "./inspection/performanceDiagnostics.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
@@ -32,6 +33,8 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 
 export type { InspectorStorage } from "./runtime/inspectorStorage.ts";
 export { createMirroredStorage } from "./runtime/inspectorStorage.ts";
+export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./sketch/persistence.ts";
+export type { SketchDocument, SketchHandoffRecord } from "./sketch/model.ts";
 
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_PAGE_INSPECTOR__";
@@ -40,6 +43,8 @@ const COMPUTED_ROOT_ID = "computed:root";
 export interface PageInspectorOptions {
   /** Replaces `localStorage` for comments, drafts, and Canvas state. */
   storage?: InspectorStorage;
+  /** Replaces the page origin's IndexedDB for sketch documents and handoffs. */
+  sketchStorage?: SketchStorage;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
   /**
@@ -47,6 +52,8 @@ export interface PageInspectorOptions {
    * iframe editor; otherwise the page itself is the only Canvas card.
    */
   surface?: "editor" | "page";
+  /** Shows a short error instead of enabling inspection on an unsupported page. */
+  unavailableReason?: string;
   /** Called whenever an editor renderer frame's document finishes parsing. */
   onRendererFrameLoad?: () => void;
 }
@@ -195,14 +202,15 @@ async function collectDocumentTokens(doc: Document): Promise<DocumentTokens> {
 
 const NO_TOKENS: DocumentTokens = { tokenCatalog: [], tokens: [], tokenDiagnostics: [], tokenGeneration: "" };
 
-function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
+function runtimeConfig(tokens: DocumentTokens, unavailableReason?: string): NudgeUiRuntimeConfig {
   return {
     projectId: `page:${location.origin}`,
     host: "static-html",
     framework: "HTML",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
-    features: { canvasIterations: false },
+    capabilities: { canvas: !unavailableReason, componentSemantics: false, domNavigation: !unavailableReason },
+    features: { canvasIterations: false, ...(unavailableReason ? { sketch: false } : {}) },
+    ...(unavailableReason ? { inspectionUnavailableReason: unavailableReason } : {}),
     componentContracts: [],
     ...tokens,
   };
@@ -248,17 +256,30 @@ function mountPageInspector(): () => void {
  * Canvas renderer frames, which the caller loads the inspector into.
  */
 function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
+  document.head.replaceChildren();
   document.body.replaceChildren();
+  for (const element of [document.documentElement, document.body]) {
+    element.removeAttribute("style");
+    element.removeAttribute("hidden");
+    element.removeAttribute("inert");
+  }
+  document.title = "Nudge UI";
   const layout = new CSSStyleSheet();
-  layout.replaceSync(`html, body, #${MOUNT_ID} { width: 100%; height: 100%; margin: 0; overflow: hidden; }`);
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, layout];
+  layout.replaceSync(`html, body, #${MOUNT_ID} { display: block; width: 100%; height: 100%; margin: 0; overflow: hidden; }`);
+  document.adoptedStyleSheets = [layout];
+  // A parsed meta policy remains active even after the original head is removed.
+  document.addEventListener("securitypolicyviolation", (event) => {
+    if (event.disposition !== "enforce" || event.effectiveDirective !== "frame-src") return;
+    if (getNudgeUiRuntimeConfig().inspectionUnavailableReason) return;
+    configureNudgeUiRuntime(runtimeConfig(NO_TOKENS, "its security policy"));
+  });
   setNudgeUiHostDevFlag(true);
   const mount = createMount();
   bootstrapNudgeUi(mount);
   setInspectorOpen(true);
 
-  const root = mount.shadowRoot;
-  if (!root) return;
+  // Storage hydration can delay the controller mount; watch its host now.
+  const root = mount.shadowRoot ?? mount.attachShadow({ mode: "open" });
   const frames = (): NodeListOf<HTMLIFrameElement> =>
     root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`);
   const applicationDocument = (frame: HTMLIFrameElement): Document | null => {
@@ -281,6 +302,7 @@ function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
     const frameDocument = applicationDocument(frame);
     if (!frameDocument) return;
     void collectDocumentTokens(frameDocument).then((tokens) => {
+      if (getNudgeUiRuntimeConfig().inspectionUnavailableReason) return;
       if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
         configureNudgeUiRuntime(runtimeConfig(tokens));
       }
@@ -324,14 +346,15 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
     enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
   };
   if (options.storage) configureInspectorStorage(options.storage);
+  if (options.sketchStorage) configureSketchStorage(options.sketchStorage);
   if (options.adoptStylesheets) preferAdoptedStylesheets();
 
-  const tokens = await collectDocumentTokens(document);
-  configureNudgeUiRuntime(runtimeConfig(tokens));
+  const tokens = options.unavailableReason ? NO_TOKENS : await collectDocumentTokens(document);
+  configureNudgeUiRuntime(runtimeConfig(tokens, options.unavailableReason));
   if (editor) {
     mountEditor(options.onRendererFrameLoad);
   } else {
-    enablePageSurface();
+    if (!options.unavailableReason) enablePageSurface();
     toggle = mountPageInspector();
   }
   console.info(

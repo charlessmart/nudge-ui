@@ -32,6 +32,7 @@ import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 import type { DocumentSession, InspectorSession } from "../session/sessionFactory.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
+import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { disposeInlineTextEdit, isInlineTextEditingActive } from "../inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -130,11 +131,15 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const bindDocumentSession = useCallback((): void => {
     const frameDocument = iframeRef.current?.contentDocument;
     if (!documentOwner || !frameDocument) return;
+    // The initial blank document is discarded by navigation. A blocked frame
+    // can make its Window inaccessible before cleanup runs.
+    if (frameDocument.URL === "about:blank") return;
     if (documentSessionRef.current?.document === frameDocument) return;
     disposeDocumentSession();
     const session = documentOwner.createDocumentSession(frameDocument);
     session.registerCleanup(() => disposeBrowserCssInspection(frameDocument));
     session.registerCleanup(() => releaseDocumentProjection(frameDocument));
+    session.registerCleanup(() => disposeRuntimeIdentityClaims(frameDocument));
     session.registerCleanup(() => disposeInlineTextEdit("frame-disposed", frameDocument));
     session.registerCleanup(startClipboardHandoffController(frameDocument));
     session.registerCleanup(installFrameScrollbarStyles(frameDocument));

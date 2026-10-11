@@ -6,6 +6,7 @@ import { isPageSurface } from "../canvas/pageSurface.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { readNudgeUiEditorTarget } from "../../transport/editor.ts";
 import { TooltipGroup } from "../ui/Tooltip.tsx";
+import { ToastRegion } from "../ui/Toast.tsx";
 
 import { CommentsOverlay } from "../comments/CommentsOverlay.tsx";
 
@@ -22,6 +23,7 @@ export function AppShell(): ReactElement {
       {canvasEnabled ? <CanvasElementOverlay /> : null}
       {canvasEnabled ? <CommentsOverlay /> : null}
       <InspectorShell />
+      <ToastRegion />
     </TooltipGroup>
   );
 }

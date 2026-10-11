@@ -16,7 +16,9 @@ test("saves a sketch when the page has a deferred video without a loaded frame",
   await page.locator('[data-test="sketch-live-prompt-input"]').fill("Keep this video layout");
   await page.locator('[data-test="sketch-live-prompt-done"]').click();
 
-  await expect(page.locator('[data-test="sketch-layer"]')).toHaveCount(1, { timeout: 8_000 });
+  await expect(page.locator('[data-test="toast"]')).toBeVisible({ timeout: 8_000 });
+  await page.locator('[data-test="copy-prompt"]').click();
+  await expect(page.locator('[data-test="copy-sketch"]')).toHaveCount(1);
   await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0);
   await expect(app.locator("#deferred-sketch-video")).toHaveAttribute("preload", "none");
   await expect(app.locator("[data-nudge-ui-video-frame]")).toHaveCount(0);
@@ -49,8 +51,10 @@ test("captures a playing video's current frame without interrupting playback", a
   await page.locator('[data-test="canvas-tool-sketch"]').click();
   await page.locator('[data-test="sketch-live-prompt-input"]').fill("Keep the playing video frame");
   await page.locator('[data-test="sketch-live-prompt-done"]').click();
-  const layer = page.locator('[data-test="sketch-layer"]');
-  await expect(layer).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator('[data-test="toast"]')).toBeVisible({ timeout: 8_000 });
+  await page.locator('[data-test="copy-prompt"]').click();
+  const layer = page.locator('[data-test="copy-sketch"]');
+  await expect(layer).toBeVisible();
   const id = await layer.getAttribute("data-sketch-id");
   const pixel = await page.evaluate(async ({ id, point }) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {

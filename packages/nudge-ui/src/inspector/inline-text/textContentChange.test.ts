@@ -134,9 +134,9 @@ describe("text-content canonical changes", () => {
     }]);
 
     const prompt = generatePrompt(getChangesList());
-    expect(prompt).toContain("## Copy (src/Copy.tsx:8:3)");
-    expect(prompt).toContain("`Original copy` → `Updated copy`");
-    expect(prompt).toContain("replace the authored literal text");
+    expect(prompt).toContain("## Text: `Original copy`");
+    expect(prompt).toContain("Replace text `Original copy` with `Updated copy`");
+    expect(prompt).toContain("Source: `src/Copy.tsx:8:3`");
     expect(prompt).not.toContain("data-cid");
   });
 
@@ -162,8 +162,8 @@ describe("text-content canonical changes", () => {
       },
     }]);
     const prompt = generatePrompt(getChangesList());
-    expect(prompt).toContain("Scope: this rendered item only");
+    expect(prompt).toContain("Apply to this selected item only; keep other instances unchanged.");
     expect(prompt).toContain("Label.text");
-    expect(prompt).toContain("2 mounted outputs");
+    expect(prompt).toContain("2 rendered instances");
   });
 });

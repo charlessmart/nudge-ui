@@ -19,7 +19,6 @@ const stroke: SketchStroke = {
 const draft: SketchLiveDraft = {
   description: "",
   strokes: [stroke],
-  annotations: [],
   viewport: {
     width: 100,
     height: 100,

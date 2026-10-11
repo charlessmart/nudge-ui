@@ -42,7 +42,7 @@ describe("element comments", () => {
     expect(prompt).toContain("## Button (`<button>`)");
     expect(prompt).toContain("Change Save to Publish");
     expect(prompt).toContain("src/App.tsx:10:3");
-    expect(prompt).toContain("text `Save`");
+    expect(prompt).toContain("Text: `Save`");
     expect(prompt).toContain(document.location.href);
   });
 

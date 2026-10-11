@@ -3,6 +3,7 @@ import { verifyPreview } from "../projection/managedStylesheet.ts";
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import { instanceSelector } from "../projection/renderedInstance.ts";
 import { selectorForInteractionState } from "../shell/styleState.ts";
+import { selectorForInteractionStatePreview } from "../shell/interactionStatePreview.ts";
 import {
   isComponentChange,
   isTextContentChange,
@@ -91,7 +92,7 @@ export function verifyManagedStyleProjection(
   let targets: HTMLElement[] = [];
   try {
     const selector = selectorForManagedChange(change);
-    targets = selector ? Array.from(ownerDocument.querySelectorAll<HTMLElement>(selector)) : [];
+    targets = selector ? Array.from(ownerDocument.querySelectorAll<HTMLElement>(selectorForInteractionStatePreview(selector))) : [];
   } catch {
     targets = [];
   }

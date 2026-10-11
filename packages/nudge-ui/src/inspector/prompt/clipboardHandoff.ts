@@ -149,29 +149,55 @@ export async function reconcileClipboardHandoff(doc: Document = document): Promi
   return removed;
 }
 
+const CHECK_DELAY_MS = 450;
+const MAX_CHECK_DELAY_MS = 8_000;
+
+/**
+ * Verifies copied edits after the document changes. Each check briefly removes
+ * the copied preview, so a check that reconciles nothing doubles the minimum
+ * interval before the next one: a page that mutates continuously (clocks,
+ * carousels) would otherwise flash the preview every few hundred milliseconds.
+ * Later changes never postpone a pending check, so a busy page is still
+ * checked once per interval. Returning to the page or copying a new prompt
+ * resets the interval.
+ */
 export function startClipboardHandoffController(doc: Document = document): () => void {
   const view = doc.defaultView;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let checking = false;
   let stopped = false;
-  const schedule = () => {
+  let interval = CHECK_DELAY_MS;
+  let lastCheckEndedAt = -Infinity;
+  const run = () => {
+    timer = null;
     if (stopped || checking || !checkpoints.size) return;
-    if (timer !== null) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      if (stopped || checking || !checkpoints.size) return;
-      checking = true;
-      void reconcileClipboardHandoff(doc).catch(() => undefined).finally(() => {
-        setTimeout(() => { checking = false; }, 0);
-      });
-    }, 450);
+    checking = true;
+    void reconcileClipboardHandoff(doc).then((removed) => {
+      interval = removed > 0 ? CHECK_DELAY_MS : Math.min(interval * 2, MAX_CHECK_DELAY_MS);
+    }, () => undefined).finally(() => {
+      lastCheckEndedAt = Date.now();
+      setTimeout(() => { checking = false; }, 0);
+    });
   };
-  const visible = () => { if (doc.visibilityState === "visible") schedule(); };
+  const schedule = () => {
+    if (stopped || checking || !checkpoints.size || timer !== null) return;
+    // Let the change that triggered this settle, and keep the backoff interval.
+    timer = setTimeout(run, Math.max(CHECK_DELAY_MS, lastCheckEndedAt + interval - Date.now()));
+  };
+  const returned = () => {
+    interval = CHECK_DELAY_MS;
+    lastCheckEndedAt = -Infinity;
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    schedule();
+  };
+  const visible = () => { if (doc.visibilityState === "visible") returned(); };
   documentRevisions(doc);
   const stopRevision = subscribeDocumentRevision(doc, schedule);
   const stopChanges = subscribeActiveDraftChanges(pruneCheckpoints);
-  view?.addEventListener("focus", schedule);
-  view?.addEventListener("pageshow", schedule);
+  const stopHandoff = subscribeClipboardHandoff(() => { interval = CHECK_DELAY_MS; });
+  view?.addEventListener("focus", returned);
+  view?.addEventListener("pageshow", returned);
   doc.addEventListener("visibilitychange", visible);
   schedule();
   return () => {
@@ -179,8 +205,9 @@ export function startClipboardHandoffController(doc: Document = document): () =>
     if (timer !== null) clearTimeout(timer);
     stopRevision();
     stopChanges();
-    view?.removeEventListener("focus", schedule);
-    view?.removeEventListener("pageshow", schedule);
+    stopHandoff();
+    view?.removeEventListener("focus", returned);
+    view?.removeEventListener("pageshow", returned);
     doc.removeEventListener("visibilitychange", visible);
   };
 }

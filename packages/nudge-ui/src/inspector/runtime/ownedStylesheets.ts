@@ -1,5 +1,8 @@
 type StyleRoot = Document | ShadowRoot;
 
+/** Transient visual state projection, excluded from authored CSS inspection. */
+export const STATE_PREVIEW_SHEET_ID = "nudge-ui-state-preview";
+
 const styleElementSupport = new WeakMap<Document, boolean>();
 const adoptedSheets = new WeakMap<StyleRoot, Map<string, CSSStyleSheet>>();
 let adoptedOnly = false;

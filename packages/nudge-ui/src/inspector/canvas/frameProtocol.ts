@@ -94,6 +94,8 @@ export interface ReplaceStylesMessage extends FrameMessage {
   textContentChanges: import("../changes/types.ts").TextContentChangeRecord[];
   /** Controller-owned semantic component overrides for Canvas runtimes. */
   componentOverrides: ComponentOverride[];
+  /** Generated identities the edits refer to; omitted while edits are hidden. */
+  runtimeIdentities?: import("../runtime/runtimeIdentityClaims.ts").RuntimeIdentityClaim[];
 }
 
 /** Renderer acknowledgement that one complete controller snapshot is applied. */

@@ -1,6 +1,7 @@
 import { getStroke } from "perfect-freehand";
 import type { ReactElement } from "react";
 import {
+  SKETCH_ACCENT_COLOR,
   SKETCH_STROKE_COLOR,
   type SketchAnnotation,
   type SketchPoint,
@@ -100,7 +101,7 @@ export function SketchSvgLayer({
         const radius = 16 * annotationScale;
         return (
           <g key={annotation.id} transform={`translate(${number(annotation.point.x)} ${number(annotation.point.y)})`} pointerEvents="none">
-            <circle r={radius} fill={SKETCH_STROKE_COLOR} />
+            <circle r={radius} fill={SKETCH_ACCENT_COLOR} />
             <text
               x="0"
               y="0"

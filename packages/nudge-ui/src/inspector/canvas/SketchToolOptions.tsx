@@ -9,22 +9,10 @@ import {
   useSketchDrawingTools,
   type SketchDrawingTool,
 } from "../sketch/drawingTools.ts";
-import { SKETCH_STROKE_COLORS, type SketchStrokeColor } from "../sketch/model.ts";
+import { SKETCH_PEN_COLORS, type SketchPenColor } from "../sketch/model.ts";
 import { ToolOptionsDrawer, useDismissablePopover } from "./ToolOptionsDrawer.tsx";
 
-const COLOR_NAMES: Readonly<Record<(typeof SKETCH_STROKE_COLORS)[number], string>> = {
-  "#f03e1e": "Red",
-  "#ff8a00": "Orange",
-  "#ffc800": "Yellow",
-  "#1fc85a": "Green",
-  "#0096ff": "Blue",
-};
-
-function colorName(color: SketchStrokeColor): string {
-  return color in COLOR_NAMES ? COLOR_NAMES[color as keyof typeof COLOR_NAMES] : color;
-}
-
-function PenIllustration({ color }: { readonly color: SketchStrokeColor }): ReactElement {
+function PenIllustration({ color }: { readonly color: SketchPenColor }): ReactElement {
   const id = useId();
   return (
     <svg className="sketch-options__illustration" viewBox="0 0 28 56" width={28} height={56} aria-hidden="true">
@@ -37,7 +25,7 @@ function PenIllustration({ color }: { readonly color: SketchStrokeColor }): Reac
       </defs>
       <path d="M14 2 L16.4 10 H11.6 Z" fill="#1c1c1c" />
       <path d="M11.6 10 H16.4 L21 24 H7 Z" fill={`url(#${id}-body)`} stroke="rgba(0,0,0,0.12)" strokeWidth={0.75} strokeLinejoin="round" />
-      <rect x={7} y={23.5} width={14} height={3} fill={color} />
+      <rect x={7} y={23.5} width={14} height={3} fill={color.value} />
       <rect x={7} y={26.5} width={14} height={34} fill={`url(#${id}-body)`} stroke="rgba(0,0,0,0.12)" strokeWidth={0.75} />
     </svg>
   );
@@ -94,7 +82,7 @@ function IllustratedToolButton({
   );
 }
 
-function ColorPicker({ color, hidden }: { readonly color: SketchStrokeColor; readonly hidden: boolean }): ReactElement {
+function ColorPicker({ color, hidden }: { readonly color: SketchPenColor; readonly hidden: boolean }): ReactElement {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -110,34 +98,34 @@ function ColorPicker({ color, hidden }: { readonly color: SketchStrokeColor; rea
         <button
           type="button"
           className="sketch-options__color-trigger"
-          aria-label={`Color: ${colorName(color)}`}
+          aria-label={`Color: ${color.name}`}
           aria-expanded={open}
           data-open={open ? "true" : "false"}
           data-test="sketch-tool-color"
           tabIndex={hidden ? -1 : undefined}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="sketch-options__swatch" style={{ background: color }} />
+          <span className="sketch-options__swatch" style={{ background: color.value }} />
           <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
         </button>
       </Tooltip>
       {open ? (
         <div className="tool-options__popover sketch-options__palette" role="group" aria-label="Pen color" data-test="sketch-color-palette">
-          {SKETCH_STROKE_COLORS.map((option) => (
+          {SKETCH_PEN_COLORS.map((option) => (
             <button
-              key={option}
+              key={option.id}
               type="button"
               className="sketch-options__palette-option"
-              aria-label={COLOR_NAMES[option]}
+              aria-label={option.name}
               aria-pressed={option === color}
               data-active={option === color ? "true" : "false"}
-              data-test={`sketch-color-${COLOR_NAMES[option].toLowerCase()}`}
+              data-test={`sketch-color-${option.id}`}
               onClick={() => {
                 setSketchStrokeColor(option);
                 setOpen(false);
               }}
             >
-              <span className="sketch-options__swatch" style={{ background: option }} />
+              <span className="sketch-options__swatch" style={{ background: option.value }} />
             </button>
           ))}
         </div>

@@ -3,15 +3,19 @@ import {
   CURSOR_IMAGE_BASE_GLOBAL,
   CURSOR_IMAGE_DIRECTORY,
   editorUrl,
+  applicationUrl,
   INJECT_RENDERERS_MESSAGE,
   isEditorUrl,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
   type ExtensionBoot,
 } from "./protocol.ts";
+import { EDITOR_DOCUMENT_POLICY } from "./editorPolicy.ts";
 
 const INSPECTOR_BUNDLE = "nudge-ui.js";
 const STORAGE_BRIDGE = "storage-bridge.js";
+/** Marks the document a toggle navigates away from, so its late load events are ignored. */
+const LEAVING_GLOBAL = "__NUDGE_UI_LEAVING__";
 
 /**
  * `"opening"` while the tab reloads into the editor; `"editor"` once the
@@ -20,24 +24,23 @@ const STORAGE_BRIDGE = "storage-bridge.js";
 interface EditorTab {
   phase: "opening" | "editor";
   ruleIds: number[];
+  applicationHref?: string;
 }
 
 const editorTabKey = (tabId: number) => `editor-tab:${tabId}`;
+const tabTasks = new Map<number, Promise<void>>();
+let ruleUpdates: Promise<unknown> = Promise.resolve();
 
-/**
- * The editor discards the page it loads into, and starts only once that page
- * finishes loading, so the page's scripts and assets are blocked. Extension
- * scripts and resources are exempt; frames may load the application.
- */
-const EDITOR_DOCUMENT_POLICY = [
-  "script-src 'none'",
-  "style-src 'unsafe-inline'",
-  "img-src 'none'",
-  "media-src 'none'",
-  "font-src 'none'",
-  "object-src 'none'",
-  "frame-src 'self'",
-].join("; ");
+/** Serializes lifecycle events for one tab without delaying other tabs. */
+function queueTabTask(tabId: number, task: () => Promise<void>): Promise<void> {
+  const pending = (tabTasks.get(tabId) ?? Promise.resolve()).catch(() => undefined).then(task);
+  tabTasks.set(tabId, pending);
+  const remove = (): void => {
+    if (tabTasks.get(tabId) === pending) tabTasks.delete(tabId);
+  };
+  void pending.then(remove, remove);
+  return pending;
+}
 
 async function readEditorTab(tabId: number): Promise<EditorTab | undefined> {
   const key = editorTabKey(tabId);
@@ -55,21 +58,32 @@ async function writeEditorTab(tabId: number, state: EditorTab): Promise<void> {
  * which must be unique across the extension and fit in 32 bits.
  */
 async function installEditorRules(tabId: number, origin: string): Promise<number[]> {
+  const pending = ruleUpdates.then(() => addEditorRules(tabId, origin));
+  ruleUpdates = pending.catch(() => undefined);
+  return pending;
+}
+
+async function addEditorRules(tabId: number, origin: string): Promise<number[]> {
   const existing = await chrome.declarativeNetRequest.getSessionRules();
   const firstId = Math.max(0, ...existing.map((rule) => rule.id)) + 1;
-  const [frameRuleId, editorRuleId] = [firstId, firstId + 1];
+  const [frameRuleId, policyRuleId, editorRuleId] = [firstId, firstId + 1, firstId + 2];
+  const frameCondition = { tabIds: [tabId], resourceTypes: ["sub_frame" as const], urlFilter: `|${origin}/` };
   await chrome.declarativeNetRequest.updateSessionRules({
     addRules: [
       {
         id: frameRuleId,
-        condition: { tabIds: [tabId], resourceTypes: ["sub_frame"], urlFilter: `|${origin}/` },
-        action: {
-          type: "modifyHeaders",
-          responseHeaders: [
-            { header: "x-frame-options", operation: "remove" },
-            { header: "content-security-policy", operation: "remove" },
-          ],
+        condition: frameCondition,
+        action: { type: "modifyHeaders", responseHeaders: [{ header: "x-frame-options", operation: "remove" }] },
+      },
+      {
+        // Rules cannot edit one directive, so a policy is dropped only when it
+        // restricts framing; any other policy still applies in the frame.
+        id: policyRuleId,
+        condition: {
+          ...frameCondition,
+          responseHeaders: [{ header: "content-security-policy", values: ["*frame-ancestors*"] }],
         },
+        action: { type: "modifyHeaders", responseHeaders: [{ header: "content-security-policy", operation: "remove" }] },
       },
       {
         id: editorRuleId,
@@ -81,7 +95,7 @@ async function installEditorRules(tabId: number, origin: string): Promise<number
       },
     ],
   });
-  return [frameRuleId, editorRuleId];
+  return [frameRuleId, policyRuleId, editorRuleId];
 }
 
 async function closeEditor(tabId: number): Promise<void> {
@@ -93,9 +107,13 @@ async function closeEditor(tabId: number): Promise<void> {
 
 // `executeScript` serializes these functions into the page's main world, so
 // they cannot close over module values; names arrive as arguments.
-function toggleLoadedInspector(handleName: string): string | null {
+function toggleLoadedInspector(handleName: string, leavingName: string): string | null {
   const handle = (window as unknown as Record<string, { surface: string; toggle(): void } | undefined>)[handleName];
-  if (!handle) return null;
+  if (!handle) {
+    // The caller now reloads this tab into the editor.
+    Object.assign(window, { [leavingName]: true });
+    return null;
+  }
   handle.toggle();
   return handle.surface;
 }
@@ -104,8 +122,25 @@ function publishGlobals(globals: Record<string, unknown>): void {
   Object.assign(window, globals);
 }
 
-function readDocument(handleName: string): { href: string; loaded: boolean } {
-  return { href: location.href, loaded: handleName in window };
+function readDocument(handleName: string, leavingName: string): {
+  href: string; loaded: boolean; leaving: boolean; unavailableReason?: string;
+} {
+  const blocksFrames = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[http-equiv="Content-Security-Policy" i]')).some((meta) => {
+    const directives = meta.content.split(";").map((directive) => directive.trim().split(/\s+/));
+    const frameSources = directives.find(([name]) => name?.toLowerCase() === "frame-src")
+      ?? directives.find(([name]) => name?.toLowerCase() === "child-src")
+      ?? directives.find(([name]) => name?.toLowerCase() === "default-src");
+    return frameSources?.length === 2 && frameSources[1] === "'none'";
+  });
+  // Navigation responses generated by site workers bypass the header rules.
+  // Leave these pages running normally and show the limitation in the panel.
+  const unavailableReason = navigator.serviceWorker?.controller
+    ? "its service worker"
+    : blocksFrames ? "its security policy" : undefined;
+  return {
+    href: location.href, loaded: handleName in window, leaving: leavingName in window,
+    ...(unavailableReason ? { unavailableReason } : {}),
+  };
 }
 
 // `getURL` returns the per-session `use_dynamic_url` ID only for paths that
@@ -127,13 +162,28 @@ async function readSiteStorage(origin: string): Promise<Record<string, string>> 
   return values;
 }
 
-async function injectInspector(tabId: number, href: string, surface: ExtensionBoot["surface"]): Promise<void> {
-  const target = { tabId };
-  const boot: ExtensionBoot = { storage: await readSiteStorage(new URL(href).origin), surface };
-  await chrome.scripting.executeScript({ target, files: [STORAGE_BRIDGE] });
-  const globals = { [BOOT_GLOBAL]: boot, [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
-  await chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] });
-  await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
+async function injectInspector(
+  tabId: number, documentId: string, href: string, surface: ExtensionBoot["surface"], unavailableReason?: string,
+): Promise<void> {
+  const target = { tabId, documentIds: [documentId] };
+  const boot: ExtensionBoot = {
+    storage: await readSiteStorage(new URL(href).origin), surface,
+    ...(unavailableReason ? { unavailableReason } : {}),
+  };
+  try {
+    await chrome.scripting.executeScript({ target, files: [STORAGE_BRIDGE] });
+    const globals = { [BOOT_GLOBAL]: boot, [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
+    await chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] });
+    await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
+  } catch (error) {
+    const [current] = await chrome.scripting.executeScript({
+      target: { tabId }, world: "MAIN", func: readDocument,
+      args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL], injectImmediately: true,
+    }).catch(() => []);
+    // A navigation invalidates this injection; its own completion resumes the editor.
+    if (current?.documentId !== documentId) return;
+    throw error;
+  }
 }
 
 function needsRenderer(handleName: string): boolean {
@@ -155,20 +205,42 @@ async function injectRenderers(tabId: number): Promise<void> {
 
 async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<void> {
   const tabId = tab.id;
+  const state = await readEditorTab(tabId);
+  if (state?.phase === "opening") {
+    const href = state.applicationHref ?? (tab.url ? applicationUrl(tab.url) : undefined);
+    if (!href) throw new Error("the page URL is unavailable");
+    await closeEditor(tabId);
+    await chrome.tabs.update(tabId, { url: href });
+    return;
+  }
+  const [document] = await chrome.scripting.executeScript({
+    target: { tabId }, world: "MAIN", func: readDocument,
+    args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL], injectImmediately: true,
+  });
+  if (!document?.result) throw new Error("the page cannot be scripted");
+  const { href, loaded, unavailableReason } = document.result;
+  if (state && !loaded) {
+    await closeEditor(tabId);
+    await chrome.tabs.update(tabId, { url: applicationUrl(href) });
+    return;
+  }
+  if (!loaded && unavailableReason) {
+    await injectInspector(tabId, document.documentId, href, "page", unavailableReason);
+    return;
+  }
   const [toggled] = await chrome.scripting.executeScript({
-    target: { tabId }, world: "MAIN", func: toggleLoadedInspector, args: [PAGE_INSPECTOR_GLOBAL],
+    target: { tabId, documentIds: [document.documentId] }, world: "MAIN", func: toggleLoadedInspector,
+    args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL],
   });
   const surface = toggled?.result;
   if (surface === "editor") {
     await closeEditor(tabId);
   } else if (!surface) {
-    if (!tab.url) throw new Error("the tab URL is unavailable");
     await closeEditor(tabId);
-    const ruleIds = await installEditorRules(tabId, new URL(tab.url).origin);
-    await writeEditorTab(tabId, { phase: "opening", ruleIds });
-    await chrome.tabs.update(tabId, { url: editorUrl(tab.url) });
+    const ruleIds = await installEditorRules(tabId, new URL(href).origin);
+    await writeEditorTab(tabId, { phase: "opening", ruleIds, applicationHref: applicationUrl(href) });
+    await chrome.tabs.update(tabId, { url: editorUrl(href) });
   }
-  await chrome.action.setBadgeText({ tabId, text: "" });
 }
 
 /**
@@ -179,20 +251,29 @@ async function resumeEditor(tabId: number): Promise<void> {
   const state = await readEditorTab(tabId);
   if (!state) return;
   const [result] = await chrome.scripting.executeScript({
-    target: { tabId }, world: "MAIN", func: readDocument, args: [PAGE_INSPECTOR_GLOBAL],
+    target: { tabId }, world: "MAIN", func: readDocument, args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL],
+    injectImmediately: true,
+  }).catch((error: unknown) => {
+    // A queued completion can belong to the document being replaced. Its
+    // replacement's completion will resume the editor with the rules intact.
+    if (error instanceof Error && error.message === "Frame with ID 0 was removed.") return [];
+    throw error;
   });
-  if (!result?.result) throw new Error("the page cannot be scripted");
-  const { href, loaded } = result.result;
+  if (!result?.result) return;
+  const { href, loaded, leaving, unavailableReason } = result.result;
+  // A page still loading when toggled can complete after the editor state is
+  // recorded; only the next document's load decides the outcome.
+  if (leaving) return;
   if (isEditorUrl(href)) {
     if (loaded) return;
     // Recorded first: renderer frames can load before the injection resolves.
     await writeEditorTab(tabId, { ...state, phase: "editor" });
-    await injectInspector(tabId, href, "editor");
+    await injectInspector(tabId, result.documentId, href, "editor", unavailableReason);
     return;
   }
   await closeEditor(tabId);
   // A redirect dropped the marker and the page ran normally; inspect it in place.
-  if (state.phase === "opening") await injectInspector(tabId, href, "page");
+  if (state.phase === "opening") await injectInspector(tabId, result.documentId, href, "page", unavailableReason);
 }
 
 async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
@@ -205,19 +286,32 @@ async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
 chrome.action.onClicked.addListener((tab) => {
   const tabId = tab.id;
   if (tabId === undefined) return;
-  void toggleInspector({ ...tab, id: tabId }).catch((error: unknown) => reportUnavailable(tabId, error));
+  void queueTabTask(tabId, async () => {
+    try {
+      await toggleInspector({ ...tab, id: tabId });
+      await chrome.action.setBadgeText({ tabId, text: "" });
+      // Clear any failure left by an earlier attempt on this tab.
+      await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title ?? "Nudge UI" });
+    } catch (error) {
+      await reportUnavailable(tabId, error);
+    }
+  });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status !== "complete") return;
-  void resumeEditor(tabId).catch(async (error: unknown) => {
-    await closeEditor(tabId);
-    await reportUnavailable(tabId, error);
+  void queueTabTask(tabId, async () => {
+    try {
+      await resumeEditor(tabId);
+    } catch (error) {
+      await closeEditor(tabId);
+      await reportUnavailable(tabId, error);
+    }
   });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void closeEditor(tabId);
+  void queueTabTask(tabId, () => closeEditor(tabId));
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender) => {

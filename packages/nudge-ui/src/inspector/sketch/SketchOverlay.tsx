@@ -1,74 +1,54 @@
 import { useEffect, useRef, useState } from "react";
 import type {
-  CSSProperties,
-  KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
   ReactElement,
 } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import {
-  IconCheck,
-  IconX,
-} from "@tabler/icons-react";
-import { Button } from "../ui/Button.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
 import { getSketchViewport, type SketchViewport } from "./capture.ts";
 import {
-  SKETCH_ANNOTATION_RADIUS,
   SKETCH_LIMITS,
   SKETCH_STROKE_OUTLINE,
   SKETCH_STROKE_WIDTH,
-  type SketchAnnotation,
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
+import { findErasedSketchStrokeIds } from "./geometry.ts";
 import {
-  findErasedSketchStrokeIds,
-  findSketchElementAt,
-  translateSketchAnnotation,
-  translateSketchStroke,
-  type SketchElementReference,
-} from "./geometry.ts";
-import type { SketchEntryTool } from "./interaction.ts";
-import { resetSketchDrawingTool, useSketchDrawingTools } from "./drawingTools.ts";
+  EMPTY_SKETCH_HISTORY,
+  addSketchStroke,
+  eraseSketchStrokes,
+  redoSketchEdit,
+  undoSketchEdit,
+  type SketchHistory,
+} from "./history.ts";
+import { resetSketchDrawingTool, useSketchDrawingTools, type SketchDrawingTool } from "./drawingTools.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { useInspectorOpen } from "../shell/openStore.ts";
-import { DRAG_CURSOR, ERASER_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
+import { isEditableEvent } from "../shell/shortcuts.ts";
+import { ERASER_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
 import { useTemporaryAppInteraction } from "../canvas/viewStore.ts";
-import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 
-type SketchTool = "move" | "pen" | "eraser" | "rectangle" | "annotate";
+/** Eraser reach around the pointer in screen pixels, matching the cursor ring. */
+const ERASER_RADIUS_PX = 8;
 
-/** Eraser reach around the pointer, in sketch coordinates. */
-const ERASER_RADIUS = 8;
-
-function sketchCursor(tool: SketchTool): string {
-  if (tool === "move") return DRAG_CURSOR;
+function sketchCursor(tool: SketchDrawingTool): string {
   if (tool === "eraser") return ERASER_CURSOR;
   if (tool === "rectangle") return "crosshair";
   return SKETCH_CURSOR;
-}
-
-interface SketchMoveState {
-  readonly pointerId: number;
-  readonly element: SketchElementReference;
-  lastPoint: SketchPoint;
 }
 
 export interface SketchLiveDraft {
   /** Kept for compatibility with sketches created with the original editor. */
   readonly description: string;
   readonly strokes: readonly SketchStroke[];
-  readonly annotations: readonly SketchAnnotation[];
   readonly viewport: SketchViewport;
 }
 
 export interface SketchOverlayProps {
   readonly open: boolean;
   readonly hostElement: HTMLElement;
-  readonly initialTool?: SketchEntryTool;
   readonly selectTarget?: (point: SketchPoint, lockedTarget: HTMLElement | null) => HTMLElement | null;
   readonly onCancel: () => void;
   readonly onDone: (draft: SketchLiveDraft) => Promise<void>;
@@ -102,16 +82,6 @@ function visibleStroke(stroke: SketchStroke, viewport: SketchViewport): SketchSt
   };
 }
 
-function visibleAnnotation(annotation: SketchAnnotation, viewport: SketchViewport): SketchAnnotation {
-  return {
-    ...annotation,
-    point: {
-      x: annotation.point.x - viewport.scrollX,
-      y: annotation.point.y - viewport.scrollY,
-    },
-  };
-}
-
 function rectanglePoints(start: SketchPoint, end: SketchPoint): SketchPoint[] {
   const left = Math.min(start.x, end.x);
   const right = Math.max(start.x, end.x);
@@ -126,74 +96,48 @@ function rectanglePoints(start: SketchPoint, end: SketchPoint): SketchPoint[] {
   ];
 }
 
-function annotationEditorStyle(
-  annotation: SketchAnnotation,
-  viewport: SketchViewport,
-): CSSProperties {
-  const width = 280;
-  const height = 52;
-  return {
-    left: clamp(
-      annotation.point.x - viewport.scrollX + SKETCH_ANNOTATION_RADIUS + 8,
-      Math.max(8, viewport.width - width - 8),
-    ),
-    top: clamp(
-      annotation.point.y - viewport.scrollY + SKETCH_ANNOTATION_RADIUS + 8,
-      Math.max(8, viewport.height - height - 8),
-    ),
-  };
-}
-
-export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTarget, onCancel, onDone }: SketchOverlayProps): ReactElement | null {
+export function SketchOverlay({ open, hostElement, selectTarget, onCancel, onDone }: SketchOverlayProps): ReactElement | null {
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const inspectorOpen = useInspectorOpen();
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
   const drawing = useSketchDrawingTools();
-  const [entryTool, setEntryTool] = useState<SketchEntryTool>("pen");
-  // Annotate is its own entry point; otherwise the canvas toolbar picks the mode.
-  const tool: SketchTool = entryTool === "annotate" ? "annotate" : drawing.tool;
+  const tool = drawing.tool;
   const [description, setDescription] = useState("");
-  const [strokes, setStrokes] = useState<SketchStroke[]>([]);
-  const [redoStrokes, setRedoStrokes] = useState<SketchStroke[]>([]);
-  const [annotations, setAnnotations] = useState<SketchAnnotation[]>([]);
-  const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
-  const [activeAnnotationOriginal, setActiveAnnotationOriginal] = useState<string | null>(null);
-  const [annotationDraft, setAnnotationDraft] = useState("");
+  const [history, setHistory] = useState<SketchHistory>(EMPTY_SKETCH_HISTORY);
   const [draftPoints, setDraftPoints] = useState<readonly SketchPoint[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const targetRef = useRef(hostElement);
-  const annotationInputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
-  const moveState = useRef<SketchMoveState | null>(null);
+  const draftPointsRef = useRef<readonly SketchPoint[]>([]);
   const draftPointLimitReached = useRef(false);
   const eraserPoint = useRef<SketchPoint | null>(null);
+  // Identifies the current eraser drag so it undoes as a single edit.
+  const eraseGesture = useRef(0);
 
-  const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null;
+  const strokes = history.strokes;
+
+  function updateDraftPoints(next: readonly SketchPoint[]): void {
+    draftPointsRef.current = next;
+    setDraftPoints(next);
+  }
 
   useEffect(() => {
     if (!open) return;
     targetRef.current = hostElement;
     setViewport(getSketchViewport(hostElement));
-    // Sketch starts with a freehand pen. The separate Annotate entry point
-    // still opens directly in annotation mode without the old live toolbar.
-    setEntryTool(initialTool);
     resetSketchDrawingTool();
     setDescription("");
-    setStrokes([]);
-    setRedoStrokes([]);
-    setAnnotations([]);
-    setActiveAnnotationId(null);
-    setActiveAnnotationOriginal(null);
-    setAnnotationDraft("");
-    setDraftPoints([]);
-    moveState.current = null;
+    setHistory(EMPTY_SKETCH_HISTORY);
+    updateDraftPoints([]);
+    // Closing mid-stroke unmounts the surface before its pointerup arrives.
+    pointerId.current = null;
     eraserPoint.current = null;
     setSubmitting(false);
     setError(null);
   // Choosing the first stroke's frame must preserve the stroke already in progress.
-  }, [initialTool, open]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -217,67 +161,44 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
   }, [hostElement, open]);
 
   useEffect(() => {
-    if (activeAnnotationId !== null) annotationInputRef.current?.focus();
-  }, [activeAnnotationId]);
-
-  useEffect(() => {
     if (open) svgRef.current?.focus();
   }, [open]);
 
-  function openAnnotation(annotation: SketchAnnotation): void {
-    setActiveAnnotationId(annotation.id);
-    setActiveAnnotationOriginal(annotation.description);
-    setAnnotationDraft(annotation.description);
-    setError(null);
-  }
-
-  function annotationAt(point: SketchPoint): SketchAnnotation | null {
-    return [...annotations].reverse().find((annotation) =>
-      distance(annotation.point, point) <= SKETCH_ANNOTATION_RADIUS * 1.5) ?? null;
-  }
-
-  function commitActiveAnnotation(): SketchAnnotation[] | null {
-    if (activeAnnotationId === null) return annotations;
-    const description = annotationDraft.trim();
-    if (!description) {
-      setError("Add a short description for this annotation before continuing.");
-      annotationInputRef.current?.focus();
-      return null;
+  // Listen on the window rather than the dialog: the drawing options live in
+  // the canvas toolbar, so focus is often outside the dialog while sketching.
+  // Text fields keep their native undo.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || isEditableEvent(event)) return;
+      const key = event.key.toLowerCase();
+      const isRedo = (key === "z" && event.shiftKey) || (key === "y" && !event.shiftKey);
+      const isUndo = key === "z" && !event.shiftKey;
+      if (!isRedo && !isUndo) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setHistory((current) => isRedo ? redoSketchEdit(current) : undoSketchEdit(current));
     }
-    const next = annotations.map((annotation) => annotation.id === activeAnnotationId
-      ? { ...annotation, description }
-      : annotation);
-    setAnnotations(next);
-    setActiveAnnotationId(null);
-    setActiveAnnotationOriginal(null);
-    setAnnotationDraft("");
-    setError(null);
-    return next;
-  }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open]);
 
-  function cancelActiveAnnotation(): void {
-    if (activeAnnotationId !== null && activeAnnotationOriginal === "") {
-      setAnnotations((current) => current.filter((annotation) => annotation.id !== activeAnnotationId));
-    }
-    setActiveAnnotationId(null);
-    setActiveAnnotationOriginal(null);
-    setAnnotationDraft("");
-    setError(null);
-  }
-
-  function eraseAlong(start: SketchPoint, end: SketchPoint): void {
-    setStrokes((current) => {
-      const erased = new Set(findErasedSketchStrokeIds(start, end, current, ERASER_RADIUS));
-      return erased.size === 0 ? current : current.filter((stroke) => !erased.has(stroke.id));
-    });
+  function eraseAlong(start: SketchPoint, end: SketchPoint, drawingViewport: SketchViewport): void {
+    const radius = ERASER_RADIUS_PX * (drawingViewport.width / Math.max(1, drawingViewport.displayWidth));
+    const gesture = eraseGesture.current;
+    setHistory((current) => eraseSketchStrokes(
+      current,
+      findErasedSketchStrokeIds(start, end, current.strokes, radius),
+      gesture,
+    ));
   }
 
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
-    if (submitting || pointerId.current !== null || moveState.current !== null) return;
+    if (submitting || pointerId.current !== null) return;
     let drawingViewport = getSketchViewport(targetRef.current);
     if (selectTarget) {
       const target = selectTarget({ x: event.clientX, y: event.clientY },
-        strokes.length > 0 || annotations.length > 0 || redoStrokes.length > 0 ? targetRef.current : null);
+        history.undo.length > 0 || history.redo.length > 0 ? targetRef.current : null);
       if (!target) return;
       if (target !== targetRef.current) {
         targetRef.current = target;
@@ -289,119 +210,44 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
       || event.clientY < drawingViewport.offsetY || event.clientY > drawingViewport.offsetY + drawingViewport.displayHeight) return;
     const point = pointFromEvent(event, drawingViewport);
 
-    if (tool === "move") {
-      event.preventDefault();
-      const element = findSketchElementAt(point, strokes, annotations);
-      if (!element) return;
-      moveState.current = { pointerId: event.pointerId, element, lastPoint: point };
-      event.currentTarget.setPointerCapture(event.pointerId);
-      return;
-    }
+    // Drawing cancels the browser's focus change, so move focus here
+    // explicitly; otherwise undo keeps going to the note or a toolbar button.
+    event.preventDefault();
+    svgRef.current?.focus({ preventScroll: true });
+    pointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
 
     if (tool === "eraser") {
-      event.preventDefault();
-      pointerId.current = event.pointerId;
       eraserPoint.current = point;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      eraseAlong(point, point);
+      eraseGesture.current += 1;
+      eraseAlong(point, point, drawingViewport);
       return;
     }
 
-    if (tool === "annotate") {
-      event.preventDefault();
-      if (activeAnnotationId !== null) {
-        if (commitActiveAnnotation()) setError("Select Annotate again, then click another area.");
-        return;
-      }
-      const existing = annotationAt(point);
-      if (existing) {
-        openAnnotation(existing);
-        return;
-      }
-      if (annotations.length >= SKETCH_LIMITS.annotations) {
-        setError(`A sketch can contain at most ${SKETCH_LIMITS.annotations} annotations.`);
-        return;
-      }
-      const usedNumbers = new Set(annotations.map((annotation) => annotation.number));
-      let nextNumber = 1;
-      while (usedNumbers.has(nextNumber)) nextNumber += 1;
-      const annotation: SketchAnnotation = {
-        id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        number: nextNumber,
-        point,
-        description: "",
-      };
-      setAnnotations((current) => [...current, annotation]);
-      setActiveAnnotationId(annotation.id);
-      setActiveAnnotationOriginal("");
-      setAnnotationDraft("");
-      setError(null);
-      return;
-    }
-
-    event.preventDefault();
-    pointerId.current = event.pointerId;
     draftPointLimitReached.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDraftPoints([point]);
+    updateDraftPoints([point]);
   }
 
   function onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void {
-    const activeMove = moveState.current;
-    if (activeMove?.pointerId === event.pointerId) {
-      event.preventDefault();
-      const point = pointFromEvent(event, viewport);
-      const delta = {
-        x: point.x - activeMove.lastPoint.x,
-        y: point.y - activeMove.lastPoint.y,
-      };
-      if (delta.x !== 0 || delta.y !== 0) {
-        const bounds = { width: SKETCH_LIMITS.imageEdge, height: SKETCH_LIMITS.imageEdge };
-        if (activeMove.element.kind === "stroke") {
-          setStrokes((current) => current.map((stroke) => stroke.id === activeMove.element.id
-            ? translateSketchStroke(stroke, delta, bounds)
-            : stroke));
-        } else {
-          setAnnotations((current) => current.map((annotation) => annotation.id === activeMove.element.id
-            ? translateSketchAnnotation(annotation, delta, bounds)
-            : annotation));
-        }
-        activeMove.lastPoint = point;
-      }
-      return;
-    }
-
     if (pointerId.current !== event.pointerId) return;
     event.preventDefault();
     const point = pointFromEvent(event, viewport);
     if (eraserPoint.current) {
-      eraseAlong(eraserPoint.current, point);
+      eraseAlong(eraserPoint.current, point, viewport);
       eraserPoint.current = point;
       return;
     }
-    setDraftPoints((previous) => {
-      const last = previous.at(-1);
-      if (last && distance(last, point) < 1) return previous;
-      if (previous.length >= SKETCH_LIMITS.points) {
-        draftPointLimitReached.current = true;
-        return previous;
-      }
-      return [...previous, point];
-    });
+    const previous = draftPointsRef.current;
+    const last = previous.at(-1);
+    if (last && distance(last, point) < 1) return;
+    if (previous.length >= SKETCH_LIMITS.points) {
+      draftPointLimitReached.current = true;
+      return;
+    }
+    updateDraftPoints([...previous, point]);
   }
 
   function finishPointer(event: ReactPointerEvent<SVGSVGElement>): void {
-    const activeMove = moveState.current;
-    if (activeMove?.pointerId === event.pointerId) {
-      moveState.current = null;
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      } catch {
-        // The pointer may already have been released by the browser.
-      }
-      return;
-    }
-
     if (pointerId.current !== event.pointerId) return;
     pointerId.current = null;
     try {
@@ -413,86 +259,39 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
       eraserPoint.current = null;
       return;
     }
+    const previous = draftPointsRef.current;
+    updateDraftPoints([]);
     if (draftPointLimitReached.current) {
       draftPointLimitReached.current = false;
-      setDraftPoints([]);
       setError(`A stroke can contain at most ${SKETCH_LIMITS.points.toLocaleString()} points. The incomplete stroke was discarded.`);
       return;
     }
-    setDraftPoints((previous) => {
-      if (previous.length === 0) return previous;
-      const points = tool === "rectangle" && previous.length > 1
-        ? rectanglePoints(previous[0]!, previous.at(-1)!)
-        : previous;
-      const totalPoints = strokes.reduce((total, stroke) => total + stroke.points.length, 0) + points.length;
-      if (strokes.length >= SKETCH_LIMITS.strokes || totalPoints > SKETCH_LIMITS.points) {
-        setError("The sketch has reached its stroke limit. Undo a mark before drawing again.");
-        return [];
-      }
-      if (points.length < 2) return [];
-      if (tool === "rectangle" && distance(previous[0]!, previous.at(-1)!) < 1) return [];
-      const stroke: SketchStroke = {
-        id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        kind: tool === "rectangle" ? "rectangle" : "freehand",
-        width: SKETCH_STROKE_WIDTH,
-        color: drawing.color,
-        outlineColor: SKETCH_STROKE_OUTLINE,
-        points: points.map((point) => ({ ...point })),
-      };
-      setStrokes((current) => [...current, stroke]);
-      setRedoStrokes([]);
-      return [];
-    });
-  }
-
-  function undo(): void {
-    setStrokes((current) => {
-      const last = current.at(-1);
-      if (!last) return current;
-      setRedoStrokes((redo) => [...redo, last]);
-      return current.slice(0, -1);
-    });
-  }
-
-  function redo(): void {
-    setRedoStrokes((current) => {
-      const last = current.at(-1);
-      if (!last) return current;
-      setStrokes((existing) => [...existing, last]);
-      return current.slice(0, -1);
-    });
-  }
-
-  function onEditorKeyDown(event: ReactKeyboardEvent<HTMLElement>): void {
-    const mod = event.metaKey || event.ctrlKey;
-    if (mod && event.key.toLowerCase() === "z") {
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.shiftKey) redo();
-      else undo();
-    } else if (mod && event.key.toLowerCase() === "y") {
-      event.preventDefault();
-      event.stopPropagation();
-      redo();
+    if (previous.length === 0) return;
+    const points = tool === "rectangle" && previous.length > 1
+      ? rectanglePoints(previous[0]!, previous.at(-1)!)
+      : previous;
+    const totalPoints = strokes.reduce((total, stroke) => total + stroke.points.length, 0) + points.length;
+    if (strokes.length >= SKETCH_LIMITS.strokes || totalPoints > SKETCH_LIMITS.points) {
+      setError("The sketch has reached its stroke limit. Erase a mark before drawing again.");
+      return;
     }
-  }
-
-  function onAnnotationKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitActiveAnnotation();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      cancelActiveAnnotation();
-    }
+    if (points.length < 2) return;
+    if (tool === "rectangle" && distance(previous[0]!, previous.at(-1)!) < 1) return;
+    const stroke: SketchStroke = {
+      id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      kind: tool === "rectangle" ? "rectangle" : "freehand",
+      width: SKETCH_STROKE_WIDTH,
+      color: drawing.color.value,
+      outlineColor: SKETCH_STROKE_OUTLINE,
+      points: points.map((point) => ({ ...point })),
+    };
+    setHistory((current) => addSketchStroke(current, stroke));
   }
 
   async function done(): Promise<void> {
     if (submitting) return;
-    const committedAnnotations = commitActiveAnnotation();
-    if (committedAnnotations === null) return;
     const trimmedDescription = description.trim();
-    if (strokes.length === 0 && committedAnnotations.length === 0 && trimmedDescription === "") {
+    if (strokes.length === 0 && trimmedDescription === "") {
       setError("Add a mark or a short description before saving the sketch.");
       return;
     }
@@ -505,10 +304,6 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
           ...stroke,
           points: stroke.points.map((point) => ({ ...point })),
         })),
-        annotations: committedAnnotations.map((annotation) => ({
-          ...annotation,
-          point: { ...annotation.point },
-        })),
         viewport: getSketchViewport(hostElement),
       });
     } catch (doneError) {
@@ -518,12 +313,11 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
   }
 
   const visibleStrokes = strokes.map((stroke) => visibleStroke(stroke, viewport));
-  const visibleAnnotations = annotations.map((annotation) => visibleAnnotation(annotation, viewport));
   const draftStroke: SketchStroke | null = draftPoints.length > 0 ? {
     id: "draft",
     kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
     width: SKETCH_STROKE_WIDTH,
-    color: drawing.color,
+    color: drawing.color.value,
     outlineColor: SKETCH_STROKE_OUTLINE,
     points: (tool === "rectangle" && draftPoints.length > 1
       ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
@@ -555,7 +349,6 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
           className="sketch__popup sketch__live-popup"
           data-inspector-open={inspectorOpen ? "true" : "false"}
           data-test="sketch-live-editor"
-          onKeyDown={onEditorKeyDown}
         >
           <Dialog.Title className="sketch__title sketch__sr-only">Sketch viewport</Dialog.Title>
           <Dialog.Description className="sketch__description sketch__sr-only">
@@ -597,55 +390,8 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", selectTa
               onPointerUp={finishPointer}
               onPointerCancel={finishPointer}
             >
-              <SketchSvgLayer
-                strokes={draftStroke ? [...visibleStrokes, draftStroke] : visibleStrokes}
-                annotations={visibleAnnotations}
-              />
+              <SketchSvgLayer strokes={draftStroke ? [...visibleStrokes, draftStroke] : visibleStrokes} />
             </svg>
-            {activeAnnotation ? (
-              <div
-                className="sketch__annotation-editor"
-                role="dialog"
-                aria-label={`Annotation ${activeAnnotation.number}`}
-                style={annotationEditorStyle(activeAnnotation, viewport)}
-              >
-                <label className="sketch__sr-only" htmlFor="sketch-annotation-description">
-                  Annotation {activeAnnotation.number} description
-                </label>
-                <input
-                  ref={annotationInputRef}
-                  id="sketch-annotation-description"
-                  value={annotationDraft}
-                  maxLength={SKETCH_LIMITS.description}
-                  placeholder="Describe this area…"
-                  autoComplete="off"
-                  data-test="sketch-live-annotation-description"
-                  onChange={(event) => setAnnotationDraft(event.target.value)}
-                  onKeyDown={onAnnotationKeyDown}
-                />
-                <Tooltip>
-                  <IconButton
-                    label="Cancel annotation"
-                    variant="quiet"
-                    size="compact"
-                    data-test="sketch-live-annotation-cancel"
-                    onClick={cancelActiveAnnotation}
-                  >
-                    <IconX size="var(--icon-size-small)" aria-hidden="true" />
-                  </IconButton>
-                </Tooltip>
-                <Button
-                  variant="primary"
-                  size="compact"
-                  type="button"
-                  data-test="sketch-live-annotation-save"
-                  onClick={() => { commitActiveAnnotation(); }}
-                >
-                  <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
-                  Add
-                </Button>
-              </div>
-            ) : null}
           </div>
           <SketchPromptPanel
             dataTest="sketch-live-prompt"

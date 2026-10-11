@@ -4,6 +4,9 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
+import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
+import { readSketchPersistence, resetSketchMemory } from "../sketch/persistence.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import {
   createStructuralDelete,
@@ -101,6 +104,44 @@ describe("ChangesLog", () => {
     expect(actions.previousElementSibling).toBe(root_);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--secondary");
+  });
+
+  it("shows sketches as normal change rows with a note and one undo button that removes the sketch", async () => {
+    resetSketchStore();
+    resetSketchMemory();
+    const image = new Blob(["png"], { type: "image/png" });
+    await initializeSketchStore();
+    await saveSketch({
+      capture: {
+        url: window.location.href, title: "Sketch fixture", timestamp: 1,
+        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
+        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
+      },
+      description: "Align the button with the heading", strokes: [], imageWidth: 1, imageHeight: 1,
+      originalImage: image, annotatedImage: image,
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    try {
+      act(() => {
+        root = createRoot(container);
+        root.render(<ChangesLog />);
+      });
+      const row = container.querySelector('[data-test="sketch-row"]')!;
+      expect(row.querySelector(".changes__target")?.textContent).toBe("Sketch");
+      expect(row.querySelector(".changes__action")?.textContent).toBe("Align the button with the heading");
+      expect(row.querySelectorAll("button")).toHaveLength(1);
+      expect(container.textContent).not.toContain("Sketch annotations");
+      expect(container.querySelector("img")).toBeNull();
+      const remove = row.querySelector<HTMLButtonElement>('button[aria-label="Remove sketch"]')!;
+      await act(async () => { remove.click(); });
+      expect(getSketches()).toEqual([]);
+      expect(container.querySelector('[data-test="sketch-row"]')).toBeNull();
+      expect((await readSketchPersistence(getNudgeUiRuntimeConfig().projectId)).documents).toEqual([]);
+    } finally {
+      resetSketchStore();
+      resetSketchMemory();
+    }
   });
 
   it("presents and reverts canonical structural changes directly", () => {

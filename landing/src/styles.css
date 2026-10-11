@@ -18,8 +18,8 @@
   --text-muted: #777777;
   --text-muted-subtle: #a1a1a1;
 
-  --accent: #FF3700;
-  --accent-surface: rgba(255, 55, 0, 0.1);
+  --accent: #0096ff;
+  --accent-surface: rgba(0, 176, 255, 0.15);
   --warning: #d97706;
   --warning-text: #9a5b00;
   --warning-surface: #fff6e5;
@@ -59,7 +59,7 @@
 /* Landing-only tokens with no inspector equivalent. */
 :root {
   --surface-inverse: #1f201e;
-  --accent-surface-subtle: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-surface-subtle: color-mix(in srgb, var(--accent) 6%, transparent);
   --surface-inverse-hover: #343532;
   --text-inverse: #fff;
   --palette-blue: #2563eb;

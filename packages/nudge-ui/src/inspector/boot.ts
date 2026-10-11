@@ -23,6 +23,7 @@ import {
   acquireLease,
   enableWriteGuard,
   hasWriteLease,
+  releaseLease,
   subscribeOwnership,
 } from "./canvas/workspaceLease.ts";
 import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
@@ -46,6 +47,8 @@ import { clearSketchClipboardHandoff } from "./sketch/handoff.ts";
 import { cancelSketchInteraction, isSketchInteractionActive } from "./sketch/interaction.ts";
 import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
 import { initializeSketchStore } from "./sketch/store.ts";
+import { inspectorStorage } from "./runtime/inspectorStorage.ts";
+import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -56,6 +59,7 @@ let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
 let workspaceController: ReturnType<typeof startWorkspaceController> | null = null;
 let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
+let controllerStartId = 0;
 
 let keyboardPeekHeld = false;
 
@@ -107,6 +111,7 @@ function disposeInspectorSession(): void {
 }
 
 export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
+  controllerStartId += 1;
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const explicitDemo = isDemoRuntime();
   if (!isNudgeUiDev() && !explicitDemo) return;
@@ -156,10 +161,28 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     return;
   }
 
-  startController(inspectorHost);
+  void startController(inspectorHost);
 }
 
-function startController(inspectorHost: HTMLElement): void {
+async function startController(inspectorHost: HTMLElement): Promise<void> {
+  const startId = ++controllerStartId;
+  if (!hasWriteLease()) {
+    mountLockedNotice(inspectorHost);
+    return;
+  }
+
+  // Ownership prevents the previous tab from saving after this snapshot.
+  // Refresh on remount as well as explicit takeover, before hydration writes.
+  try {
+    const storage = inspectorStorage();
+    if (storage?.refresh) await storage.refresh();
+  } catch {
+    if (startId !== controllerStartId) return;
+    releaseLease();
+    mountLockedNotice(inspectorHost, true);
+    return;
+  }
+  if (startId !== controllerStartId) return;
   if (!hasWriteLease()) {
     mountLockedNotice(inspectorHost);
     return;
@@ -199,7 +222,8 @@ function startController(inspectorHost: HTMLElement): void {
   }
 }
 
-function mountLockedNotice(host: HTMLElement): void {
+function mountLockedNotice(host: HTMLElement, storageError = false): void {
+  controllerStartId += 1;
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;
@@ -214,6 +238,7 @@ function mountLockedNotice(host: HTMLElement): void {
     clearSketchClipboardHandoff();
     setSelectedElement(null);
     removeManagedSheet();
+    disposeRuntimeIdentityClaims(document);
     releaseDocumentProjection(document);
     hostElement = null;
     unsubscribeOwnership?.();
@@ -226,6 +251,7 @@ function mountLockedNotice(host: HTMLElement): void {
   }
   lockedRoot.render(createElement(LockedWorkspaceNotice, {
     onTakeover: () => startController(host),
+    storageError,
   }));
 }
 
@@ -265,6 +291,7 @@ export function mountInspector(host: HTMLElement): void {
 }
 
 export function unmountInspector(): void {
+  controllerStartId += 1;
   rendererBootstrapHandle?.teardown();
   rendererBootstrapHandle = null;
   workspaceController?.dispose();
@@ -289,6 +316,7 @@ export function unmountInspector(): void {
     // Document-session cleanup already releases host projection when a
     // session exists; release directly as well so projection applied outside
     // a session (gestures, workspace projection) cannot leak across unmount.
+    disposeRuntimeIdentityClaims(document);
     releaseDocumentProjection(document);
     clearClipboardHandoff();
     clearSketchClipboardHandoff();

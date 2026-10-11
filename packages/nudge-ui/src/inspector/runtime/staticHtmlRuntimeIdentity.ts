@@ -173,7 +173,11 @@ const LAZY_DESCENDANT_DEPTH = 2;
  * before the inspector so its capture listeners run first.
  */
 export function installLazyRuntimeIdentity(doc: Document = document): () => void {
-  const ensureIdentity = createIdentityAllocator(doc);
+  // Pointer order differs between page loads, so sequential numbers would
+  // hand a saved edit's identity to whichever element is hovered first after
+  // a reload. A per-install scope keeps fresh identities distinct from saved
+  // ones; `runtimeIdentityClaims` re-attaches the saved ones by evidence.
+  const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
 
   function tagDescendants(element: Element, depth: number): void {
     if (depth === 0) return;
@@ -201,7 +205,7 @@ export function installLazyRuntimeIdentity(doc: Document = document): () => void
   };
 }
 
-function createIdentityAllocator(doc: Document): (element: Element) => void {
+function createIdentityAllocator(doc: Document, scope = ""): (element: Element) => void {
   const usedCids = existingAttributeValues(doc, "data-cid");
   const usedSources = existingAttributeValues(doc, "data-src");
   let nextId = 1;
@@ -209,8 +213,8 @@ function createIdentityAllocator(doc: Document): (element: Element) => void {
   function nextIdentity(): { cid: string; src: string } {
     while (true) {
       const id = nextId++;
-      const cid = `${RUNTIME_ELEMENT_CID_PREFIX}${id}`;
-      const src = `${RUNTIME_UNKNOWN_SOURCE_PREFIX}${id}`;
+      const cid = `${RUNTIME_ELEMENT_CID_PREFIX}${scope}${id}`;
+      const src = `${RUNTIME_UNKNOWN_SOURCE_PREFIX}${scope}${id}`;
       if (usedCids.has(cid) || usedSources.has(src)) continue;
       usedCids.add(cid);
       usedSources.add(src);

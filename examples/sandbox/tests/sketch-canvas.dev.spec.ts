@@ -31,6 +31,61 @@ test("a live sketch blocks canvas pan and zoom until it closes", async ({ page }
   await expect.poll(camera).not.toBe(before);
 });
 
+test("undo and redo follow drawing and erasing after toolbar clicks", async ({ page }) => {
+  await openEditor(page, "/playground?nudge-ui=on");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
+  const bounds = await page.locator(".sketch__live-canvas").boundingBox();
+  if (!bounds) throw new Error("The sketch canvas is missing");
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  async function drawAt(y: number): Promise<void> {
+    await page.mouse.move(centerX - 40, y);
+    await page.mouse.down();
+    await page.mouse.move(centerX + 40, y, { steps: 6 });
+    await page.mouse.up();
+  }
+  const marks = page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path');
+
+  await drawAt(centerY - 40);
+  // Toolbar clicks move focus outside the sketch dialog.
+  await page.locator('[data-test="sketch-tool-color"]').click();
+  await page.locator('[data-test="sketch-color-red"]').click();
+  await drawAt(centerY + 40);
+  await expect(marks).toHaveCount(2);
+  await expect(marks.nth(1)).toHaveAttribute("fill", "#f03e1e");
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(marks).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(marks).toHaveCount(2);
+
+  await page.locator('[data-test="sketch-tool-eraser"]').click();
+  await page.mouse.move(centerX, centerY + 20);
+  await page.mouse.down();
+  await page.mouse.move(centerX, centerY + 60, { steps: 6 });
+  await page.mouse.up();
+  await expect(marks).toHaveCount(1);
+  await expect(marks.first()).not.toHaveAttribute("fill", "#f03e1e");
+
+  // Undo restores the erased mark rather than removing the earlier one.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(marks).toHaveCount(2);
+  await expect(marks.nth(1)).toHaveAttribute("fill", "#f03e1e");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(marks).toHaveCount(1);
+
+  // The note keeps its native text undo.
+  const note = page.locator('[data-test="sketch-live-prompt-input"]');
+  await note.click();
+  await page.keyboard.type("Tighten");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(marks).toHaveCount(1);
+});
+
 test("the first stroke targets another frame without selecting an application element", async ({ page }) => {
   await openEditor(page, "/playground?nudge-ui=on");
   await page.locator('[data-test="canvas-show-canvas"]').click();
@@ -75,4 +130,12 @@ test("the first stroke targets another frame without selecting an application el
   const overlayBounds = await overlay.boundingBox();
   expect(overlayBounds!.x).toBeCloseTo(afterPan!.x, 1);
   expect(overlayBounds!.y).toBeCloseTo(afterPan!.y, 1);
+  await page.locator('[data-test="changes-toggle"]').click();
+  const sketch = page.locator('[data-test="sketch-row"]');
+  await expect(sketch.locator(".changes__target")).toHaveText("Sketch");
+  await expect(sketch.locator("button")).toHaveCount(1);
+  await page.screenshot({ path: test.info().outputPath("sketch-history.png") });
+  await sketch.getByRole("button", { name: "Remove sketch" }).click();
+  await expect(sketch).toHaveCount(0);
+  await expect(overlay).toHaveCount(0);
 });

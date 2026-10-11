@@ -2,13 +2,14 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { activateIframeWorkspace, addCanvasIteration, hydrateCanvasStore, selectCard } from "../canvas/canvasStore.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
-import { activateDraftForCard, appendChanges, getDraftContentsForCard, loadDrafts, resetDrafts } from "./store.ts";
+import { activateDraftForCard, appendChanges, getActiveDraftChanges, getChangesList, getDraftContentsForCard, loadDrafts, resetDrafts, undo, redo } from "./store.ts";
 import { recordAgentDispatch, resetAgentVerification, verifyAndReconcileAgentDispatch } from "../agent/verification.ts";
 import { clearClipboardHandoff, getClipboardHandoffSnapshot, recordClipboardHandoff, startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { getComments, saveComment, type ElementComment } from "../comments/store.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { copyHandoff, prepareHandoff } from "../workspace/handoff.ts";
+import { clearSentItems } from "../workspace/sentItems.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
 const edit: ElementChangeRecord = {
@@ -69,6 +70,8 @@ it("copies only the originating page's comments after selecting another frame", 
   saveComment(note);
   saveComment({ ...note, id: "other-comment", route: new URL("/other", window.location.href).href, note: "Keep this for later" });
   const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "", pendingSketches: [] });
+  expect(handoff.prompt.startsWith("# Requested design changes\n\nPage:")).toBe(true);
+  expect(handoff.prompt.match(/^# Requested design changes$/gm)).toHaveLength(1);
   const iteration = addCanvasIteration(original.id, "33333333-3333-3333-3333-333333333333")!;
   selectCard(iteration.id);
   const writeText = vi.fn().mockResolvedValue(undefined);
@@ -82,4 +85,19 @@ it("copies only the originating page's comments after selecting another frame", 
   } finally {
     Reflect.deleteProperty(navigator, "clipboard");
   }
+});
+
+it("clears sent edits from history while preserving unsent edits and their undo steps", () => {
+  appendChanges([edit]);
+  const unsent: ElementChangeRecord = { ...edit, property: "font-size", oldRawValue: "16px", rawValue: "24px" };
+  appendChanges([unsent]);
+
+  clearSentItems({ draftId: getActiveDraftChanges().draftId, changes: [edit], structuralChanges: [], comments: [] });
+
+  expect(getChangesList()).toEqual([unsent]);
+  expect(undo()).toBe(true);
+  expect(getChangesList()).toEqual([]);
+  expect(undo()).toBe(false);
+  expect(redo()).toBe(true);
+  expect(getChangesList()).toEqual([unsent]);
 });

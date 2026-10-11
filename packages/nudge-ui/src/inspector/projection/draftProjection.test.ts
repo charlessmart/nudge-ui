@@ -112,6 +112,7 @@ describe("workspace projection", () => {
   it("applies structural and identity effects before managed styles", () => {
     const calls: string[] = [];
     const adapter: DocumentProjectionAdapter<CompiledManagedStyles> = {
+      applyRuntimeIdentities: () => calls.push("identities"),
       applyStructural: () => calls.push("structural"),
       applyRenderedInstances: () => calls.push("instances"),
       applyText: () => calls.push("text"),
@@ -121,6 +122,6 @@ describe("workspace projection", () => {
 
     applyDraftProjection(adapter, compileDraftProjection(snapshot()));
 
-    expect(calls).toEqual(["structural", "instances", "text", "components", "styles"]);
+    expect(calls).toEqual(["identities", "structural", "instances", "text", "components", "styles"]);
   });
 });

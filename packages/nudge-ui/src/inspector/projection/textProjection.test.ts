@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   applyTextContentProjection,
+  captureTextProjectionTarget,
   clearCanvasTextProjectionReports,
   EMPTY_TEXT_PROJECTION_ATTR,
   EMPTY_TEXT_PROJECTION_PATH_ATTR,
@@ -13,6 +14,8 @@ import {
   resolveTextProjectionTarget,
   TEXT_PROJECTION_ATTR,
 } from "./textProjection.ts";
+import { deserializeChange, isSerializableChange, serializeChange } from "../changes/codecs.ts";
+import { generatePrompt } from "../prompt/generatePrompt.ts";
 import type { TextContentChangeRecord } from "../changes/types.ts";
 
 function makeChange(overrides: Partial<TextContentChangeRecord> = {}): TextContentChangeRecord {
@@ -484,4 +487,52 @@ describe("text projection identity and diagnostics", () => {
     recordCanvasTextProjectionReports("card-1", 1, [{ changeId: "text-1", status: "missing" }]);
     clearCanvasTextProjectionReports("card-1");
   });
+});
+
+
+it("exports captured text identification after saving without repeating the source", () => {
+  document.body.innerHTML = '<main><h1 id="hero-title" data-cid="App" data-src="src/Playground.tsx:196:14" data-cprops="id:hero-title" aria-label="Hero title">Inspect the work</h1></main>';
+  const element = document.querySelector("h1")!;
+  const target = captureTextProjectionTarget(element)!;
+  const change = makeChange({
+    target,
+    source: { file: "src/Playground.tsx", line: 196, column: 14, component: "App" },
+    before: "Inspect the work", after: "Updated title", authoredAs: "unknown",
+  });
+  const saved = serializeChange(change)!;
+  expect(isSerializableChange(saved)).toBe(true);
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  expect(prompt).toContain("## Heading (`<h1>`)");
+  expect(prompt.match(/src\/Playground\.tsx:196:14/g)).toHaveLength(1);
+  expect(prompt).toContain("Element ID: `hero-title`");
+  expect(prompt).toContain("Accessible name: `Hero title`");
+  expect(prompt).toContain("DOM path: `h1#hero-title`");
+  expect(prompt).toContain("**Change:** Replace text `Inspect the work` with `Updated title`.");
+  expect(prompt).not.toContain("keep other instances unchanged");
+  expect(prompt).not.toContain("Source site");
+  expect(prompt).not.toContain("Props: `id:hero-title`");
+  expect(prompt).not.toContain("## App");
+});
+
+it("exports older text edits with a readable heading without inventing an element ID", () => {
+  const prompt = generatePrompt([makeChange({ before: "Original copy" })], undefined, [], "", [], []);
+  expect(prompt).toContain("## Text: `Original copy`");
+  expect(prompt).toContain("Source: `src/Copy.tsx:8:3`");
+  expect(prompt).not.toContain("Element ID:");
+});
+
+
+it("exports extension text identification without inventing source or an HTML ID", () => {
+  document.body.innerHTML = '<p data-cid="nudge-ui-runtime-7" data-src="nudge-ui:unknown:7">Welcome back</p>';
+  const target = captureTextProjectionTarget(document.querySelector("p")!)!;
+  const saved = serializeChange(makeChange({ target, before: "Welcome back", after: "Hello again" }))!;
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  expect(prompt).toContain("## Paragraph (`<p>`)");
+  expect(prompt).toContain("Text: `Welcome back`");
+  expect(prompt).toContain("DOM path: `p`");
+  expect(prompt).toContain("Replace text `Welcome back` with `Hello again`.");
+  expect(prompt).not.toContain("Element ID:");
+  expect(prompt).not.toContain("Source:");
+  expect(prompt).not.toContain("nudge-ui-runtime");
+  expect(prompt).not.toContain("nudge-ui:unknown");
 });

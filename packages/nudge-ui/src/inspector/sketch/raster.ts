@@ -1,6 +1,7 @@
 import {
   SKETCH_ANNOTATION_RADIUS,
   SKETCH_LIMITS,
+  SKETCH_ACCENT_COLOR,
   SKETCH_STROKE_COLOR,
   type SketchAnnotation,
   type SketchPoint,
@@ -124,7 +125,7 @@ export function drawSketchAnnotation(
   const radius = SKETCH_ANNOTATION_RADIUS * scale;
 
   ctx.save();
-  ctx.fillStyle = SKETCH_STROKE_COLOR;
+  ctx.fillStyle = SKETCH_ACCENT_COLOR;
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
@@ -246,7 +247,7 @@ function drawSketchNotes(
   noteLines: readonly string[],
 ): void {
   ctx.save();
-  ctx.fillStyle = SKETCH_STROKE_COLOR;
+  ctx.fillStyle = SKETCH_ACCENT_COLOR;
   ctx.fillRect(0, top, width, sketchNotePanelHeight(headingLines.length, noteLines.length));
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "left";
@@ -317,7 +318,11 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-export async function copyImageToClipboard(blob: Blob): Promise<void> {
+/**
+ * Accepts a pending blob so callers can start the write inside the user gesture
+ * (required by Safari) and resolve the image once rendering finishes.
+ */
+export async function copyImageToClipboard(blob: Blob | Promise<Blob>): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
     throw new Error("Image clipboard access is unavailable. Use Download image instead.");
   }

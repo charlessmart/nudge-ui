@@ -48,10 +48,6 @@
   cursor: pointer;
 }
 
-.token-chip__trigger:focus-visible {
-  box-shadow: var(--token-chip-focus-ring, inset 0 0 0 2px var(--accent));
-}
-
 .token-chip--small .token-chip__trigger {
   width: auto;
   /* A button's auto width never shrinks below its text; cap it so the label ellipsizes. */

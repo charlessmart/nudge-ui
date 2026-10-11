@@ -1,6 +1,8 @@
 import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
 import { clearComments } from "../comments/store.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
 import {
   getFrameGroups,
@@ -318,16 +320,18 @@ function safeDiscard(): void {
   }
 }
 
-/** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
-export function clearSelectedFrameChanges(): void {
-  if (!canEditDraft()) return;
+/** Clears the active draft, its comments, and project sketches while preserving canvas geometry and other drafts. */
+export function clearSelectedFrameChanges(): Promise<void> {
+  if (!canEditDraft()) return Promise.resolve();
   const cardId = getSelectedCardId() ?? getFocusedCardId();
   if (cardId) activateDraftForCard(cardId);
   clearComments(targetFromKey(getActiveDraftChanges().draftId) ?? documentTarget(window.location.href));
   clearActiveDraft();
+  clearSketchClipboardHandoff();
   setSelectedElement(null);
   projectToAllReadyCards();
   scheduleAutoSave();
+  return clearSketchesForProject();
 }
 
 export function clearSession(): void {

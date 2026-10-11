@@ -17,6 +17,7 @@ import menuScrollbarStyles from "./MenuScrollbar.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import tooltipStyles from "./Tooltip.css?inline";
+import toastStyles from "./Toast.css?inline";
 import inlineStyleWarningStyles from "./InlineStyleWarning.css?inline";
 import inspectorShellStyles from "../shell/InspectorShell.css?inline";
 import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
@@ -58,6 +59,7 @@ export const UI_STYLES = [
   inspectorPopoverStyles,
   sideValuesFieldStyles,
   tooltipStyles,
+  toastStyles,
   inlineStyleWarningStyles,
   inspectorShellStyles,
   inspectorOverlayStyles,

@@ -8,6 +8,7 @@ import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import type { InspectorSession } from "../session/sessionFactory.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
+import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
@@ -29,6 +30,7 @@ export function PageCard({ card, documentOwner }: PageCardProps): ReactElement {
     const session = documentOwner?.createDocumentSession(document);
     session?.registerCleanup(() => disposeBrowserCssInspection(document));
     session?.registerCleanup(() => releaseDocumentProjection(document));
+    session?.registerCleanup(() => disposeRuntimeIdentityClaims(document));
     session?.registerCleanup(() => disposeInlineTextEdit("frame-disposed", document));
     session?.registerCleanup(startClipboardHandoffController(document));
     const announce = () => connectFrame(card.id, frame).post({ type: "parent-ready" });

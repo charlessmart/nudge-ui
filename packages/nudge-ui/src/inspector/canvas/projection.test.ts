@@ -16,8 +16,10 @@ import {
   projectToAllReadyCards,
   projectDraftToDocument,
   recordCanvasProjectionApplied,
+  restoreCanonicalFrameProjection,
   sendProjectionToCard,
 } from "./projection.ts";
+import { activateIframeWorkspace, hydrateCanvasStore } from "./canvasStore.ts";
 import { appendChange, clearActiveDraft, getPendingRules } from "../drafts/store.ts";
 import { changeKey } from "../changes/model.ts";
 import {
@@ -324,6 +326,31 @@ describe("projection", () => {
     expect(isCanvasProjectionRevisionCurrent(iframe.contentDocument, 2)).toBe(true);
     expect(isCanvasCanonicalProjectionRevisionCurrent(iframe.contentDocument, 2)).toBe(false);
     unregisterCardFrame("card-temporary");
+  });
+
+  it("settles a canonical restore only after the renderer acknowledges it", async () => {
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    const card = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
+    registerCardFrame(card.id, iframe);
+    const temporary = projectDraftToDocument(iframe.contentDocument, { changes: [], structuralChanges: [] });
+    recordCanvasProjectionApplied(card.id, 1);
+    await expect(temporary).resolves.toBe(1);
+
+    let settled = false;
+    const restore = restoreCanonicalFrameProjection(iframe.contentDocument).then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled, "The restore must wait for the renderer's acknowledgement").toBe(false);
+    const { sentRevision } = getCanvasProjectionStatus(iframe.contentDocument)!;
+    recordCanvasProjectionApplied(card.id, sentRevision);
+    await restore;
+    expect(settled).toBe(true);
+    expect(isCanvasCanonicalProjectionRevisionCurrent(iframe.contentDocument, sentRevision)).toBe(true);
+    unregisterCardFrame(card.id);
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   });
 
   it("rejects a temporary verification projection superseded by a canonical edit", async () => {

@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { IconArtboard, IconBoltFilled, IconSparkles } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconBoltFilled, IconRoute } from "@tabler/icons-react";
 import { useCanvasPresentation } from "../canvas/viewStore.ts";
 import { Disclosure } from "../ui/Disclosure.tsx";
 import { GRID_ILLUSTRATION_SVG } from "../ui/assets/gridIllustration.ts";
@@ -19,9 +19,9 @@ export function EmptyState(): ReactElement {
       {canvas ? (
         <div className="empty-state__canvas" data-test="canvas-intro">
           <h2 className="empty-state__title">Using the canvas</h2>
-          <p><span className="empty-state__live-badge"><IconBoltFilled aria-hidden="true" /></span><span><strong>Live app</strong>A view of your real running app</span></p>
-          <p><IconArtboard aria-hidden="true" /><span><strong>HTML iterations</strong>Unlinked from live app for isolated changes. Ask your agent to implement in live app once ready.</span></p>
-          <p><IconSparkles aria-hidden="true" /><span><strong>Agent with MCP</strong>Ask your agent to: lay out flows, show page states and create iterations.</span></p>
+          <p><span className="empty-state__live-badge"><IconBoltFilled aria-hidden="true" /></span><span><strong>Live app</strong>A view of your running app.</span></p>
+          <p><IconAdjustmentsHorizontal aria-hidden="true" /><span><strong>Preview changes</strong>Select elements to edit styles, text and layout on the canvas.</span></p>
+          <p><IconRoute aria-hidden="true" /><span><strong>Preview flows</strong>Follow links to open new pages on the canvas and preview flows.</span></p>
         </div>
       ) : (
         <>
