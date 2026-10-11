@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { IconChevronDown, IconSquare } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -10,9 +10,7 @@ import {
   type SketchDrawingTool,
 } from "../sketch/drawingTools.ts";
 import { SKETCH_STROKE_COLORS, type SketchStrokeColor } from "../sketch/model.ts";
-
-/** Matches the `width` transition in CanvasToolbar.css. */
-const SLIDE_DURATION_MS = 220;
+import { ToolOptionsDrawer, useDismissablePopover } from "./ToolOptionsDrawer.tsx";
 
 const COLOR_NAMES: Readonly<Record<(typeof SKETCH_STROKE_COLORS)[number], string>> = {
   "#f03e1e": "Red",
@@ -25,10 +23,6 @@ const COLOR_NAMES: Readonly<Record<(typeof SKETCH_STROKE_COLORS)[number], string
 function colorName(color: SketchStrokeColor): string {
   return color in COLOR_NAMES ? COLOR_NAMES[color as keyof typeof COLOR_NAMES] : color;
 }
-
-// The toolbar is remounted when sketching moves it into a root-level portal.
-// Remember the last state so the new instance can animate from it.
-let lastOpen = false;
 
 function PenIllustration({ color }: { readonly color: SketchStrokeColor }): ReactElement {
   const id = useId();
@@ -108,23 +102,7 @@ function ColorPicker({ color, hidden }: { readonly color: SketchStrokeColor; rea
     if (hidden) setOpen(false);
   }, [hidden]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent): void {
-      if (rootRef.current && !event.composedPath().includes(rootRef.current)) setOpen(false);
-    }
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      setOpen(false);
-    }
-    window.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("keydown", onKeyDown, true);
-    };
-  }, [open]);
+  useDismissablePopover(open, rootRef, () => setOpen(false));
 
   return (
     <div className="sketch-options__color" ref={rootRef}>
@@ -144,7 +122,7 @@ function ColorPicker({ color, hidden }: { readonly color: SketchStrokeColor; rea
         </button>
       </Tooltip>
       {open ? (
-        <div className="sketch-options__palette" role="group" aria-label="Pen color" data-test="sketch-color-palette">
+        <div className="tool-options__popover sketch-options__palette" role="group" aria-label="Pen color" data-test="sketch-color-palette">
           {SKETCH_STROKE_COLORS.map((option) => (
             <button
               key={option}
@@ -171,73 +149,34 @@ function ColorPicker({ color, hidden }: { readonly color: SketchStrokeColor; rea
 /** Pen, eraser, color and rectangle controls that slide out beside the sketch tool. */
 export function SketchToolOptions({ open }: { readonly open: boolean }): ReactElement {
   const drawing = useSketchDrawingTools();
-  const [expanded, setExpanded] = useState(lastOpen);
-  const [settled, setSettled] = useState(lastOpen && open);
-  const [contentWidth, setContentWidth] = useState(0);
-  const innerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const inner = innerRef.current;
-    if (!inner) return;
-    setContentWidth(inner.offsetWidth);
-    const observer = typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(() => setContentWidth(inner.offsetWidth));
-    observer?.observe(inner);
-    return () => observer?.disconnect();
-  }, []);
-
-  useEffect(() => {
-    lastOpen = open;
-    if (!open) setSettled(false);
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    // Wait a frame so a freshly mounted toolbar paints its previous state first.
-    const frame = requestAnimationFrame(() => {
-      setExpanded(open);
-      if (open) timer = setTimeout(() => setSettled(true), SLIDE_DURATION_MS);
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(timer);
-    };
-  }, [open]);
-
-  const hidden = !open;
   return (
-    <div
-      className="sketch-options"
-      role="group"
-      aria-label="Sketch tools"
-      aria-hidden={hidden}
-      data-expanded={expanded ? "true" : "false"}
-      data-settled={settled ? "true" : "false"}
-      data-test="sketch-tool-options"
-      style={{ width: expanded ? contentWidth : 0 }}
-    >
-      <div className="sketch-options__inner" ref={innerRef}>
-        <IllustratedToolButton tool="pen" activeTool={drawing.tool} label="Pen" hidden={hidden}>
-          <PenIllustration color={drawing.color} />
-        </IllustratedToolButton>
-        <IllustratedToolButton tool="eraser" activeTool={drawing.tool} label="Eraser" hidden={hidden}>
-          <EraserIllustration />
-        </IllustratedToolButton>
-        <ColorPicker color={drawing.color} hidden={hidden || !settled} />
-        <Tooltip content="Rectangle" stableTrigger>
-          <IconButton
-            variant="quiet"
-            size="large"
-            className="canvas-toolbar__tool"
-            label="Rectangle"
-            aria-pressed={drawing.tool === "rectangle"}
-            data-active={drawing.tool === "rectangle" ? "true" : "false"}
-            data-test="sketch-tool-rectangle"
-            tabIndex={hidden ? -1 : undefined}
-            onClick={() => setSketchDrawingTool("rectangle")}
-          >
-            <IconSquare size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-          </IconButton>
-        </Tooltip>
-      </div>
-    </div>
+    <ToolOptionsDrawer name="sketch" open={open} label="Sketch tools">
+      {({ hidden, settled }) => (
+        <>
+          <IllustratedToolButton tool="pen" activeTool={drawing.tool} label="Pen" hidden={hidden}>
+            <PenIllustration color={drawing.color} />
+          </IllustratedToolButton>
+          <IllustratedToolButton tool="eraser" activeTool={drawing.tool} label="Eraser" hidden={hidden}>
+            <EraserIllustration />
+          </IllustratedToolButton>
+          <ColorPicker color={drawing.color} hidden={hidden || !settled} />
+          <Tooltip content="Rectangle" stableTrigger>
+            <IconButton
+              variant="quiet"
+              size="large"
+              className="canvas-toolbar__tool"
+              label="Rectangle"
+              aria-pressed={drawing.tool === "rectangle"}
+              data-active={drawing.tool === "rectangle" ? "true" : "false"}
+              data-test="sketch-tool-rectangle"
+              tabIndex={hidden ? -1 : undefined}
+              onClick={() => setSketchDrawingTool("rectangle")}
+            >
+              <IconSquare size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
+        </>
+      )}
+    </ToolOptionsDrawer>
   );
 }

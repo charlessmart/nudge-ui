@@ -49,9 +49,9 @@
   color: var(--accent);
 }
 
-/* Sketch options slide out beside the pencil. The component sets an explicit
+/* Tool options slide out beside their tool. The component sets an explicit
    pixel width (0 or the content's natural width) so the toolbar grows smoothly. */
-.sketch-options {
+.tool-options {
   flex-shrink: 0;
   margin-inline-start: calc(var(--space-4) * -1);
   overflow: hidden;
@@ -62,21 +62,21 @@
     opacity 160ms ease;
 }
 
-.sketch-options[data-expanded="true"] {
+.tool-options[data-expanded="true"] {
   margin-inline-start: 0;
   opacity: 1;
 }
 
 /* Once the slide finishes, let the illustrations and palette rise above the bar. */
-.sketch-options[data-settled="true"] {
+.tool-options[data-settled="true"] {
   overflow: visible;
 }
 
-.sketch-options[aria-hidden="true"] {
+.tool-options[aria-hidden="true"] {
   pointer-events: none;
 }
 
-.sketch-options__inner {
+.tool-options__inner {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -111,7 +111,7 @@
   transform: translate(-50%, 13px);
 }
 
-.sketch-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
+.tool-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
   transform: translate(-50%, 4px);
 }
 
@@ -153,18 +153,21 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
-.sketch-options__palette {
+.tool-options__popover {
   position: absolute;
   left: 50%;
   bottom: calc(100% + var(--space-16));
-  display: flex;
-  gap: var(--space-4);
   padding: var(--space-4);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
   transform: translateX(-50%);
-  animation: sketch-options-palette-in 140ms cubic-bezier(0.2, 0, 0, 1);
+  animation: tool-options-popover-in 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.sketch-options__palette {
+  display: flex;
+  gap: var(--space-4);
 }
 
 .sketch-options__palette-option {
@@ -188,7 +191,7 @@
   background: var(--accent-surface);
 }
 
-@keyframes sketch-options-palette-in {
+@keyframes tool-options-popover-in {
   from {
     opacity: 0;
     transform: translate(-50%, 4px);
@@ -196,12 +199,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sketch-options,
+  .tool-options,
   .sketch-options__illustration {
     transition: none;
   }
 
-  .sketch-options__palette {
+  .tool-options__popover {
     animation: none;
   }
 }
