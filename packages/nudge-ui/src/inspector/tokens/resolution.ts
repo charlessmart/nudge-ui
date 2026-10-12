@@ -7,7 +7,7 @@ import {
   documentRevisions as getDocumentRevisions,
   registerResolutionLineage,
 } from "./resolution/cssomCollector.ts";
-import { createRuleMatcher, matchRuleForElement, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
+import { createRuleMatcher, matchRuleForElement, prewarmRuleMatching, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 import type {
   AtRuleCandidate,
@@ -37,13 +37,14 @@ export { buildTokenTable, getTokenTable, getAvailableTokenEntriesForElement, get
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 
 /**
- * Builds (or reuses) the document's CSSOM rule snapshot ahead of a resolution
- * sweep. Idempotent: the walk runs once per stylesheet revision and is a cache
- * hit afterwards, so a scheduler can warm it in its own frame to keep the
- * subsequent resolution sweep's blocking time small.
+ * Builds (or reuses) the document's CSSOM rule snapshot and its selector
+ * indexes ahead of a resolution sweep. Idempotent: the work runs once per
+ * stylesheet revision and is a cache hit afterwards, so a scheduler can warm
+ * it in its own frame to keep the subsequent resolution sweep's blocking time
+ * small.
  */
 export function prewarmCssomRuleSnapshot(doc: Document): void {
-  collectCssomRules(doc);
+  prewarmRuleMatching(collectCssomRules(doc).rules);
 }
 
 const MAX_PROPERTIES = 100;

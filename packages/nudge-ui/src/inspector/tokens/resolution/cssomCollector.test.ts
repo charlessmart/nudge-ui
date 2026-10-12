@@ -5,6 +5,7 @@ import {
   declarationsFromCssom,
   disposeDocumentResolution,
   documentRevisions,
+  invalidateOwnedStyleResolution,
   invalidateStyleResolutionCache,
   registerResolutionElement,
   subscribeDocumentRevision,
@@ -104,6 +105,78 @@ describe("CSSOM collector", () => {
 
     if (cssDescriptor) Object.defineProperty(window, "CSS", cssDescriptor);
     else delete (window as unknown as { CSS?: unknown }).CSS;
+  });
+});
+
+describe("page stylesheet walk reuse", () => {
+  afterEach(() => {
+    document.head.innerHTML = "";
+    invalidateStyleResolutionCache(document);
+  });
+
+  function pageAndManagedSheets(): { page: HTMLStyleElement; managed: HTMLStyleElement } {
+    const page = document.createElement("style");
+    page.textContent = ".page { color: red; } .second { color: green; }";
+    const managed = document.createElement("style");
+    managed.id = "nudge-ui-styles";
+    managed.setAttribute("data-nudge-ui", "managed");
+    managed.textContent = ".managed { color: blue; }";
+    document.head.append(page, managed);
+    return { page, managed };
+  }
+
+  it("keeps page rules and re-reads only inspector-owned sheets after an owned write", () => {
+    const { managed } = pageAndManagedSheets();
+    const before = collectRules(document).rules;
+
+    managed.textContent = ".managed { color: purple; }";
+    invalidateOwnedStyleResolution(document);
+    const after = collectRules(document);
+
+    expect(after.rules).not.toBe(before);
+    expect(after.rules[0]!.declarations).toBe(before[0]!.declarations);
+    expect(after.rules.map(({ selectorText, sourceOrder }) => ({ selectorText, sourceOrder }))).toEqual([
+      { selectorText: ".page", sourceOrder: 0 },
+      { selectorText: ".second", sourceOrder: 1 },
+      { selectorText: ".managed", sourceOrder: 2 },
+    ]);
+    expect(after.rules[2]!.declarations).toEqual([{ property: "color", value: "purple", important: false }]);
+  });
+
+  it("re-reads a page sheet whose rule count changed", () => {
+    const { page } = pageAndManagedSheets();
+    collectRules(document);
+
+    page.sheet!.insertRule(".inserted { color: orange; }", 1);
+    invalidateOwnedStyleResolution(document);
+
+    expect(collectRules(document).rules.map((rule) => rule.selectorText))
+      .toEqual([".page", ".inserted", ".second", ".managed"]);
+  });
+
+  it("re-reads page sheets after a general invalidation", () => {
+    pageAndManagedSheets();
+    const before = collectRules(document).rules;
+
+    invalidateStyleResolutionCache(document);
+
+    expect(collectRules(document).rules[0]!.declarations).not.toBe(before[0]!.declarations);
+  });
+
+  it("re-reads a page sheet when a media condition it evaluated changes", () => {
+    const matchMedia = window.matchMedia;
+    let matches = true;
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches }) });
+    const style = document.createElement("style");
+    style.textContent = "@media (min-width: 600px) { .wide { color: red; } }";
+    document.head.append(style);
+    expect(collectRules(document).rules[0]!.active).toBe(true);
+
+    matches = false;
+    invalidateOwnedStyleResolution(document);
+
+    expect(collectRules(document).rules[0]!.active).toBe(false);
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
   });
 });
 

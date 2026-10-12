@@ -48,6 +48,10 @@ interface FrameProjectionState {
   appliedRevision: number;
   canonicalSentRevision: number;
   canonicalProjection: FrameProjection | null;
+  /** Managed CSS of each sent revision not yet acknowledged. */
+  sentCss: Map<number, string>;
+  /** Managed CSS of the applied revision, or null before the first one. */
+  appliedCss: string | null;
 }
 
 export interface CanvasProjectionStatus {
@@ -221,7 +225,7 @@ function sendProjectionMessage(
   canonical = false,
 ): void {
   if (!iframe.contentWindow) return;
-  markProjectionSent(cardId, iframe, rev, canonical);
+  markProjectionSent(cardId, iframe, rev, css, canonical);
   connectFrame(cardId, iframe).post({
     type: "replace-styles",
     css,
@@ -347,6 +351,8 @@ export function registerCardFrame(cardId: string, iframe: CanvasFrame): void {
       appliedRevision: -1,
       canonicalSentRevision: -1,
       canonicalProjection: null,
+      sentCss: new Map(),
+      appliedCss: null,
     });
   } else {
     startPreviewDocumentSession(existing.previewDocument);
@@ -408,10 +414,11 @@ function getFrameDocument(iframe: CanvasFrame): Document | null {
   }
 }
 
-function markProjectionSent(cardId: string, iframe: CanvasFrame, sentRevision: number, canonical = false): void {
+function markProjectionSent(cardId: string, iframe: CanvasFrame, sentRevision: number, css: string, canonical = false): void {
   const state = frameProjectionStates.get(cardId);
   if (!state || state.iframe !== iframe) return;
   state.sentRevision = Math.max(state.sentRevision, sentRevision);
+  state.sentCss.set(sentRevision, css);
   if (canonical) state.canonicalSentRevision = sentRevision;
 }
 
@@ -420,9 +427,16 @@ export function recordCanvasProjectionApplied(cardId: string, appliedRevision: n
   const state = frameProjectionStates.get(cardId);
   if (!state || appliedRevision > state.sentRevision || appliedRevision <= state.appliedRevision) return;
   state.appliedRevision = appliedRevision;
+  const css = state.sentCss.get(appliedRevision);
+  for (const sent of state.sentCss.keys()) {
+    if (sent <= appliedRevision) state.sentCss.delete(sent);
+  }
   // Adopted stylesheet writes in the renderer do not emit DOM mutations or
-  // invalidate the controller's separate CSSOM cache.
-  if (state.document && state.iframe.contentDocument === state.document) {
+  // invalidate the controller's separate CSSOM cache. Structural and text
+  // projections leave the CSS unchanged, so they need no stylesheet refresh.
+  const cssChanged = css === undefined || css !== state.appliedCss;
+  state.appliedCss = css ?? null;
+  if (cssChanged && state.document && state.iframe.contentDocument === state.document) {
     notifyBrowserStylesheetChange(state.document);
   }
   projectionAcknowledgementVersion += 1;

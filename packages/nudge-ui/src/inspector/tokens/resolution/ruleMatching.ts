@@ -7,6 +7,7 @@ import {
   isElementSensitiveSelector,
   canMatchSelectorSubject,
   selectorPseudoClasses,
+  selectorSubjectClass,
   splitSelectorAtTopLevel,
 } from "./selectorSemantics.ts";
 
@@ -89,6 +90,25 @@ function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specific
 
 const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
 
+// Every stylesheet revision produces a new rule snapshot, but nearly all of
+// its selectors are unchanged, so transformed selectors are kept by text.
+const TRANSFORMED_SELECTOR_CACHE_MAX = 32_768;
+const transformedSelectorMemo = new Map<CascadeTransform, Map<string, string | null>>();
+
+function transformSelector(selectorText: string, transform: Exclude<CascadeTransform, "live">): string | null {
+  let byText = transformedSelectorMemo.get(transform);
+  if (!byText) {
+    byText = new Map();
+    transformedSelectorMemo.set(transform, byText);
+  }
+  const cached = byText.get(selectorText);
+  if (cached !== undefined) return cached;
+  const transformed = transform === "stable" ? stableSelector(selectorText) : selectorForState(selectorText, transform);
+  if (byText.size >= TRANSFORMED_SELECTOR_CACHE_MAX) byText.clear();
+  byText.set(selectorText, transformed);
+  return transformed;
+}
+
 function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): Array<{ rule: MatchedRule; selectorText: string }> {
   let byTransform = transformedRulesMemo.get(rules);
   if (!byTransform) {
@@ -100,19 +120,100 @@ function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): A
   let transformed: Array<{ rule: MatchedRule; selectorText: string }>;
   if (transform === "live") {
     transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
-  } else if (transform === "stable") {
-    transformed = rules.flatMap((rule) => {
-      const selectorText = stableSelector(rule.selectorText);
-      return selectorText ? [{ rule, selectorText }] : [];
-    });
   } else {
     transformed = rules.flatMap((rule) => {
-      const selectorText = selectorForState(rule.selectorText, transform);
+      const selectorText = transformSelector(rule.selectorText, transform);
       return selectorText ? [{ rule, selectorText }] : [];
     });
   }
   byTransform.set(transform, transformed);
   return transformed;
+}
+
+type MatchEntry = { rule: MatchedRule; selectorText: string };
+
+/**
+ * Entries keyed by a class their subject requires, the way browsers bucket
+ * rules. Utility stylesheets hold thousands of single-class rules, and testing
+ * each one against every element in a lineage dominates selection latency.
+ */
+interface SubjectClassIndex {
+  byClass: Map<string, number[]>;
+  /** Entries with a branch whose subject requires no class. */
+  unindexed: number[];
+  unindexedEntries: MatchEntry[];
+}
+
+const subjectClassIndexMemo = new WeakMap<readonly MatchEntry[], SubjectClassIndex>();
+const SUBJECT_CLASS_KEYS_CACHE_MAX = 32_768;
+const subjectClassKeysMemo = new Map<string, readonly string[] | null>();
+
+/** One required class per branch, or null when some branch requires none. */
+function subjectClassKeys(selectorText: string): readonly string[] | null {
+  const cached = subjectClassKeysMemo.get(selectorText);
+  if (cached !== undefined) return cached;
+  const keys = new Set<string>();
+  let indexed = true;
+  for (const branch of splitSelectorAtTopLevel(selectorText, ",")) {
+    const className = selectorSubjectClass(branch.trim());
+    if (className === null) {
+      indexed = false;
+      break;
+    }
+    keys.add(className);
+  }
+  const result = indexed ? [...keys] : null;
+  if (subjectClassKeysMemo.size >= SUBJECT_CLASS_KEYS_CACHE_MAX) subjectClassKeysMemo.clear();
+  subjectClassKeysMemo.set(selectorText, result);
+  return result;
+}
+
+function subjectClassIndex(entries: readonly MatchEntry[]): SubjectClassIndex {
+  const cached = subjectClassIndexMemo.get(entries);
+  if (cached) return cached;
+  const byClass = new Map<string, number[]>();
+  const unindexed: number[] = [];
+  entries.forEach((entry, index) => {
+    const keys = subjectClassKeys(entry.selectorText);
+    if (keys === null) {
+      unindexed.push(index);
+      return;
+    }
+    for (const key of keys) {
+      const bucket = byClass.get(key);
+      if (bucket) bucket.push(index);
+      else byClass.set(key, [index]);
+    }
+  });
+  const built = { byClass, unindexed, unindexedEntries: unindexed.map((index) => entries[index]!) };
+  subjectClassIndexMemo.set(entries, built);
+  return built;
+}
+
+/**
+ * The entries whose selectors can match `el`, in their original order. This
+ * only skips branches `canMatchSelectorSubject` would reject anyway.
+ */
+function candidateEntries(entries: readonly MatchEntry[], el: Element): readonly MatchEntry[] {
+  const index = subjectClassIndex(entries);
+  if (el.classList.length === 0 || index.byClass.size === 0) return index.unindexedEntries;
+  let picked: number[] | null = null;
+  for (const className of el.classList) {
+    const bucket = index.byClass.get(className);
+    if (!bucket) continue;
+    picked ??= [...index.unindexed];
+    for (const entryIndex of bucket) picked.push(entryIndex);
+  }
+  if (!picked) return index.unindexedEntries;
+  picked.sort((left, right) => left - right);
+  const candidates: MatchEntry[] = [];
+  let previous = -1;
+  for (const entryIndex of picked) {
+    if (entryIndex === previous) continue;
+    previous = entryIndex;
+    candidates.push(entries[entryIndex]!);
+  }
+  return candidates;
 }
 
 interface SourceSiteMatchBuckets {
@@ -229,7 +330,7 @@ function elementSensitiveMatchKey(
   let depth = 0;
   while (current) {
     const elementMatches: ElementMatch[] = [];
-    for (const entry of entries) {
+    for (const entry of candidateEntries(entries, current)) {
       const match = matchRuleForElement(current, entry);
       if (!match) continue;
       elementMatches.push(match);
@@ -249,7 +350,7 @@ function sensitiveMatchesForElement(
 ): ElementMatch[] {
   const cached = matchesByElement.get(el);
   if (cached) return cached;
-  const matched = buckets.elementSensitive.flatMap((entry) => {
+  const matched = candidateEntries(buckets.elementSensitive, el).flatMap((entry) => {
     const match = matchRuleForElement(el, entry);
     return match ? [match] : [];
   });
@@ -272,7 +373,7 @@ function getCachedElementMatches(
   const { cacheable, elementSensitive } = buckets;
   const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => {
     const matched: ElementMatch[] = [];
-    for (const entry of entries) {
+    for (const entry of candidateEntries(entries, el)) {
       if (entry.rule.active === false) continue;
       const match = matchRuleForElement(el, entry);
       if (match) matched.push(match);
@@ -357,14 +458,14 @@ function getAllElementMatches(
 ): ElementMatch[] {
   const buckets = sourceSiteMatchBuckets(rules, transform);
   if (transform === "live") {
-    const cacheableMatches = buckets.cacheable.flatMap((entry) => {
+    const cacheableMatches = candidateEntries(buckets.cacheable, el).flatMap((entry) => {
       const match = matchRuleForElement(el, entry);
       return match ? [match] : [];
     });
     return [...cacheableMatches, ...sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement)];
   }
   const { cacheable, elementSensitive } = buckets;
-  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => entries.flatMap((entry) => {
+  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => candidateEntries(entries, el).flatMap((entry) => {
     const match = matchRuleForElement(el, entry);
     return match ? [match] : [];
   });
@@ -399,7 +500,7 @@ function getAllElementMatches(
 
 // Branch splits repeat across sweeps, so memoize them for the finite selector
 // set in a stylesheet snapshot.
-const SELECTOR_SPLIT_CACHE_MAX = 8192;
+const SELECTOR_SPLIT_CACHE_MAX = 32_768;
 const selectorSplitMemo = new Map<string, string[]>();
 
 // Branch matches are reusable for state-independent selectors. Transient
@@ -504,6 +605,19 @@ function statesWithPseudoInSelectors(rules: MatchedRule[]): Set<InteractionState
     statesWithPseudoInSnapshot.set(rules, present);
   }
   return present;
+}
+
+/**
+ * Builds the per-snapshot selector transforms, buckets, and class indexes a
+ * selection sweep needs, so an idle frame can pay their parsing cost.
+ */
+export function prewarmRuleMatching(rules: MatchedRule[]): void {
+  const transforms: CascadeTransform[] = ["base", "stable", "live", ...statesWithPseudoInSelectors(rules)];
+  for (const transform of new Set(transforms)) {
+    const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+    subjectClassIndex(cacheable);
+    subjectClassIndex(elementSensitive);
+  }
 }
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {

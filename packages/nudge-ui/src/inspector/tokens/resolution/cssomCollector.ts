@@ -30,6 +30,17 @@ interface DocumentResolutionReference {
 
 const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
+/**
+ * Bumped by every invalidation that could change a page-owned stylesheet's
+ * walk without replacing its CSSStyleSheet object (media changes, resizes,
+ * explicit invalidation). Inspector-owned stylesheet writes leave it alone so
+ * page stylesheets keep their walked rules across edits.
+ */
+const pageSheetEpochs = new WeakMap<Document, number>();
+
+function bumpPageSheetEpoch(doc: Document): void {
+  pageSheetEpochs.set(doc, (pageSheetEpochs.get(doc) ?? 0) + 1);
+}
 const documentResolutionSessions = new WeakMap<Document, DocumentResolutionSession>();
 const documentResolutionReferences = new WeakMap<Document, DocumentResolutionReference>();
 
@@ -116,6 +127,7 @@ export function disposeDocumentResolution(doc: Document): void {
     }
   }
   ruleSnapshots.delete(doc);
+  bumpPageSheetEpoch(doc);
   documentRevisionListeners.get(doc)?.clear();
   documentRevisionListeners.delete(doc);
 }
@@ -171,6 +183,19 @@ const MANAGED_SHEET_ID = "nudge-ui-styles";
 
 function isManagedStylesheetNode(node: Node | null): boolean {
   return isStylesheetNode(node) && (node as Element).id === MANAGED_SHEET_ID;
+}
+
+function isPageStylesheetNode(node: Node | null): boolean {
+  return isStylesheetNode(node) && !isManagedStylesheetNode(node);
+}
+
+/** Like changesStylesheet, ignoring the inspector's managed stylesheet. */
+function changesPageStylesheet(record: MutationRecord): boolean {
+  if (record.type === "attributes") return isPageStylesheetNode(record.target);
+  if (record.type === "characterData") return isPageStylesheetNode(record.target.parentElement);
+  return isPageStylesheetNode(record.target)
+    || Array.from(record.addedNodes).some(isPageStylesheetNode)
+    || Array.from(record.removedNodes).some(isPageStylesheetNode);
 }
 
 /**
@@ -263,6 +288,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
       if (relevant.length === 0) return;
       record.element++;
       if (relevant.some(changesStylesheet)) record.stylesheet++;
+      if (relevant.some(changesPageStylesheet)) bumpPageSheetEpoch(doc);
       notifyDocumentRevision(doc);
     });
     session.observer = observer;
@@ -278,6 +304,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
       if (!isCurrentDocumentResolutionSession(doc, session)) return;
       record.element++;
       record.stylesheet++;
+      bumpPageSheetEpoch(doc);
       notifyDocumentRevision(doc);
     };
     session.resizeListener = resizeListener;
@@ -292,6 +319,19 @@ function stylesheetRevision(doc: Document): number {
 
 /** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
 export function invalidateStyleResolutionCache(doc: Document = document): void {
+  const record = documentRevisions(doc);
+  record.element++;
+  record.stylesheet++;
+  ruleSnapshots.delete(doc);
+  bumpPageSheetEpoch(doc);
+  notifyDocumentRevision(doc);
+}
+
+/**
+ * Invalidates CSSOM-derived snapshots after the inspector rewrote only its own
+ * stylesheets. Page stylesheets are re-read only if their objects changed.
+ */
+export function invalidateOwnedStyleResolution(doc: Document = document): void {
   const record = documentRevisions(doc);
   record.element++;
   record.stylesheet++;
@@ -449,31 +489,53 @@ function isNestedDeclarations(rule: CSSRule, doc: Document): rule is CSSRule & {
   return !/^\s*@/.test(rule.cssText ?? "") && typeof (rule as { style?: unknown }).style === "object";
 }
 
-export function collectRules(doc: Document) {
-  const revision = stylesheetRevision(doc);
-  const cached = ruleSnapshots.get(doc);
-  if (cached?.revision === revision) {
-    return {
-      rules: cached.rules,
-      layerOrder: cached.layerOrder,
-      inaccessible: cached.inaccessible,
-    };
-  }
+type WalkedRule = Omit<MatchedRule, "source" | "sourceOrder" | "layerOrder">;
+/** One sheet's walk, in order: a layer's first mention or a style rule. */
+type WalkEvent = { layer: string } | { rule: WalkedRule };
 
-  const out: MatchedRule[] = [];
-  const layerOrder = new Map<string, number>();
-  let inaccessible = false;
-  let sourceOrder = 0;
-  const registerLayer = (name: string): string | undefined => {
-    const normalized = name.trim();
-    if (!normalized) return undefined;
-    if (!layerOrder.has(normalized)) layerOrder.set(normalized, layerOrder.size);
-    return normalized;
-  };
+interface SheetWalk {
+  epoch: number;
+  ruleCount: number;
+  /** Media conditions the walk evaluated, with the answers it used. */
+  media: ReadonlyMap<string, boolean>;
+  events: WalkEvent[];
+}
+
+/**
+ * Walks of page-owned stylesheets. Inspector edits rewrite only the inspector's
+ * own sheets, so re-reading thousands of page rules after each edit is waste.
+ * A sheet's walk is reused while the same object keeps its rule count, the
+ * page epoch is unchanged, and every media condition it read still answers
+ * the same way.
+ */
+const pageSheetWalks = new WeakMap<CSSStyleSheet, SheetWalk>();
+
+function walkStillValid(walk: SheetWalk, rules: CSSRuleList, epoch: number, view: Window | null): boolean {
+  if (walk.epoch !== epoch || walk.ruleCount !== rules.length) return false;
+  for (const [condition, matches] of walk.media) {
+    if ((view ? view.matchMedia(condition).matches : false) !== matches) return false;
+  }
+  return true;
+}
+
+function walkSheet(rules: CSSRuleList, doc: Document): Pick<SheetWalk, "events" | "media"> {
+  const events: WalkEvent[] = [];
+  const media = new Map<string, boolean>();
+  const view = doc.defaultView;
   const nestedLayerName = (parent: string | undefined, child: string): string | undefined => {
     const normalized = child.trim();
     if (!normalized) return parent;
-    return registerLayer(parent ? `${parent}.${normalized}` : normalized);
+    const name = parent ? `${parent}.${normalized}` : normalized;
+    events.push({ layer: name });
+    return name;
+  };
+  const mediaMatches = (condition: string): boolean => {
+    let matches = media.get(condition);
+    if (matches === undefined) {
+      matches = view ? view.matchMedia(condition).matches : false;
+      media.set(condition, matches);
+    }
+    return matches;
   };
   const walkRules = (
     rules: CSSRuleList,
@@ -481,50 +543,47 @@ export function collectRules(doc: Document) {
     layer?: string,
     atRules: AtRuleContext[] = [],
     inheritedSelector?: string,
-    source?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
+      if (isStyleRuleInDocument(rule, doc)) {
+        try {
+          const selectorText = inheritedSelector
+            ? resolveNestedSelector(rule.selectorText, inheritedSelector)
+            : rule.selectorText;
+          events.push({ rule: {
+            selectorText,
+            specificity: computeSpecificityCore(selectorText),
+            declarations: declarationsFromCssom(rule.style),
+            active,
+            layer,
+            atRules: atRules.length > 0 ? atRules : undefined,
+          } });
+          const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
+          if (nested?.length) walkRules(nested, active, layer, atRules, selectorText);
+        } catch {
+          continue;
+        }
+        continue;
+      }
+      // Serializing a style rule's declaration block is costly, so only other
+      // rule kinds are serialized to recognise their at-rule.
       const serializedRule = rule.cssText ?? "";
       const layerStatement = /^\s*@layer\s+([^;{]+)\s*;/i.exec(serializedRule);
       if (layerStatement && !("cssRules" in rule)) {
         layerStatement[1]!.split(",").forEach((name) => nestedLayerName(layer, name));
         continue;
       }
-      if (isStyleRuleInDocument(rule, doc)) {
-        try {
-          const selectorText = inheritedSelector
-            ? resolveNestedSelector(rule.selectorText, inheritedSelector)
-            : rule.selectorText;
-          out.push({
-            selectorText,
-            specificity: computeSpecificityCore(selectorText),
-            declarations: declarationsFromCssom(rule.style),
-            source,
-            sourceOrder: sourceOrder++,
-            active,
-            layer,
-            layerOrder: layer ? layerOrder.get(layer) : undefined,
-            atRules: atRules.length > 0 ? atRules : undefined,
-          });
-          const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
-          if (nested?.length) walkRules(nested, active, layer, atRules, selectorText, source);
-        } catch {
-          continue;
-        }
-      } else if (isNestedDeclarations(rule, doc)) {
+      if (isNestedDeclarations(rule, doc)) {
         if (!inheritedSelector) continue;
         try {
-          out.push({
+          events.push({ rule: {
             selectorText: inheritedSelector,
             specificity: computeSpecificityCore(inheritedSelector),
             declarations: declarationsFromCssom(rule.style),
-            source,
-            sourceOrder: sourceOrder++,
             active,
             layer,
-            layerOrder: layer ? layerOrder.get(layer) : undefined,
             atRules: atRules.length > 0 ? atRules : undefined,
-          });
+          } });
         } catch {
           continue;
         }
@@ -537,13 +596,12 @@ export function collectRules(doc: Document) {
             name?: string;
           };
           let childActive = active;
-          const cssText = rule.cssText ?? "";
+          const cssText = serializedRule;
           const isMedia = /^\s*@media\b/i.test(cssText);
           const isSupports = /^\s*@supports\b/i.test(cssText);
           const isLayer = /^\s*@layer\b/i.test(cssText);
-          const view = doc.defaultView;
-          if (isMedia && record.conditionText) childActive = active && (view ? view.matchMedia(record.conditionText).matches : false);
-          else if (isSupports && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
+          if (isMedia && record.conditionText) childActive = active && mediaMatches(record.conditionText);
+          else if (isSupports && record.conditionText) childActive = active && (view?.CSS?.supports(record.conditionText) ?? false);
           // A container query is evaluated relative to the styled element, so
           // it cannot be answered while walking a document-level stylesheet.
           // Resolution evaluates its retained context against the selected
@@ -558,13 +616,60 @@ export function collectRules(doc: Document) {
             childLayer,
             context ? [...atRules, context] : atRules,
             inheritedSelector,
-            source,
           );
         } catch {
           continue;
         }
       }
     }
+  };
+  walkRules(rules);
+  return { events, media };
+}
+
+export function collectRules(doc: Document) {
+  const revision = stylesheetRevision(doc);
+  const cached = ruleSnapshots.get(doc);
+  if (cached?.revision === revision) {
+    return {
+      rules: cached.rules,
+      layerOrder: cached.layerOrder,
+      inaccessible: cached.inaccessible,
+    };
+  }
+
+  const out: MatchedRule[] = [];
+  const layerOrder = new Map<string, number>();
+  let inaccessible = false;
+  const epoch = pageSheetEpochs.get(doc) ?? 0;
+  const append = (events: readonly WalkEvent[], source: string): void => {
+    for (const event of events) {
+      if ("layer" in event) {
+        if (!layerOrder.has(event.layer)) layerOrder.set(event.layer, layerOrder.size);
+        continue;
+      }
+      const { rule } = event;
+      out.push({
+        selectorText: rule.selectorText,
+        specificity: rule.specificity,
+        declarations: rule.declarations,
+        source,
+        sourceOrder: out.length,
+        active: rule.active,
+        layer: rule.layer,
+        layerOrder: rule.layer ? layerOrder.get(rule.layer) : undefined,
+        atRules: rule.atRules,
+      });
+    }
+  };
+  const sheetEvents = (sheet: CSSStyleSheet, pageOwned: boolean): readonly WalkEvent[] => {
+    const rules = sheet.cssRules;
+    if (!pageOwned) return walkSheet(rules, doc).events;
+    const previous = pageSheetWalks.get(sheet);
+    if (previous && walkStillValid(previous, rules, epoch, doc.defaultView)) return previous.events;
+    const walk = { epoch, ruleCount: rules.length, ...walkSheet(rules, doc) };
+    pageSheetWalks.set(sheet, walk);
+    return walk.events;
   };
 
   const stylesheetNodes = Array.from(doc.querySelectorAll<HTMLElement>('style, link[rel~="stylesheet"]'));
@@ -577,7 +682,8 @@ export function collectRules(doc: Document) {
       const source = owner?.dataset?.viteDevId
         ?? sheet.href
         ?? (owner?.id ? `#${owner.id}` : `stylesheet:${index + 1}`);
-      walkRules(sheet.cssRules, true, undefined, [], undefined, source);
+      const inspectorOwned = typeof owner?.hasAttribute === "function" && owner.hasAttribute("data-nudge-ui");
+      append(sheetEvents(sheet, !inspectorOwned), source);
     } catch {
       inaccessible = true;
     }
@@ -587,7 +693,7 @@ export function collectRules(doc: Document) {
   for (const [index, sheet] of Array.from(doc.adoptedStyleSheets ?? []).entries()) {
     const key = adoptedStylesheetKey(doc, sheet);
     if (key === STATE_PREVIEW_SHEET_ID) continue;
-    walkRules(sheet.cssRules, true, undefined, [], undefined, key ? `#${key}` : `adopted:${index + 1}`);
+    append(sheetEvents(sheet, key === null), key ? `#${key}` : `adopted:${index + 1}`);
   }
   const snapshot = { revision, rules: out, layerOrder, inaccessible };
   ruleSnapshots.set(doc, snapshot);

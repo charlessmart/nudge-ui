@@ -112,6 +112,18 @@ interface PendingSpacingCommit {
   originalInlinePriority: string;
 }
 
+/**
+ * Selects a gesture's element. An element that is already the only selection
+ * keeps its record: re-resolving it can differ only in derived metadata, and
+ * replacing the selection re-renders and re-inspects the whole panel.
+ */
+function selectGestureElement(element: HTMLElement): void {
+  const current = getSelectedElements();
+  if (current.length === 1 && current[0]!.domElement === element) return;
+  const selected = resolveSelectionFromElement(element);
+  if (selected) setSelectedElement(selected);
+}
+
 function spacingBadgeForDrag(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
@@ -564,16 +576,14 @@ export function CanvasElementOverlay(): ReactElement | null {
             originalInlineValue: element.style.getPropertyValue(spacing.property),
             originalInlinePriority: element.style.getPropertyPriority(spacing.property),
           };
-          const selectedElement = resolveSelectionFromElement(element);
-          if (selectedElement) setSelectedElement(selectedElement);
+          selectGestureElement(element);
           applySpacingPreview(spacingDragRef.current, msg.point, msg.shiftKey === true);
           setSpacingDragBadge(spacingBadgeForDrag(spacingDragRef.current, msg.point));
           refreshSpacingPreviewOverlay(spacingDragRef.current);
           return;
         }
         dragRef.current = { iframe: frame.iframe, element };
-        const selectedElement = resolveSelectionFromElement(element);
-        if (selectedElement) setSelectedElement(selectedElement);
+        selectGestureElement(element);
         updateDropGuide(msg.point);
       } else if (data.type === "element-drag-move") {
         const spacing = spacingDragRef.current;
@@ -611,8 +621,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           }
           clearDropGuide("canvas");
           if (!msg.cancelled) {
-            const selectedElement = resolveSelectionFromElement(spacing.element);
-            if (selectedElement) setSelectedElement(selectedElement);
+            selectGestureElement(spacing.element);
           }
           return;
         }
@@ -621,8 +630,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
           const drop = getDropLocationAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
           if (drop) moveElement(current.element, drop);
-          const selectedElement = resolveSelectionFromElement(current.element);
-          if (selectedElement) setSelectedElement(selectedElement);
+          selectGestureElement(current.element);
         }
         dragRef.current = null;
         clearDropGuide("canvas");
@@ -636,8 +644,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         const element = frame.element(data);
         const record = element ? nudgeElement(element, data.key) : null;
         if (element && record) {
-          const selectedElement = resolveSelectionFromElement(element);
-          if (selectedElement) setSelectedElement(selectedElement);
+          selectGestureElement(element);
         }
       } else if (data.type === "history-request") {
         const msg = data;

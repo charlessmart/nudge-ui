@@ -35,8 +35,8 @@ import {
 } from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import {
-  getSpacingAffordanceAtPoint,
-  getSpacingHoverAtPoint,
+  getElementSpacingAtPoint,
+  getElementSpacingHandleAtPoint,
   toSpacingDescriptor,
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
@@ -243,14 +243,11 @@ export function installRendererElementSelector(
     const rect = clear ? null : element.getBoundingClientRect();
     // The handle hit is the only target that starts a drag, so it is the only
     // one that changes the cursor. The area-wide match is purely visual.
-    const rawSpacing = !commentMode && !clear && pending.point
-      ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
+    const elementSpacing = !commentMode && !clear && pending.point
+      ? getElementSpacingAtPoint(document, element, pending.point.x, pending.point.y)
       : null;
-    const spacing = rawSpacing && rawSpacing.element === element ? rawSpacing : null;
-    const rawHoverSpacing = !commentMode && !clear && pending.point
-      ? getSpacingHoverAtPoint(document, pending.point.x, pending.point.y)
-      : null;
-    const hoverSpacing = rawHoverSpacing && rawHoverSpacing.element === element ? rawHoverSpacing : null;
+    const spacing = elementSpacing?.handle ?? null;
+    const hoverSpacing = elementSpacing?.area ?? null;
     if (spacing) {
       setSpacingCursor(spacing.element, spacing.cursor);
     } else {
@@ -349,7 +346,8 @@ export function installRendererElementSelector(
     (event: MouseEvent) => {
       if (interactionsSuspended) return;
       updateMeasureState(event.altKey, true);
-      if (suppressHoverDuringSpacingDrag) return;
+      // Like mousemove, a pressed pointer reports drag moves, not hovers.
+      if (suppressHoverDuringSpacingDrag || pendingDrag) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
@@ -370,6 +368,9 @@ export function installRendererElementSelector(
     spacing: SpacingDescriptor | null;
   } | null = null;
   let dragging = false;
+  // The browser follows a drag's mouseup with a click on the common ancestor
+  // of its start and end targets; that click must not reselect the ancestor.
+  let suppressClickAfterDrag = false;
   let lastDragPoint: { x: number; y: number } | null = null;
   let lastSelected: HTMLElement | null = null;
 
@@ -473,10 +474,8 @@ export function installRendererElementSelector(
     if (event.button !== 0 || commentMode) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
-    const spacingAffordance = getSpacingAffordanceAtPoint(document, event.clientX, event.clientY);
-    const spacing = spacingAffordance?.element === element
-      ? toSpacingDescriptor(spacingAffordance)
-      : null;
+    const spacingAffordance = getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY);
+    const spacing = spacingAffordance ? toSpacingDescriptor(spacingAffordance) : null;
     if (spacing) {
       suppressHoverDuringSpacingDrag = true;
       hoverUpdate.cancel();
@@ -561,6 +560,8 @@ export function installRendererElementSelector(
   function finishDrag(event: MouseEvent): void {
     dragMoveUpdate.cancel();
     if (dragging) {
+      suppressClickAfterDrag = true;
+      window.setTimeout(() => { suppressClickAfterDrag = false; }, 0);
       event.preventDefault();
       const point = { x: event.clientX, y: event.clientY };
       lastDragPoint = point;
@@ -746,6 +747,11 @@ export function installRendererElementSelector(
     "click",
     (event: MouseEvent) => {
       if (interactionsSuspended || !acceptsClick(event)) return;
+      if (suppressClickAfterDrag) {
+        suppressClickAfterDrag = false;
+        blockApplicationClick(event);
+        return;
+      }
       const target = event.target;
       if (!(target instanceof Element)) return;
 

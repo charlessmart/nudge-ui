@@ -19,6 +19,7 @@ import {
 import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
 import {
   documentRevisions,
+  invalidateOwnedStyleResolution,
   registerResolutionElement,
   retainDocumentResolution,
   subscribeDocumentRevision,
@@ -118,7 +119,7 @@ export interface BrowserCssInspection {
   };
   inspectTokens(root?: HTMLElement): DocumentTokenInspectionSnapshot;
   subscribe(listener: (revision: InspectionRevision) => void): () => void;
-  /** Integration hook for managed CSSOM writes. */
+  /** Integration hook for writes to the inspector's own managed stylesheets. */
   notifyStylesheetChange(): void;
   /** Optional: warms the CSSOM rule snapshot so the next inspect does not pay
    * the stylesheet walk inside its own budget. Cheap when already warm. */
@@ -490,7 +491,7 @@ export function createBrowserCssInspection(
     },
 
     notifyStylesheetChange() {
-      if (!disposed) invalidateStyleResolutionCache(config.document);
+      if (!disposed) invalidateOwnedStyleResolution(config.document);
     },
 
     prewarmRules() {

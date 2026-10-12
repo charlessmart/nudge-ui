@@ -34,7 +34,7 @@ export function splitSelectorAtTopLevel(selector: string, separator?: string): s
   return parts;
 }
 
-const SPECIFICITY_MEMO_LIMIT = 10_000;
+const SPECIFICITY_MEMO_LIMIT = 32_768;
 const specificityMemo = new Map<string, number>();
 let specificityComputations = 0;
 
@@ -109,7 +109,7 @@ export interface SelectorPseudoClass {
   end: number;
 }
 
-const SELECTOR_PSEUDO_CLASS_CACHE_MAX = 16_384;
+const SELECTOR_PSEUDO_CLASS_CACHE_MAX = 32_768;
 const selectorPseudoClassMemo = new Map<string, readonly SelectorPseudoClass[]>();
 
 export function selectorPseudoClasses(selector: string): readonly SelectorPseudoClass[] {
@@ -164,7 +164,7 @@ export function hasSelectorPseudoClass(selector: string, names: ReadonlySet<stri
 
 const STATIC_SELECTOR_FUNCTIONS = new Set(["is", "where", "not"]);
 const STATIC_PSEUDO_CLASSES = new Set(["host", "root"]);
-const SELECTOR_SENSITIVITY_CACHE_MAX = 16_384;
+const SELECTOR_SENSITIVITY_CACHE_MAX = 32_768;
 const selectorSensitivityMemo = new Map<string, boolean>();
 
 function selectorFunctionEnd(selector: string, openingIndex: number): number {
@@ -377,7 +377,7 @@ function unescapeCssIdentifier(value: string): string {
     .replace(/\\(.)/g, "$1");
 }
 
-const SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX = 16_384;
+const SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX = 32_768;
 const selectorClassRequirementsMemo = new Map<string, readonly string[]>();
 
 function selectorClassRequirements(selector: string): readonly string[] {
@@ -438,6 +438,14 @@ function selectorClassRequirements(selector: string): readonly string[] {
   }
   selectorClassRequirementsMemo.set(selector, requirements);
   return requirements;
+}
+
+/**
+ * One class the subject of a single selector branch requires, or null when the
+ * subject requires none. An element without this class cannot match the branch.
+ */
+export function selectorSubjectClass(selector: string): string | null {
+  return selectorClassRequirements(selector)[0] ?? null;
 }
 
 /**
