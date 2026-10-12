@@ -386,6 +386,14 @@
 
 .layout__spacing-field .layout-combo {
   flex: 1 1 auto;
+  /*
+   * Fill the surface and lay out as a row so the token field gets the surface's
+   * height. A column's min-height:auto pins it to the 32px embedded input, which
+   * pushes a raw value 2px low; without the stretch a token chip collapses to
+   * its text height.
+   */
+  align-self: stretch;
+  flex-direction: row;
   min-width: 0;
   width: 100%;
 }
