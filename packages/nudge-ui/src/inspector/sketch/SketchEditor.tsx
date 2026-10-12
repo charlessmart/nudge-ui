@@ -33,6 +33,7 @@ import {
   SKETCH_ANNOTATION_RADIUS,
   SKETCH_STROKE_COLOR,
   SKETCH_STROKE_OUTLINE,
+  SKETCH_RECTANGLE_STROKE_WIDTH,
   SKETCH_STROKE_WIDTH,
   type SketchAnnotation,
   type SketchDocument,
@@ -371,7 +372,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
       const stroke: SketchStroke = {
         id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         kind: tool === "rectangle" ? "rectangle" : "freehand",
-        width: SKETCH_STROKE_WIDTH,
+        width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
         color: SKETCH_STROKE_COLOR,
         outlineColor: SKETCH_STROKE_OUTLINE,
         points: points.map((point) => ({ ...point })),
@@ -465,7 +466,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     ? {
       id: "draft",
       kind: tool === "rectangle" ? "rectangle" : "freehand",
-      width: SKETCH_STROKE_WIDTH,
+      width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
       color: SKETCH_STROKE_COLOR,
       outlineColor: SKETCH_STROKE_OUTLINE,
       points: tool === "rectangle" && draftPoints.length > 1

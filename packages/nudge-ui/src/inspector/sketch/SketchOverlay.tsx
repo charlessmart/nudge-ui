@@ -8,6 +8,7 @@ import { getSketchViewport, type SketchViewport } from "./capture.ts";
 import {
   SKETCH_LIMITS,
   SKETCH_STROKE_OUTLINE,
+  SKETCH_RECTANGLE_STROKE_WIDTH,
   SKETCH_STROKE_WIDTH,
   type SketchPoint,
   type SketchStroke,
@@ -280,7 +281,7 @@ export function SketchOverlay({ open, hostElement, selectTarget, onCancel, onDon
     const stroke: SketchStroke = {
       id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       kind: tool === "rectangle" ? "rectangle" : "freehand",
-      width: SKETCH_STROKE_WIDTH,
+      width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
       color: drawing.color.value,
       outlineColor: SKETCH_STROKE_OUTLINE,
       points: points.map((point) => ({ ...point })),
@@ -316,7 +317,7 @@ export function SketchOverlay({ open, hostElement, selectTarget, onCancel, onDon
   const draftStroke: SketchStroke | null = draftPoints.length > 0 ? {
     id: "draft",
     kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
-    width: SKETCH_STROKE_WIDTH,
+    width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
     color: drawing.color.value,
     outlineColor: SKETCH_STROKE_OUTLINE,
     points: (tool === "rectangle" && draftPoints.length > 1

@@ -54,7 +54,10 @@
 .tool-options {
   flex-shrink: 0;
   margin-inline-start: calc(var(--space-4) * -1);
-  overflow: hidden;
+  /* Clip the slide horizontally only. Vertically the clip reaches the bar's
+     padding, so illustrations that bleed to its bottom edge are never cut
+     while the drawer is still animating open. */
+  clip-path: inset(-64px 0 calc(var(--space-4) * -1));
   opacity: 0;
   transition:
     width 220ms cubic-bezier(0.2, 0, 0, 1),
@@ -69,7 +72,7 @@
 
 /* Once the slide finishes, let tool content and popovers rise above the bar. */
 .tool-options[data-settled="true"] {
-  overflow: visible;
+  clip-path: none;
 }
 
 .tool-options[aria-hidden="true"] {
@@ -83,31 +86,8 @@
   width: max-content;
 }
 
-.tool-options__popover {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + var(--space-16));
-  padding: var(--space-4);
-  border-radius: var(--radius-12);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
-  transform: translateX(-50%);
-  animation: tool-options-popover-in 140ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-@keyframes tool-options-popover-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 4px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tool-options {
     transition: none;
-  }
-
-  .tool-options__popover {
-    animation: none;
   }
 }

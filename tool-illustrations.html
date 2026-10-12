@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nudge — Tool studies</title>
+  <style>
+    /* Token snapshot from packages/nudge-ui/src/inspector/ui/Foundation.css.
+       Scoped to :root so this standalone file works without the inspector shadow root. */
+    :root {
+  --surface-panel: #F5F5F4;
+  --surface-control: var(--surface-well);
+  --surface-control-hover: var(--surface-well-2x);
+  --surface-raised: #FAFAFA;
+  --surface-raised-2x: #fff ;
+  --surface-raised-hover: #F5F5F4;
+  --surface-well: hsla(0, 0%, 0%, 0.05);
+  --surface-well-2x: hsla(0, 0%, 0%, 0.10);
+  --border-subtle: hsla(0, 0%, 0%, 0.1);
+  --border-medium: hsla(0, 0%, 0%, 0.2);
+  --border-strong: #d8d8d8;
+  --text-primary: #242424;
+  --text-secondary: #6f6f6f;
+  --text-muted: #777777;
+  --text-muted-subtle: #a1a1a1;
+  --accent: #0096ff;
+  --accent-surface: rgba(0, 176, 255, 0.15);
+  --warning: #d97706;
+  --warning-text: #9a5b00;
+  --warning-surface: #fff6e5;
+  --danger: #df4b4b;
+  --danger-text: #bd3636;
+  --danger-surface: rgba(223, 75, 75, 0.2);
+  --success: #2e7d52;
+  --space-0: 0;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --radius-0: 0;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-pill: 999px;
+  --radius-control: var(--radius-8);
+  --shadow-outline: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+  --font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-size-base: 12px;
+  --font-size-small: 10px;
+  --font-weight-base: 400;
+  --font-weight-label: 600;
+  --control-height-small: 24px;
+  --control-height-large: 32px;
+  --control-height-xlarge: 40px;
+  --label-column: 104px;
+  --icon-size-small: 16px;
+  --icon-size-large: 20px;
+  --icon-stroke-width: 1.5px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--surface-panel); color: var(--text-primary); font: var(--font-size-base)/1.5 var(--font-family); }
+    button, input { font: inherit; }
+    button { color: inherit; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    main { max-width: 1120px; padding: var(--space-40) var(--space-32); margin: auto; }
+    .masthead { display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-20); border-bottom: 1px solid var(--border-subtle); }
+    .brand { font-size: 16px; font-weight: 650; letter-spacing: -.5px; }
+    .eyebrow { font-size: var(--font-size-small); color: var(--text-secondary); }
+    .intro { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-40); padding: var(--space-32) 0; }
+    h1 { font-size: 24px; font-weight: 600; letter-spacing: -.6px; line-height: 1.3; margin: 0 0 var(--space-8); }
+    .intro p { max-width: 480px; color: var(--text-secondary); margin: 0; }
+    .preview { text-align: center; min-width: 220px; }
+    .toolbar { display: flex; align-items: center; justify-content: center; height: 48px; margin: var(--space-16) auto var(--space-8); width: 208px; gap: var(--space-8); border: 1px solid var(--border-subtle); border-radius: var(--radius-12); background: var(--surface-raised-2x); }
+    .tool-well { width: 40px; height: 40px; position: relative; clip-path: inset(-24px 0 -4px); border-radius: var(--radius-control); }
+    .tool-well.active { background: var(--accent-surface); }
+    .tool-well svg { width: 28px; height: 56px; position: absolute; left: 6px; top: -6px; }
+    .tool-well:not(.active) svg { top: 3px; }
+    .divider { height: 20px; width: 1px; background: var(--border-subtle); margin: 0 var(--space-4); }
+    .ink-dot { width: 18px; height: 18px; background: var(--accent); border-radius: var(--radius-pill); }
+    .square { width: 18px; height: 18px; border: 1.5px solid var(--text-secondary); border-radius: var(--radius-4); margin-left: var(--space-8); }
+    .caption { font-size: var(--font-size-small); color: var(--text-secondary); }
+    .section-heading { display: flex; justify-content: space-between; align-items: baseline; margin: var(--space-8) 0 var(--space-12); }
+    h2 { font-size: var(--font-size-base); font-weight: var(--font-weight-label); margin: 0; }
+    h2 span { color: var(--text-muted); margin-right: var(--space-8); font-size: var(--font-size-small); }
+    .section-heading p { font-size: var(--font-size-small); color: var(--text-secondary); margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-12); margin-bottom: var(--space-32); }
+    .card { border: 1px solid var(--border-subtle); border-radius: var(--radius-control); background: var(--surface-raised-2x); overflow: hidden; }
+    .card[data-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .select { display: block; position: relative; width: 100%; border: 0; padding: 0; background: transparent; text-align: left; }
+    .card-number { position: absolute; top: var(--space-12); left: var(--space-12); color: var(--text-muted); font-size: var(--font-size-small); }
+    .check { position: absolute; right: var(--space-12); top: var(--space-12); width: 16px; height: 16px; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); text-align: center; line-height: 14px; font-size: 10px; color: transparent; }
+    [data-selected="true"] .check { background: var(--accent); color: var(--surface-raised-2x); border-color: var(--accent); }
+    .art { height: 174px; display: flex; align-items: center; justify-content: center; }
+    .art svg { width: 56px; height: 112px; }
+    .card-copy { padding: 0 var(--space-16) var(--space-16); }
+    h3 { font-size: var(--font-size-base); font-weight: var(--font-weight-label); margin: 0 0 var(--space-4); }
+    .card-copy p { color: var(--text-secondary); font-size: var(--font-size-small); line-height: 1.5; min-height: 30px; margin: 0; }
+    .card-bottom { border-top: 1px solid var(--border-subtle); height: 52px; padding: 0 var(--space-12); display: flex; align-items: center; gap: var(--space-8); background: var(--surface-raised); }
+    .mini { position: relative; width: 28px; height: 40px; overflow: hidden; align-self: flex-end; }
+    .mini svg { width: 28px; height: 56px; }
+    .scale { font-size: var(--font-size-small); color: var(--text-secondary); }
+    .download { margin-left: auto; padding: var(--space-4) var(--space-8); border: 1px solid var(--border-subtle); border-radius: var(--radius-4); background: var(--surface-raised-2x); font-size: var(--font-size-small); }
+    .download:hover { background: var(--surface-well); }
+    .controls { display: flex; align-items: center; gap: var(--space-8); font-size: var(--font-size-small); color: var(--text-secondary); }
+    .controls input { accent-color: var(--accent); margin: 0; }
+    footer { display: flex; justify-content: space-between; gap: var(--space-20); border-top: 1px solid var(--border-subtle); padding-top: var(--space-16); font-size: var(--font-size-small); color: var(--text-secondary); }
+    /* Contrast check only; the inspector currently defines a light token palette. */
+    .dark-preview .art, .dark-preview .toolbar, .dark-preview .mini { background: var(--text-primary); }
+    .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    @media (max-width: 760px) { main { padding: var(--space-24) var(--space-16); } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 480px) { .intro { grid-template-columns: 1fr; gap: var(--space-20); } .grid { gap: var(--space-8); } .card-copy { padding: 0 var(--space-12) var(--space-12); } .card-bottom { padding: 0 var(--space-8); gap: var(--space-4); } footer { flex-direction: column; gap: var(--space-4); } }
+  </style>
+</head>
+<body>
+  <!-- Self-contained SVG studies. No gradients, filters, or external assets. -->
+  <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <!-- Each option uses the existing 28 × 56 toolbar slot. -->
+      <symbol id="biro" viewBox="0 0 28 56">
+        <path d="M13 2H15L17 9H11Z" fill="#404040"/>
+        <path d="M11 9H17L23 22H5Z" fill="#d8d8d8"/>
+        <path d="M5 22H23V54Q23 56 21 56H7Q5 56 5 54Z" fill="#e5e5e5" stroke="#bcbcbc" stroke-width=".6"/>
+        <path d="M12.5 22H15.5V56H12.5Z" fill="var(--accent, #0096ff)"/>
+        <path d="M5 22H23V25H5Z" fill="#bcbcbc"/>
+      </symbol>
+      <symbol id="four-colour" viewBox="0 0 28 56">
+        <rect x="8" y="5" width="3" height="10" rx="1.5" fill="#555"/>
+        <rect x="11" y="3" width="3" height="12" rx="1.5" fill="#c86464"/>
+        <rect x="14" y="3" width="3" height="12" rx="1.5" fill="#648a72"/>
+        <rect x="17" y="6" width="3" height="9" rx="1.5" fill="var(--accent, #0096ff)"/>
+        <path d="M5 17Q5 13 9 13H19Q23 13 23 17V31H5Z" fill="#e8e8e8" stroke="#bcbcbc" stroke-width=".6"/>
+        <path d="M5 31H23V56H5Z" fill="var(--accent, #0096ff)"/>
+      </symbol>
+      <symbol id="felt-tip" viewBox="0 0 28 56">
+        <path d="M12 3Q14 0 16 3L17 11H11Z" fill="#404040"/>
+        <path d="M11 11H17L22 23H6Z" fill="#bcbcbc"/>
+        <path d="M5 23H23V56H5Z" fill="#555"/>
+        <path d="M5 23H23V26H5Z" fill="var(--accent, #0096ff)"/>
+      </symbol>
+      <symbol id="pencil" viewBox="0 0 28 56">
+        <path d="M13 2H15L17 9H11Z" fill="var(--accent, #0096ff)"/>
+        <path d="M11 9H17L23 24H5Z" fill="#d8d8d8"/>
+        <path d="M5 24H23V56H5Z" fill="#efefef" stroke="#bcbcbc" stroke-width=".6"/>
+        <path d="M5 24H23V27H5Z" fill="var(--accent, #0096ff)"/>
+      </symbol>
+      <symbol id="pink-pearl" viewBox="0 0 28 56">
+        <rect x="4" y="8" width="20" height="48" rx="3" fill="#d99b9f"/>
+        <path d="M7 8H21Q24 8 24 11V15H4V11Q4 8 7 8Z" fill="#e7b8bb"/>
+      </symbol>
+      <symbol id="wedge" viewBox="0 0 28 56">
+        <path d="M4 17Q4 15 6 14L21 7Q24 6 24 9V56H4Z" fill="#d8d8d8"/>
+        <path d="M4 17L24 8V13L4 22Z" fill="#ececec"/>
+      </symbol>
+      <symbol id="two-tone" viewBox="0 0 28 56">
+        <rect x="4" y="8" width="20" height="48" rx="3" fill="#d99b9f"/>
+        <path d="M4 34H24V53Q24 56 21 56H7Q4 56 4 53Z" fill="#829db5"/>
+      </symbol>
+      <symbol id="pebble" viewBox="0 0 28 56">
+        <rect x="4" y="8" width="20" height="48" rx="4" fill="#e9e9e9" stroke="#bcbcbc" stroke-width=".6"/>
+        <path d="M21 9Q24 9 24 12V52Q24 56 20 56H19Q21 55 21 52Z" fill="#d8d8d8"/>
+      </symbol>
+    </defs>
+  </svg>
+  <main>
+    <header class="masthead"><div class="brand">nudge</div><div class="eyebrow">Sketch tools / Study 02</div></header>
+    <div class="intro">
+      <div><h1>Pen &amp; eraser studies</h1><p>Wider profiles, matte surfaces, and minimal detail. Select a pair to compare at toolbar size.</p></div>
+      <div class="preview"><div class="eyebrow">Toolbar preview</div><div class="toolbar" aria-label="Selected tools at toolbar size"><div class="tool-well active" id="pen-preview"></div><div class="tool-well" id="eraser-preview"></div><span class="divider"></span><span class="ink-dot"></span><span class="square"></span></div><div class="caption" id="pair-label" aria-live="polite"></div></div>
+    </div>
+    <section aria-labelledby="pens-heading"><div class="section-heading"><h2 id="pens-heading"><span>01—04</span> Pens</h2><p>Pick a pen to try it above.</p></div><div class="grid" id="pens"></div></section>
+    <section aria-labelledby="erasers-heading"><div class="section-heading"><h2 id="erasers-heading"><span>05—08</span> Erasers</h2><label class="controls"><input id="dark" type="checkbox"> Dark surface</label></div><div class="grid erasers" id="erasers"></div></section>
+    <footer><span>Nudge surface, typography, border, and accent tokens.</span><span>2× studies · 1× toolbar crops · SVG downloads</span></footer>
+    <noscript><p>Enable JavaScript to display the gallery and download the SVG options.</p></noscript>
+  </main>
+  <script>
+    const options = [
+      { id: 'biro', name: 'Clear biro', type: 'pen', note: 'A visible ink core and a broad, clear barrel.' },
+      { id: 'four-colour', name: 'Four-colour pen', type: 'pen', note: 'Four selectors and a simple blue barrel.' },
+      { id: 'felt-tip', name: 'Fineliner', type: 'pen', note: 'A graphite body with one blue accent.' },
+      { id: 'pencil', name: 'Studio pen', type: 'pen', note: 'A neutral body with a colour-coded tip.' },
+      { id: 'pink-pearl', name: 'Pink block', type: 'eraser', note: 'A plain rubber block with a subtle top bevel.' },
+      { id: 'wedge', name: 'Angled block', type: 'eraser', note: 'A sloped edge and two neutral surfaces.' },
+      { id: 'two-tone', name: 'Two-tone block', type: 'eraser', note: 'A classic split, without texture or markings.' },
+      { id: 'pebble', name: 'White block', type: 'eraser', note: 'Soft corners and a single shaded edge.' },
+    ];
+    const selected = { pen: 'biro', eraser: 'pink-pearl' };
+    const svg = (id) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 56" aria-hidden="true"><use href="#${id}"/></svg>`;
+
+    for (const [index, option] of options.entries()) {
+      const card = document.createElement('article');
+      card.className = 'card';
+      card.dataset.id = option.id;
+      card.innerHTML = `<button type="button" class="select" aria-label="Preview ${option.name}"><span class="card-number">${String(index + 1).padStart(2, '0')}</span><span class="check" aria-hidden="true">✓</span><div class="art">${svg(option.id)}</div><div class="card-copy"><h3>${option.name}</h3><p>${option.note}</p></div></button><div class="card-bottom"><div class="mini">${svg(option.id)}</div><span class="scale">1× crop</span><button type="button" class="download" aria-label="Download ${option.name} as SVG">SVG ↓</button></div>`;
+      card.querySelector('.select').addEventListener('click', () => {
+        selected[option.type] = option.id;
+        updatePreview();
+      });
+      card.querySelector('.download').addEventListener('click', () => {
+        const markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 56" width="28" height="56" role="img" aria-labelledby="title"><title id="title">${option.name}</title>${document.getElementById(option.id).innerHTML.replaceAll('var(--accent, #0096ff)', getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())}</svg>`;
+        const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `nudge-${option.id}.svg`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      document.getElementById(`${option.type}s`).append(card);
+    }
+
+    function updatePreview() {
+      for (const type of ['pen', 'eraser']) {
+        document.getElementById(`${type}-preview`).innerHTML = svg(selected[type]);
+      }
+      for (const card of document.querySelectorAll('.card')) {
+        const active = Object.values(selected).includes(card.dataset.id);
+        card.dataset.selected = String(active);
+        card.querySelector('.select').setAttribute('aria-pressed', String(active));
+      }
+      document.getElementById('pair-label').textContent = `${options.find((option) => option.id === selected.pen).name.replace('The ', '')} + ${options.find((option) => option.id === selected.eraser).name.replace('The ', '')}`;
+    }
+    document.getElementById('dark').addEventListener('change', (event) => {
+      document.body.classList.toggle('dark-preview', event.target.checked);
+    });
+    updatePreview();
+  </script>
+</body>
+</html>

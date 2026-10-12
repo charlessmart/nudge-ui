@@ -23,18 +23,23 @@ export const SKETCH_LIMITS = {
 } as const;
 
 export const SKETCH_STROKE_WIDTH = 6;
+/** Drawn rectangles use a lighter outline than the freehand pen. */
+export const SKETCH_RECTANGLE_STROKE_WIDTH = 4;
+/** Opacity of the tint inside a drawn rectangle, in the rectangle's own color. */
+export const SKETCH_RECTANGLE_FILL_OPACITY = 0.1;
 /** Default pen color, and the fallback for strokes saved without one. */
 export const SKETCH_STROKE_COLOR = "#0096ff";
 /** Annotation markers and the notes panel; independent of the chosen pen color. */
 export const SKETCH_ACCENT_COLOR = "#0096ff";
 export const SKETCH_STROKE_OUTLINE = "";
-/** Pen palette offered by the canvas toolbar. */
+/** Pen palette offered by the canvas toolbar, in clockwise order around its swatch picker. */
 export const SKETCH_PEN_COLORS = [
   { id: "red", name: "Red", value: "#f03e1e" },
   { id: "orange", name: "Orange", value: "#ff8a00" },
+  { id: "blue", name: "Blue", value: SKETCH_STROKE_COLOR },
+  { id: "black", name: "Black", value: "#242424" },
   { id: "yellow", name: "Yellow", value: "#ffc800" },
   { id: "green", name: "Green", value: "#1fc85a" },
-  { id: "blue", name: "Blue", value: SKETCH_STROKE_COLOR },
 ] as const;
 export type SketchPenColor = (typeof SKETCH_PEN_COLORS)[number];
 export const SKETCH_ANNOTATION_RADIUS = 16;

@@ -207,15 +207,17 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                     <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
                   </div>
                   {isFlexWrapped ? (
-                    <FlexGapField
-                      property={lineGap}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      entries={allEntries}
-                      tokenRows={tokenRows}
-                      onAfterEdit={notifyAfterEdit}
-                    />
+                    <div className="layout__spacing-primary">
+                      <FlexGapField
+                        property={lineGap}
+                        domElement={el}
+                        editTarget={editTarget}
+                        selection={selection}
+                        entries={allEntries}
+                        tokenRows={tokenRows}
+                        onAfterEdit={notifyAfterEdit}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -579,7 +581,7 @@ function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAft
   return (
     <Tooltip content={inlineStyleWarningContent(blockedBy)}>
       <IconButton
-        variant="secondary"
+        variant="quiet"
         size="default"
         data-active={isWrapped}
         data-test="layout-flex-wrap-toggle"

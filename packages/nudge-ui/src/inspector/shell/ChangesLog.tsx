@@ -169,8 +169,10 @@ function SketchChangeRow({ item }: { readonly item: SketchQueueItem }): ReactEle
   return (
     <div className="changes__group">
       <div className="changes__row changes__row--sketch" data-test="sketch-row" data-sketch-id={item.document.id}>
-        <span className="changes__target">Sketch</span>
-        {note ? <span className="changes__action" title={note}>{note}</span> : null}
+        <div className="changes__summary">
+          <span className="changes__target">Sketch</span>
+          {note ? <span className="changes__action" title={note}>{note}</span> : null}
+        </div>
         <RevertButton
           dataTest="sketch-revert"
           label="Remove sketch"
@@ -246,12 +248,14 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                       : [];
                     return (
                       <div className="changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
-                        <span className="changes__target" data-test="change-target">
-                          {changeTargetLabel(change, presentation)}
-                        </span>
-                        <span className="changes__action" data-test="change-action">
-                          {changeActionLabel(change, presentation)}
-                        </span>
+                        <div className="changes__summary">
+                          <span className="changes__target" data-test="change-target">
+                            {changeTargetLabel(change, presentation)}
+                          </span>
+                          <span className="changes__action" data-test="change-action">
+                            {changeActionLabel(change, presentation)}
+                          </span>
+                        </div>
                         <span className="changes__metadata" aria-hidden="true">
                           <span className="changes__prop">{presentation.propertyLabel}</span>
                           <span className="changes__value">
@@ -304,12 +308,14 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               {structuralChanges.map((change) => (
                 <div className="changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
                   <div className="changes__row" data-test="dom-change-row" data-action={change.kind}>
-                    <span className="changes__target" data-test="structural-target">
-                      {change.target.sourceSite.cid}
-                    </span>
-                    <span className="changes__action" data-test="structural-action">
-                      {change.kind === "move" ? "Moved" : "Deleted"}
-                    </span>
+                    <div className="changes__summary">
+                      <span className="changes__target" data-test="structural-target">
+                        {change.target.sourceSite.cid}
+                      </span>
+                      <span className="changes__action" data-test="structural-action">
+                        {change.kind === "move" ? "Moved" : "Deleted"}
+                      </span>
+                    </div>
                     <span className="changes__metadata" aria-hidden="true">
                       <span className="changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
                       <span className="changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>

@@ -69,6 +69,14 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.changes__summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .changes__target,
 .changes__action {
   min-width: 0;
@@ -84,14 +92,12 @@
   color: var(--text-secondary);
 }
 
-.changes__row--sketch .changes__target,
-.changes__row--sketch .changes__revert {
+.changes__row--sketch .changes__target {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .changes__row--sketch .changes__action {
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -158,6 +164,22 @@
 
 .changes__revert {
   margin-left: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+/* Keep the revert control out of the way until its row is hovered or focused. */
+.changes__row:hover .changes__revert,
+.changes__row:focus-within .changes__revert {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changes__revert {
+    transition: none;
+  }
 }
 
 .panel__copy[data-copied="true"] {

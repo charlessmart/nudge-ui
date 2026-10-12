@@ -2,6 +2,7 @@ import {
   SKETCH_ANNOTATION_RADIUS,
   SKETCH_LIMITS,
   SKETCH_ACCENT_COLOR,
+  SKETCH_RECTANGLE_FILL_OPACITY,
   SKETCH_STROKE_COLOR,
   type SketchAnnotation,
   type SketchPoint,
@@ -85,9 +86,15 @@ export function drawSketchStroke(
   if (stroke.kind === "rectangle") {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = stroke.color || SKETCH_STROKE_COLOR;
+    const color = stroke.color || SKETCH_STROKE_COLOR;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
     ctx.lineWidth = stroke.width * Math.max(scaleX, scaleY);
     drawPointPath(ctx, stroke.points, scaleX, scaleY);
+    ctx.save();
+    ctx.globalAlpha = SKETCH_RECTANGLE_FILL_OPACITY;
+    ctx.fill();
+    ctx.restore();
     ctx.stroke();
   } else {
     const outline = sketchStrokeOutline(stroke, scaleX, scaleY);
