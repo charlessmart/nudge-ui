@@ -15,6 +15,38 @@ export function boundRuntimeEvidence(value: string | null): string | null {
   return value === null ? null : value.slice(0, RUNTIME_EVIDENCE_MAX_LENGTH);
 }
 
+const DOM_PATH_MAX_LENGTH = 240;
+const DOM_PATH_MAX_DEPTH = 4;
+const DOM_PATH_MAX_CLASSES = 3;
+const TEST_ID_ATTRIBUTES = ["data-testid", "data-test", "data-qa"];
+
+function domPathSegment(element: Element): string {
+  let segment = element.localName;
+  if (element.id) segment += `#${element.id}`;
+  const testAttribute = TEST_ID_ATTRIBUTES.find((name) => element.hasAttribute(name));
+  if (testAttribute) segment += `[${testAttribute}="${element.getAttribute(testAttribute)}"]`;
+  const classes = Array.from(element.classList).slice(0, DOM_PATH_MAX_CLASSES);
+  if (classes.length > 0) segment += `.${classes.join(".")}`;
+  return segment;
+}
+
+/**
+ * Describes an element by its nearest ancestors so a prompt without source
+ * locations still carries searchable class names, ids, and test ids.
+ */
+export function runtimeDomPath(element: Element): string | null {
+  const segments: string[] = [];
+  let current: Element | null = element;
+  while (current && segments.length < DOM_PATH_MAX_DEPTH && !DOCUMENT_STRUCTURE_TAGS.has(current.tagName)) {
+    segments.unshift(domPathSegment(current));
+    if (current.id) break;
+    current = current.parentElement;
+  }
+  if (segments.length === 0) return null;
+  const path = segments.join(" > ");
+  return path.length > DOM_PATH_MAX_LENGTH ? `…${path.slice(-DOM_PATH_MAX_LENGTH)}` : path;
+}
+
 /** Normalizes rendered text before it becomes durable runtime evidence. */
 export function normalizeRuntimeText(value: string | null): string | null {
   if (value === null) return null;
@@ -84,34 +116,8 @@ function existingAttributeValues(doc: Document, name: string): Set<string> {
  * page is replaced.
  */
 export function installStaticHtmlRuntimeIdentity(doc: Document = document): () => void {
-  const usedCids = existingAttributeValues(doc, "data-cid");
-  const usedSources = existingAttributeValues(doc, "data-src");
-  let nextId = 1;
+  const ensureIdentity = createIdentityAllocator(doc);
   let disposed = false;
-
-  function nextIdentity(): { cid: string; src: string } {
-    while (true) {
-      const id = nextId++;
-      const cid = `${RUNTIME_ELEMENT_CID_PREFIX}${id}`;
-      const src = `${RUNTIME_UNKNOWN_SOURCE_PREFIX}${id}`;
-      if (usedCids.has(cid) || usedSources.has(src)) continue;
-      usedCids.add(cid);
-      usedSources.add(src);
-      return { cid, src };
-    }
-  }
-
-  function ensureIdentity(element: Element): void {
-    if (!isEligibleElement(element)) return;
-    const needsCid = element.getAttribute("data-cid") === null;
-    const needsSource = element.getAttribute("data-src") === null;
-    if (!needsCid && !needsSource) return;
-
-    const identity = nextIdentity();
-    if (needsCid) element.setAttribute("data-cid", identity.cid);
-    if (needsSource) element.setAttribute("data-src", identity.src);
-    runtimeCreatedElements.add(element);
-  }
 
   function scanSubtree(node: Node): void {
     if (disposed) return;
@@ -152,4 +158,81 @@ export function installStaticHtmlRuntimeIdentity(doc: Document = document): () =
     disposed = true;
     observer.disconnect();
   };
+}
+
+const LAZY_IDENTITY_EVENTS = ["pointerover", "pointerdown", "mousedown", "click", "dblclick"] as const;
+const LAZY_DESCENDANT_DEPTH = 2;
+
+/**
+ * Assigns runtime identity only to elements the pointer reaches: the target,
+ * its ancestors, two levels of descendants for the DOM navigator, and its
+ * siblings, which structural moves capture as anchors.
+ *
+ * Unlike `installStaticHtmlRuntimeIdentity`, nothing observes DOM mutations,
+ * so a busy application pays no cost for subtrees nobody inspects. Install it
+ * before the inspector so its capture listeners run first.
+ */
+export function installLazyRuntimeIdentity(doc: Document = document): () => void {
+  // Pointer order differs between page loads, so sequential numbers would
+  // hand a saved edit's identity to whichever element is hovered first after
+  // a reload. A per-install scope keeps fresh identities distinct from saved
+  // ones; `runtimeIdentityClaims` re-attaches the saved ones by evidence.
+  const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
+
+  function tagDescendants(element: Element, depth: number): void {
+    if (depth === 0) return;
+    for (const child of Array.from(element.children)) {
+      ensureIdentity(child);
+      tagDescendants(child, depth - 1);
+    }
+  }
+
+  function onPointer(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof Element) || !isEligibleElement(target)) return;
+    for (let current: Element | null = target; current; current = current.parentElement) {
+      // Ancestors of a tagged element were tagged with it.
+      if (current.hasAttribute("data-cid") && current !== target) break;
+      ensureIdentity(current);
+    }
+    tagDescendants(target, LAZY_DESCENDANT_DEPTH);
+    if (target.parentElement) tagDescendants(target.parentElement, 1);
+  }
+
+  for (const type of LAZY_IDENTITY_EVENTS) doc.addEventListener(type, onPointer, true);
+  return () => {
+    for (const type of LAZY_IDENTITY_EVENTS) doc.removeEventListener(type, onPointer, true);
+  };
+}
+
+function createIdentityAllocator(doc: Document, scope = ""): (element: Element) => void {
+  const usedCids = existingAttributeValues(doc, "data-cid");
+  const usedSources = existingAttributeValues(doc, "data-src");
+  let nextId = 1;
+
+  function nextIdentity(): { cid: string; src: string } {
+    while (true) {
+      const id = nextId++;
+      const cid = `${RUNTIME_ELEMENT_CID_PREFIX}${scope}${id}`;
+      const src = `${RUNTIME_UNKNOWN_SOURCE_PREFIX}${scope}${id}`;
+      if (usedCids.has(cid) || usedSources.has(src)) continue;
+      usedCids.add(cid);
+      usedSources.add(src);
+      return { cid, src };
+    }
+  }
+
+  function ensureIdentity(element: Element): void {
+    if (!isEligibleElement(element)) return;
+    const needsCid = element.getAttribute("data-cid") === null;
+    const needsSource = element.getAttribute("data-src") === null;
+    if (!needsCid && !needsSource) return;
+
+    const identity = nextIdentity();
+    if (needsCid) element.setAttribute("data-cid", identity.cid);
+    if (needsSource) element.setAttribute("data-src", identity.src);
+    runtimeCreatedElements.add(element);
+  }
+
+  return ensureIdentity;
 }

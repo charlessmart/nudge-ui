@@ -4,26 +4,31 @@ import { requestTakeover } from "./workspaceLease.ts";
 import { Button } from "../ui/Button.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import lockedWorkspaceStyles from "./LockedWorkspaceNotice.css?inline";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface LockedWorkspaceNoticeProps {
-  onTakeover: () => void;
+  onTakeover: () => void | Promise<void>;
+  storageError?: boolean;
 }
 
-export function LockedWorkspaceNotice({ onTakeover }: LockedWorkspaceNoticeProps): ReactElement {
+export function LockedWorkspaceNotice({ onTakeover, storageError = false }: LockedWorkspaceNoticeProps): ReactElement {
   const [takingOver, setTakingOver] = useState(false);
 
-  function handleTakeover(): void {
+  async function handleTakeover(): Promise<void> {
     setTakingOver(true);
-    if (requestTakeover()) onTakeover();
-    else setTakingOver(false);
+    try {
+      if (requestTakeover()) await onTakeover();
+    } finally {
+      setTakingOver(false);
+    }
   }
 
   return (
     <>
-      <style data-test="locked-workspace-styles">{`${UI_STYLES}\n${lockedWorkspaceStyles}`}</style>
+      <InspectorStyle testId="locked-workspace-styles" css={`${UI_STYLES}\n${lockedWorkspaceStyles}`} />
       <aside className="locked-notice" data-test="locked-workspace-notice" aria-live="polite">
         <div className="locked-notice__message">
-          Nudge UI is open in another tab
+          {storageError ? "Can’t load saved changes. Try again." : "Nudge UI is open in another tab"}
         </div>
         <Button
           data-test="takeover-here"

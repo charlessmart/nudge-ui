@@ -10,7 +10,7 @@ import type {
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
   /**
-   * Why the location is unknown; prompts phrase their guidance accordingly.
+   * Why the element has no authored source location.
    * Omitted by legacy records, which are all runtime-created DOM.
    */
   reason?: "runtime-created" | "unannotated";
@@ -18,12 +18,20 @@ export interface RuntimeElementEvidence {
   text: string | null;
   props: string | null;
   ariaLabel: string | null;
+  /** Nearest-ancestor selector path; omitted by records captured before it existed. */
+  domPath?: string | null;
+  elementId?: string | null;
 }
 
 /** Bounded authored facts for one annotated element. */
 export interface SourceElementEvidence {
   tagName: string;
   props: string | null;
+  /** Rendered identification details; omitted by older saved changes. */
+  text?: string | null;
+  ariaLabel?: string | null;
+  domPath?: string | null;
+  elementId?: string | null;
 }
 
 export interface ElementChangeRecord {
@@ -49,6 +57,8 @@ export interface ElementChangeRecord {
   /** Authored facts that relocate the source site after its position shifts. */
   sourceEvidence?: SourceElementEvidence;
   scope?: EditScope;
+  /** Matching rendered items when captured; presentation only, absent in older edits. */
+  sourceInstanceCount?: number;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";

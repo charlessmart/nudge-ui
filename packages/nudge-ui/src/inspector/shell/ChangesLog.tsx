@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconArrowBackUp } from "@tabler/icons-react";
 import {
@@ -35,8 +35,9 @@ import {
   getTextProjectionDiagnosticRevision,
   subscribeTextProjectionDiagnostics,
 } from "../projection/textProjection.ts";
-import { SketchChanges } from "../sketch/SketchChanges.tsx";
-import { useSketchStore } from "../sketch/store.ts";
+import { removeSketch, useSketchStore } from "../sketch/store.ts";
+import type { SketchQueueItem } from "../sketch/model.ts";
+import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { useFrameComments } from "../comments/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
 
@@ -117,20 +118,27 @@ function RevertButton({
   dataTest,
   dataProperty,
   onClick,
+  disabled,
+  label = "Revert change",
+  tooltip = "Revert",
 }: {
   readonly dataTest: string;
   readonly dataProperty?: string;
   readonly onClick: () => void;
+  readonly disabled?: boolean;
+  readonly label?: string;
+  readonly tooltip?: string;
 }): ReactElement {
   return (
-    <Tooltip content="Revert" stableTrigger>
+    <Tooltip content={tooltip} stableTrigger>
       <IconButton
         variant="quiet"
         size="compact"
         className="changes__revert"
         data-test={dataTest}
         data-property={dataProperty}
-        label="Revert change"
+        label={label}
+        disabled={disabled}
         onClick={onClick}
       >
         <IconArrowBackUp
@@ -140,6 +148,41 @@ function RevertButton({
         />
       </IconButton>
     </Tooltip>
+  );
+}
+
+function SketchChangeRow({ item }: { readonly item: SketchQueueItem }): ReactElement {
+  const [error, setError] = useState<string | null>(null);
+  const note = item.document.description.trim()
+    || item.document.annotations?.map((annotation) => annotation.description).join("; ");
+  const busy = item.status === "dispatching" || item.status === "handing-off";
+
+  async function remove(): Promise<void> {
+    setError(null);
+    try {
+      if (!await removeSketch(item.document.id)) setError("The sketch could not be removed yet.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The sketch could not be removed.");
+    }
+  }
+
+  return (
+    <div className="changes__group">
+      <div className="changes__row changes__row--sketch" data-test="sketch-row" data-sketch-id={item.document.id}>
+        <div className="changes__summary">
+          <span className="changes__target">Sketch</span>
+          {note ? <span className="changes__action" title={note}>{note}</span> : null}
+        </div>
+        <RevertButton
+          dataTest="sketch-revert"
+          label="Remove sketch"
+          tooltip="Remove sketch"
+          disabled={busy}
+          onClick={() => void remove()}
+        />
+      </div>
+      {error ? <StatusCallout tone="warning" role="status">{error}</StatusCallout> : null}
+    </div>
   );
 }
 
@@ -205,12 +248,14 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                       : [];
                     return (
                       <div className="changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
-                        <span className="changes__target" data-test="change-target">
-                          {changeTargetLabel(change, presentation)}
-                        </span>
-                        <span className="changes__action" data-test="change-action">
-                          {changeActionLabel(change, presentation)}
-                        </span>
+                        <div className="changes__summary">
+                          <span className="changes__target" data-test="change-target">
+                            {changeTargetLabel(change, presentation)}
+                          </span>
+                          <span className="changes__action" data-test="change-action">
+                            {changeActionLabel(change, presentation)}
+                          </span>
+                        </div>
                         <span className="changes__metadata" aria-hidden="true">
                           <span className="changes__prop">{presentation.propertyLabel}</span>
                           <span className="changes__value">
@@ -263,12 +308,14 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               {structuralChanges.map((change) => (
                 <div className="changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
                   <div className="changes__row" data-test="dom-change-row" data-action={change.kind}>
-                    <span className="changes__target" data-test="structural-target">
-                      {change.target.sourceSite.cid}
-                    </span>
-                    <span className="changes__action" data-test="structural-action">
-                      {change.kind === "move" ? "Moved" : "Deleted"}
-                    </span>
+                    <div className="changes__summary">
+                      <span className="changes__target" data-test="structural-target">
+                        {change.target.sourceSite.cid}
+                      </span>
+                      <span className="changes__action" data-test="structural-action">
+                        {change.kind === "move" ? "Moved" : "Deleted"}
+                      </span>
+                    </div>
                     <span className="changes__metadata" aria-hidden="true">
                       <span className="changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
                       <span className="changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
@@ -310,7 +357,8 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                   </div>
                 </div>
               ))}
-              <SketchChanges />
+              {sketches.map((item) => <SketchChangeRow item={item} key={`${item.document.id}:${item.document.revision}`} />)}
+              {sketchStore.error ? <StatusCallout tone="warning" data-test="sketch-storage-error">{sketchStore.error}</StatusCallout> : null}
             </>
           )}
       </Disclosure> : null}

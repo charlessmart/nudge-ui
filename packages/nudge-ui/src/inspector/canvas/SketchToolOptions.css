@@ -1,0 +1,195 @@
+/* Pen, eraser, color and rectangle options shown in the canvas toolbar drawer. */
+
+.sketch-options__illustrated {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: var(--control-height-xlarge);
+  height: var(--control-height-xlarge);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: pointer;
+  /* Clip the illustration at the toolbar's bottom edge, never above it. */
+  clip-path: inset(-64px calc(var(--space-4) * -1) calc(var(--space-4) * -1));
+}
+
+/* Well behind the active tool, running through the toolbar padding to its bottom edge. */
+.sketch-options__illustrated::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(var(--space-4) * -1);
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  background: var(--surface-well);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.tool-options[data-settled="true"] .sketch-options__illustrated[data-active="true"]::before {
+  opacity: 1;
+}
+
+.sketch-options__illustration {
+  /* Artwork below the original crop line; lets the base stay visible while raised. */
+  --illustration-bleed: 0px;
+  position: absolute;
+  left: 50%;
+  /* Extend through the toolbar padding so the base sits on its bottom edge. */
+  bottom: calc(var(--space-4) * -1 - var(--illustration-bleed));
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.12));
+  transform: translate(-50%, 0);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.sketch-options__illustration--pen {
+  --illustration-bleed: 9px;
+}
+
+.sketch-options__illustration--eraser {
+  --illustration-bleed: 11px;
+}
+
+.sketch-options__illustrated:hover .sketch-options__illustration {
+  transform: translate(-50%, calc(var(--space-4) * -1));
+}
+
+.tool-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
+  transform: translate(-50%, 0);
+}
+
+.sketch-options__illustrated:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The rectangle shares the pen and eraser's quiet well instead of the accent active style. */
+.canvas-toolbar__tool.sketch-options__rectangle[data-active="true"] {
+  background: var(--surface-well);
+  color: var(--text-primary);
+}
+
+.sketch-options__color {
+  position: relative;
+  display: flex;
+}
+
+.sketch-options__color-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-xlarge);
+  height: var(--control-height-xlarge);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.sketch-options__color-trigger:hover,
+.sketch-options__color-trigger[data-open="true"] {
+  background: var(--surface-well);
+}
+
+.sketch-options__swatch {
+  display: block;
+  /* Fades back in as the palette collapses onto it. */
+  transition: opacity 120ms ease 150ms;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+/* The hexagon frames the trigger, so its swatch steps aside while the palette is open. */
+.sketch-options__color-trigger[data-open="true"] .sketch-options__swatch {
+  opacity: 0;
+  transition-delay: 0s;
+}
+
+/* Colors pop out as a hexagon of overlapping swatches centered on the color trigger. */
+.sketch-options__palette {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.sketch-options__palette-option {
+  appearance: none;
+  position: absolute;
+  left: calc(var(--swatch-size) / -2);
+  top: calc(var(--swatch-size) / -2);
+  width: var(--swatch-size);
+  height: var(--swatch-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  translate: var(--swatch-x) var(--swatch-y);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition:
+    scale 120ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 120ms ease;
+  animation: sketch-options-swatch-in 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay, 0ms) backwards;
+}
+
+.sketch-options__palette-option:hover {
+  scale: 1.05;
+}
+
+/* The selected swatch sits above its neighbors, separated from them by a light rim. */
+.sketch-options__palette-option[data-active="true"] {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 0 0 2px var(--surface-raised-2x),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.sketch-options__palette-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sketch-options__palette[data-state="closing"] {
+  pointer-events: none;
+}
+
+/* Closing plays the fan-out in reverse, last swatch first. */
+.sketch-options__palette[data-state="closing"] .sketch-options__palette-option {
+  animation: sketch-options-swatch-out 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay-out, 0ms) forwards;
+}
+
+@keyframes sketch-options-swatch-out {
+  to {
+    opacity: 0;
+    scale: 0.4;
+    translate: 0 0;
+  }
+}
+
+@keyframes sketch-options-swatch-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch-options__illustrated::before,
+  .sketch-options__illustration {
+    transition: none;
+  }
+
+  .sketch-options__palette-option {
+    animation: none;
+    transition: none;
+  }
+}

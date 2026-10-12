@@ -41,6 +41,7 @@ import {
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
 import { COMMENT_CURSOR, INTERACTION_CURSOR_PROPERTY, rendererCursorValue, type RendererCursor } from "../ui/customCursors.ts";
+import { isInspectorUiEvent, isPageSurface } from "./pageSurface.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -142,7 +143,10 @@ export function installRendererElementSelector(
     listener: (event: E) => void,
     options?: boolean | AddEventListenerOptions,
   ): void {
-    const eventListener: EventListener = (event) => listener(event as E);
+    const eventListener: EventListener = (event) => {
+      if (isInspectorUiEvent(event)) return;
+      listener(event as E);
+    };
     target.addEventListener(type, eventListener, options);
     listenerCleanup.push(() => target.removeEventListener(type, eventListener, options));
   }
@@ -569,6 +573,8 @@ export function installRendererElementSelector(
   trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
   function forwardKeyboardShortcut(event: KeyboardEvent, phase: "keydown" | "keyup"): boolean {
+    // The controller's own window listeners already see page-surface keys.
+    if (isPageSurface()) return false;
     const code = isKeyboardShortcutCode(event.code) ? event.code : null;
     if (!code) return false;
     if (code === "KeyS") {

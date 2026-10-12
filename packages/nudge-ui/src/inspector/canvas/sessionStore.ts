@@ -1,5 +1,8 @@
+import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
 import { clearComments } from "../comments/store.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
 import {
   getFrameGroups,
@@ -154,7 +157,7 @@ function persistSessionUnchecked(): boolean {
   try {
     persistDrafts();
     const session = buildSession();
-    localStorage.setItem(storageKey(projectId()), JSON.stringify(session));
+    inspectorStorage()?.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
   } catch {
     // Storage unavailable or quota exceeded — silently ignore
@@ -167,7 +170,7 @@ export function hydrateSession(): HydrationResult {
 
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(storageKey(projectId()));
+    raw = inspectorStorage()?.getItem(storageKey(projectId())) ?? null;
   } catch {
     return { restored: false, changeCount: 0 };
   }
@@ -311,29 +314,31 @@ export function hydrateSession(): HydrationResult {
 
 function safeDiscard(): void {
   try {
-    localStorage.removeItem(storageKey(projectId()));
+    inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
     // ignore
   }
 }
 
-/** Clears the active frame's edit draft while preserving canvas geometry and other drafts. */
-export function clearSelectedFrameChanges(): void {
-  if (!canEditDraft()) return;
+/** Clears the active draft, its comments, and project sketches while preserving canvas geometry and other drafts. */
+export function clearSelectedFrameChanges(): Promise<void> {
+  if (!canEditDraft()) return Promise.resolve();
   const cardId = getSelectedCardId() ?? getFocusedCardId();
   if (cardId) activateDraftForCard(cardId);
   clearComments(targetFromKey(getActiveDraftChanges().draftId) ?? documentTarget(window.location.href));
   clearActiveDraft();
+  clearSketchClipboardHandoff();
   setSelectedElement(null);
   projectToAllReadyCards();
   scheduleAutoSave();
+  return clearSketchesForProject();
 }
 
 export function clearSession(): void {
   if (isDraftLocked()) return;
   if (!canWriteWorkspace()) return;
   try {
-    localStorage.removeItem(storageKey(projectId()));
+    inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
     // ignore
   }

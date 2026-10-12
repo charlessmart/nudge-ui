@@ -14,7 +14,14 @@ import {
   saveSketch,
   settleSketchDispatch,
 } from "./store.ts";
-import { readSketchPersistence, resetSketchMemory } from "./persistence.ts";
+import {
+  configureSketchStorage,
+  readSketchPersistence,
+  resetSketchMemory,
+  SKETCH_STORAGE_FULL_MESSAGE,
+  type SketchStorage,
+  type SketchStorageChange,
+} from "./persistence.ts";
 import {
   SKETCH_STROKE_COLOR,
   SKETCH_STROKE_OUTLINE,
@@ -80,6 +87,51 @@ afterEach(async () => {
 });
 
 describe("sketch store", () => {
+  it("persists through configured storage instead of the page's own storage", async () => {
+    const changes: SketchStorageChange[] = [];
+    const records = { documents: new Map(), handoffs: new Map() };
+    const storage: SketchStorage = {
+      read: async () => ({ documents: [...records.documents.values()], handoffs: [...records.handoffs.values()] }),
+      update: async (_projectId, change) => {
+        changes.push(change);
+        change.documents?.forEach((document) => records.documents.set(document.id, document));
+        change.handoffs?.forEach((handoff) => records.handoffs.set(handoff.id, handoff));
+        change.deleteDocumentIds?.forEach((id) => records.documents.delete(id));
+        change.deleteHandoffIds?.forEach((id) => records.handoffs.delete(id));
+      },
+    };
+    configureSketchStorage(storage);
+    try {
+      const document = await createSketch("Stored by the extension");
+      expect(changes[0]?.documents?.map((saved) => saved.id)).toEqual([document.id]);
+
+      resetSketchStore();
+      await initializeSketchStore(projectId);
+      expect(getSketches().map((item) => item.document.id)).toEqual([document.id]);
+
+      await removeSketch(document.id);
+      expect(changes.at(-1)?.deleteDocumentIds).toEqual([document.id]);
+      expect(records.documents.size).toBe(0);
+    } finally {
+      configureSketchStorage(null);
+    }
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+  });
+
+  it("explains a full configured storage instead of a generic save failure", async () => {
+    configureSketchStorage({
+      read: async () => ({ documents: [], handoffs: [] }),
+      update: async () => {
+        throw new Error("Resource::kQuotaBytes quota exceeded");
+      },
+    });
+    try {
+      await expect(createSketch("Too large")).rejects.toThrow(SKETCH_STORAGE_FULL_MESSAGE);
+    } finally {
+      configureSketchStorage(null);
+    }
+  });
+
   it("saves a revision and tracks direct-delivery lifecycle without storing image bytes in status metadata", async () => {
     const document = await saveSketch({
       capture,
@@ -247,5 +299,23 @@ describe("sketch store", () => {
     expect(getSketches()[0]).toMatchObject({ status: "unknown", document: { id: document.id } });
     await requeueSketch(document.id);
     expect(getSketches()[0]?.status).toBe("pending");
+  });
+});
+
+describe("demo runtimes", () => {
+  it("keeps sketches session-only and starts every visit clean", async () => {
+    configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true, projectId });
+    resetSketchStore();
+    resetSketchMemory();
+    await initializeSketchStore(projectId);
+
+    await createSketch("Demo annotation");
+    expect(getSketches()).toHaveLength(1);
+
+    // A fresh visit starts clean: demo mode never persists to browser storage.
+    resetSketchStore();
+    resetSketchMemory();
+    await initializeSketchStore(projectId);
+    expect(getSketches()).toHaveLength(0);
   });
 });

@@ -8,6 +8,7 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/run
 import { clearComments, getCommentClearRevision, getComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "../comments/store.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { startWorkspaceController } from "./controller.ts";
+import { configureInspectorStorage, createMirroredStorage } from "../runtime/inspectorStorage.ts";
 
 const initialConfig = getNudgeUiRuntimeConfig();
 let controller: ReturnType<typeof startWorkspaceController> | undefined;
@@ -32,6 +33,7 @@ beforeEach(() => {
 afterEach(() => {
   controller?.dispose();
   controller = undefined;
+  configureInspectorStorage(null);
   releaseLease();
   resetDrafts();
   localStorage.clear();
@@ -103,6 +105,26 @@ it("reloads another tab's comments on takeover before saving a new note", () => 
 
   expect(getComments()).toEqual([original, fromOtherTab, next]);
   expect(JSON.parse(localStorage.getItem("nudge-ui:controller-restart:comments:v1")!)).toEqual([original, fromOtherTab, next]);
+});
+
+it("preserves comments saved after an extension tab's initial snapshot", async () => {
+  const key = "nudge-ui:controller-restart:comments:v1";
+  const backend = new Map([[key, "[]"]]);
+  const storage = createMirroredStorage(Object.fromEntries(backend), (name, value) => {
+    if (value === null) backend.delete(name);
+    else backend.set(name, value);
+  }, async () => Object.fromEntries(backend));
+  configureInspectorStorage(storage);
+  const fromOtherTab = comment("other-tab");
+  backend.set(key, JSON.stringify([fromOtherTab]));
+
+  await storage.refresh!();
+  controller = startWorkspaceController();
+  const next = comment("after-takeover");
+  saveComment(next);
+
+  expect(getComments()).toEqual([fromOtherTab, next]);
+  expect(JSON.parse(backend.get(key)!)).toEqual([fromOtherTab, next]);
 });
 
 it("blocks late comment mutations after another tab takes ownership", () => {

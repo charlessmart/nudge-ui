@@ -39,8 +39,7 @@
     "package:archive": "pnpm run build:packages && node scripts/verify-packages.mjs --output-directory .release-packages",
     "release:validate": "node scripts/validate-release.mjs",
     "dev:sandbox": "pnpm --filter sandbox dev",
-    "dev:sandbox:remote": "pnpm --filter sandbox dev:remote",
-    "dev:mockups": "pnpm --filter mockup-cards dev"
+    "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.78.0",

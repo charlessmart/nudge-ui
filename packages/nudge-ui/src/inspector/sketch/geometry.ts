@@ -129,3 +129,28 @@ export function translateSketchAnnotation(
     },
   };
 }
+
+/**
+ * Returns the ids of strokes whose drawn line passes within `radius` of the
+ * eraser path from `start` to `end`. Rectangles are hit on their outline only,
+ * so erasing across the inside of a box leaves it in place.
+ */
+export function findErasedSketchStrokeIds(
+  start: SketchPoint,
+  end: SketchPoint,
+  strokes: readonly SketchStroke[],
+  radius: number,
+): string[] {
+  const steps = Math.max(1, Math.ceil(distance(start, end) / Math.max(1, radius / 2)));
+  const samples: SketchPoint[] = [];
+  for (let step = 0; step <= steps; step += 1) {
+    const position = step / steps;
+    samples.push({ x: start.x + (end.x - start.x) * position, y: start.y + (end.y - start.y) * position });
+  }
+  return strokes
+    .filter((stroke) => {
+      const tolerance = radius + stroke.width / 2;
+      return samples.some((sample) => distanceToStroke(sample, stroke) <= tolerance);
+    })
+    .map((stroke) => stroke.id);
+}

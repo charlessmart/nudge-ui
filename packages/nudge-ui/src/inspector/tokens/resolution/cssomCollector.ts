@@ -1,4 +1,7 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
+import { resolveNestedSelector } from "./nestedSelectors.ts";
+import { adoptedStylesheetKey, STATE_PREVIEW_SHEET_ID } from "../../runtime/ownedStylesheets.ts";
+import { INTERACTION_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
 import type { AtRuleContext, MatchedRule, StyleDeclaration } from "../../../css/model/index.ts";
 
 interface RuleSnapshot {
@@ -177,6 +180,22 @@ function isManagedStylesheetNode(node: Node | null): boolean {
  * marker attribute set on registered elements. Managed stylesheet text is
  * intentionally observed because it is a real cascade input.
  */
+// The renderer rewrites these on hover and spacing drags; letting them bump
+// the element revision re-resolves the whole selected cascade per pointer move.
+const RENDERER_INLINE_CURSOR_PROPERTIES = ["cursor", INTERACTION_CURSOR_PROPERTY];
+
+function styleTextWithoutCursor(doc: Document, text: string | null): string {
+  const scratch = doc.createElement("div");
+  scratch.style.cssText = text ?? "";
+  for (const property of RENDERER_INLINE_CURSOR_PROPERTIES) scratch.style.removeProperty(property);
+  return scratch.style.cssText;
+}
+
+function isCursorOnlyStyleChange(target: Element, oldValue: string | null): boolean {
+  const doc = target.ownerDocument;
+  return styleTextWithoutCursor(doc, oldValue) === styleTextWithoutCursor(doc, target.getAttribute("style"));
+}
+
 function isProbeMutation(record: MutationRecord): boolean {
   if (record.type === "attributes") {
     const target = record.target as Element;
@@ -195,7 +214,8 @@ function isProbeMutation(record: MutationRecord): boolean {
     if (name === "data-renderer-id") return true;
     if (!registeredElements.has(target)) return true;
     return name.startsWith("data-nudge-ui")
-      || CONTAINER_PROBE_MARKER.test(name);
+      || CONTAINER_PROBE_MARKER.test(name)
+      || (name === "style" && isCursorOnlyStyleChange(target, record.oldValue));
   }
   if (record.type === "characterData") {
     return isProbeNode(record.target) && !isManagedStylesheetNode(record.target.parentElement);
@@ -248,6 +268,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
     session.observer = observer;
     observer.observe(root, {
       attributes: true,
+      attributeOldValue: true,
       childList: true,
       characterData: true,
       subtree: true,
@@ -400,13 +421,16 @@ function contextForRule(
     return params ? { kind: "media", params } : null;
   }
   if (/^\s*@container\b/i.test(cssText)) {
-    // CSSContainerRule exposes `conditionText` and `containerName` in modern
-    // engines. Fall back to the serialised prelude so named, style, and newer
+    // CSSContainerRule's `conditionText` is the whole prelude, name included;
+    // only prepend `containerName` for engines whose `conditionText` omits it.
+    // Fall back to the serialised prelude so named, style, and newer
     // container queries remain presentable without hand-parsing their grammar.
     const containerName = record.containerName?.trim();
-    const fromInterfaces = [containerName && containerName !== "none" ? containerName : undefined, record.conditionText?.trim()]
-      .filter((part): part is string => Boolean(part))
-      .join(" ");
+    const condition = record.conditionText?.trim() ?? "";
+    const hasName = Boolean(containerName) && containerName !== "none";
+    const conditionNamed = hasName && condition.startsWith(containerName!)
+      && /^(?:$|[\s(])/.test(condition.slice(containerName!.length));
+    const fromInterfaces = hasName && !conditionNamed ? `${containerName} ${condition}`.trim() : condition;
     const params = fromInterfaces || atRuleParams(cssText, "container");
     return params ? { kind: "container", params } : null;
   }
@@ -468,9 +492,12 @@ export function collectRules(doc: Document) {
       }
       if (isStyleRuleInDocument(rule, doc)) {
         try {
+          const selectorText = inheritedSelector
+            ? resolveNestedSelector(rule.selectorText, inheritedSelector)
+            : rule.selectorText;
           out.push({
-            selectorText: rule.selectorText,
-            specificity: computeSpecificityCore(rule.selectorText),
+            selectorText,
+            specificity: computeSpecificityCore(selectorText),
             declarations: declarationsFromCssom(rule.style),
             source,
             sourceOrder: sourceOrder++,
@@ -480,7 +507,7 @@ export function collectRules(doc: Document) {
             atRules: atRules.length > 0 ? atRules : undefined,
           });
           const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
-          if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText, source);
+          if (nested?.length) walkRules(nested, active, layer, atRules, selectorText, source);
         } catch {
           continue;
         }
@@ -546,6 +573,7 @@ export function collectRules(doc: Document) {
       // jsdom does not currently expose CSSStyleSheet.ownerNode; the document
       // stylesheet list and stylesheet element list retain the same order.
       const owner = (sheet.ownerNode as HTMLElement | null) ?? stylesheetNodes[index] ?? null;
+      if (owner?.id === STATE_PREVIEW_SHEET_ID) continue;
       const source = owner?.dataset?.viteDevId
         ?? sheet.href
         ?? (owner?.id ? `#${owner.id}` : `stylesheet:${index + 1}`);
@@ -553,6 +581,13 @@ export function collectRules(doc: Document) {
     } catch {
       inaccessible = true;
     }
+  }
+  // Adopted sheets cascade after document stylesheets. Under a strict
+  // style-src policy they also hold the inspector's own managed rules.
+  for (const [index, sheet] of Array.from(doc.adoptedStyleSheets ?? []).entries()) {
+    const key = adoptedStylesheetKey(doc, sheet);
+    if (key === STATE_PREVIEW_SHEET_ID) continue;
+    walkRules(sheet.cssRules, true, undefined, [], undefined, key ? `#${key}` : `adopted:${index + 1}`);
   }
   const snapshot = { revision, rules: out, layerOrder, inaccessible };
   ruleSnapshots.set(doc, snapshot);

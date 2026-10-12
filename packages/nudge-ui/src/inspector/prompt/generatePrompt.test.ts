@@ -78,7 +78,7 @@ describe("generatePrompt", () => {
     const out = generatePrompt([makeComponentChange()]);
 
     expect(out).toContain(`## Custom instructions\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`);
-    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Component prop changes"));
+    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Button component"));
   });
 
   it("appends supplied custom instructions and allows them to be cleared", () => {
@@ -93,11 +93,12 @@ describe("generatePrompt", () => {
   it("renders semantic component prop intent at the invocation callsite", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);
-    expect(out).toContain("## Component prop changes");
+    expect(out).not.toContain("## Component prop changes");
     // Callsite coordinates are authored-exact under the default host policy.
-    expect(out).toContain("### Button invocation (src/App.tsx:12:4)");
-    expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
-    expect(out).toContain("Component contract: `src/ui/Button#Button`");
+    expect(out).toContain("Source: `src/App.tsx:12:4`");
+    expect(out).toContain("- **Change:** `variant`: `primary` → `secondary`\n");
+    expect(out).not.toContain("replace the invocation prop literal");
+    expect(out).toContain("Source: `src/App.tsx:12:4`");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
     expect(out).not.toContain("component-callsite:");
@@ -117,11 +118,34 @@ describe("generatePrompt", () => {
         mountedCount: 2,
       },
     })]);
-    expect(out).toContain("scope: all outputs at this source site");
-    expect(out).toContain("Rendered evidence: 2 mounted outputs");
+    expect(out).toContain("Apply to all items rendered at this source location.");
+    expect(out).toContain("Rendered instances: 2");
     expect(out).not.toContain("Rendered occurrence");
-    expect(out).toContain('Props evidence: `label:"Repeated literal"`');
+    expect(out).toContain('Props: `label:"Repeated literal"`');
     expect(out).toContain("Before text: `Repeated literal`");
+  });
+
+  it.each(["rendered-instance", "source-site"] as const)("preserves %s scope in component and text requests", (scope) => {
+    const component = makeComponentChange({
+      property: "label", before: { kind: "value", value: "Repeated literal" }, after: "Updated label", scope,
+      evidence: { occurrence: 1, props: null, ariaLabel: null, beforeText: "Repeated literal", mountedCount: 2 },
+    });
+    const text: TextContentChangeRecord = {
+      kind: "text-content", id: "repeated-text",
+      target: {
+        sourceSite: { cid: "Label", src: "src/App.tsx:12:4" }, occurrence: 1,
+        props: null, ariaLabel: null, beforeText: "Repeated literal",
+      },
+      source: { file: "src/App.tsx", line: 12, column: 4, component: "Label" },
+      selector: '[data-cid="Label"]', before: "Repeated literal", after: "Updated label", authoredAs: "literal", scope,
+      evidence: { callsiteId: "src/App.tsx:12:4", componentName: "Label", property: "text", mountedCount: 2 },
+    };
+    const instruction = scope === "rendered-instance"
+      ? "Apply to this selected item only; keep other instances unchanged."
+      : "Apply to all items rendered at this source location.";
+
+    expect(generatePrompt([component])).toContain(instruction);
+    expect(generatePrompt([text])).toContain(instruction);
   });
 
   it("keeps primitive children authorship guidance in the semantic prompt", () => {
@@ -133,9 +157,9 @@ describe("generatePrompt", () => {
       target: { componentName: "Badge" },
     });
     const out = generatePrompt([change]);
-    expect(out).toContain("### Badge invocation");
+    expect(out).toContain("## Badge component");
     expect(out).toContain("`children`: `Save` → `Publish` — preserve the authored expression and update its source logic");
-    expect(out).toContain("### Badge invocation");
+    expect(out).toContain("## Badge component");
   });
 
   it("tells the agent to replace literal child text", () => {
@@ -213,7 +237,7 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, structural);
 
-    expect(out).toContain("## Structural changes");
+    expect(out).toContain("## Text: `Repeated 3`");
     expect(out).toContain("- Remove text `Repeated 3` (src/App.tsx:12:5) from the source.");
     expect(out).toContain("- Move text `Docs` (src/Nav.tsx:8:3) before text `Blog` (src/Nav.tsx:8:3) in Navigation (src/Nav.tsx:4:1).");
     expect(out).not.toContain("rendered occurrence");
@@ -406,7 +430,7 @@ describe("generatePrompt", () => {
 
     expect(out).not.toContain("## Structural changes");
     expect(out).not.toContain("src/App.tsx:153:16");
-    expect(out).toContain("- `font-weight`: `600` → `700`");
+    expect(out).toContain("- **Change:** `font-weight`: `600` → `700`");
     expect(generatePrompt([], undefined, structural)).toBe(
       "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
     );
@@ -472,7 +496,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Counter"][data-src="src/components/Counter.tsx:14:9"]',
     })]);
 
-    expect(out).toContain("### Counter (src/components/Counter.tsx:14:9)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14:9`");
   });
 
   it("uses exact source coordinates for static HTML changes", () => {
@@ -492,7 +516,7 @@ describe("generatePrompt", () => {
     });
 
     expect(out).not.toContain("Framework:");
-    expect(out).toContain("### html:button (index.html:3:17)");
+    expect(out).toContain("Source: `index.html:3:17`");
     expect(out).not.toContain("data-cid");
   });
 
@@ -513,7 +537,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("### astro:H1 (src/pages/about.astro:12:7)");
+    expect(out).toContain("Source: `src/pages/about.astro:12:7`");
     expect(out).not.toContain("data-cid");
 
     // The host-declared policy decides precision: an astro: element keeps
@@ -522,7 +546,7 @@ describe("generatePrompt", () => {
       framework: "React",
       stylingSystem: "CSS custom properties",
     });
-    expect(otherFrameworkOut).toContain("### astro:H1 (src/pages/about.astro:12:7)");
+    expect(otherFrameworkOut).toContain("Source: `src/pages/about.astro:12:7`");
   });
 
   it("renders React island JSX elements at line precision inside an Astro document", () => {
@@ -543,7 +567,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("### Counter (src/components/Counter.tsx:14)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
     expect(out).not.toContain("(src/components/Counter.tsx:14:");
     expect(out).not.toContain("data-cid");
   });
@@ -563,7 +587,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Hero"][data-src="src/pages/index.astro:8:3"]',
     })], { framework: "Astro", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("### Hero (src/pages/index.astro:8:3)");
+    expect(out).toContain("Source: `src/pages/index.astro:8:3`");
   });
 
   it("renders text changes on JSX elements at line precision inside an Astro document", () => {
@@ -589,11 +613,11 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("(src/components/Counter.tsx:14)");
+    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
     expect(out).not.toContain("(src/components/Counter.tsx:14:");
   });
 
-  it("labels degraded Astro identity as unknown source instead of a fabricated location", () => {
+  it("identifies unannotated Astro elements by rendered content without fabricating source", () => {
     configureAstroHost();
     // Degraded mode (ADR-0011): Astro dev annotations absent — generated cid,
     // no data-src. The prompt must not invent `file:0` or expose selectors.
@@ -615,9 +639,10 @@ describe("generatePrompt", () => {
       },
     })], { framework: "Astro", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("source unknown; no authored location available");
-    expect(out).toContain("Rendered element: `<h1>`");
-    expect(out).toContain("Text evidence");
+    expect(out).toContain("## Heading (`<h1>`)\n");
+    expect(out).toContain("Text: `About the studio`");
+    expect(out).not.toContain("source unknown");
+    expect(out).not.toContain("astro:H1");
     expect(out).not.toContain("(:0");
     expect(out).not.toContain("data-cid");
   });
@@ -634,18 +659,69 @@ describe("generatePrompt", () => {
       source: { file: "", line: 0, component: "nudge-ui-runtime-1" },
       runtimeEvidence: {
         tagName: "button",
+        domPath: "main > button.save",
         text: "Save",
         props: null,
         ariaLabel: "Save action",
       },
     })], { framework: "HTML", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("source unknown; runtime-created DOM");
-    expect(out).toContain("Rendered element: `<button>`");
-    expect(out).toContain("Text evidence: `Save`");
-    expect(out).toContain("Accessible name evidence: `Save action`");
+    expect(out).toContain("## Button (`<button>`)\n");
+    expect(out).toContain("Text: `Save`");
+    expect(out).toContain("Accessible name: `Save action`");
+    expect(out).toContain("DOM path: `main > button.save`");
+    expect(out).toContain("- **Change:** `color`: `red`");
+    expect(out).not.toContain("nudge-ui-runtime-");
+    expect(out).not.toContain("nudge-ui:unknown:");
+    expect(out).not.toContain("Source: unknown");
+    expect(out).not.toContain("source unknown");
+    expect(out).not.toContain("runtime-created DOM");
+    expect(out).not.toContain(" · base");
     expect(out).not.toContain("data-cid");
     expect(out).not.toContain("(:0");
+  });
+
+  it("preserves hover intent for legacy runtime edits without element evidence", () => {
+    const out = generatePrompt([rec({
+      cid: "nudge-ui-runtime-9", file: "nudge-ui:unknown:9", line: 0,
+      property: "opacity", rawValue: "0.5", state: "hover",
+    })]);
+
+    expect(out).toContain("## Element");
+    expect(out).toContain("- **Change:** `opacity` (hover): `0.5`");
+    expect(out).not.toContain("nudge-ui-runtime-");
+    expect(out).not.toContain("nudge-ui:unknown:");
+  });
+
+  it("keeps runtime text, removals, and comments readable without generated identities", () => {
+    const sourceSite = { cid: "nudge-ui-runtime-7", src: "nudge-ui:unknown:7" };
+    const target = {
+      sourceSite,
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Save", ariaLabel: "Save action" },
+    };
+    const change: TextContentChangeRecord = {
+      kind: "text-content",
+      id: "text-runtime",
+      target: { sourceSite, occurrence: 0, props: null, ariaLabel: "Save action", beforeText: "Save" },
+      source: { file: sourceSite.src, line: 0, column: 0, component: sourceSite.cid },
+      selector: '[data-cid="nudge-ui-runtime-7"]',
+      before: "Save",
+      after: "Publish",
+      authoredAs: "unknown",
+    };
+    const out = generatePrompt([change], undefined, [{ id: "remove-runtime", kind: "delete", target }], "", [], [{
+      id: "comment-runtime", route: "https://example.com/", target, tag: "button", note: "Make this easier to find",
+      baseline: "", viewport: "", handedOff: false,
+    }]);
+
+    expect(out).toContain("Replace text `Save` with `Publish`");
+    expect(out).toContain("Remove text `Save` from the source.");
+    expect(out).toContain("Make this easier to find");
+    expect(out).toContain("Save action");
+    expect(out).not.toContain("nudge-ui-runtime-");
+    expect(out).not.toContain("nudge-ui:unknown:");
+    expect(out).not.toContain("source unknown");
+    expect(out).not.toContain("runtime-created DOM");
   });
 
   it("bounds and fences arbitrary runtime evidence values", () => {
@@ -668,10 +744,10 @@ describe("generatePrompt", () => {
       },
     })], { framework: "HTML", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("Rendered element: `<custom-element>`");
-    expect(out).toContain("Text evidence: `Save now`");
-    expect(out).toContain("Props evidence: ~~~~text");
-    expect(out).toContain("Accessible name evidence: ~~~text");
+    expect(out).toContain("## Element (`<custom-element>`)");
+    expect(out).toContain("Text: `Save now`");
+    expect(out).toContain("Props: ~~~~text");
+    expect(out).toContain("Accessible name: ~~~text");
     expect(out).toContain(props.slice(0, 120));
     expect(out).toContain(ariaLabel.slice(0, 120));
     expect(out).not.toContain(props.slice(0, 121));
@@ -705,6 +781,128 @@ describe("generatePrompt", () => {
     );
   });
 
+  it("uses authored element details without losing source precision or shared scope", () => {
+    configureAstroHost();
+    const out = generatePrompt([rec({
+      cid: "astro:H1", file: "src/pages/about.astro", line: 12, column: 7, property: "font-weight", rawValue: "400",
+      sourceEvidence: { tagName: "h1", props: null, text: "  About\n  the studio  ", ariaLabel: "Studio heading", domPath: "main > h1.title" },
+    })]);
+
+    expect(out).toContain("## Heading (`<h1>`)");
+    expect(out).toContain("Source: `src/pages/about.astro:12:7`");
+    expect(out).toContain("Text: `About the studio`");
+    expect(out).toContain("Accessible name: `Studio heading`");
+    expect(out).toContain("DOM path: `main > h1.title`");
+    expect(out).not.toContain("Apply to all instances rendered from this source location.");
+    expect(out).toContain("**Change:** `font-weight`: `400`");
+    expect(out).not.toContain("data-cid");
+  });
+
+  it("uses the type and source from older npm records without inventing rendered text", () => {
+    const out = generatePrompt([rec({
+      cid: "Hero", file: "src/Hero.tsx", line: 8, column: 3, property: "color", rawValue: "red",
+      sourceEvidence: { tagName: "p", props: null },
+    })]);
+
+    expect(out).toContain("## Paragraph (`<p>`)");
+    expect(out).toContain("Source: `src/Hero.tsx:8:3`");
+    expect(out).not.toContain("- Text:");
+    expect(out).not.toContain("DOM path:");
+  });
+
+  it("groups a runtime heading's style, copy, and note together before the paragraph", () => {
+    const sourceSite = { cid: "nudge-ui-runtime-4", src: "nudge-ui:unknown:4" };
+    const headingStyle = rec({
+      cid: sourceSite.cid, file: "", line: 0, property: "font-weight", oldRawValue: "600", rawValue: "400",
+      runtimeEvidence: { tagName: "h1", text: "Original title", domPath: "main > header > h1", props: null, ariaLabel: null },
+    });
+    const paragraphStyle = rec({
+      cid: "nudge-ui-runtime-5", file: "", line: 0, property: "font-size", rawValue: "32px",
+      runtimeEvidence: { tagName: "p", text: "Intro copy", domPath: "main > header > p", props: null, ariaLabel: null },
+    });
+    const copy: TextContentChangeRecord = {
+      kind: "text-content", id: "heading-copy", target: { sourceSite, occurrence: 0, props: null, ariaLabel: null, beforeText: "Original title" },
+      source: { file: "", line: 0, column: 0, component: sourceSite.cid }, selector: headingStyle.selector,
+      before: "Original title", after: "New title", authoredAs: "unknown",
+    };
+    const out = generatePrompt([headingStyle, paragraphStyle, copy], undefined, [], "", [], [{
+      id: "heading-note", route: "https://example.com/", tag: "h1", note: "Keep this on one line",
+      target: { sourceSite, locator: { kind: "evidence", occurrence: 0, props: null, text: "New title" } },
+      baseline: "", viewport: "", handedOff: false,
+    }]);
+    const headingBlock = out.slice(out.indexOf("## Heading"), out.indexOf("## Paragraph"));
+
+    expect(headingBlock).toContain("Original title");
+    expect(headingBlock).toContain("- **Change:** `font-weight`: `600` → `400`");
+    expect(headingBlock).toContain("Replace text `Original title` with `New title`");
+    expect(headingBlock).toContain("**Note:** `Keep this on one line`");
+    expect(headingBlock).toContain("DOM path: `main > header > h1`");
+    expect(out.match(/^## Heading/gm)).toHaveLength(1);
+    expect(out).toContain("## Paragraph");
+    expect(out).not.toContain("## Rendered text changes");
+    expect(out).not.toContain("## Element comments");
+    expect(out).not.toContain("nudge-ui-runtime-");
+  });
+
+  it("groups npm instance edits and notes without mixing siblings or shared-source edits", () => {
+    const sourceSite = { cid: "Button", src: "src/Buttons.tsx:12:5" };
+    const first = { sourceSite, locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "First", ariaLabel: null } };
+    const second = { sourceSite, locator: { ...first.locator, occurrence: 1, text: "Second" } };
+    const firstStyle = rec({
+      cid: "Button", file: "src/Buttons.tsx", line: 12, column: 5,
+      property: "color", rawValue: "red", scope: "rendered-instance", instanceOverride: { id: "first", target: first },
+    });
+    const secondStyle = { ...firstStyle, rawValue: "blue", instanceOverride: { id: "second", target: second } };
+    const sharedStyle = { ...firstStyle, property: "padding", rawValue: "16px", scope: "source-site" as const, instanceOverride: undefined };
+    const copy: TextContentChangeRecord = {
+      kind: "text-content", id: "first-copy",
+      target: { sourceSite, occurrence: 0, props: null, ariaLabel: null, beforeText: "First" },
+      source: { file: "src/Buttons.tsx", line: 12, column: 5, component: "Button" }, selector: firstStyle.selector,
+      before: "First", after: "Publish", authoredAs: "expression", scope: "rendered-instance",
+    };
+    const out = generatePrompt([firstStyle, secondStyle, sharedStyle, copy], undefined, [], "", [], [{
+      id: "first-note", route: "https://example.com/", tag: "button", note: "Primary action",
+      target: { ...first, locator: { ...first.locator, text: "Publish" } }, baseline: "", viewport: "", handedOff: false,
+    }]);
+    const blocks = out.split(/^## /m).slice(1);
+    const firstBlock = blocks.find((block) => block.includes("`color`: `red`"))!;
+    const secondBlock = blocks.find((block) => block.includes("`color`: `blue`"))!;
+    const sharedBlock = blocks.find((block) => block.includes("`padding`: `16px`"))!;
+
+    expect(blocks).toHaveLength(3);
+    expect(firstBlock.match(/src\/Buttons\.tsx:12:5/g)).toHaveLength(1);
+    expect(firstBlock).toContain("Replace text `First` with `Publish`");
+    expect(firstBlock).toContain("**Note:** `Primary action`");
+    expect(firstBlock).toContain("Apply to this selected item only; keep other instances unchanged.");
+    expect(firstBlock).not.toContain("`color`: `blue`");
+    expect(secondBlock).toContain("Text: `Second`");
+    expect(secondBlock).not.toContain("Applies only");
+    expect(secondBlock).not.toContain("Publish");
+    expect(sharedBlock).not.toContain("Applies only");
+    expect(sharedBlock).not.toContain("Publish");
+  });
+
+  it("groups component options for one invocation under one section", () => {
+    const variant = makeComponentChange();
+    const children = makeComponentChange({ property: "children", before: { kind: "value", value: "Save" }, after: "Publish" });
+    const out = generatePrompt([variant, children]);
+
+    expect(out.match(/^## Button component/gm)).toHaveLength(1);
+    expect(out).toContain("`variant`: `primary` → `secondary`");
+    expect(out).toContain("`children`: `Save` → `Publish`");
+    expect(out).not.toContain("apply to all instances rendered from this source location");
+  });
+
+  it("keeps base and hover requests explicit inside one element section", () => {
+    const base = rec({ cid: "Title", file: "src/Title.tsx", property: "color", rawValue: "red" });
+    const hover = { ...base, state: "hover" as const, rawValue: "blue" };
+    const out = generatePrompt([base, hover]);
+
+    expect(out.match(/^- Source: `src\/Title.tsx:42`/gm)).toHaveLength(1);
+    expect(out).toContain("- **Change:** `color`: `red`");
+    expect(out).toContain("- **Change:** `color` (hover): `blue`");
+  });
+
   it("renders a token swap without runtime selectors", () => {
     const r = rec({
       cid: "Button",
@@ -716,9 +914,9 @@ describe("generatePrompt", () => {
     const out = generatePrompt([r]);
     expect(out).toContain("# Requested design changes");
     expect(out).not.toContain("Framework:");
-    expect(out).toContain("## Changes");
-    expect(out).toContain("### Button (src/Button.tsx:42)");
-    expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
+    expect(out).not.toContain("## Changes");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
+    expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
   });
@@ -732,7 +930,7 @@ describe("generatePrompt", () => {
       oldRawValue: "4px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- `padding`: `4px` → `16px`");
+    expect(out).toContain("- **Change:** `padding`: `4px` → `16px`");
     expect(out).not.toContain("consider adding");
   });
 
@@ -747,7 +945,7 @@ describe("generatePrompt", () => {
       property: "padding",
       newToken: tw3,
     })]);
-    expect(outV3).toContain("- `padding`: `0.75rem`");
+    expect(outV3).toContain("- **Change:** `padding`: `0.75rem`");
 
     // vanilla-extract-style adapter token: dotted author name plus hashed
     // cssName. The preview applies var(--color-accent__hash).
@@ -763,7 +961,7 @@ describe("generatePrompt", () => {
       property: "color",
       newToken: ve,
     })]);
-    expect(outVe).toContain("- `color`: `var(--color-accent__hash)`");
+    expect(outVe).toContain("- **Change:** `color`: `var(--color-accent__hash)`");
     expect(outVe).not.toContain("var(theme.color.accent)");
   });
 
@@ -789,7 +987,7 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- `padding`: `16px`");
+    expect(out).toContain("- **Change:** `padding`: `16px`");
     expect(out).not.toContain("→");
   });
 
@@ -802,7 +1000,7 @@ describe("generatePrompt", () => {
       oldRawValue: "8px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- `border-radius`: `8px` → `var(--space-3)`");
+    expect(out).toContain("- **Change:** `border-radius`: `8px` → `var(--space-3)`");
   });
 
   it("groups multiple changes for the same element + file under one heading", () => {
@@ -820,10 +1018,10 @@ describe("generatePrompt", () => {
       rawValue: "12px",
     });
     const out = generatePrompt([a, b]);
-    const headings = out.split("\n").filter((l) => l.startsWith("### Button"));
+    const headings = out.split("\n").filter((l) => l.startsWith("## Element"));
     expect(headings).toHaveLength(1);
-    expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
-    expect(out).toContain("- `border-radius`: `12px`");
+    expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
+    expect(out).toContain("- **Change:** `border-radius`: `12px`");
     expect(out).not.toContain("data-cid");
   });
 
@@ -858,9 +1056,10 @@ describe("generatePrompt", () => {
     });
 
     const out = generatePrompt([first, second]);
-    expect(out).toContain("Applies only to text `First`");
-    expect(out).toContain("Applies only to text `Second`");
-    expect(out.split("\n").filter((line) => line.startsWith("### RepeatedItem"))).toHaveLength(2);
+    expect(out).toContain("Text: `First`");
+    expect(out).toContain("Text: `Second`");
+    expect(out).not.toContain("Applies only");
+    expect(out.split("\n").filter((line) => line.startsWith("## Element"))).toHaveLength(2);
   });
 
   it("renders multiple headings for changes across multiple elements", () => {
@@ -880,8 +1079,8 @@ describe("generatePrompt", () => {
       newToken: SURFACE_RAISED,
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("### Button (src/Button.tsx:42)");
-    expect(out).toContain("### NavLink (src/components/Header.tsx:58)");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
+    expect(out).toContain("Source: `src/components/Header.tsx:58`");
     expect(out).not.toContain("data-cid");
   });
 
@@ -910,7 +1109,7 @@ describe("generatePrompt", () => {
       oldRawValue: "12px",
     });
     const out = generatePrompt([a, b, c]);
-    expect(out).toContain("- `padding`: `4px` → `16px`");
+    expect(out).toContain("- **Change:** `padding`: `4px` → `16px`");
     expect(out).not.toContain("8px → 12px");
   });
 
@@ -931,7 +1130,7 @@ describe("generatePrompt", () => {
     });
     const out = generatePrompt([a, b]);
     expect(out).toContain(
-      "- `background`: `--color-surface-raised` → `--space-3`",
+      "- **Change:** `background`: `--color-surface-raised` → `--space-3`",
     );
     expect(out).not.toContain("--color-surface-sunken → --space-3");
   });
@@ -950,8 +1149,8 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("### Button (src/Button.tsx:42)");
-    expect(out).toContain("### NavLink (src/components/Header.tsx:42)");
+    expect(out).toContain("Source: `src/Button.tsx:42`");
+    expect(out).toContain("Source: `src/components/Header.tsx:42`");
     expect(out).toContain("`8px`");
     expect(out).toContain("`16px`");
   });

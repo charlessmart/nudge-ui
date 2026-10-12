@@ -1,6 +1,8 @@
+import { createContainerQueryEvaluator, type ContainerQueryEvaluator } from "../tokens/resolution/containerQueryEvaluator.ts";
 import type { TokenDefinition, TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty, TokenTable } from "../../css/model/index.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { countInspectionWork } from "./performanceDiagnostics.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 import {
   buildTokenTable,
@@ -12,6 +14,7 @@ import {
   getResolvedPropertiesStable,
   invalidateStyleResolutionCache,
   prewarmCssomRuleSnapshot,
+  prefetchContainerQueries,
 } from "../tokens/resolution.ts";
 import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
 import {
@@ -48,6 +51,8 @@ export type InspectionCascade = "authored" | "live" | "stable";
 export interface BrowserCssInspectionOptions {
   state?: InteractionState;
   cascade?: InspectionCascade;
+  /** Shared only within one synchronous refresh. */
+  containerQueries?: ContainerQueryEvaluator;
 }
 
 export type InspectionTargetStatus =
@@ -106,6 +111,11 @@ export interface BrowserCssInspection {
     element: HTMLElement,
     options?: BrowserCssInspectionOptions,
   ): InspectionSnapshot;
+  /** Resolves one selection with a shared, short-lived container evaluator. */
+  refresh?(elements: readonly HTMLElement[], state: InteractionState): {
+    elements: readonly InspectionSnapshot[];
+    stableProperties: readonly ResolvedProperty[];
+  };
   inspectTokens(root?: HTMLElement): DocumentTokenInspectionSnapshot;
   subscribe(listener: (revision: InspectionRevision) => void): () => void;
   /** Integration hook for managed CSSOM writes. */
@@ -274,10 +284,11 @@ function resolveCascadeProperties(
   table: TokenTable,
   cascade: InspectionCascade,
   state: InteractionState,
+  evaluator: ContainerQueryEvaluator,
 ): ResolvedProperty[] {
-  if (cascade === "live") return getResolvedProperties(element, table);
-  if (cascade === "stable") return getResolvedPropertiesStable(element, table);
-  return getResolvedPropertiesForState(element, table, state);
+  if (cascade === "live") return getResolvedProperties(element, table, evaluator);
+  if (cascade === "stable") return getResolvedPropertiesStable(element, table, evaluator);
+  return getResolvedPropertiesForState(element, table, state, evaluator);
 }
 
 export function createBrowserCssInspection(
@@ -360,6 +371,7 @@ export function createBrowserCssInspection(
 
   const session: BrowserCssInspection = {
     inspect(element, options = {}) {
+      countInspectionWork(config.document, "inspections");
       const state = options.state ?? "base";
       const cascade = options.cascade ?? "authored";
       const status = disposed ? "disposed" : targetStatus(element, config.document);
@@ -390,7 +402,7 @@ export function createBrowserCssInspection(
             message: `The ${state} interaction state has no matching authored rule for this element.`,
           });
         }
-        const properties = resolveCascadeProperties(element, table, cascade, state);
+        const properties = resolveCascadeProperties(element, table, cascade, state, options.containerQueries ?? createContainerQueryEvaluator(config.document));
         return {
           target: { status },
           cascade,
@@ -410,6 +422,27 @@ export function createBrowserCssInspection(
         });
         return emptySnapshot(status, cascade, state, revision, diagnostics);
       }
+    },
+
+    refresh(elements, state) {
+      const containerQueries = createContainerQueryEvaluator(config.document);
+      const targets = elements.filter((element) => element.ownerDocument === config.document);
+      try {
+        if (!disposed) prefetchContainerQueries(targets, state, containerQueries);
+      } catch (error) {
+        return {
+          elements: elements.map((element) => emptySnapshot(
+            targetStatus(element, config.document), "authored", state, currentRevision(),
+            [{ code: "inspection-failed", message: error instanceof Error ? error.message : "Container query evaluation failed." }],
+          )),
+          stableProperties: [],
+        };
+      }
+      return {
+        elements: elements.map((element) => session.inspect(element, { state, containerQueries })),
+        stableProperties: elements[0] && state === "base"
+          ? session.inspect(elements[0], { cascade: "stable", containerQueries }).properties : [],
+      };
     },
 
     inspectTokens(root = config.document.documentElement) {

@@ -1,3 +1,4 @@
+import { publishInspectionSnapshot } from "./inspectionSnapshot.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { InteractionState } from "../shell/styleState.ts";
@@ -8,6 +9,7 @@ import type {
   InspectionSnapshot,
 } from "./browserCssInspection.ts";
 import { getBrowserCssInspection } from "./browserCssInspectionRegistry.ts";
+import { countInspectionWork } from "./performanceDiagnostics.ts";
 
 const SELECTION_DEBOUNCE_MS = 8;
 const EMPTY_SELECTION: readonly SelectedElement[] = [];
@@ -51,34 +53,22 @@ function normalizeSelection(
   return [selected];
 }
 
-function inspectAuthoredElements(
-  session: BrowserCssInspection,
-  selected: readonly SelectedElement[],
-  state: InteractionState,
-): readonly InspectionSnapshot[] {
-  return selected.map((element) => session.inspect(element.domElement, { state, cascade: "authored" }));
-}
-
-function inspectStableView(
+function inspectView(
   session: BrowserCssInspection,
   selected: readonly SelectedElement[],
   state: InteractionState,
   includeDocumentTokens: boolean,
-  elements: readonly InspectionSnapshot[],
 ): ScopedInspectionView {
-  const primary = elements[0] ?? null;
-  const stableProperties = selected[0] && state === "base"
-    ? session.inspect(selected[0].domElement, { cascade: "stable" }).properties
-    : [];
-  const documentTokens = includeDocumentTokens ? session.inspectTokens() : null;
+  const result = session.refresh?.(selected.map((element) => element.domElement), state);
+  const elements = result?.elements ?? selected.map((element) =>
+    session.inspect(element.domElement, { state, cascade: "authored" }));
+  const stableProperties = result?.stableProperties ?? (selected[0] && state === "base"
+    ? session.inspect(selected[0].domElement, { cascade: "stable" }).properties : []);
+  elements.forEach((snapshot, index) => publishInspectionSnapshot(selected[index]!.domElement, snapshot));
   return {
-    selection: selected,
-    state,
-    session,
-    element: primary,
-    elements,
-    stableProperties,
-    documentTokens,
+    selection: selected, state, session,
+    element: elements[0] ?? null, elements, stableProperties,
+    documentTokens: includeDocumentTokens ? session.inspectTokens() : null,
   };
 }
 
@@ -98,20 +88,15 @@ export function useBrowserCssInspection(
   const includeDocumentTokens = options.includeDocumentTokens ?? false;
   const latest = useRef({ selected: selectedElements, state, session, includeDocumentTokens });
   latest.current = { selected: selectedElements, state, session, includeDocumentTokens };
-  const [view, setView] = useState<ScopedInspectionView>(() => inspectStableView(
-    session,
-    selectedElements,
-    state,
-    includeDocumentTokens,
-    inspectAuthoredElements(session, selectedElements, state),
-  ));
+  const [view, setView] = useState<ScopedInspectionView>(() => ({
+    ...EMPTY_VIEW, selection: EMPTY_SELECTION, state, session,
+  }));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSelectionResolveAtRef = useRef(0);
   const revisionFrameRef = useRef<number | null>(null);
   const revisionSecondFrameRef = useRef<number | null>(null);
   const revisionThirdFrameRef = useRef<number | null>(null);
   const revisionWarmFrameRef = useRef<number | null>(null);
-  const stableFrameRef = useRef<number | null>(null);
 
   const cancelScheduledInspection = (): void => {
     if (timerRef.current !== null) {
@@ -134,43 +119,18 @@ export function useBrowserCssInspection(
       cancelAnimationFrame(revisionWarmFrameRef.current);
       revisionWarmFrameRef.current = null;
     }
-    if (stableFrameRef.current !== null) {
-      cancelAnimationFrame(stableFrameRef.current);
-      stableFrameRef.current = null;
-    }
   };
 
   const resolveSync = (): void => {
     const current = latest.current;
+    countInspectionWork(selectedDocument, "refreshes");
     lastSelectionResolveAtRef.current = performance.now();
-    setView(inspectStableView(
+    setView(inspectView(
       current.session,
       current.selected,
       current.state,
       current.includeDocumentTokens,
-      inspectAuthoredElements(current.session, current.selected, current.state),
     ));
-  };
-
-  const resolveSplit = (): void => {
-    const current = latest.current;
-    // Post-commit refresh: the authored cascade resolves in this task and the
-    // secondary stable cascade continues one frame later. Rapid successive
-    // edits therefore cancel the pending refresh (revision bumps reschedule)
-    // instead of finding a long blocking task already running, and the two
-    // resolution sweeps never block one task for their combined duration.
-    // The view still commits once, with the same data and ordering.
-    const elements = inspectAuthoredElements(current.session, current.selected, current.state);
-    stableFrameRef.current = requestAnimationFrame(() => {
-      stableFrameRef.current = null;
-      setView(inspectStableView(
-        current.session,
-        current.selected,
-        current.state,
-        current.includeDocumentTokens,
-        elements,
-      ));
-    });
   };
 
   const scheduleSelectionInspection = (): void => {
@@ -207,7 +167,7 @@ export function useBrowserCssInspection(
           latest.current.session.prewarmRules?.();
           revisionWarmFrameRef.current = requestAnimationFrame(() => {
             revisionWarmFrameRef.current = null;
-            resolveSplit();
+            resolveSync();
           });
         });
       });

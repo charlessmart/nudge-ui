@@ -6,6 +6,7 @@ import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 import { isRenderedInstanceOverride } from "../changes/editModel.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef, SourceSiteRef } from "../changes/editModel.ts";
+import { boundRuntimeEvidence, isRuntimeGeneratedSource, normalizeRuntimeTag, runtimeDomPath } from "../runtime/staticHtmlRuntimeIdentity.ts";
 
 export { isRenderedInstanceOverride, isRenderedInstanceRef } from "../changes/editModel.ts";
 export type { RenderedInstanceOverride, RenderedInstanceRef, SourceSiteRef } from "../changes/editModel.ts";
@@ -87,6 +88,11 @@ export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | 
       props: el.getAttribute("data-cprops"),
       text: normalizedText(el),
       ariaLabel: el.getAttribute("aria-label"),
+      ...(isRuntimeGeneratedSource(src) ? {
+        tagName: normalizeRuntimeTag(el.tagName),
+        domPath: runtimeDomPath(el),
+        elementId: boundRuntimeEvidence(el.id || null),
+      } : {}),
     },
   };
 }

@@ -351,6 +351,22 @@ describe("state resolution cache", () => {
     }
   });
 
+  it("keeps plain branches of a selector list that also has interaction states", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".ds-a, .ds-b:active:not(.disabled,:disabled) { color: var(--color-a); }";
+    document.head.appendChild(style);
+    const element = document.createElement("p");
+    element.className = "ds-a";
+    document.body.appendChild(element);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([{ name: "--color-a", value: "#112233", source: "styles.css:1" }]);
+    expect(getResolvedPropertiesForState(element, table, "base")
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesStable(element, table)
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+  });
+
   it("does not treat escaped or quoted colons as interaction states", async () => {
     const style = document.createElement("style");
     style.textContent = `

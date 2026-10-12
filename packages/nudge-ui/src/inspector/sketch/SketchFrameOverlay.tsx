@@ -1,3 +1,4 @@
+import { canvasFrameElement, type CanvasFrame } from "../canvas/canvasFrame.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { SketchSvgLayer } from "./freehand.tsx";
@@ -7,7 +8,7 @@ import { getSketchScrollPosition } from "./capture.ts";
 import { sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
 
 interface SketchFrameOverlayProps {
-  readonly iframe: HTMLIFrameElement | null;
+  readonly iframe: CanvasFrame | null;
   readonly cardId?: string;
   readonly cardUrl: string;
   readonly artifactId?: string;
@@ -30,7 +31,7 @@ export function sketchRouteKey(url: string): string | null {
   }
 }
 
-function frameRoute(iframe: HTMLIFrameElement, fallback: string): string | null {
+function frameRoute(iframe: CanvasFrame, fallback: string): string | null {
   try {
     return sketchRouteKey(iframe.contentWindow?.location.href ?? fallback);
   } catch {
@@ -38,7 +39,7 @@ function frameRoute(iframe: HTMLIFrameElement, fallback: string): string | null 
   }
 }
 
-function sameFrame(document: SketchDocument, iframe: HTMLIFrameElement, cardUrl: string, artifactId?: string): boolean {
+function sameFrame(document: SketchDocument, iframe: CanvasFrame, cardUrl: string, artifactId?: string): boolean {
   const sketchRoute = sketchRouteKey(document.capture.url);
   if (!sketchRoute) return false;
   return sketchRoute === frameRoute(iframe, cardUrl)
@@ -107,10 +108,9 @@ export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready 
     window.addEventListener("resize", refresh);
     frameWindow.addEventListener("resize", refresh);
     frameWindow.addEventListener("scroll", refresh, true);
-    const observer = typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(refresh);
-    observer?.observe(iframe);
+    const element = canvasFrameElement(iframe);
+    const observer = element && typeof ResizeObserver !== "undefined" ? new ResizeObserver(refresh) : null;
+    if (element) observer?.observe(element);
     return () => {
       window.removeEventListener("resize", refresh);
       frameWindow.removeEventListener("resize", refresh);

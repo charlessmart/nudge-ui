@@ -10,6 +10,7 @@ import {
   restoreComputedStyle,
   setInputValue,
   sheetText,
+  publishInspection,
   type MountHandle,
 } from "./_testUtils.ts";
 
@@ -22,6 +23,7 @@ describe("GridChildSection", () => {
     // Wrap with a live revision so edits re-read state like LayoutSection does.
     function Harness(): React.ReactElement {
       const [revision, setRevision] = useState(0);
+      publishInspection(el);
       return createElement(GridChildSection, {
         domElement: el,
         revision,

@@ -9,6 +9,7 @@ import {
   SketchThickIcon,
 } from "./CanvasToolIcons.tsx";
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
+import { SketchToolOptions } from "./SketchToolOptions.tsx";
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
@@ -112,6 +113,7 @@ export function CanvasToolbar({
           activeIcon={<SketchThickIcon size={ICON_SIZE} aria-hidden="true" />}
           onToolChange={onToolChange}
         />
+        <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">

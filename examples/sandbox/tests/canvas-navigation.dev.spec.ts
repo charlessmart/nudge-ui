@@ -1,6 +1,33 @@
 import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
+for (const navigation of ["document", "client-side"]) {
+  test(`focus-mode ${navigation} links keep the current frame after returning to canvas`, async ({ page }) => {
+    await page.goto("/playground");
+    const cards = page.locator(".canvas-card");
+    await expect(cards).toHaveCount(1);
+    const id = await cards.first().getAttribute("data-card-id");
+    const frame = cards.first().locator("iframe").contentFrame();
+    await page.locator('[data-test="canvas-tool-select"]').click();
+    if (navigation === "client-side") {
+      await frame.locator('a[href="/conformance"]').first().evaluate((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          history.pushState(null, "", "/conformance");
+        });
+      });
+    }
+    await frame.locator('a[href="/conformance"]').first().click();
+    await expect.poll(() => frame.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
+    await expect(page).toHaveURL(/\/conformance\?nudge-ui=editor$/);
+    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await waitForCanvasTransition(page);
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toHaveAttribute("data-card-id", id!);
+    await expect.poll(() => frame.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
+  });
+}
+
 test("focus-mode address navigation replaces the current frame", async ({ page }) => {
   await page.goto("/playground");
   const cards = page.locator(".canvas-card");

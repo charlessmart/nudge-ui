@@ -30,6 +30,8 @@ import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
+import { isInspectorUiEvent } from "./pageSurface.ts";
+import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -204,6 +206,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
 
   try {
     observeFrameMetadata(owner);
+    owner.resourceDisposers.push(() => disposeRuntimeIdentityClaims(document));
     owner.resourceDisposers.push(subscribeNudgeUiRuntime(() => sendFrameRuntime(owner)));
     const disposeDiagnostics = startRendererProjectionDiagnostics();
     if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
@@ -376,7 +379,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (!ownsRendererBootstrap(owner)) return;
+    if (!ownsRendererBootstrap(owner) || isInspectorUiEvent(event)) return;
     if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
     if (boardGesturesEnabled && !nativeAppInteraction && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;

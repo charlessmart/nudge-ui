@@ -99,6 +99,70 @@ describe("clipboard prompt handoff", () => {
     stop();
   });
 
+  it("backs off checks that find nothing while the page keeps changing", async () => {
+    vi.useFakeTimers();
+    let paints = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      paints += 1;
+      callback(0);
+      return 1;
+    });
+    const stop = startClipboardHandoffController();
+    appendChange(styleChange());
+    recordClipboardHandoff(getChangesList());
+    // Each check waits two paints with the copied preview removed.
+    const checks = () => paints / 2;
+
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(checks()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(checks(), "A check's own preview restore must not schedule another check").toBe(1);
+
+    // A clock-like page mutation every 500ms re-arms the check each time.
+    const clock = document.createElement("time");
+    document.body.append(clock);
+    for (let tick = 0; tick < 10; tick += 1) {
+      clock.textContent = String(tick);
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    expect(checks()).toBeLessThanOrEqual(4);
+
+    window.dispatchEvent(new Event("focus"));
+    const before = checks();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(checks(), "Returning to the page resets the delay").toBe(before + 1);
+    expect(getChangesList()).toHaveLength(1);
+    stop();
+  });
+
+  it("still verifies on a page that changes faster than the check delay", async () => {
+    vi.useFakeTimers();
+    const stop = startClipboardHandoffController();
+    appendChange(styleChange());
+    recordClipboardHandoff(getChangesList());
+    const clock = document.createElement("time");
+    document.body.append(clock);
+    const tick = async (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        clock.textContent = String(index);
+        await vi.advanceTimersByTimeAsync(200);
+      }
+    };
+    // Unmatched checks back the interval off towards its 8s ceiling.
+    await tick(100);
+    expect(getChangesList()).toHaveLength(1);
+
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+    await tick(45);
+
+    expect(getChangesList(), "Continuous mutations must not postpone verification indefinitely").toEqual([]);
+    stop();
+  });
+
   it("round-trips a validated checkpoint independently of transient preview metadata", () => {
     appendChange(styleChange());
     recordClipboardHandoff(getChangesList());

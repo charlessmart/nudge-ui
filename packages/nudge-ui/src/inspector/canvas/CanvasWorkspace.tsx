@@ -1,7 +1,7 @@
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
 import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
@@ -38,6 +38,9 @@ import {
   setTemporaryAppInteraction,
 } from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { PageCard } from "./PageCard.tsx";
+import { isPageSurface } from "./pageSurface.ts";
+import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./viewStore.ts";
@@ -56,6 +59,8 @@ import {
   isCanvasCanonicalProjectionRevisionCurrent,
   projectToAllReadyCards,
   recordCanvasProjectionApplied,
+  getFrameRegistryVersion,
+  subscribeFrameRegistry,
 } from "./projection.ts";
 import { connectFrame, toViewportPoint, type FrameConnection, type FrameViewport } from "./frameConnection.ts";
 import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
@@ -87,6 +92,7 @@ import {
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
+import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
@@ -96,8 +102,9 @@ import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFram
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
+const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolOptionsStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 
 interface RectSnapshot {
@@ -122,6 +129,7 @@ export interface CanvasWorkspaceProps {
 
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
+  const pageSurface = isPageSurface();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const inspectorSession = useInspectorSession();
   const inspectorOpen = useInspectorOpen();
@@ -132,8 +140,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const sketchActive = useSketchInteractionActive();
-  const sketchEnabled = isNudgeUiDev() && runtimeConfig.demo !== true;
+  const sketchEnabled = isNudgeUiDev()
+    && (runtimeConfig.demo !== true || isNudgeUiFeatureEnabled(runtimeConfig.features, "sketch"));
   const canvasIterationsEnabled = isNudgeUiFeatureEnabled(runtimeConfig.features, "canvasIterations");
+  useSyncExternalStore(subscribeFrameRegistry, getFrameRegistryVersion);
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -144,7 +154,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const framePanContextRef = useRef<FrameViewport | null>(null);
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
-  const activatedTargetRef = useRef<string | null>(null);
+  // Track the consumed primaryUrl prop separately from navigation inside a frame.
+  const activatedPrimaryUrlRef = useRef<string | null>(null);
   const demoSeededRef = useRef(false);
   const previousPresentationRef = useRef(presentation);
   const presentationAnimationRef = useRef<Animation | null>(null);
@@ -154,7 +165,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning;
+  const rendererInteractionsEnabled = interactionTool !== "select" && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
     ? "grabbing"
@@ -223,8 +234,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!primaryUrl || !board) return;
-    if (activatedTargetRef.current === primaryUrl && cards.length > 0) return;
-    activatedTargetRef.current = primaryUrl;
+    if (activatedPrimaryUrlRef.current === primaryUrl && cards.length > 0) return;
+    activatedPrimaryUrlRef.current = primaryUrl;
     const viewport = {
       width: board.clientWidth,
       height: board.clientHeight,
@@ -281,7 +292,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [primaryUrl, cards.length, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
-    if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
+    if (pageSurface) return;
+    if (primaryUrl && activatedPrimaryUrlRef.current !== primaryUrl) return;
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
     if (!activeCard) return;
@@ -392,7 +404,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     if (nextTool === "sketch") {
       if (!sketchEnabled) return;
-      const hostElement = getActiveCanvasFrame();
+      const hostElement = canvasFrameHost(getActiveCanvasFrame());
       if (!hostElement) return;
       stopPanMode();
       setCommentToolActive(false);
@@ -456,6 +468,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [handleToolChange, mode, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
+    if (sketchActive) return;
     if (presentation === "focus") {
       if (direction < 0) {
         batchCanvasChanges(() => {
@@ -479,7 +492,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const nextZoom = adjacentCanvasZoomLevel(getBoardCamera().zoom, direction);
     if (nextZoom === null) return;
     setBoardCamera({ ...getBoardCamera(), zoom: nextZoom });
-  }, [presentation]);
+  }, [presentation, sketchActive]);
 
   const showCanvas = useCallback(() => {
     handleZoomStep(-1);
@@ -552,8 +565,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const syncActiveFrameUrl = (url: string): void => {
         if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
-        if (activeCardId === frame.cardId || getCanvasCards().length === 1) {
-          activatedTargetRef.current = url;
+        if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
           window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
         }
         updateCardUrl(frame.cardId, url);
@@ -630,11 +642,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type === "wheel-pan") {
-        if (presentation === "canvas" && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
+        if (presentation === "canvas" && !sketchActive && interactionTool !== "select") panCanvasByWheel(msg.deltaX, msg.deltaY);
         return;
       }
       if (msg.type === "zoom") {
-        if (presentation !== "canvas") return;
+        if (presentation !== "canvas" || sketchActive) return;
         zoomAtPointer(toViewportPoint(frame.viewport(), msg.point), msg.deltaY);
         return;
       }
@@ -644,6 +656,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return context ? toViewportPoint(context, point) : null;
       };
       if (msg.type === "pan-start") {
+        if (sketchActive) return;
         framePanContextRef.current = frame.viewport();
         const point = pointInBoard(msg.point);
         if (point) startPanning(point);
@@ -689,7 +702,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -785,7 +798,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     function handleGlobalWheel(e: WheelEvent): void {
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
-      if (zoom && sketchActive) return;
+      if (sketchActive) {
+        if (e.composedPath().some((node) => node instanceof Element && node.closest(".sketch__prompt-panel, .sketch__annotation-editor, .panel"))) return;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const path = e.composedPath();
       // Comment pins overlay the board without being its DOM descendants.
       const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));
@@ -803,7 +821,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
-  const renderCard = (card: CanvasCardData) => (
+  // Every page card would share the one page renderer, so restored extra cards stay unmounted.
+  const renderCard = (card: CanvasCardData) => pageSurface ? (
+    card.id === presentationCardId ? <PageCard key={card.id} card={card} documentOwner={inspectorSession} /> : null
+  ) : (
     <CanvasCard
       key={card.id}
       card={card}
@@ -821,11 +842,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   return (
     <>
-      <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
+      <InspectorStyle testId="canvas-styles" css={WORKSPACE_STYLES} />
       <div
         className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"
         data-presentation={presentation}
+        data-surface={pageSurface ? "page" : undefined}
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
         <div
@@ -841,7 +863,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
-          {inspectorOpen && presentation === "focus" ? (
+          {inspectorOpen && presentation === "focus" && !pageSurface ? (
             <div className="canvas-workspace__focus-action" data-test="canvas-show-canvas">
               <Button
                 variant="quiet"

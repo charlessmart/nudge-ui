@@ -36,10 +36,17 @@ import {
   type SerializedManagedStyles,
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
+import { adoptStylesheet, allowsStyleElements } from "../runtime/ownedStylesheets.ts";
+import { applyRuntimeIdentityClaims, isRuntimeIdentityClaim } from "../runtime/runtimeIdentityClaims.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
 function replaceRendererCss(css: string): void {
+  if (!allowsStyleElements(document)) {
+    adoptStylesheet(document, SHEET_ID, css);
+    notifyBrowserStylesheetChange(document);
+    return;
+  }
   let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!sheet) {
     sheet = document.createElement("style");
@@ -52,6 +59,9 @@ function replaceRendererCss(css: string): void {
 }
 
 const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedManagedStyles> = {
+  applyRuntimeIdentities: (claims) => {
+    applyRuntimeIdentityClaims(document, claims);
+  },
   applyStructural: (changes) => {
     applyStructuralProjection(document, changes);
   },
@@ -77,6 +87,7 @@ function projectionFromReplaceStylesMessage(
     structuralChanges: msg.structuralChanges,
     textContentChanges: msg.textContentChanges,
     componentOverrides: msg.componentOverrides,
+    runtimeIdentities: msg.runtimeIdentities,
   };
 }
 
@@ -261,6 +272,11 @@ export function validateReplaceStyles(
 
   if (!isTextContentChangeListValue(m.textContentChanges)) {
     return { valid: false, reason: "text content changes are invalid" };
+  }
+
+  if (m.runtimeIdentities !== undefined
+    && (!Array.isArray(m.runtimeIdentities) || !m.runtimeIdentities.every(isRuntimeIdentityClaim))) {
+    return { valid: false, reason: "runtime identities are invalid" };
   }
 
   if (!isComponentOverrideList(m.componentOverrides)) {

@@ -110,10 +110,6 @@
   padding: 4px var(--space-8);
 }
 
-.token-field--color {
-  --token-chip-focus-ring: none;
-}
-
 .token-color-control[data-resolved="false"] .color-swatch {
   background: repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
 }

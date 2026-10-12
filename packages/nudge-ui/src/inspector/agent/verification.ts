@@ -344,8 +344,12 @@ export async function verifyAndReconcileHandoff(
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
     // (for example, a read-only Canvas lease), restore the untouched set here.
+    // A Canvas restore settles on the renderer's acknowledgement: that
+    // acknowledgement invalidates the frame's stylesheet revision, and a
+    // caller still inside this verification must not mistake it for a source
+    // change and schedule another verification.
     if (doc === document) await applyProjection(getActiveDraftChanges());
-    else restoreCanonicalFrameProjection(doc);
+    else await restoreCanonicalFrameProjection(doc);
   }
 }
 

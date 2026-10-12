@@ -1,4 +1,5 @@
 import { DESIGN_SELECT_CURSOR, INTERACTION_CURSOR_PROPERTY } from "../ui/customCursors.ts";
+import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
 
 const INTERACTION_STYLE_ID = "nudge-ui-interaction-styles";
 
@@ -52,6 +53,7 @@ export function isInteractionStylesInstalled(doc: Document = document): boolean 
 
 /** Installs temporary interaction affordances without mutating tracked nodes. */
 export function installInteractionStyles(doc: Document = document): () => void {
+  if (!allowsStyleElements(doc)) return installAdoptedInteractionStyles(doc);
   // SAFETY: getElementById returns an Element; the style element is created as HTMLStyleElement below when missing.
   let style = doc.getElementById(INTERACTION_STYLE_ID) as HTMLStyleElement | null;
   let created = false;
@@ -72,5 +74,20 @@ export function installInteractionStyles(doc: Document = document): () => void {
       slot.hidden = true;
     }
     if (created) style?.remove();
+  };
+}
+
+function installAdoptedInteractionStyles(doc: Document): () => void {
+  adoptStylesheet(doc, INTERACTION_STYLE_ID, INTERACTION_CSS);
+  interactionStyleDocuments.add(doc);
+  for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-empty-text]"))) {
+    slot.hidden = false;
+  }
+  return () => {
+    interactionStyleDocuments.delete(doc);
+    for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-empty-text]"))) {
+      slot.hidden = true;
+    }
+    releaseAdoptedStylesheet(doc, INTERACTION_STYLE_ID);
   };
 }

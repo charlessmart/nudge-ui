@@ -18,6 +18,11 @@ import type { ComponentOverride } from "../componentSemantics/types.ts";
 import { isComponentChange, type TextContentChangeRecord } from "../changes/types.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
 import type { DraftContents } from "../drafts/model.ts";
+import {
+  applyRuntimeIdentityClaims,
+  collectRuntimeIdentityClaims,
+  type RuntimeIdentityClaim,
+} from "../runtime/runtimeIdentityClaims.ts";
 
 export interface DraftProjectionSource extends DraftContents {
   readonly revision: number;
@@ -40,10 +45,16 @@ export interface DraftProjectionPlan<ManagedStyles> {
   readonly structuralChanges: readonly StructuralChange[];
   readonly textContentChanges: readonly TextContentChangeRecord[];
   readonly componentOverrides: readonly ComponentOverride[];
+  /**
+   * Generated identities the saved edits refer to. Omitted by plans that
+   * only hide edits (hold-to-view-original), which keep the attached ones.
+   */
+  readonly runtimeIdentities?: readonly RuntimeIdentityClaim[];
 }
 
 /** Applies every projection dimension to one document-local runtime. */
 export interface DocumentProjectionAdapter<ManagedStyles> {
+  applyRuntimeIdentities(claims: readonly RuntimeIdentityClaim[]): void;
   applyStructural(changes: readonly StructuralChange[]): void;
   applyRenderedInstances(overrides: readonly RenderedInstanceOverride[]): void;
   applyText(changes: readonly TextContentChangeRecord[]): void;
@@ -69,13 +80,15 @@ export function compileDraftProjection(
       .filter(isComponentChange)
       .map(componentChangeToOverride)
       .filter((override): override is ComponentOverride => override !== null),
+    runtimeIdentities: collectRuntimeIdentityClaims(snapshot),
   };
 }
 
 /**
  * Replaces one document projection in the required order.
  *
- * Structural intent is applied first because later rendered-instance evidence
+ * Generated identities are attached first: every selector and resolver below
+ * looks elements up by them. Structural intent follows because later rendered-instance evidence
  * can depend on the restored element order. Managed CSS is applied last so
  * selectors can use the document-local instance markers installed above.
  */
@@ -83,6 +96,7 @@ export function applyDraftProjection<ManagedStyles>(
   adapter: DocumentProjectionAdapter<ManagedStyles>,
   plan: DraftProjectionPlan<ManagedStyles>,
 ): void {
+  if (plan.runtimeIdentities) adapter.applyRuntimeIdentities(plan.runtimeIdentities);
   adapter.applyStructural(plan.structuralChanges);
   adapter.applyRenderedInstances(plan.instanceOverrides);
   adapter.applyText(plan.textContentChanges);
@@ -91,6 +105,9 @@ export function applyDraftProjection<ManagedStyles>(
 }
 
 const hostDocumentProjectionAdapter: DocumentProjectionAdapter<CompiledManagedStyles> = {
+  applyRuntimeIdentities: (claims) => {
+    applyRuntimeIdentityClaims(document, claims);
+  },
   applyStructural: (changes) => {
     applyStructuralProjection(document, changes);
   },

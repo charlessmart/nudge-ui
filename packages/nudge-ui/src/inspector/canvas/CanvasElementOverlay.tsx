@@ -1,3 +1,4 @@
+import type { CanvasFrame } from "./canvasFrame.ts";
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { isElementClickMessage, isInlineTextIntentMessage } from "./frameProtocol.ts";
 import { useCanvasCards } from "./canvasStore.ts";
@@ -29,7 +30,7 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
-import { getRegisteredFrames } from "./projection.ts";
+import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
@@ -51,13 +52,14 @@ import {
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigator } from "../overlay/DomNavigator.tsx";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
   elementId: string;
 }
 
 interface FrameOverlayState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   identity: ElementIdentity;
   rect: Rect;
   borders: BorderWidths;
@@ -70,18 +72,18 @@ interface FrameOverlayState {
 }
 
 interface FrameMeasureState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   altKey: boolean;
   pointerOverPage: boolean;
 }
 
 interface CanvasDragState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
 }
 
 interface CanvasSpacingDragState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
   affordance: SpacingAffordance;
   start: { x: number; y: number };
@@ -92,7 +94,7 @@ interface CanvasSpacingDragState {
 }
 
 interface CanvasSpacingBadgeState {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   point: { x: number; y: number };
   value: number;
 }
@@ -100,7 +102,7 @@ interface CanvasSpacingBadgeState {
 /** A committed spacing drag whose preview inline is held until the renderer
  * applies the projected managed rule, so the authored value never flashes. */
 interface PendingSpacingCommit {
-  iframe: HTMLIFrameElement;
+  iframe: CanvasFrame;
   element: HTMLElement;
   property: string;
   committedValue: string;
@@ -146,8 +148,8 @@ function spacingGuideStyle(rect: Rect): CSSProperties {
 }
 
 function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null {
-  const iframe = guide?.document.defaultView?.frameElement;
-  if (!guide || !(iframe instanceof HTMLIFrameElement)) return null;
+  const iframe = findCanvasFrameByDocument(guide?.document);
+  if (!guide || !iframe) return null;
   const viewport = measureFrameViewport(iframe);
   return {
     orientation: guide.orientation,
@@ -238,7 +240,7 @@ function tryReleasePendingSpacingCommit(commit: PendingSpacingCommit): boolean {
 
 function releasePendingSpacingCommits(
   pending: PendingSpacingCommit[],
-  iframe: HTMLIFrameElement,
+  iframe: CanvasFrame,
 ): void {
   if (pending.length === 0) return;
   let write = 0;
@@ -327,12 +329,11 @@ export function CanvasElementOverlay(): ReactElement | null {
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide);
 
-  const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
-  const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
-    && selectedFrame.hasAttribute("data-nudge-ui-canvas-renderer");
+  const selectedFrame = findCanvasFrameByDocument(selected?.domElement.ownerDocument);
+  const selectedInCanvas = selectedFrame !== null;
   const selectedRects = selectedInCanvas
     ? selectedElements.map((candidate) => {
-      const frame = candidate.domElement.ownerDocument.defaultView?.frameElement;
+      const frame = findCanvasFrameByDocument(candidate.domElement.ownerDocument);
       return frame === selectedFrame ? toRect(candidate.domElement.getBoundingClientRect()) : null;
     })
     : [];
@@ -720,11 +721,11 @@ export function CanvasElementOverlay(): ReactElement | null {
     }))
     : [];
 
-  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
 
   return (
     <>
-      <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>
+      <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />
       {showGuideOverlay && selectedRect && selectedFrameViewport ? (
         <MeasurementGuideOverlay
           testId="canvas-measurement-overlay"

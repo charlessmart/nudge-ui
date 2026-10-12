@@ -1,3 +1,4 @@
+import { canvasFrameElement, type CanvasFrame } from "./canvasFrame.ts";
 import activityStyles from "./AgentActivityOverlay.css?inline";
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
@@ -6,6 +7,7 @@ import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
 import { targetKey } from "../drafts/model.ts";
 import { contentEditTarget, type FrameContent } from "./frameContent.ts";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 export interface ActivityAttribution { files: readonly ActivityFile[]; elements: readonly Element[] }
 
@@ -31,7 +33,7 @@ export function attributeActivity(content: FrameContent, document: Document, fil
 }
 interface Highlight { x: number; y: number; width: number; height: number }
 
-export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: string; content: FrameContent; iframe: HTMLIFrameElement | null }) {
+export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: string; content: FrameContent; iframe: CanvasFrame | null }) {
   const activity = useAgentActivity(getNudgeUiRuntimeConfig().projectId);
   const [visual, setVisual] = useState<{ files: readonly ActivityFile[]; highlights: Highlight[] }>({ files: [], highlights: [] });
   useEffect(() => {
@@ -79,8 +81,9 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
       };
     };
     attachDocument();
-    iframe.addEventListener("load", attachDocument);
-    return () => { iframe.removeEventListener("load", attachDocument); detachDocument(); };
+    const element = canvasFrameElement(iframe);
+    element?.addEventListener("load", attachDocument);
+    return () => { element?.removeEventListener("load", attachDocument); detachDocument(); };
   }, [activity, content, iframe]);
   const submitted = activity.requestId !== null && activity.targets.includes(cardId)
     && (!activity.target || targetKey(activity.target) === targetKey(contentEditTarget(content)));
@@ -92,6 +95,6 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
       <ThinkingOrb state="solving" size={20} theme="dark" aria-hidden="true" />
       <span>Agent working…</span>
     </span>
-    <style>{activityStyles}</style>
+    <InspectorStyle css={activityStyles} />
   </div>;
 }

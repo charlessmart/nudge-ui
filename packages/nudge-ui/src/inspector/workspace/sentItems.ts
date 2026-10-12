@@ -1,10 +1,10 @@
 import { changeKey } from "../changes/model.ts";
-import { commitDraftContents, getActiveDraftChanges, getDraftChanges } from "../drafts/store.ts";
+import { canEditDraft, getActiveDraftChanges, reconcileDraftChanges } from "../drafts/store.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { unchangedHandoffRecords, type HandoffSnapshot } from "../agent/verification.ts";
 import { getClipboardHandoffRecords } from "../prompt/clipboardHandoff.ts";
-import { getComments, getCommentsForTarget, removeComment, saveComment, type ElementComment } from "../comments/store.ts";
+import { getCommentsForTarget, removeComment, type ElementComment } from "../comments/store.ts";
 import type { DraftTarget } from "../drafts/model.ts";
 
 /** Handed-off work that verification has not confirmed and the user has not changed since. */
@@ -34,32 +34,12 @@ export function sentItemCount(items: SentItems): number {
   return items.changes.length + items.structuralChanges.length + items.comments.length;
 }
 
-/**
- * Removes sent items from the active draft as one undoable edit. Returns a
- * restore callback, or null when the draft is not active or nothing changed.
- */
-export function clearSentItems(items: SentItems): (() => void) | null {
+/** Removes sent items and their draft history, preserving newer, unsent edits. */
+export function clearSentItems(items: SentItems): void {
   const current = getActiveDraftChanges();
-  if (current.draftId !== items.draftId || sentItemCount(items) === 0) return null;
+  if (current.draftId !== items.draftId || !canEditDraft(items.draftId) || sentItemCount(items) === 0) return;
   const keys = new Set(items.changes.map(changeKey));
   const ids = new Set(items.structuralChanges.map((change) => change.id));
-  const draftChanged = items.changes.length + items.structuralChanges.length > 0;
-  if (draftChanged && !commitDraftContents(
-    current.changes.filter((change) => !keys.has(changeKey(change))),
-    current.structuralChanges.filter((change) => !ids.has(change.id)),
-  )) return null;
+  reconcileDraftChanges(items.draftId, keys, ids);
   for (const comment of items.comments) removeComment(comment.id);
-  return () => {
-    const draft = getDraftChanges(items.draftId);
-    if (draftChanged && getActiveDraftChanges().draftId === items.draftId) {
-      const present = new Set(draft.changes.map(changeKey));
-      const presentIds = new Set(draft.structuralChanges.map((change) => change.id));
-      commitDraftContents(
-        [...draft.changes, ...items.changes.filter((change) => !present.has(changeKey(change)))],
-        [...draft.structuralChanges, ...items.structuralChanges.filter((change) => !presentIds.has(change.id))],
-      );
-    }
-    const existing = new Set(getComments().map((comment) => comment.id));
-    for (const comment of items.comments) if (!existing.has(comment.id)) saveComment(comment);
-  };
 }

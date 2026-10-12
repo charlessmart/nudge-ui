@@ -79,6 +79,7 @@ export function getEditScope(el: HTMLElement): EditScope {
 
 export interface BatchScopeFields {
   scope: EditScope;
+  sourceInstanceCount?: number;
   instanceOverride?: RenderedInstanceOverride;
 }
 
@@ -150,13 +151,23 @@ export function planBatchEditScopes(
   const decisions = analyzeBatchEditScopes(selectedElements);
   if (!decisions) return null;
   const plan = new Map<HTMLElement, BatchScopeFields>();
+  const sourceCounts = new WeakMap<Document, Map<string, number>>();
   for (const [element, decision] of decisions) {
-    plan.set(element, decision.scope === "new-rendered-instance"
+    const selector = selectorForElement(element);
+    let counts = sourceCounts.get(element.ownerDocument);
+    if (!counts) {
+      counts = new Map();
+      sourceCounts.set(element.ownerDocument, counts);
+    }
+    const count = selector ? counts.get(selector) ?? querySourceSiteMatches(element) : 0;
+    if (selector) counts.set(selector, count);
+    const fields: BatchScopeFields = decision.scope === "new-rendered-instance"
       ? {
           scope: "rendered-instance",
           instanceOverride: buildRenderedInstanceOverrideForTarget(decision.target),
         }
-      : decision);
+      : decision;
+    plan.set(element, count > 0 ? { ...fields, sourceInstanceCount: count } : fields);
   }
   return plan;
 }

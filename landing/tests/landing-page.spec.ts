@@ -58,8 +58,25 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await app.locator("#landing-hero-title").click();
   await expect(inspectorHost.locator('[data-test="empty-state"]')).toHaveCount(0);
 
-  const demoStorageKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("nudge-ui:")));
-  expect(demoStorageKeys).toEqual([]);
+  await inspectorHost.locator('[data-test="canvas-tool-sketch"]').click();
+  const sketchBounds = await appFrame.boundingBox();
+  if (!sketchBounds) throw new Error("The app frame is not rendered.");
+  await page.mouse.move(sketchBounds.x + sketchBounds.width / 2, sketchBounds.y + sketchBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sketchBounds.x + sketchBounds.width / 2 + 40, sketchBounds.y + sketchBounds.height / 2 + 30, { steps: 5 });
+  await page.mouse.up();
+  await inspectorHost.locator('[data-test="sketch-live-prompt-done"]').click();
+  await expect(inspectorHost.locator('[data-test="canvas-sketch-overlay"] path')).toHaveCount(1);
+
+  // The public demo must leave nothing behind in visitors' browsers, including
+  // anything flushed when the page unloads.
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
+  const demoStorage = await page.evaluate(async () => ({
+    local: Object.keys(localStorage),
+    session: Object.keys(sessionStorage),
+    indexedDb: (await indexedDB.databases()).map((database) => database.name),
+  }));
+  expect(demoStorage).toEqual({ local: [], session: [], indexedDb: [] });
 });
 
 test("keeps the final landing card after refreshing a focused historical version", async ({ page }) => {

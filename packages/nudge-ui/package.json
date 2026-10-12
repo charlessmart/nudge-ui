@@ -68,6 +68,16 @@
       "import": "./dist/inspector/componentSemantics/runtimeBridge.js",
       "default": "./dist/inspector/componentSemantics/runtimeBridge.js"
     },
+    "./internal/page-inspector": {
+      "types": "./dist/inspector/pageInspector.d.ts",
+      "import": "./dist/inspector/pageInspector.js",
+      "default": "./dist/inspector/pageInspector.js"
+    },
+    "./internal/cursor-images": {
+      "types": "./dist/inspector/ui/customCursors.d.ts",
+      "import": "./dist/inspector/ui/customCursors.js",
+      "default": "./dist/inspector/ui/customCursors.js"
+    },
     "./internal/next/mount": {
       "types": "./dist/hosts/next/mount.d.ts",
       "import": "./dist/hosts/next/mount.js",

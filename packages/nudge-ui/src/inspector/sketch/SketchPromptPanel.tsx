@@ -1,4 +1,5 @@
-import type { KeyboardEvent, ReactElement } from "react";
+import { IconAlertTriangleFilled } from "@tabler/icons-react";
+import { useRef, type KeyboardEvent, type ReactElement } from "react";
 import { Button } from "../ui/Button.tsx";
 import { SKETCH_LIMITS } from "./model.ts";
 
@@ -28,6 +29,11 @@ export function SketchPromptPanel({
   onDone,
   onCancel,
 }: SketchPromptPanelProps): ReactElement {
+  // Keep the last message while the banner collapses so its text does not vanish mid-animation.
+  const lastError = useRef(error);
+  if (error) lastError.current = error;
+  const bannerMessage = error ?? lastError.current;
+
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === "Escape" && onCancel) {
       event.preventDefault();
@@ -47,6 +53,14 @@ export function SketchPromptPanel({
       aria-label="Sketch note"
       data-test={dataTest}
     >
+      <div className="sketch__prompt-error" data-open={error ? "true" : "false"} aria-hidden={error ? undefined : true}>
+        <div className="sketch__prompt-error-clip">
+          <div className="sketch__prompt-error-body" role="status">
+            <IconAlertTriangleFilled className="sketch__prompt-error-icon" size={16} aria-hidden="true" />
+            <span>{bannerMessage}</span>
+          </div>
+        </div>
+      </div>
       <label className="sketch__prompt-label sketch__sr-only" htmlFor={`${dataTest}-input`}>Sketch note</label>
       <textarea
         id={`${dataTest}-input`}
@@ -63,7 +77,6 @@ export function SketchPromptPanel({
         onKeyDown={onKeyDown}
       />
       <div className="sketch__prompt-footer">
-        {error ? <span className="sketch__prompt-error" role="status">{error}</span> : <span />}
         <Button
           variant="primary"
           size="compact"

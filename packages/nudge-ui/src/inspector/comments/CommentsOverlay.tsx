@@ -4,6 +4,8 @@ import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
 import { measureFrameViewport, toViewportPoint } from "../canvas/frameConnection.ts";
+import { canvasFrameElement, type CanvasFrame } from "../canvas/canvasFrame.ts";
+import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -11,10 +13,11 @@ import { commentFingerprint, commentViewport, resolveCommentElement } from "./el
 import { commentRoute, getCommentClearRevision, isCommentToolActive, removeComment, saveComment, subscribeComments, useComments, useCommentToolActive, type ElementComment } from "./store.ts";
 import { isReadingCommentSource, readCommentSource, reconcileComments } from "./verification.ts";
 import styles from "./CommentsOverlay.css?inline";
+import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface Draft {
   readonly element: HTMLElement;
-  readonly iframe: HTMLIFrameElement;
+  readonly iframe: CanvasFrame;
   readonly existing?: ElementComment;
 }
 
@@ -24,10 +27,11 @@ function sameAnchor(left: Anchor | null | undefined, right: Anchor | null | unde
   return left?.left === right?.left && left?.top === right?.top;
 }
 
-function anchorFor(iframe: HTMLIFrameElement, element: HTMLElement): Anchor | null {
+function anchorFor(iframe: CanvasFrame, element: HTMLElement): Anchor | null {
   if (!element.isConnected || iframe.contentDocument !== element.ownerDocument) return null;
-  // Focus view keeps other frames mounted, but their pins must stay hidden.
-  if (getComputedStyle(iframe).visibility !== "visible") return null;
+  // Focus view keeps real frames mounted, but their pins must stay hidden.
+  const frameElement = canvasFrameElement(iframe);
+  if (frameElement && getElementComputedStyle(frameElement).visibility !== "visible") return null;
   const frame = measureFrameViewport(iframe);
   const rect = element.getBoundingClientRect();
   const { x: left, y: top } = toViewportPoint(frame, { x: rect.right, y: rect.top });
@@ -47,7 +51,7 @@ export function CommentsOverlay(): ReactElement | null {
   const [draftAnchor, setDraftAnchor] = useState<Anchor | null>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const bindings = useRef(new Map<string, { element: HTMLElement; iframe: HTMLIFrameElement }>());
+  const bindings = useRef(new Map<string, { element: HTMLElement; iframe: CanvasFrame }>());
   const observations = useRef(new Map<Document, { observer: MutationObserver; timer: ReturnType<typeof setTimeout> | null }>());
 
   function openDraft(next: Draft): void {
@@ -226,7 +230,7 @@ export function CommentsOverlay(): ReactElement | null {
 
   if (mode !== "canvas") return null;
   return <>
-    <style>{styles}</style>
+    <InspectorStyle css={styles} />
     {comments.flatMap((comment) => [...anchors].filter(([key]) => key.startsWith(`${comment.id}:`)).map(([key, anchor]) => (
       <button key={key} type="button" className="comment-pin" data-test="comment-pin" aria-label={`Comment: ${comment.note}`}
         title={comment.note} style={anchor} onClick={() => {

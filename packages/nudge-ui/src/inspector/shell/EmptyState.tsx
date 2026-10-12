@@ -1,8 +1,8 @@
 import type { ReactElement } from "react";
-import { IconArtboard, IconBoltFilled, IconSparkles } from "@tabler/icons-react";
 import { useCanvasPresentation } from "../canvas/viewStore.ts";
 import { Disclosure } from "../ui/Disclosure.tsx";
-import gridIllustration from "../ui/assets/grid.svg";
+import { CANVAS_ILLUSTRATION_SVG } from "../ui/assets/canvasIllustration.ts";
+import { GRID_ILLUSTRATION_SVG } from "../ui/assets/gridIllustration.ts";
 import { getPlatformModifierKey, isMacPlatform } from "./shortcuts.ts";
 
 export function EmptyState(): ReactElement {
@@ -15,17 +15,15 @@ export function EmptyState(): ReactElement {
   const optionName = macPlatform ? "Option" : "Alt";
 
   return (
-    <div className={`empty-state${canvas ? " empty-state--canvas" : ""}`} data-test="empty-state">
+    <div className="empty-state" data-test="empty-state">
       {canvas ? (
-        <div className="empty-state__canvas" data-test="canvas-intro">
-          <h2 className="empty-state__title">Using the canvas</h2>
-          <p><span className="empty-state__live-badge"><IconBoltFilled aria-hidden="true" /></span><span><strong>Live app</strong>A view of your real running app</span></p>
-          <p><IconArtboard aria-hidden="true" /><span><strong>HTML iterations</strong>Unlinked from live app for isolated changes. Ask your agent to implement in live app once ready.</span></p>
-          <p><IconSparkles aria-hidden="true" /><span><strong>Agent with MCP</strong>Ask your agent to: lay out flows, show page states and create iterations.</span></p>
-        </div>
+        <>
+          <span className="empty-state__icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CANVAS_ILLUSTRATION_SVG }} />
+          <p className="empty-state__hint" data-test="canvas-intro">Hold <kbd>A</kbd> to click links and open them as new pages on the canvas.</p>
+        </>
       ) : (
         <>
-          <img className="empty-state__icon" src={gridIllustration} alt="" aria-hidden="true" />
+          <span className="empty-state__icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: GRID_ILLUSTRATION_SVG }} />
           <h2 className="empty-state__title">Select an element to edit</h2>
         </>
       )}
@@ -34,7 +32,7 @@ export function EmptyState(): ReactElement {
         className="empty-state__shortcuts"
         title="Keyboard shortcuts"
         triggerDataTest="empty-state-shortcuts-toggle"
-        defaultOpen={!canvas}
+        defaultOpen
       >
         <ul className="empty-state__shortcut-list">
           <li className="empty-state__shortcut" data-test="empty-state-shortcut"><span>Nudge</span><span className="empty-state__shortcut-keys" aria-label="Arrow keys"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></span></li>

@@ -89,6 +89,20 @@ describe("change codecs", () => {
     expect(deserializeChange(serialized!)).toEqual(change);
   });
 
+  it("round-trips authored element identification and accepts older evidence", () => {
+    const sourceEvidence = {
+      tagName: "h1", props: null, text: "Page title", ariaLabel: "Page heading", domPath: "main > h1.title",
+    };
+    const serialized = serializeChange({ ...makeElementChange(), sourceEvidence });
+
+    expect(isSerializableChange(serialized)).toBe(true);
+    expect(deserializeChange(serialized!)).toMatchObject({ sourceEvidence });
+    const legacy = serializeChange({ ...makeElementChange(), sourceEvidence: { tagName: "h1", props: null } });
+    expect(isSerializableChange(legacy)).toBe(true);
+    expect(deserializeChange(legacy!)).toMatchObject({ sourceEvidence: { tagName: "h1", props: null } });
+    expect(isSerializableChange({ ...serialized, sourceEvidence: { ...sourceEvidence, text: 42 } })).toBe(false);
+  });
+
   it("rejects transient fields and malformed component targets", () => {
     const element = serializeChange(makeElementChange())!;
     const component = serializeChange(makeComponentChange())!;

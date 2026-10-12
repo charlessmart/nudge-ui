@@ -58,6 +58,7 @@ export interface SerializableElementChange {
   runtimeEvidence?: NonNullable<ElementChangeRecord["runtimeEvidence"]>;
   sourceEvidence?: NonNullable<ElementChangeRecord["sourceEvidence"]>;
   scope?: EditScope;
+  sourceInstanceCount?: number;
   instanceOverride?: RenderedInstanceOverride;
   state?: NonNullable<ElementChangeRecord["state"]>;
 }
@@ -120,7 +121,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || !hasOnlyKeys(value, [
       "kind", "cid", "file", "line", "column", "selector", "property",
       "sourceProperty", "sourceAuthoredValue", "oldToken", "newToken", "rawValue",
-      "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "instanceOverride", "state",
+      "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "sourceInstanceCount", "instanceOverride", "state",
     ])
     || (value.kind !== undefined && value.kind !== "element")
     || typeof value.cid !== "string"
@@ -139,6 +140,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || (value.runtimeEvidence !== undefined && !isRuntimeElementEvidenceValue(value.runtimeEvidence))
     || (value.sourceEvidence !== undefined && !isSourceElementEvidenceValue(value.sourceEvidence))
     || !isEditScopeValue(value.scope)
+    || (value.sourceInstanceCount !== undefined && (!Number.isSafeInteger(value.sourceInstanceCount) || (value.sourceInstanceCount as number) < 1))
     || (value.instanceOverride !== undefined && value.scope !== "rendered-instance")
     || (value.scope === "rendered-instance" && !isRenderedInstanceOverride(value.instanceOverride))
     || (value.state !== undefined && !isElementStateValue(value.state))) {
@@ -223,6 +225,7 @@ export function serializeElementChange(change: ElementChangeRecord): Serializabl
     runtimeEvidence: change.runtimeEvidence ? { ...change.runtimeEvidence } : undefined,
     sourceEvidence: change.sourceEvidence ? { ...change.sourceEvidence } : undefined,
     scope: change.scope === "rendered-instance" ? "rendered-instance" : "source-site",
+    ...(change.sourceInstanceCount !== undefined ? { sourceInstanceCount: change.sourceInstanceCount } : {}),
     instanceOverride: change.scope === "rendered-instance" ? change.instanceOverride : undefined,
     state: change.state,
   };
@@ -271,6 +274,9 @@ export function serializeTextContentChange(change: TextContentChangeRecord): Ser
       props: change.target.props,
       ariaLabel: change.target.ariaLabel,
       beforeText: change.target.beforeText,
+      ...(change.target.tagName !== undefined ? { tagName: change.target.tagName } : {}),
+      ...(change.target.elementId !== undefined ? { elementId: change.target.elementId } : {}),
+      ...(change.target.domPath !== undefined ? { domPath: change.target.domPath } : {}),
       ...(change.target.textNodePath?.length
         ? { textNodePath: [...change.target.textNodePath] }
         : {}),
@@ -311,6 +317,7 @@ export function deserializeElementChange(serialized: SerializableElementChange):
     runtimeEvidence: serialized.runtimeEvidence ? { ...serialized.runtimeEvidence } : undefined,
     sourceEvidence: serialized.sourceEvidence ? { ...serialized.sourceEvidence } : undefined,
     scope: serialized.scope ?? "source-site",
+    ...(serialized.sourceInstanceCount !== undefined ? { sourceInstanceCount: serialized.sourceInstanceCount } : {}),
     instanceOverride: serialized.scope === "rendered-instance" ? serialized.instanceOverride : undefined,
     state: serialized.state,
   };
@@ -358,6 +365,9 @@ export function deserializeTextContentChange(serialized: SerializableTextContent
       props: serialized.target.props,
       ariaLabel: serialized.target.ariaLabel,
       beforeText: serialized.target.beforeText,
+      ...(serialized.target.tagName !== undefined ? { tagName: serialized.target.tagName } : {}),
+      ...(serialized.target.elementId !== undefined ? { elementId: serialized.target.elementId } : {}),
+      ...(serialized.target.domPath !== undefined ? { domPath: serialized.target.domPath } : {}),
       ...(serialized.target.textNodePath?.length
         ? { textNodePath: [...serialized.target.textNodePath] }
         : {}),
@@ -445,19 +455,25 @@ function isComponentInvocationEvidenceValue(value: unknown): value is ComponentI
 
 function isRuntimeElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["runtimeEvidence"]> {
   return isRecord(value)
-    && hasOnlyKeys(value, ["reason", "tagName", "text", "props", "ariaLabel"])
+    && hasOnlyKeys(value, ["reason", "tagName", "text", "props", "ariaLabel", "domPath", "elementId"])
     && (value.reason === undefined || value.reason === "runtime-created" || value.reason === "unannotated")
     && typeof value.tagName === "string"
     && (typeof value.text === "string" || value.text === null)
     && (typeof value.props === "string" || value.props === null)
-    && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
+    && (typeof value.ariaLabel === "string" || value.ariaLabel === null)
+    && (value.domPath === undefined || typeof value.domPath === "string" || value.domPath === null)
+    && (value.elementId === undefined || typeof value.elementId === "string" || value.elementId === null);
 }
 
 function isSourceElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["sourceEvidence"]> {
   return isRecord(value)
-    && hasOnlyKeys(value, ["tagName", "props"])
+    && hasOnlyKeys(value, ["tagName", "props", "text", "ariaLabel", "domPath", "elementId"])
     && typeof value.tagName === "string"
-    && (typeof value.props === "string" || value.props === null);
+    && (typeof value.props === "string" || value.props === null)
+    && (value.text === undefined || typeof value.text === "string" || value.text === null)
+    && (value.ariaLabel === undefined || typeof value.ariaLabel === "string" || value.ariaLabel === null)
+    && (value.domPath === undefined || typeof value.domPath === "string" || value.domPath === null)
+    && (value.elementId === undefined || typeof value.elementId === "string" || value.elementId === null);
 }
 
 function isTokenRefValue(value: unknown): value is SerializableTokenRef | null {

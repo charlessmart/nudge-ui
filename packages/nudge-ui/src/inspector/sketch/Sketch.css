@@ -1,84 +1,17 @@
-.sketch-layers {
-  display: grid;
-  gap: var(--space-4);
-  width: 100%;
-  margin-top: var(--space-8);
-}
-
-.sketch-layers__item {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.sketch-layers__copy {
-  flex: 1 1 auto;
-  position: relative;
-  justify-content: center;
-  min-width: 0;
-  padding-inline: var(--space-12);
-  text-align: center;
-}
-
-.sketch-layers__copy-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  gap: var(--space-4);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-base);
-}
-
-.sketch-layers__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sketch-layers__thumbnail {
-  position: absolute;
-  top: 50%;
-  left: var(--space-8);
-  width: 32px;
-  height: 32px;
+.sketch-thumbnail {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
   margin: 0;
   border-radius: var(--radius-4);
   background: var(--surface-panel);
   box-shadow: var(--shadow-control);
   object-fit: cover;
-  transform: translateY(-50%) rotate(-7deg);
+  transform: rotate(-7deg);
 }
 
-.sketch-layers__thumbnail--empty {
+.sketch-thumbnail--empty {
   border: 1px solid var(--border-subtle);
-}
-
-.sketch-layers__delete {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.sketch-layers__item:hover .sketch-layers__delete,
-.sketch-layers__item:focus-within .sketch-layers__delete {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.sketch-layers__error {
-  flex: 0 0 100%;
-  color: var(--warning-text);
-  font-size: var(--font-size-small);
-  line-height: 1.35;
 }
 
 .sketch__backdrop {
@@ -241,13 +174,49 @@
 }
 
 .sketch__prompt-error {
-  min-width: 0;
-  margin-right: auto;
-  max-width: calc(100% - 88px);
-  color: var(--warning-text);
-  font-size: var(--font-size-small);
-  line-height: 1.35;
-  pointer-events: auto;
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0 calc(-1 * var(--space-8)) 0;
+  border-radius: var(--radius-12) var(--radius-12) 0 0;
+  background: var(--warning-surface);
+  opacity: 0;
+  transition: grid-template-rows 180ms ease, opacity 140ms ease, margin 180ms ease;
+}
+
+/* Bleed the banner to the panel's top edge only while it is open, so the closed
+   banner does not eat the panel padding above the note input. */
+.sketch__prompt-error[data-open="true"] {
+  grid-template-rows: 1fr;
+  margin-top: calc(-1 * var(--space-8));
+  margin-bottom: var(--space-8);
+  opacity: 1;
+}
+
+.sketch__prompt-error-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sketch__prompt-error-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--content-primary, var(--text-primary));
+  font-size: var(--font-size-base);
+  line-height: var(--space-16);
+}
+
+.sketch__prompt-error-icon {
+  flex: none;
+  color: var(--warning);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch__prompt-error {
+    transition: none;
+  }
 }
 
 .sketch__canvas-frame {
@@ -294,6 +263,15 @@
   z-index: 1;
 }
 
+.sketch__target-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .sketch__live-frame {
   background: transparent;
   pointer-events: none;
@@ -305,7 +283,7 @@
 
 .sketch__live-canvas {
   pointer-events: auto;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .sketch__canvas--move {
@@ -360,8 +338,7 @@
 }
 
 .sketch__toolbar,
-.sketch__actions,
-.sketch-change__actions {
+.sketch__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -478,115 +455,3 @@
   justify-content: flex-end;
   margin-top: 16px;
 }
-
-.sketch-change {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.sketch-change__title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.sketch-change__title span,
-.sketch-change__status {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.sketch-change__row {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 10px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.sketch-change__thumbnail {
-  width: 76px;
-  height: 58px;
-  object-fit: cover;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: var(--surface-control);
-}
-
-.sketch-change__thumbnail--empty { display: block; }
-
-.sketch-change__body {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.sketch-change__heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.sketch-change__name,
-.sketch-change__route,
-.sketch-change__description {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sketch-change__name {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.sketch-change__route,
-.sketch-change__description,
-.sketch-change__error {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.sketch-change__description {
-  margin: 2px 0;
-  white-space: normal;
-}
-
-.sketch-change__annotations {
-  display: grid;
-  gap: 2px;
-  margin: 2px 0;
-  padding-inline-start: 18px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.sketch-change__annotations li::marker {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.sketch-change__actions {
-  gap: 2px 4px;
-}
-
-.sketch-change__actions .button {
-  padding-inline: 5px;
-  font-size: 11px;
-}
-
-.sketch-change__status[data-status="needs-review"] { color: var(--warning-text); }
-.sketch-change__status[data-status="dispatching"],
-.sketch-change__status[data-status="handing-off"] { color: var(--accent); }
-.sketch-change__error { color: var(--warning-text); }

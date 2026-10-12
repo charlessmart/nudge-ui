@@ -37,7 +37,33 @@ const TRANSIENT_PSEUDO_CLASSES = new Set([
 ]);
 const INTERACTION_PSEUDO_CLASSES = new Set<string>(INTERACTION_STATES);
 
+/**
+ * Applies a per-branch selector transform to a selector list, so one stateful
+ * branch such as `.b:active` cannot drop a plain sibling branch such as `.a`.
+ */
+function transformSelectorBranches(
+  selector: string,
+  transformBranch: (branch: string) => string | null,
+): string | null {
+  if (!selector.includes(",")) return transformBranch(selector);
+  const kept = splitSelectorAtTopLevel(selector, ",")
+    .map((branch) => transformBranch(branch.trim()))
+    .filter((branch): branch is string => branch !== null && branch.length > 0);
+  return kept.length > 0 ? kept.join(", ") : null;
+}
+
 function selectorForState(selector: string, state: InteractionState): string | null {
+  return transformSelectorBranches(selector, (branch) => branchForState(branch, state));
+}
+
+function stableSelector(selector: string): string | null {
+  return transformSelectorBranches(
+    selector,
+    (branch) => hasSelectorPseudoClass(branch, TRANSIENT_PSEUDO_CLASSES) ? null : branch,
+  );
+}
+
+function branchForState(selector: string, state: InteractionState): string | null {
   const pseudoClasses = selectorPseudoClasses(selector)
     .filter(({ name }) => INTERACTION_PSEUDO_CLASSES.has(name));
   const states = new Set(pseudoClasses.map(({ name }) => name));
@@ -75,9 +101,10 @@ function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): A
   if (transform === "live") {
     transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
   } else if (transform === "stable") {
-    transformed = rules
-      .filter((rule) => !hasSelectorPseudoClass(rule.selectorText, TRANSIENT_PSEUDO_CLASSES))
-      .map((rule) => ({ rule, selectorText: rule.selectorText }));
+    transformed = rules.flatMap((rule) => {
+      const selectorText = stableSelector(rule.selectorText);
+      return selectorText ? [{ rule, selectorText }] : [];
+    });
   } else {
     transformed = rules.flatMap((rule) => {
       const selectorText = selectorForState(rule.selectorText, transform);
@@ -180,7 +207,7 @@ export function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule;
     rule: entry.rule,
     selectorText: entry.selectorText,
     branch,
-    specificity: specificityForBranch({ ...entry.rule, selectorText: entry.selectorText }, branch),
+    specificity: specificityForBranch(entry.rule, branch),
   };
 }
 

@@ -12,7 +12,7 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "../agent/protocol.ts";
-import { clearActiveDraft, getChangesList } from "../drafts/store.ts";
+import { clearActiveDraft, getChangesList, undo } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
@@ -211,7 +211,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
-  it("excludes sketch notes from the clipboard prompt count", async () => {
+  it("counts pending sketches in the clipboard prompt badge", async () => {
     await initializeSketchStore("handoff-project");
     const image = new Blob(["png"], { type: "image/png" });
     await saveSketch({
@@ -230,9 +230,9 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Copy prompt");
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
-    act(() => replaceActiveDraft([change()]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
+    act(() => replaceActiveDraft([change()]));
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("2");
   });
 
   it("shows the connected status without a setup action when the agent is not listening", async () => {
@@ -353,6 +353,8 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
     await act(async () => { button.click(); });
+    const connect = document.querySelector<HTMLElement>('[data-test="copy-style-edit-prompt"]')!;
+    await act(async () => { connect.click(); });
     expect(transport.eventHandlers).not.toBeNull();
 
     await act(async () => {
@@ -424,7 +426,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
   });
 
-  it("offers to clear completed-but-unverified edits and undo the clear", async () => {
+  it("clears completed-but-unverified edits without offering undo", async () => {
     document.head.querySelectorAll("style").forEach((el) => el.remove());
     document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
     const transport = new ButtonTransport();
@@ -473,12 +475,12 @@ describe("CopyPromptButton agent handoff", () => {
 
     act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-clear-remaining"]')!.click());
     expect(getChangesList()).toEqual([]);
-    expect(container.querySelector('[data-test="handoff-cleared-hint"]')?.textContent)
-      .toBe("Cleared stale edits. Undo");
-
-    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-undo-clear"]')!.click());
-    expect(getChangesList()).toEqual([change()]);
     expect(container.querySelector('[data-test="handoff-cleared-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="handoff-undo-clear"]')).toBeNull();
+    expect(container.querySelector('[data-test="handoff-clear-remaining"]')).toBeNull();
+
+    act(() => { undo(); });
+    expect(getChangesList()).toEqual([]);
   });
 
   it("shows plain completion when nothing was in flight", async () => {
@@ -544,7 +546,7 @@ describe("CopyPromptButton agent handoff", () => {
     });
   });
 
-  it("offers to clear a copied handoff once the user returns from the agent", async () => {
+  it("keeps copied edits pending when the user returns without implementation evidence", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = null;
     configureAgentBridgeTransport(transport);
@@ -560,10 +562,9 @@ describe("CopyPromptButton agent handoff", () => {
     act(() => { window.dispatchEvent(new Event("blur")); });
     act(() => { window.dispatchEvent(new Event("focus")); });
 
-    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
-      .toBe("Changes implemented. Clear stale edits");
-    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-clear-remaining"]')!.click());
-    expect(getChangesList()).toEqual([]);
+    expect(container.querySelector('[data-test="handoff-implemented-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="handoff-clear-remaining"]')).toBeNull();
+    expect(getChangesList()).toEqual([change()]);
   });
 
 });

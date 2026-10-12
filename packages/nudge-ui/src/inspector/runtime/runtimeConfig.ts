@@ -54,6 +54,8 @@ export interface NudgeUiRuntimeCapabilities {
 
 /** Product features that a host can selectively expose in its inspector UI. */
 export interface NudgeUiRuntimeFeatures {
+  /** Whether the annotation sketch tool is available in the Canvas UI. */
+  readonly sketch?: boolean;
   /** Whether Canvas can create filesystem-backed HTML iterations. */
   readonly canvasIterations?: boolean;
 }
@@ -79,6 +81,8 @@ export interface NudgeUiRuntimeConfig {
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
   readonly tokenGeneration: string;
   readonly componentContracts: readonly ComponentContract[];
+  /** Why this page cannot be inspected; replaces the selection empty state. */
+  readonly inspectionUnavailableReason?: string;
   /** Whether this runtime is the explicit public landing-page demo. */
   readonly demo?: boolean;
   /** Additional same-origin pages seeded into the public demo canvas. */
@@ -283,8 +287,13 @@ function normalizeFeatures(input: unknown): NudgeUiRuntimeFeatures | undefined {
       'Nudge UI runtime configuration field "features" must be an object.',
     );
   }
+  const sketch = optionalFeatureBoolean(input, "sketch");
   const canvasIterations = optionalFeatureBoolean(input, "canvasIterations");
-  return canvasIterations === undefined ? {} : { canvasIterations };
+  if (sketch === undefined && canvasIterations === undefined) return {};
+  return {
+    ...(sketch === undefined ? {} : { sketch }),
+    ...(canvasIterations === undefined ? {} : { canvasIterations }),
+  };
 }
 
 function optionalDemoFlag(input: Record<string, unknown>): true | undefined {
@@ -337,6 +346,9 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
       input,
       "componentContracts",
     ) as NudgeUiRuntimeConfig["componentContracts"],
+    ...(input.inspectionUnavailableReason === undefined ? {} : {
+      inspectionUnavailableReason: optionalNonEmptyString(input, "inspectionUnavailableReason"),
+    }),
     ...(demo === true ? { demo: true } : {}),
     ...(demoPages === undefined ? {} : { demoPages }),
     ...(demoCardLabels === undefined ? {} : { demoCardLabels }),

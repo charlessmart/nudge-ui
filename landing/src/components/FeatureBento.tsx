@@ -258,7 +258,7 @@ export function FeatureBento(): ReactNode {
       <BentoCard area="spacing" index={2} title="Drag padding and gaps">
         <SpacingStage />
       </BentoCard>
-      <BentoCard area="comment" index={3} title="Comment, then hand off">
+      <BentoCard area="comment" index={3} title="Leave a comment for your agent">
         <CommentStage isVisible={isVisible} />
       </BentoCard>
       <BentoCard area="sketch" index={4} title="Sketch an idea">

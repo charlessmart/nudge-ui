@@ -1,3 +1,4 @@
+import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { useSyncExternalStore } from "react";
 import { getCanvasCards, selectCard, focusCanvasCards, activateIframeWorkspace } from "../canvas/canvasStore.ts";
 import { contentEditTarget, type FrameContent } from "../canvas/frameContent.ts";
@@ -21,9 +22,9 @@ const drafts = createDraftStore({
   canWrite: () => canWriteWorkspace(),
   timeline: sessionTimeline,
   storage: {
-    read: (key) => localStorage.getItem(key),
-    write: (key, value) => localStorage.setItem(key, value),
-    remove: (key) => localStorage.removeItem(key),
+    read: (key) => inspectorStorage()?.getItem(key) ?? null,
+    write: (key, value) => inspectorStorage()?.setItem(key, value),
+    remove: (key) => inspectorStorage()?.removeItem(key),
   },
   sketches: { getSnapshot: () => getSketchStoreSnapshot(), subscribe: (listener) => subscribeSketchStore(listener) },
   project: (snapshot, event) => preview.project(snapshot, event),

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "playwright": "playwright test",
     "test:e2e": "playwright test --project=dev --project=isolation --project=prod",
+    "test:extension": "playwright test --config playwright.extension.config.ts",
     "perf": "playwright test --project=perf",
     "perf:baseline": "PERF_RECORD_BASELINE=1 playwright test --project=perf"
   },

@@ -21,6 +21,10 @@ export interface RenderedInstanceRef {
     text: string | null;
     /** An accessible name can distinguish icon-only repeated controls. */
     ariaLabel?: string | null;
+    /** Rendered facts used to reattach generated identities after reload. */
+    tagName?: string;
+    domPath?: string | null;
+    elementId?: string | null;
     /**
      * The component invocation whose entire output is this element. Present
      * only when evidence alone cannot tell identical outputs apart.
@@ -61,12 +65,15 @@ export function isRenderedInstanceRef(value: unknown): value is RenderedInstance
     || typeof source.cid !== "string"
     || typeof source.src !== "string"
     || !isRecord(locator)
-    || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel", "invocation"])) return false;
+    || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel", "tagName", "domPath", "elementId", "invocation"])) return false;
   return locator.kind === "evidence"
     && Number.isSafeInteger(locator.occurrence) && (locator.occurrence as number) >= 0
     && (typeof locator.props === "string" || locator.props === null)
     && (typeof locator.text === "string" || locator.text === null)
     && (locator.ariaLabel === undefined || typeof locator.ariaLabel === "string" || locator.ariaLabel === null)
+    && (locator.tagName === undefined || typeof locator.tagName === "string")
+    && (locator.domPath === undefined || typeof locator.domPath === "string" || locator.domPath === null)
+    && (locator.elementId === undefined || typeof locator.elementId === "string" || locator.elementId === null)
     && (locator.invocation === undefined || isInvocationRef(locator.invocation));
 }
 
@@ -100,6 +107,10 @@ export interface TextProjectionTarget {
   props: string | null;
   ariaLabel: string | null;
   beforeText: string;
+  /** Optional prompt details; never used to resolve or group text targets. */
+  tagName?: string;
+  elementId?: string | null;
+  domPath?: string | null;
   /** Document-local evidence for a text node inside safe mixed markup. */
   textNodePath?: readonly number[];
 }
@@ -130,7 +141,7 @@ export interface TextContentChangeRecord {
 
 export function isTextProjectionTargetValue(value: unknown): value is TextProjectionTarget {
   if (!isRecord(value)
-    || !hasOnlyKeys(value, ["sourceSite", "occurrence", "props", "ariaLabel", "beforeText", "textNodePath"])) {
+    || !hasOnlyKeys(value, ["sourceSite", "occurrence", "props", "ariaLabel", "beforeText", "textNodePath", "tagName", "elementId", "domPath"])) {
     return false;
   }
   const occurrence = value.occurrence;
@@ -142,6 +153,9 @@ export function isTextProjectionTargetValue(value: unknown): value is TextProjec
     || (typeof props !== "string" && props !== null)
     || (typeof ariaLabel !== "string" && ariaLabel !== null)
     || typeof beforeText !== "string"
+    || (value.tagName !== undefined && typeof value.tagName !== "string")
+    || (value.elementId !== undefined && value.elementId !== null && typeof value.elementId !== "string")
+    || (value.domPath !== undefined && value.domPath !== null && typeof value.domPath !== "string")
     || (textNodePath !== undefined
       && (!Array.isArray(textNodePath)
         || textNodePath.length === 0

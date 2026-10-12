@@ -13,6 +13,7 @@ import { useBrowserCssInspection } from "./useBrowserCssInspection.ts";
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 afterEach(() => {
+  vi.useRealTimers();
   document.body.innerHTML = "";
 });
 
@@ -33,6 +34,7 @@ function snapshot(state: InteractionState, cascade: InspectionSnapshot["cascade"
 
 describe("useBrowserCssInspection", () => {
   it("owns one session subscription while selection state changes", () => {
+    vi.useFakeTimers();
     const unsubscribe = vi.fn();
     const subscribe = vi.fn(() => unsubscribe);
     const inspect = vi.fn<BrowserCssInspection["inspect"]>(
@@ -67,17 +69,20 @@ describe("useBrowserCssInspection", () => {
     const root = createRoot(host);
 
     function Probe({ state }: { state: InteractionState }) {
-      useBrowserCssInspection(selected, state, { session });
-      return null;
+      const view = useBrowserCssInspection(selected, state, { session });
+      return <span>{view.element?.requestedState}</span>;
     }
 
     act(() => root.render(<Probe state="base" />));
+    act(() => vi.advanceTimersByTime(20));
     act(() => root.render(<Probe state="hover" />));
+    act(() => vi.advanceTimersByTime(20));
 
+    expect(host.textContent).toBe("hover");
     expect(subscribe).toHaveBeenCalledTimes(1);
-    // Each state reads authored and stable cascades once. A fresh normalized
+    // Base reads authored and stable once; Hover reads authored once. A fresh normalized
     // selection array would make this count grow through a render loop.
-    expect(inspect).toHaveBeenCalledTimes(4);
+    expect(inspect).toHaveBeenCalledTimes(3);
 
     act(() => root.unmount());
     expect(unsubscribe).toHaveBeenCalledTimes(1);

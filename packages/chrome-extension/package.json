@@ -1,0 +1,19 @@
+{
+  "name": "@nudge-ui/chrome-extension",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Chrome extension that loads the Nudge UI inspector into the current tab.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "nudge-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.4",
+    "esbuild": "^0.28.2"
+  }
+}

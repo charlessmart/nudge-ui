@@ -41,40 +41,6 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
-  examples/mockup-cards:
-    dependencies:
-      '@tabler/icons-react':
-        specifier: 3.46.0
-        version: 3.46.0(react@18.3.1)
-      nudge-ui:
-        specifier: workspace:*
-        version: link:../../packages/nudge-ui
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      '@types/react':
-        specifier: ^19.2.18
-        version: 19.2.18
-      '@types/react-dom':
-        specifier: ^19.2.5
-        version: 19.2.5(@types/react@19.2.18)
-      '@vitejs/plugin-react':
-        specifier: ^4.7.0
-        version: 4.7.0(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0))
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^5.4.21
-        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
-
   examples/packed-consumers:
     devDependencies:
       '@playwright/test':
@@ -450,6 +416,19 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+
+  packages/chrome-extension:
+    dependencies:
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
+    devDependencies:
+      '@types/chrome':
+        specifier: ^0.3.4
+        version: 0.3.4
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   packages/compatibility:
     devDependencies:
@@ -2895,6 +2874,9 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/chrome@0.3.4':
+    resolution: {integrity: sha512-dcySM5R3WAUVYFjylu6tvI4D03hPKjgAqk+tKZ/tm/vxL4mLgbnSsOEQ3J7V99qP/U3Oo9IORstJLmX2hPaDlA==}
+
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
 
@@ -2930,6 +2912,15 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/filesystem@0.0.36':
+    resolution: {integrity: sha512-vPDXOZuannb9FZdxgHnqSwAG/jvdGM8Wq+6N4D/d80z+D4HWH+bItqsZaVRQykAn6WEVeEkLm2oQigyHtgb0RA==}
+
+  '@types/filewriter@0.0.33':
+    resolution: {integrity: sha512-xFU8ZXTw4gd358lb2jw25nxY9QAgqn2+bKKjKOYfNCzN4DKCFetK7sPtrlpg66Ywe3vWY9FNxprZawAh9wfJ3g==}
+
+  '@types/har-format@1.2.16':
+    resolution: {integrity: sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A==}
 
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
@@ -8273,6 +8264,11 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
+  '@types/chrome@0.3.4':
+    dependencies:
+      '@types/filesystem': 0.0.36
+      '@types/har-format': 1.2.16
+
   '@types/d3-array@3.2.2': {}
 
   '@types/d3-color@3.1.3': {}
@@ -8306,6 +8302,14 @@ snapshots:
       '@types/estree': 1.0.9
 
   '@types/estree@1.0.9': {}
+
+  '@types/filesystem@0.0.36':
+    dependencies:
+      '@types/filewriter': 0.0.33
+
+  '@types/filewriter@0.0.33': {}
+
+  '@types/har-format@1.2.16': {}
 
   '@types/hast@3.0.5':
     dependencies:
