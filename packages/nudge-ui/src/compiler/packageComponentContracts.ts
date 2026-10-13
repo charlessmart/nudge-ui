@@ -20,9 +20,21 @@ export interface PackageContractContext {
   compilerOptions?: ts.CompilerOptions;
 }
 
+/** One package export that a host module renders as a JSX component. */
+export interface PackageComponentImport {
+  readonly moduleSpecifier: string;
+  /** The export the JSX tag reaches: an imported name, `default`, or a namespace member. */
+  readonly exportName: string;
+}
+
 export interface PackageContractCatalogContext {
   hostFile: string;
-  moduleSpecifiers: readonly string[];
+  /**
+   * Only these exports are described. A package can export thousands of
+   * components (icon sets), and the catalog ships to the browser, so it is
+   * scoped to what the application actually renders.
+   */
+  imports: readonly PackageComponentImport[];
   compilerOptions?: ts.CompilerOptions;
 }
 
@@ -34,14 +46,30 @@ function isBareModuleSpecifier(value: string): boolean {
     && !value.startsWith("virtual:");
 }
 
-function rootJsxIdentifier(tagName: ts.JsxTagNameExpression): string | null {
+/** The root binding of a JSX tag and the first member read from it, if any. */
+function jsxTagReference(
+  tagName: ts.JsxTagNameExpression,
+): { binding: string; member: string | null } | null {
+  const members: string[] = [];
   let current: ts.JsxTagNameExpression = tagName;
-  while (ts.isPropertyAccessExpression(current)) current = current.expression;
-  return ts.isIdentifier(current) ? current.text : null;
+  while (ts.isPropertyAccessExpression(current)) {
+    members.unshift(current.name.text);
+    current = current.expression;
+  }
+  return ts.isIdentifier(current) ? { binding: current.text, member: members[0] ?? null } : null;
 }
 
-/** Returns bare modules whose imported bindings are rendered as JSX. */
-export function collectPackageComponentModules(code: string, fileName: string): string[] {
+interface PackageBinding {
+  readonly moduleSpecifier: string;
+  /** `null` for a namespace import, whose export is the member the tag reads. */
+  readonly exportName: string | null;
+}
+
+/** Returns the bare-module exports this source renders as JSX, sorted and unique. */
+export function collectPackageComponentImports(
+  code: string,
+  fileName: string,
+): PackageComponentImport[] {
   const source = ts.createSourceFile(
     fileName,
     code,
@@ -49,35 +77,48 @@ export function collectPackageComponentModules(code: string, fileName: string): 
     true,
     fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.JSX,
   );
-  const modulesByBinding = new Map<string, string>();
+  const bindings = new Map<string, PackageBinding>();
   for (const statement of source.statements) {
     if (!ts.isImportDeclaration(statement)
       || !ts.isStringLiteral(statement.moduleSpecifier)
       || !isBareModuleSpecifier(statement.moduleSpecifier.text)) continue;
     const moduleSpecifier = statement.moduleSpecifier.text;
     const clause = statement.importClause;
-    if (clause?.name) modulesByBinding.set(clause.name.text, moduleSpecifier);
-    const bindings = clause?.namedBindings;
-    if (bindings && ts.isNamespaceImport(bindings)) {
-      modulesByBinding.set(bindings.name.text, moduleSpecifier);
-    } else if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) {
-        if (!element.isTypeOnly) modulesByBinding.set(element.name.text, moduleSpecifier);
+    if (!clause || clause.isTypeOnly) continue;
+    if (clause.name) bindings.set(clause.name.text, { moduleSpecifier, exportName: "default" });
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) {
+      bindings.set(named.name.text, { moduleSpecifier, exportName: null });
+    } else if (named && ts.isNamedImports(named)) {
+      for (const element of named.elements) {
+        if (element.isTypeOnly) continue;
+        bindings.set(element.name.text, {
+          moduleSpecifier,
+          exportName: (element.propertyName ?? element.name).text,
+        });
       }
     }
   }
 
-  const modules = new Set<string>();
+  const imports = new Map<string, PackageComponentImport>();
   const visit = (node: ts.Node): void => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-      const binding = rootJsxIdentifier(node.tagName);
-      const moduleSpecifier = binding ? modulesByBinding.get(binding) : undefined;
-      if (moduleSpecifier) modules.add(moduleSpecifier);
+      const reference = jsxTagReference(node.tagName);
+      const binding = reference ? bindings.get(reference.binding) : undefined;
+      const exportName = binding?.exportName ?? reference?.member ?? null;
+      if (binding && exportName) {
+        imports.set(`${binding.moduleSpecifier}#${exportName}`, {
+          moduleSpecifier: binding.moduleSpecifier,
+          exportName,
+        });
+      }
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return [...modules].sort();
+  return [...imports]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, value]) => value);
 }
 
 const DEFAULT_COMPILER_OPTIONS: ts.CompilerOptions = {
@@ -326,21 +367,36 @@ function componentContract(
 export function extractPackageComponentContracts(
   context: PackageContractContext,
 ): ComponentContract[] {
-  return extractPackageComponentContractCatalog({
-    hostFile: context.hostFile,
-    moduleSpecifiers: [context.moduleSpecifier],
-    compilerOptions: context.compilerOptions,
-  });
+  return extractContracts(
+    context.hostFile,
+    new Map([[context.moduleSpecifier, null]]),
+    context.compilerOptions,
+  );
 }
 
-/** Extracts several package modules through one declaration-only program. */
+/** Extracts the rendered exports of several package modules through one declaration-only program. */
 export function extractPackageComponentContractCatalog(
   context: PackageContractCatalogContext,
 ): ComponentContract[] {
-  const compilerOptions = { ...DEFAULT_COMPILER_OPTIONS, ...context.compilerOptions };
-  const moduleSpecifiers = [...new Set(context.moduleSpecifiers)].sort();
+  const exportsByModule = new Map<string, Set<string>>();
+  for (const { moduleSpecifier, exportName } of context.imports) {
+    const exportNames = exportsByModule.get(moduleSpecifier) ?? new Set<string>();
+    exportNames.add(exportName);
+    exportsByModule.set(moduleSpecifier, exportNames);
+  }
+  return extractContracts(context.hostFile, exportsByModule, context.compilerOptions);
+}
+
+/** `null` export names describe every export of that module. */
+function extractContracts(
+  hostFile: string,
+  exportsByModule: ReadonlyMap<string, ReadonlySet<string> | null>,
+  overrides: ts.CompilerOptions | undefined,
+): ComponentContract[] {
+  const compilerOptions = { ...DEFAULT_COMPILER_OPTIONS, ...overrides };
+  const moduleSpecifiers = [...exportsByModule.keys()].sort();
   if (moduleSpecifiers.length === 0) return [];
-  const virtualFile = resolve(dirname(context.hostFile), "__nudge_ui_package_contracts__.tsx");
+  const virtualFile = resolve(dirname(hostFile), "__nudge_ui_package_contracts__.tsx");
   const virtualSource = moduleSpecifiers
     .map((moduleSpecifier, index) =>
       `import * as __nudgeUiPackage${index} from ${JSON.stringify(moduleSpecifier)};`)
@@ -373,7 +429,12 @@ export function extractPackageComponentContractCatalog(
     if (!moduleSymbol) return [];
 
     const packageRoot = packageRootFor(resolution.resolvedFileName, moduleSpecifier);
-    return checker.getExportsOfModule(moduleSymbol)
+    const exportNames = exportsByModule.get(moduleSpecifier);
+    const symbols = exportNames
+      ? [...exportNames].sort().flatMap((exportName) =>
+        checker.tryGetMemberInModuleExports(exportName, moduleSymbol) ?? [])
+      : checker.getExportsOfModule(moduleSymbol);
+    return symbols
       .map((symbol) => {
         const exportName = symbolName(symbol);
         return exportName
