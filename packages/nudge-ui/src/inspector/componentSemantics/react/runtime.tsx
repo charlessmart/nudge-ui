@@ -17,9 +17,21 @@ import type {
   ComponentRootInvocation,
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
-} from "./types.ts";
-import { registerHostRuntimeAdapter } from "./runtimeBridge.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+} from "../types.ts";
+import { registerHostRuntimeAdapter } from "../runtimeBridge.ts";
+import { getNudgeUiRuntimeConfig } from "../../runtime/runtimeConfig.ts";
+import { findFiber, hostOutputCount, isHostOutput, type Fiber } from "./fibers.ts";
+import {
+  canPreviewLive,
+  invocationProps,
+  replaceTaggedOverrides,
+  resetTaggedCallsites,
+  taggedCallsiteMultiplicity,
+  taggedInvocationsAbove,
+  taggedRootInvocations,
+} from "./callsites.ts";
+
+export { registerReactCallsites } from "./callsites.ts";
 
 const BOUNDARY_MARKER = Symbol.for("nudge-ui.react-component-boundary");
 const EMPTY_OVERRIDE: Readonly<Record<string, unknown>> = Object.freeze({});
@@ -34,19 +46,6 @@ interface BoundaryProps {
   element: ReactElement<Record<string, unknown>>;
   meta: ComponentInvocationMeta;
 }
-
-type FiberLike = {
-  type?: unknown;
-  tag?: number;
-  memoizedProps?: BoundaryProps;
-  return?: FiberLike | null;
-  child?: FiberLike | null;
-  sibling?: FiberLike | null;
-};
-
-/** React work tags for host output that has no string element type. */
-const HOST_PORTAL_TAG = 4;
-const HOST_TEXT_TAG = 6;
 
 let overridesByCallsite = new Map<string, Readonly<Record<string, unknown>>>();
 const listeners = new Set<() => void>();
@@ -80,6 +79,7 @@ export function resetReactComponentRuntime(): void {
   mountedCallsites.clear();
   overridesByCallsite = new Map();
   listeners.clear();
+  resetTaggedCallsites();
 }
 
 function subscribe(listener: () => void): () => void {
@@ -190,15 +190,6 @@ function isBoundaryType(value: unknown): value is BoundaryType {
   return Reflect.get(value, BOUNDARY_MARKER) === true;
 }
 
-function findFiber(element: HTMLElement): FiberLike | null {
-  for (const key of Object.keys(element)) {
-    if (/^__reactFiber\$/.test(key) || /^__reactInternalInstance\$/.test(key)) {
-      return (Reflect.get(element, key) as FiberLike | undefined) ?? null;
-    }
-  }
-  return null;
-}
-
 export function instrumentReactComponent(
   element: ReactElement<Record<string, unknown>>,
   meta: ComponentInvocationMeta,
@@ -209,14 +200,50 @@ export function instrumentReactComponent(
   );
 }
 
+/** A boundary fiber's props, or null for any other fiber. */
+function boundaryOf(fiber: Fiber): BoundaryProps | null {
+  if (!isBoundaryType(fiber.type)) return null;
+  // SAFETY: a boundary fiber's props are the `{ element, meta }` it was created with; both are checked below.
+  const props = (fiber.memoizedProps ?? {}) as Partial<BoundaryProps>;
+  return props.meta && props.element ? { meta: props.meta, element: props.element } : null;
+}
+
+interface Ranked<T> {
+  depth: number;
+  callsiteId: string;
+  value: T;
+}
+
+/**
+ * Merges boundary and tagged results nearest first. A callsite answered by
+ * its boundary is not answered again by its tag.
+ */
+function nearestFirst<T>(boundaries: readonly Ranked<T>[], tagged: readonly Ranked<T>[]): T[] {
+  const wrapped = new Set(boundaries.map((entry) => entry.callsiteId));
+  return [...boundaries, ...tagged.filter((entry) => !wrapped.has(entry.callsiteId))]
+    .sort((left, right) => left.depth - right.depth)
+    .map((entry) => entry.value);
+}
+
+/**
+ * Wrapped callsites answer through their boundary; every other instrumented
+ * callsite answers through its fiber's identity tag. Both are merged nearest
+ * first, so the panel sees one ordered ancestry either way.
+ */
 export function inspectReactComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
-  const targets: RuntimeComponentTarget[] = [];
-  let fiber = findFiber(element);
-  while (fiber) {
-    if (isBoundaryType(fiber.type) && fiber.memoizedProps?.meta && fiber.memoizedProps.element) {
-      const { meta, element: sourceElement } = fiber.memoizedProps;
-      targets.push({
+  const host = findFiber(element);
+  if (!host) return [];
+  const boundaries: Ranked<RuntimeComponentTarget>[] = [];
+  let depth = 0;
+  for (let fiber: Fiber | null = host; fiber; fiber = fiber.return ?? null, depth += 1) {
+    const boundary = boundaryOf(fiber);
+    if (!boundary) continue;
+    const { meta, element: sourceElement } = boundary;
+    boundaries.push({
+      depth,
+      callsiteId: meta.callsiteId,
+      value: {
         framework: "react",
         meta,
         props: {
@@ -224,42 +251,48 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
           ...overrideFor(meta.callsiteId),
         },
         mountedCount: getReactCallsiteMultiplicity(meta.callsiteId) ?? undefined,
-      });
-    }
-    fiber = fiber.return ?? null;
+      },
+    });
   }
-  return targets;
-}
-
-function isHostOutput(fiber: FiberLike): boolean {
-  return typeof fiber.type === "string" || fiber.tag === HOST_TEXT_TAG || fiber.tag === HOST_PORTAL_TAG;
-}
-
-/** Counts top-level host outputs below a fiber, stopping once there are two. */
-function hostOutputCount(fiber: FiberLike): number {
-  let count = 0;
-  const visit = (parent: FiberLike): void => {
-    for (let child = parent.child ?? null; child && count < 2; child = child.sibling ?? null) {
-      if (isHostOutput(child)) count += 1;
-      else visit(child);
-    }
-  };
-  visit(fiber);
-  return count;
+  const tagged = taggedInvocationsAbove(host).map((invocation): Ranked<RuntimeComponentTarget> => ({
+    depth: invocation.depth,
+    callsiteId: invocation.meta.callsiteId,
+    value: {
+      framework: "react",
+      meta: invocation.meta,
+      props: invocationProps(invocation.fiber),
+      mountedCount: taggedCallsiteMultiplicity(invocation.meta.callsiteId, invocation.root) ?? undefined,
+      ...(canPreviewLive(invocation.root) ? {} : { livePreview: false }),
+    },
+  }));
+  return nearestFirst(boundaries, tagged);
 }
 
 export function inspectReactRootInvocations(element: HTMLElement): ComponentRootInvocation[] | null {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return null;
   const host = findFiber(element);
   if (!host) return null;
-  const invocations: ComponentRootInvocation[] = [];
+  const boundaries: Ranked<ComponentRootInvocation>[] = [];
+  let depth = 0;
   for (let fiber = host.return ?? null; fiber && !isHostOutput(fiber); fiber = fiber.return ?? null) {
-    if (!isBoundaryType(fiber.type) || !fiber.memoizedProps?.meta) continue;
+    depth += 1;
+    const boundary = boundaryOf(fiber);
+    if (!boundary) continue;
     if (hostOutputCount(fiber) !== 1) break;
-    const { callsiteId, componentName } = fiber.memoizedProps.meta;
-    invocations.push({ callsiteId, componentName });
+    const { callsiteId, componentName } = boundary.meta;
+    boundaries.push({ depth, callsiteId, value: { callsiteId, componentName } });
   }
-  return invocations;
+  const tagged = taggedRootInvocations(host).map(({ depth: taggedDepth, callsiteId, componentName }) => ({
+    depth: taggedDepth,
+    callsiteId,
+    value: { callsiteId, componentName },
+  }));
+  return nearestFirst(boundaries, tagged);
+}
+
+/** Boundary accounting first; a tagged callsite is counted from the mounted tree. */
+function callsiteMultiplicity(callsiteId: string): number | null {
+  return getReactCallsiteMultiplicity(callsiteId) ?? taggedCallsiteMultiplicity(callsiteId);
 }
 
 export function replaceReactComponentOverrides(overrides: ComponentOverride[]): void {
@@ -271,6 +304,7 @@ export function replaceReactComponentOverrides(overrides: ComponentOverride[]): 
     props[override.prop] = override.value;
     next.set(override.callsiteId, props);
   }
+  replaceTaggedOverrides(next);
   if (sameOverrideProjection(next)) return;
   overridesByCallsite = next;
   listeners.forEach((listener) => listener());
@@ -280,7 +314,7 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   framework: "react",
   inspect: inspectReactComponentTargets,
   replaceOverrides: replaceReactComponentOverrides,
-  getCallsiteMultiplicity: getReactCallsiteMultiplicity,
+  getCallsiteMultiplicity: callsiteMultiplicity,
   rootInvocations: inspectReactRootInvocations,
 };
 

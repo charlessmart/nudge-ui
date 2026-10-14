@@ -11,13 +11,13 @@ import {
   type ReactElement,
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { getManagedSheetText } from "../projection/managedStylesheet.ts";
-import { makeComponentChange } from "../changes/_testUtils.ts";
-import type { ChangeRecord, ElementChangeRecord } from "../changes/types.ts";
+import { getManagedSheetText } from "../../projection/managedStylesheet.ts";
+import { makeComponentChange } from "../../changes/_testUtils.ts";
+import type { ChangeRecord, ElementChangeRecord } from "../../changes/types.ts";
 import {
   applyHostDraftProjection,
   compileDraftProjection,
-} from "../projection/draftProjection.ts";
+} from "../../projection/draftProjection.ts";
 import {
   getReactCallsiteMultiplicity,
   instrumentReactComponent,
@@ -25,7 +25,7 @@ import {
   inspectReactRootInvocations,
   resetReactComponentRuntime,
   replaceReactComponentOverrides,
-} from "./reactRuntime.tsx";
+} from "./runtime.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

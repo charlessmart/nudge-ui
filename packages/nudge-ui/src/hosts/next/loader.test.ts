@@ -142,6 +142,17 @@ describe("transformNextModuleSource — client-component policy", () => {
     );
   });
 
+  it("moves callsite registration past the use client directive with the runtime import", () => {
+    const source = '"use client";\nimport { Box } from "@ui/components";\n'
+      + "export function Panel() { return <Box />; }\n";
+    const result = transform(source, `${ROOT}/src/Panel.tsx`);
+
+    expect(result!.code.trimStart().startsWith('"use client";')).toBe(true);
+    expect(result!.code).toContain("__nudgeUiRegisterCallsites([");
+    expect(result!.code.indexOf('"use client"'))
+      .toBeLessThan(result!.code.indexOf("__nudgeUiRegisterCallsites"));
+  });
+
   it("upgrades Pages Router modules without a directive", () => {
     const pagesFixture =
       'function Chip({ label }: { label: string }) { return <b>{label}</b>; }\n'

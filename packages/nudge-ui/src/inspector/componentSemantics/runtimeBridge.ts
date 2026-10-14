@@ -154,6 +154,7 @@ export function copyRuntimeTarget(
     },
     props,
     ...(target.mountedCount === undefined ? {} : { mountedCount: target.mountedCount }),
+    ...(target.livePreview === false ? { livePreview: false } : {}),
   };
 }
 

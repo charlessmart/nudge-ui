@@ -117,10 +117,7 @@ export function transformNextModuleSource(
     // longer a directive prologue, so Next rejects the file ("use client
     // must be placed before other expressions"). Relocate the prepended
     // import to just past the directive prologue.
-    code = relocatePrependedRuntimeImport(
-      code,
-      options.componentRuntimeModule ?? NEXT_COMPONENT_RUNTIME_MODULE,
-    );
+    code = relocatePrependedRuntimePrelude(code, identity.prelude);
   }
 
   if (isAppRootLayoutPath(normalized)) {
@@ -146,13 +143,11 @@ export function transformNextModuleSource(
  * prologue when the source began with one. Sources without a leading
  * directive are returned untouched (the import is already first).
  */
-function relocatePrependedRuntimeImport(code: string, runtimeModule: string): string {
-  const runtimeImport =
-    `import { instrumentReactComponent as __nudgeUiInstrumentComponent } from ${JSON.stringify(runtimeModule)};\n`;
-  if (!code.startsWith(runtimeImport)) return code;
-  const rest = code.slice(runtimeImport.length);
+function relocatePrependedRuntimePrelude(code: string, prelude: string | null): string {
+  if (!prelude || !code.startsWith(prelude)) return code;
+  const rest = code.slice(prelude.length);
   const insertAt = directivePrologueEnd(rest);
-  return rest.slice(0, insertAt) + runtimeImport + rest.slice(insertAt);
+  return rest.slice(0, insertAt) + prelude + rest.slice(insertAt);
 }
 
 /**

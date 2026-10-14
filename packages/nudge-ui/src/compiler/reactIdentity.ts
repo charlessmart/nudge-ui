@@ -14,12 +14,19 @@ import {
   type ComponentInstrumentationPolicy,
 } from "./componentInstrumentation.ts";
 import { relativePath, stripModuleExtension } from "./sourcePaths.ts";
+import type { ComponentInvocationMeta } from "./componentContractTypes.ts";
+import { IDENTITY_ATTRIBUTES } from "./identityAttributes.ts";
 
 export type { ComponentInstrumentationOptions } from "./componentInstrumentation.ts";
 
 export interface InjectResult {
   code: string;
   map: SourceMap | null;
+  /**
+   * The exact line prepended to bind the component runtime, or null. Hosts
+   * whose module must start with a directive prologue relocate this line.
+   */
+  prelude: string | null;
 }
 
 export interface InjectIdentityOptions extends ComponentInstrumentationOptions {
@@ -47,7 +54,7 @@ const ALL_SCOPE_TYPES = new Set([
   ...EXPRESSION_SCOPE_TYPES,
 ]);
 
-const IDENTITY_ATTRS = new Set(["data-cid", "data-src", "data-cprops"]);
+const IDENTITY_ATTRS = new Set<string>(IDENTITY_ATTRIBUTES);
 
 function isComponentName(name: string): boolean {
   return /^[A-Z]/.test(name);
@@ -201,6 +208,8 @@ interface WalkState {
   changed: boolean;
   instrumentedComponents: boolean;
   componentPolicy: ComponentInstrumentationPolicy;
+  /** Callsites left unwrapped, registered so the runtime can still name them. */
+  registeredCallsites: ComponentInvocationMeta[];
 }
 
 function componentIdFor(
@@ -286,7 +295,7 @@ function walk(
     return;
   }
 
-  if (node.type === "JSXElement" && options.instrumentComponents && allowComponentWrapping) {
+  if (node.type === "JSXElement" && options.instrumentComponents) {
     const opening = node.openingElement as Node | undefined;
     const openingName = opening?.name as Node | undefined;
     const componentName = elementName(openingName);
@@ -295,17 +304,14 @@ function walk(
     const loc = openingName?.loc as { start?: { line?: number; column?: number } } | undefined;
     const line = loc?.start?.line;
     const column = loc?.start?.column;
+    const attrs = (opening?.attributes as Node[] | undefined) ?? [];
     if (
       componentName
       && (isComponentName(componentName) || componentName.includes("."))
-      && state.componentPolicy.canWrap(componentName)
-      && typeof start === "number"
-      && typeof end === "number"
       && typeof line === "number"
       && typeof column === "number"
     ) {
-      const attrs = (opening?.attributes as Node[] | undefined) ?? [];
-      const meta = {
+      const meta: ComponentInvocationMeta = {
         callsiteId: `${relPath}:${line}:${column + 1}`,
         componentId: state.componentPolicy.componentId(componentName)
           ?? componentIdFor(componentName, relPath, state.componentPolicy.bindings),
@@ -315,18 +321,30 @@ function walk(
         column: column + 1,
         authoredProps: authoredPropKinds(attrs, (node.children as Node[] | undefined) ?? []),
       };
-      const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
-      // appendRight preserves insertion order when two JSX siblings have no
-      // whitespace between them. At the shared `</First><Second>` boundary,
-      // the first component's closing wrapper must be emitted before the
-      // second component's opening wrapper.
-      ms.appendRight(
-        start,
-        `${needsExpression ? "{" : ""}__nudgeUiInstrumentComponent(`,
-      );
-      ms.appendRight(end, `, ${JSON.stringify(meta)})${needsExpression ? "}" : ""}`);
-      state.changed = true;
-      state.instrumentedComponents = true;
+      if (
+        allowComponentWrapping
+        && state.componentPolicy.canWrap(componentName)
+        && typeof start === "number"
+        && typeof end === "number"
+      ) {
+        const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
+        // appendRight preserves insertion order when two JSX siblings have no
+        // whitespace between them. At the shared `</First><Second>` boundary,
+        // the first component's closing wrapper must be emitted before the
+        // second component's opening wrapper.
+        ms.appendRight(
+          start,
+          `${needsExpression ? "{" : ""}__nudgeUiInstrumentComponent(`,
+        );
+        ms.appendRight(end, `, ${JSON.stringify(meta)})${needsExpression ? "}" : ""}`);
+        state.changed = true;
+        state.instrumentedComponents = true;
+      } else if (!hasAttr(attrs, "data-src")) {
+        // Not safe to wrap, but the injected `data-src` tag still reaches the
+        // component's props, which is all the runtime needs to name it.
+        state.registeredCallsites.push(meta);
+        state.changed = true;
+      }
     }
   }
 
@@ -394,20 +412,34 @@ export function injectIdentity(
     changed: false,
     instrumentedComponents: false,
     componentPolicy: createComponentInstrumentationPolicy(ast, options),
+    registeredCallsites: [],
   };
   walk(ast, null, [], ms, relPath, options, state, true);
   if (!state.changed) return null;
-  if (state.instrumentedComponents) {
-    const runtimeModule = options.componentRuntimeModule ?? DEFAULT_COMPONENT_RUNTIME_MODULE;
-    ms.prepend(
-      `import { instrumentReactComponent as __nudgeUiInstrumentComponent } from ${JSON.stringify(runtimeModule)};\n`,
-    );
-  }
+  const prelude = componentRuntimePrelude(
+    options.componentRuntimeModule ?? DEFAULT_COMPONENT_RUNTIME_MODULE,
+    state,
+  );
+  if (prelude) ms.prepend(prelude);
 
   return {
     code: ms.toString(),
     map: ms.generateMap({ source: id, hires: true }),
+    prelude,
   };
+}
+
+/** One line, so a host can move it past a directive prologue intact. */
+function componentRuntimePrelude(runtimeModule: string, state: WalkState): string | null {
+  const bindings = [
+    ...(state.instrumentedComponents ? ["instrumentReactComponent as __nudgeUiInstrumentComponent"] : []),
+    ...(state.registeredCallsites.length > 0 ? ["registerReactCallsites as __nudgeUiRegisterCallsites"] : []),
+  ];
+  if (bindings.length === 0) return null;
+  const registration = state.registeredCallsites.length > 0
+    ? ` __nudgeUiRegisterCallsites(${JSON.stringify(state.registeredCallsites)});`
+    : "";
+  return `import { ${bindings.join(", ")} } from ${JSON.stringify(runtimeModule)};${registration}\n`;
 }
 
 export function injectDataCid(

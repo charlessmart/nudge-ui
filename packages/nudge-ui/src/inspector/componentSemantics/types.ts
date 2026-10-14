@@ -1,5 +1,6 @@
 import type { RuntimeProps } from "./runtimeTypes.ts";
 import type { EditScope } from "../editScope.ts";
+import type { ComponentInvocationMeta } from "../../compiler/componentContractTypes.ts";
 
 export type ComponentPropValue = string | number | boolean;
 export type AuthoredPropKind = "literal" | "expression" | "spread" | "default";
@@ -51,15 +52,8 @@ export interface ComponentChangeRecord {
   evidence?: ComponentInvocationEvidence;
 }
 
-export interface ComponentInvocationMeta {
-  callsiteId: string;
-  componentId: string;
-  componentName: string;
-  file: string;
-  line: number;
-  column: number;
-  authoredProps: Record<string, Exclude<AuthoredPropKind, "default">>;
-}
+/** The compiler owns this wire format; the runtime only reads it. */
+export type { ComponentInvocationMeta };
 
 export interface RuntimeComponentTarget {
   framework: ComponentFramework;
@@ -67,6 +61,11 @@ export interface RuntimeComponentTarget {
   props: RuntimeProps;
   /** Adapter-reported mounted invocation count for this callsite. */
   mountedCount?: number;
+  /**
+   * False when the runtime can name this invocation but cannot render a prop
+   * change; the change still reaches the prompt. Absent means live.
+   */
+  livePreview?: boolean;
 }
 
 /** A component invocation whose entire rendered output is one DOM element. */

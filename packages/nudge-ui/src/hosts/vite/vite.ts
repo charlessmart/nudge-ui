@@ -181,21 +181,32 @@ export interface TransformIndexHtmlOptions {
   demoBuild?: boolean;
   /** Keep the route-sensitive landing demo on its build-time virtual module. */
   demo?: boolean;
+  /** Inline classic script that must run before any application module. */
+  headScript?: string;
 }
 
 export function transformIndexHtmlHtml(
   html: string,
   command: "serve" | "build",
-  { debug = false, demoBuild = false, demo = false }: TransformIndexHtmlOptions = {},
+  { debug = false, demoBuild = false, demo = false, headScript }: TransformIndexHtmlOptions = {},
 ): string | null {
   if (command === "build" && !demoBuild) return null;
   if (html.includes("data-nudge-ui-client")) return null;
   const script = demo || demoBuild ? LEGACY_INSPECTOR_SCRIPT : INSPECTOR_SCRIPT;
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
-  if (html.includes("</body>")) {
-    return html.replace("</body>", `${inject}</body>`);
+  const withHead = headScript ? prependToHead(html, `<script data-nudge-ui-head>${headScript}</script>`) : html;
+  if (withHead.includes("</body>")) {
+    return withHead.replace("</body>", `${inject}</body>`);
   }
-  return html + inject;
+  return withHead + inject;
+}
+
+/** Classic inline scripts run in document order, ahead of every module script. */
+function prependToHead(html: string, tag: string): string {
+  const head = /<head(?:\s[^>]*)?>/i.exec(html);
+  if (!head) return `${tag}\n${html}`;
+  const at = head.index + head[0].length;
+  return `${html.slice(0, at)}\n${tag}${html.slice(at)}`;
 }
 
 function invalidateHmrModules(
@@ -916,10 +927,15 @@ export function createVitePlugins(
       // The landing app's static demo build imports the virtual module from the app
       // entry, because Vite cannot preserve the dev HTML virtual-module URL.
       if (!enabled || demoBuild) return;
+      // Demo dev serving gets the script like any React app. Demo builds return
+      // above: they ship production React, which has no prop-editing toolkit,
+      // so tagged callsites there are prompt-only whatever the HTML holds.
+      const headScript = framework?.documentHeadScript;
       const out = transformIndexHtmlHtml(html, command, {
         debug: options.debug === true,
         demoBuild,
         demo: options.demo === true,
+        ...(headScript ? { headScript } : {}),
       });
       return out === null ? undefined : out;
     },

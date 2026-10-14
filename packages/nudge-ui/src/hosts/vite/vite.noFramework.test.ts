@@ -100,6 +100,8 @@ describe("the Vite host with no framework", () => {
     const html = plugin.transformIndexHtml!("<html><body></body></html>");
     expect(html).toContain('id="nudge-ui-root"');
     expect(html).toContain("/__nudge_ui__/client.mjs");
+    // The renderer capture script is React's; a host without a framework adds none.
+    expect(html).not.toContain("data-nudge-ui-head");
   }));
 
   it("leaves source modules untouched, because interpreting them is a framework's job",

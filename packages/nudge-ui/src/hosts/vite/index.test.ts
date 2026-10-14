@@ -13,6 +13,7 @@ import {
   withNudgeUi,
 } from "./index.ts";
 import { interpretDialects } from "../../css/dialects/index.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -106,6 +107,13 @@ describe("transformIndexHtmlHtml", () => {
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
   });
 
+  it("places a head script ahead of every other script", () => {
+    const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { headScript: "window.early = true;" })!;
+    const head = out.indexOf("<script data-nudge-ui-head>window.early = true;</script>");
+    expect(head).toBeGreaterThan(out.indexOf("<head"));
+    expect(out.indexOf("<script")).toBe(head);
+  });
+
   it("marks the mount for debug-only Inspector features when requested", () => {
     const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { debug: true });
     expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
@@ -117,6 +125,16 @@ describe("transformIndexHtmlHtml", () => {
     }];
     const out = plugin.transformIndexHtml?.(SAMPLE_HTML);
     expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
+  });
+
+  it.each([{}, { demo: true }])("injects React's renderer capture script ahead of the app (%o)", (options) => {
+    const [plugin] = createNudgeUiPlugins(options) as unknown as [{
+      transformIndexHtml?: (html: string) => string | undefined;
+    }];
+    const out = plugin.transformIndexHtml?.(SAMPLE_HTML) ?? "";
+    const capture = out.indexOf(`<script data-nudge-ui-head>${REACT_RENDERER_CAPTURE_SCRIPT}</script>`);
+    expect(capture).toBeGreaterThan(-1);
+    expect(out.indexOf("<script")).toBe(capture);
   });
 
   it("returns null in build mode (ADR-0002)", () => {

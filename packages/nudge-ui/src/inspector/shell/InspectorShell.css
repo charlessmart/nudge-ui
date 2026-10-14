@@ -389,6 +389,22 @@
   text-transform: uppercase;
 }
 
+/* The State select reads as the last row of the component section above it. */
+.component-props:has(+ .selection) {
+  border-bottom: 0;
+}
+
+.component-props + .selection {
+  padding-top: var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.component-props__hint {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .component-props .field-row__label {
   min-width: 0;
   overflow: hidden;
