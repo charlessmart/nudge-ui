@@ -22,24 +22,19 @@ const COMPONENT_FALLBACK = {
 /** Reads a property's computed value for the inspected style state. */
 export type ComputedStyleReader = (property: string, fallback: string) => string;
 
-/** What the border editor knows about one element: its cascade rows and computed style. */
 export interface BorderSource {
   readonly rows: readonly ResolvedProperty[];
   readonly computed: ComputedStyleReader;
 }
 
 export interface BorderEditorState {
-  /** Every side shares its width, style, and color. Never true for a group selection. */
   readonly sidesLinked: boolean;
-  /** An unstructured `border` shorthand row that only a raw field can edit. */
+  /** Editable only through a raw field. */
   readonly rawShorthandRow: ResolvedProperty | null;
-  /** The linked style draws a line, so linked width and color are meaningful. */
   readonly linkedStyleDraws: boolean;
-  /** Rows backing the linked `border-width`, `border-style`, and `border-color` fields. */
   readonly linkedRows: Readonly<Record<BorderComponent, ResolvedProperty | null>>;
 }
 
-/** User choices the border editor turns into declarations. */
 export type BorderIntent =
   | { readonly kind: "add" }
   | { readonly kind: "remove" }
@@ -58,10 +53,7 @@ function sideProperties(component: BorderComponent): string[] {
   return BORDER_SIDES.map((side) => borderProperty(component, side));
 }
 
-/**
- * Effective value of one border width, style, or color property. Structured
- * shorthand parts win, then authored text, then the computed style.
- */
+/** Precedence: structured shorthand parts, then authored text, then computed style. */
 function borderComponentValue(source: BorderSource, component: BorderComponent, property: string): string {
   const row = findTokenRow(source.rows, property);
   const fallback = COMPONENT_FALLBACK[component];
@@ -83,11 +75,7 @@ function sideSignature(source: BorderSource, component: BorderComponent, propert
   return `${value}|${findTokenRow(source.rows, property)?.tokenName ?? ""}`;
 }
 
-/**
- * A component is linked when every side shares its value. A lone shorthand row
- * with no per-side rows is linked by construction; four different `border-*`
- * shorthands compare by their structured parts, not their full text.
- */
+/** A lone shorthand row is linked by construction; per-side rows compare by structured parts. */
 function componentLinked(source: BorderSource, component: BorderComponent): boolean {
   const properties = sideProperties(component);
   const hasShorthandRow = findTokenRow(source.rows, borderProperty(component)) !== null;
@@ -122,7 +110,6 @@ export function readBorderEditor(source: BorderSource, { group }: { readonly gro
   };
 }
 
-/** Whether any side draws a visible line, including after stylesheet resets. */
 export function hasVisibleBorder(computed: ComputedStyleReader): boolean {
   return BORDER_SIDES.some((side) => {
     const style = computed(borderProperty("style", side), "none").toLowerCase();
@@ -131,7 +118,6 @@ export function hasVisibleBorder(computed: ComputedStyleReader): boolean {
   });
 }
 
-/** Linking sides writes each component shorthand from the top side's values. */
 function linkSidesDeclarations(source: BorderSource): StyleDeclaration[] {
   const components: BorderComponent[] = ["style", "width", "color"];
   return components.map((component) => ({

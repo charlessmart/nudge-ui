@@ -63,7 +63,6 @@ export interface SettingsDialogProps extends McpConnectionContentProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-/** Provides one settings surface for prompt, MCP, and token configuration. */
 export function SettingsDialog({
   open,
   initialSection,

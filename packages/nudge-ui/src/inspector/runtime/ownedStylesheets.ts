@@ -7,18 +7,12 @@ const styleElementSupport = new WeakMap<Document, boolean>();
 const adoptedSheets = new WeakMap<StyleRoot, Map<string, CSSStyleSheet>>();
 let adoptedOnly = false;
 
-/**
- * Uses constructable stylesheets everywhere without probing the page policy.
- * A blocked probe logs a violation and can send one to the site's CSP report endpoint.
- */
+/** Skips the style-element probe because a blocked probe can log a violation to the site's CSP report endpoint. */
 export function preferAdoptedStylesheets(): void {
   adoptedOnly = true;
 }
 
-/**
- * A strict `style-src` policy blocks `<style>` elements, leaving them without
- * a sheet, but not constructable stylesheets. Checked once per document.
- */
+/** A strict `style-src` blocks `<style>` elements but not constructable stylesheets; checked once per document. */
 export function allowsStyleElements(doc: Document): boolean {
   if (adoptedOnly) return false;
   const known = styleElementSupport.get(doc);

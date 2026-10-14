@@ -24,7 +24,6 @@ export interface SketchWorkspaceProps {
   readonly projectId: string;
 }
 
-/** Makes saving a new sketch one step in the session undo history. */
 function recordSketchCreation(document: SketchDocument, owner: string): void {
   let snapshot = document;
   recordCanvasChange({
@@ -78,9 +77,8 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
     ? store.items.find((item) => item.document.id === interaction.editingId)?.document ?? null
     : null;
 
-  // IndexedDB hydration is deliberately independent from the localStorage
-  // session schema. A failed hydration leaves the inspector usable and gives
-  // the Changes log a recovery message.
+  // Deliberately independent of the localStorage session schema; a failed
+  // hydration leaves the inspector usable.
   useEffect(() => {
     clearSketchClipboardHandoff();
     closeSketchNote();

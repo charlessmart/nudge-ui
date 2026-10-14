@@ -22,7 +22,6 @@ function enabledRuntimeAdapters(ownerGlobal: typeof globalThis): ComponentRuntim
   return [...getHostRuntimeAdapters(ownerGlobal)];
 }
 
-/** Register a framework adapter without coupling semantic resolution to React. */
 export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter): () => void {
   return registerHostRuntimeAdapter(adapter);
 }
@@ -58,10 +57,7 @@ export function inspectComponentTargets(element: HTMLElement): RuntimeComponentT
   return targets;
 }
 
-/**
- * Returns the invocations, nearest first, whose entire rendered output is this
- * element. Null means no enabled runtime could read the element's ancestry.
- */
+/** Nearest first; null means no enabled runtime could read the element's ancestry. */
 export function inspectRootInvocations(element: HTMLElement): ComponentRootInvocation[] | null {
   let invocations: ComponentRootInvocation[] | null = null;
   const ownerGlobal = element.ownerDocument.defaultView ?? globalThis;
@@ -84,10 +80,7 @@ function diagnoseAdapter(adapter: ComponentRuntimeAdapter, detail: string): void
   console.warn(`[nudge-ui] Ignored invalid ${adapter.framework} Adapter inspection: ${detail}`);
 }
 
-/**
- * Resolve multiplicity through the owning runtime Adapter. The inspector does
- * not infer it from DOM order or retain a React fiber as durable identity.
- */
+/** Multiplicity is never inferred from DOM order. */
 export function callsiteMultiplicity(target: RuntimeComponentTarget): number | null {
   return target.mountedCount === undefined ? null : target.mountedCount;
 }

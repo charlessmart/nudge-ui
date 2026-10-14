@@ -29,11 +29,7 @@ export interface GridValueFieldProps {
   onAfterEdit?: () => void;
 }
 
-/**
- * Raw CSS editor for Grid grammar. Track lists and line placement are not
- * safely decomposable into numeric controls, so the authored expression is
- * retained verbatim and committed as one managed longhand.
- */
+/** Grid track lists and line placement are not safely decomposable into numeric controls. */
 export function GridValueField({
   property,
   domElement: el,
@@ -51,9 +47,7 @@ export function GridValueField({
   };
   const [value, setValue] = useState(readValue);
   const [draft, setDraft] = useState(value);
-  // Commit reads the ref, not state: Escape reverts the draft and then blurs
-  // within the same event, before React re-renders, so a state-only read
-  // would commit the pre-escape draft.
+  // Commit reads the ref, not state: Escape reverts then blurs in one event, before React re-renders.
   const draftRef = useRef(value);
 
   useEffect(() => {

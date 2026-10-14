@@ -1,11 +1,7 @@
 import type { StringListRecord } from "./stringRecord.ts";
 import { isLayoutPreview } from "./layoutPreviewState.ts";
 
-/**
- * Shorthands that also author the keyed longhand when present in a `style`
- * attribute. Managed-stylesheet previews lose the cascade to any of these,
- * so fields must treat the longhand as inline-blocked either way.
- */
+// A `style`-attribute shorthand authors the keyed longhand; managed previews lose the cascade to inline styles.
 const SHORTHAND_SOURCES: StringListRecord = {
   "font-family": ["font"],
   "font-style": ["font"],
@@ -72,10 +68,7 @@ const SHORTHAND_SOURCES: StringListRecord = {
   "grid-column-end": ["grid-column", "grid-area", "grid"],
 };
 
-/**
- * Longhands edited together by one linked field. The field is blocked when
- * any of them is inline-authored, even if the shorthand itself is not.
- */
+// Blocked when any longhand is inline-authored, even if the shorthand itself is not.
 const LINKED_LONGHANDS: StringListRecord = {
   "border-width": ["border-top-width", "border-right-width", "border-bottom-width", "border-left-width"],
   "border-style": ["border-top-style", "border-right-style", "border-bottom-style", "border-left-style"],
@@ -83,13 +76,7 @@ const LINKED_LONGHANDS: StringListRecord = {
   "border-radius": ["border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"],
 };
 
-/**
- * Returns the inline-authored source when `el` carries the property — or a
- * shorthand that sets it — in its `style` attribute. Managed previews can
- * never beat inline styles in the cascade, so a non-null result means the
- * field must present as blocked instead of accepting edits that silently
- * revert (see `verifyPreview`'s "inline-style" conflict).
- */
+/** Non-null means the field must present as blocked: previews cannot beat inline styles in the cascade. */
 export function inlineAuthoredValue(el: HTMLElement, property: string): string | null {
   if (isLayoutPreview(el, property)) return null;
   for (const source of [property, ...(SHORTHAND_SOURCES[property] ?? [])]) {
@@ -103,7 +90,6 @@ export function inlineAuthoredValue(el: HTMLElement, property: string): string |
   return null;
 }
 
-/** First inline-authored source that blocks any of `properties` on any of `elements`. */
 export function inlineBlockedBy(elements: readonly HTMLElement[], ...properties: readonly string[]): string | null {
   for (const property of properties) {
     for (const el of elements) {

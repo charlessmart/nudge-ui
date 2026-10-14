@@ -1,8 +1,4 @@
-/**
- * Resolves a CSSOM nested selector against its already resolved parent.
- * `:is()` preserves nesting's maximum parent-list specificity without
- * expanding every combination of parent and child selectors.
- */
+/** `:is(parent)` keeps nesting's maximum parent-list specificity without expanding every combination. */
 export function resolveNestedSelector(selector: string, parent: string): string {
   const subject = `:is(${parent})`;
   const branches: string[] = [];

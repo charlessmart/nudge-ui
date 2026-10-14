@@ -52,8 +52,7 @@ describe("instrumentRenderedHtml", () => {
     expect(result.html).toContain('data-src="src/components/Header.astro:2:4"');
     expect(result.html).toContain('data-src="src/components/Header.astro:3:6"');
     expect(result.html).toContain('data-src="src/components/Footer.astro:8:2"');
-    // The unannotated anchor degrades to a generated label only, while the
-    // document stays annotated overall.
+    // The unannotated anchor degrades to a generated label; the document stays annotated overall.
     expect(result.html).toContain('<a href="/" data-cid="astro:A">');
     expect(result.diagnostics).toEqual([]);
   });
@@ -246,8 +245,7 @@ describe("instrumentRenderedHtml", () => {
   });
 
   it("instruments body-less markup because parse5 synthesizes a body around fragments", () => {
-    // Dev-server responses are always complete documents; this pins what a
-    // stray fragment does rather than implying passthrough semantics.
+    // Pins what a stray fragment does; dev-server responses are always complete documents.
     const source = "<div>not a document</div>";
     const result = instrumentRenderedHtml(source);
 

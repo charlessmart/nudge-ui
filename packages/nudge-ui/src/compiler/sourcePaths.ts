@@ -1,19 +1,10 @@
 import { posix } from "node:path";
 
-/** Strip a TypeScript or JavaScript module extension from a resolved path. */
 export function stripModuleExtension(value: string): string {
   return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
 }
 
-/**
- * Project-relative source path used by `data-src`, callsite identity, and
- * catalog keys.
- *
- * A file outside the project root (an authored workspace package) keeps a
- * `../`-prefixed relative path, so identity stays unique across packages and
- * machine paths never reach the DOM or a prompt. Every host Adapter reads this
- * function so their identity strings cannot drift.
- */
+/** Project-relative identity path; files outside the root keep a `../` prefix so ids stay unique and machine paths never reach the DOM or a prompt. */
 export function relativePath(id: string, root?: string): string {
   if (root) {
     const rootPrefix = root.endsWith("/") ? root : `${root}/`;

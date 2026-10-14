@@ -1,8 +1,3 @@
-/**
- * The token catalog must follow only stylesheets the application imports. This
- * small graph walker deliberately has no filesystem traversal: callers supply
- * the host CSS entry files, a Vite-backed resolver, and a reader.
- */
 export interface CssImportGraph {
   files: Map<string, string>;
   /** CSS cascade order: imported sheets precede the sheet that imports them. */
@@ -24,7 +19,6 @@ export function isCssStylesheet(id: string): boolean {
   return /\.css(?:$|[?#])/i.test(id);
 }
 
-/** Extract quoted and url(...) @import targets while ignoring CSS comments. */
 export function cssImportSpecifiers(css: string): string[] {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const imports: string[] = [];
@@ -37,10 +31,7 @@ export function cssImportSpecifiers(css: string): string[] {
   return imports;
 }
 
-/**
- * Resolve every CSS file reached from the supplied host stylesheets. Missing
- * and unreadable imports are reported but never make the catalog unavailable.
- */
+/** Missing and unreadable imports are reported, never fatal to the catalog. */
 export async function discoverCssImportGraph(
   entryFiles: readonly string[],
   dependencies: CssImportGraphDependencies,
@@ -77,9 +68,8 @@ export async function discoverCssImportGraph(
         unresolved.push({ importer: fileId, specifier });
         continue;
       }
-      // A processor-owned import such as Tailwind's package entry may resolve
-      // to JavaScript and later emit CSS during transform. It is outside this
-      // ordinary-CSS graph, but it is not an unresolved stylesheet failure.
+      // A processor-owned import such as Tailwind's package entry may resolve to JavaScript
+      // and emit CSS during transform; it is outside this graph, not an unresolved failure.
       if (!isCssStylesheet(resolved)) continue;
       await visit(resolved);
     }

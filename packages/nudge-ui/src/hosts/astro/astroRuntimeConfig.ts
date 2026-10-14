@@ -19,7 +19,6 @@ const ASTRO_SOURCE_COORDINATES = {
   exactFileExtensions: [".astro", ".html", ".htm"],
 } as const;
 
-/** Builds the runtime knowledge shared by both Astro client transports. */
 export function createAstroRuntimeConfig(
   knowledge: AstroRuntimeKnowledge,
 ): NudgeUiRuntimeConfig {

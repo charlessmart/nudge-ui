@@ -4,9 +4,7 @@ import type { ReactElement, ReactNode } from "react";
 /** Matches the `width` transition in CanvasToolbar.css. */
 const SLIDE_DURATION_MS = 220;
 
-// The toolbar is remounted when sketching moves it into a root-level portal.
-// Remember each drawer's last state and width so the new instance can animate
-// from them; it can mount before its content has been laid out.
+// The toolbar remounts when sketching moves it into a root-level portal; remember each drawer's last state and width.
 const lastOpen = new Map<string, boolean>();
 const lastWidth = new Map<string, number>();
 
@@ -15,14 +13,10 @@ export interface ToolOptionsDrawerProps {
   readonly name: string;
   readonly open: boolean;
   readonly label: string;
-  /**
-   * Renders the drawer content. `hidden` removes controls from the tab order;
-   * `settled` is true once the slide finishes and content may overflow the bar.
-   */
+  /** `hidden` removes controls from the tab order; `settled` is true once the slide finishes. */
   readonly children: (state: { readonly hidden: boolean; readonly settled: boolean }) => ReactNode;
 }
 
-/** Slides tool-specific options out of the canvas toolbar beside their tool. */
 export function ToolOptionsDrawer({ name, open, label, children }: ToolOptionsDrawerProps): ReactElement {
   const [expanded, setExpanded] = useState(() => lastOpen.get(name) ?? false);
   const [settled, setSettled] = useState(() => (lastOpen.get(name) ?? false) && open);
@@ -49,9 +43,7 @@ export function ToolOptionsDrawer({ name, open, label, children }: ToolOptionsDr
     if (!open) setSettled(false);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const frame = requestAnimationFrame(() => {
-      // Tool clicks and shortcuts are discrete events, so React can run this
-      // effect before a freshly mounted toolbar is ever styled. Flush its
-      // previous state first so the width change transitions instead of jumping.
+      // React can run this effect before a remounted toolbar is styled; flush layout so the width change transitions instead of jumping.
       void drawerRef.current?.offsetWidth;
       setExpanded(open);
       if (open) timer = setTimeout(() => setSettled(true), SLIDE_DURATION_MS);
@@ -81,7 +73,6 @@ export function ToolOptionsDrawer({ name, open, label, children }: ToolOptionsDr
   );
 }
 
-/** Closes a toolbar popover on an outside pointer press or Escape. */
 export function useDismissablePopover(
   open: boolean,
   rootRef: { readonly current: HTMLElement | null },

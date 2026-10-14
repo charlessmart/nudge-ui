@@ -65,8 +65,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
       });
     }
   }
-  // Source-site rules remain the default; exact rendered-instance rules are
-  // emitted afterwards so their additional marker specificity wins.
+  // Source-site rules are the default; rendered-instance rules come last so their extra marker specificity wins.
   return [...sourceRules.values(), ...instanceRules.values()];
 }
 
@@ -75,17 +74,12 @@ export function verifyManagedStyleProjection(
   selectedElement?: HTMLElement | null,
   ownerDocument: Document = document,
 ): PreviewResult | null {
-  // Deferred verification must use the selection that existed when the
-  // projection was committed. Reading the live selection here can make a
-  // host-document change verify against a later canvas selection (or vice
-  // versa) and manufacture a conflict for the wrong document.
+  // Deferred verification must use the selection from commit time; the live selection can belong to the wrong document and manufacture a conflict.
   const selected = selectedElement === undefined
     ? getSelectedElement()?.domElement ?? null
     : selectedElement;
   const requestedValue = requestedStyleValue(change);
-  // A Canvas-only selection belongs to an iframe. The controller stylesheet
-  // cannot verify it synchronously; leave its result unknown until the frame
-  // has received the canonical projection rather than claiming it is stale.
+  // A Canvas-only iframe selection cannot be verified synchronously; leave the result unknown rather than claiming it is stale.
   if (selected && selected.ownerDocument !== ownerDocument) {
     return null;
   }
@@ -96,11 +90,7 @@ export function verifyManagedStyleProjection(
   } catch {
     targets = [];
   }
-  // Probe targets lazily in DOM order and stop at the first conflicting
-  // preview: the reported result is exactly "first conflict ?? first target",
-  // so probing the remaining instances cannot change the outcome. A
-  // source-site selector matched by many rendered instances (one callsite,
-  // hundreds of nodes) otherwise pays a probe + important-rule scan per match.
+  // Early exit is safe: the result is "first conflict ?? first target", so later probes cannot change it.
   let firstApplied: PreviewResult | null = null;
   let previewResult: PreviewResult | null = null;
   for (const target of targets) {

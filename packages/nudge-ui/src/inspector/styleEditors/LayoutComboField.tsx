@@ -105,11 +105,6 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
   const inPresets = presets.includes(currentValue);
 
-  // Inline styles always beat managed-stylesheet previews in the cascade, so
-  // an inline-authored property can never preview. Present the field as
-  // blocked (with the reason) instead of accepting edits that silently snap
-  // back to the computed value on the next revision. Recomputed every render
-  // so external style-attribute edits update the field without a remount.
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
 
   function commit(value: string): void {

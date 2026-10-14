@@ -3,12 +3,6 @@ import type { Frame, Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/**
- * Stage 6 conformance (docs/features/astro-host-adapter.md): portfolio-shaped
- * coverage for the Astro host Adapter — conservative rendered-text editing
- * with prompt handoff, and repeated component outputs sharing one source site.
- */
-
 async function waitForInspector(page: Page): Promise<Frame> {
   await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
   await expect
@@ -42,8 +36,6 @@ test("dev: static rendered text follows Astro source-annotation capability", asy
   const sourceIdentity = await lede.getAttribute("data-src");
 
   if (sourceIdentity !== null) {
-    // When Astro provides source coordinates, the adapter can offer a safe
-    // authored-text projection and include those coordinates in the prompt.
     await lede.dblclick();
     const editor = frame.locator('[data-inline-editor="true"]');
     await expect(editor).toBeVisible();
@@ -56,9 +48,7 @@ test("dev: static rendered text follows Astro source-annotation capability", asy
     expect(prompt).toMatch(/src\/pages\/index\.astro:\d+:\d+/);
     expect(prompt).not.toContain("data-cid");
   } else {
-    // Astro 7's current Rust compiler does not emit source annotations. The
-    // adapter keeps the honest generated identity and does not offer an inline
-    // source edit that it cannot project back to an authored file.
+    // Astro 7's Rust compiler emits no source annotations, so there is no authored location to project an edit to.
     await lede.dblclick();
     await expect(frame.locator('[data-inline-editor="true"]')).toHaveCount(0);
     await expect(lede).toHaveText("A portfolio-shaped fixture for the Nudge UI Astro host Adapter.");
@@ -83,8 +73,7 @@ test("dev: repeated component outputs remain independently selectable", async ({
   const cards = frame.locator("article.card");
   await expect(cards).toHaveCount(2);
 
-  // When source annotations are unavailable, both outputs use the same
-  // generated component identity and intentionally have no invented location.
+  // Without source annotations both outputs share the generated identity and must not invent a location.
   for (let index = 0; index < 2; index += 1) {
     await expect(cards.nth(index)).toHaveAttribute("data-cid", "astro:Article");
     const sourceIdentity = await cards.nth(index).getAttribute("data-src");
@@ -93,12 +82,9 @@ test("dev: repeated component outputs remain independently selectable", async ({
     }
   }
 
-  // Each DOM output remains independently selectable, with the style editors
-  // targeting the selected output.
   await cards.nth(1).click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
-  // Selecting the first output re-targets the panel without stale state.
   await cards.nth(0).click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 

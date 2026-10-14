@@ -78,10 +78,7 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 function onKeyup(e: KeyboardEvent): void {
-  // Release only a keyboard-started peek so a button-held preview survives
-  // unrelated Backslash keyups (e.g. the panel-toggle shortcuts pressed
-  // mid-hold). A guarded keydown never sets the flag, so this stays a no-op
-  // for keyups without a matching hold.
+  // Release only a keyboard-started peek so a button-held preview survives unrelated Backslash keyups.
   if (e.code === "Backslash" && keyboardPeekHeld) {
     keyboardPeekHeld = false;
     setOriginalPreviewActive(false);
@@ -119,16 +116,13 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
   if (explicitDemo) {
     rendererBootstrapHandle?.teardown();
     rendererBootstrapHandle = null;
-    // ADR-0014: only the configured demo runtime opens the shared dev gate
-    // for its own document. The bundle mode name alone must never flip it,
-    // so every build without both opt-ins stays governed by ADR-0002.
+    // Only the configured demo runtime may open the shared dev gate; the bundle mode name alone must not.
     setNudgeUiHostDevFlag(true);
     if (runtimeConfig.capabilities.canvas && isCanvasRenderer()) {
       rendererBootstrapHandle = bootstrapRenderer() ?? null;
       return;
     }
-    // The public demo shares the iframe editor while keeping the write lease,
-    // persistence, and agent bridge disabled.
+    // The public demo shares the iframe editor without the write lease, persistence, or agent bridge.
     setCanvasMode("canvas");
     workspaceController?.dispose();
     workspaceController = startWorkspaceController();
@@ -138,8 +132,7 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
   }
 
   if (!runtimeConfig.capabilities.canvas) {
-    // A project can be reopened with a runtime that does not expose Canvas.
-    // Clear any stale in-memory mode before mounting the static inspector.
+    // Clear a stale in-memory Canvas mode when the runtime does not expose Canvas.
     setCanvasMode("inspect");
   }
 
@@ -171,8 +164,7 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
     return;
   }
 
-  // Ownership prevents the previous tab from saving after this snapshot.
-  // Refresh on remount as well as explicit takeover, before hydration writes.
+  // Refresh ownership before hydration writes so the previous tab cannot save after this snapshot.
   try {
     const storage = inspectorStorage();
     if (storage?.refresh) await storage.refresh();
@@ -211,8 +203,7 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
     }
   }
   if (getNudgeUiRuntimeConfig().capabilities.canvas) {
-    // Normal controllers always host the iframe workspace. Hydration runs
-    // first so this mode change cannot discard cards, camera, or edits.
+    // Hydration runs first so switching to Canvas mode cannot discard cards, camera, or edits.
     setCanvasMode("canvas");
   }
 
@@ -313,9 +304,7 @@ export function unmountInspector(): void {
   try {
     disposeInspectorSession();
   } finally {
-    // Document-session cleanup already releases host projection when a
-    // session exists; release directly as well so projection applied outside
-    // a session (gestures, workspace projection) cannot leak across unmount.
+    // Release directly too, so projection applied outside a session cannot leak across unmount.
     disposeRuntimeIdentityClaims(document);
     releaseDocumentProjection(document);
     clearClipboardHandoff();

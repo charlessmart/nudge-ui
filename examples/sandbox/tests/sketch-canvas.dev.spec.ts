@@ -51,7 +51,7 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
   const marks = page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path');
 
   await drawAt(centerY - 40);
-  // Toolbar clicks move focus outside the sketch dialog.
+  // Toolbar clicks move focus out of the sketch dialog.
   await page.locator('[data-test="sketch-tool-color"]').click();
   await page.locator('[data-test="sketch-color-red"]').click();
   await drawAt(centerY + 40);
@@ -71,7 +71,6 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
   await expect(marks).toHaveCount(1);
   await expect(marks.first()).not.toHaveAttribute("fill", "#f03e1e");
 
-  // Undo restores the erased mark rather than removing the earlier one.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(marks).toHaveCount(2);
   await expect(marks.nth(1)).toHaveAttribute("fill", "#f03e1e");

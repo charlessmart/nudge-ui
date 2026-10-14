@@ -5,7 +5,6 @@ import type { ChangeRecord, TextContentChangeRecord } from "../changes/types.ts"
 import { captureTextProjectionTarget, textProjectionSelector } from "../projection/textProjection.ts";
 import type { TextProjectionScope, TextProjectionTarget } from "../changes/editModel.ts";
 
-/** Binding and scope decisions, independent of native editor lifecycle state. */
 export interface TextEditDecision {
   bindingIndex: number | null;
   scope: TextProjectionScope;

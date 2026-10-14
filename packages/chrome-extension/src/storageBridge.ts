@@ -82,8 +82,7 @@ async function handleSketchRequest(prefix: string, request: SketchRequest): Prom
   return undefined;
 }
 
-// Runs in the isolated world, so the page can dispatch writes but cannot
-// choose the origin they are stored under.
+// Runs in the isolated world, so the page can dispatch writes but cannot choose the origin they are stored under.
 const scope = globalThis as typeof globalThis & { [BRIDGE_FLAG]?: true };
 if (!scope[BRIDGE_FLAG]) {
   scope[BRIDGE_FLAG] = true;

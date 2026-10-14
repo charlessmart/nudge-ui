@@ -13,11 +13,7 @@ import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 export type StructuralNudgeKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 
-/**
- * A temporary, document-local insertion point. It is intentionally not a
- * structural record: `moveElement` captures durable rendered-instance refs
- * before handing the canonical action to structuralProjection.
- */
+/** Temporary, document-local insertion point; canonical moves capture durable rendered-instance refs instead. */
 export interface DropLocation {
   parent: HTMLElement;
   before: Node | null;
@@ -28,7 +24,7 @@ export interface DropLocation {
   height: number;
 }
 
-/** Conservative HTML guard shared with canonical capture and document replay. */
+/** Delegates to the guard shared with canonical capture and document replay. */
 export function canContainElement(parent: HTMLElement, child: HTMLElement): boolean {
   return canContainStructuralElement(parent, child);
 }
@@ -130,7 +126,6 @@ function flexRowChildAtTarget(dragged: HTMLElement, target: HTMLElement): HTMLEl
   return null;
 }
 
-/** Derives a safe insertion point; its nodes never leave this gesture module. */
 export function getDropLocationForElement(
   dragged: HTMLElement,
   target: HTMLElement,
@@ -183,7 +178,6 @@ function projectInlineHost(node: HTMLElement): void {
   applyStructuralProjection(document, getStructuralChanges());
 }
 
-/** Capture the move as canonical intent, then preview it in an inline host. */
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {
   if (!getStructuralMoveLegality(node, destination).valid) return null;
   const change = createStructuralMove(node, destination);
@@ -203,7 +197,6 @@ export function nudgeElement(node: HTMLElement, key: StructuralNudgeKey): Struct
   return moveElement(node, { parent, before, ...lineFor(parent, before) });
 }
 
-/** Capture delete intent, then preview it in an inline host. */
 export function deleteElement(selected: SelectedElement): StructuralDelete | null {
   const node = selected.domElement;
   if (!node.parentElement || !node.isConnected) return null;

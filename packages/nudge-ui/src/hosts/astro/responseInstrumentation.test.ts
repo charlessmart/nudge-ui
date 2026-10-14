@@ -46,8 +46,7 @@ describe("instrumentAstroResponse", () => {
     expect(body).toContain('data-cid="astro:H1"');
     expect(body).toContain('data-src="src/pages/about.astro:12:7"');
     expect(body.match(/data-cid="astro:H1"/g)).toHaveLength(1);
-    // The authored bytes outside the inserted attributes are preserved, so
-    // the body differs from the source only by identity insertions.
+    // Authored bytes outside the inserted attributes are preserved, so the length matches.
     expect(result.headers.get("content-length")).toBe(
       String(Buffer.byteLength(body, "utf8")),
     );
@@ -113,9 +112,7 @@ describe("instrumentAstroResponse", () => {
   });
 
   it("forwards the original response when the body read itself fails", async () => {
-    // A failed stream read must not reject into the middleware chain and
-    // break the dev page load; the original response is the only remaining
-    // representation of the body, so it forwards by reference.
+    // A failed stream read must not reject into the middleware chain and break the dev page load.
     const erroredBody = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.error(new Error("synthetic stream failure"));

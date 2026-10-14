@@ -1,55 +1,26 @@
-/**
- * Color value semantics (plan slice 3.4).
- *
- * One browser-safe Module owns color format recognition, embedded-alpha
- * detection, opacity modifier interpretation, `color-mix()` handling, color
- * token replacement, and meaning-preserving opacity edits. Interpretation
- * takes explicit token knowledge (a token table, local aliases, and an
- * optional token-reference resolver) and never touches the DOM or CSSOM.
- *
- * Interface invariants:
- * - interpretation never throws on arbitrary input;
- * - edits either preserve the authored meaning or return an explicit
- *   `ok: false` result — never a plausible but lossy string;
- * - token-plus-alpha and opacity-token distinctions survive swaps;
- * - framework-specific attribution (Tailwind v3 direct literals and `--tw-*`
- *   aliases) stays behind the injected `resolveTokenReference` context.
- */
 import type { ColorOpacity, ColorValueFacts, TokenEntry, TokenReference, TokenTable } from "../model/index.ts";
 import { extractVarCalls, splitTopLevel, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
 
-/** The resolved facts about one token-backed component of a color expression. */
 export interface ColorComponentResolution {
   tokenName: string | null;
   resolvedValue: string;
   tokens: TokenReference[];
 }
 
-/** Explicit, DOM-free facts the color interpretation needs. */
 export interface ColorSemanticsContext {
   /** Resolved token table (custom-property name → entry). */
   tokenTable: TokenTable;
   /** Local aliases collected from the selected element's cascade. */
   localAliases?: ReadonlyMap<string, string>;
-  /**
-   * Resolves a `var()` component (for example an opacity token) to its
-   * concrete value and attribution. Supplied by the token interpretation so
-   * alias and framework attribution stay in one place. Absent → token-backed
-   * components fall back to local aliases, fallbacks, or the raw text.
-   */
+  /** Resolves a `var()` component (e.g. an opacity token); absent → local aliases, fallbacks, or the raw text. */
   resolveTokenReference?: (value: string) => ColorComponentResolution | null;
 }
 
-/**
- * A meaning-preserving color edit. `ok: true` carries the rewritten value;
- * `ok: false` reports explicitly that the transformation cannot be
- * represented faithfully. Callers must treat `ok: false` as "no change".
- */
+/** Callers must treat `ok: false` as "no change". */
 export type ColorEditResult =
   | { ok: true; value: string }
   | { ok: false; reason: "unsupported" | "invalid-opacity" };
 
-/** One high-level color interpretation consumed by token interpretation and UI projection. */
 export interface ColorValueInterpretation {
   opacity?: ColorOpacity;
   facts: ColorValueFacts;
@@ -65,9 +36,8 @@ const COLOR_FUNCTION_NAMES = new Set([
   "hsla",
 ]);
 
-// CSS named colors are valid color values even though they do not have an
-// explicit alpha syntax. Opacity edits represent them with color-mix(), while
-// full opacity preserves the authored keyword.
+// Valid color values without an alpha syntax; opacity edits wrap them in
+// color-mix(), while full opacity preserves the authored keyword.
 const NAMED_COLOR_KEYWORDS = new Set([
   "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
   "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
@@ -110,10 +80,7 @@ function parseOpacityPercent(value: string, clamp = true): number | null {
   return clamp ? Math.max(0, Math.min(100, percent)) : percent;
 }
 
-/**
- * Normalizes an authored opacity to a clamped percent string. Accepts `%`
- * and `0..1` forms; returns null when the input is not a parseable opacity.
- */
+/** Accepts `%` or `0..1` forms; null when the input is not a parseable opacity. */
 export function normalizeOpacityPercent(value: string): string | null {
   const percent = parseOpacityPercent(value);
   return percent === null ? null : formatOpacityPercent(percent);
@@ -135,11 +102,6 @@ function parseColorMixItem(value: string): ColorMixItem {
   return { color: value.trim(), percentage: null };
 }
 
-/**
- * Resolves an alpha component that may be a token-backed `var(...)`, a local
- * alias, or a literal fallback. Token attribution comes from the injected
- * resolver; the module itself only consults local aliases and the raw text.
- */
 interface ResolvedOpacityPercentage {
   component: Pick<ColorOpacity, "value" | "authoredValue" | "tokenName" | "token">;
   percent: number;
@@ -202,12 +164,7 @@ function resolveOpacityComponent(
   return resolveOpacityPercentage(authoredValue, ctx)?.component ?? null;
 }
 
-/**
- * Derives the alpha component of a `color-mix(...)` whose second argument
- * reconciles a color against `transparent`. The component is the color item's
- * percentage, or the 100−p mirror of the transparent item's percentage when
- * only that one is authored.
- */
+/** Opacity of a `color-mix(... transparent)` value: the color item's percentage, or the 100−p mirror when only the transparent item is authored. */
 function resolveColorMixOpacity(value: string, ctx: ColorSemanticsContext): ColorOpacity | undefined {
   const open = value.indexOf("(");
   const close = value.lastIndexOf(")");
@@ -259,11 +216,7 @@ function resolveColorMixOpacity(value: string, ctx: ColorSemanticsContext): Colo
   };
 }
 
-/**
- * Interprets the alpha component of one authored color value. Returns a
- * `ColorOpacity` when the value carries a recognized alpha channel (hex,
- * rgb/hsl, or color-mix against transparent), and undefined otherwise.
- */
+/** Alpha of hex, rgb/hsl, or `color-mix(... transparent)` values; undefined otherwise. */
 export function interpretColorOpacity(value: string, ctx: ColorSemanticsContext): ColorOpacity | undefined {
   const trimmed = value.trim();
   const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
@@ -301,7 +254,6 @@ export function interpretColorOpacity(value: string, ctx: ColorSemanticsContext)
   return undefined;
 }
 
-/** Returns whether a color value carries its own alpha channel. */
 export function colorValueHasEmbeddedAlpha(value: string): boolean {
   const trimmed = value.trim();
   if (/^transparent$/i.test(trimmed)) return true;
@@ -325,7 +277,6 @@ export function colorValueHasEmbeddedAlpha(value: string): boolean {
   });
 }
 
-/** Interprets UI-relevant color shape through the value-semantics seam. */
 export function interpretColorValue(value: string, ctx: ColorSemanticsContext): ColorValueInterpretation {
   const trimmed = value.trim();
   return {
@@ -403,15 +354,6 @@ function replaceColorMixOpacity(value: string, opacity: string): string | null {
   return `${value.slice(0, open + 1)}${updated.join(", ")}${value.slice(close)}`;
 }
 
-/**
- * Rewrites the alpha of a supported color expression to a normalized opacity
- * percent. Hex alpha channels are rewritten digit-for-digit, rgb/hsl slash or
- * comma alpha is replaced, `color-mix(... transparent)` reconciles its
- * percentage (or its 100−p mirror), and a bare `var()` wraps into
- * `color-mix(in srgb, var(...) <pct>, transparent)` — unwrapping back to the
- * plain `var()` when the opacity reaches 100%. Unsupported value shapes and
- * unparseable opacities return an explicit `ok: false`.
- */
 export function applyColorOpacity(value: string, opacity: string): ColorEditResult {
   const normalized = normalizeOpacityPercent(opacity);
   if (normalized === null) return { ok: false, reason: "invalid-opacity" };
@@ -461,7 +403,7 @@ export function applyColorOpacity(value: string, opacity: string): ColorEditResu
   return { ok: false, reason: "unsupported" };
 }
 
-/** Applies opacity using RGB channels for hex colors so field edits retain percentage precision. */
+/** Converts hex to RGB channels so field edits retain percentage precision. */
 export function withColorOpacity(color: string, opacity: string): ColorEditResult {
   const hex = /^#([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.exec(color.trim());
   if (hex) {
@@ -472,7 +414,6 @@ export function withColorOpacity(color: string, opacity: string): ColorEditResul
   return applyColorOpacity(color, opacity);
 }
 
-/** Preserves the previous opacity when the replacement color has no explicit alpha. */
 export function replaceColorPreservingOpacity(
   previous: string,
   color: string,
@@ -566,12 +507,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Replaces only the color token in a separable color expression. Keeping this
- * separate from a plain token swap preserves authored alpha modifiers, for
- * example Tailwind's `color-mix(... var(--color-red-500) 10%, transparent)`
- * keeps its `10%` when the color token changes.
- */
+/** Replaces only the color token so authored alpha modifiers survive the swap. */
 export function applyColorTokenReplacement(value: string, oldToken: TokenEntry, newToken: TokenEntry): ColorEditResult {
   const nextName = tokenReferenceName(newToken);
   if (nextName) {
@@ -606,7 +542,6 @@ export type ValueEditRequest =
   | { kind: "color-opacity"; authored: string; opacity: string }
   | { kind: "color-token"; authored: string; currentToken: TokenEntry; nextToken: TokenEntry };
 
-/** The public meaning-preserving edit operation for supported value edits. */
 export function applyValueEdit(request: ValueEditRequest): ColorEditResult {
   if (request.kind === "color-opacity") {
     return applyColorOpacity(request.authored, request.opacity);

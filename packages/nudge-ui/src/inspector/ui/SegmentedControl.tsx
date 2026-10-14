@@ -18,13 +18,11 @@ interface SegmentedControlProps<T extends string> {
   "data-property"?: string;
   className?: string;
   disabled?: boolean;
-  /** Allows the active option to be cleared by clicking it again. */
   allowDeselect?: boolean;
   /** Restores the value represented by an unselected control. */
   onDeselect?: () => void;
 }
 
-/** A compact single-choice control for adjacent, peer actions. */
 export function SegmentedControl<T extends string>({
   value,
   options,

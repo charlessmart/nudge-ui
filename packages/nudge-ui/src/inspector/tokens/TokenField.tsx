@@ -39,7 +39,7 @@ import { isMacPlatform } from "../shell/shortcuts.ts";
 
 export interface TokenValueFieldProps {
   property: string;
-  /** Numeric editing policy for a scalar slot inside a composite property. */
+  /** Supplies the numeric nudge policy instead of `property` for composite slots. */
   nudgeProperty?: string;
   domElement?: HTMLElement;
   semanticSlot?: TokenSemanticSlot;
@@ -79,7 +79,7 @@ export interface TokenFieldProps {
   tokenRow?: ResolvedProperty | null;
   selection?: StyleSelection | null;
   initialValue?: string;
-  /** Optional normalized value shown when an authored row is not token-backed. */
+  /** Normalized value shown when an authored row is not token-backed. */
   displayValue?: string;
   domElement: HTMLElement;
   /** Optional group target. `domElement` remains the primary inspection node. */
@@ -98,7 +98,6 @@ export interface TokenFieldProps {
   disabled?: boolean;
   /** Shows a mixed value without accidentally committing the placeholder. */
   mixed?: boolean;
-  /** Referenced tokens used for raw color-field behavior; not rendered inline. */
   attributionTokens?: string[];
   inlineWarningDataTest?: string;
   inlineWarningTooltipDataTest?: string;
@@ -176,7 +175,7 @@ function releasePointerCapture(state: DragNudgeState): void {
   }
 }
 
-/** Returns the first family in a CSS family list without splitting var() fallbacks. */
+/** First family in a CSS family list; commas inside var() fallbacks are ignored. */
 function primaryFontFamily(value: string): string {
   let depth = 0;
   let quote: "'" | '"' | null = null;
@@ -261,8 +260,7 @@ function NativeColorSwatch({
   const hasRenderableColor = cssColor !== null;
   return (
     <label className="token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
-      {/* Preserve alpha in the preview. The native picker's six-digit hex
-          value contains only the RGB channels. */}
+      {/* The native picker holds six-digit hex only, so the swatch keeps the alpha-bearing color. */}
       <ColorSwatch color={cssColor ?? "transparent"} data-test="token-color-swatch" />
       <input
         className="token-color-control__input"
@@ -353,11 +351,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showOpacity = isColor && !activeTokenHasEmbeddedAlpha
     && authoredColor.opacityEditable
     && (Boolean(activeTokenName) || attributionTokens.length === 0 || Boolean(opacity));
-  // One classification pass per entries change. selectTokens costs up to
-  // three CSS.supports calls per token, so classifying per token per render
-  // (chip mode is unbounded; raw mode runs per keystroke) dominates this
-  // field's render cost. Map misses fall back to direct classification for
-  // synthetic entries that are not part of the catalog list.
+  // Classification costs up to three CSS.supports calls per token, so it runs once per entries change.
   const groupByTokenName = useMemo(() => {
     const groups = new Map<string, string>();
     for (const entry of entries) groups.set(entry.name, tokenGroup(entry));
@@ -418,8 +412,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function handleDelink(): void {
-    // A token-backed alpha expression is represented by a chip, but unlinking
-    // it should preserve the complete authored color expression and its alpha.
+    // Unlinking must preserve the complete authored color expression and its alpha.
     const value = opacity ? committedValue : activeToken?.value || resolvedValue || committedValue;
     setActiveTokenName(null);
     setRawValue(value);
@@ -863,10 +856,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         ? null
         : selectedProperty ? selectedTokenName : tokenRow?.tokenName ?? null);
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
-  // When a calc() was simplified to a numeric value we suppress the token
-  // chip so the UI shows the resolved pixel value, not the internal
-  // multiplier token (e.g. --spacing).  The authored expression stays
-  // accessible via the row for diagnostics.
+  // Suppress the chip for calc()-derived values so the UI shows the resolved pixel value, not the internal multiplier token.
   const authoredOrComputed = tokenBackedOpacityName
     ? authored
     : expression || (!activeTokenName && !isCalcAuthored)
@@ -882,8 +872,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : null;
   let resolvedValue = tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue;
   if (property === "background-color") {
-    // Background rows can contain the complete computed shorthand. Extract
-    // its color before passing it to the color control, preserving alpha.
+    // Background rows can carry the full computed shorthand; the color control needs its color part.
     const style = el.ownerDocument.createElement("span").style;
     style.background = resolvedValue;
     resolvedValue = style.backgroundColor || resolvedValue;

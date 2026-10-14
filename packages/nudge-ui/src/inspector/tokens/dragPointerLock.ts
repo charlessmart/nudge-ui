@@ -1,6 +1,5 @@
 import { showLockedDragCursor } from "../ui/dragCursor.ts";
 
-/** Keeps mouse drags relative, including when the handle is inside a shadow root. */
 export function startDragPointerLock(
   handle: HTMLElement,
   point: { x: number; y: number },
@@ -53,7 +52,7 @@ export function startDragPointerLock(
   doc.addEventListener("pointerlockchange", onLockChange);
   doc.addEventListener("pointerlockerror", onLockError);
   try {
-    // Older implementations return void. Rejections retain pointer-capture dragging.
+    // Older implementations return void; a rejection still leaves pointer-capture dragging.
     const request = handle.requestPointerLock();
     if (request) void request.catch(onLockError);
   } catch {
@@ -68,7 +67,7 @@ export function startDragPointerLock(
       doc.removeEventListener("mousemove", onMouseMove);
       doc.removeEventListener("mouseup", onMouseUp);
       if (isLocked()) doc.exitPointerLock();
-      // A request can finish after mouse-up or unmount. Release that late lock too.
+      // A pending request can acquire the lock after mouse-up; release that late lock too.
       if (!pending) removeLockListeners();
     },
   };

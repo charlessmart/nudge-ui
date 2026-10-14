@@ -34,11 +34,8 @@ export type CommitResult = "applied" | "unchanged" | "blocked";
 
 /** Why the active draft's preview must be rebuilt. */
 export type DraftProjectionEvent =
-  /** The active draft's contents changed through an edit, revert, undo, or redo. */
   | { readonly kind: "edit"; readonly verificationTargets?: ReadonlyMap<string, HTMLElement | null> }
-  /** Source verification removed these records from the active draft. */
   | { readonly kind: "reconcile"; readonly structuralIds: ReadonlySet<string> }
-  /** Another draft became active, or drafts were loaded. */
   | { readonly kind: "switch" }
   /** The active draft was cleared; every earlier preview diagnostic is void. */
   | { readonly kind: "reset" };
@@ -68,12 +65,6 @@ export interface DraftStoreSeams {
   project(snapshot: DraftChangesSnapshot, event: DraftProjectionEvent): void;
 }
 
-/**
- * The Workspace's drafts. A draft's identity is its target key (ADR-0030):
- * every frame that shows one page or iteration edits the same draft. Every
- * write is lease-gated, every change to the active draft is projected, and
- * reconciliation removes only verified records, including from history.
- */
 export interface DraftStore {
   getActive(): DraftChangesSnapshot;
   /** Fires for any draft content change, active-draft switch, or history change. */
@@ -95,15 +86,12 @@ export interface DraftStore {
   discardChanges(target: DraftDiscardTarget): boolean;
   commitStructuralChange(change: StructuralChange): boolean;
   revertStructuralChange(changeId: string): boolean;
-  /** Replaces the active draft as one undoable edit. */
   commitContents(next: DraftContents): boolean;
   undo(): boolean;
   redo(): boolean;
-  /** Removes source-verified records so no undo step can resurrect them. */
   reconcile(id: string, verifiedKeys: ReadonlySet<string>, verifiedStructuralIds: ReadonlySet<string>): number;
   clear(id: string, expectedRevision?: number): boolean;
   clearActive(): boolean;
-  /** Drops a draft whose content no longer exists, such as a deleted iteration. */
   forget(id: string): void;
 
   sketchOwner(document: SketchDocument): string | null;
@@ -112,7 +100,6 @@ export interface DraftStore {
   /** Replaces every in-memory draft with the stored drafts, so a tab that takes over never writes stale edits. */
   load(projectId: string, options?: { persistent?: boolean }): void;
   persist(): void;
-  /** Discards stored and in-memory drafts for the current project. */
   discardAll(): void;
   reset(): void;
 }

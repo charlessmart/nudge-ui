@@ -2,15 +2,6 @@ import { expect, test, type Frame, type Page } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-/**
- * Stage 5 — semantic component props on client components.
- *
- * These tests use trusted browser interactions. Selection and prop changes
- * cross the same event bridge as an end user, then exercise the real rerender
- * path: the wrapped client component updates, no managed stylesheet
- * declaration is produced, and the durable session records callsite identity.
- */
-
 async function openPreview(page: Page): Promise<Frame> {
   await page.goto("/");
   await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
@@ -27,8 +18,7 @@ async function openPreview(page: Page): Promise<Frame> {
 
 async function selectBadge(page: Page): Promise<Frame> {
   const frame = await openPreview(page);
-  // Wait until hydration has attached React fibers to the badge so the
-  // selection resolves its semantic target in the same pass.
+  // Wait for hydration to attach React fibers so selection resolves its semantic target.
   await expect
     .poll(() => frame.evaluate(() => {
       const badge = document.querySelector('[data-testid="client-badge"]');
@@ -53,7 +43,6 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
     .evaluate((el) => el.className);
   expect(before).toContain("badge-accent");
 
-  // Drive the tone select like a user: open the popup, pick the option.
   const trigger = page.locator('[data-test="component-prop-tone"]');
   await trigger.waitFor({ state: "visible", timeout: 15_000 });
   await trigger.click();
@@ -61,7 +50,6 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
   await option.waitFor({ state: "visible", timeout: 10_000 });
   await option.click();
 
-  // A TRUE rerender: the real component's output changes.
   await expect
     .poll(() => frame.locator('[data-testid="client-badge"]').evaluate((el) => el.className))
     .toContain("badge-quiet");
@@ -88,8 +76,7 @@ test("dev: boolean prop flips through its segmented control handler", async ({ p
 test("dev: server-component invocations never produce prop controls", async ({ page }) => {
   const frame = await openPreview(page);
 
-  // HeroCard is a server component; its rendered elements carry identity but
-  // must not expose semantic prop controls.
+  // HeroCard is a server component: identity, but no semantic prop controls.
   await frame.locator(".hero-card h2").click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);

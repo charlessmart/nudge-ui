@@ -368,8 +368,7 @@ describe("TokenField", () => {
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 12 })));
 
-    // Pointer capture keeps the drag attached to the handle while the native
-    // cursor remains visible and reports its normal client position.
+    // Pointer capture keeps the drag attached while the cursor reports its normal client position.
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 116, pointerId: 12 })));
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("17px");
 

@@ -1,11 +1,4 @@
-/**
- * Public, host-neutral contracts shared by the Nudge browser inspector and
- * its local MCP companion.
- *
- * This module deliberately has no Node, browser, MCP SDK, or framework
- * imports. Hosts can use the same validation and message shapes without
- * pulling the companion into a browser bundle.
- */
+/** Host-neutral contracts shared by the browser inspector and the local MCP companion; no Node, browser, MCP SDK, or framework imports. */
 
 export const AGENT_PROTOCOL_VERSION = 3 as const;
 
@@ -61,7 +54,6 @@ export interface AgentRoute {
 /** The owner marker lets the browser remove only groups created by the agent. */
 export type CanvasGroupOwner = "agent" | "user";
 
-/** A browser-reported comparison group. */
 export interface CanvasGroup {
   readonly id: string;
   readonly label: string;
@@ -69,7 +61,6 @@ export interface CanvasGroup {
   readonly routes: readonly AgentRoute[];
 }
 
-/** A compact, serialisable Canvas snapshot returned by the browser. */
 export interface CanvasState {
   readonly mode: "inspect" | "canvas";
   readonly groups: readonly CanvasGroup[];
@@ -360,11 +351,7 @@ export interface ProjectBridgeHandle {
   close(): Promise<void>;
 }
 
-/**
- * The `startProjectBridge` export of `@nudge-ui/mcp/project`. Hosts load it
- * dynamically from the application's own dependencies, so this type is the
- * only compile-time link between the two packages.
- */
+/** The `@nudge-ui/mcp/project` export; hosts load it dynamically, so this is the only compile-time link between the packages. */
 export type StartProjectBridge = (options: ProjectBridgeStartOptions) => Promise<ProjectBridgeHandle>;
 
 const ORIGIN_PROTOCOLS = new Set(["http:", "https:"]);
@@ -414,10 +401,7 @@ function encodedByteLength(value: string): number {
   return Math.max(0, Math.floor(value.length * 3 / 4) - padding);
 }
 
-/**
- * Returns a canonical origin or null. Credentials, paths, and fragments are
- * rejected so the browser cannot broaden the pairing boundary accidentally.
- */
+/** Canonical origin or null; credentials, paths, and fragments are rejected so pairing cannot broaden accidentally. */
 export function canonicalOrigin(value: unknown): string | null {
   if (!nonEmptyString(value, AGENT_PROTOCOL_LIMITS.origin)) return null;
   let parsed: URL;
@@ -431,25 +415,18 @@ export function canonicalOrigin(value: unknown): string | null {
   return parsed.origin;
 }
 
-/** Returns true only for exact, canonical HTTP(S) origins. */
 export function isCanonicalOrigin(value: unknown): value is string {
   return canonicalOrigin(value) === value;
 }
 
-/**
- * Checks an origin against an explicit allow-list. An empty allow-list does
- * not mean wildcard access; callers must choose an origin before pairing.
- */
+/** An empty allow-list is not wildcard access; callers must choose an origin before pairing. */
 export function isAllowedOrigin(value: unknown, allowedOrigins: readonly string[]): value is string {
   const origin = canonicalOrigin(value);
   if (!origin || allowedOrigins.length === 0) return false;
   return allowedOrigins.some((candidate) => canonicalOrigin(candidate) === origin);
 }
 
-/**
- * Validates an agent route and ensures it belongs to the paired origin.
- * Fragments are retained because they are useful initial Canvas locations.
- */
+/** Fragments are retained because they are useful initial Canvas locations. */
 export function isSameOriginRoute(value: unknown, origin: string): value is AgentRoute {
   if (!isRecord(value) || !hasOnlyKeys(value, ["url", "title", "label"])) return false;
   if (!nonEmptyString(value.url, AGENT_PROTOCOL_LIMITS.routeUrl)) return false;
@@ -467,7 +444,6 @@ export function isSameOriginRoute(value: unknown, origin: string): value is Agen
   return true;
 }
 
-/** Validates and normalises route values for a presentation command. */
 export function validateRoutes(value: unknown, origin: string): AgentRoute[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > AGENT_PROTOCOL_LIMITS.routeCount) {
     throw new TypeError(`routes must contain between 1 and ${AGENT_PROTOCOL_LIMITS.routeCount} items`);
@@ -488,7 +464,6 @@ export function validateRoutes(value: unknown, origin: string): AgentRoute[] {
   });
 }
 
-/** Validates the fields shared by every companion message. */
 export function isProtocolVersion(value: unknown): value is AgentProtocolVersion {
   return value === AGENT_PROTOCOL_VERSION;
 }
@@ -726,7 +701,7 @@ function isCanvasCommandError(value: unknown): value is CanvasCommandError {
     && typeof value.message === "string" && value.message.length <= AGENT_PROTOCOL_LIMITS.prompt;
 }
 
-/** A Canvas acknowledgement or result; a successful one never carries an error. */
+/** A successful result never carries an error. */
 export function isCanvasCommandResult(value: unknown): value is CanvasCommandResult {
   if (!isRecord(value) || !hasOnlyKeys(value, ["commandId", "ok", "state", "group", "error"])) return false;
   return nonEmptyString(value.commandId, AGENT_PROTOCOL_LIMITS.commandId)
@@ -736,7 +711,6 @@ export function isCanvasCommandResult(value: unknown): value is CanvasCommandRes
     && (value.error === undefined || (!value.ok && isCanvasCommandError(value.error)));
 }
 
-/** The connection state shown for a pairing, a listener, and the current request. */
 export function deriveConnectionState(
   status: Pick<AgentStatusSnapshot, "listenerActive" | "paired" | "request">,
 ): AgentConnectionState {
@@ -766,11 +740,7 @@ function decodeStatusRequest(value: unknown): AgentStatusSnapshot["request"] | u
   };
 }
 
-/**
- * Decodes a status snapshot from any peer. Unknown fields are dropped and the
- * connection state is recomputed, so a snapshot can never claim a state its
- * own fields contradict.
- */
+/** Unknown fields are dropped and the connection state is recomputed, so a snapshot cannot claim a state its own fields contradict. */
 export function decodeAgentStatusSnapshot(value: unknown): AgentStatusSnapshot | null {
   if (!isRecord(value)
     || value.protocolVersion !== AGENT_PROTOCOL_VERSION
@@ -796,11 +766,7 @@ export function decodeAgentStatusSnapshot(value: unknown): AgentStatusSnapshot |
   };
 }
 
-/**
- * Decodes the event inside a bridge envelope. A Canvas command is passed
- * through as received: the Canvas controller validates it so a malformed
- * command still receives an error acknowledgement instead of a timeout.
- */
+/** A Canvas command is passed through as received: the Canvas controller validates it so a malformed command still receives an error acknowledgement. */
 export function decodeBridgeEvent(value: unknown): BridgeEvent | null {
   if (!isRecord(value)) return null;
   switch (value.type) {

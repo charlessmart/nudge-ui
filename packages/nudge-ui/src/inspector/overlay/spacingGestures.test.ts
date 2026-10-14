@@ -69,8 +69,7 @@ describe("spacing gestures", () => {
     Object.defineProperty(element, "getBoundingClientRect", { value: () => rect(10, 10, 200, 120) });
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
 
-    // The pointer is still inside the top padding, but outside the centred
-    // visible handle, so it is not a direct-manipulation target.
+    // Inside the top padding but outside the centred visible handle, so not a direct-manipulation target.
     expect(getSpacingAffordanceAtPoint(document, 100, 12)).toBeNull();
     expect(getSpacingAffordanceAtPoint(document, 20, 34)).toBeNull();
     expect(getSpacingAffordanceAtPoint(document, 100, 24)).toBeNull();
@@ -80,8 +79,7 @@ describe("spacing gestures", () => {
       hit: { left: 90, top: 26, width: 40, height: 16 },
     });
 
-    // The same off-handle points still light up the hover overlay, because
-    // hover previews match the whole padding bar rather than the handle.
+    // The same points light up the hover overlay: hover previews match the whole padding bar.
     expect(getSpacingHoverAtPoint(document, 100, 12)).toMatchObject({
       kind: "padding",
       property: "padding-top",
@@ -226,8 +224,7 @@ describe("spacing gestures", () => {
   it("moves spacing in 8px steps anchored on the nearest step while Shift is held", () => {
     const affordance = { dragAxis: "y" as const, direction: 1 as const, value: 20 };
 
-    // The first displacement snaps to the nearest multiple of 8 in the drag
-    // direction instead of stepping the raw delta from the authored value.
+    // The first displacement snaps to the nearest multiple of 8 in the drag direction.
     expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 21 }, true)).toBe(24);
     expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 27 }, true)).toBe(24);
     expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 19 }, true)).toBe(16);

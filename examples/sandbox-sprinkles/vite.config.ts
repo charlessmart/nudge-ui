@@ -6,9 +6,7 @@ import { nudgeUi } from "../../packages/nudge-ui/src/hosts/vite/index.ts";
 export default defineConfig({
   plugins: [
     react(),
-    // Short identifiers intentionally remove semantic hints from generated
-    // class and custom-property names. The compiled contract is the only safe
-    // source of theme.color.* attribution in this fixture.
+    // Short identifiers strip semantic hints from generated names, leaving the compiled contract as the only attribution source.
     vanillaExtractPlugin({ identifiers: "short" }),
     // SAFETY: nudgeUi returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
     nudgeUi({

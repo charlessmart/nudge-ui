@@ -6,7 +6,6 @@ import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasPresentatio
 const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 300, easing: "ease-out" };
 const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: "ease-out" };
 
-/** Animates frame creation and layout changes without delaying direct manipulation. */
 export function useCanvasLayoutAnimation(
   boardRef: RefObject<HTMLDivElement | null>,
   cards: readonly CanvasCard[],

@@ -24,7 +24,6 @@ export interface CompatibilityManagedPreview {
 
 type ApplicationSurface = Page | Frame;
 
-/** Opens an application route and returns its iframe-first editing surface. */
 export async function openEditor(page: Page, path: string): Promise<FrameLocator> {
   await page.goto(path);
   await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
@@ -33,7 +32,6 @@ export async function openEditor(page: Page, path: string): Promise<FrameLocator
   return app;
 }
 
-/** Returns the ready application frame for helpers that need page-realm evaluation. */
 export async function getAppFrame(page: Page): Promise<Frame> {
   await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
     && frame.url().startsWith("http")
@@ -45,7 +43,6 @@ export async function getAppFrame(page: Page): Promise<Frame> {
   return frame;
 }
 
-/** Locates application content in the active iframe. */
 export function appLocator(page: Page, selector: string): Locator {
   return page.frameLocator('[data-test^="canvas-card-iframe-"]').first().locator(selector);
 }
@@ -263,7 +260,6 @@ function assertInvariant(
   }
 }
 
-/** Runs one fixture's complete data-led compatibility contract. */
 export async function runCompatibilityManifest(
   page: Page,
   manifest: CompatibilityManifest,

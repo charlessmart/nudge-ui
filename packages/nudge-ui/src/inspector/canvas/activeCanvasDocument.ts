@@ -2,7 +2,6 @@ import type { CanvasFrame } from "./canvasFrame.ts";
 import { getFocusedCardId, getSelectedCardId } from "./canvasStore.ts";
 import { getRegisteredFrames } from "./projection.ts";
 
-/** Resolves only the selected or focused frame. */
 export function resolveActiveCanvasFrame(
   frames: ReadonlyMap<string, CanvasFrame>,
   selectedCardId: string | null,
@@ -23,7 +22,6 @@ export function getActiveCanvasDocument(): Document | null {
   }
 }
 
-/** Returns the iframe that owns the active renderer document. */
 export function getActiveCanvasFrame(): CanvasFrame | null {
   return resolveActiveCanvasFrame(
     getRegisteredFrames(),

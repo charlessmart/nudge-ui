@@ -3,15 +3,8 @@ import { childNodes, identifier, isNode, type SyntaxNode } from "./ast.ts";
 export type { SyntaxNode } from "./ast.ts";
 
 export interface ComponentInstrumentationOptions {
-  /**
-   * Package exports whose element type can be replaced by a semantic preview
-   * wrapper. Keys are exact import specifiers; values are exported names
-   * (`default` for a default import). Discovery of a prop contract does not
-   * imply compatibility. Prefer `hostPolicy` when the host can resolve import
-   * provenance and rendered slots.
-   */
+  /** Exact specifier → exported names (`default` for a default import); a discovered contract alone never opts in. */
   compatibleComponentImports?: Readonly<Record<string, readonly string[]>>;
-  /** Data-only import provenance and slot semantics resolved by the host Adapter. */
   hostPolicy?: import("./componentPolicyResolution.ts").HostComponentPolicy;
 }
 
@@ -29,11 +22,7 @@ export interface ComponentInstrumentationPolicy {
   componentId(componentName: string): string | null;
 }
 
-/**
- * Classify bindings before editing JSX. Unknown and shadowed bindings are
- * deliberately excluded: losing a semantic control is safer than changing an
- * application's component protocol. Rendered DOM identity is independent.
- */
+/** Unknown and shadowed bindings are deliberately excluded: losing a semantic control beats altering an app's protocol. */
 export function createComponentInstrumentationPolicy(
   ast: SyntaxNode,
   options: ComponentInstrumentationOptions,
@@ -114,9 +103,7 @@ export function createComponentInstrumentationPolicy(
   };
   visit(program);
 
-  // A definition authored in this module is project-owned by construction: no
-  // host resolution applies, and its JSX children are authored here rather
-  // than handed to an opaque third-party interface.
+  // Authored in this module, so its JSX children are not handed to an opaque third-party interface.
   const isProjectLocalComponent = (componentName: string): boolean => {
     const [root, ...members] = componentName.split(".");
     if (!root || ambiguous.has(root)) return false;
@@ -130,10 +117,7 @@ export function createComponentInstrumentationPolicy(
       if (!binding) return isProjectLocalComponent(componentName);
       const resolved = options.hostPolicy?.components[componentName];
       if (resolved) return resolved.wrap;
-      // No host policy: this is the direct-compiler path, where a package
-      // export is only compatible when the caller names it explicitly. The
-      // host-resolved policy traces re-exports and namespace members, so this
-      // fallback deliberately matches on the authored import alone.
+      // Direct-compiler fallback: matches the authored import alone, unlike host resolution which traces re-exports.
       return options.compatibleComponentImports?.[binding.source]?.includes(binding.exportName) === true;
     },
     rendersChildren(componentName) {

@@ -131,8 +131,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const bindDocumentSession = useCallback((): void => {
     const frameDocument = iframeRef.current?.contentDocument;
     if (!documentOwner || !frameDocument) return;
-    // The initial blank document is discarded by navigation. A blocked frame
-    // can make its Window inaccessible before cleanup runs.
+    // The initial about:blank document is discarded by navigation; a blocked frame's Window may be inaccessible.
     if (frameDocument.URL === "about:blank") return;
     if (documentSessionRef.current?.document === frameDocument) return;
     disposeDocumentSession();
@@ -165,8 +164,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     let reloadPending = false;
     const timer = window.setInterval(() => {
       const workspace = getDraftContentsForCard(card.id);
-      // Pending inspector edits still project over preview.html. Do not replace
-      // that base until they have been saved and handed off.
+      // Pending inspector edits still project over preview.html; do not replace that base until they are saved.
       if (checking || isInlineTextEditingActive() || workspace?.changes.length || workspace?.structuralChanges.length) return;
       checking = true;
       const frame = iframeRef.current;
@@ -229,8 +227,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   useEffect(() => {
     return subscribeCanvasRendererMessages(({ frame, message: data }) => {
       if (frame.cardId !== card.id) return;
-      // A renderer whose runtime finished booting after the iframe load event
-      // asks for the identity announcement it may have missed.
+      // A renderer that booted after the iframe load event asks for the identity announcement it missed.
       if (data.type === "renderer-hello") {
         sendParentReady();
         return;
@@ -280,9 +277,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     }, 15000);
     return () => clearTimeout(timeout);
   }, [loadState]);
-  // A late handshake still recovers: the message listener stays installed in
-  // the error state, so a slow renderer's eventual frame-ready flips the card
-  // back to "ready" without user action.
+  // A late handshake still recovers: the message listener stays installed in the error state.
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -290,8 +285,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     function onLoad(): void {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
       disposeDocumentSession();
-      // A reload creates a new renderer document; do not show diagnostics
-      // produced by the old frame while its replacement is handshaking.
+      // A reload creates a new renderer document; drop the old frame's diagnostics while it handshakes.
       invalidateCanvasPreviewDocument(card.id);
       clearCanvasStructuralProjectionReports(card.id);
       clearCanvasRenderedInstanceProjectionReports(card.id);
@@ -615,8 +609,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           data-test={`canvas-card-resize-${card.id}${handle.direction === "bottom-right" ? "" : `-${handle.direction}`}`}
           data-resize-direction={handle.direction}
           style={{
-            // Keep the edge's long axis aligned with the zoomed card. Only
-            // the thickness needs inverse scaling to remain screen-sized.
+            // The edge's long axis follows the zoomed card; only its thickness is inverse-scaled.
             transform: resizeHandleTransform(handle.direction, resizeHandleScale),
             transformOrigin: handle.transformOrigin,
             cursor: handle.cursor,

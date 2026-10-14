@@ -163,8 +163,7 @@ function scheduleRendererTimer(
 function teardownRenderer(owner: RendererBootstrapOwner): void {
   if (!owner.active) return;
 
-  // Invalidate callbacks before releasing any resource. A queued microtask or
-  // frame can still run after its source has been cancelled.
+  // Invalidate callbacks before releasing resources: queued microtasks or frames can still run.
   owner.active = false;
   if (activeRendererBootstrap?.owner === owner) {
     activeRendererBootstrap = null;
@@ -285,13 +284,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
     window.addEventListener("message", onMessage);
     owner.listenerRemovers.push(() => window.removeEventListener("message", onMessage));
 
-    // Solicit the handshake, then retry briefly. The controller answers on
-    // iframe load AND on every hello it receives, but its answering listener
-    // attaches when the card component commits — normally long before any
-    // renderer finishes booting. The retries cover the residual window where
-    // a renderer's listeners go live before the controller's do (fast boot,
-    // slow controller compile). Every path is idempotent: setRendererIdentity
-    // overwrites, re-registration replaces, projection re-sends are safe.
+    // The controller's listener may attach after the renderer boots; retry briefly, and every path is idempotent.
     let helloAttempts = 0;
     const solicitHandshake = (): void => {
       if (!ownsRendererBootstrap(owner) || getRendererIdentity() || helloAttempts >= 5) return;
@@ -411,8 +404,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
       panMoveUpdate.cancel();
       return;
     }
-    // Pointer-up can arrive before the next animation frame. Deliver the
-    // latest point before pan-end so the final drag position is not lost.
+    // Pointer-up can arrive before the next frame; flush the latest point so the final position is not lost.
     panMoveUpdate.flush();
     panning = false;
     const identity = getRendererIdentity();

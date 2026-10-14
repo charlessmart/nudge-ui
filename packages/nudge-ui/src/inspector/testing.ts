@@ -1,7 +1,4 @@
-/**
- * Test and conformance helpers for validating the inspector through a
- * consumer-facing entry point. Keep these exports out of the runtime entry.
- */
+/** Test and conformance helpers; keep these exports out of the runtime entry. */
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export type {
   ConformanceFixture,

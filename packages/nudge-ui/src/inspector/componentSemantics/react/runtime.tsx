@@ -50,10 +50,9 @@ interface BoundaryProps {
 let overridesByCallsite = new Map<string, Readonly<Record<string, unknown>>>();
 const listeners = new Set<() => void>();
 /**
- * Mounted invocation accounting is runtime state, not canonical identity. A
- * boundary registers by its stable transformed callsite and unregisters on
- * unmount. This survives rerenders and React Strict Mode's effect probe, and
- * each Canvas iframe owns an independent registry/module instance.
+ * Mounted invocation accounting is runtime state, not canonical identity: a boundary
+ * registers by its stable transformed callsite and unregisters on unmount, surviving
+ * rerenders and React Strict Mode's effect probe.
  */
 const mountedCallsites = new Map<string, number>();
 
@@ -69,7 +68,6 @@ function registerMountedCallsite(callsiteId: string): () => void {
   };
 }
 
-/** Returns null when this runtime has no mounted boundary for the callsite. */
 export function getReactCallsiteMultiplicity(callsiteId: string): number | null {
   return mountedCallsites.get(callsiteId) ?? null;
 }
@@ -200,7 +198,6 @@ export function instrumentReactComponent(
   );
 }
 
-/** A boundary fiber's props, or null for any other fiber. */
 function boundaryOf(fiber: Fiber): BoundaryProps | null {
   if (!isBoundaryType(fiber.type)) return null;
   // SAFETY: a boundary fiber's props are the `{ element, meta }` it was created with; both are checked below.
@@ -214,10 +211,6 @@ interface Ranked<T> {
   value: T;
 }
 
-/**
- * Merges boundary and tagged results nearest first. A callsite answered by
- * its boundary is not answered again by its tag.
- */
 function nearestFirst<T>(boundaries: readonly Ranked<T>[], tagged: readonly Ranked<T>[]): T[] {
   const wrapped = new Set(boundaries.map((entry) => entry.callsiteId));
   return [...boundaries, ...tagged.filter((entry) => !wrapped.has(entry.callsiteId))]
@@ -225,11 +218,7 @@ function nearestFirst<T>(boundaries: readonly Ranked<T>[], tagged: readonly Rank
     .map((entry) => entry.value);
 }
 
-/**
- * Wrapped callsites answer through their boundary; every other instrumented
- * callsite answers through its fiber's identity tag. Both are merged nearest
- * first, so the panel sees one ordered ancestry either way.
- */
+/** Wrapped callsites answer through their boundary, others through their fiber's identity tag; both merge nearest first. */
 export function inspectReactComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
   const host = findFiber(element);
@@ -290,7 +279,6 @@ export function inspectReactRootInvocations(element: HTMLElement): ComponentRoot
   return nearestFirst(boundaries, tagged);
 }
 
-/** Boundary accounting first; a tagged callsite is counted from the mounted tree. */
 function callsiteMultiplicity(callsiteId: string): number | null {
   return getReactCallsiteMultiplicity(callsiteId) ?? taggedCallsiteMultiplicity(callsiteId);
 }

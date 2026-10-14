@@ -16,7 +16,6 @@ export type {
   RuntimeComponentTarget,
 } from "./types.ts";
 
-/** Version of the page-global host runtime Adapter Interface. */
 export const NUDGE_UI_HOST_RUNTIME_VERSION = 1;
 
 const HOST_RUNTIME_KEY = Symbol.for("nudge-ui.host-runtime.v1");
@@ -59,14 +58,7 @@ function registry(): HostRuntimeRegistry {
   return created;
 }
 
-/**
- * Registers a framework runtime Adapter in the host application's module graph.
- *
- * The registry lives on the page global because the self-contained inspector
- * client and the host Adapter intentionally have separate dependency graphs.
- * Registration replaces an older Adapter for the same framework so HMR does
- * not accumulate stale implementations.
- */
+/** The registry lives on the page global because the inspector client and the host Adapter have separate dependency graphs. */
 export function registerHostRuntimeAdapter(
   adapter: ComponentRuntimeAdapter,
 ): () => void {
@@ -82,7 +74,6 @@ export function registerHostRuntimeAdapter(
   };
 }
 
-/** Returns the active host runtime Adapters for the requested browser realm. */
 export function getHostRuntimeAdapters(
   ownerGlobal: typeof globalThis = globalThis,
 ): readonly ComponentRuntimeAdapter[] {
@@ -102,7 +93,6 @@ export function getHostRuntimeAdapters(
   return [...((current as HostRuntimeRegistry).adapters.values())];
 }
 
-/** Stores the latest projection and sends it to every registered host Adapter. */
 export function replaceHostRuntimeAdapterOverrides(
   overrides: readonly ComponentOverride[],
 ): void {
@@ -126,11 +116,7 @@ export function replaceHostRuntimeAdapterOverrides(
   }
 }
 
-/**
- * Copies a host Adapter result into the protocol's plain-data value space.
- * React elements, functions, and other reconciler-owned values never cross
- * the host/client seam.
- */
+/** Reconciler-owned values never cross the host/client seam. */
 export function copyRuntimeTarget(
   target: RuntimeComponentTarget,
 ): RuntimeComponentTarget {
@@ -158,7 +144,6 @@ export function copyRuntimeTarget(
   };
 }
 
-/** Copies a host Adapter's root invocations into plain protocol data. */
 export function copyRootInvocations(
   invocations: readonly ComponentRootInvocation[],
 ): ComponentRootInvocation[] {
@@ -178,7 +163,6 @@ export function copyRootInvocations(
   });
 }
 
-/** Copies override commands before dispatching them into a host Adapter. */
 export function copyComponentOverrides(
   overrides: readonly ComponentOverride[],
 ): ComponentOverride[] {

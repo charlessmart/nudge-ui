@@ -779,9 +779,7 @@ function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, on
   const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content", "align-items");
 
-  // The grid represents physical positions in the parent. For row flex
-  // containers, justify-content runs horizontally; for column flex
-  // containers, it runs vertically, so the two grid axes need to transpose.
+  // The grid shows physical positions: justify-content runs along the main axis, so column containers transpose the axes.
   const rowValues = isColumn
     ? isReverse ? [...FLEX_ALIGNMENT_OPTIONS].reverse() : FLEX_ALIGNMENT_OPTIONS
     : FLEX_ALIGNMENT_OPTIONS;
@@ -791,10 +789,7 @@ function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, on
 
   function selectAlignment(nextJustify: string, nextAlign: string): void {
     if (blockedBy) return;
-    // Keep an explicit distribution choice when the grid is used to change
-    // the cross-axis alignment. The distribution control owns values such as
-    // `space-between`; a grid click should not silently replace them with the
-    // packed default.
+    // A grid click changing cross-axis alignment must not replace an explicit distribution choice.
     const resolvedJustify = distributed ? justify : nextJustify;
     setJustify(resolvedJustify);
     setAlign(nextAlign);
@@ -851,13 +846,12 @@ function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, on
 }
 
 function normalizeFlexJustify(value: string): string {
-  // `normal` is the computed initial value, but behaves as `flex-start` for
-  // flex containers. Show the physical placement the user will actually see.
+  // Computed `normal` behaves as `flex-start` for flex containers, so show the physical placement.
   return value === "normal" ? "flex-start" : value;
 }
 
 function normalizeFlexAlign(value: string): string {
-  // The initial `normal` value resolves to stretch for flex items.
+  // `normal` resolves to stretch for flex items.
   return value === "normal" ? "stretch" : value;
 }
 

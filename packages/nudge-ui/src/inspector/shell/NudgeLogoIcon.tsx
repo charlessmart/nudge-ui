@@ -1,9 +1,6 @@
 import type { ReactElement } from "react";
 
-/**
- * The Nudge UI mark, drawn with `currentColor` so it follows the inspector
- * theme. Same artwork as the extension and landing favicons.
- */
+/** Same artwork as the extension and landing favicons. */
 export function NudgeLogoIcon({ size = "var(--icon-size-small)" }: { size?: string }): ReactElement {
   return (
     <svg viewBox="5 4 35 35" width={size} height={size} fill="currentColor" aria-hidden="true">

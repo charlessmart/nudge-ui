@@ -10,7 +10,6 @@ export interface ProjectTarget {
   readonly sessionId?: string;
 }
 
-/** Keeps each explicit project selection independent for the lifetime of an MCP connection. */
 export class AdapterRouting {
   private closing = false;
   private readonly selections = new Map<string, Promise<DiscoveredProjectRouter>>();

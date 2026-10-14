@@ -8,9 +8,7 @@ export default defineConfig(({ command }) => ({
     demo: true,
     demoPages: ["/?landing-version=1", "/?landing-version=2", "/"],
     demoCardLabels: ["V1", "V2", "Final"],
-    // Sketch annotations are safe for the public demo: handoff falls back to
-    // clipboard without an agent. HTML iterations stay dev-only because they
-    // write filesystem-backed artifacts through the dev server.
+    // Sketch falls back to clipboard without an agent; iterations write filesystem artifacts, so they stay dev-only.
     features: { canvasIterations: command === "serve", sketch: true },
     projectId: "nudge-ui-landing-demo",
   }) as PluginOption],

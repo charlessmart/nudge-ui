@@ -15,7 +15,6 @@ export interface Bounds {
   readonly maxY: number;
 }
 
-/** The layout fields a creation may change on existing frames. */
 export interface LayoutShift {
   readonly id: string;
   readonly from: Pick<LayoutCard, "x" | "y">;
@@ -36,7 +35,6 @@ export function boundsOf(cards: readonly LayoutCard[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-/** Places a new frame to the right of every frame, on the first frame's row. */
 export function nextCardPosition(cards: readonly LayoutCard[], gap: number): { x: number; y: number } {
   if (cards.length === 0) return { x: 0, y: 0 };
   return { x: Math.max(...cards.map((card) => card.x + card.width + gap)), y: cards[0]!.y };
@@ -77,7 +75,6 @@ export function iterationPosition(cards: readonly LayoutCard[], source: LayoutCa
   return { x, y };
 }
 
-/** Zooms and centers content inside the padded viewport; null for empty content. */
 export function fitCamera(bounds: Bounds, viewport: { width: number; height: number }, padding: number): { x: number; y: number; zoom: number } | null {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
@@ -119,7 +116,6 @@ export function applyLayoutShifts<T extends LayoutCard>(cards: readonly T[], shi
   });
 }
 
-/** Reinserts recorded frames after their nearest recorded predecessor that still exists. */
 export function reinsertInRecordedOrder<T extends LayoutCard>(cards: readonly T[], recorded: readonly T[], ids: ReadonlySet<string>): T[] {
   let next = [...cards];
   for (const [index, added] of recorded.entries()) {

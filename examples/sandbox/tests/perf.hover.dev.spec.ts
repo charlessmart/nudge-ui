@@ -89,9 +89,7 @@ async function loadFixture(page: Page): Promise<FrameLocator> {
 
 async function measureHover(page: Page, leaf: import("@playwright/test").Locator): Promise<number> {
   await leaf.scrollIntoViewIfNeeded();
-  // Scrolling can move the destination underneath the pointer and dispatch
-  // mouseover before the one-shot probe is armed. Park outside the iframe so
-  // the measured hover always delivers a fresh event.
+  // Scrolling can dispatch mouseover before the one-shot probe is armed, so park outside the iframe first.
   await page.mouse.move(0, 0);
   const target = await leaf.boundingBox();
   if (!target) return -1;

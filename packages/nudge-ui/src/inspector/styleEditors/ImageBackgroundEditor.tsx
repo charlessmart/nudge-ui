@@ -43,7 +43,6 @@ interface ImageBackgroundEditorProps {
   onSizing(declarations: StyleDeclaration[]): boolean;
 }
 
-/** Preview uploaded images through the existing workspace style edits. */
 export function ImageBackgroundEditor({ element, elements, value, mixed, sizingValues, onUpload, onCss, onSizing }: ImageBackgroundEditorProps): ReactElement {
   const input = useRef<HTMLInputElement>(null);
   const reader = useRef<FileReader | null>(null);

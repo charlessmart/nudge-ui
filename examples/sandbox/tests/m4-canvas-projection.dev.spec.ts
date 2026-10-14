@@ -79,26 +79,19 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
-  // Make an element edit in Inspect mode
   await expandSpacing(page);
   await setInput(page, "padding-top", "32px");
 
-  // Verify the edit is reflected in the host page
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
 
-  // Switch to Canvas mode
-
-  // Wait for the canvas workspace and card
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  // Wait for the frame to load (loading state disappears)
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
 
-  // Verify the edit CSS appears in the frame's managed stylesheet
   const frameContent = await frameManagedSheetContent(page, ".canvas-card__iframe");
   expect(frameContent).toContain("padding-top: 32px;");
 });
@@ -144,8 +137,7 @@ test("dev: repeated Canvas flex gap nudges survive projection acknowledgement an
   await expect.poll(() => frame.locator('[data-test="flex-container"]')
     .evaluate((element) => getComputedStyle(element).columnGap)).toBe("14px");
 
-  // Selecting another Canvas element blurs the input. The latest value must
-  // remain authoritative even if the frame's projection message arrived late.
+  // Blurring by selecting another element must not let a late projection message win.
   await frame.locator('[data-test="flex-child-a"]').click();
   await expect.poll(() => frame.locator('[data-test="flex-container"]')
     .evaluate((element) => getComputedStyle(element).columnGap)).toBe("14px");
@@ -156,7 +148,6 @@ test("dev: repeated Canvas flex gap nudges survive projection acknowledgement an
 test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await page.goto("/playground");
 
-  // Open Tokens settings and edit a global token
   await page.locator('[data-test="tokens-button"]').click();
   await page.locator('[data-test="settings-nav-tokens"]').click();
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
@@ -170,20 +161,16 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await input.fill("#abcdef");
   await input.press("Enter");
 
-  // Verify token edit is in the host managed sheet
   await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
 
   await page.locator('[data-test="settings-close"]').click();
 
-  // Switch to Canvas
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // Wait for frame to load
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
 
-  // Verify token edit appears in the frame
   const frameContent = await frameManagedSheetContent(page, ".canvas-card__iframe");
   expect(frameContent).toContain("--color-surface-raised: #abcdef;");
 });
@@ -194,29 +181,23 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
   await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
-  // Make a source-site element edit
   await expandSpacing(page);
   await setInput(page, "padding-top", "48px");
 
-  // Switch to Canvas
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // Wait for frame to load
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
 
-  // Verify projection in frame
   await expect
     .poll(() => frameManagedSheetContent(page, ".canvas-card__iframe"))
     .toContain("padding-top: 48px;");
 
   const previousDocumentTimeOrigin = await frameDocumentTimeOrigin(page, ".canvas-card__iframe");
 
-  // Reload the frame
   await page.locator('[data-test^="canvas-card-reload-"]').click();
 
-  // Wait for reload (loading state shows and clears)
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
@@ -224,7 +205,6 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
     .poll(() => frameDocumentTimeOrigin(page, ".canvas-card__iframe"))
     .not.toBe(previousDocumentTimeOrigin);
 
-  // After reload, the frame should still have the latest projection
   await expect
     .poll(() => frameManagedSheetContent(page, ".canvas-card__iframe"))
     .toContain("padding-top: 48px;");
@@ -236,39 +216,31 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
   await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
-  // Make an edit
   await expandSpacing(page);
   await setInput(page, "padding-top", "60px");
 
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 60px;");
 
-  // Switch to Canvas
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
 
-  // Verify projection
   await expect
     .poll(() => frameManagedSheetContent(page, ".canvas-card__iframe"))
     .toContain("padding-top: 60px;");
 
-  // Clear the change without leaving the editing surface.
   await page.locator('[data-test="changes-toggle"]').click();
   await page.locator(
     '[data-test="change-revert"][data-property="padding-top"]',
   ).click();
 
-  // Verify host sheet is cleared
   await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 60px;");
 
-  // Switch back to Canvas
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // Use the already-loaded frame
   const frameContent = await frameManagedSheetContent(page, ".canvas-card__iframe");
-  // After clearing, the projection should not have the old rule
   expect(frameContent).not.toContain("padding-top: 60px;");
 });
 

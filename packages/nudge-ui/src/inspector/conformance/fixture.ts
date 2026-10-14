@@ -56,11 +56,7 @@ export interface ConformanceResult {
   cleanup(): void;
 }
 
-/**
- * Mounts one data-led fixture and runs it through the same CSSOM resolver used
- * by the inspector. The caller owns assertions; this module only owns setup,
- * teardown, and the public inspection result.
- */
+/** Runs a fixture through the same CSSOM resolver the inspector uses; the caller owns assertions. */
 export function runConformanceFixture(
   fixture: ConformanceFixture,
   doc: Document = document,

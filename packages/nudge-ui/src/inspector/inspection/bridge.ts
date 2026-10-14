@@ -85,9 +85,7 @@ function inspectBrowserFacts(
     };
   }
 
-  // Compatibility callers may provide a fixture-local catalog. Keep that
-  // Adapter isolated from the document registry so one caller cannot replace
-  // the token knowledge used by the live inspector session.
+  // Fixture-local catalogs stay out of the document registry so they cannot replace the live session's token knowledge.
   const session = createBrowserCssInspection({
     document: doc,
     tokenKnowledge: { definitions, entries, generation: "compatibility" },
@@ -118,11 +116,7 @@ function catalogEntry(definition: TokenDefinition): InspectionCatalogEntry {
   };
 }
 
-/**
- * Returns the inspector's stable, read-only facts for one rendered element.
- * Compatibility tests and the React UI cross the same resolver/projection seam;
- * this function deliberately performs no selection or edit side effects.
- */
+/** Deliberately performs no selection or edit side effects. */
 export function inspectElement(
   element: HTMLElement,
   options: InspectElementOptions = {},
@@ -149,9 +143,7 @@ export function inspectElement(
       return diagnostic ? [{ property: change.property, ...diagnostic.result }] : [];
     }),
   };
-  // Local vanilla-extract themes attach contract variables to a theme class,
-  // not necessarily :root. The selected element is therefore the correct
-  // availability context for an element inspection.
+  // vanilla-extract themes attach contract variables to a theme class, not :root, so the element is the availability context.
   const controls = properties
     .filter((property) => !property.property.startsWith("--"))
     .map((property): InspectionControl => ({
@@ -198,7 +190,7 @@ declare global {
   }
 }
 
-/** Installs the dev-only browser seam used by compatibility applications. */
+/** Dev-only seam used by compatibility applications. */
 export function installInspectionBridge(target: Window = window): () => void {
   const bridge: NudgeUiInspectionBridge = {
     version: NUDGE_UI_INSPECTION_VERSION,

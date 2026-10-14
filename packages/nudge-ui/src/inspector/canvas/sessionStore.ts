@@ -148,10 +148,7 @@ export function persistSession(): boolean {
   return persistSessionUnchecked();
 }
 
-/**
- * Serializes and writes the session without the write-lease gate. The public
- * persistence path checks the lease before calling this helper.
- */
+/** Skips the write-lease gate; the public persistence path checks the lease first. */
 function persistSessionUnchecked(): boolean {
   if (!projectId()) return false;
   try {
@@ -160,7 +157,7 @@ function persistSessionUnchecked(): boolean {
     inspectorStorage()?.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
   } catch {
-    // Storage unavailable or quota exceeded — silently ignore
+    // Storage unavailable or quota exceeded
     return false;
   }
 }
@@ -304,10 +301,7 @@ export function hydrateSession(): HydrationResult {
     groups,
   );
   hydrateClipboardHandoff(clipboardHandoff);
-  // A different URL means the user intentionally navigated while Inspect was
-  // active. Keep the durable edits, but adopt the new route instead of
-  // sending the user back to the previous page. On refresh, the URLs already
-  // match and restoration remains unchanged.
+  // A changed URL means the user navigated while Inspect was active: keep the edits but adopt the new route.
   if (inspectRouteChanged) persistSessionUnchecked();
   return { restored: true, changeCount: 0 };
 }
@@ -316,7 +310,6 @@ function safeDiscard(): void {
   try {
     inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
-    // ignore
   }
 }
 
@@ -340,7 +333,6 @@ export function clearSession(): void {
   try {
     inspectorStorage()?.removeItem(storageKey(projectId()));
   } catch {
-    // ignore
   }
 
   clearComments();
@@ -375,11 +367,7 @@ export function enableAutoSave(): void {
   window.addEventListener("beforeunload", flushAutoSave);
 }
 
-/**
- * Coalesces the synchronous full-session `JSON.stringify` + `localStorage`
- * write behind a trailing timer so commits never block on persistence. A
- * refresh or close inside the debounce window still flushes on `beforeunload`.
- */
+/** Coalesces the synchronous full-session write behind a trailing timer; `beforeunload` still flushes it. */
 export function scheduleAutoSave(): void {
   if (!autoSaveEnabled) return;
   autoSaveDirty = true;

@@ -8,7 +8,6 @@ const browserScheduler: FrameScheduler = {
   cancel: (handle) => cancelAnimationFrame(handle),
 };
 
-/** Retains only the newest value and performs at most one update per frame. */
 export function createFrameThrottle<T>(
   run: (value: T) => void,
   scheduler: FrameScheduler = browserScheduler,

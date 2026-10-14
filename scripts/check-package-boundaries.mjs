@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Hosts may depend on shared modules but never on each other: a sideways edge
-// traps reusable behaviour inside one host, so every other host must copy it or
-// take on an unrelated toolchain to reach it.
-//
-// An exception in KNOWN_EXCEPTIONS that no longer matches a real edge also fails,
-// so the list cannot outlive the coupling it documents.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve, dirname } from "node:path";
@@ -25,8 +19,7 @@ const KNOWN_EXCEPTIONS = [
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
 const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "build", ".next", "test-results"]);
 
-// Matching the specifier position separates a real edge from a package name that
-// merely appears in data, such as a Next.js `transpilePackages` list.
+// Matching specifier position avoids false edges from package names in data, such as a `transpilePackages` list.
 const IMPORT_PATTERN = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)["']([^"']+)["']/g;
 
 function listSourceFiles(dir, files = []) {
@@ -41,7 +34,6 @@ function listSourceFiles(dir, files = []) {
 
 const hosts = readdirSync(hostsDir).filter((entry) => statSync(join(hostsDir, entry)).isDirectory());
 
-/** Resolves an import to the host that owns it, or null if it leaves the hosts tree. */
 function owningHost(file, specifier) {
   // Published subpaths are how a host addresses another host from the outside.
   const published = /^nudge-ui\/([a-z]+)/.exec(specifier);

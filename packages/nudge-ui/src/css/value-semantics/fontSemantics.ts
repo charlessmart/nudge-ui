@@ -1,12 +1,3 @@
-/**
- * Supported `font` shorthand decomposition (plan slice 3.5).
- *
- * One browser-safe Module decomposes the unambiguous typography longhands
- * affected by a `font` shorthand — family, size, style, weight, and
- * line-height. Omitted optional components are represented by their shorthand
- * reset value. System-font shorthands, percentage-sized variants, and complex
- * family/function forms stay raw so the author's meaning is never guessed.
- */
 export const FONT_SYSTEM_KEYWORDS = new Set([
   "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
 ]);
@@ -25,11 +16,7 @@ export interface FontShorthandParts {
   "line-height": string;
 }
 
-/**
- * Splits a font shorthand without losing quoted family names or functions.
- * The slash is a token only at top level, which lets us distinguish the
- * optional `font-size / line-height` portion from a slash in a URL/function.
- */
+/** The slash is a token only at top level, so URLs and functions survive. */
 export function splitFontShorthand(value: string): string[] {
   const parts: string[] = [];
   let start = -1;
@@ -77,11 +64,8 @@ export function isFontSize(value: string): boolean {
 }
 
 /**
- * Returns the supported typography longhands affected by an unambiguous
- * `font` shorthand. Omitted optional components are projected as `normal`
- * because a font shorthand resets them; dropping those reset rows would let
- * earlier declarations survive the cascade incorrectly. System-font
- * shorthands and percentage-sized variants remain raw.
+ * Omitted optional components project as their shorthand reset value; dropping
+ * those rows would let earlier declarations survive the cascade.
  */
 export function parseFontShorthand(value: string): FontShorthandParts | null {
   const source = value.trim();
@@ -90,8 +74,8 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
   const sizeIndex = parts.findIndex(isFontSize);
   if (sizeIndex < 0) return null;
   const fontSize = parts[sizeIndex]!;
-  // Percentages may be a preceding font-stretch component or the required
-  // size. Keep this uncommon form raw rather than choose arbitrarily.
+  // A leading percentage may be font-stretch, not the required size; keep this
+  // uncommon form raw rather than choose arbitrarily.
   if (/^[+-]?(?:\d*\.)?\d+%$/.test(fontSize) && sizeIndex > 0) return null;
 
   let cursor = sizeIndex + 1;
@@ -116,10 +100,8 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
       weight = part;
       continue;
     }
-    // Variant, stretch, angle-bearing oblique, duplicate, and unknown prefix
-    // components are valid in wider font grammar but outside this supported
-    // projection. Keep the whole shorthand conservative instead of dropping
-    // their meaning.
+    // Components outside this supported projection keep the whole shorthand
+    // conservative instead of dropping their meaning.
     return null;
   }
   return {

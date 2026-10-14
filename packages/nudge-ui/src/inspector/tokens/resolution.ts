@@ -36,13 +36,7 @@ export { getAvailableInteractionStates, resetSourceSiteMatchCache, sourceSiteMat
 export { buildTokenTable, getTokenTable, getAvailableTokenEntriesForElement, getAvailableTokenCatalog } from "./tokenAvailability.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 
-/**
- * Builds (or reuses) the document's CSSOM rule snapshot and its selector
- * indexes ahead of a resolution sweep. Idempotent: the work runs once per
- * stylesheet revision and is a cache hit afterwards, so a scheduler can warm
- * it in its own frame to keep the subsequent resolution sweep's blocking time
- * small.
- */
+/** Idempotent per stylesheet revision; warms the snapshot ahead of a sweep so its blocking time stays small. */
 export function prewarmCssomRuleSnapshot(doc: Document): void {
   prewarmRuleMatching(collectCssomRules(doc).rules);
 }
@@ -50,12 +44,7 @@ export function prewarmCssomRuleSnapshot(doc: Document): void {
 const MAX_PROPERTIES = 100;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 
-/**
- * Returns true when a `calc()` expression is safe to treat as a simple
- * numeric value. We exclude percentages, viewport units, and font-relative
- * units because those depend on context the browser cannot freeze into a
- * single pixel value safely.
- */
+/** Excludes context-dependent units (%, vw, em, ...) that cannot be frozen into one safe pixel value. */
 function canBecomeNumeric(value: string): boolean {
   const v = value.trim();
   if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/i.test(v)) return false;
@@ -85,11 +74,6 @@ function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted
   return normalizeInElementContext(el, row.property, row.declaredValue) === painted.trim();
 }
 
-/**
- * Resolves one authored value through the value-semantics Module using the
- * inspector's integration context. Value semantics remains the sole
- * interpretation authority.
- */
 function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
@@ -131,13 +115,7 @@ interface ResolvedDeclaration {
   structure?: BorderStructure;
 }
 
-/**
- * Coordinates cascade facts with the value-semantics Module. All property-family
- * decomposition (logical sides, border, font, radius corners, physical spacing)
- * lives in `interpretValue`; this function only supplies the token
- * context and directionality facts, then projects the Module's fields onto the
- * `ResolvedDeclaration` shape.
- */
+/** Decomposition lives in `interpretValue`; this supplies the token context and projects its fields. */
 function resolveDeclaration(
   declaration: StyleDeclaration,
   tokenTable: TokenTable,
@@ -217,11 +195,7 @@ function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
 ): ReadonlyMap<string, string> {
-  // Custom properties inherit independently of the property being resolved.
-  // Resolve the winning declaration separately for each element in the
-  // ancestor chain, then let the nearest declaration override inherited ones.
-  // This covers local aliases such as --color-error and inherited page tokens
-  // such as --color-ink without widening the build-time global catalog.
+  // Custom properties inherit independently, so each ancestor resolves its own winner and the nearest declaration wins.
   const lineage: HTMLElement[] = [];
   let current: HTMLElement | null = el;
   while (current) {
@@ -258,9 +232,7 @@ function collectLocalAliases(
       }
     });
 
-    // Inline custom properties are also inherited by descendants. They are
-    // explicit cascade winners for their element, so include them at inline
-    // specificity without changing the managed-style rule contract.
+    // Inline custom properties are inherited too; at inline specificity they are explicit cascade winners.
     for (const property of Array.from(element.style)) {
       if (!property.startsWith("--")) continue;
       const candidate: LocalAliasCandidate = {
@@ -311,12 +283,6 @@ function makeRuleApplies(
   };
 }
 
-/**
- * One matching pass over the rules for the element and its ancestors, with the
- * selector-match results shared between the element's own resolution and the
- * inherited phase. Local aliases are collected per element so no ancestor
- * re-walks the lineage × rules.
- */
 function relevantAncestorRule(rule: MatchedRule): boolean {
   return rule.declarations.some(({ property }) => property.startsWith("--") || INHERITED_PROPERTIES.has(property));
 }
@@ -372,8 +338,7 @@ function resolveLineage(
       (element === el || relevantAncestorRule(rule)) && rule.declarations.length > 0 && ruleApplies(rule));
     const candidates = new Map<string, LocalAliasCandidate>();
     for (const match of matched) {
-      // Conditions have already been evaluated against the declaration's own
-      // element. Descendants inherit its resulting alias, not its condition.
+      // Conditions are evaluated against the declaration's own element; descendants inherit the alias, not the condition.
       for (const declaration of match.rule.declarations) {
         if (!declaration.property.startsWith("--")) continue;
         const candidate: LocalAliasCandidate = {
@@ -411,9 +376,7 @@ function rowsFromMatches(
   const map = new Map<string, ResolvedProperty>();
   const mediaCandidatesByProperty = new Map<string, Map<string, AtRuleContext>>();
 
-  // Sort by source order ascending so rules are processed lowest-first.
-  // Map.set() naturally overwrites: higher specificity rules processed later win,
-  // and equal-specificity rules get "last in stylesheet order wins" (stable sort).
+  // Ascending source order with Map.set overwrite gives later-wins for equal specificity; relies on a stable sort.
   const sorted = [...matched].sort((a, b) => (a.rule.sourceOrder ?? 0) - (b.rule.sourceOrder ?? 0));
   const needsDirectionality = sorted.some(({ rule }) =>
     rule.declarations.some(({ property }) => isLogicalBoxProperty(property)));
@@ -510,12 +473,7 @@ function rowsFromMatches(
   return rows;
 }
 
-/**
- * Package-private cascade fixture seam. This exercises selector, layer,
- * importance, and interaction-state coordination while still crossing the
- * public value-semantics Interface through `resolveDeclaration`.
- * It is intentionally absent from the package exports.
- */
+/** Test-only cascade fixture seam, intentionally absent from the package exports. */
 export function resolveRuleFixture(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -669,8 +627,7 @@ function annotatePaintedValues(
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
     if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
-      // A hypothetical state retains its authored value while `computed`
-      // records what the browser is painting. Live and base use painted values.
+      // Hypothetical states keep the authored value; live/base take the painted value.
       if (mode === "live" || mode === "base" || !prop.resolvedValue) prop.resolvedValue = cv;
       prop.computed = cv;
       if (mode === "live") hydratePropertyOpacity(prop, cv);
@@ -702,8 +659,7 @@ function applyInlineDeclarations(
   computed: CSSStyleDeclaration,
   inaccessible: boolean,
 ): void {
-  // Inline declarations participate in the cascade and are explicit evidence,
-  // but token attribution is only exact when the authored inline value uses a known token.
+  // Inline declarations are explicit evidence, but attribution is exact only for a known token.
   const inlineProperties = Array.from(el.style);
   const directionality = inlineProperties.some(isLogicalBoxProperty)
     ? directionalityFromComputed(el, computed)
@@ -749,10 +705,7 @@ function applyInlineDeclarations(
 }
 
 function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTable): void {
-  // When a calc() expression only references static tokens the browser has
-  // already resolved it to a pixel value.  Reclassify the row so the UI
-  // shows the pixel value instead of the raw calc() string and allows
-  // numeric editing (nudge / token swap).
+  // A static-token calc() is already resolved to a pixel value; reclassify so the UI allows numeric editing.
   for (const prop of result) {
     if (prop.capability !== "raw" || prop.diagnostic) continue;
     const value = prop.authored ?? prop.declaredValue ?? "";
@@ -763,12 +716,7 @@ function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTab
   }
 }
 
-/**
- * Resolve the authored cascade for a chosen interaction state without relying
- * on the pointer's current location. This is intentionally attribution-first:
- * values with no authored declaration still fall back to the browser's live
- * computed value in the field layer.
- */
+/** Authored cascade for a chosen interaction state, independent of the pointer's live paint. */
 export function getResolvedPropertiesForState(
   el: HTMLElement,
   tokenTable: TokenTable,
@@ -810,11 +758,7 @@ export function getResolvedPropertiesForState(
 
 const stableTokenCache = new WeakMap<HTMLElement, ResolvedPropertiesSnapshot>();
 
-/**
- * Resolves the cascade with transient interaction selectors removed. Used when
- * an editor must stay linked to the stable token beneath a live :hover/:focus
- * paint. Memoized per (element, revisions, tokenTable).
- */
+/** Cascade with transient interaction selectors removed, so an editor stays linked to the token beneath a live :hover/:focus paint. */
 export function getResolvedPropertiesStable(
   el: HTMLElement,
   tokenTable: TokenTable,

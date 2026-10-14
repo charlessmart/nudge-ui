@@ -98,11 +98,7 @@ const ERASER_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" fill=
 
 export type CursorImage = "design-select" | "drag" | "sketch" | "eraser" | "comment";
 
-/**
- * Base URL for cursor image files, set on `globalThis` before the bundle
- * evaluates. Pages whose `img-src` blocks `data:` cannot load the default
- * images; the Chrome extension serves the files from its own origin instead.
- */
+/** Set on globalThis before the bundle evaluates; pages blocking data: images need the extension's origin instead. */
 const CURSOR_IMAGE_BASE = (globalThis as { __NUDGE_UI_CURSOR_IMAGE_BASE__?: unknown }).__NUDGE_UI_CURSOR_IMAGE_BASE__;
 
 function cursorImageUrl(name: CursorImage, svg: string): string {

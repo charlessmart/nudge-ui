@@ -11,11 +11,7 @@ import {
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
 
-/**
- * Where `pnpm --filter nudge-ui build` writes the bundled CommonJS loaders. The
- * registered paths are asserted exactly: a merely plausible suffix let a wrong
- * directory ship once.
- */
+/** Bundled loader directory; asserted exactly because a plausible-but-wrong suffix shipped once. */
 const loaderDirectory = fileURLToPath(new URL("../../../dist/hosts/next/loaders/", import.meta.url));
 
 function makeProject(): string {
@@ -77,7 +73,6 @@ describe("withNudgeUi — phase gating (ADR-0002)", () => {
 
     expect(typeof wrapped).toBe("function");
 
-    // A production-build phase must pass the config through untouched.
     const prodResult = (wrapped as (phase: string) => NudgeUiNextConfig)(
       "phase-production-build",
     );
@@ -85,7 +80,6 @@ describe("withNudgeUi — phase gating (ADR-0002)", () => {
     expect(prodResult.turbopack).toBeUndefined();
     expect(factory).toHaveBeenCalledWith("phase-production-build");
 
-    // The development-server phase instruments.
     const devResult = (wrapped as (phase: string) => NudgeUiNextConfig)(
       "phase-development-server",
     );
@@ -138,8 +132,7 @@ describe("withNudgeUi — development output shape", () => {
       string,
       { loaders?: unknown[]; condition?: unknown }
     >;
-    // Two plain globs: Turbopack's rule globber does not promise brace
-    // expansion, and a malformed key degrades into directory matches.
+    // Two plain globs: Turbopack's rule globber does not promise brace expansion.
     for (const key of ["*.tsx", "*.jsx"]) {
       const rule = rules[key];
       expect(rule).toBeDefined();
@@ -163,9 +156,7 @@ describe("withNudgeUi — development output shape", () => {
       "nudge-ui/internal/component-runtime"
     ];
     expect(componentRuntimeAlias).toEqual(expect.stringMatching(/react\/runtime\.(?:js|tsx)$/));
-    // Turbopack treats absolute filesystem aliases as malformed relative
-    // imports. The alias must be project-relative for both flat projects and
-    // workspace source files.
+    // Turbopack treats absolute filesystem aliases as malformed relative imports, so the alias must stay project-relative.
     expect(componentRuntimeAlias).toMatch(/^\.\.?\//);
   });
 
@@ -246,8 +237,7 @@ describe("withNudgeUi — development output shape", () => {
     expect(rules["**/*.svg"]).toBeDefined();
     expect(rules["*.tsx"]).toBeDefined();
 
-    // A USER rule for the SAME key composes into a collection instead of
-    // being overwritten.
+    // A user rule for the same key composes into a collection instead of being overwritten.
     const shared = resolveForDevelopment({
       turbopack: { rules: { "*.tsx": { loaders: ["user-loader"] } } },
     } as NudgeUiNextConfig) as {
@@ -274,8 +264,7 @@ describe("withNudgeUi — development output shape", () => {
 
     const rules = ((devOut.module as { rules?: unknown[] }).rules ?? []) as Array<Record<string, unknown>>;
     expect(rules).toHaveLength(1);
-    // Identity rule for first-party TSX/JSX. The inspector client is served
-    // as a prebuilt asset, so Next must not receive a CSS query rule.
+    // No CSS query rule: the inspector client is served as a prebuilt asset.
     expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
     expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toBe(
       join(loaderDirectory, "identity-loader.cjs"),
@@ -286,7 +275,6 @@ describe("withNudgeUi — development output shape", () => {
       }),
     );
 
-    // Production context must stay untouched.
     const prodConfig: Record<string, unknown> = { module: { rules: ["keep"] } };
     const prodOut = (
       composed.webpack as (c: Record<string, unknown>, ctx: { dev: boolean }) => Record<string, unknown>
@@ -332,7 +320,6 @@ describe("withNudgeUi — development output shape", () => {
       }),
     ]);
 
-    // The transport is live end-to-end.
     const port = Number(proxy!.destination.match(/:(\d+)/)?.[1]);
     const response = await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as {
@@ -381,7 +368,7 @@ describe("withNudgeUi — development output shape", () => {
     const config = resolveForDevelopment({} as NudgeUiNextConfig);
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("outside the tested range"));
-    // Failing closed: unsupported versions get NO instrumentation.
+    // Fails closed: unsupported versions get no instrumentation.
     expect(config.turbopack).toBeUndefined();
     warnSpy.mockRestore();
   });
@@ -397,8 +384,7 @@ describe("manifest builder", () => {
   it("ships the tracer-bullet capability set with empty knowledge fields", () => {
     const manifest = buildManifest({ root: "/x" });
 
-    // Canvas shares the Vite host's controller/renderer runtime; semantic
-    // component props cover client components only.
+    // Canvas shares the Vite host's runtime; component props cover client components only.
     expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true, domNavigation: true });
     expect(manifest.runtime.tokenCatalog).toEqual([]);
     expect(manifest.runtime.componentContracts).toEqual([]);

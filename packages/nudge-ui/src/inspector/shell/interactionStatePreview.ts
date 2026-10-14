@@ -12,8 +12,7 @@ export function selectorForInteractionStatePreview(selector: string): string {
   let transformed = selector;
   for (const pseudo of [...selectorPseudoClasses(selector)].reverse()) {
     if (!interactionStates.has(pseudo.name)) continue;
-    // Keep native states on other elements, but use the chosen state on the
-    // selected element. :where() keeps the original pseudo-class specificity.
+    // :where() keeps the replacement at the original pseudo-class specificity.
     const replacement = `:is(:${pseudo.name}:where(:not([${MARKER}])), [${MARKER}="${pseudo.name}"])`;
     transformed = transformed.slice(0, pseudo.start) + replacement + transformed.slice(pseudo.end);
   }
@@ -22,8 +21,7 @@ export function selectorForInteractionStatePreview(selector: string): string {
 
 function previewSelector(selector: string): string {
   const transformed = selectorForInteractionStatePreview(selector);
-  // Add the same specificity to every copied branch. This preserves their
-  // relative cascade while overriding native pointer states on the target.
+  // Same added specificity on every branch preserves their relative cascade while overriding native pointer states.
   const scope = `:where([${MARKER}], [${MARKER}] *):is(#${STATE_PREVIEW_SHEET_ID}, *)`;
   // A scope must precede a pseudo-element, which cannot take an attribute.
   let parentheses = 0;
@@ -50,10 +48,7 @@ function previewSelector(selector: string): string {
   return transformed + scope;
 }
 
-/**
- * Projects CSS interaction states into the selected element's document.
- * This previews styles without dispatching events or changing application state.
- */
+/** Previews interaction states without dispatching events or changing application state. */
 export function startInteractionStatePreview(element: HTMLElement, state: InteractionState): () => void {
   if (state === "base") return () => undefined;
   const doc = element.ownerDocument;

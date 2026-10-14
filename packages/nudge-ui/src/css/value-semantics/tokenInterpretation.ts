@@ -1,24 +1,3 @@
-/**
- * Token-reference, alias, and modifier interpretation (plan slice 3.2).
- *
- * This is the deep value-semantics Module for token attribution: it turns one
- * CSSOM-authored value into the structured token facts an inspector needs —
- * the primary field token, every referenced token with its origin, the leaf
- * token behind chained aliases, explicit modifiers (fallbacks and alpha), and
- * a `cycle` diagnostic when alias traversal loops.
- *
- * Interface invariants:
- * - the Module never touches the DOM or CSSOM; the token table, local
- *   aliases, color/opacity reading, direct-literal attribution, and alias
- *   attribution are all explicit inputs (`TokenInterpretationContext`);
- * - the primary token, all referenced tokens, and implementation aliases stay
- *   distinct;
- * - alias cycles terminate and surface a `cycle` diagnostic;
- * - arbitrary input does not throw through `interpretTokenValue`;
- * - framework-specific policy — Tailwind `--tw-*` aliases, adapter-derived
- *   token origins, direct Tailwind v3 color attribution — is injected by the
- *   integration, never encoded here.
- */
 import type {
   ColorOpacity,
   ColorValueFacts,
@@ -35,7 +14,6 @@ import {
 export { extractVarCalls } from "./cssSyntax.ts";
 import { extractVarCalls } from "./cssSyntax.ts";
 
-/** The structured token interpretation of one authored CSSOM value. */
 export interface TokenValueInterpretation {
   /** The primary field token, or null when no non-alpha token is primary. */
   tokenName: string | null;
@@ -43,19 +21,16 @@ export interface TokenValueInterpretation {
   resolvedValue: string;
   /** Every referenced token (primary, fallback, opacity), deduped, with origin. */
   tokens: TokenReference[];
-  /** Normalized opacity when the value carries an alpha component. */
   opacity?: ColorOpacity;
-  /** Color-shape facts projected to UI without reparsing authored expressions there. */
+  /** Color-shape facts projected for the UI. */
   color: ColorValueFacts;
-  /** Explicit fallback and alpha modifiers derived from the authored value. */
   modifiers: ValueModifier[];
   /** The token reached after traversing chained aliases from `tokenName`. */
   leafTokenName: string | null;
-  /** The alias reference that repeated during traversal, when a cycle exists. */
+  /** The alias reference that repeated, when a cycle exists. */
   cycle?: string;
 }
 
-/** The interpretation of a token's own value after alias traversal. */
 export interface AliasInnerResult {
   tokenName: string | null;
   resolvedValue: string;
@@ -63,12 +38,7 @@ export interface AliasInnerResult {
   cycle?: string;
 }
 
-/**
- * How a local alias reference is attributed after its value is resolved.
- * The neutral default authors the alias name itself; the Tailwind `--tw-*`
- * policy (attributing to the catalog token an implementation alias points at)
- * is supplied by the integration.
- */
+/** Attribution policy for a local alias reference; framework-specific behaviour is injected. */
 export interface AliasAttribution {
   known: boolean;
   tokenName: string | null;
@@ -77,30 +47,22 @@ export interface AliasAttribution {
   cycle?: string;
 }
 
-/** Facts the token interpretation needs that are not part of the authored text. */
 export interface TokenInterpretationContext {
   /** Resolved token table (custom-property name → entry). */
   table: TokenTable;
   /** Local aliases collected from the selected element's cascade. */
   localAliases?: ReadonlyMap<string, string>;
-  /**
-   * Direct literal attribution: a token entry matched to the authored value
-   * before var() interpretation (integration policy, e.g. Tailwind v3 config
-   * tokens). Absent when no direct attribution applies.
-   */
+  /** Direct literal attribution before var() interpretation (e.g. Tailwind v3 config tokens). */
   resolveDirectToken?: (value: string) => TokenEntry | undefined;
-  /** Token-origin derivation. Default: `entry.origin ?? "project"` (undefined → "runtime"). */
+  /** Defaults to `entry.origin ?? "project"`. */
   resolveOrigin?: (entry: TokenEntry | undefined) => TokenOrigin;
-  /** Local-alias attribution policy. Default attributes the alias reference itself. */
+  /** Default attributes the alias reference itself. */
   resolveAlias?: (ref: string, inner: AliasInnerResult) => AliasAttribution;
 }
 
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 
-/**
- * Neutral token-origin derivation. Adapter-name heuristics ("tailwind-v3"
- * → "framework", "vanilla-extract" → "project") remain integration policy.
- */
+/** Neutral derivation; adapter-name heuristics stay integration policy. */
 export function defaultTokenOrigin(entry: TokenEntry | undefined): TokenOrigin {
   if (!entry) return "runtime";
   return entry.origin ?? "project";
@@ -116,10 +78,7 @@ function defaultAliasAttribution(ref: string, inner: AliasInnerResult): AliasAtt
   };
 }
 
-/**
- * Balanced `var()` scanning lives in `cssSyntax.ts` (shared internal seam) and
- * is re-exported here to keep the public token-interpretation API stable.
- */
+/** Re-exported to keep the public token-interpretation API stable. */
 
 interface RefResult {
   known: boolean;
@@ -182,11 +141,7 @@ function resolveTokenValueInner(
   return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
 }
 
-/**
- * Interprets the token references, aliases, and modifiers of one authored
- * CSSOM value against explicit token knowledge. Returns the primary token,
- * every referenced token, the leaf token, modifiers, and a cycle diagnostic.
- */
+/** Interprets token references, aliases, and modifiers against explicit token knowledge. */
 export function interpretTokenValue(
   value: string,
   ctx: TokenInterpretationContext,
@@ -251,11 +206,10 @@ export function interpretTokenValue(
   if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
 
   const inner = resolveTokenValueInner(authored, table, new Set(), localAliases, ctx);
-  // An alpha variable is still a token reference, but it is not the color
-  // token represented by the field. For example, in
-  // `rgb(37 99 235 / var(--opacity-muted))`, the color is literal and only
-  // the opacity is token-backed. Keep that distinction in `tokenName` so the
-  // UI can render a base color chip only when one actually exists.
+  // An alpha variable is still a token reference, but it is not the field's
+  // color token (`rgb(37 99 235 / var(--opacity-muted))` is literal color plus
+  // token-backed alpha). Keeping that distinction lets the UI render a base
+  // color chip only when one actually exists.
   const alphaTokenName = opacity?.tokenName;
   const baseKnown = firstKnown && firstKnown.tokenName !== alphaTokenName ? firstKnown : null;
   const baseInner = inner.tokenName && inner.tokenName !== alphaTokenName ? inner : null;
@@ -279,13 +233,7 @@ export function interpretTokenValue(
   };
 }
 
-/**
- * Resolves a `var()` component of a color expression (for example an opacity
- * token) through the same interpretation context as the authored value. This
- * is what the color Module's `interpretColorOpacity` uses to attribute
- * token-backed alpha components, keeping alias and framework attribution in
- * the token interpretation.
- */
+/** Resolves a `var()` component (e.g. an opacity token) through the same context as the authored value. */
 function resolveComponentReference(
   value: string,
   ctx: TokenInterpretationContext,

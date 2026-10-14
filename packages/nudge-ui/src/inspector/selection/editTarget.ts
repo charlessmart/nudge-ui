@@ -1,8 +1,4 @@
-/**
- * A style edit target is deliberately smaller than the selection model. The
- * editor only needs the rendered DOM nodes that will receive one declaration;
- * source metadata and selection ordering stay inside the selection module.
- */
+/** Deliberately just the DOM nodes receiving a declaration; source metadata stays in the selection module. */
 export type EditTarget = HTMLElement | readonly HTMLElement[];
 
 function isElementList(target: EditTarget): target is readonly HTMLElement[] {

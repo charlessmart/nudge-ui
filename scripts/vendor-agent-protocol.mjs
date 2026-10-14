@@ -1,10 +1,5 @@
-/**
- * Include the private agent protocol in a public package's release output.
- *
- * The browser inspector and MCP companion compile from one workspace source,
- * but consumers must not need an unpublished workspace dependency. Copy the
- * compiled module into each package and redirect emitted imports to that copy.
- */
+// Copies the compiled private protocol into each public package and redirects emitted
+// imports, so consumers need no unpublished workspace dependency.
 import {
   copyFileSync,
   mkdirSync,

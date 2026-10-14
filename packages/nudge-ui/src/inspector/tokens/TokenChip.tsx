@@ -48,10 +48,7 @@ function TokenChipAction({ className, children, ...props }: TokenChipSlotProps):
   );
 }
 
-/**
- * Layout for a token's selected value. Callers compose the picker and actions
- * so their interaction semantics remain independent of the chip's visuals.
- */
+/** Callers compose the slots; the chip owns visuals only. */
 export const TokenChip = Object.assign(TokenChipRoot, {
   Picker: TokenChipPicker,
   Label: TokenChipLabel,

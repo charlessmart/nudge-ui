@@ -2,14 +2,11 @@ import { getActiveStyleState } from "./styleState.ts";
 import { readInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 
-/** Read an inspector value from the selected authored state, falling back to
- * the browser only when CSSOM has no declaration to attribute. */
+/** Reads from the authored state; the browser is only the fallback when CSSOM has no declaration to attribute. */
 export function getStateStyleValue(el: HTMLElement, property: string, fallback = ""): string {
   try {
     const state = getActiveStyleState();
-    // Keep the browser's exact computed value for ordinary Base inspection.
-    // Authored resolution is needed when the live element is transiently
-    // interacted with, or when the user explicitly selected another state.
+    // Base inspection uses the browser's computed value unless the element is transiently hovered or focused.
     const hasLiveInteraction = [":hover", ":active", ":focus", ":focus-visible"].some((selector) => {
       try { return el.matches(selector); } catch { return false; }
     });

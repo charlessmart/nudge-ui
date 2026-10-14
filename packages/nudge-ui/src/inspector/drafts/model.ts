@@ -2,7 +2,6 @@ import { normalizeUrl, normalizedUrlKey } from "../canvas/normalizeUrl.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 
-/** The canonical intent of one draft: ordinary records and structural records. */
 export interface DraftContents {
   readonly changes: readonly ChangeRecord[];
   readonly structuralChanges: readonly StructuralChange[];
@@ -40,12 +39,10 @@ export function htmlTarget(artifactId: string): { kind: "html"; artifactId: stri
   return { kind: "html", artifactId, path: `.nudge/artifacts/${artifactId}/document.html` };
 }
 
-/** The HTML iteration artifact ID when the URL addresses an iteration document. */
 export function artifactIdFromUrl(url: string): string | null {
   return ARTIFACT_PATH.exec(new URL(url, window.location.href).pathname)?.[1] ?? null;
 }
 
-/** Maps a captured document URL to the draft that owns it: an iteration preview or an application page. */
 export function documentTarget(url: string): DraftTarget {
   const artifactId = artifactIdFromUrl(url);
   return artifactId ? htmlTarget(artifactId) : applicationTarget(url);

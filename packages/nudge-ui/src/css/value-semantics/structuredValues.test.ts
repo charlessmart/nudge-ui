@@ -9,15 +9,6 @@ import {
   type StructuredValuesContext,
 } from "./structuredValues.ts";
 
-/**
- * Fast Interface tests for the structured-values Module (plan slice 3.5).
- * These pin box/spacing, border, border-radius, logical-side, and supported
- * font decomposition in isolation: the module takes explicit token knowledge
- * and explicit `Directionality` facts and never touches the DOM or CSSOM.
- * Expected values are byte-identical to the pre-migration characterization and
- * conformance assertions.
- */
-
 function entry(name: string, value: string, extra: Partial<TokenEntry> = {}): TokenEntry {
   return { name, value, source: "theme.css:1", ...extra };
 }
@@ -132,8 +123,6 @@ describe("interpretStructuredValue — box/spacing expansion", () => {
     const fields = interpretStructuredValue(property, value, ctx(table([])));
     expect(fields.map((field) => field.property)).toEqual(expectedProps);
     expect(fields.map((field) => field.resolvedValue)).toEqual(expectedValues);
-    // Physical inset longhands (`top`/`right`/...) classify atomic, exactly as
-    // the legacy resolver projected them.
     expect(fields.every((field) => field.capability === "atomic")).toBe(true);
   });
 
@@ -437,8 +426,6 @@ describe("interpretStructuredValue — supported font decomposition", () => {
     expect(byProp.get("font-family")).toMatchObject({ declaredValue: '"Aster Display", Georgia, serif', sourceProperty: "font" });
     expect(byProp.get("font-size")).toMatchObject({ declaredValue: "1.25rem", capability: "atomic" });
     expect(byProp.get("font-weight")).toMatchObject({ declaredValue: "700", capability: "atomic" });
-    // Keyword style components are classified raw by the value policy, exactly
-    // as the legacy resolver projected them.
     expect(byProp.get("font-style")).toMatchObject({ declaredValue: "italic", capability: "raw" });
     expect(byProp.get("line-height")).toMatchObject({ declaredValue: "1.4", capability: "atomic" });
   });

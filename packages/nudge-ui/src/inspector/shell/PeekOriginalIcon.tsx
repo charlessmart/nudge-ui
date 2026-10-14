@@ -1,10 +1,5 @@
 import type { ReactElement } from "react";
 
-/**
- * Before/after comparison glyph for the hold-to-view-original button.
- * Custom artwork rendered with the shared inspector icon tokens so it
- * matches the neighboring header icons.
- */
 export function PeekOriginalIcon(): ReactElement {
   return (
     <svg viewBox="0 0 24 24" width="var(--icon-size-small)" height="var(--icon-size-small)" aria-hidden="true">

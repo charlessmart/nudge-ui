@@ -2,18 +2,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
-/**
- * ADR-0010 production strip proof: `next build` output contains no identity
- * attributes, no inspector mount point, and no manifest transport. The plan
- * specifies grep-style checks against the BUILT OUTPUT — rendered-HTML
- * assertions are kept as a complement but cannot substitute for artifact
- * inspection (client-side injection would be invisible to them).
- */
-
+// Artifact greps are the proof: client-side injection would be invisible to rendered-HTML assertions.
 const PROJECT_ROOT = join(import.meta.dirname, "..");
 const BUILD_DIR = join(PROJECT_ROOT, ".next");
 
-/** Every JS/HTML/text artifact Turbopack wrote for this build. */
 function buildArtifacts(): string[] {
   const files: string[] = [];
   const walk = (dir: string): void => {
@@ -72,7 +64,6 @@ test("prod: manifest transport is unreachable", async ({ request }) => {
 });
 
 test("prod: no sidecar state file exists in the project", async () => {
-  // The sidecar never starts outside development, so its port record is
-  // never written into .next.
+  // The sidecar never starts outside development, so its port record is never written into .next.
   expect(existsSync(join(BUILD_DIR, "nudge-ui-sidecar.json"))).toBe(false);
 });

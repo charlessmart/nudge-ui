@@ -1,8 +1,5 @@
-/**
- * Exercise the built development host and a separately launched stdio adapter.
- * The SDK sanitizes the child environment, matching real agent-host startup.
- * Run through pnpm test:agent-integration after installing workspace packages.
- */
+// Launches a real stdio adapter child process: the SDK sanitizes the child
+// environment, matching agent-host startup. Run via pnpm test:agent-integration.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

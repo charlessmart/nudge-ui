@@ -13,7 +13,7 @@ export const MIN_CAMERA_ZOOM = 0.25;
 export const MAX_CAMERA_ZOOM = 3;
 export const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
 
-/** How the canvas is viewed. Frames, groups, and selection live in the canvas store. */
+/** Frames, groups, and selection live in the canvas store. */
 let mode: CanvasMode = "inspect";
 let presentation: CanvasPresentation = "focus";
 let presentationTransitioning = false;

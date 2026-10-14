@@ -29,7 +29,6 @@ export interface ProjectBridgeOptions {
   readonly workspaceRoot?: string;
   readonly projectId?: string;
   readonly origin: string;
-  /** Other explicit browser origins, such as loopback aliases on the same port. */
   readonly allowedOrigins?: readonly string[];
   readonly host?: "127.0.0.1" | "::1" | "localhost";
   readonly port?: number;
@@ -56,9 +55,8 @@ export interface StoredProjectSession extends ProjectSession {
 }
 
 export function defaultSessionRegistryRoot(): string {
-  // MCP hosts commonly sanitize TMPDIR and XDG_RUNTIME_DIR for stdio child
-  // processes. The OS account home is stable across the development server
-  // and agent adapter, so both processes discover the same private registry.
+  // MCP hosts sanitize TMPDIR and XDG_RUNTIME_DIR for stdio child processes;
+  // the OS account home is stable across the development server and adapter.
   return join(userInfo().homedir, ".cache", "nudge-ui", "sessions");
 }
 
@@ -148,11 +146,7 @@ async function closeProjectBridge(descriptorPath: string, bridge: BrowserBridge)
   }
 }
 
-/**
- * Starts the project-owned browser bridge and registers it for local MCP
- * adapters. The descriptor contains a private control credential and is never
- * suitable for browser bundles or user-facing tool results.
- */
+/** The descriptor carries a private control credential; never expose it to browser bundles or tool results. */
 export const startProjectBridge = (async (options: ProjectBridgeOptions): Promise<ProjectBridgeRuntime> => {
   const origin = canonicalOrigin(options.origin);
   if (!origin) throw new TypeError("origin must be a canonical HTTP(S) origin");

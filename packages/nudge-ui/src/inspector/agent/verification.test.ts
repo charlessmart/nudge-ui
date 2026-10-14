@@ -40,7 +40,6 @@ function movedCard(src: string): HTMLElement {
   return card;
 }
 
-/** A source-site edit captured at line 4, before an edit above it shifted the file. */
 function movedStyleChange(): ElementChangeRecord {
   return {
     ...styleChange("color", "rgb(255, 0, 0)"),
@@ -133,8 +132,7 @@ describe("agent completion verification", () => {
     appendChange(sent);
     recordAgentDispatch(42, getChangesList());
 
-    // The user changes the same field while the agent is working. The newer
-    // canonical record must not be mistaken for the dispatched snapshot.
+    // A newer canonical record for the same key must not be mistaken for the dispatched snapshot.
     appendChange(styleChange("color", "rgb(0, 0, 255)"));
 
     const authored = document.createElement("style");
@@ -159,9 +157,7 @@ describe("agent completion verification", () => {
     expect(pending.isConnected).toBe(false);
     recordAgentDispatch(7, [], getStructuralChanges());
 
-    // The source applied only the first delete: React removed that item and
-    // its placeholder comment, while the pending delete's placeholder still
-    // guards the second element. Placeholders were created in snapshot order.
+    // The source applied only the first delete; placeholders were created in snapshot order.
     const placeholders = Array.from(document.body.childNodes)
       .filter((node): node is Comment => node.nodeType === node.COMMENT_NODE);
     expect(placeholders).toHaveLength(2);
@@ -293,8 +289,7 @@ describe("agent completion verification", () => {
     expect(target.isConnected).toBe(false);
     recordAgentDispatch(7, [], getStructuralChanges());
 
-    // The source did not apply the delete, so lifting the preview returns the
-    // element and verification must not reconcile it.
+    // The source did not apply the delete, so lifting the preview returns the element.
     await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
     expect(target.isConnected).toBe(false);

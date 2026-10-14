@@ -44,7 +44,6 @@ function stateStyleReader(el: HTMLElement): ComputedStyleReader {
   return (property, fallback) => getStateStyleValue(el, property, fallback);
 }
 
-/** Reports whether the intent produced any declarations to write. */
 function commitBorderIntent(target: EditTarget, source: BorderSource, intent: BorderIntent, onAfterEdit?: () => void): boolean {
   const declarations = borderDeclarations(source, intent);
   if (declarations.length === 0) return false;
@@ -61,11 +60,7 @@ export interface BorderEditorProps {
   onAfterEdit?: () => void;
 }
 
-/**
- * Linked presentation from cascade data + optional user toggle.
- * Divergent faces always open; equal faces start linked but can expand.
- * Linking divergent faces is optimistic until cascade rows catch up.
- */
+/** User toggle is optimistic: it holds until the cascade-derived state catches up. */
 function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [boolean, (next: boolean) => void] {
   const [userUnlinked, setUserUnlinked] = useState(false);
   const [userLinked, setUserLinked] = useState(false);

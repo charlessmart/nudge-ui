@@ -1,25 +1,7 @@
 /**
- * Compiler-facing loader entry (webpack shape) registered by
- * `withNudgeUi` for both Turbopack rules and webpack module rules
- * (ADR-0010).
- *
- * Shape constraints established against Next 16.3.2, whose Turbopack runs
- * rules through a webpack LoaderRunner compatibility layer evaluated with
- * Node's TypeScript type-stripping:
- *
- * - The evaluated module ITSELF must be the loader function: an ESM default
- *   export lands behind `module.exports.default` and is rejected with "is
- *   not a loader". Hence CommonJS `module.exports =` in a `.cts` file.
- * - Only strippable TypeScript syntax: no `export =`, no runtime `import`
- *   statements — the pure Module is pulled in with `require`.
- * - Sourcemaps are deliberately omitted: passing a map through
- *   `this.callback` corrupts the pipeline (Turbopack re-reads map source
- *   entries as assets and dies on them). Identity attribution lives in the
- *   rendered DOM (`data-src`), not in devtools mappings, so the tracer
- *   bullet ships code-only output.
- *
- * Deliberately boring body: byte-preserved passthrough when nothing applies;
- * asynchronous only while the host resolves component provenance.
+ * Turbopack runs this through a webpack LoaderRunner compatibility layer: the module
+ * itself must be the loader (hence CJS in .cts, `require`, no sourcemap — a map through
+ * `this.callback` corrupts Turbopack's pipeline).
  */
 
 interface NudgeUiLoaderContext {
@@ -78,25 +60,17 @@ const nodePath = require("node:path");
 const nodeFs = require("node:fs");
 
 /**
- * One canonical project root per loader process. Compilers report
- * `resourcePath` in canonical form while the wrapper's root comes from
- * `process.cwd()`, whose textual form can differ on symlinked paths (macOS
- * `/tmp` vs `/private/tmp`); a textual prefix check would then silently drop
- * every posting. Canonicalizing both sides keeps the relative file key — the
- * sidecar's aggregation key — identical to what the scanner and watcher use.
+ * Compilers report canonical resourcePaths while the wrapper's root comes from
+ * `process.cwd()`, whose textual form can differ on symlinked paths (macOS /tmp vs
+ * /private/tmp); canonicalizing both keeps the sidecar's aggregation key identical.
  */
 const canonicalRootCache = new Map<string, string>();
-// Import provenance checks canonicalise the same files once per trace step and
-// once per module, so memoise them for the loader process.
+// Provenance checks canonicalise the same files repeatedly, so memoise them for the loader process.
 const canonicalFileCache = new Map<string, string>();
 const reportedComponentPolicyDiagnostics = new Set<string>();
 let reportedMissingResolver = false;
 
-/**
- * Report a loader runner that cannot resolve import provenance. Without host
- * resolution the shared compiler can only add identity attributes, so the
- * semantic component layer would be off with no other signal.
- */
+/** Without host import resolution the semantic layer degrades silently to identity attributes, so report once per loader process. */
 function warnMissingResolver(context: NudgeUiLoaderContext): void {
   if (reportedMissingResolver) return;
   reportedMissingResolver = true;
@@ -115,7 +89,7 @@ function canonicalProjectRoot(root: string): string {
   try {
     realRoot = nodeFs.realpathSync(root);
   } catch {
-    /* an unresolvable root keeps its textual form */
+    /* unresolvable roots keep their textual form */
   }
   canonicalRootCache.set(root, realRoot);
   return realRoot;
@@ -142,15 +116,9 @@ function isInsideSourceRoot(file: string, root: string): boolean {
       && !nodePath.isAbsolute(relativeFile));
 }
 
-/**
- * Publishes one file's component contracts to the sidecar's aggregation
- * endpoint (Stage 5). Fire-and-forget: contract transport must never break
- * compilation. The sidecar port comes from the state file the sidecar writes
- * under `<root>/.next`; a missing or stale record simply skips publishing.
- */
+/** Publishes one file's contracts to the sidecar's aggregation endpoint; the port comes from the state file under `<root>/.next`. */
 function postContracts(root: string, relativeFile: string, source: string): void {
-  // Empty results are published too: a file whose components were all
-  // removed must PRUNE its stale entry, not silently keep old controls.
+  // Empty results are published too, so a file whose components were all removed prunes its stale entry.
   const contracts = extractComponentContracts(source, relativeFile);
   let port = 0;
   try {
@@ -188,11 +156,8 @@ function nudgeUiLoader(
   this: NudgeUiLoaderContext,
   source: string,
 ): string | undefined {
-  // Defense-in-depth for ADR-0002: even if a wrapper were misconfigured into
-  // a production build (e.g. NODE_ENV=development next build through a custom
-  // server), Next sets NEXT_PHASE per invocation — skip every transform when
-  // that phase says production build. Unknown/absent phases still transform,
-  // so exotic dev harnesses keep working.
+  // Defense-in-depth: Next sets NEXT_PHASE per invocation, so even a misconfigured production
+  // build skips every transform; unknown/absent phases still transform so dev harnesses work.
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return source;
   }
@@ -214,22 +179,17 @@ function nudgeUiLoader(
     const normalized = canonicalFile.split("\\").join("/");
     if (normalized.includes("/node_modules/") || normalized.includes("/.next/")) return false;
     if (!matchedSourceRoot(canonicalFile)) return false;
-    // An explicit sourceRoots entry outranks the repository-tooling exclusion so
-    // a consumer's own package is instrumentable even when its directory name
-    // matches one of Nudge UI's own packages.
+    // An explicit sourceRoots entry outranks the repository-tooling exclusion, so a
+    // consumer's similarly-named package stays instrumentable.
     return isExplicitlyOwned(canonicalFile) || !nudgeUiRepositoryPackagePattern.test(canonicalFile);
   };
-  // Identity paths are always project-root relative: a file outside the root
-  // keeps a `../`-prefixed relative path rather than serialising a machine
-  // path. This matches the Vite Adapter and keeps sourceRoots identities
-  // unique across packages.
+  // Identity paths stay project-root relative (a `../` prefix for outside files) rather
+  // than serialising a machine path; matches the Vite Adapter.
   const sourcePath = (resolvedId: string): string =>
     nodePath.relative(canonicalRoot, canonicalSourceFile(resolvedId)).split("\\").join("/");
 
-  // Contracts are extracted from the AUTHORED source so line/column
-  // provenance matches what prompts will name. Confined to first-party
-  // sources exactly like identity injection: workspace tooling components
-  // must never enter the contract catalog.
+  // Contracts are extracted from the authored source so line/column provenance matches
+  // what prompts name; first-party-only, exactly like identity injection.
   if (root && moduleId && isProjectSource(moduleId)) {
     try {
       postContracts(root, sourcePath(moduleId), source);
@@ -296,16 +256,12 @@ function nudgeUiLoader(
   }
 
   if (instrumentComponents && !asyncCallback) {
-    // Semantic callsites need host resolution of import provenance. Without it
-    // every imported component would silently degrade to identity attributes
-    // alone, so report the missing capability once per loader process.
     warnMissingResolver(this);
   }
 
   const result = transform();
 
   if (!result) {
-    // Byte-preservation contract: untouched modules fall through unchanged.
     return source;
   }
 

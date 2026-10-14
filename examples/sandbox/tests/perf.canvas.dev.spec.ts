@@ -98,9 +98,7 @@ async function loadCanvas(page: Page): Promise<FrameLocator> {
   await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
-  // A visible frame can still be between document load and renderer bootstrap.
-  // Establish readiness with one real hover message before measuring or
-  // counting subsequent events.
+  // A visible frame can still be between document load and renderer bootstrap; establish readiness with one real hover message.
   await page.evaluate(() => {
     const w = window as unknown as { __canvasRendererReady?: boolean };
     w.__canvasRendererReady = false;
@@ -120,11 +118,7 @@ async function loadCanvas(page: Page): Promise<FrameLocator> {
   return frame;
 }
 
-/** Install a parent-clock probe that records when the iframe leaf really
- * receives the pointer event, then measure how long the overlay takes to
- * appear in the parent after that moment. Both clocks belong to the parent
- * (the iframe writes `window.parent.performance.now()`), so the elapsed time
- * is a single timeline. */
+/** Records when the iframe leaf receives the pointer event, then measures the overlay in the parent; both clocks are the parent's. */
 async function probeThenMeasure(
   page: Page,
   frame: FrameLocator,
@@ -141,8 +135,7 @@ async function probeThenMeasure(
   await leaf.evaluate((el, { type }) => {
     const parentW = window.parent as Window & { __canvasProbe?: number };
     parentW.__canvasProbe = 0;
-    // Window capture runs before the renderer's document capture handlers, so
-    // the probe includes synchronous selection and message-construction work.
+    // Window capture runs before the renderer's document capture handlers, so the probe includes synchronous selection work.
     el.ownerDocument.defaultView?.addEventListener(type, () => {
       if (!parentW.__canvasProbe) parentW.__canvasProbe = parentW.performance.now();
     }, { capture: true, once: true });
@@ -186,9 +179,7 @@ async function probeThenMeasure(
   const elapsed = await page.evaluate(() => (
     window as unknown as { __canvasOverlayResult?: { elapsed: number } }
   ).__canvasOverlayResult?.elapsed ?? -1);
-  // Park the pointer outside the iframe so the next run's hover re-enters the
-  // leaf and fires a fresh mouseover (a pointer already resting on the element
-  // would not fire one).
+  // Park the pointer outside the iframe so the next run's hover fires a fresh mouseover.
   await page.mouse.move(0, 0);
   return elapsed;
 }
@@ -211,10 +202,7 @@ test("perf: canvas hover latency in a large card stays under 100ms", async ({ pa
 test("perf: canvas click latency in a large card stays under 100ms", async ({ page }) => {
   test.setTimeout(120_000);
   const frame = await loadCanvas(page);
-  // The generated large fixture renders every node from one React callsite.
-  // Give the two measured leaves distinct source identities so alternating
-  // clicks model real component-to-component selection instead of a no-op
-  // re-click of the same source-site identity.
+  // Give the two measured leaves distinct source identities so alternating clicks model real component selection.
   for (const [index, perfId] of CLICK_LEAVES.entries()) {
     await frame.locator(`[data-perf-id="perf-${perfId}"]`).evaluate((element, identityIndex) => {
       element.setAttribute("data-cid", `PerfClick${identityIndex}`);
@@ -244,7 +232,6 @@ test("perf: hover messages are frame-throttled, not one-per-event", async ({ pag
   test.setTimeout(60_000);
   const frame = await loadCanvas(page);
 
-  // Install a parent-window counter for element-hover messages only.
   await page.evaluate(() => {
     (window as unknown as { __elementHoverCount?: number }).__elementHoverCount = 0;
     (window as unknown as { __countElementHover?: boolean }).__countElementHover = true;
@@ -257,7 +244,6 @@ test("perf: hover messages are frame-throttled, not one-per-event", async ({ pag
     });
   });
 
-  // Dispatch 50 synthetic mouseover events on the same leaf synchronously.
   await frame.locator("body").evaluate((_, { perfId }) => {
     const el = document.querySelector(`[data-perf-id="perf-${perfId}"]`);
     if (!el) throw new Error("missing perf leaf");
@@ -266,8 +252,7 @@ test("perf: hover messages are frame-throttled, not one-per-event", async ({ pag
     }
   }, { perfId: HOVER_LEAF });
 
-  // Give the renderer's frame throttle at least two animation frames to flush,
-  // then a generous buffer for cross-frame message delivery.
+  // Let the frame throttle flush, then a generous buffer for cross-frame message delivery.
   await page.evaluate(() => new Promise<void>((resolve) => {
     let frames = 0;
     const tick = (): void => {

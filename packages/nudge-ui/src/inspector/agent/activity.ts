@@ -27,7 +27,7 @@ function publish(state: ProjectActivity, snapshot: AgentActivitySnapshot): void 
   for (const listener of state.listeners) listener();
 }
 
-/** Pins submitted frames before dispatch. Activity never selects or edits a draft. */
+/** Pins submitted frames before dispatch; activity never selects or edits a draft. */
 export function beginActivityDispatch(projectId: string, dispatchId: string, targets: readonly string[], target?: DraftTarget): void {
   project(projectId).dispatch = { id: dispatchId, targets: [...targets], target };
 }

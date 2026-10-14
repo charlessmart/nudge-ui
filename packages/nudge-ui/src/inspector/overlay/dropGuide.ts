@@ -42,7 +42,6 @@ function sameRect(left: DropGuideRect, right: DropGuideRect): boolean {
     && left.height === right.height;
 }
 
-/** Publishes one guide model from a DOM insertion location. */
 export function showDropGuide(owner: DropGuideOwner, document: Document, drop: DropLocation): void {
   const target = drop.parent.getBoundingClientRect();
   const nextGuide: DropGuide = {
@@ -60,14 +59,12 @@ export function showDropGuide(owner: DropGuideOwner, document: Document, drop: D
   notify();
 }
 
-/** Clears only the guide belonging to the caller, preserving another active view. */
 export function clearDropGuide(owner: DropGuideOwner): void {
   if (currentGuide?.owner !== owner) return;
   currentGuide = null;
   notify();
 }
 
-/** Subscribes a visual adapter to its guide without exposing shared mutable state. */
 export function useDropGuide(owner: DropGuideOwner): DropGuide | null {
   return useSyncExternalStore(subscribe, () => snapshotFor(owner), () => null);
 }

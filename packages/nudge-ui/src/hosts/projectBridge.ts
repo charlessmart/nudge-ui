@@ -14,7 +14,6 @@ const runningBridges = new Map<
   Promise<{ browser: ProjectBridgeBrowserConfig; close(): Promise<void> } | null>
 >();
 
-/** Starts the optional project bridge installed beside the host application. */
 export async function startOptionalProjectBridge(input: {
   readonly appRoot: string;
   readonly projectId: string;
@@ -91,7 +90,6 @@ async function launchOptionalProjectBridge(
   }
 }
 
-/** Returns the browser origin for a loopback HTTP server address. */
 export function loopbackOrigin(
   address: { address: string; port: number },
   protocol: "http" | "https" = "http",

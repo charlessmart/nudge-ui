@@ -20,8 +20,7 @@ describe("reserved routes", () => {
   });
 });
 
-// The inspector's mount components import these routes, so a Node import here
-// would break browser hosts at bundle time rather than in this package.
+// These routes are imported by browser mount components, so a Node import here breaks bundles rather than this test.
 it("stays browser-safe", () => {
   const offenders = readdirSync(transportDir)
     .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))

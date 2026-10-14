@@ -16,7 +16,6 @@ export interface SelectedElement {
   componentTargets: RuntimeComponentTarget[];
 }
 
-/** The ordered selection presented to the inspector. */
 export interface Selection {
   elements: readonly SelectedElement[];
   primary: SelectedElement;
@@ -76,10 +75,7 @@ function sameComponentTargets(a: RuntimeComponentTarget[], b: RuntimeComponentTa
       || JSON.stringify(leftMeta.authoredProps) !== JSON.stringify(rightMeta.authoredProps)) {
       return false;
     }
-    // Runtime props can contain React elements and fibers with circular or
-    // intentionally unstable object identities. Only primitive values are
-    // consumed by the editable component-prop controls, so compare those and
-    // ignore opaque values that cannot affect this panel.
+    // Runtime props can hold React elements and fibers with unstable identities; only primitives affect the editable prop controls.
     const keys = new Set([...Object.keys(left.props), ...Object.keys(right.props)]);
     for (const key of keys) {
       const leftValue = left.props[key];
@@ -118,17 +114,12 @@ export function setSelectedElement(el: SelectedElement | null): void {
 
   const current = currentSelection?.primary ?? null;
   if ((currentSelection?.elements.length ?? 0) > 1) {
-    // setSelectedElement is the replacement API used by an ordinary click,
-    // Canvas selection, and single-target actions. It must collapse a group
-    // even when the clicked node is already the primary target.
+    // The replacement API must collapse a group even when the clicked node is already primary.
     publishSelection([el], el);
     return;
   }
   if (current === el) return;
-  // Re-clicks and post-edit refreshes re-resolve a fresh object with the same
-  // source-site identity. Keep the existing selection and hierarchy step so
-  // the panel pipeline does not churn (including after step-up); edits still
-  // refresh the panel via the document revision subscription.
+  // A re-resolved object with the same source-site identity keeps the current selection and hierarchy step.
   if (el && current
     && current.cid === el.cid
     && current.src === el.src
@@ -180,15 +171,13 @@ function publishSelection(elements: readonly SelectedElement[], primary: Selecte
     chain = computeHierarchy(nextPrimary.domElement);
     index = 0;
   } else {
-    // Hierarchy stepping is a single-element operation. Clearing it here also
-    // prevents a stale parent chain from being rendered for a group.
+    // Hierarchy stepping is a single-element operation; a stale parent chain must not render for a group.
     chain = [];
     index = 0;
   }
   notify();
 }
 
-/** Replaces the selection with one or more ordered targets. */
 export function setSelectedElements(elements: readonly SelectedElement[]): void {
   const primary = elements.at(-1);
   if (!primary) {
@@ -215,7 +204,6 @@ export function toggleSelectedElement(el: SelectedElement): void {
   publishSelection([...selectedElements, el], el);
 }
 
-/** Removes one rendered node from the group, preserving the remaining order. */
 export function removeSelectedElement(el: HTMLElement): void {
   const selectedElements = getSelectedElements();
   const remaining = selectedElements.filter((selected) => selected.domElement !== el);

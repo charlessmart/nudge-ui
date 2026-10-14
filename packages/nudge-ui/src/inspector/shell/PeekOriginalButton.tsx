@@ -19,11 +19,6 @@ function useDraftChangeCount(): number {
   );
 }
 
-/**
- * Press-and-hold button that previews the page without inspector changes
- * (NUD-30). Releasing restores the edited preview; canonical intent is never
- * cleared, so nothing is lost while held.
- */
 export function PeekOriginalButton(): ReactElement {
   const active = useOriginalPreviewActive();
   const changeCount = useDraftChangeCount();

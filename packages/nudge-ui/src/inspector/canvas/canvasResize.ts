@@ -44,16 +44,11 @@ const RESIZE_EDGES: Record<CanvasResizeDirection, ResizeEdges> = {
   left: { horizontal: "left", vertical: null },
 };
 
-/** Returns the anchored edges affected by a resize handle. */
 export function getCanvasResizeEdges(direction: CanvasResizeDirection): ResizeEdges {
   return RESIZE_EDGES[direction];
 }
 
-/**
- * Applies a pointer delta to a Canvas card while keeping the opposite edges
- * fixed. Minimum dimensions are clamped at the moving edge, so dragging past
- * the minimum does not move the anchored side.
- */
+/** Minimum dimensions clamp at the moving edge, so dragging past it never moves the anchored side. */
 export function resizeCanvasRect(
   rect: CanvasResizeRect,
   direction: CanvasResizeDirection,

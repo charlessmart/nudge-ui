@@ -11,7 +11,7 @@ import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 export interface ActivityAttribution { files: readonly ActivityFile[]; elements: readonly Element[] }
 
-/** Reuses rendered source identities. Iteration provenance cannot target application source. */
+/** Matches rendered source identities; iteration provenance cannot target application source. */
 export function attributeActivity(content: FrameContent, document: Document, files: readonly ActivityFile[]): ActivityAttribution {
   const target = contentEditTarget(content);
   if (target.kind === "html") return { files: files.filter((file) => file.file === target.path), elements: [] };

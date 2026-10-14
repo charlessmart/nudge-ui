@@ -15,11 +15,6 @@ const TYPE_LEADING = token("--type-leading-body", "1.5", "fixtures/typography.cs
 const TYPE_TRACKING = token("--type-tracking-tight", "-0.018em", "fixtures/typography.css:5");
 const TYPE_FAMILY = token("--type-family-body", 'Inter, ui-sans-serif, system-ui, sans-serif', "fixtures/typography.css:6");
 
-/**
- * Framework-neutral typography corpus. The fixture runner asserts authored
- * CSS and capability independently from browser-computed output; the gallery
- * lets a human exercise the same cases through the real inspector.
- */
 export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
   {
     id: "type-direct-literals",

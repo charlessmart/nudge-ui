@@ -50,11 +50,6 @@ function literalValue(node: Node): ComponentPropValue | null {
   return null;
 }
 
-/**
- * These are the names that a component contract can confidently describe as
- * visible copy. The runtime still requires the current value to be a string
- * equal to the rendered text before offering an inline binding.
- */
 const STRUCTURAL_TEXT_PROPS = new Set([
   "id",
   "className",
@@ -86,9 +81,7 @@ function propertyContract(member: Node): ComponentPropContract | null {
   const typeNode = unwrapTypeAnnotation(member.typeAnnotation as Node | undefined);
   if (!name || !typeNode) return null;
 
-  // Project contracts recognize all runtime string props. Structural and
-  // implementation names are excluded here; package manifests can still
-  // explicitly publish a text control for a project-specific visible prop.
+  // Structural names are excluded from text controls here; package manifests can still publish them explicitly.
   if (!isStructuralTextProp(name) && isTextType(typeNode)) {
     return {
       name,

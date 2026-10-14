@@ -14,12 +14,7 @@ import {
 } from "./catalog.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
-/**
- * Configures the runtime the way the Astro host Adapter declares it in
- * `packages/nudge-ui/src/hosts/astro/astroRuntimeConfig.ts`: Astro's structural
- * scoping markers are declared at the host seam, not known to the shared
- * catalog.
- */
+/** Mirrors the Astro host Adapter's declared runtime policy (astroRuntimeConfig.ts). */
 function configureAstroHost(): void {
   configureNudgeUiRuntime({
     projectId: "catalog-fixture",
@@ -39,7 +34,6 @@ function configureAstroHost(): void {
   });
 }
 
-/** Restores a host that declares no scoping grammar. */
 function configureDefaultHost(): void {
   configureNudgeUiRuntime({
     projectId: "catalog-fixture",
@@ -102,9 +96,7 @@ describe("token catalog", () => {
 
   it("labels Astro-scoped declarations with author vocabulary only (ADR-0011)", () => {
     configureAstroHost();
-    // Astro's compiled scoped selectors carry opaque scoping hashes. The label
-    // must present the author selector; the raw context stays untouched so
-    // resolution still matches the rendered DOM.
+    // The label presents the author selector; the raw context stays untouched so resolution still matches the DOM.
     const scoped: TokenDefinition[] = [{
       cssName: "--scoped-theme",
       name: "--scoped-theme",
@@ -129,14 +121,12 @@ describe("token catalog", () => {
         },
       ],
     }];
-    // Every labeled surface (variants list, change records, prompts) is built
-    // from contextLabel, so no scoping hash reaches author-facing vocabulary.
+    // Every labeled surface is built from contextLabel, so no scoping hash reaches author-facing vocabulary.
     const labels = scoped[0]!.declarations.map((declaration) => contextLabel(declaration.context));
     expect(labels).toEqual([".card-theme", ".card-theme", "h1"]);
     expect(labels.join("\n")).not.toContain("data-astro-cid");
     expect(labels.join("\n")).not.toContain(".astro-baexmxn4");
 
-    // The assembled catalog rows label the active declaration cleanly.
     const [row] = buildTokenCatalogRows(scoped, document.documentElement, runtime({
       selectorMatches: () => true,
     }));
@@ -145,20 +135,16 @@ describe("token catalog", () => {
       ".card-theme[data-astro-cid-dohjnao5]",
     );
 
-    // A selector made entirely of scoping structure degrades to a structural
-    // label instead of leaking an empty or hashed one.
+    // A selector of pure scoping structure degrades to a structural label, not an empty or hashed one.
     expect(contextLabel({ selector: ":where([data-astro-cid-x])" })).toBe("Default");
 
-    // Resolution facts keep the raw selector.
     expect(scoped[0]!.declarations[0]!.context.selector).toBe(
       ".card-theme[data-astro-cid-dohjnao5]",
     );
   });
 
   it("keeps author vocabulary untouched for hosts that declare no scoping grammar", () => {
-    // The default host declares no scoping markers, so an author class that
-    // merely looks like Astro's reserved prefix must survive labeling —
-    // scoping grammar is host-declared, never assumed by the shared catalog.
+    // Scoping grammar is host-declared: an author class that looks like Astro's prefix must survive labeling.
     expect(contextLabel({ selector: ".astro-brand-badge" })).toBe(".astro-brand-badge");
     expect(humanizeSelector(".card[data-astro-cid-x]", null)).toBe(".card[data-astro-cid-x]");
   });

@@ -38,9 +38,7 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
   const changes = useChanges();
   const target = editableComponentTargets(selected.componentTargets)[0];
   if (!target) return null;
-  // Text contracts are owned by the scoped inline editor in this slice. A
-  // panel input would turn every keystroke into an independent history entry;
-  // a single-commit panel transaction belongs to a later interaction design.
+  // Text props are owned by the scoped inline editor, not this panel.
   const visibleProps = target.contract.props.filter((prop) =>
     prop.control !== "text" && pendingValue(target, prop, changes) !== undefined);
   if (visibleProps.length === 0) return null;

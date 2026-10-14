@@ -58,10 +58,8 @@ export interface AgentClientSnapshot {
   readonly connection: AgentStatusSnapshot["connection"];
   readonly listenerActive: boolean;
   readonly agentClientName?: string;
-  /** Whether the last valid discovery response came from the local companion. */
   readonly companionReachable: boolean;
   readonly paired: boolean;
-  /** Whether another browser currently owns this project's pairing. */
   readonly pairedElsewhere: boolean;
   readonly request: AgentRequestSnapshot | null;
   readonly error?: string;
@@ -138,8 +136,7 @@ function writeStoredSession(session: StoredAgentSession): void {
   try {
     localStorage.setItem(sessionStorageKey(session.projectId), JSON.stringify(session));
   } catch {
-    // Storage can be disabled by browser privacy settings. The in-memory
-    // pairing remains valid for this document in that case.
+    // Storage can be disabled by browser privacy settings; the in-memory pairing stays valid.
   }
 }
 
@@ -168,16 +165,12 @@ function setAutoConnectDisabled(projectId: string, disabled: boolean): void {
     if (disabled) localStorage.setItem(key, "true");
     else localStorage.removeItem(key);
   } catch {
-    // Privacy settings can disable storage. The current document still keeps
-    // the explicit disconnect preference in memory.
+    // Storage can be disabled; the disconnect preference stays in memory for this document.
   }
 }
 
 function hashRevision(value: string): number {
-  // FNV-1a is sufficient here: the revision is an opaque, bounded identity
-  // used to prevent a later browser edit from being mistaken for the sent
-  // canonical change set. Keep it in the safe-integer range accepted by the
-  // companion protocol.
+  // Opaque bounded identity, kept in the safe-integer range the companion protocol accepts.
   let hash = 2_166_136_261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
@@ -186,7 +179,6 @@ function hashRevision(value: string): number {
   return (hash >>> 0) & 0x7fff_ffff;
 }
 
-/** Creates a stable numeric revision for one prompt snapshot. */
 export function createPromptRevision(
   changes: readonly unknown[],
   structuralChanges: readonly unknown[] = [],
@@ -201,13 +193,7 @@ export function createPromptRevision(
   return hashRevision(serialized);
 }
 
-/**
- * Browser-side companion client.
- *
- * Discovery is deliberately started by `start()`, which is guarded by the
- * dev-only flag. Constructing this class never opens a socket or performs a
- * network request, so importing the inspector remains inert in production.
- */
+/** Construction never touches the network; discovery starts only from the dev-flag-guarded start(). */
 export class AgentClient {
   readonly projectId: string;
   readonly origin: string;
@@ -244,13 +230,11 @@ export class AgentClient {
     this.canvasCommandHandler = options.canvasCommandHandler;
     this.autoConnect = options.autoConnect ?? shouldAutoConnectAgentBridge();
     this.autoConnectSuppressed = this.autoConnect && autoConnectDisabled(this.projectId);
-    // The public demo renders the real inspector but intentionally keeps the
-    // local MCP/agent bridge inert.
+    // The public demo renders the real inspector but intentionally keeps the local MCP/agent bridge inert.
     this.enabled = isNudgeUiDev() && !isDemoRuntime();
     this.snapshot = this.enabled ? this.makeSnapshot() : DISABLED_SNAPSHOT;
   }
 
-  /** Installs the controller callback used to acknowledge Canvas commands. */
   setCanvasCommandHandler(handler: AgentClientOptions["canvasCommandHandler"]): void {
     this.canvasCommandHandler = handler;
   }
@@ -262,14 +246,12 @@ export class AgentClient {
     return () => this.listeners.delete(listener);
   };
 
-  /** Starts loopback discovery. Calling it repeatedly is idempotent. */
   start(): void {
     if (!this.enabled || this.started) return;
     this.started = true;
     void this.restoreOrDiscover();
   }
 
-  /** Stops discovery and closes the browser event stream. */
   stop(): void {
     if (!this.started && !this.eventSubscription) return;
     this.started = false;
@@ -285,10 +267,7 @@ export class AgentClient {
     this.dispatchAbort = null;
     this.eventSubscription?.close();
     this.eventSubscription = null;
-    // `stop` is used by React effect cleanup and page remounts. Keep the
-    // request and ephemeral token in memory/storage so a still-running
-    // companion can be resumed; explicit `disconnect()` is the revocation
-    // and interruption path.
+    // Keep the request and token so a remount can resume; disconnect() is the revocation path.
     this.connection = "offline";
     this.listenerActive = false;
     this.companionReachable = false;
@@ -324,8 +303,7 @@ export class AgentClient {
         this.resetForDiscovery();
       } catch (error) {
         if (abortController.signal.aborted || !this.started) return;
-        // A stale or revoked token is not a connection error. Clearing it
-        // lets the normal listener discovery path offer a fresh pairing.
+        // A stale or revoked token is not a connection error; clearing it lets discovery offer a fresh pairing.
         clearStoredSession(this.projectId);
         this.sessionToken = null;
         this.resetForDiscovery();
@@ -337,7 +315,6 @@ export class AgentClient {
     await this.discover();
   }
 
-  /** Runs an immediate authenticated restore or companion discovery probe. */
   async checkConnection(): Promise<void> {
     if (!this.enabled) return;
     if (!this.started) this.start();
@@ -351,7 +328,6 @@ export class AgentClient {
     await this.restoreOrDiscover();
   }
 
-  /** Triggers a new discovery probe after a connection loss. */
   reconnect(): void {
     if (!this.enabled) return;
     if (!this.started) {
@@ -373,12 +349,10 @@ export class AgentClient {
     void this.restoreOrDiscover();
   }
 
-  /** Pairs the browser with a reachable companion, including an idle agent. */
   async connect(): Promise<boolean> {
     return this.pairWith((request, signal) => this.transport.pair(request, signal));
   }
 
-  /** Replaces an existing browser pairing after an explicit user action. */
   async takeOver(): Promise<boolean> {
     if (!this.transport.takeOver) return false;
     return this.pairWith((request, signal) => this.transport.takeOver!(request, signal));
@@ -469,11 +443,7 @@ export class AgentClient {
     }
   }
 
-  /**
-   * Dispatches one immutable prompt revision. The request enters `delivered`
-   * synchronously, before the transport promise resolves, so the UI cannot
-   * issue a second prompt while the first one is in flight.
-   */
+  /** Enters `delivered` synchronously so the UI cannot dispatch a second prompt while the first is in flight. */
   async dispatchPrompt(
     prompt: string,
     changeRevision?: number,
@@ -536,7 +506,6 @@ export class AgentClient {
     }
   }
 
-  /** Interrupts local request state and asks the companion to revoke pairing. */
   disconnect(reason = "browser_disconnected"): void {
     this.autoConnectSuppressed = true;
     if (this.autoConnect) setAutoConnectDisabled(this.projectId, true);
@@ -588,10 +557,7 @@ export class AgentClient {
         } else {
           this.companionReachable = true;
           if (this.connection !== "paired" && this.connection !== "working" && this.connection !== "delivered" && !this.pairingAbort) {
-            // Discovery is unauthenticated. Another browser tab can own the
-            // pairing, so do not adopt `paired` until this tab restores the
-            // shared token. The next poll runs restore first in case a sibling
-            // tab has just stored that token.
+            // Discovery is unauthenticated; do not adopt `paired` until this tab restores the shared token.
             const pairedElsewhere = status.paired && !this.sessionToken;
             this.applyStatus(status.paired ? {
               ...status,
@@ -621,8 +587,7 @@ export class AgentClient {
         this.companionReachable = false;
         this.paired = false;
         this.pairedElsewhere = false;
-        // Discovery failures are expected while the companion is not running;
-        // retain a quiet disconnected state rather than flashing an error.
+        // Discovery failures are expected while the companion is down; stay quietly disconnected.
         this.lastError = undefined;
         this.publish();
       }
@@ -685,10 +650,7 @@ export class AgentClient {
         },
       };
     }
-    // Every tab with the shared browser session receives the SSE command, but
-    // only the Canvas lease owner may answer it. A read-only tab reports this
-    // local sentinel; leave the command pending for the owning tab instead of
-    // racing its acknowledgement with a false failure.
+    // Every tab receives the SSE command but only the Canvas lease owner may answer; leave it pending for that tab.
     if (!acknowledgement.ok && acknowledgement.error?.code === "workspace-locked") return;
     if (acknowledgement.commandId !== command.commandId) {
       acknowledgement = {
@@ -706,8 +668,7 @@ export class AgentClient {
     try {
       await this.transport.acknowledgeCanvasCommand(request);
     } catch {
-      // A command acknowledgement is best effort. The companion owns the
-      // bounded timeout and reports any expired command to its agent host.
+      // Acknowledgement is best effort; the companion owns the timeout.
     }
   }
 
@@ -734,13 +695,10 @@ export class AgentClient {
         status.request.sketches,
       );
     } else if (status.listenerActive && status.paired && this.activeRequest?.status !== "working" && this.activeRequest?.status !== "delivered") {
-      // A re-armed MCP listen call is the lifecycle boundary for the previous
-      // terminal request. Drop only that terminal status; newer edits remain
-      // in the inspector's canonical change log.
+      // A re-armed listen call ends the previous terminal request; newer edits stay in the canonical change log.
       this.activeRequest = null;
     } else if ((this.activeRequest?.status === "working" || this.activeRequest?.status === "delivered") && status.connection !== this.activeRequest.status) {
-      // The bridge may omit a request during a brief re-arm transition. Do
-      // not mark a local request interrupted until the stream disconnects.
+      // A brief re-arm can omit the request; do not mark it interrupted until the stream disconnects.
       this.connection = this.activeRequest.status;
     }
     if (!status.paired && this.sessionToken) {
@@ -777,8 +735,7 @@ export class AgentClient {
       return;
     }
     if (active && active.requestId !== requestId && active.localRequestId !== requestId) {
-      // A fresh server id can arrive before the POST response. Associate it
-      // with the one local request awaiting acknowledgment.
+      // A fresh server id can arrive before the POST response; associate it with the local request.
       if (active.status !== "working" && active.status !== "delivered") return;
       this.activeRequest = { ...active, requestId };
     }
@@ -813,9 +770,7 @@ export class AgentClient {
   private handleDisconnect(reason = "The agent connection was lost."): void {
     this.eventSubscription?.close();
     this.eventSubscription = null;
-    // An SSE disconnect is not proof that the coding request stopped. Keep
-    // its last known state until an authenticated status restore says
-    // otherwise. Explicit browser disconnect remains the interruption path.
+    // An SSE disconnect is not proof the request stopped; keep its last known state until an authenticated restore says otherwise.
     this.connection = "offline";
     this.listenerActive = false;
     this.companionReachable = false;
@@ -823,8 +778,7 @@ export class AgentClient {
     this.pairedElsewhere = false;
     this.lastError = reason;
     if (reason === "browser_disconnected") {
-      // A remote takeover deliberately invalidates this browser's token. Do
-      // not immediately race the new browser by auto-pairing again.
+      // A remote takeover invalidates this token; do not race the new browser by auto-pairing.
       this.autoConnectSuppressed = true;
       if (this.autoConnect) setAutoConnectDisabled(this.projectId, true);
     }
@@ -885,7 +839,6 @@ let configuredTransport: AgentBridgeTransport | undefined;
 const clients = new Map<string, AgentClient>();
 const consumerCounts = new Map<AgentClient, number>();
 
-/** Sets a host/test transport for subsequently created project clients. */
 export function configureAgentBridgeTransport(transport: AgentBridgeTransport | undefined): void {
   for (const client of clients.values()) client.stop();
   clients.clear();
@@ -893,7 +846,6 @@ export function configureAgentBridgeTransport(transport: AgentBridgeTransport | 
   configuredTransport = transport;
 }
 
-/** Clears cached clients and their active streams. */
 export function resetAgentClients(): void {
   for (const client of clients.values()) client.stop();
   clients.clear();
@@ -934,7 +886,6 @@ export function getAgentClient(
   return client;
 }
 
-/** React hook used by the inspector handoff control. */
 export function useAgentClient(projectId: string, suppliedClient?: AgentClient): AgentClientSnapshot {
   const client = useMemo(
     () => suppliedClient ?? getAgentClient(projectId),

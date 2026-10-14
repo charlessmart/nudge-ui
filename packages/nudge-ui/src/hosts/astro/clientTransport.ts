@@ -32,14 +32,11 @@ interface ComponentModule {
   readonly componentContracts: NudgeUiRuntimeConfig["componentContracts"];
 }
 
-/** Serves the prebuilt client and its host-neutral manifest in Astro dev. */
 export function createAstroClientTransportPlugin(): Plugin {
   let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
   return {
     name: "nudge-ui-astro-client-transport",
-    // The shared Vite plugin exposes the same route for React hosts. Astro's
-    // host-specific manifest must be installed first so that its middleware
-    // is the handler that answers /__nudge_ui__/manifest.
+    // Installed before the shared Vite plugin so Astro's own manifest handler answers /__nudge_ui__/manifest.
     enforce: "pre",
     apply: "serve",
     configureServer(server) {

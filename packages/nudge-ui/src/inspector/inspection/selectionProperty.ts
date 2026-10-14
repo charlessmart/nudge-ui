@@ -9,7 +9,6 @@ export type SelectionToken =
   | { kind: "common"; name: string }
   | { kind: "mixed" };
 
-/** One CSS property projected across every element in the current selection. */
 export interface SelectionProperty {
   property: string;
   value: SelectionValue;
@@ -27,10 +26,7 @@ function tokenFor(rows: readonly (ResolvedProperty | null)[]): SelectionToken {
     : { kind: "mixed" };
 }
 
-/**
- * Projects browser values and authored inspection rows into group-safe facts.
- * The returned type cannot masquerade as an authored CSS row.
- */
+/** The result cannot masquerade as an authored CSS row. */
 export function projectSelectionProperty(
   property: string,
   rows: readonly (ResolvedProperty | null)[],
@@ -50,7 +46,6 @@ export function projectSelectionProperty(
   };
 }
 
-/** Returns the token entries available to every inspected target. */
 export function intersectTokenEntries<T extends { name: string; value: string }>(
   entries: readonly (readonly T[])[],
 ): T[] {

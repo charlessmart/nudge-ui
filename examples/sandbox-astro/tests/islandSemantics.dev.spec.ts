@@ -1,18 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Frame, Page } from "@playwright/test";
 
-/**
- * Stage 5 conformance — React island support (docs/features/
- * astro-host-adapter.md, ADR-0011, ADR-0007).
- *
- * Semantic component-prop projection stays inside hydrated island boundaries:
- * the shared Vite plugin instruments island JSX, the Astro response layer
- * keeps identity only on page-level elements and the astro-island host, and
- * a prop override must rerender the REAL component without producing a
- * managed stylesheet declaration.
- */
-
-/** Collects console/page errors attributable to Nudge UI or hydration. */
 function trackSevereErrors(page: Page): () => string[] {
   const errors: string[] = [];
   page.on("console", (message) => {
@@ -61,16 +49,13 @@ async function selectIslandBadge(page: Page): Promise<{ frame: Frame; severeErro
   await waitForHydratedIsland(frame);
 
   await frame.locator(".counter-label").click();
-  // The panel is the supported selection contract. The old top-level
-  // selection badge was removed from the inspector shell.
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   return { frame, severeErrors };
 }
 
 async function copyPrompt(page: Page): Promise<string> {
   await page.locator('[data-test="copy-prompt"]').click();
-  // The clipboard write resolves asynchronously after the click; the button
-  // flips data-copied when it lands.
+  // The clipboard write lands asynchronously; the button flips data-copied when it does.
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveAttribute(
     "data-copied",
     "true",
@@ -81,8 +66,6 @@ async function copyPrompt(page: Page): Promise<string> {
 test("dev: selecting inside the hydrated island exposes component-semantics controls", async ({ page }) => {
   const { severeErrors } = await selectIslandBadge(page);
 
-  // The island internals carry React-transform identity; the panel names the
-  // island component and lists every typed prop with a current value.
   const section = page.locator('[data-test="component-props-section"]');
   await expect(section).toBeVisible();
   await expect(section).toHaveAttribute("data-component", "IslandCounter");
@@ -100,8 +83,7 @@ test("dev: page-level .astro elements expose no component-semantics controls", a
   const frame = await waitForInspector(page);
   await waitForHydratedIsland(frame);
 
-  // The site title is rendered by Header.astro: response-layer identity, no
-  // runtime to rerender, therefore no semantic controls.
+  // .site-title is rendered by Header.astro: no runtime to rerender, so no semantic controls.
   await frame.locator(".site-header .site-title").click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
@@ -116,29 +98,22 @@ test("dev: flipping typed props rerenders the real island component without mana
   await expect(badge).toHaveClass(/counter-label--primary/);
   await expect(badge).toHaveAttribute("data-rendered-variant", "primary");
 
-  // Enum override → the real component's output changes.
   await page.locator('[data-test="component-prop-variant"]').click();
   await page.locator('.select__item[data-value="ghost"]').click();
   await expect(badge).toHaveClass(/counter-label--ghost/);
   await expect(badge).toHaveAttribute("data-rendered-variant", "ghost");
 
-  // Boolean override → same real-rerender proof through rendered text.
   await page.locator(
     '[data-test="component-prop-boolean"][data-property="disabled"] button[aria-label="On"]',
   ).click();
   await expect(frame.locator(".counter-label").first()).toHaveText("Island (off)");
   await expect(frame.locator(".counter-button")).toBeDisabled();
 
-  // ADR-0007 holds inside islands: any managed stylesheet that exists carries
-  // ZERO rules after either override — semantic changes never project into
-  // CSS rules, and no host inline style or application-owned attribute was
-  // mutated (the class/text assertions above are only coherent from a real
-  // rerender).
+  // A semantic override must contribute zero CSS rules, so the class/text assertions can only pass from a real rerender.
   await expect.poll(async () => {
     return frame.evaluate(() => {
       const sheet = document.getElementById("nudge-ui-styles") as HTMLStyleElement | null;
-      // The sheet may be created lazily by unrelated preview machinery; what
-      // matters is that a semantic override contributes no rules to it.
+      // The sheet may be created lazily by unrelated preview machinery; what matters is that an override contributes no rules.
       return sheet?.sheet ? sheet.sheet.cssRules.length : 0;
     });
   }).toBe(0);
@@ -168,10 +143,8 @@ test("dev: the generated prompt carries the island component record without iden
 test("dev: the astro-island host keeps Astro-derived identity across hydration", async ({ page }) => {
   const severeErrors = trackSevereErrors(page);
 
-  // Record whether hydration replaces any tracked server DOM node. The
-  // observer is installed before any page script runs, so nothing can slip
-  // past it; attribute-only mutations (Astro's toolbar stripping its own
-  // annotations) are ignored because they do not remove nodes.
+  // Installed before any page script runs, so nothing can slip past it; attribute-only
+  // mutations (Astro's toolbar stripping its own annotations) are ignored.
   await page.addInitScript(() => {
     const removedTracked: string[] = [];
     (window as unknown as { __dtRemovedTracked?: string[] }).__dtRemovedTracked = removedTracked;
@@ -192,19 +165,14 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
   const frame = await waitForInspector(page);
   await waitForHydratedIsland(frame);
 
-  // Identity handoff: the server HTML already carried React-transform cids
-  // inside the island (the shared plugin transforms island JSX for SSR too),
-  // and the live DOM retains them after hydration.
+  // The shared plugin transforms island JSX for SSR too, so the server HTML already carries these cids.
   const rawHtml = await (await page.request.get("/")).text();
   expect(rawHtml).toContain('data-cid="IslandCounter"');
   expect(rawHtml).toMatch(/<astro-island[^>]*data-cid="astro:Island"/);
 
   const islandHost = frame.locator("astro-island");
   await expect(islandHost).toHaveAttribute("data-cid", "astro:Island");
-  // Astro does not annotate its compiler-generated hydration host with source
-  // annotations, so the host degrades to the generated label without an
-  // invented location (ADR-0011 degraded mode). If Astro ever annotates it,
-  // only exact authored coordinates are acceptable.
+  // Astro does not annotate its hydration host, so it degrades to a generated label; if that ever changes, only exact coordinates are acceptable.
   const hostSrc = await islandHost.getAttribute("data-src");
   if (hostSrc !== null) expect(hostSrc).toMatch(/\.astro:\d+:\d+$/);
   await expect(frame.locator(".counter-label")).toHaveAttribute("data-cid", "IslandCounter");
@@ -224,10 +192,7 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
 test("dev: a slow react-refresh runtime does not break the page", async ({ page }) => {
   const severeErrors = trackSevereErrors(page);
 
-  // Trap every `$RefreshReg$` read so the assertion can observe what
-  // plugin-react's transformed modules actually saw. The invariant is
-  // evaluated inside the page: CDP serialization erases functions, so
-  // `typeof` in Node would always read "object".
+  // Traps every `$RefreshReg$` read; the invariant is checked in-page because CDP serialization erases functions.
   await page.addInitScript(() => {
     const reads: unknown[] = [];
     let value: unknown;
@@ -244,10 +209,7 @@ test("dev: a slow react-refresh runtime does not break the page", async ({ page 
     (window as unknown as { __dtRefreshRegReads?: unknown[] }).__dtRefreshRegReads = reads;
   });
 
-  // Delay the refresh runtime's module response. Transformed module graphs
-  // (islands and the inspector) statically import it, so everything waits
-  // for it — the page must still come up intact, with no module ever
-  // evaluating against a missing `$RefreshReg$` baseline.
+  // Transformed module graphs statically import the refresh runtime, so delaying it delays everything.
   await page.route("**/@react-refresh", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await route.continue();
@@ -265,10 +227,7 @@ test("dev: a slow react-refresh runtime does not break the page", async ({ page 
       allReadsFunctions: reads.every((read) => typeof read === "function"),
     };
   });
-  // Transformed modules (island and inspector graphs) did read the global…
   expect(summary.count).toBeGreaterThan(0);
-  // …and every read observed a baseline or the real runtime, never
-  // `undefined`.
   expect(summary.allReadsFunctions).toBe(true);
 
   expect(severeErrors()).toEqual([]);

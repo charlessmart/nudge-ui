@@ -1,17 +1,15 @@
 import type { RenderedInstanceRef } from "./editModel.ts";
 
-/** Controller-owned intent to remove one rendered instance. */
 export interface StructuralDelete {
   id: string;
   kind: "delete";
   target: RenderedInstanceRef;
   /** Hash-independent route where the target was captured. */
   route?: string;
-  /** Bounded view identity where the target was captured. */
+  /** View identity where the target was captured. */
   state?: string;
 }
 
-/** Controller-owned intent to move one rendered instance. */
 export interface StructuralMove {
   id: string;
   kind: "move";
@@ -44,6 +42,6 @@ export type StructuralProjectionReason =
 export interface StructuralProjectionReport {
   changeId: string;
   status: StructuralProjectionStatus;
-  /** Bounded diagnostic data; it never changes canonical structural intent. */
+  /** Diagnostic only; never changes canonical structural intent. */
   reason?: StructuralProjectionReason;
 }

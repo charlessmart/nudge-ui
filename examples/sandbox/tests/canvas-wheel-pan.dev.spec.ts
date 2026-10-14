@@ -73,8 +73,7 @@ test("Holding A temporarily enables app interaction across iframe focus and the 
   await action.click();
   await expect(action).toHaveAttribute("data-clicks", "1");
 
-  // A starts inside the iframe this time; release must reach the controller
-  // even though inspector interactions were suspended by its keydown.
+  // A starts inside the iframe this time; release must still reach the controller.
   await page.keyboard.down("A");
   await expect(normal).toHaveAttribute("aria-pressed", "true");
   await normal.click();

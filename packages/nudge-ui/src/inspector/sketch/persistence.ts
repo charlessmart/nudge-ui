@@ -107,7 +107,7 @@ async function openDatabase(): Promise<IDBDatabase | null> {
   const factory = indexedDbFactory();
   if (!factory) return null;
   // Demo runtimes (the landing page) are session-only: sketches live in the
-  // in-memory fallback and never touch IndexedDB, so every visit starts clean.
+  // in-memory fallback and never touch IndexedDB.
   if (isDemoRuntime()) return null;
   if (!databasePromise) {
     databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
@@ -177,7 +177,6 @@ export async function readSketchPersistence(projectId: string): Promise<SketchPe
   }
 }
 
-/** Writes a document and its initial/current handoff atomically. */
 export async function writeSketchPersistence(
   projectId: string,
   document: SketchDocument,

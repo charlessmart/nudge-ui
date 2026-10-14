@@ -1,10 +1,6 @@
 import { forwardRef } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 
-/**
- * Visual boundary for an inspector control. It owns the shared control chrome
- * while the child owns its particular input or selection behaviour.
- */
 export type ControlAppearance = "default" | "embedded";
 export type ControlDensity = "default" | "compact";
 

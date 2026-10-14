@@ -1,6 +1,3 @@
-/**
- * Ensure a stable release tag describes every public package in the workspace.
- */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

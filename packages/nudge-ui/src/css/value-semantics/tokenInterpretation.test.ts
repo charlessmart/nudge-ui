@@ -8,13 +8,6 @@ import {
   type TokenInterpretationContext,
 } from "./tokenInterpretation.ts";
 
-/**
- * Fast Interface tests for the value-semantics token-interpretation Module
- * (plan slice 3.2). These pin the interpretation behavior in isolation: the
- * module takes token knowledge plus injected policies and never touches the
- * DOM or CSSOM.
- */
-
 function entry(name: string, value: string, extra: Partial<TokenEntry> = {}): TokenEntry {
   return { name, value, source: "theme.css:1", ...extra };
 }

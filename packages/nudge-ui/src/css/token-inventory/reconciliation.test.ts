@@ -28,10 +28,8 @@ describe("token inventory authored/transformed reconciliation", () => {
     expect(snapshot.definitions).toHaveLength(2);
 
     const brand = snapshot.definitions.find((definition) => definition.cssName === "--brand")!;
-    // Browser-relevant facts come from the transformed observation only.
     expect(brand.declarations).toHaveLength(1);
     expect(brand.declarations[0]!.value).toBe("#abcdef");
-    // The name is authored in the same artifact, so provenance stays project.
     expect(brand.origin).toBe("project");
 
     const added = snapshot.definitions.find((definition) => definition.cssName === "--compiler-added")!;
@@ -82,8 +80,7 @@ describe("token inventory authored/transformed reconciliation", () => {
 
     const snapshot = inventory.snapshot();
     const row = snapshot.definitions.find((definition) => definition.cssName === "--from-package")!;
-    // No authored counterpart exists, so nothing is labelled generated: the
-    // plain-CSS/package post-transform-only case keeps its package provenance.
+    // No authored counterpart exists, so nothing is labelled generated.
     expect(row.origin).toBe("package");
     expect(row.editable).toBe(false);
     expect(row.declarations[0]!.value).toBe("2px");
@@ -199,8 +196,7 @@ describe("token inventory authored/transformed reconciliation", () => {
     const recovered = inventory.snapshot();
     expect(recovered.diagnostics).toEqual([]);
     expect(recovered.definitions[0]!.declarations[0]!.value).toBe("2px");
-    // The observable facts are identical to the pre-failure state, so the
-    // failed marker -> recovery transition does not double-bump the generation.
+    // Observable facts match the pre-failure state, so recovery does not double-bump the generation.
     expect(recovered.generation).toBe(healthy);
   });
 
@@ -230,16 +226,13 @@ describe("token inventory authored/transformed reconciliation", () => {
     inventory.apply(artifact({ id: "s.css", content: ":root { --x: 1px; }" }));
     const g1 = inventory.snapshot().generation;
 
-    // Adding a transformed observation that changes the winning value bumps.
     inventory.apply(artifact({ id: "s.css", stage: "transformed", content: ":root { --x: 2px; }" }));
     const g2 = inventory.snapshot().generation;
     expect(g2).not.toBe(g1);
 
-    // Re-applying the identical transformed observation is a no-op.
     inventory.apply(artifact({ id: "s.css", stage: "transformed", content: ":root { --x: 2px; }" }));
     expect(inventory.snapshot().generation).toBe(g2);
 
-    // A transform that emits a new name changes observable facts.
     inventory.apply(artifact({ id: "s.css", stage: "transformed", content: ":root { --x: 2px; --new: 5px; }" }));
     const g3 = inventory.snapshot().generation;
     expect(g3).not.toBe(g2);

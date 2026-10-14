@@ -80,8 +80,7 @@ describe("useBrowserCssInspection", () => {
 
     expect(host.textContent).toBe("hover");
     expect(subscribe).toHaveBeenCalledTimes(1);
-    // Base reads authored and stable once; Hover reads authored once. A fresh normalized
-    // selection array would make this count grow through a render loop.
+    // A fresh normalized selection array would grow this count through a render loop.
     expect(inspect).toHaveBeenCalledTimes(3);
 
     act(() => root.unmount());

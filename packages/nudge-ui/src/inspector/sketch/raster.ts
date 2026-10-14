@@ -28,8 +28,7 @@ export function readPngDimensions(bytes: Uint8Array): PngDimensions | null {
   for (let index = 0; index < PNG_SIGNATURE.length; index += 1) {
     if (bytes[index] !== PNG_SIGNATURE[index]) return null;
   }
-  // IHDR is the first chunk in every PNG. The dimensions are big-endian at
-  // byte offsets 16 and 20 in the complete file.
+  // IHDR is the first chunk; dimensions are big-endian at byte offsets 16 and 20.
   if (bytes[12] !== 73 || bytes[13] !== 72 || bytes[14] !== 68 || bytes[15] !== 82) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const width = view.getUint32(16);
@@ -208,7 +207,6 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-/** Wraps the frame heading that names the sketch target to the panel width. */
 function wrapSketchHeading(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -220,7 +218,6 @@ function wrapSketchHeading(
   return wrapText(ctx, text, Math.max(1, width - SKETCH_NOTE_PADDING * 2));
 }
 
-/** Wraps the description and numbered annotation notes to the panel width. */
 function wrapSketchNotes(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -325,10 +322,7 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-/**
- * Accepts a pending blob so callers can start the write inside the user gesture
- * (required by Safari) and resolve the image once rendering finishes.
- */
+/** The promise form lets callers start the write inside the user gesture (required by Safari). */
 export async function copyImageToClipboard(blob: Blob | Promise<Blob>): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
     throw new Error("Image clipboard access is unavailable. Use Download image instead.");

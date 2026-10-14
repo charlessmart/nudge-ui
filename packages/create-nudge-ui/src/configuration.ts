@@ -5,12 +5,8 @@ import type { ConfigurationChange, Framework } from "./types.ts";
 
 const nextConfigNames = ["next.config.ts", "next.config.mts", "next.config.mjs", "next.config.js", "next.config.cjs"];
 const astroConfigNames = ["astro.config.ts", "astro.config.mts", "astro.config.mjs", "astro.config.js"];
-/**
- * Vite's own `DEFAULT_CONFIG_FILES` order. The list is order-sensitive: the
- * first existing file wins for Vite, so it must win here too, or the installer
- * edits a configuration Vite never loads (and creating a new `vite.config.mjs`
- * beside a `vite.config.cjs` would silently shadow it).
- */
+// Vite's own `DEFAULT_CONFIG_FILES` order: the first existing file wins, so creating
+// one out of order would silently shadow the configuration Vite actually loads.
 const viteConfigNames = [
   "vite.config.js",
   "vite.config.mjs",
@@ -31,7 +27,6 @@ interface ConfigExport {
   readonly commonJs: boolean;
 }
 
-/** Plans an idempotent host-configuration edit without writing to the project. */
 export function planConfiguration(projectRoot: string, framework: Framework): ConfigurationChange | undefined {
   if (framework === "standalone") return undefined;
   const existingName = configurationNames(framework).find((name) => existsSync(join(projectRoot, name)));
@@ -44,7 +39,6 @@ export function planConfiguration(projectRoot: string, framework: Framework): Co
   return { path, content, created: !existingName, originalContent };
 }
 
-/** Adds the selected adapter to a conventional host configuration source. */
 export function configureSource(source: string, framework: Exclude<Framework, "standalone">, fileName: string): string {
   const sourceFile = parseSource(source, fileName);
   if (framework === "astro") {

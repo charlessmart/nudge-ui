@@ -11,7 +11,6 @@ export interface AgentStatusButtonProps {
   onOpenSettings: (section: SettingsSection) => void;
 }
 
-/** Renders a known MCP client logo, or a generic robot avatar. */
 function ConnectedAgentAvatar({ name }: { name?: string }): ReactElement {
   const harness = name?.toLowerCase().match(/(?:^|[^a-z])(codex|claude|cursor)(?:$|[^a-z])/)?.[1];
   return (
@@ -71,7 +70,6 @@ export function AgentStatusButton({ onOpenSettings }: AgentStatusButtonProps): R
   return <AgentStatusButtonView agent={agent} onOpenSettings={onOpenSettings} />;
 }
 
-/** Renders the connection snapshot provided by the project client. */
 export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButtonProps & {
   agent: AgentClientSnapshot;
 }): ReactElement {

@@ -1,7 +1,3 @@
-/**
- * Build-tool-neutral token inventory with authored/transformed reconciliation
- * and normalized styling contributions.
- */
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact, type ParsedContribution } from "./parseStylesheet.ts";
 import type {
@@ -107,13 +103,7 @@ function sameObservationFacts(observation: StoredObservation, artifact: Styleshe
   return JSON.stringify(observation.artifact) === JSON.stringify(artifact);
 }
 
-/**
- * Scalar-only equality over stylesheet artifacts, used as a cheap pre-parse
- * no-op guard: identical re-feeds (the common HMR case) must not pay for a
- * PostCSS parse. Every field is enumerated so a future artifact field cannot
- * silently bypass the guard; diagnostics are rare and small, so they alone
- * compare by serialization — content strings never do.
- */
+/** Each artifact field is enumerated so a new one cannot silently bypass the pre-parse no-op guard. */
 function sameArtifactScalars(a: StylesheetArtifact, b: StylesheetArtifact): boolean {
   return a.buildTool === b.buildTool
     && a.id === b.id
@@ -197,8 +187,7 @@ function reconcileObservations(entry: StoredArtifact): Array<{
   );
   return facts.contribution.definitions.map((definition) => {
     const transformOnly = authored !== undefined && !authoredNames.has(definition.cssName);
-    // Project compilers own transform-only names, but package ownership is
-    // stronger provenance and survives compilation.
+    // Transform-only names are compiler-owned; package provenance is stronger and survives compilation.
     const origin = transformOnly && facts.artifact.provenance !== "package"
       ? "generated"
       : facts.artifact.provenance;
@@ -347,8 +336,7 @@ export function createTokenInventory(): TokenInventory {
 
     const current = artifact.stage === "authored" ? entry.authored : entry.transformed;
     const isRecoveringFailedTransform = artifact.stage === "transformed" && entry.transformFailed === true;
-    // Cheap pre-parse guard. A transformed-stage re-feed while the failure
-    // flag is set always falls through so recovery still lands.
+    // A transformed-stage re-feed while the failure flag is set always falls through so recovery lands.
     if (current && !isRecoveringFailedTransform
       && sameArtifactScalars(current.artifact, artifact)) return;
 
@@ -433,11 +421,7 @@ export function createTokenInventory(): TokenInventory {
         }
       }
 
-      // Definition-level enrichment by cssName: contributed declarations
-      // append, `name`/`adapter` win, and
-      // `origin`/`editable` are applied only when the stylesheet-derived
-      // definition has none. Unmatched entries are ignored (a contract
-      // variable absent from active CSS adds no row).
+      // Contributed declarations append; name/adapter override, origin/editable only fill gaps.
       for (const definition of contribution.definitions ?? []) {
         const existing = merged.get(definition.cssName);
         if (!existing) continue;

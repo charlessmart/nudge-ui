@@ -41,12 +41,7 @@ export interface SideValuesFieldProps {
   "data-property"?: string;
 }
 
-/**
- * A compact side editor. Callers provide grouped horizontal/vertical controls
- * that expand into the four physical sides (or omit `pairedControls` to show
- * the four sides directly). The field owns presentation and expand state
- * while callers own the actual CSS/token controls rendered in each slot.
- */
+/** Owns presentation and expand state; callers own the controls rendered in each slot. */
 export function SideValuesField({
   label,
   sides,
@@ -72,8 +67,7 @@ export function SideValuesField({
   const displayLabel = showLabel ? (typeof label === "string" ? labelText : label) : null;
 
   useEffect(() => {
-    // `defaultExpanded` describes the newly selected element, not the current
-    // edit; reseed when the selection (resetKey) changes.
+    // defaultExpanded describes the newly selected element, so reseed when resetKey changes.
     setUncontrolledExpanded(defaultExpanded);
     previousResetKey.current = resetKey;
   }, [resetKey]);

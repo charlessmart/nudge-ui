@@ -8,8 +8,7 @@ process.env.NUDGE_UI ??= "1";
 const port = process.env.NUDGE_UI_STANDALONE_PORT ?? "4177";
 const temporaryProjectRoot = join(tmpdir(), `nudge-ui-standalone-e2e-${port}`);
 
-// The test worker uses this path for the agent-style source edit. It points to
-// the disposable copy, never to the checked-in consumer fixture.
+// Points at the disposable copy, never the checked-in consumer fixture.
 process.env.NUDGE_UI_STANDALONE_E2E_ROOT = temporaryProjectRoot;
 
 const baseURL = `http://127.0.0.1:${port}`;

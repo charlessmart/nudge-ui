@@ -60,14 +60,7 @@ interface TokenEntriesCacheEntry {
 
 const tokenEntriesCache = new WeakMap<HTMLElement, TokenEntriesCacheEntry>();
 
-/**
- * The build-time catalog is intentionally an inventory of every project token.
- * Element edits must instead use only custom properties resolved in that
- * element's cascade; a token defined by a lazy stylesheet is not usable until
- * that stylesheet is attached to the document. Entries are cached per element
- * until the element or stylesheet revision changes; the derived table reuses
- * `buildTokenTable`'s input-identity memo.
- */
+/** Element edits may use only custom properties resolved in this element's cascade; cached until the element or stylesheet revision changes. */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
   definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
@@ -83,8 +76,7 @@ export function getAvailableTokenEntriesForElement(
   const computed = getElementComputedStyle(el);
   const available = definitions.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) {
-      // Literal adapters (for example Tailwind v3) do not have a browser
-      // custom property to probe. Their adapter owns their availability.
+      // Literal adapters (e.g. Tailwind v3) have no custom property to probe; the adapter owns their availability.
       return [entryFromDefinition(definition, definition.declarations[0]?.value ?? "")];
     }
     const value = computed.getPropertyValue(definition.cssName).trim();
@@ -104,10 +96,7 @@ export function getAvailableTokenEntriesForElement(
   return entries;
 }
 
-/**
- * Replaces build-time token declaration hints with declarations serialized by
- * the browser from the stylesheets currently attached to this document.
- */
+/** Replaces build-time declaration hints with declarations serialized from the attached stylesheets. */
 function hydrateTokenCatalogFromCssom(
   definitions: readonly TokenDefinition[],
   doc: Document = document,
@@ -197,13 +186,7 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
     || normalizedFile.endsWith(`/${loaded}`));
 }
 
-/**
- * Returns stylesheet identities only when the browser gave us a complete,
- * authored-source mapping. A compiled host can expose a mixture of source-like
- * and opaque CSS URLs; treating the mapped subset as complete would make
- * declarations behind the opaque URLs look lazy even while their variables are
- * live in the document.
- */
+/** Identities only for a complete authored-source mapping; a mapped subset cannot stand in for opaque compiled URLs. */
 function confidentlyLoadedStylesheetSources(
   definitions: readonly TokenDefinition[],
   loadedSources: readonly LoadedStylesheetSource[],
@@ -219,18 +202,13 @@ function confidentlyLoadedStylesheetSources(
       known.add(loaded.path);
       continue;
     }
-    // One opaque compiled URL can contain any authored declaration, so the
-    // document does not provide enough evidence to remove unloaded sources.
+    // One opaque compiled URL can contain any authored declaration, so unloaded sources cannot be ruled out.
     return [];
   }
   return [...known];
 }
 
-/**
- * Produces the page catalog used by the global Tokens settings section. When
- * the document exposes mappable source identities, declarations from unloaded
- * CSS files are removed. Opaque compiled URLs leave the adapter catalog intact.
- */
+/** Page catalog for the global Tokens section; declarations from unloaded CSS files are dropped when source identities are mappable. */
 export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
   definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,

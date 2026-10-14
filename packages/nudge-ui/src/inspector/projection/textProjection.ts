@@ -49,7 +49,6 @@ export const TEXT_PROJECTION_ATTR = "data-projection-text";
 
 /** Inspector-owned hit target for a projected text node whose value is empty. */
 export const EMPTY_TEXT_PROJECTION_ATTR = "data-empty-text";
-/** Inspector-owned exact-node evidence paired with EMPTY_TEXT_PROJECTION_ATTR. */
 export const EMPTY_TEXT_PROJECTION_PATH_ATTR = "data-empty-text-path";
 
 const UNSAFE_TEXT_TAGS = new Set(["SCRIPT", "STYLE", "TEXTAREA", "OPTION"]);
@@ -98,11 +97,7 @@ function hasInlineTextEditor(element: HTMLElement): boolean {
   return element.querySelector('[data-inline-editor="true"]') !== null;
 }
 
-/**
- * What the application last rendered into each projected Text node. A source
- * update can render the projected value itself, so restoring `before` would
- * overwrite real application output that the framework will not repaint.
- */
+/** A restore must not overwrite real application output that the framework will not repaint. */
 let applicationText = new WeakMap<Text, string>();
 
 function isInlineEditorNode(node: Node): boolean {
@@ -111,8 +106,7 @@ function isInlineEditorNode(node: Node): boolean {
 }
 
 function recordApplicationWrites(records: readonly MutationRecord[]): void {
-  // The inline editor swaps its wrapper back for the original node, writing
-  // the draft, in one task. That write belongs to the editor.
+  // The inline editor writes the draft while swapping its wrapper back in the same task; that write belongs to the editor.
   if (records.some((record) => record.type === "childList"
     && [...record.addedNodes, ...record.removedNodes].some(isInlineEditorNode))) return;
   for (const record of records) {
@@ -243,8 +237,7 @@ function nodeAtPath(root: HTMLElement, path: readonly number[]): Node | null {
   return current;
 }
 
-/** Find the exact text node represented by a target, tolerating a changed
- * child path only when one bounded before/after text node remains unique. */
+/** Tolerates a changed child path only when one before/after text node remains unique. */
 export function resolveTextProjectionTextNode(
   element: HTMLElement,
   target: Pick<TextProjectionTarget, "textNodePath"> & Partial<Pick<TextProjectionTarget, "beforeText">>,
@@ -271,12 +264,10 @@ export function resolveTextProjectionTextNode(
   return matches.length === 1 ? matches[0]! : null;
 }
 
-/** Whether an element's text is code, form state, or other non-prose content. */
 export function isUnsafeTextHost(element: Element): boolean {
   return UNSAFE_TEXT_TAGS.has(element.tagName);
 }
 
-/** Whether an application-owned editing region contains the element. */
 export function isInApplicationEditingHost(element: Element): boolean {
   const editingHost = element.closest<HTMLElement>("[contenteditable]");
   return Boolean(editingHost
@@ -284,11 +275,8 @@ export function isInApplicationEditingHost(element: Element): boolean {
     && editingHost.getAttribute("contenteditable") !== "false");
 }
 
-/** Whether replacing one text node inside the element keeps its authored markup. */
 export function hasSafeMixedDescendants(element: HTMLElement): boolean {
-  // <br> only controls line layout. The projection targets one exact text
-  // node, so keeping the break while changing that node is safe; formatting
-  // descendants below still reject a flattening text projection.
+  // <br> only controls line layout, so it stays allowed; the projection targets one exact text node.
   for (const descendant of Array.from(element.querySelectorAll<HTMLElement>("*"))) {
     if (UNSAFE_MIXED_DESCENDANT_TAGS.has(descendant.tagName)) return false;
     if (isInApplicationEditingHost(descendant)) return false;
@@ -311,9 +299,7 @@ function textHostIsSafe(
       && (allowEmpty || textNode.nodeValue?.length)
       && hasSafeMixedDescendants(element));
   }
-  // An empty-text affordance is inspector-owned and deliberately sits beside
-  // the retained empty Text node. Ignore it when proving that a direct leaf
-  // remains safe; otherwise the affordance would invalidate its own target.
+  // Ignore inspector-owned affordances here; otherwise the affordance would invalidate its own target.
   const applicationChildren = Array.from(element.children)
     .filter((child) => !isEmptyTextAffordance(child)
       && child.getAttribute("data-inline-editor") !== "true");
@@ -322,17 +308,10 @@ function textHostIsSafe(
   if (textNodes.length === 1) {
     return allowEmpty || Boolean(textNodes[0]?.nodeValue?.length);
   }
-  // The temporary inline editor wraps the retained direct Text node. Treat
-  // that inspector-owned wrapper as transparent while validating the
-  // canonical projection; otherwise its insertion would self-report as an
-  // application reconciliation and remove the re-entry slot mid-session.
+  // The inline editor's wrapper is inspector-owned; treating it as an application child would drop the re-entry slot.
   const editingHosts = Array.from(element.children)
     .filter((child) => child.getAttribute("data-inline-editor") === "true");
-  // The browser may split/replace the retained empty Text node while the
-  // native editor receives its first input. The wrapper is still inspector
-  // owned; its plain-text input guards are responsible for rejecting rich or
-  // paragraph edits, so validation must not cancel the session on that
-  // transient child shape.
+  // The browser may split the empty Text node on first input; that transient shape must not cancel the session.
   return editingHosts.length === 1;
 }
 
@@ -357,7 +336,6 @@ function evidenceMatches(element: HTMLElement, target: TextProjectionTarget, exp
         && (element.textContent ?? "") === ""));
 }
 
-/** Capture stable source/evidence identity without retaining a DOM reference. */
 export function captureTextProjectionTarget(
   element: HTMLElement,
   beforeText = element.textContent ?? "",
@@ -390,11 +368,7 @@ export function captureTextProjectionTarget(
   };
 }
 
-/**
- * Resolve against source identity and bounded evidence. Occurrence is kept as
- * presentation metadata only and is never used to choose among identical
- * repeated outputs.
- */
+/** Occurrence is presentation metadata only; identical repeated outputs resolve as ambiguous. */
 export function resolveTextProjectionTarget(
   doc: Document,
   target: TextProjectionTarget,
@@ -452,9 +426,7 @@ function emptyTextAffordanceFor(
   const parentElement = parent as HTMLElement;
 
   const path = markerKey(change.target);
-  // During re-entry the temporary editor wraps the empty Text node. The
-  // existing slot remains beside that wrapper; search the whole projected
-  // root before creating another slot inside the editing host.
+  // Search the whole root before creating another slot; during re-entry the editor wrapper sits between the slot and the Text node.
   const existing = Array.from(element.querySelectorAll<HTMLElement>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`))
     .find((child) => child.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) === change.id
       && child.getAttribute(EMPTY_TEXT_PROJECTION_PATH_ATTR) === path);
@@ -471,19 +443,14 @@ function emptyTextAffordanceFor(
   affordance.setAttribute("role", "presentation");
   affordance.setAttribute("contenteditable", "false");
   affordance.tabIndex = -1;
-  // It has no application text and is never a source identity. The
-  // interaction stylesheet supplies its visible, borderless hit geometry.
+  // Never a source identity; the interaction stylesheet supplies its hit geometry.
   affordance.hidden = !isInteractionStylesInstalled(doc);
   parentElement.insertBefore(affordance, textNode.nextSibling);
   state.emptyAffordances.set(change.id, affordance);
   return affordance;
 }
 
-/**
- * Keep inspector-owned empty-text hit slots aligned with the canonical text
- * projection. Slots are colocated with the exact retained Text node, so they
- * do not replace application structure or alter the durable text path.
- */
+/** Slots are colocated with the retained Text node so they never alter the durable text path. */
 function syncEmptyTextAffordances(
   doc: Document,
   state: DocumentProjectionState,
@@ -528,7 +495,6 @@ function syncEmptyTextAffordances(
   }
 }
 
-/** Returns the canonical record represented by an inspector empty-text slot. */
 export function getTextContentChangeById(changeId: string): TextContentChangeRecord | null {
   return canonicalChanges.get(changeId) ?? null;
 }
@@ -570,9 +536,7 @@ function restoreAppliedProjection(state: DocumentProjectionState, applied: Appli
   const element = applied.element;
   if (!element || !element.isConnected) return;
   if (!hasProjectionMarker(element, applied.change.target, applied.change.id)) return;
-  // Never overwrite a newer application/reconciliation state during undo or
-  // clear. The marker, identity evidence, and projected value must all still
-  // belong to us; text alone is not proof after a source-site identity change.
+  // Only restore when the marker and identity evidence still match; text alone is not proof.
   if (!textProjectionIdentityMatches(element, applied.change)) return;
   const textNode = resolveTextProjectionTextNode(element, applied.change.target, applied.change.after);
   if (!textHostIsSafe(element, applied.change.after.length === 0, applied.change.target)) return;
@@ -597,11 +561,7 @@ function validationStatus(applied: AppliedTextProjection): TextProjectionStatus 
   const directEmpty = applied.change.target.textNodePath === undefined
     && applied.change.after.length === 0
     && (element.textContent ?? "") === "";
-  // While an empty projection is being reopened, the native editor owns a
-  // draft value that intentionally differs from the canonical empty value.
-  // Keep the projection applied until the editor restores its Text node and
-  // appends the next canonical snapshot; otherwise removing the slot changes
-  // the wrapper's ownership and cancels the draft mid-keystroke.
+  // While an empty projection is reopened the editor's draft intentionally differs; dropping it mid-keystroke would cancel the draft.
   const inlineDraft = hasInlineTextEditor(element);
   const identityValid = textProjectionIdentityMatches(element, applied.change);
   const safe = textHostIsSafe(element, applied.change.after.length === 0, applied.change.target);
@@ -611,12 +571,7 @@ function validationStatus(applied: AppliedTextProjection): TextProjectionStatus 
   return "applied";
 }
 
-/**
- * A controller can hydrate before a lazy route has mounted its tracked roots.
- * Keep a missing/ambiguous record pending and retry only when the document
- * mutates; an overridden projection remains authoritative and is never
- * re-applied.
- */
+/** Missing/ambiguous records stay pending until the document mutates; an overridden projection is never re-applied. */
 function resolvePendingProjection(
   doc: Document,
   state: DocumentProjectionState,
@@ -701,7 +656,6 @@ function getDocumentState(doc: Document): DocumentProjectionState {
   return state;
 }
 
-/** Apply one controller-owned text snapshot to a document adapter. */
 export function applyTextContentProjection(
   doc: Document,
   changes: ReadonlyArray<TextContentChangeRecord>,
@@ -711,9 +665,7 @@ export function applyTextContentProjection(
   setCanonicalTextContentChanges(changes);
   const key = JSON.stringify(changes);
   if (state.snapshotKey === key) {
-    // Reconciliation can happen between controller snapshots. Validate before
-    // reporting so a pending MutationObserver callback cannot leave a stale
-    // "applied" result visible to the Changes Log.
+    // Validate before reporting so a pending observer callback cannot leave a stale result in the Changes Log.
     validateAppliedProjection(doc, state);
     const reports = reportsForSnapshot(state, changes);
     storeReports(doc, reports);
@@ -724,10 +676,7 @@ export function applyTextContentProjection(
   const next = new Map<string, AppliedTextProjection>();
   const incomingIds = new Set(changes.map((change) => change.id));
 
-  // Removing a canonical record is an explicit revert/clear. Restore only a
-  // marker/value still owned by that record; every surviving record keeps its
-  // current application status and must not be replayed merely because an
-  // unrelated change altered the shared snapshot.
+  // Removed records are an explicit revert; surviving records keep their status and must not be replayed because an unrelated change altered the snapshot.
   for (const [id, applied] of previous) {
     if (incomingIds.has(id)) continue;
     removeEmptyTextAffordance(state, id);
@@ -774,9 +723,7 @@ export function applyTextContentProjection(
   state.applied = next;
   syncEmptyTextAffordances(doc, state, changes);
 
-  // Drop markers that do not belong to the current controller snapshot. This
-  // also cleans a marker left by a previous runtime instance without touching
-  // a surviving overridden projection in `next`.
+  // Also cleans markers left by a previous runtime instance without touching a surviving overridden projection.
   for (const marker of Array.from(doc.querySelectorAll<HTMLElement>(`[${TEXT_PROJECTION_ATTR}]`))) {
     const markers = readProjectionMarkers(marker);
     for (const [key, id] of markers) {

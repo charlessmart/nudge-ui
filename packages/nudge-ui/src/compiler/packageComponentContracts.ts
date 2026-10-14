@@ -6,34 +6,21 @@ import type {
   ComponentPropValue,
 } from "./componentContractTypes.ts";
 
-/**
- * Identifies a package import from the host module that uses it.
- *
- * The host path is intentional: TypeScript uses it as the resolution anchor,
- * so the same module specifier can resolve to a different installed package in
- * each application. The returned contract identity always uses the import
- * specifier, never an absolute node_modules path.
- */
+/** hostFile is the resolution anchor; contract identity uses the specifier, never an absolute node_modules path. */
 export interface PackageContractContext {
   hostFile: string;
   moduleSpecifier: string;
   compilerOptions?: ts.CompilerOptions;
 }
 
-/** One package export that a host module renders as a JSX component. */
 export interface PackageComponentImport {
   readonly moduleSpecifier: string;
-  /** The export the JSX tag reaches: an imported name, `default`, or a namespace member. */
   readonly exportName: string;
 }
 
 export interface PackageContractCatalogContext {
   hostFile: string;
-  /**
-   * Only these exports are described. A package can export thousands of
-   * components (icon sets), and the catalog ships to the browser, so it is
-   * scoped to what the application actually renders.
-   */
+  /** Scoped to what the app renders: the catalog ships to the browser and icon-set packages export thousands. */
   imports: readonly PackageComponentImport[];
   compilerOptions?: ts.CompilerOptions;
 }
@@ -46,7 +33,6 @@ function isBareModuleSpecifier(value: string): boolean {
     && !value.startsWith("virtual:");
 }
 
-/** The root binding of a JSX tag and the first member read from it, if any. */
 function jsxTagReference(
   tagName: ts.JsxTagNameExpression,
 ): { binding: string; member: string | null } | null {
@@ -65,7 +51,6 @@ interface PackageBinding {
   readonly exportName: string | null;
 }
 
-/** Returns the bare-module exports this source renders as JSX, sorted and unique. */
 export function collectPackageComponentImports(
   code: string,
   fileName: string,
@@ -204,10 +189,7 @@ function literalOptions(
   const values = members
     .map(literalValue)
     .filter((value): value is ComponentPropValue => value !== null);
-  // A public prop can accept a finite scalar vocabulary as well as a
-  // responsive/conditional object. The Inspector only offers this select when
-  // the current runtime value is scalar, so retain valid scalar alternatives
-  // without pretending the object form is itself editable here.
+  // Conditional object forms keep their scalar alternatives valid without making the object itself editable.
   if (values.length < 2) return null;
   const primitive = typeof values[0];
   if (!values.every((value) => typeof value === primitive)) return null;
@@ -357,13 +339,7 @@ function componentContract(
   };
 }
 
-/**
- * Extracts scalar controls from component exports in an installed package.
- *
- * It follows TypeScript's resolved module graph, including barrel re-exports
- * and declaration-file aliases, rather than trying to parse one declaration
- * file in isolation.
- */
+/** Follows TypeScript's resolved module graph (barrel re-exports, declaration aliases), not one file in isolation. */
 export function extractPackageComponentContracts(
   context: PackageContractContext,
 ): ComponentContract[] {
@@ -374,7 +350,7 @@ export function extractPackageComponentContracts(
   );
 }
 
-/** Extracts the rendered exports of several package modules through one declaration-only program. */
+/** Resolves every module through one declaration-only program. */
 export function extractPackageComponentContractCatalog(
   context: PackageContractCatalogContext,
 ): ComponentContract[] {

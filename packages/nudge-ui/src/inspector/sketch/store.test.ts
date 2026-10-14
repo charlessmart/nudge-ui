@@ -312,7 +312,6 @@ describe("demo runtimes", () => {
     await createSketch("Demo annotation");
     expect(getSketches()).toHaveLength(1);
 
-    // A fresh visit starts clean: demo mode never persists to browser storage.
     resetSketchStore();
     resetSketchMemory();
     await initializeSketchStore(projectId);

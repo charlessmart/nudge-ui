@@ -27,25 +27,6 @@ import {
 import { startOptionalProjectBridge } from "../projectBridge.ts";
 import { automationManifestFields } from "../environment.ts";
 
-/**
- * Loopback-only manifest/reload sidecar (ADR-0010).
- *
- * One server per dev-server process, guarded against double-spawn because
- * Next re-evaluates `next.config` more than once. Same-origin access without
- * CORS comes from a `beforeFiles` rewrite proxying `/__nudge_ui__/*` to the
- * sidecar port — both are wrapper-owned config, so the user touchpoint stays
- * at one line.
- *
- * Routes:
- * - GET /__nudge_ui__/client.mjs — the shared self-contained inspector client.
- * - GET /__nudge_ui__/manifest — the frozen runtime snapshot, including
- *   the Stage 4 token lifecycle when `tokens` is enabled: scanned project CSS
- *   feeds a deterministic generation, and each settled watcher batch bumps
- *   the generation and emits exactly one reload notification.
- * - GET /__nudge_ui__/reload  — SSE revision notifications after settled
- *   file changes.
- */
-
 const STATE_DIR_SEGMENT = ".next";
 const packageRequire = createRequire(import.meta.url);
 let inspectorClientPath: string | undefined;
@@ -53,25 +34,16 @@ let inspectorClientPath: string | undefined;
 export interface SidecarHandle {
   port: number;
   close: () => Promise<void>;
-  /** Bumps the reload revision and notifies open SSE streams. */
   publishRevision: (revision: number) => void;
 }
 
 interface GlobalSidecarEntry {
-  /**
-   * Cached start promise. Resolves to the live handle once started; cleared
-   * on close and on failure (so a failed start can be retried).
-   */
   starting?: Promise<SidecarHandle>;
 }
 
 const GLOBAL_KEY = Symbol.for("nudge-ui/next/sidecar");
 
-/**
- * One sidecar per process per configuration. The key keeps a token-enabled
- * server from being conflated with a bare manifest-only server created
- * elsewhere in the same process (tests, multiple projects).
- */
+/** One sidecar per process per configuration: the key keeps token-enabled and manifest-only servers distinct. */
 function globalState(key: string): GlobalSidecarEntry {
   // SAFETY: The GLOBAL_KEY symbol names the one global slot this module owns and writes itself.
   const holder = globalThis as typeof globalThis & { [GLOBAL_KEY]?: Map<string, GlobalSidecarEntry> };
@@ -94,10 +66,8 @@ function portFilePath(root: string): string {
 
 const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
 const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_modules"]);
-/** Upper bound on examined project source files; truncation is announced. */
 const SCAN_MAX_SOURCES = 5000;
 
-/** Returns whether a directory declares a package-manager workspace. */
 function hasWorkspaceManifest(directory: string): boolean {
   if (existsSync(join(directory, "pnpm-workspace.yaml"))) return true;
   try {
@@ -115,19 +85,9 @@ function hasWorkspaceManifest(directory: string): boolean {
   }
 }
 
-/** Upper bound on ancestors examined when searching for a workspace root. */
 const MAX_WORKSPACE_SEARCH_DEPTH = 5;
 
-/**
- * Finds the nearest declared workspace root by walking upward from the app.
- *
- * A Next app normally runs with its app directory as `process.cwd()`. When a
- * workspace manifest is present above that directory, the workspace is the
- * smallest safe default that can include sibling authored stylesheets. The
- * walk is bounded and never promotes the filesystem root itself, so a stray
- * manifest at `/` cannot turn the whole machine into the token scan root.
- * With no manifest found, scanning remains confined to the app root.
- */
+/** Bounded upward walk; never promotes the filesystem root, so a stray manifest at `/` cannot become the scan root. */
 function nearestWorkspaceRoot(root: string): string {
   let directory = root;
   for (let depth = 0; depth <= MAX_WORKSPACE_SEARCH_DEPTH; depth += 1) {
@@ -161,17 +121,8 @@ function isWithinRoot(root: string, candidate: string): boolean {
 }
 
 /**
- * Extracts component contracts directly from project sources.
- *
- * Compile-time loader postings alone leave a restart gap: Turbopack's
- * persistent cache serves previously compiled modules without re-running
- * loaders, so a fresh sidecar would publish an empty contract catalog until
- * every file happens to recompile. Reading the same authored sources the
- * loader reads keeps the manifest coherent across dev-server restarts.
- *
- * `canonicalRoot` must be the realpath'd project root so aggregation keys
- * match both loader postings and watcher events regardless of how the host
- * spelled the working directory.
+ * Reads authored sources directly because Turbopack's persistent cache can skip
+ * loader re-runs; `canonicalRoot` must be realpath'd so keys match loader postings.
  */
 async function scanProjectContracts(
   canonicalRoot: string,
@@ -221,12 +172,7 @@ async function scanProjectContracts(
   return { truncated, files };
 }
 
-/**
- * Reads one source file only while its size is stable across the read.
- * Editors that truncate-then-write can expose half a file at read time; a
- * syntactically valid prefix would otherwise replace good contracts with
- * wrong ones until the next settled batch.
- */
+/** Null unless the size is stable across the read: truncate-then-write editors can expose a syntactically valid prefix. */
 function readStableSource(absolutePath: string): { source: string } | null {
   try {
     const sizeBefore = statSync(absolutePath).size;
@@ -240,14 +186,12 @@ function readStableSource(absolutePath: string): { source: string } | null {
   }
 }
 
-/** Removes a stale port file left by a crashed previous run. */
 export function clearStaleSidecarState(root: string): void {
   try {
     // SAFETY: The JSON.parse result is validated by the typeof guard below before use.
     const raw = JSON.parse(readFileSync(portFilePath(root), "utf8")) as { pid?: number };
     if (typeof raw.pid === "number" && raw.pid !== process.pid) {
-      // A previous process's record: safe to drop. The loopback socket it
-      // named cannot be trusted for reuse and is never dialled here.
+      // Previous process's record: the socket it named is never dialled, so dropping it is safe.
       rmSync(portFilePath(root), { force: true });
     }
   } catch {
@@ -259,11 +203,6 @@ export interface SidecarOptions {
   manifest?: NudgeUiManifest;
   /** Authored workspace roots included in the token inventory and watcher. */
   sourceRoots?: readonly string[];
-  /**
-   * Enables the Stage 4 token lifecycle: an initial project CSS scan feeds
-   * the manifest's token fields, and a settled-batch watcher republishes on
-   * add/change/remove transitions. Diagnostics never disable inspection.
-   */
   tokens?: boolean;
   /** Trusted browser origin established by the Next development process. */
   projectBridgeOrigin?: string;
@@ -271,19 +210,12 @@ export interface SidecarOptions {
   projectBridgeAllowedOrigins?: readonly string[];
 }
 
-/**
- * Starts (or returns) the sidecar for this dev-server process.
- *
- * `root` is the project root; the manifest names itself from it. The server
- * binds 127.0.0.1 exclusively.
- */
 export async function ensureSidecar(
   root: string,
   options: SidecarOptions = {},
 ): Promise<SidecarHandle> {
-  // Watchers and removal events report REAL paths; on macOS the tmp/root
-  // prefix may differ (e.g. /tmp -> /private/tmp), so canonicalize once and
-  // derive every filesystem-relative computation from the canonical root.
+  // Watchers report REAL paths; on macOS the textual form can differ from root
+  // (/tmp -> /private/tmp), so canonicalize once and derive everything from fsRoot.
   const fsRoot = await realpath(root).catch(() => root);
   const scanRoots = await tokenScanRoots(fsRoot, options.sourceRoots);
   const state = globalState(
@@ -297,11 +229,6 @@ export async function ensureSidecar(
     let generation = 0;
     const streams = new Set<ServerResponse>();
 
-    // Token knowledge lives in a mutable holder so settled batches can swap
-    // the snapshot without rebuilding the rest of the manifest.
-    // Component contracts aggregate across loader postings, keyed by file so
-    // recompiles replace rather than duplicate (Stage 5). A debounced flush
-    // publishes one revision per settled burst of compilations.
     const contractsByFile = new Map<string, unknown[]>();
     let contractsTimer: NodeJS.Timeout | null = null;
     const flushContracts = (): void => {
@@ -374,8 +301,7 @@ export async function ensureSidecar(
 
     const port = await new Promise<number>((resolvePort, rejectPort) => {
       server.once("error", rejectPort);
-      // Port 0 asks the kernel for a free loopback port, so concurrent
-      // projects on one machine never collide.
+      // Port 0 lets concurrent projects on one machine pick distinct free loopback ports.
       server.listen(0, "127.0.0.1", () => {
         const address = server.address();
         if (address && typeof address === "object") resolvePort(address.port);
@@ -387,15 +313,12 @@ export async function ensureSidecar(
       mkdirSync(stateDirFor(root), { recursive: true });
       writeFileSync(portFilePath(root), `${JSON.stringify({ pid: process.pid, port })}\n`);
     } catch {
-      // The port file is diagnostics-only; the rewrite carries the real
-      // transport, so an unwritable .next must not break instrumentation.
+      // The port file is diagnostics-only; an unwritable .next must not break instrumentation.
     }
     await ensureProjectBridge();
 
     const watchers: Array<{ close: () => Promise<void> }> = [];
-    // The startup source scan runs regardless of the token lifecycle so a
-    // restarted sidecar republishes contracts even when Turbopack's
-    // persistent cache skips every loader re-run.
+    // Runs even without the token lifecycle so a restarted sidecar republishes contracts.
     try {
       await scanProjectContracts(fsRoot, (file, list) => {
         contractsByFile.set(file, list);
@@ -405,9 +328,7 @@ export async function ensureSidecar(
       /* an unreadable tree keeps whatever knowledge postings provided */
     }
     if (options.tokens) {
-      // Initial scan before the first manifest response so early clients see
-      // tokens without waiting for a watcher tick. Failures degrade to the
-      // empty snapshot already present in the manifest.
+      // Scan before the first manifest response so early clients see tokens without waiting for a watcher tick.
       try {
         applySnapshot(await createProjectTokenSnapshot(tokenSnapshotOptions));
       } catch {
@@ -428,16 +349,12 @@ export async function ensureSidecar(
         changes: readonly ProjectFileChange[],
       ): Promise<void> => {
         let needsContractRescan = false;
-        // Changed or deleted component sources update their aggregated
-        // contracts directly: deletions must prune (or stale controls
-        // survive forever), and edits re-extract from the authored bytes
-        // even if a compiler cache never re-runs the loader. A read that
-        // lands mid-write is skipped — the next settled batch retries.
+        // Deletions must prune or stale controls survive forever; a read that
+        // lands mid-write is skipped and retried on the next settled batch.
         for (const change of changes) {
           const normalized = change.absolutePath.split("\\").join("/");
-          // fs.watch can report a directory or omit a filename. In that
-          // case the exact source is unknown, so a bounded project scan is
-          // the only way to keep the contract catalog coherent.
+          // fs.watch can report a directory or omit the filename, leaving the
+          // source unknown; a bounded rescan is then the only way to stay coherent.
           if (!CONTRACT_SOURCE_EXT.test(normalized)) {
             needsContractRescan = true;
             continue;
@@ -477,16 +394,12 @@ export async function ensureSidecar(
         await settleTokens();
       };
 
-      // Always keep the application watcher responsible for component
-      // contracts. Additional workspace roots only need token updates; using
-      // them for contract rescans would broaden the contract root silently.
-      // Roots nested inside the app are already covered by the app watcher.
+      // Extra workspace roots refresh tokens only; contract rescans stay
+      // within the app root (nested roots are already covered by the app watcher).
       const additionalRoots = scanRoots.filter(
         (scanRoot) => scanRoot !== fsRoot && !isWithinRoot(fsRoot, scanRoot),
       );
-      // Additional roots can overlap each other (for example an explicit
-      // source root inside the workspace). Keep only the outermost so one
-      // sibling edit settles into one token scan.
+      // Roots can nest; keep only the outermost so one sibling edit settles into one token scan.
       const outerAdditionalRoots = additionalRoots
         .sort((a, b) => a.length - b.length)
         .filter((scanRoot, index, list) =>
@@ -503,9 +416,8 @@ export async function ensureSidecar(
           rootDirectory: tokenRoot,
           debounceMs: 60,
           onSettled: async (changes) => {
-            // A workspace root contains the app tree, so app edits fire this
-            // watcher too. The app watcher already refreshes tokens for those
-            // edits, so only changes outside the app need a second scan.
+            // App edits fire this watcher too; the app watcher already covers them,
+            // so only changes outside the app need a second scan.
             const outside = isWithinRoot(tokenRoot, fsRoot)
               ? changes.filter((change) => !isWithinRoot(fsRoot, change.absolutePath))
               : changes;
@@ -525,9 +437,7 @@ export async function ensureSidecar(
         for (const stream of streams) stream.write(`data: ${JSON.stringify({ revision })}\n\n`);
       },
       close(): Promise<void> {
-        // Idempotent: the singleton handle can be reached from several test
-        // files in one worker, and a dev server shutdown may race an explicit
-        // close. Closing twice must not throw.
+        // Idempotent: the singleton can be closed twice (tests, shutdown race) without throwing.
         if (!server.listening) {
           state.starting = undefined;
           return closeProjectBridge();
@@ -550,10 +460,8 @@ export async function ensureSidecar(
     return handle;
   })();
 
-  // A failed start must not wedge the singleton forever: the Symbol.for key
-  // survives HMR re-evaluation, so a cached rejected promise would be
-  // replayed to every later caller. Observe the rejection and clear the slot
-  // (identity-checked so a concurrent successful start is never discarded).
+  // A failed start must not wedge the singleton (the Symbol.for key survives
+  // HMR): clear the slot, identity-checked so a concurrent start is not discarded.
   starting.catch(() => {
     if (state.starting === starting) state.starting = undefined;
   });
@@ -572,8 +480,6 @@ function respond(
   const requestUrl = req.url ?? "";
   const url = requestUrl.split("?")[0];
 
-  // Loader postings aggregate component contracts (Stage 5). Loopback-only by
-  // virtue of the bind address; payload size is capped defensively.
   if (url === `${NUDGE_UI_ROUTE_PREFIX}contracts` && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
@@ -612,8 +518,6 @@ function respond(
   }
 
   if (url === NUDGE_UI_MANIFEST_PATH) {
-    // The served snapshot carries its revision so clients can reconcile
-    // against SSE notifications instead of guessing.
     const body = `${JSON.stringify({
       ...currentManifest(),
       revision: currentGeneration(),
@@ -651,7 +555,7 @@ function respond(
     res.write(": nudge-ui reload stream\n\n");
     streams.add(res);
     res.on("close", () => streams.delete(res));
-    // Announce the current generation so late subscribers can reconcile.
+    // Send the current revision first so late subscribers do not miss a change.
     res.write(`data: ${JSON.stringify({ revision: currentGeneration() })}\n\n`);
     return;
   }

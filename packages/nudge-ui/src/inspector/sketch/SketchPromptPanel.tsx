@@ -16,7 +16,6 @@ export interface SketchPromptPanelProps {
   readonly onCancel?: () => void;
 }
 
-/** The small note editor shared by a new live sketch and saved sketch layers. */
 export function SketchPromptPanel({
   dataTest,
   className,

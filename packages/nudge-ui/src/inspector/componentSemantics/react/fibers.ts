@@ -1,8 +1,4 @@
-/**
- * The slice of React's private fiber shape the runtime Adapter reads. React
- * DevTools depends on the same fields; nothing here is a public React API, so
- * every read tolerates a missing or differently shaped value.
- */
+// React's private fiber shape: not a public API, so every read tolerates a missing or differently shaped value.
 /** Props exactly as the application passed them; values are read and checked individually. */
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type
 export type FiberProps = Readonly<Record<string, unknown>>;

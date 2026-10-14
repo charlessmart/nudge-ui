@@ -29,7 +29,6 @@ function attributesFor(node: Readonly<Element>, file: string, projectRoot: strin
   return attributes;
 }
 
-/** Adds authored Markdown positions through the remark/rehype pipeline. */
 export function createMarkdownIdentityPlugin(projectRoot: string) {
   return function nudgeMarkdownIdentity() {
     return (tree: Root, file: { path?: string }): void => {
@@ -48,7 +47,6 @@ export function createMarkdownIdentityPlugin(projectRoot: string) {
   };
 }
 
-/** Adds the same identity through Astro's Sätteri visitor API. */
 export function createSatteriIdentityPlugin(projectRoot: string) {
   return {
     name: "nudge-ui-markdown-identity",
@@ -70,7 +68,6 @@ export function createSatteriIdentityPlugin(projectRoot: string) {
   };
 }
 
-/** Extends supported processors without replacing the consumer's pipeline. */
 export function installMarkdownIdentity(
   markdown: { processor?: { name: string; options: object } },
   projectRoot: string,

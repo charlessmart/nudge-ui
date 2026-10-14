@@ -15,7 +15,6 @@ export async function readHtmlArtifactRevision(id: string): Promise<HtmlArtifact
   return revision;
 }
 
-/** Checks the editing base before saving and promoting a captured document. */
 export async function commitHtmlArtifact(id: string, expected: HtmlArtifactRevision, html?: string): Promise<HtmlArtifactRevision> {
   const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/commit`, {
     method: "POST",

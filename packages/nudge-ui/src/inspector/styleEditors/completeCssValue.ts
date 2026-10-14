@@ -1,18 +1,10 @@
 import type { ValuePolicy } from "./valuePolicy.ts";
 
-// CSS <number>, including values such as .5 and 1e3. This intentionally only
-// matches the entire value: units, functions, keywords, and compound values
-// are all valid raw CSS and must be passed through unchanged.
-// Exported as a source fragment so other editors (e.g. nudgeValue) build
-// their number-aware patterns from the same single grammar definition.
+// Exported as a source fragment for reuse in nudgeValue; matches only a complete CSS <number>.
 export const CSS_NUMBER_SOURCE = "[+-]?(?:(?:\\d+\\.?\\d*)|(?:\\.\\d+))(?:e[+-]?\\d+)?";
 const BARE_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
 
-/**
- * Completes a bare numeric entry with its property's default unit. This is a
- * commit-time formatter; it deliberately does not validate or reinterpret
- * arbitrary CSS supplied by the user.
- */
+/** Commit-time only; never validates or reinterprets arbitrary CSS input. */
 export function completeCssValue(rawValue: string, policy: ValuePolicy): string {
   const value = rawValue.trim();
 
@@ -22,9 +14,7 @@ export function completeCssValue(rawValue: string, policy: ValuePolicy): string 
 
   if (policy.kind === "line-height") {
     const multiplier = Number(value);
-    // People commonly enter line-height as its CSS multiplier (1.6), while
-    // larger whole values conventionally represent a percentage (120). Keep
-    // both convenient forms while committing a single percentage value.
+    // Values up to 10 are multipliers (1.6); larger values are conventional percentages (120).
     if (multiplier > 0 && multiplier <= 10) {
       return `${formatPercentage(multiplier * 100)}%`;
     }

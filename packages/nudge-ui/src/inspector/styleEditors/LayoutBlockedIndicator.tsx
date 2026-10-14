@@ -5,7 +5,6 @@ export interface LayoutBlockedIndicatorProps {
   blockedBy: string | null;
 }
 
-/** Explains why a layout preview cannot override an inline-authored value. */
 export function LayoutBlockedIndicator({ blockedBy }: LayoutBlockedIndicatorProps): ReactElement | null {
   return (
     <InlineStyleWarning

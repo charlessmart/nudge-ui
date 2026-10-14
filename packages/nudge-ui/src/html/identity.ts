@@ -19,16 +19,6 @@ import {
 } from "./insertions.ts";
 import { NUDGE_UI_MOUNT_ID } from "../transport/routes.ts";
 
-/**
- * Adds source identity to HTML without reserializing it. The two hosts differ
- * only in where identity comes from: the static-HTML host owns the file and
- * uses parser offsets, Astro does not own the response and reads its
- * compiler's annotations. Both share the traversal below.
- *
- * Attributes are inserted only where missing, at the end of the opening tag,
- * so everything outside those insertions stays byte-for-byte unchanged.
- */
-
 export interface HtmlIdentityDiagnostic {
   readonly code: HtmlIdentityDiagnosticCode;
   readonly severity: "warning";
@@ -63,7 +53,6 @@ interface ElementSite {
   readonly offset: number;
 }
 
-/** How one host turns an eligible element into identity attributes. */
 interface IdentityPass {
   /** Attribute source text to insert. An empty list skips the element. */
   attributesFor(site: ElementSite, report: ReportDiagnostic): string[];
@@ -172,7 +161,6 @@ function runIdentityPass(source: string, pass: IdentityPass): HtmlIdentityResult
   };
 }
 
-/** Instruments an HTML file the host owns on disk, using parser offsets for position. */
 export function instrumentSourceHtml(source: string, file: string): HtmlIdentityResult {
   return runIdentityPass(source, {
     file,
@@ -199,11 +187,7 @@ export interface RenderedHtmlIdentityOptions {
   readonly projectRoot?: string;
 }
 
-/**
- * Instruments a rendered Astro dev response from Astro's own compiler
- * annotations. Elements without them degrade to an `astro:<Tag>` label and no
- * position, because a guessed `data-src` would be worse than none.
- */
+/** Elements without Astro compiler annotations degrade to an `astro:<Tag>` label and no position. */
 export function instrumentRenderedHtml(
   html: string,
   options: RenderedHtmlIdentityOptions = {},
@@ -279,7 +263,6 @@ function readAstroSourceIdentity(
   return loc.column === undefined ? `${file}:${loc.line}` : `${file}:${loc.line}:${loc.column}`;
 }
 
-/** Parses "line:column". A bare integer is accepted as a line with no column. */
 function parseAstroSourceLoc(value: string): { line: number; column?: number } | null {
   const match = /^\s*(\d+)(?:\s*:\s*(\d+))?\s*$/.exec(value);
   const lineText = match?.[1];
@@ -291,7 +274,6 @@ function parseAstroSourceLoc(value: string): { line: number; column?: number } |
   return line >= 1 && column >= 1 ? { line, column } : null;
 }
 
-/** Separators are normalized to forward slashes so values stay portable. */
 function projectRelativePath(filePath: string, projectRoot: string | undefined): string {
   const normalized = filePath.replaceAll("\\", "/");
   if (projectRoot === undefined || !path.isAbsolute(normalized)) return normalized;

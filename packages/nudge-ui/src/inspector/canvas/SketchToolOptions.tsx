@@ -132,7 +132,6 @@ function EraserIllustration(): ReactElement {
   );
 }
 
-/** Rectangle tool icon: outlined in the selected pen color with a 10% tint, matching what it draws. */
 function RectangleIcon({ color }: { readonly color: SketchPenColor }): ReactElement {
   return (
     <svg viewBox="0 0 24 24" width={24} height={24} fill="none" aria-hidden="true">
@@ -173,15 +172,11 @@ function IllustratedToolButton({
   );
 }
 
-/** Distance from the picker's center to each swatch center, and the swatch diameter, in px. */
 const PALETTE_RADIUS = 26;
 const PALETTE_SWATCH_SIZE = 32;
-/** Paint order of the overlapping swatches, bottom to top; the selected swatch always wins. */
-/** Delay between neighboring swatches as they fan out or collapse, in ms. */
 const PALETTE_STAGGER_MS = 18;
 const PALETTE_STACK_ORDER: readonly string[] = ["yellow", "orange", "red", "black", "green", "blue"];
 
-/** Offset of swatch `index` of `count` from the picker's center; the first sits at the top right. */
 function paletteSwatchOffset(index: number, count: number): CSSProperties {
   const radians = ((-90 + (index + 0.5) * (360 / count)) * Math.PI) / 180;
   return {
@@ -282,7 +277,6 @@ function ColorPicker({ color, hidden }: { readonly color: SketchPenColor; readon
   );
 }
 
-/** Pen, eraser, color and rectangle controls that slide out beside the sketch tool. */
 export function SketchToolOptions({ open }: { readonly open: boolean }): ReactElement {
   const drawing = useSketchDrawingTools();
   return (

@@ -20,7 +20,6 @@ export interface GapFieldProps {
   onAfterEdit?: () => void;
 }
 
-/** Renders a gap value with a token chip or the legacy raw-value fallback. */
 export function GapField({
   property,
   domElement: el,

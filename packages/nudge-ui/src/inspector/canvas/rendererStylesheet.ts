@@ -45,8 +45,7 @@ let adoptedCss: string | null = null;
 
 function replaceRendererCss(css: string): void {
   if (!allowsStyleElements(document)) {
-    // Structural and text projections resend unchanged CSS; rewriting it
-    // would discard every cached stylesheet-derived resolution.
+    // Structural and text projections resend unchanged CSS; rewriting it would discard cached resolutions.
     const adopted = getAdoptedStylesheet(document, SHEET_ID);
     if (adopted && adoptedCss === css && document.adoptedStyleSheets.includes(adopted)) return;
     adoptStylesheet(document, SHEET_ID, css);
@@ -168,7 +167,6 @@ function sendProjectionApplied(revision: number): void {
   sendToParent(msg);
 }
 
-/** Installs renderer diagnostics only after the dev-only renderer bootstrap. */
 export function startRendererProjectionDiagnostics(): () => void {
   if (!isNudgeUiDev() || activeDiagnosticsOwner) return () => undefined;
 

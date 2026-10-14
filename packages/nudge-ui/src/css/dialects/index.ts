@@ -6,48 +6,32 @@ import { readThemeContract } from "./vanillaExtract.ts";
 export * from "./tailwind.ts";
 export * from "./vanillaExtract.ts";
 
-/**
- * Host-neutral interpretation of CSS dialects. Hosts see very different things
- * — a Vite host watches the whole transform pipeline, a static-file host only
- * reads `.css` off disk — so each supplies the evidence it can observe and this
- * module turns exactly that into token knowledge. It is pure, so the same
- * evidence yields the same tokens on every host and dialect behaviour can be
- * tested without a build tool. A host that observes less reports less through
- * `DialectObservation` rather than quietly producing a thinner catalog.
- */
-
 export type DialectName = "tailwind-v3" | "tailwind-v4" | "vanilla-extract";
 
 export interface TailwindV3Evidence {
   readonly config: unknown;
-  /** Path recorded on the resulting tokens. */
   readonly source?: string;
 }
 
-/** A theme contract written inline in host configuration. */
 export interface InlineThemeContractEvidence {
   readonly contract: unknown;
-  /** Compiled values by custom-property name, when the host observed the CSS. */
+  /** Only when the host observed the emitted CSS. */
   readonly cssValues?: Readonly<Record<string, string>>;
   readonly source?: string;
 }
 
-/** A theme contract loaded from a published module. */
 export interface PublishedThemeContractEvidence {
   /** Separates "never looked" from "looked and found nothing"; only the latter clears a held contract. */
   readonly attempted: boolean;
   readonly contract: unknown;
-  /** Whether the contract came from a dependency rather than project source. */
   readonly fromPackage?: boolean;
   readonly prefix?: string;
   readonly source?: string;
   readonly diagnostics?: readonly TokenCatalogDiagnostic[];
 }
 
-/** Everything a host managed to observe about the project's dialects. */
 export interface DialectEvidence {
   readonly tailwindV3?: TailwindV3Evidence;
-  /** True when any observed stylesheet carried Tailwind v4 markers. */
   readonly tailwindV4Css?: boolean;
   readonly inlineThemeContract?: InlineThemeContractEvidence;
   readonly publishedThemeContract?: PublishedThemeContractEvidence;
@@ -66,11 +50,7 @@ export interface DialectInterpretation {
   readonly observed: readonly DialectObservation[];
 }
 
-/**
- * Every contribution is emitted on every call, empty when a dialect has no
- * evidence: they are id-keyed and replaceable, so omitting one would leave
- * stale facts in the inventory rather than clearing them.
- */
+/** Emitted even with no evidence: contributions are id-keyed, so omitting one would leave stale facts. */
 export function interpretDialects(evidence: DialectEvidence = {}): DialectInterpretation {
   const observed: DialectObservation[] = [];
 
@@ -125,10 +105,7 @@ function readInlineContract(evidence: InlineThemeContractEvidence | undefined): 
   });
 }
 
-/**
- * Contributes identity only: the emitted CSS stays authoritative on value,
- * cascade, and editability, so entries carry no declarations and merge by CSS name.
- */
+/** Contributes identity only: the emitted CSS stays authoritative on value and editability. */
 function readPublishedContract(
   evidence: PublishedThemeContractEvidence | undefined,
 ): { contribution: TokenContribution; count: number } {

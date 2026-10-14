@@ -16,10 +16,7 @@ export const INJECT_RENDERERS_MESSAGE = "nudge-ui:inject-renderers";
 export const SKETCH_REQUEST_EVENT = "nudge-ui:sketch-request";
 export const SKETCH_RESPONSE_EVENT = "nudge-ui:sketch-response";
 
-/**
- * Published for one injection into the top frame; the bundle consumes it, so
- * later injections into renderer frames cannot restart the controller.
- */
+/** Published for one injection into the top frame; the bundle consumes it, so later renderer-frame injections cannot restart the controller. */
 export interface ExtensionBoot {
   /** Inspector storage for this origin, keyed without the site prefix. */
   storage: Record<string, string>;

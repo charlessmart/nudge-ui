@@ -58,7 +58,6 @@ describe("sidecar transport", () => {
       strategy: "refresh-manifest",
     });
 
-    // The port file records this process for diagnostics.
     const record = JSON.parse(
       readFileSync(join(root, ".next", "nudge-ui-sidecar.json"), "utf8"),
     ) as { pid: number; port: number };
@@ -298,7 +297,6 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     });
     await settle(300);
 
-    // On a remove event the sidecar must drop the stale entry.
     rmSync(join(root, "app", "Gone.tsx"));
     await settle(1200);
 
@@ -404,10 +402,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     expect(declaration?.source).toContain("app/theme.css");
   });
 
-  // QUARANTINED: pre-existing flake. Passes in isolation but hangs waiting for a
-  // settled batch when the whole workspace suite runs. Ruled out: timeout length,
-  // subscription ordering, CPU starvation, sidecar cache conflation. Remaining
-  // suspect is the watcher, now in project/files.ts — re-diagnose there.
+  // QUARANTINED: pre-existing flake that hangs on a settled batch only in the full-suite run; suspect the watcher in project/files.ts.
   it.skip("bumps the generation and emits one reload per settled batch", async () => {
     const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
@@ -423,8 +418,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     const frames: string[] = [];
     let buffer = "";
 
-    // `fetch` resolves on headers, which the sidecar writes before registering the
-    // stream, so read the announce frame first to prove the subscription exists.
+    // `fetch` resolves on headers before the stream is registered, so read the announce frame first.
     const readFrames = async (count: number): Promise<void> => {
       while (frames.length < count) {
         const chunk = await reader.read();
@@ -448,7 +442,6 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     }
 
     await readFrames(2);
-    // Announce + exactly ONE notification for the whole settled burst.
     expect(frames).toHaveLength(2);
     const revisions = frames.map((f) => JSON.parse(f.slice(5)).revision);
     expect(revisions[1]).toBe(revisions[0] + 1);
@@ -501,9 +494,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
           tokens: Array<{ name: string }>;
         };
       };
-      // The readable sheet still feeds inspection...
       expect(manifest.runtime.tokens.map((t) => t.name)).toContain("--good");
-      // ...and the unreadable one surfaces as a diagnostic.
       expect(
         manifest.runtime.tokenDiagnostics.some((d) => d.module.includes("locked.css")),
       ).toBe(true);

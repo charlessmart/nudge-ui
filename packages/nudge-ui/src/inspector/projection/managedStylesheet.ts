@@ -70,9 +70,7 @@ export function ensureManagedSheet(): void {
   }
   let sheet = el.sheet;
   if (!sheet) {
-    // A browser may reject a newly-authored conditional rule (or a test DOM may
-    // not implement it). Recreate the managed element so later clear/revert
-    // operations can always recover instead of leaving history wedged.
+    // Recreate the element when the browser rejects the sheet so clear/revert can still recover.
     el.remove();
     el = doc.createElement("style");
     el.id = SHEET_ID;
@@ -93,7 +91,6 @@ export function ensureManagedSheet(): void {
 
 function exposeManagedSheetText(doc: Document): void {
   if (isNudgeUiDev() && doc.defaultView) {
-    // Keep the canonical CSS available to dev diagnostics.
     doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
   }
 }
@@ -128,20 +125,14 @@ export function rulesToCssText(rules: StyleRule[]): string {
   return lines.join("\n");
 }
 
-/** Canonical rules retained so a framework can rehydrate a moved style node. */
+/** Retained so a framework can rehydrate a moved style node. */
 let managedRules: StyleRule[] = [];
 
-/** Synchronous serialized view of the rules currently projected into the managed sheet. */
 export function getManagedSheetText(): string {
   return rulesToCssText(managedRules);
 }
 
-/**
- * Rehydrate the CSSOM after moving the managed style element in <head>.
- *
- * Some browsers replace the CSSStyleSheet when that element is reattached.
- * Rewriting the canonical text keeps the new sheet and the model aligned.
- */
+/** Some browsers replace the CSSStyleSheet when the style element is reattached, so rewrite the canonical text. */
 function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
   const sheet = el.sheet;
   if (!sheet) return;
@@ -163,10 +154,6 @@ function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
   notifyBrowserStylesheetChange(doc);
 }
 
-/**
- * Writes the canonical projection to the managed style element and retains a
- * copy for rehydration if a framework moves or reparses that element.
- */
 function rebuildSheetText(rules: StyleRule[]): void {
   const desired = rules.map((rule) => ({
     ...rule,
@@ -198,11 +185,7 @@ function rebuildSheetText(rules: StyleRule[]): void {
   notifyBrowserStylesheetChange(document);
 }
 
-/**
- * Replaces the managed sheet with the canonical projection. Keeping the
- * serialized rules authoritative avoids stale CSSStyleRule references when a
- * framework dev server reparses or reattaches style nodes during a render.
- */
+/** Serialized rules stay authoritative to avoid stale CSSStyleRule references when a framework reparses style nodes. */
 export function applyRules(rules: StyleRule[]): void {
   ensureManagedSheet();
   const desired: StyleRule[] = [];
@@ -237,7 +220,6 @@ function hasImportantAuthorRule(el: HTMLElement, property: string): boolean {
   return false;
 }
 
-/** Verify what the browser painted after the managed sheet was projected. */
 export function verifyPreview(el: HTMLElement | null, property: string, requestedValue: string): PreviewResult {
   if (!el || !el.isConnected) {
     return { requestedValue, computedValue: "", status: "conflict", reason: "target-missing" };

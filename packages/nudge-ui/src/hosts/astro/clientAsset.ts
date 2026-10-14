@@ -15,11 +15,7 @@ interface ClientAssetDependencies {
 
 const packageRequire = createRequire(import.meta.url);
 
-/**
- * Creates the Astro handler for the shared, immutable inspector client.
- * Resolution and reads remain lazy so disabled and production integrations do
- * not depend on a development asset being present.
- */
+/** Resolution and reads stay lazy so disabled and production integrations never need the development asset. */
 export function createAstroClientAssetHandler(
   dependencies: ClientAssetDependencies = {},
 ): (request: IncomingMessage, response: ServerResponse) => Promise<void> {

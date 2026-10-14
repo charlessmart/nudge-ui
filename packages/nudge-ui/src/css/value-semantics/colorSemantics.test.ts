@@ -14,15 +14,6 @@ import {
   type ColorSemanticsContext,
 } from "./colorSemantics.ts";
 
-/**
- * Fast Interface tests for the color semantics Module (plan slice 3.4).
- * These pin color format recognition, embedded-alpha detection, opacity
- * modifiers, `color-mix()` reconciliation, and meaning-preserving edits in
- * isolation: the module takes explicit token knowledge and never touches the
- * DOM or CSSOM. Expected strings are byte-identical to the pre-migration
- * characterization assertions.
- */
-
 function entry(name: string, value: string, extra: Partial<TokenEntry> = {}): TokenEntry {
   return { name, value, source: "theme.css:1", ...extra };
 }
@@ -48,7 +39,6 @@ function plainCtx(tokenTable: TokenTable = table([])): ColorSemanticsContext {
   return { tokenTable };
 }
 
-/** Minimal resolver matching the Module contract: table lookup, then local aliases. */
 function makeResolver(
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = new Map(),

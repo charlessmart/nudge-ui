@@ -311,7 +311,6 @@ export interface DiscoveredAgentAdapter {
   close(): Promise<void>;
 }
 
-/** Creates a stdio MCP adapter that discovers project-owned bridges. */
 export function createDiscoveredAgentAdapter(options: {
   readonly registryRoot?: string;
   readonly serverName?: string;

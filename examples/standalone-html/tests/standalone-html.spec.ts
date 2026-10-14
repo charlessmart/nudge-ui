@@ -93,8 +93,7 @@ test("serves a self-contained inspector and edits static HTML through managed CS
   const frame = await waitForInspector(page);
 
   expect(requests.some((url) => /vite|@react-refresh|@vite/.test(url))).toBe(false);
-  // Canvas is enabled on the standalone host (ADR-0012); component semantics
-  // remain fail-closed for framework-free pages.
+  // Canvas is enabled on the standalone host; component semantics stay fail-closed (ADR-0012).
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 
   const button = frame.locator("#static-action");

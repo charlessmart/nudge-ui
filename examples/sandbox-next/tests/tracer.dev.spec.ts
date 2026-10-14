@@ -57,29 +57,22 @@ test("dev: loader injects identity into server and client components", async ({ 
     };
   });
 
-  // Server component elements carry identity (cid = enclosing component).
   expect(identity.serverTitle?.cid).toBe("Home");
   expect(identity.serverTitle?.src).toMatch(/^app\/page\.tsx:\d+:\d+$/);
 
   expect(identity.heroCard?.cid).toBe("HeroCard");
   expect(identity.heroCard?.src).toMatch(/^app\/HeroCard\.tsx:\d+:\d+$/);
-  // Every rendered element carries the callsite-evidence attribute.
   expect(identity.heroCard?.cprops ?? "").not.toBe("");
 
-  // Client-component internals are identified as well.
   expect(identity.clientBadge?.cid).toBe("ClientBadge");
   expect(identity.clientBadge?.src).toMatch(/^app\/ClientBadge\.tsx:\d+:\d+$/);
 });
 
 test("dev: hydration preserves the injected attributes", async ({ page }) => {
-  // Server HTML carries the attributes...
   const ssrHtml = await (await page.request.get("/")).text();
   expect(ssrHtml).toContain('data-cid="HeroCard"');
 
-  // ...and hydration must not strip them (React preserves unknown attributes
-  // present in server HTML; this asserts rather than assumes). No
-  // networkidle wait: the reload SSE stream keeps a connection open by
-  // design.
+  // No networkidle wait: the reload SSE stream keeps a connection open by design.
   const frame = await inspectorReady(page);
 
   const afterHydration = await frame.evaluate(() => ({
@@ -89,7 +82,6 @@ test("dev: hydration preserves the injected attributes", async ({ page }) => {
   expect(afterHydration.cid).toBe("HeroCard");
   expect(afterHydration.src ?? "").toMatch(/^app\/HeroCard\.tsx:\d+:\d+$/);
 
-  // No hydration error overlay in dev.
   const overlayText = await frame.evaluate(() => document.querySelector("nextjs-portal")?.shadowRoot?.textContent ?? "");
   expect(overlayText).not.toContain("Hydration");
 });
@@ -99,18 +91,13 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
 }) => {
   const frame = await inspectorReady(page);
 
-  // Select the hero card heading.
   const target = frame.locator(".hero-card h2");
   await target.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   // Let the editor surface finish binding its control handlers.
   await page.waitForTimeout(1200);
 
-  // Edit the width raw value (Layout section is expanded by default and the
-  // field is a plain text input; color renders a token chip now that tokens
-  // are catalogued). The editors mount asynchronously after selection, so
-  // wait for the field rather than querying immediately, with one re-select
-  // retry for cold-start compilation.
+  // Editors mount asynchronously after selection, so wait for the field, with one re-select retry for cold-start compilation.
   const widthInput = page.locator(
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
   );
@@ -130,16 +117,11 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await expect.poll(() => managedSheetText(frame)).toContain("240px");
   await expect(target).toHaveCSS("width", "240px");
 
-  // The durable session must survive leaving the route and reapply to the
-  // remounted element on return. Leave via a real navigation, come back
-  // through browser history: whichever way App Router restores the route
-  // (bfcache or fresh bootstrap), the persisted session must reproject into
-  // the managed stylesheet.
+  // Whichever way the App Router restores the route (bfcache or fresh bootstrap), the persisted session must reproject into the managed stylesheet.
   await frame.locator('a[href="/second"]').click();
   await expect.poll(() => frame.url()).toMatch(/\/second$/);
   await expect(frame.locator("#page-title")).toContainText("Second route");
-  // The canonical rule remains available while its target is absent so a
-  // return navigation can reapply it without rebuilding session state.
+  // The canonical rule stays available while its target is absent so a return navigation can reapply it.
   await expect.poll(() => managedSheetText(frame)).toContain("240px");
 
   await frame.locator('a[href="/"]').click();
@@ -157,7 +139,6 @@ test("dev: prompt copy names the source location without runtime selectors", asy
   const target = frame.locator(".hero-card h2");
   await target.click();
 
-  // The copy control enables once the session holds a change; make one.
   await target.click();
   const input = page.locator(
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
@@ -191,7 +172,6 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
   const before = sourceBytes();
 
   const frame = await inspectorReady(page);
-  // Interact: select, edit, navigate — the full instrumented lifecycle.
   const target = frame.locator(".hero-card h2");
   await target.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
@@ -202,9 +182,7 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
 
 test("dev: route-group segments are instrumented through the shared root", async ({ page }) => {
   const frame = await inspectorReady(page, "/pricing");
-  // Route-group pages carry identity like any other app segment. Route groups
-  // are elided from URLs: the file lives at app/(shop)/pricing/page.tsx but
-  // serves /pricing.
+  // Route groups are elided from URLs: app/(shop)/pricing/page.tsx serves /pricing.
   const identity = await frame.evaluate(() => ({
     cid: document.querySelector("#page-title")?.getAttribute("data-cid"),
     src: document.querySelector("#page-title")?.getAttribute("data-src"),

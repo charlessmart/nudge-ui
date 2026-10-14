@@ -133,7 +133,6 @@ export function createTimeline(): Timeline {
   };
 }
 
-/** The Workspace's session timeline. */
 export const sessionTimeline = createTimeline();
 
 export function recordCanvasChange(entry: Omit<CanvasHistoryEntry, "kind">): void {

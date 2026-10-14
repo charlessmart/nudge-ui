@@ -4,9 +4,7 @@ import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
   const target = appLocator(page, `[data-test="border-case-${id}"]`);
-  // The specimen contains instrumented text children. Click its empty corner
-  // so the fixture element, rather than a child text node, receives the real
-  // browser event.
+  // Click an empty corner so the specimen element, not a text child, receives the event.
   await target.click({ position: { x: 4, y: 4 } });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 }

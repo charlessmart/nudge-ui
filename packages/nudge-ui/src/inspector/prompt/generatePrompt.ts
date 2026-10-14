@@ -148,9 +148,7 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   }
   if (rec.newToken) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    // Describe exactly the value the managed stylesheet wrote for this swap
-    // (adapter literal or var(cssName)); a bare var(name) would be invalid
-    // CSS for adapter tokens whose names are not custom-property names.
+    // Adapter token names are not always custom-property names, so emit the literal the stylesheet wrote.
     return `- **Change:** ${property}: ${before}\`${tokenReference(rec.newToken)}\``;
   }
   if (rec.rawValue !== undefined) {
@@ -293,12 +291,7 @@ function setHeading(label: string, tag: string | undefined): string {
   return tag ? `${label} (${promptText(`<${normalizeRuntimeTag(tag)}>`)})` : label;
 }
 
-/**
- * Coordinate precision follows each element's identity origin, not the
- * document's framework hint (ADR-0011 Stage 5). The active host Adapter
- * declares which origins carry exact authored coordinates through the
- * runtime configuration; hosts that declare nothing are exact everywhere.
- */
+/** Precision follows each element's identity origin, not the framework hint; hosts that declare nothing are exact everywhere. */
 function hasExactAuthoredCoordinates(
   policy: SourceCoordinatePolicy | null,
   cid: string | undefined,
@@ -311,11 +304,6 @@ function hasExactAuthoredCoordinates(
   return policy.exactFileExtensions.some((extension) => file.endsWith(extension));
 }
 
-/**
- * Formats one source location for a prompt. Exact origins keep the
- * authored column; line-only origins — and sites whose column is unknown —
- * degrade to `file:line` rather than fabricating precision.
- */
 function formatSourceLocation(
   policy: SourceCoordinatePolicy | null,
   source: { cid?: string; file: string; line: number; column: number },
@@ -338,8 +326,7 @@ function renderedInstanceDescription(ref: RenderedInstanceRef): string {
   if (ariaLabel) return `the element named ${promptText(ariaLabel)}${source}`;
   if (props) return `the element with props ${promptText(props)}${source}`;
 
-  // With no semantic evidence, the ordinal is the only way to distinguish
-  // repeated outputs from the same source site.
+  // Without semantic evidence, the ordinal is the only way to distinguish repeated outputs from one source site.
   return `rendered instance ${ref.locator.occurrence + 1} of ${sourceSiteLabel(ref)}`;
 }
 
@@ -410,9 +397,7 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
       && first.presentation.fromIndex === latest.presentation.toIndex;
     if (returnedToStart) continue;
 
-    // The final destination is the useful handoff. Keep the first source
-    // context when the gesture crossed intermediate containers so the prompt
-    // describes the authored move rather than the drag history.
+    // Keep the first source context so the prompt describes the authored move, not the drag history.
     if (first && first !== latest && latest.kind === "move") {
       canonical.push({
         ...latest,
@@ -430,7 +415,7 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
   return canonical;
 }
 
-/** Counts the final edit intents exported by the prompt, preserving gesture history for undo. */
+/** Counts the exported intents, not the raw gesture history. */
 export function countPromptChanges(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], sketchCount = 0): number {
   return canonicalizeChanges([...changes]).length + canonicalizeStructuralChanges(structuralChanges).length + sketchCount;
 }

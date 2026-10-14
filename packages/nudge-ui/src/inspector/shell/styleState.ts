@@ -4,8 +4,7 @@ export type InteractionState = "base" | (typeof INTERACTION_STATES)[number];
 
 let activeState: InteractionState = "base";
 
-/** The selected authored interaction state. Kept outside React so edit actions
- * and history have the same context as the panel that initiated an edit. */
+/** Kept outside React so edit actions and history share the panel's context. */
 export function getActiveStyleState(): InteractionState {
   return activeState;
 }

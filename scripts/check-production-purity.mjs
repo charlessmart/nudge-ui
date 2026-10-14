@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Proves ADR-0002 for every host: a production build carries no inspector
-// bootstrap, no identity attributes, and no token transport. Browser-free by
-// design — each host emits a build tree to grep, except the static-HTML host,
-// which has no build step and must instead leave the author's files unchanged.
-//
-// Usage: node scripts/check-production-purity.mjs [host...]
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -15,9 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
-// Runtime artifacts only Nudge UI emits. A bare "@nudge-ui/" reference is
-// deliberately not one: package names appear legitimately in fixture copy and
-// build traces, so they only add false positives.
+// Runtime artifacts only Nudge UI emits. A bare "@nudge-ui/" reference is deliberately
+// not one: package names legitimately appear in fixture copy and build traces.
 const FORBIDDEN_MARKERS = [
   "data-cid=",
   "data-src=",

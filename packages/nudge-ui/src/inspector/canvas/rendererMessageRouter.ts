@@ -36,7 +36,6 @@ function routeRendererMessage(event: MessageEvent): void {
   for (const listener of listeners) listener(routed);
 }
 
-/** Subscribes to same-origin messages from registered Canvas renderer frames. */
 export function subscribeCanvasRendererMessages(listener: CanvasRendererMessageListener): () => void {
   if (listeners.size === 0) window.addEventListener("message", routeRendererMessage);
   listeners.add(listener);

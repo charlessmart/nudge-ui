@@ -155,9 +155,7 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-spacing-icon-row-gap"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-spacing-icon-column-gap"]')).toBeFalsy();
 
-    // In a column layout, the top row controls the main axis and the
-    // columns control the cross axis. The top-middle cell is therefore
-    // justify-content: flex-start + align-items: center.
+    // In a column layout the top-middle cell is justify-content: flex-start + align-items: center.
     act(() => {
       (handle.host.querySelector('[data-test="layout-align-center-flex-start"]') as HTMLButtonElement).click();
     });

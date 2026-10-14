@@ -7,7 +7,6 @@ import { clearSessionUndoHistory } from "../workspace/timeline.ts";
 import type { StructuralChange } from "./structuralTypes.ts";
 import type { ChangeRecord } from "./types.ts";
 
-/** Replaces the active draft's contents without leaving an undo step. */
 export function replaceActiveDraft(
   changes: readonly ChangeRecord[],
   structuralChanges: readonly StructuralChange[] = getActiveDraftChanges().structuralChanges,

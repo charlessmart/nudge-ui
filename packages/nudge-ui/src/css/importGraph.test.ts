@@ -20,13 +20,11 @@ const FORBIDDEN_SPECIFIERS = [
   /^react$/,
   /^react\//,
   /^postcss/,
-  // The hosts and the inspector are sibling directories now rather than
-  // separate packages, so the boundary is a relative path, not a package name.
+  // Hosts and inspector are sibling directories, so the boundary is a relative path, not a package name.
   /(^|\/)\.\.\/hosts\//,
   /(^|\/)\.\.\/inspector\//,
 ];
 
-/** Any import/export of the token-inventory module, bare or relative. */
 function isTokenInventorySpecifier(specifier: string): boolean {
   return specifier.includes("token-inventory");
 }
@@ -45,11 +43,7 @@ function sourceFiles(dir: string): string[] {
   return files;
 }
 
-/**
- * Every module specifier appearing in `import`/`export` (including side-effect
- * imports and dynamic `import()`). Relative specifiers are returned too so the
- * token-inventory path is detectable even when reached via a relative import.
- */
+/** Returns relative specifiers too, so a relative token-inventory import stays detectable. */
 function importSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
   const importPattern = /\b(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g;

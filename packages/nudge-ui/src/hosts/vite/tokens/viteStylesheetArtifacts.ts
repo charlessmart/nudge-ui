@@ -13,15 +13,7 @@ import { detectTailwindV4 } from "../../../css/dialects/index.ts";
 import type { CssImportGraph } from "./activeStylesheets.ts";
 import { stripCssQuery } from "./activeStylesheets.ts";
 
-/**
- * Source directories that a Vite host explicitly owns.
- *
- * Vite's resolved root is always included by the adapter. `sourceRoots` lets a
- * monorepo host add authored workspace packages without treating every file
- * reachable through Vite's module graph as application code. Generated roots
- * are excluded even when a caller accidentally includes them in a source
- * root.
- */
+/** Vite's resolved root is always included; generated roots are excluded even when nested in a source root. */
 export interface ViteSourceScopeOptions {
   readonly sourceRoots?: readonly string[];
   readonly generatedRoots?: readonly string[];
@@ -61,10 +53,8 @@ export function isHostApplicationSource(
   const sourceRoot = roots.find((candidate) => isInsideRoot(absoluteFile, candidate));
   if (!sourceRoot) return false;
 
-  // A generated directory can be nested in an authored workspace package, so a
-  // declared source root keeps a conservative name-based guard. The primary
-  // root does not: there, a directory named `build` may be ordinary authored
-  // source, and the resolved output directory is already excluded above.
+  // A declared source root keeps a name-based guard against nested generated directories;
+  // the primary root does not, since a directory named `build` may be authored source there.
   if (sourceRoot !== primaryRoot) {
     const pathSegments = relative(sourceRoot, absoluteFile).split(sep).filter(Boolean);
     if (pathSegments.some((segment) => GENERATED_DIRECTORY_NAMES.has(segment))) {
@@ -113,7 +103,6 @@ export interface ViteStylesheetArtifactInput {
   readonly tailwindV4?: boolean;
 }
 
-/** Map Vite-specific identity and evidence into the neutral artifact contract. */
 export function createViteStylesheetArtifact(
   input: ViteStylesheetArtifactInput,
 ): StylesheetArtifact {
@@ -154,11 +143,7 @@ export interface OrderedViteStylesheet {
   readonly discoveryOrder?: number;
 }
 
-/**
- * A single active root proves nested CSS import order. Multiple independent
- * roots have no proven cross-root cascade order, so their traversal rank stays
- * discovery evidence.
- */
+/** A single active root proves nested CSS import order; multiple roots have no cross-root cascade order, so their rank stays discovery evidence. */
 export function orderViteStylesheetGraph(
   graph: CssImportGraph,
   activeRootCount: number,

@@ -27,7 +27,6 @@ interface AgentBridgeWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: { baseUrl: string; autoConnect?: boolean };
 }
 
-/** Fetches one host manifest and mounts the self-contained inspector client. */
 export async function bootstrapNudgeUiClient(): Promise<void> {
   const script = document.querySelector<HTMLScriptElement>(
     "script[data-nudge-ui-client]",

@@ -1,9 +1,4 @@
-/**
- * Node-only CSS token discovery for the static HTML host. Reports directory
- * order as discovery evidence only: a directory walk cannot prove the order in
- * which a browser applies stylesheets. Every filesystem operation is async so a
- * large tree never blocks the server's event loop.
- */
+/** Directory order is discovery evidence only; a walk cannot prove the order a browser applies stylesheets. */
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import {
@@ -26,7 +21,6 @@ import type {
   TokenEntry,
 } from "../css/model/index.ts";
 
-/** The serializable token knowledge published by the standalone manifest. */
 export interface ProjectTokenSnapshot {
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
@@ -34,7 +28,6 @@ export interface ProjectTokenSnapshot {
   readonly tokenGeneration: string;
 }
 
-/** The placeholder used before and in place of a successful project scan. */
 export const EMPTY_PROJECT_TOKEN_SNAPSHOT: ProjectTokenSnapshot = {
   tokenCatalog: [],
   tokens: [],
@@ -42,7 +35,6 @@ export const EMPTY_PROJECT_TOKEN_SNAPSHOT: ProjectTokenSnapshot = {
   tokenGeneration: "empty",
 };
 
-/** A CSS file discovered below the project root before inventory parsing. */
 export interface ProjectCssArtifact {
   readonly absolutePath: string;
   readonly projectPath: string;
@@ -50,24 +42,17 @@ export interface ProjectCssArtifact {
   readonly readError?: string;
 }
 
-/** Injectable so unreadable-file handling stays testable. */
 export type ProjectCssFileReader = (absolutePath: string) => string | Promise<string>;
 
-/** Options for the deterministic project CSS scan. */
 export interface ProjectTokenSnapshotOptions {
   readonly rootDirectory: string;
-  /** Additional authored roots to include in the same deterministic inventory. */
   readonly additionalRootDirectories?: readonly string[];
   readonly readFile?: ProjectCssFileReader;
   /** Prefixed to the digest so two hosts scanning one project publish distinct generations. */
   readonly generationLabel: string;
 }
 
-/**
- * Files are sorted by project-relative POSIX path before receiving
- * discoveryOrder. Symlinks are followed only when their canonical target stays
- * below rootDirectory. Read and parse failures become diagnostics, never rejections.
- */
+/** Sorted by project-relative POSIX path; symlinks only within root; read failures become diagnostics, never rejections. */
 export async function createProjectTokenSnapshot(
   options: ProjectTokenSnapshotOptions,
 ): Promise<ProjectTokenSnapshot> {
@@ -86,8 +71,7 @@ export async function createProjectTokenSnapshot(
       const canonicalPath = await realpath(artifact.absolutePath).catch(() => artifact.absolutePath);
       if (seenFiles.has(canonicalPath)) continue;
       seenFiles.add(canonicalPath);
-      // Additional roots are expressed relative to the primary one so a single
-      // inventory can merge their declarations without losing provenance.
+      // Additional roots are expressed relative to the primary so one inventory keeps provenance.
       artifacts.push({
         ...artifact,
         projectPath: index === 0
@@ -140,7 +124,7 @@ export async function createProjectTokenSnapshot(
   };
 }
 
-/** Exported as a seam so provenance and symlink confinement are testable without PostCSS. */
+/** Exported for tests: provenance and symlink confinement without PostCSS. */
 export async function discoverProjectCssArtifacts(
   rootDirectory: string,
   readFile: ProjectCssFileReader = (absolutePath) => readUtf8File(absolutePath, "utf8"),

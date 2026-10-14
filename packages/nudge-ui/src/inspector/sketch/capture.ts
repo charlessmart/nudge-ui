@@ -108,7 +108,7 @@ async function waitForLayout(signal?: AbortSignal, targetDocument?: Document): P
       });
     }
   } catch {
-    // Font readiness is best effort; the animation-frame settle still runs.
+    // Font readiness is best effort.
   }
   await waitForAnimationFrame(signal);
   await waitForAnimationFrame(signal);
@@ -148,7 +148,7 @@ function nonNegativeOffset(...values: readonly number[]): number {
   return Math.max(0, ...values.filter((value) => Number.isFinite(value)));
 }
 
-/** Reads root scrolling from both window and document APIs. */
+/** Browsers expose root scrolling through different APIs. */
 export function getSketchScrollPosition(targetWindow: Window): SketchScrollPosition {
   const targetDocument = targetWindow.document;
   const scrollingElement = targetDocument.scrollingElement;
@@ -368,9 +368,8 @@ async function captureDomFrame(
         filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node) && videoFrames.filter(node),
         features: { restoreScrollPosition: true },
         timeout: MEDIA_LOAD_TIMEOUT_MS,
-        // Cross-origin Google CSS cannot be read by modern-screenshot. Skipping
-        // its font embedding avoids waiting on a stylesheet that the renderer
-        // cannot serialize anyway; computed font styles still remain inline.
+        // modern-screenshot cannot serialize cross-origin Google CSS; computed
+        // font styles still remain inline.
         font: hasGoogleFontStylesheet(surface.document) ? false : undefined,
         onCloneEachNode: (node) => {
           prepareDomClone(node);
@@ -399,7 +398,7 @@ async function captureDomFrame(
   throw new SketchCaptureError("capture-failed", "This viewport is too detailed to save within the 2 MiB image limit.");
 }
 
-/** Renders the current viewport from its DOM without invoking screen capture permissions. */
+/** DOM-rendered, so no screen-capture permission is required. */
 export async function captureViewport(options: SketchCaptureOptions): Promise<CapturedSketch> {
   if (typeof document === "undefined" || typeof window === "undefined") {
     throw new SketchCaptureError("unsupported", "Viewport capture is only available in a browser.");

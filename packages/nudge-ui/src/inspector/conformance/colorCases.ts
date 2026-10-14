@@ -19,12 +19,6 @@ const COLOR_PRIMARY = token("--color-primary", "#2563eb", "fixtures/color.css:7"
 const COLOR_DANGER = token("--color-danger", "#dc2626", "fixtures/color.css:8");
 const OPACITY_MUTED = token("--opacity-muted", "0.35", "fixtures/color.css:9");
 
-/**
- * Framework-neutral color corpus covering `color` and `background-color`.
- * Each fixture asserts authored CSS values and capability against the
- * inspector's resolution pipeline. The gallery lets a human exercise the
- * same cases through the real inspector UI.
- */
 export const COLOR_CASES: ConformanceFixture[] = [
   {
     id: "color-named-keywords",

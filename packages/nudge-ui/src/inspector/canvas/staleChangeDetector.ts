@@ -189,10 +189,7 @@ function applyStaleResults(
       continue;
     }
     const routes = evidence.get(i);
-    // A document that does not contain the target says nothing about
-    // staleness. Publish target-missing only when the change matches nowhere;
-    // a Canvas-only match is verified, not a host conflict. When nowhere,
-    // every live document reports the same miss.
+    // Publish target-missing only when no live document matches; a Canvas-only match is verified, not a host conflict.
     if (!routes || routes.length === 0) {
       for (const attempt of attempts.values()) {
         publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(

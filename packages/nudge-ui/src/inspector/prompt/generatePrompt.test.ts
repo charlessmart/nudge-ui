@@ -27,12 +27,7 @@ function rec(
   };
 }
 
-/**
- * Configures the runtime the way the Astro host Adapter declares it in
- * `packages/nudge-ui/src/hosts/astro/astroRuntimeConfig.ts`: response-layer
- * `astro:` identity and `.astro`/`.html` sources keep exact authored
- * coordinates; hydrated-island JSX keeps line precision.
- */
+/** Mirrors the Astro host Adapter's declared runtime policy (astroRuntimeConfig.ts). */
 function configureAstroHost(): void {
   configureNudgeUiRuntime({
     projectId: "prompt-fixture",
@@ -55,7 +50,6 @@ function configureAstroHost(): void {
   });
 }
 
-/** Restores a policy-free host so every source site is exact. */
 function configureDefaultHost(): void {
   configureNudgeUiRuntime({
     projectId: "prompt-fixture",
@@ -94,7 +88,6 @@ describe("generatePrompt", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);
     expect(out).not.toContain("## Component prop changes");
-    // Callsite coordinates are authored-exact under the default host policy.
     expect(out).toContain("Source: `src/App.tsx:12:4`");
     expect(out).toContain("- **Change:** `variant`: `primary` → `secondary`\n");
     expect(out).not.toContain("replace the invocation prop literal");
@@ -483,9 +476,7 @@ describe("generatePrompt", () => {
   });
 
   it("keeps authored columns for JSX sources under hosts that declare no policy", () => {
-    // Vite and Next hosts capture data-src on the authored TSX before
-    // React's transform (plugin transform order "pre"), so their columns
-    // are exact; the default policy must not silently downgrade them.
+    // Vite and Next capture data-src before React's transform, so JSX columns stay exact.
     const out = generatePrompt([rec({
       cid: "Counter",
       file: "src/components/Counter.tsx",
@@ -540,8 +531,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("Source: `src/pages/about.astro:12:7`");
     expect(out).not.toContain("data-cid");
 
-    // The host-declared policy decides precision: an astro: element keeps
-    // its authored coordinates even if the document's framework hint changes.
+    // The host-declared policy decides precision, not the document's framework hint.
     const otherFrameworkOut = generatePrompt([change], {
       framework: "React",
       stylingSystem: "CSS custom properties",
@@ -551,9 +541,7 @@ describe("generatePrompt", () => {
 
   it("renders React island JSX elements at line precision inside an Astro document", () => {
     configureAstroHost();
-    // Stage 5 (ADR-0011): the Astro host declares island internals as
-    // line-precision origins; the document hint must not upgrade them to
-    // exact file:line:column.
+    // Astro island internals are line-precision origins; the document hint must not upgrade them.
     const out = generatePrompt([rec({
       cid: "Counter",
       file: "src/components/Counter.tsx",
@@ -574,9 +562,7 @@ describe("generatePrompt", () => {
 
   it("keeps exact coordinates for author-supplied cids on authored static sources", () => {
     configureAstroHost();
-    // The response identity module preserves author-written data-cid while
-    // still writing exact data-src; precision follows the source file, not
-    // the cid.
+    // Precision follows the source file, not the cid: author-written cids keep exact data-src.
     const out = generatePrompt([rec({
       cid: "Hero",
       file: "src/pages/index.astro",
@@ -619,8 +605,7 @@ describe("generatePrompt", () => {
 
   it("identifies unannotated Astro elements by rendered content without fabricating source", () => {
     configureAstroHost();
-    // Degraded mode (ADR-0011): Astro dev annotations absent — generated cid,
-    // no data-src. The prompt must not invent `file:0` or expose selectors.
+    // Degraded Astro identity: no annotations, so the prompt must not invent `file:0` or expose selectors.
     const out = generatePrompt([rec({
       cid: "astro:H1",
       file: "",
@@ -935,9 +920,7 @@ describe("generatePrompt", () => {
   });
 
   it("describes token swaps with the exact value the projection writes", () => {
-    // Tailwind-v3-style adapter token: literal cssValue, no custom-property
-    // name. The preview applies `0.75rem`; the prompt must not say
-    // var(theme.spacing.3), which is not valid CSS.
+    // Tailwind-v3-style token with a literal cssValue: the prompt must print `0.75rem`, not invalid var(theme.spacing.3).
     const tw3: TokenEntry = { ...SPACE_3, cssValue: "0.75rem" };
     const outV3 = generatePrompt([rec({
       cid: "Button",
@@ -947,8 +930,6 @@ describe("generatePrompt", () => {
     })]);
     expect(outV3).toContain("- **Change:** `padding`: `0.75rem`");
 
-    // vanilla-extract-style adapter token: dotted author name plus hashed
-    // cssName. The preview applies var(--color-accent__hash).
     const ve: TokenEntry = {
       name: "theme.color.accent",
       value: "#123456",

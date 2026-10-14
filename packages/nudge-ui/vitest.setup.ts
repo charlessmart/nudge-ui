@@ -1,7 +1,4 @@
-// jsdom's selector engine takes ~200ms to evaluate `:modal`, and Floating UI
-// checks it on every popup position update, so tests that open a popup can
-// exceed their timeout on slow runners. jsdom has no top layer, so no element
-// is ever modal.
+// jsdom has no top layer, so nothing is modal; stubbing :modal skips Floating UI's slow per-update check.
 if (typeof Element !== "undefined") {
   const matches = Element.prototype.matches;
   Element.prototype.matches = function (selectors: string): boolean {

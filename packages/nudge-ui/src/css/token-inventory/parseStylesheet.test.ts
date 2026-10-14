@@ -175,9 +175,7 @@ describe("parseStylesheetArtifact — ordinary CSS parsing", () => {
   });
 
   it("pins the scoped-theme-table policy false-positive edge (component rule with >= threshold custom properties is admitted)", () => {
-    // This documents the current trade-off in the named policy: a component
-    // with many local custom properties is treated as a theme table. See
-    // policy.ts (MIN_THEME_TABLE_DECLARATIONS).
+    // Documents the trade-off in policy.ts: a component with many custom properties is treated as a theme table.
     const result = parse(`.component {
   --a: 1px;
   --b: 2px;
@@ -192,9 +190,6 @@ describe("parseStylesheetArtifact — ordinary CSS parsing", () => {
   });
 
   it("pins the scoped-theme-table policy false-negative edge (real theme table with fewer than threshold declarations is rejected)", () => {
-    // This documents the current trade-off in the named policy: a genuine
-    // two-variable theme table is rejected because it is smaller than the
-    // threshold. See policy.ts (MIN_THEME_TABLE_DECLARATIONS).
     const result = parse(`.theme-shell {
   --color: red;
   --space: 4px;

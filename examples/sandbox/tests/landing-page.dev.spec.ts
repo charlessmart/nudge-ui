@@ -4,7 +4,6 @@ import { appLocator } from "@nudge-ui/compatibility/playwright";
 test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async ({ page }) => {
   await page.goto("/");
 
-  // Nav
   await expect(appLocator(page, ".landing-brand")).toHaveText(/Nudge UI/);
   await expect(appLocator(page, ".landing-nav-links a")).toHaveText("GitHub");
 
@@ -18,23 +17,19 @@ test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async 
     "/conformance",
   ]);
 
-  // Hero + install command
   await expect(appLocator(page, "#landing-hero-title")).toHaveText("Design where code lives.");
   const install = appLocator(page, ".landing-install");
   await expect(install).toBeVisible();
 
-  // App-window mockup with inspector preview
   await expect(appLocator(page, ".lw-url")).toContainText("localhost:5173/sandbox");
   await expect(appLocator(page, ".lw-sizechip")).toHaveText("360 × 148");
   await expect(appLocator(page, ".lwi-prompt-btn")).toHaveText("Copy prompt for agent");
 
-  // Features
   await expect(appLocator(page, ".landing-features h2")).toHaveText("Made for design engineers.");
   const features = appLocator(page, ".landing-feature");
   await expect(features).toHaveCount(3);
   await expect(features.first()).toContainText("Tweak designs directly in your codebase");
 
-  // Footer
   await expect(appLocator(page, ".landing-footer-content span").first()).toHaveText("Nudge UI — dev-only by design");
 });
 

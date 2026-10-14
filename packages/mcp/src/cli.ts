@@ -70,7 +70,6 @@ Options:
   --help                        Show this message
 `;
 
-/** Runs the CLI until the stdio MCP connection closes or the process stops. */
 export async function runCli(
   argv: readonly string[] = process.argv.slice(2),
   environment: CliEnvironment = process.env,
@@ -121,8 +120,8 @@ export async function runCli(
     await adapter.start();
     await new Promise<void>((resolveAdapter) => {
       const finish = (): void => resolveAdapter();
-      // Keep a direct resolver so signal handlers terminate even though
-      // installing a signal handler suppresses Node's default process exit.
+      // Installing a signal handler suppresses Node's default exit, so the
+      // handler needs this direct resolver to terminate.
       resolveAdapterWait = finish;
       process.stdin.once("end", finish);
       process.once("exit", finish);

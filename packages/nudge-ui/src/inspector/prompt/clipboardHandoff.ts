@@ -152,15 +152,7 @@ export async function reconcileClipboardHandoff(doc: Document = document): Promi
 const CHECK_DELAY_MS = 450;
 const MAX_CHECK_DELAY_MS = 8_000;
 
-/**
- * Verifies copied edits after the document changes. Each check briefly removes
- * the copied preview, so a check that reconciles nothing doubles the minimum
- * interval before the next one: a page that mutates continuously (clocks,
- * carousels) would otherwise flash the preview every few hundred milliseconds.
- * Later changes never postpone a pending check, so a busy page is still
- * checked once per interval. Returning to the page or copying a new prompt
- * resets the interval.
- */
+/** A check briefly removes the copied preview, so reconciling nothing doubles the interval to avoid flashing on continuously mutating pages. */
 export function startClipboardHandoffController(doc: Document = document): () => void {
   const view = doc.defaultView;
   let timer: ReturnType<typeof setTimeout> | null = null;

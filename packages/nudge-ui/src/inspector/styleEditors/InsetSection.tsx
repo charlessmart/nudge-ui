@@ -13,10 +13,6 @@ export interface InsetSectionProps {
   onAfterEdit?: () => void;
 }
 
-/**
- * Keeps the positioned-element inset editor available as a standalone
- * section for callers that render it outside SpacingBox.
- */
 export function InsetSection({
   element,
   entries = [],

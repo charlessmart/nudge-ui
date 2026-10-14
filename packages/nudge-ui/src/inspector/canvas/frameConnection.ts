@@ -20,16 +20,11 @@ export interface FramePoint {
   readonly y: number;
 }
 
-/**
- * Where a frame sits in the controller viewport, measured at one instant.
- * `scale` is measured rather than read from the camera, so it is the board
- * zoom on the Canvas, 1 in focus view, and correct mid-transition.
- */
+/** Measured, not read from the camera: correct on the board, in focus view, and mid-transition. */
 export interface FrameViewport extends Readonly<Rect> {
   readonly scale: number;
 }
 
-/** A renderer-owned element named by a frame message. */
 export interface RendererElementRef {
   readonly elementId: string;
   readonly cid: string;
@@ -40,7 +35,6 @@ type Envelope = "protocolVersion" | "projectId" | "workspaceId" | "cardId";
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, Envelope> : never;
 export type ControllerMessageBody = WithoutEnvelope<ControllerToRendererMessage>;
 
-/** One mounted Canvas frame as the controller sees it. */
 export interface FrameConnection {
   readonly cardId: string;
   readonly iframe: CanvasFrame;

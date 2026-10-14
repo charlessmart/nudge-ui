@@ -66,7 +66,6 @@ function deleteLease(): void {
   try {
     localStorage.removeItem(leaseKey());
   } catch {
-    /* ignore */
   }
 }
 
@@ -86,7 +85,6 @@ function notifyOwnershipListeners(): void {
     try {
       listener(snapshot);
     } catch {
-      /* ignore */
     }
   }
 }
@@ -179,11 +177,7 @@ export function enableWriteGuard(): void {
   writeGuardEnabled = true;
 }
 
-/**
- * Unit-level modules are also used without the browser controller bootstrap.
- * Once the controller enables the guard, only the current lease owner may
- * mutate or persist its canonical workspace state.
- */
+/** Off by default so unit-level modules work without the controller bootstrap. */
 export function canWriteWorkspace(): boolean {
   return !writeGuardEnabled || hasWriteLease();
 }

@@ -7,23 +7,7 @@ import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 import type { RendererCursor } from "../ui/customCursors.ts";
 
-// v21 adds the Comment tool cursor and C shortcut.
-// v20 adds Shift state to element drag messages so spacing handles can snap
-// changes to 8px increments.
-// v19 adds spacing drag gestures (hover point, spacing descriptor, start
-// point, and cancelled drag-end) plus renderer-to-controller keyboard shortcut
-// forwarding for Canvas frames.
-// v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
-// v17 adds an idempotent renderer request to open the parent inspector. v16
-// adds controller-owned inline-text intents for Canvas frames. v15 adds
-// renderer-to-controller element deselection for Canvas frames. v14
-// adds border widths to hover geometry so containment measurements can exclude
-// the container border. v13 adds source-parent-aware structural moves and
-// bounded structural failure reasons to the full projection snapshot. v12
-// added the projection-applied acknowledgement: the controller can avoid
-// rereading a Canvas iframe until the renderer has applied its revision. v11
-// added the renderer-hello handshake solicitation for runtimes whose boot
-// completes after the controller's load-time parent-ready.
+// Bumped on every message-shape change; the controller and renderer must agree exactly.
 export const PROTOCOL_VERSION = 21;
 
 export interface FrameMessage {
@@ -31,12 +15,7 @@ export interface FrameMessage {
   protocolVersion: number;
 }
 
-/**
- * Pre-identity solicitation from a renderer whose bootstrap finished after
- * the controller's load-time parent-ready (or whose document never received
- * one). Carries no FrameIdentity: the whole point is that the renderer does
- * not have one yet. The controller answers with ParentReadyMessage.
- */
+/** Pre-identity solicitation from a renderer that missed parent-ready; carries no FrameIdentity. */
 export interface RendererHelloMessage extends FrameMessage {
   type: "renderer-hello";
 }
@@ -90,38 +69,30 @@ export interface ReplaceStylesMessage extends FrameMessage {
   instanceOverrides: RenderedInstanceOverride[];
   /** Controller-owned structural intent; renderers never own this change log. */
   structuralChanges: import("../projection/structuralProjection.ts").StructuralChange[];
-  /** Controller-owned durable rendered text intent. */
   textContentChanges: import("../changes/types.ts").TextContentChangeRecord[];
-  /** Controller-owned semantic component overrides for Canvas runtimes. */
   componentOverrides: ComponentOverride[];
   /** Generated identities the edits refer to; omitted while edits are hidden. */
   runtimeIdentities?: import("../runtime/runtimeIdentityClaims.ts").RuntimeIdentityClaim[];
 }
 
-/** Renderer acknowledgement that one complete controller snapshot is applied. */
 export interface ProjectionAppliedMessage extends RendererMessage {
   type: "projection-applied";
   revision: number;
 }
 
-/**
- * Renderer-local outcomes for one controller snapshot. This is diagnostic
- * data only: accepting it never changes controller-owned structural intent.
- */
+/** Diagnostics only: accepting these never changes controller-owned structural intent. */
 export interface StructuralProjectionReportMessage extends RendererMessage {
   type: "structural-projection-report";
   revision: number;
   reports: import("../projection/structuralProjection.ts").StructuralProjectionReport[];
 }
 
-/** Renderer-local CSS-instance outcomes for one controller snapshot. */
 export interface RenderedInstanceProjectionReportMessage extends RendererMessage {
   type: "rendered-instance-projection-report";
   revision: number;
   reports: import("../projection/renderedInstance.ts").DocumentProjectionReport[];
 }
 
-/** Renderer-local outcomes for one controller-owned text snapshot. */
 export interface TextProjectionReportMessage extends RendererMessage {
   type: "text-projection-report";
   revision: number;
@@ -135,7 +106,6 @@ export interface NavigationIntentMessage extends RendererMessage {
   openInCard?: boolean;
 }
 
-/** Tells a renderer whether ordinary link clicks open a new canvas card. */
 export interface LinkTargetStateMessage extends RendererMessage {
   type: "link-target-state";
   openInCard: boolean;
@@ -152,16 +122,13 @@ export interface ElementHoverMessage extends RendererMessage {
   borders: { top: number; right: number; bottom: number; left: number } | null;
   /** Last pointer position in the renderer viewport, used for spacing guides. */
   point?: { x: number; y: number } | null;
-  /** The spacing handle under the pointer. Drives the resize cursor and drag
-   * start; only present when the pointer is inside the handle hit area. */
+  /** The spacing handle under the pointer; only present inside the handle hit area. */
   spacing?: SpacingDescriptor | null;
-  /** The padding bar or layout gap area under the pointer, regardless of the
-   * handle. Drives the hover fill overlay across the whole area. */
+  /** The padding bar or layout gap area under the pointer, regardless of the handle. */
   hoverSpacing?: SpacingDescriptor | null;
 }
 
-/** Modifier state stays inside one renderer frame; the parent never infers it
- * from its own keyboard events because focus lives in the iframe. */
+/** The parent never infers modifier state: focus lives in the iframe. */
 export interface ElementMeasureStateMessage extends RendererMessage {
   type: "element-measure-state";
   altKey: boolean;
@@ -181,7 +148,6 @@ export interface ElementClickMessage extends RendererMessage {
   additive?: boolean;
 }
 
-/** Requests controller-owned inline text editing for an element in this frame. */
 export interface InlineTextIntentMessage extends RendererMessage {
   type: "inline-text-intent";
   intent: "pointer-down" | "double-click";
@@ -193,7 +159,6 @@ export interface InlineTextIntentMessage extends RendererMessage {
   emptyProjectionId?: string;
 }
 
-/** Renderer request to clear the controller-owned element selection. */
 export interface ElementDeselectMessage extends RendererMessage {
   type: "element-deselect";
 }
@@ -215,14 +180,12 @@ export interface ElementDragStartMessage extends RendererMessage {
 export interface ElementDragMoveMessage extends RendererMessage {
   type: "element-drag-move";
   point: { x: number; y: number };
-  /** True while Shift is held; spacing drags use this to snap by 8px steps. */
   shiftKey?: boolean;
 }
 
 export interface ElementDragEndMessage extends RendererMessage {
   type: "element-drag-end";
   point: { x: number; y: number };
-  /** True while Shift is held; spacing drags use this to snap by 8px steps. */
   shiftKey?: boolean;
   /** True when the renderer lost the gesture before the pointer was released. */
   cancelled?: boolean;
@@ -249,7 +212,6 @@ export interface HistoryRequestMessage extends RendererMessage {
   action: "undo" | "redo";
 }
 
-/** Requests the parent-owned inspector visibility toggle from frame focus. */
 export interface InspectorToggleRequestMessage extends RendererMessage {
   type: "inspector-toggle-request";
 }
@@ -262,7 +224,6 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
 export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
-/** Forwards controller-owned keyboard shortcuts from an iframe document. */
 export interface KeyboardShortcutMessage extends RendererMessage {
   type: "keyboard-shortcut";
   phase: KeyboardShortcutPhase;
@@ -303,14 +264,12 @@ export interface BoardGestureStateMessage extends RendererMessage {
   panScroll?: boolean;
 }
 
-/** Proxies modified wheel gestures that originate inside an iframe card. */
 export interface ZoomMessage extends RendererMessage {
   type: "zoom";
   deltaY: number;
   point: { x: number; y: number };
 }
 
-/** Proxies ordinary wheel gestures as normalized pixel distances. */
 export interface WheelPanMessage extends RendererMessage {
   type: "wheel-pan";
   deltaX: number;
@@ -323,7 +282,6 @@ export interface AppInteractionModifierMessage extends RendererMessage {
   held: boolean;
 }
 
-/** Tells a renderer whether the inspector is open and which cursor its gestures show. */
 export interface InspectorInteractionStateMessage extends RendererMessage {
   type: "inspector-interaction-state";
   open: boolean;
@@ -333,7 +291,6 @@ export interface InspectorInteractionStateMessage extends RendererMessage {
   commentCursor?: string;
 }
 
-/** Messages a renderer sends to the controller. */
 export type RendererToControllerMessage =
   | RendererHelloMessage
   | FrameReadyMessage
@@ -367,7 +324,6 @@ export type RendererToControllerMessage =
   | WheelPanMessage
   | AppInteractionModifierMessage;
 
-/** Messages the controller sends to a renderer. */
 export type ControllerToRendererMessage =
   | ParentReadyMessage
   | ReplaceStylesMessage
@@ -488,7 +444,6 @@ export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcu
     || value === "KeyS";
 }
 
-/** Strict JSON-only schema for renderer-originated global keyboard shortcuts. */
 export function isKeyboardShortcutMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -502,7 +457,6 @@ export function isKeyboardShortcutMessage(
     && isKeyboardShortcutCode(ownValue(value, "code"));
 }
 
-/** Strict JSON-only schema for selecting an element from a renderer frame. */
 export function isElementClickMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -525,7 +479,6 @@ export function isElementClickMessage(
     && (additive === undefined || typeof additive === "boolean");
 }
 
-/** Strict JSON-only schema for starting controller-owned inline text editing. */
 export function isInlineTextIntentMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -552,7 +505,6 @@ export function isInlineTextIntentMessage(
     && (emptyProjectionId === undefined || typeof emptyProjectionId === "string");
 }
 
-/** Strict JSON-only schema for renderer diagnostics before the parent records them. */
 export function isStructuralProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -569,7 +521,6 @@ export function isStructuralProjectionReportMessage(
     && message.reports.every(isStructuralProjectionReport);
 }
 
-/** Strict JSON-only schema for renderer CSS-instance diagnostics. */
 export function isRenderedInstanceProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -586,7 +537,6 @@ export function isRenderedInstanceProjectionReportMessage(
     && message.reports.every(isDocumentProjectionReport);
 }
 
-/** Strict JSON-only schema for renderer rendered-text diagnostics. */
 export function isTextProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
@@ -604,7 +554,6 @@ export function isTextProjectionReportMessage(
     && reports.every(isTextProjectionReport);
 }
 
-/** Strict JSON-only acknowledgement for a fully applied Canvas snapshot. */
 export function isProjectionAppliedMessage(
   value: unknown,
   identity: FrameIdentity,

@@ -1,15 +1,8 @@
 import { getElementWindow } from "../runtime/domRealm.ts";
 
-/**
- * Watches the small set of browser events that can change a selected element's
- * viewport rect without changing its selection identity. Structural gestures
- * can move a selected element between containers, so the child-list observer
- * follows the element's current parent after each mutation.
- */
+/** Follows the element's current parent after mutations, since gestures can move it between containers. */
 export function observeSelectedGeometry(element: HTMLElement, onChange: () => void): () => void {
   const view = getElementWindow(element);
-  // getElementWindow returns the cross-realm Window interface, while the
-  // project-wide browser global also carries the observer constructors.
   // SAFETY: view is a same-realm Window, and the runtime realm exposes the observer constructors as project-wide globals.
   const { ResizeObserver: ResizeObserverCtor, MutationObserver: MutationObserverCtor } = view as typeof window;
   let frame: number | null = null;

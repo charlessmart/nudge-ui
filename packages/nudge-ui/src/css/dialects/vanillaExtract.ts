@@ -1,12 +1,6 @@
 import type { TokenEntry } from "../model/index.ts";
 
-/**
- * vanilla-extract generates the custom-property names, so the contract is the
- * only place the authored path (`theme.color.brand`) survives. Reading it is
- * how a host recovers names the emitted CSS cannot supply.
- */
-
-/** A compiled contract: nested objects whose leaves are `var()` references. */
+/** vanilla-extract generates custom-property names, so the contract is the only source of the authored path. */
 export type ThemeContract = Record<string, unknown>;
 
 // Anchored: `var(--border) solid` is a composed style, not a token identity.
@@ -17,9 +11,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export interface ReadThemeContractOptions {
-  /** Prefix for generated token paths. Defaults to `theme`. */
   readonly prefix?: string;
-  /** Source label recorded on every entry. */
   readonly source: string;
   readonly origin: TokenEntry["origin"];
   readonly editable: boolean;
@@ -27,7 +19,6 @@ export interface ReadThemeContractOptions {
   readonly cssValues?: Readonly<Record<string, string>>;
 }
 
-/** Flattens a contract into token entries keyed by their authored path. */
 export function readThemeContract(
   contract: unknown,
   options: ReadThemeContractOptions,

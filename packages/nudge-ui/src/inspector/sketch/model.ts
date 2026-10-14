@@ -23,16 +23,13 @@ export const SKETCH_LIMITS = {
 } as const;
 
 export const SKETCH_STROKE_WIDTH = 6;
-/** Drawn rectangles use a lighter outline than the freehand pen. */
 export const SKETCH_RECTANGLE_STROKE_WIDTH = 4;
-/** Opacity of the tint inside a drawn rectangle, in the rectangle's own color. */
 export const SKETCH_RECTANGLE_FILL_OPACITY = 0.1;
-/** Default pen color, and the fallback for strokes saved without one. */
 export const SKETCH_STROKE_COLOR = "#0096ff";
 /** Annotation markers and the notes panel; independent of the chosen pen color. */
 export const SKETCH_ACCENT_COLOR = "#0096ff";
 export const SKETCH_STROKE_OUTLINE = "";
-/** Pen palette offered by the canvas toolbar, in clockwise order around its swatch picker. */
+/** Ordered clockwise around the toolbar's swatch picker. */
 export const SKETCH_PEN_COLORS = [
   { id: "red", name: "Red", value: "#f03e1e" },
   { id: "orange", name: "Orange", value: "#ff8a00" },
@@ -44,8 +41,7 @@ export const SKETCH_PEN_COLORS = [
 export type SketchPenColor = (typeof SKETCH_PEN_COLORS)[number];
 export const SKETCH_ANNOTATION_RADIUS = 16;
 
-// Keep accepting sketches saved before the annotation color update. Existing
-// PNGs remain unchanged until a user edits and saves them again.
+// Keep accepting sketches saved before the annotation color update.
 const LEGACY_SKETCH_STROKE_COLOR = "#ef4444";
 const LEGACY_SKETCH_STROKE_OUTLINE = "#111827";
 
@@ -99,11 +95,7 @@ export interface SketchDocument {
   readonly strokes: readonly SketchStroke[];
   /** Optional for compatibility with sketches saved before annotations existed. */
   readonly annotations?: readonly SketchAnnotation[];
-  /**
-   * Size of `annotatedImage`, which can be taller than the capture when a
-   * notes panel is appended. `capture.imageWidth`/`imageHeight` size the
-   * original screenshot and the stroke coordinate space.
-   */
+  /** Size of `annotatedImage` (grows with a notes panel); `capture.imageWidth`/`imageHeight` size the stroke coordinate space. */
   readonly imageWidth: number;
   readonly imageHeight: number;
   readonly originalByteSize: number;
@@ -215,7 +207,6 @@ export function isFiniteNumber(
 }
 
 function safeIntegerInRange(
-  // Stored sketch fields are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
   minimum: number,
@@ -225,7 +216,6 @@ function safeIntegerInRange(
 }
 
 function boundedString(
-  // Stored sketch fields are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
   maximum: number,
@@ -235,7 +225,6 @@ function boundedString(
 }
 
 function isBlob(
-  // Stored sketch images are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
   mimeType?: string,
@@ -246,7 +235,6 @@ function isBlob(
 }
 
 function validHttpUrl(
-  // Stored sketch fields are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
   maximum: number,
@@ -261,7 +249,6 @@ function validHttpUrl(
 }
 
 function isPlainObject(
-  // Stored sketch records are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is object {
@@ -269,7 +256,6 @@ function isPlainObject(
 }
 
 export function isSketchCaptureMetadata(
-  // Capture metadata is read back from storage and parsed here.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchCaptureMetadata {
@@ -310,7 +296,6 @@ export function isSketchCaptureMetadata(
 }
 
 export function isSketchPoint(
-  // Stored points are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchPoint {
@@ -327,7 +312,6 @@ export function isSketchPoint(
 }
 
 export function isSketchAnnotation(
-  // Stored annotations are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchAnnotation {
@@ -342,7 +326,6 @@ export function isSketchAnnotation(
 }
 
 export function isSketchStroke(
-  // Stored strokes are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchStroke {
@@ -365,7 +348,6 @@ export function isSketchStroke(
 }
 
 function isSketchStrokeList(
-  // Stored stroke lists are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchStroke[] {
@@ -375,7 +357,6 @@ function isSketchStrokeList(
 }
 
 function isSketchAnnotationList(
-  // Stored annotation lists are untrusted until this check narrows them.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchAnnotation[] {
@@ -385,7 +366,6 @@ function isSketchAnnotationList(
 }
 
 export function isSketchDocument(
-  // Sketch documents are read back from storage and parsed here.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchDocument {
@@ -436,7 +416,6 @@ export function isSketchDocument(
 }
 
 export function isSketchHandoffRecord(
-  // Handoff records are read back from storage and parsed here.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters
   value: unknown,
 ): value is SketchHandoffRecord {

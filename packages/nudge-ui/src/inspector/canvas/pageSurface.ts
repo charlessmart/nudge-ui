@@ -3,10 +3,7 @@ import type { CanvasFrame } from "./canvasFrame.ts";
 
 let pageSurface = false;
 
-/**
- * Runs the renderer and controller in the inspected window. The single Canvas
- * card is the page itself, so no iframe or framing permission is needed.
- */
+/** Runs renderer and controller in the inspected window so no iframe or framing permission is needed. */
 export function enablePageSurface(): void {
   pageSurface = true;
 }
@@ -17,7 +14,6 @@ export function isPageSurface(): boolean {
 
 const pageFrames = new WeakMap<Window, CanvasFrame>();
 
-/** The page-surface card's frame: the inspected window, filling the viewport. */
 export function getPageFrame(win: Window = window): CanvasFrame {
   const existing = pageFrames.get(win);
   if (existing) return existing;
@@ -34,7 +30,6 @@ export function getPageFrame(win: Window = window): CanvasFrame {
   return frame;
 }
 
-/** True for events that start inside the inspector's own shadow root. */
 export function isInspectorUiEvent(event: Event): boolean {
   return pageSurface && event.composedPath().some((node) => node instanceof Element && node.id === NUDGE_UI_MOUNT_ID);
 }

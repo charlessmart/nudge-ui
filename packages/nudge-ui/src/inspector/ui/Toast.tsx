@@ -45,10 +45,6 @@ function ToastList(): ReactElement {
   );
 }
 
-/**
- * Renders inspector toasts inside the inspector's shadow root, centered above
- * the canvas toolbar in the space the inspector panel leaves free.
- */
 export function ToastRegion(): ReactElement {
   const inspectorOpen = useInspectorOpen();
   return (

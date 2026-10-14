@@ -48,9 +48,7 @@ interface FrameProjectionState {
   appliedRevision: number;
   canonicalSentRevision: number;
   canonicalProjection: FrameProjection | null;
-  /** Managed CSS of each sent revision not yet acknowledged. */
   sentCss: Map<number, string>;
-  /** Managed CSS of the applied revision, or null before the first one. */
   appliedCss: string | null;
 }
 
@@ -75,10 +73,8 @@ function createPreviewDocumentIdentity(cardId: string): PreviewDocument {
   return previewDocument;
 }
 
-/** Returns the current value-based identity for one Canvas card document. */
 export function getCanvasPreviewDocument(cardId: string): PreviewDocument {
-  // Pure getter: no session activation or notify. Creation (identity only) is
-  // idempotent here; registerCardFrame owns session activation.
+  // Pure getter: registerCardFrame owns session activation; creating the identity here is idempotent.
   return previewDocuments.get(cardId) ?? createPreviewDocumentIdentity(cardId);
 }
 
@@ -93,17 +89,14 @@ export function invalidateCanvasPreviewDocument(cardId: string): void {
 }
 
 function projectionKey(plan: DraftProjectionPlan<CompiledManagedStyles>): string {
-  // Revision ordering protects every controller-owned projection dimension.
-  // In particular, a delete-only snapshot has empty CSS but must still advance
-  // past the snapshot already accepted by ready Canvas renderers.
+  // The key must cover every projection dimension: a delete-only snapshot has empty CSS but still needs a new revision.
   return `${plan.managedStyles.css}\u0000${JSON.stringify(plan.instanceOverrides)}\u0000${JSON.stringify(plan.structuralChanges)}\u0000${JSON.stringify(plan.textContentChanges)}\u0000${JSON.stringify(plan.componentOverrides)}`;
 }
 
 export function computeProjection() {
   const plan = compileDraftProjection(getActiveDraftChanges());
   if (isOriginalPreviewActive()) {
-    // Hold-to-view-original: frames show the page without inspector changes
-    // while canonical intent (and its projection key) stays untouched.
+    // Peek: frames show the page without inspector changes while the canonical projection key stays untouched.
     if (!lastPeekActive) {
       lastPeekActive = true;
       revision += 1;
@@ -120,8 +113,7 @@ export function computeProjection() {
     };
   }
   if (lastPeekActive) {
-    // Force the canonical projection to resend after a peek even though its
-    // key is unchanged since the peek began.
+    // Force the canonical projection to resend after a peek even though its key is unchanged.
     lastPeekActive = false;
     lastRulesKey = null;
   }
@@ -159,11 +151,7 @@ export function getCanonicalFrameProjection(cardId: string, expectedRevision: nu
   return plan;
 }
 
-/**
- * Re-sends the canonical projection after a temporary verification projection
- * and settles once the renderer acknowledges it, so callers can treat the
- * acknowledgement's stylesheet invalidation as part of their own work.
- */
+/** Re-sends the canonical projection and settles on acknowledgement, so callers can rely on its stylesheet invalidation. */
 export async function restoreCanonicalFrameProjection(doc: Document): Promise<void> {
   const id = getCanvasCardIdForDocument(doc);
   const card = getCanvasCards().find((card) => card.id === id);
@@ -193,7 +181,6 @@ export function resetProjectionRevision(): void {
   notifyProjectionAcknowledgementListeners();
 }
 
-/** Sends the canonical projection and returns its revision, or null when the frame has no window. */
 export function sendProjectionToCard(
   card: Pick<CanvasCard, "id">,
   iframe: CanvasFrame,
@@ -238,7 +225,6 @@ function sendProjectionMessage(
   });
 }
 
-/** Temporarily projects a snapshot through the renderer that owns the document. */
 export async function projectDraftToDocument(
   doc: Document,
   snapshot: DraftContents,
@@ -262,10 +248,7 @@ export async function projectDraftToDocument(
   return waitForProjectionApplied(cardId, doc, revision);
 }
 
-/**
- * Resolves with `requestedRevision` once the frame acknowledges it, or null
- * when a newer projection supersedes it, the frame is replaced, or 2s pass.
- */
+/** Resolves with `requestedRevision` on acknowledgement; null when superseded, replaced, or after 2s. */
 function waitForProjectionApplied(
   cardId: string,
   doc: Document,
@@ -295,7 +278,7 @@ function waitForProjectionApplied(
   });
 }
 
-/** Returns whether an acknowledged temporary projection is still authoritative. */
+/** Whether an acknowledged temporary projection is still authoritative. */
 export function isCanvasProjectionRevisionCurrent(doc: Document, expectedRevision: number): boolean {
   for (const state of frameProjectionStates.values()) {
     if (state.document !== doc) continue;
@@ -309,7 +292,6 @@ export function isCanvasProjectionRevisionCurrent(doc: Document, expectedRevisio
   return false;
 }
 
-/** Returns whether the live frame acknowledged its latest canonical workspace projection. */
 export function isCanvasCanonicalProjectionRevisionCurrent(doc: Document, expectedRevision: number): boolean {
   for (const state of frameProjectionStates.values()) {
     if (state.document !== doc) continue;
@@ -388,7 +370,7 @@ export function findCanvasFrameBySource(
   return null;
 }
 
-/** The registered frame rendering `doc`, which may be the controller document on the page surface. */
+/** The registered frame rendering `doc`; on the page surface this is the controller document. */
 export function findCanvasFrameByDocument(doc: Document | null | undefined): CanvasFrame | null {
   if (!doc) return null;
   for (const iframe of frameRegistry.values()) {
@@ -422,7 +404,6 @@ function markProjectionSent(cardId: string, iframe: CanvasFrame, sentRevision: n
   if (canonical) state.canonicalSentRevision = sentRevision;
 }
 
-/** Records the highest complete projection revision accepted by one frame. */
 export function recordCanvasProjectionApplied(cardId: string, appliedRevision: number): void {
   const state = frameProjectionStates.get(cardId);
   if (!state || appliedRevision > state.sentRevision || appliedRevision <= state.appliedRevision) return;
@@ -431,9 +412,7 @@ export function recordCanvasProjectionApplied(cardId: string, appliedRevision: n
   for (const sent of state.sentCss.keys()) {
     if (sent <= appliedRevision) state.sentCss.delete(sent);
   }
-  // Adopted stylesheet writes in the renderer do not emit DOM mutations or
-  // invalidate the controller's separate CSSOM cache. Structural and text
-  // projections leave the CSS unchanged, so they need no stylesheet refresh.
+  // Renderer stylesheet writes don't invalidate the controller's CSSOM cache, so only a CSS change needs a refresh.
   const cssChanged = css === undefined || css !== state.appliedCss;
   state.appliedCss = css ?? null;
   if (cssChanged && state.document && state.iframe.contentDocument === state.document) {
@@ -443,7 +422,6 @@ export function recordCanvasProjectionApplied(cardId: string, appliedRevision: n
   notifyProjectionAcknowledgementListeners();
 }
 
-/** Returns projection progress for the document containing a selected element. */
 export function getCanvasProjectionStatus(doc: Document): CanvasProjectionStatus | null {
   for (const state of frameProjectionStates.values()) {
     if (state.document !== doc) continue;
@@ -474,7 +452,7 @@ function notifyProjectionAcknowledgementListeners(): void {
 
 let frameRegistryVersion = 0;
 
-/** Changes whenever a frame registers or unregisters, for `useSyncExternalStore`. */
+/** Bumped whenever a frame registers or unregisters, for `useSyncExternalStore`. */
 export function getFrameRegistryVersion(): number {
   return frameRegistryVersion;
 }

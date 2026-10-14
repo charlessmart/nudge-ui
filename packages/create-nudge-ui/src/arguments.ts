@@ -12,7 +12,6 @@ export interface CliOptions {
   readonly help: boolean;
 }
 
-/** Parses the initializer command line. */
 export function parseArguments(args: readonly string[]): CliOptions {
   let framework: Framework | undefined;
   let packageManager: PackageManager | undefined;

@@ -20,12 +20,7 @@ const TRACER_CSS = `:root {
 const MARKUP =
   '<div class="subject" data-cid="TracerCase" data-src="tracer.tsx:1:1">Tracer</div>';
 
-/**
- * Mirrors the plugin's `load()` serialization for `virtual:design-tokens`
- * (S2-B slice 2.3): the inventory snapshot is published without rebuilding
- * declaration identities or order, and `tokenGeneration` carries the snapshot
- * fingerprint.
- */
+/** Mirrors the plugin's `load()` serialization for `virtual:design-tokens`. */
 function serializeTransport(
   definitions: readonly unknown[],
   generation: string,
@@ -49,7 +44,6 @@ afterEach(() => {
 
 describe("plain-CSS token inventory tracer bullet", () => {
   it("carries a plain-CSS token from inventory through transport into browser inspection, managed preview, and prompt", () => {
-    // 1. Inventory: feed the artifact exactly as the Vite adapter does.
     const inventory = createTokenInventory();
     inventory.apply({
       buildTool: "vite",
@@ -60,8 +54,6 @@ describe("plain-CSS token inventory tracer bullet", () => {
     });
     const snapshot = inventory.snapshot();
 
-    // 2. Transport: serialize the snapshot the way the plugin's load() does
-    //    and read tokenCatalog/tokenGeneration back out of the module text.
     const module = serializeTransport(snapshot.definitions, snapshot.generation);
     const tokenCatalog = JSON.parse(extract(module, "tokenCatalog")) as TokenDefinition[];
     const tokenGeneration = JSON.parse(extract(module, "tokenGeneration")) as string;
@@ -69,8 +61,6 @@ describe("plain-CSS token inventory tracer bullet", () => {
       .toMatchObject({ origin: "project" });
     expect(tokenGeneration).toMatch(/^g[0-9a-f]+$/);
 
-    // 3. Browser CSS inspection: mount the same CSS and markup, then attribute
-    //    the transported token to the painted property.
     const style = document.createElement("style");
     style.textContent = TRACER_CSS;
     document.head.appendChild(style);
@@ -93,12 +83,10 @@ describe("plain-CSS token inventory tracer bullet", () => {
     expect(padding?.authored).toBe("var(--space-tracer)");
     expect(padding?.tokens?.map((token) => token.name)).toContain("--space-tracer");
 
-    // 4. Managed preview: project a value through the managed stylesheet.
     applyRules([{ selector: ".subject", declarations: { color: "#abcdef" } }]);
     const preview = verifyPreview(selected, "color", "#abcdef");
     expect(preview.status).toBe("applied");
 
-    // 5. Prompt: a change built from the transported token is referenced.
     const token: TokenEntry = {
       name: "--color-tracer",
       cssName: "--color-tracer",

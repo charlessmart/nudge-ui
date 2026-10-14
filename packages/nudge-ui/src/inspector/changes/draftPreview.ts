@@ -14,37 +14,28 @@ import { isEditorShellDocument } from "../runtime/editorShell.ts";
 import { isOriginalPreviewActive, subscribeOriginalPreview } from "../shell/originalPreview.ts";
 import type { DraftChangesSnapshot, DraftProjectionEvent } from "../drafts/draftStore.ts";
 
-/** The host document's preview of the active draft. */
 export interface DraftPreview {
   project(snapshot: DraftChangesSnapshot, event: DraftProjectionEvent): void;
   dispose(): void;
 }
 
-/**
- * Projects the active draft into the host document and verifies the managed
- * CSS off the commit path (0044). Verification re-checks the full surviving
- * set: a new rule can change cascade or specificity for earlier changes.
- */
+/** Verification re-checks the full surviving set: a new rule can change cascade or specificity for earlier changes. */
 export function createDraftPreview(readActive: () => DraftChangesSnapshot): DraftPreview {
   let pendingTargets = new Map<string, HTMLElement | null>();
   let handle: number | ReturnType<typeof setTimeout> | null = null;
 
   function reapply(snapshot: DraftChangesSnapshot): void {
-    // While hold-to-view-original is active the host document intentionally
-    // shows the page without inspector changes. Releasing re-projects.
     if (isOriginalPreviewActive()) return;
     if (!isEditorShellDocument()) applyHostDraftProjection(compileDraftProjection(snapshot));
   }
 
   function flushVerification(): void {
     handle = null;
-    // Probing the original preview would report the held-back changes as
-    // conflicts. Keep the pending targets; releasing re-verifies them.
+    // Probing the original preview would report held-back changes as conflicts; keep the targets for re-verification on release.
     if (isOriginalPreviewActive()) return;
     const targets = pendingTargets;
     pendingTargets = new Map();
-    // The editor shell has no application document. Renderer diagnostics are
-    // owned by renderer projection reports.
+    // The editor shell has no application document to verify; renderer projection reports cover it.
     if (targets.size === 0 || isEditorShellDocument()) return;
     const current = readActive();
     const attempt = beginPreviewAttempt(getHostPreviewDocument(), current.revision);
@@ -78,8 +69,7 @@ export function createDraftPreview(readActive: () => DraftChangesSnapshot): Draf
     let added = false;
     for (const key of snapshot.changes.map(changeKey)) {
       if (!pendingTargets.has(key)) added = true;
-      // Keep the latest commit context for a merged key. The element may be in
-      // an iframe, so this is also the document for verification.
+      // Latest commit context wins for a merged key; the element may live in an iframe, which fixes the verification document.
       pendingTargets.set(key, verificationTargets?.get(key) ?? selectedElement);
     }
     if (added) scheduleVerification();
@@ -100,8 +90,7 @@ export function createDraftPreview(readActive: () => DraftChangesSnapshot): Draf
       return;
     }
     reapply(snapshot);
-    // A flush during the hold kept its targets without scheduling, so marking
-    // alone would find every key present and schedule nothing.
+    // A flush during the hold kept its targets without scheduling, so markForVerification would find every key present and schedule nothing.
     markForVerification(snapshot);
     if (pendingTargets.size > 0) scheduleVerification();
   });
@@ -124,8 +113,7 @@ export function createDraftPreview(readActive: () => DraftChangesSnapshot): Draf
           markForVerification(snapshot);
           return;
         case "reset":
-          // A deferred verification must not inspect a new record with the
-          // selection context of the cleared one.
+          // A deferred verification must not inspect a new record with the selection context of the cleared one.
           pendingTargets.clear();
           clearPreviewDiagnostics();
           clearStructuralProjectionReports();

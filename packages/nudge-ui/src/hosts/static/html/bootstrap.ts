@@ -8,34 +8,17 @@ import { parse, type DefaultTreeAdapterTypes } from "parse5";
 const CLIENT_MARKER = "data-nudge-ui-client";
 const MOUNT_MARKER = "data-nudge-ui-mount";
 
-/** Options for source-preserving standalone bootstrap injection. */
 export interface StandaloneBootstrapOptions {
-  /** The browser client URL. */
   readonly clientPath?: string;
-  /** The runtime manifest URL passed to the browser client. */
   readonly manifestPath?: string;
 }
 
-/** The result of injecting the standalone bootstrap into one HTML response. */
 export interface StandaloneBootstrapResult {
-  /** The response source after any missing bootstrap nodes are inserted. */
   readonly html: string;
-  /** Whether at least one node was inserted. */
   readonly injected: boolean;
 }
 
-/**
- * Adds the standalone mount and external client script to an HTML response.
- *
- * The function only inserts text at an existing HTML boundary. It does not
- * parse and reserialize the document, so authored bytes remain unchanged
- * except for the server-owned nodes. Marker checks make a second response
- * pass idempotent.
- *
- * @param html The transformed HTML response body.
- * @param options Bootstrap URLs and mount identity.
- * @returns The response body and whether anything was added.
- */
+/** Inserts text at an existing boundary rather than reserializing, and marker checks make a second pass idempotent. */
 export function injectStandaloneBootstrap(
   html: string,
   options: StandaloneBootstrapOptions = {},
@@ -104,8 +87,7 @@ function inspectSource(
     if (tagName === "html" && endOffset !== undefined) facts.htmlEndOffset = endOffset;
   });
 
-  // Only live body descendants can reserve the mount. Template content is
-  // inert and must not suppress injection into the document.
+  // Template content is inert, so only live body descendants can reserve the mount.
   if (body) {
     visitElements(body, (element) => {
       if (element !== body && attributeValue(element, "id") === NUDGE_UI_MOUNT_ID) {

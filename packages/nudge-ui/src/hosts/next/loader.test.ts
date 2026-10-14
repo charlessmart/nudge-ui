@@ -23,15 +23,13 @@ describe("NEXT_PHASE production-build guard", () => {
 
   it("skips every transform during phase-production-build (ADR-0002)", () => {
     process.env.NEXT_PHASE = "phase-production-build";
-    // Even a NODE_ENV=development build cannot register instrumentation:
-    // the loader itself refuses to transform while Next is building.
+    // The loader refuses to transform during a production build even under NODE_ENV=development.
     expect(
       transform('"use client";\nexport function A() { return <div/>; }\n', `${ROOT}/src/A.tsx`),
     ).toBeNull();
-    // The compiler-facing loader entry carries the same guard.
     expect(
       instrumentRootLayout('export default function L(){return <html><body></body></html>;}'),
-    ).not.toBeNull(); // pure helper stays pure; entry-level guard covers the pipeline
+    ).not.toBeNull(); // The pure helper stays pure; the entry-level guard covers the pipeline
   });
 
   it("transforms when the phase is the development server", () => {
@@ -72,9 +70,7 @@ describe("transformNextModuleSource — identity injection", () => {
     );
 
     expect(result).not.toBeNull();
-    // `data-cid` carries the enclosing component name, matching the Vite
-    // Adapter's semantics; `data-src` is project-relative with 1-indexed
-    // columns.
+    // `data-cid` matches the Vite Adapter's component-name semantics; `data-src` is project-relative with 1-indexed columns.
     expect(result!.code).toContain('data-cid="Card"');
     expect(result!.code).toContain('data-src="src/app/Card.tsx:2:11"');
     expect(result!.map).not.toBeNull();
@@ -164,9 +160,7 @@ describe("transformNextModuleSource — client-component policy", () => {
   });
 
   it("does not treat app/pages/** as Pages Router (stays server-side)", () => {
-    // An App Router route nested under a same-named directory is still a
-    // server component; wrapping it with the client runtime would break
-    // the RSC graph.
+    // An App Router route under a same-named directory stays a server component; wrapping breaks the RSC graph.
     const result = transform(
       "export default function Card() { return <p>card</p>; }\n",
       `${ROOT}/app/pages/Card.tsx`,
@@ -204,7 +198,6 @@ describe("transformNextModuleSource — client-component policy", () => {
 
     expect(result!.clientComponent).toBe(false);
     expect(result!.code).not.toContain(NEXT_COMPONENT_RUNTIME_MODULE);
-    // Identity attributes are still present.
     expect(result!.code).toContain('data-cid="Server"');
   });
 
@@ -230,9 +223,7 @@ describe("instrumentRootLayout", () => {
     const mountExpression = "{__NudgeUiCreateElement(__NudgeUiMountElement)}";
     const mountIndex = result!.code.indexOf(mountExpression);
     expect(mountIndex).toBeGreaterThan(result!.code.indexOf("<body"));
-    // The mount lands inside <body>, before its closing tag, so Next evaluates
-    // the bootstrap script from the initial document rather than waiting for
-    // a root-layout client boundary to hydrate.
+    // Mounting inside <body> before its closing tag lets Next evaluate the bootstrap from the initial document.
     expect(mountIndex).toBeLessThan(result!.code.lastIndexOf("</body>"));
     expect(result!.code.indexOf(mountExpression, mountIndex + 1)).toBe(-1);
   });
@@ -279,13 +270,9 @@ describe("instrumentRootLayout", () => {
     const first = transform(source, LAYOUT_ID)!;
     const second = transform(first.code, LAYOUT_ID);
 
-    // The mount renders through an expression container no identity pass can
-    // see, previously injected attributes are guarded in the shared Module,
-    // and the layout marker blocks re-insertion — so a chained run finds
-    // nothing to do and reports the input unchanged.
+    // The mount container is invisible to the identity pass and the layout marker blocks re-insertion.
     expect(second).toBeNull();
 
-    // The layout pass itself is strictly idempotent via its marker.
     expect(instrumentRootLayout(first.code)).toBeNull();
   });
 

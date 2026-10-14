@@ -12,17 +12,7 @@ import {
   type ReactRendererInternals,
 } from "./devtoolsHook.ts";
 
-/**
- * Semantic identity for callsites the compiler did not wrap.
- *
- * Every instrumented JSX callsite already carries `data-src` as a prop, and
- * React keeps that prop on the component's fiber whether or not the component
- * forwards it to the DOM. The compiler registers each unwrapped callsite's
- * metadata here, so the runtime can name a component from its fiber without
- * replacing the element type. Live preview edits those fibers' props through
- * React's DevTools seam; without that seam the same targets stay readable and
- * edits reach the prompt only.
- */
+// React keeps `data-src` on a component's fiber whether or not the component forwards it to the DOM.
 
 const IDENTITY_PROPS: ReadonlySet<string> = new Set(IDENTITY_ATTRIBUTES);
 const callsites = new Map<string, ComponentInvocationMeta>();
@@ -58,13 +48,11 @@ export function invocationProps(fiber: Fiber): FiberProps {
 }
 
 /**
- * A DOM node can point into the tree React is not currently showing. The
- * HostRoot at the top of the walk says which tree it is; fibers from the
- * other tree are swapped for their current counterparts.
+ * A DOM node can point into React's alternate tree; fibers from it are swapped
+ * for their current counterparts.
  */
 interface TreePosition {
   root: FiberRoot | null;
-  /** False when the fibers reached belong to React's alternate (not displayed) tree. */
   onCurrentTree: boolean;
 }
 
@@ -79,17 +67,14 @@ function resolveRoot(host: Fiber): TreePosition {
   return { root, onCurrentTree: root.current === top };
 }
 
-/** The counterpart React is currently displaying. */
 function displayedFiber(fiber: Fiber, onCurrentTree: boolean): Fiber {
   return onCurrentTree ? fiber : fiber.alternate ?? fiber;
 }
 
 /**
- * Nearest invocation first. One callsite can span several fibers (memo and
- * forwardRef layers, or a component spreading its props into another); with
- * no host output between them they are one invocation, owned by the
- * outermost layer. A repeat further up is a recursive instance and the
- * nearest one wins.
+ * Nearest invocation first. One callsite can span several fibers (memo/forwardRef
+ * layers, or a component spreading props onward): with no host output between
+ * them they are one invocation owned by the outermost layer; a repeat above is recursive.
  */
 export function taggedInvocationsAbove(host: Fiber): TaggedInvocation[] {
   if (callsites.size === 0) return [];
@@ -118,7 +103,6 @@ export function taggedInvocationsAbove(host: Fiber): TaggedInvocation[] {
   return [...found.values()];
 }
 
-/** Invocations whose entire rendered output is this host fiber, nearest first. */
 export function taggedRootInvocations(host: Fiber): Array<ComponentRootInvocation & { depth: number }> {
   if (callsites.size === 0) return [];
   const invocations: Array<ComponentRootInvocation & { depth: number }> = [];
@@ -135,16 +119,11 @@ export function taggedRootInvocations(host: Fiber): Array<ComponentRootInvocatio
   return invocations;
 }
 
-/**
- * A mounted tree only changes at a commit, so one walk per root serves every
- * inspection until the commit observer reports the next one. Registration
- * also invalidates, because it changes which fibers count as callsites.
- * Without an observer there is no signal, so nothing is cached.
- */
+// A mounted tree only changes at a commit, so one walk per root serves every inspection
+// until the next commit; without an observer there is no signal, so nothing is cached.
 let registrations = 0;
 const walkedRoots = new WeakMap<FiberRoot, { version: string; invocations: Map<string, Fiber[]> }>();
 
-/** Outermost fiber of every mounted invocation, grouped by callsite, top-down. */
 function mountedInvocations(roots: Iterable<FiberRoot>): Map<string, Fiber[]> {
   const merged = new Map<string, Fiber[]>();
   const commits = commitGeneration();
@@ -211,12 +190,9 @@ interface AuthoredValue {
 }
 
 /**
- * The authored value a prop had before it was overridden, per mounted
- * invocation. A rendered value that is not the override last applied came
- * from a parent render and replaces the record, so restoring never
- * resurrects a stale value; one that is the last override leaves it alone,
- * so a second edit cannot record the first as authored. Both fibers of an
- * invocation share the record because React alternates between them.
+ * The authored value a prop had before its override. A rendered value that is not
+ * the last applied override came from a parent render and replaces the record;
+ * both fibers of an invocation share the record because React alternates between them.
  */
 const authoredValues = new WeakMap<Fiber, Map<string, AuthoredValue>>();
 
@@ -228,10 +204,7 @@ function authoredFor(fiber: Fiber): Map<string, AuthoredValue> {
   return record;
 }
 
-/**
- * React's override starts from the last rendered props, so two calls before
- * a render would lose the first. Each invocation gets one whole-props write.
- */
+/** React's override starts from the last rendered props, so two calls before a render would lose the first. */
 function editInvocation(
   renderer: ReactRendererInternals,
   fiber: Fiber,
@@ -293,10 +266,8 @@ export function replaceTaggedOverrides(next: ReadonlyMap<string, FiberProps>): v
   applyOverrides(restoring);
 }
 
-// A parent render hands an invocation its authored props again, so overrides
-// are reapplied after every commit while any are active. Unchanged values are
-// skipped, which is what ends the cycle. Subscribed lazily: the hook may not
-// exist yet when this module first evaluates.
+// Overrides are reapplied after every commit because a parent render hands an
+// invocation its authored props again; skipping unchanged values ends the cycle.
 let reapplyQueued = false;
 let stopObserving: (() => void) | null = null;
 function observeCommits(): void {

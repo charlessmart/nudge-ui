@@ -5,24 +5,14 @@ import type {
 } from "../../css/model/index.ts";
 import type { ComponentContract } from "../componentSemantics/types.ts";
 
-/** The host Adapter that supplied the active inspector runtime. */
 export type NudgeUiRuntimeHost =
   | "vite-react"
   | "static-html"
   | "nextjs-react"
   | "astro";
 
-/** The framework semantics enabled for the active inspector runtime. */
 export type NudgeUiRuntimeFramework = "React" | "HTML" | "Astro";
 
-/**
- * Which identity origins carry exact authored coordinates in prompts
- * (ADR-0011 Stage 5).
- *
- * A host whose pipeline captures `data-src` positions from anything other
- * than the authored source declares the exact subset. Hosts that omit the
- * policy state that every source site is exact.
- */
 export interface SourceCoordinatePolicy {
   /** Cid prefixes whose `data-src` line:column point at authored source. */
   readonly exactCidPrefixes: readonly string[];
@@ -30,64 +20,40 @@ export interface SourceCoordinatePolicy {
   readonly exactFileExtensions: readonly string[];
 }
 
-/** Capabilities exposed by the active host Adapter. */
 export interface NudgeUiRuntimeCapabilities {
-  /** Whether the multi-page Canvas workspace is available. */
   readonly canvas: boolean;
-  /** Whether framework component inspection and prop overrides are available. */
   readonly componentSemantics: boolean;
-  /** Whether the DOM navigator overlay is available. */
   readonly domNavigation?: boolean;
-  /**
-   * Source-coordinate precision policy for prompts; every source site is
-   * exact when the host omits it.
-   */
+  /** Precision policy for prompt source coordinates; every source site is exact when omitted. */
   readonly sourceCoordinates?: SourceCoordinatePolicy;
-  /**
-   * Regex source matching this host's structural scoping markers, stripped
-   * from human-facing selector labels (ADR-0011). The raw selector stays in
-   * change records so managed-rule targeting keeps matching the rendered
-   * DOM. No stripping when the host omits it.
-   */
+  /** Regex for this host's scoping markers; stripped from selector labels, kept in change records. Omitted means no stripping. */
   readonly scopingSelectorPattern?: string;
 }
 
-/** Product features that a host can selectively expose in its inspector UI. */
 export interface NudgeUiRuntimeFeatures {
-  /** Whether the annotation sketch tool is available in the Canvas UI. */
   readonly sketch?: boolean;
-  /** Whether Canvas can create filesystem-backed HTML iterations. */
   readonly canvasIterations?: boolean;
 }
 
-/**
- * Browser knowledge supplied by a host Adapter before the inspector mounts.
- *
- * A host replaces the complete configuration when its document is replaced or
- * its development transport is refreshed. Shared inspector Modules read the
- * current snapshot through `getNudgeUiRuntimeConfig()` and never import a
- * host-specific transport directly.
- */
 export interface NudgeUiRuntimeConfig {
   readonly projectId: string;
   readonly host: NudgeUiRuntimeHost;
   readonly framework: NudgeUiRuntimeFramework;
   readonly stylingSystem: string;
   readonly capabilities: NudgeUiRuntimeCapabilities;
-  /** Product-level feature switches; omitted features remain enabled. */
+  /** Omitted features remain enabled. */
   readonly features?: NudgeUiRuntimeFeatures;
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
   readonly tokenGeneration: string;
   readonly componentContracts: readonly ComponentContract[];
-  /** Why this page cannot be inspected; replaces the selection empty state. */
+  /** Replaces the selection empty state when the page cannot be inspected. */
   readonly inspectionUnavailableReason?: string;
-  /** Whether this runtime is the explicit public landing-page demo. */
   readonly demo?: boolean;
-  /** Additional same-origin pages seeded into the public demo canvas. */
+  /** Additional same-origin pages seeded into the demo canvas. */
   readonly demoPages?: readonly string[];
-  /** Labels for demo cards in display order, including the primary card. */
+  /** In display order, including the primary card. */
   readonly demoCardLabels?: readonly string[];
 }
 
@@ -98,9 +64,8 @@ function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
   const existing = seen.get(source);
   if (existing) return existing as T;
 
-  // An already-frozen subtree is immutable, so it can be reused by reference.
-  // Repeated configuration with the same frozen payload (HMR re-runs, stub
-  // spread patterns) keeps array identity stable for identity-keyed caches.
+  // Frozen subtrees are reused by reference so repeated configuration with the
+  // same frozen payload keeps array identity for identity-keyed caches.
   if (Object.isFrozen(value)) {
     seen.set(source, value);
     return value;
@@ -307,18 +272,7 @@ function optionalDemoFlag(input: Record<string, unknown>): true | undefined {
   return true;
 }
 
-/**
- * Validates a host-supplied configuration and fills safe defaults.
- *
- * `projectId`, `host`, and `framework` are required identity fields; wrong
- * types or values fail fast at the host seam instead of leaking `undefined`
- * into storage keys or capability checks. Token arrays, the styling-system
- * label, generation string, and capabilities are optional and default to
- * empty/false values so a minimal host still bootstraps honestly.
- *
- * @param input The configuration supplied by a host Adapter.
- * @returns A complete plain-data configuration ready to snapshot.
- */
+/** Throws TypeError on invalid input; optional fields receive safe defaults. */
 export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeConfig {
   if (!isPlainRecord(input)) {
     throw new TypeError("Nudge UI runtime configuration must be an object.");
@@ -360,16 +314,6 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
 let activeRuntimeConfig: NudgeUiRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
 const runtimeListeners = new Set<() => void>();
 
-/**
- * Replaces the complete runtime configuration for the active document.
- *
- * The input is validated and incomplete optional fields receive safe defaults
- * (see `normalizeNudgeUiRuntimeConfig`). Replacement is atomic from the
- * inspector's perspective. The returned snapshot owns recursively cloned and
- * frozen plain data, so a host can safely replace its virtual module values
- * during HMR without leaving shared Modules bound to an old transport object
- * or freezing caller-owned values.
- */
 export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
   activeRuntimeConfig = normalizeNudgeUiRuntimeConfig(config);
   for (const listener of runtimeListeners) {
@@ -381,12 +325,10 @@ export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
   }
 }
 
-/** Returns the immutable runtime snapshot used by shared inspector Modules. */
 export function getNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
   return activeRuntimeConfig;
 }
 
-/** Returns whether a product feature is enabled; omitted flags default to enabled. */
 export function isNudgeUiFeatureEnabled(
   features: NudgeUiRuntimeFeatures | undefined,
   feature: keyof NudgeUiRuntimeFeatures,
@@ -394,32 +336,18 @@ export function isNudgeUiFeatureEnabled(
   return features?.[feature] !== false;
 }
 
-/**
- * Whether this document runs the explicit public landing demo (ADR-0014 and
- * ADR-0016). The plugin emits `demo: true` for the flagged demo route and for
- * the explicit landing root in development and `nudge-demo` builds, so this is
- * the precise runtime boundary of the demo — narrower than any build-mode
- * name.
- */
+/** The demo boundary is this flag, never a build-mode name. */
 export function isDemoRuntime(): boolean {
   return getNudgeUiRuntimeConfig().demo === true;
 }
 
-/**
- * Returns the active host's source-coordinate policy, or null when the host
- * declares none — every source site is exact in that case.
- */
 export function getSourceCoordinatePolicy(): SourceCoordinatePolicy | null {
   return activeRuntimeConfig.capabilities.sourceCoordinates ?? null;
 }
 
 let compiledScopingPattern: { source: string; pattern: RegExp | null } | null = null;
 
-/**
- * Returns the active host's structural scoping-marker pattern compiled for
- * global replacement, or null when the host declares none. An invalid regex
- * source degrades to no stripping rather than breaking labeling.
- */
+/** Null when the host declares none; an invalid pattern degrades to no stripping. */
 export function getScopingSelectorPattern(): RegExp | null {
   const source = activeRuntimeConfig.capabilities.scopingSelectorPattern;
   if (source === undefined) return null;
@@ -433,16 +361,12 @@ export function getScopingSelectorPattern(): RegExp | null {
   return compiledScopingPattern.pattern;
 }
 
-/**
- * Subscribes to complete runtime replacements, such as Vite HMR updates.
- * Listeners run after the new snapshot is installed.
- */
+/** Listeners run after the new snapshot is installed. */
 export function subscribeNudgeUiRuntime(listener: () => void): () => void {
   runtimeListeners.add(listener);
   return () => runtimeListeners.delete(listener);
 }
 
-/** Returns the styling-system label represented by a token inventory. */
 export function detectStylingSystem(tokens: readonly TokenEntry[]): string {
   for (const token of tokens) {
     if (token.adapter === "vanilla-extract") return "vanilla-extract (sprinkles)";
@@ -452,7 +376,6 @@ export function detectStylingSystem(tokens: readonly TokenEntry[]): string {
   return "CSS custom properties";
 }
 
-/** Returns a mutable container for UI controls that require array props. */
 export function getNudgeUiTokenEntries(): TokenEntry[] {
   return [...activeRuntimeConfig.tokens];
 }

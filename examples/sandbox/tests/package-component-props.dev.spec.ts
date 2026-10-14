@@ -1,9 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
 
-// ThinkingOrb comes from an npm package with no component protocol, so the
-// compiler leaves it unwrapped. It must still be named from its identity tag
-// and previewed live through React's DevTools toolkit (ADR-0034).
+// ThinkingOrb has no component protocol, so it is named from its identity tag and previewed through React's DevTools toolkit (ADR-0034).
 test("previews an unwrapped package component's props live and restores the authored value", async ({ page }) => {
   const app = await openEditor(page, "/playground");
   const orb = app.locator(".agent-activity-preview__chip canvas");

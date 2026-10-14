@@ -101,8 +101,7 @@ const listeners = new Set<() => void>();
 let activeSession: InlineTextSession | null = null;
 let activeSessionDocument: Document | null = null;
 let pendingEditIntent: InlineTextTargetIntent | null = null;
-// This remains armed if blur replaces the DOM between the second pointer-down
-// and dblclick; only the next handoff attempt or explicit teardown consumes it.
+// Stays armed if blur replaces the DOM between the second pointer-down and dblclick; the next handoff attempt or teardown consumes it.
 let handoffPointerArmed = false;
 let pendingReplayScheduled = false;
 let sessionRevision = 0;
@@ -147,7 +146,6 @@ export function cancelInlineTextEdit(): void {
   else clearInlineTextDiagnostics();
 }
 
-/** End a session owned by a document/frame that is about to be disposed. */
 export function disposeInlineTextEdit(
   reason: "frame-disposed" | "route-disposed" = "frame-disposed",
   ownerDocument?: Document,
@@ -246,11 +244,7 @@ function schedulePendingInlineTextEdit(): void {
   });
 }
 
-/**
- * Request inline editing from a document gesture. This is the interaction
- * seam: it owns active-session handoff so gesture routers never discard a
- * valid target switch merely because another draft is settling.
- */
+/** Owns active-session handoff so gesture routers never discard a valid target switch. */
 function requestInlineTextEdit(
   target: Element,
   point: { x: number; y: number },
@@ -262,10 +256,7 @@ function requestInlineTextEdit(
       return "stop-propagation";
     }
   }
-  // Application-owned contenteditable surfaces must retain native editing
-  // semantics. They are intentionally rejected by text binding, but that
-  // rejection must not become an inspector-level suppression when another
-  // inline edit is already active.
+  // Application-owned contenteditable surfaces keep native editing semantics; their binding rejection must not become an inspector-level suppression.
   if (isApplicationOwnedEditingSurface(target)) return "pass-through";
   const intent: InlineTextTargetIntent = {
     ownerDocument: target.ownerDocument,
@@ -297,11 +288,7 @@ export type InlineTextEditIntent =
     point: { x: number; y: number };
   };
 
-/**
- * Handle one native interaction while keeping session-transition policy
- * local. Pointer-down preserves double-click intent across the first click's
- * blur commit, even when canonical projection replaces the target DOM.
- */
+/** Pointer-down preserves double-click intent across the first click's blur commit. */
 export function handleInlineTextEditIntent(
   intent: InlineTextEditIntent,
 ): InlineTextInteractionDisposition {
@@ -359,9 +346,7 @@ function restoreSelection(doc: Document, snapshot: SelectionSnapshot): void {
       try {
         selection.addRange(range);
       } catch {
-        // A framework rerender can invalidate a saved range between cleanup
-        // and restoration. Removing the transient selection is safer than
-        // retaining a range in a detached editing wrapper.
+        // A framework rerender can invalidate a saved range; dropping the selection beats keeping a range in a detached wrapper.
         selection.removeAllRanges();
       }
     }
@@ -393,13 +378,10 @@ function restoreDraft(
 ): boolean {
   if (!hostIsOwned(candidate, host, ownership)) return false;
   const original = candidate.textNode;
-  // Normal typing replaces the original node inside the wrapper, leaving it
-  // detached. If reconciliation moved that node into another live tree,
-  // never move it back into the captured position.
+  // Typing detaches the original node inside the wrapper; if reconciliation moved it into another live tree, never move it back.
   if (original.isConnected && original.parentNode !== host) return false;
   original.nodeValue = text;
-  // Keep the original Text node and replace only the transient wrapper. This
-  // preserves every sibling/descendant of an icon-plus-label host.
+  // Replacing only the transient wrapper preserves siblings/descendants of an icon-plus-label host.
   host.replaceWith(original);
   return true;
 }
@@ -421,8 +403,7 @@ function isNodeInsideHost(host: HTMLElement, node: Node): boolean {
 function rangeInsideHost(host: HTMLElement, range: Range | StaticRange): boolean {
   if (!isNodeInsideHost(host, range.startContainer)
     || !isNodeInsideHost(host, range.endContainer)) return false;
-  // A host ancestor contains the common ancestor whenever both endpoints are
-  // inside it; StaticRange does not expose commonAncestorContainer.
+  // Endpoints inside the host imply the common ancestor is too; StaticRange does not expose commonAncestorContainer.
   return true;
 }
 
@@ -570,8 +551,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   const originalParent = candidate.textNode.parentNode;
   const originalNextSibling = candidate.textNode.nextSibling;
   if (!originalParent) {
-    // `resolveTextBinding` only returns connected text nodes, but keep this
-    // boundary defensive if a framework mutates between resolution and wrap.
+    // resolveTextBinding returns connected text nodes, but a framework can mutate between resolution and wrap.
     throw new Error("Inline text target lost its parent before editing began.");
   }
   const ownership: HostOwnership = { parent: originalParent, nextSibling: originalNextSibling };
@@ -582,12 +562,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   host.setAttribute("contenteditable", "plaintext-only");
   host.contentEditable = "plaintext-only";
   candidate.textNode.replaceWith(host);
-  // An empty Text node is retained for exact restoration, but leaving it as
-  // the first child of a native contenteditable makes Chromium insert the
-  // first character beside it. The input handler then has to coalesce two
-  // text nodes and the browser resets the caret to the start, reversing the
-  // visible draft. Let the empty editor start childless; restoreDraft still
-  // puts the captured node back at the owned insertion point on exit.
+  // A leading empty Text node makes Chromium insert the first character beside it and reset the caret; start childless and let restoreDraft put the node back on exit.
   if (candidate.before.length > 0) host.append(candidate.textNode);
 
   let finished = false;
@@ -647,8 +622,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   function cancelForReconciliation(discardedDraft?: string): void {
     if (finished) return;
     const restoreFocus = editorOwnsFocus();
-    // A moved/reordered host has no safe insertion point. Remove only the
-    // temporary wrapper; never reinsert the original node into a new tree.
+    // A moved host has no safe insertion point: remove the wrapper, never reinsert the original node.
     if (host.isConnected) host.remove();
     finish("app-reconciled", "cancelled", discardedDraft, restoreFocus);
   }
@@ -717,9 +691,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         }
       }
     }
-    // A cancelled/unchanged re-entry keeps the same affordance. A committed
-    // non-empty value is synchronously reconciled by the text projection,
-    // which removes it after this session cleanup.
+    // Restore the affordance on cancel/unchanged; a committed non-empty value is removed by projection reconciliation.
     if (candidate.emptyProjectionMarker?.isConnected) {
       candidate.emptyProjectionMarker.hidden = false;
     }
@@ -730,8 +702,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   function onKeyDown(event: KeyboardEvent): void {
     if (finished) return;
     if (event.isComposing || composing) {
-      // Enter/Escape belong to the IME until compositionend. Keeping the
-      // session alive makes the composition one canonical edit.
+      // Enter/Escape belong to the IME until compositionend; keeping the session alive makes the composition one canonical edit.
       event.stopPropagation();
       if (event.key === "Enter" || event.key === "Escape" || event.key === "Esc") {
         event.preventDefault();
@@ -754,10 +725,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       session.cancel();
       return;
     }
-    // Keep inspector keyboard authority out of the draft while allowing the
-    // browser to handle ordinary typing and caret movement natively. The
-    // listener is scoped to this host so it does not intercept native input
-    // before the contenteditable target sees it.
+    // Keep inspector shortcuts out of the draft while native typing and caret movement still run.
     event.stopPropagation();
   }
 
@@ -765,8 +733,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     if (finished) return;
     blurPending = true;
     if (composing) return;
-    // Deferring one macrotask lets Escape cancel a browser blur that occurs
-    // while a contenteditable host is handling the key event.
+    // Deferring one macrotask lets Escape cancel a blur that fires while the host handles the key event.
     blurCommitHandle = setTimeout(() => {
       blurCommitHandle = null;
       if (!finished) {
@@ -779,8 +746,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   function onBeforeInput(event: InputEvent): void {
     if (finished) return;
     const rejectBeforeInput = (reason: InlineTextInputRejectionReason): void => {
-      // Some browsers still deliver input after a non-cancelable beforeinput.
-      // Remember the safe plain draft so that onInput can undo that mutation.
+      // Some browsers still deliver input after a non-cancelable beforeinput; remember the safe draft so onInput can undo it.
       if (!event.cancelable) rejectedNextInput = reason;
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -895,9 +861,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     event.stopPropagation();
     if (blurPending && !finished) {
       blurPending = false;
-      // Browsers may dispatch the final insertCompositionText/input after
-      // compositionend. Commit on the next macrotask so those final chars are
-      // part of this one canonical edit.
+      // Browsers may dispatch the final composition input after compositionend; commit on the next macrotask to include it.
       compositionFinalizeHandle = setTimeout(() => {
         compositionFinalizeHandle = null;
         if (!finished && !composing) session.commit("blur");
@@ -909,14 +873,12 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     if (finished) return;
     const selection = doc.getSelection?.();
     if (!selection || selection.rangeCount === 0) {
-      // A panel click can clear the page selection before blur; let blur own
-      // the normal commit path unless the editing host still owns focus.
+      // A panel click can clear the page selection before blur; let blur own the commit path unless the host still owns focus.
       if (doc.activeElement === host) endLifecycle("selection-removed");
       return;
     }
     if (selection && selection.rangeCount > 0 && selectionInsideHost(host)) return;
-    // A removed selection/host is a lifecycle end, not a text operation. The
-    // original node is restored only while its owning host is still connected.
+    // A removed selection/host is a lifecycle end, not a text operation.
     if (!host.isConnected || !candidate.element.isConnected) {
       endLifecycle(!host.isConnected ? "host-removed" : "selection-removed");
       return;
@@ -930,9 +892,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     const OwnerNode = doc.defaultView?.Node;
     if (!OwnerNode || !(target instanceof OwnerNode)) return;
     if (host.contains(target)) {
-      // All down/up events must reach the native editing host so caret and
-      // drag-selection behavior remains intact. The click itself is held so
-      // the app cannot activate the surrounding button/link.
+      // Down/up events must reach the host so caret and drag-selection work; the click is held so the app cannot activate the surrounding button/link.
       if (event.type === "mousedown" || event.type === "mouseup"
         || event.type === "pointerdown" || event.type === "pointerup") return;
       event.preventDefault();
@@ -941,9 +901,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     }
     const inspectorRoot = doc.getElementById("nudge-ui-root");
     if (inspectorRoot && (target === inspectorRoot || inspectorRoot.contains(target))) return;
-    // At the document boundary, application actions are suspended for the
-    // duration of the draft. Inspector controls live in the scoped shadow
-    // host above and remain usable.
+    // Outside the inspector root, application actions are suspended for the duration of the draft.
     if (event.type !== "mousedown" && event.type !== "mouseup"
       && event.type !== "pointerdown" && event.type !== "pointerup") {
       event.preventDefault();
@@ -952,9 +910,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   }
 
   function suppressHostPointer(event: Event): void {
-    // Keep the native default (focus transfer, caret placement, and drag
-    // selection) while preventing an application ancestor from observing the
-    // temporary host's pointer sequence.
+    // Keep native defaults; only stop an application ancestor from observing the host's pointer sequence.
     event.stopPropagation();
   }
 
@@ -1002,9 +958,6 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         return;
       }
     } else if (host.isConnected) {
-      // A reconciliation can move the temporary host before removing the
-      // original root. It no longer has an owned insertion point, so remove
-      // the wrapper rather than leaking an editor into the new tree.
       host.remove();
     }
     finish(reason, "cancelled", discardedDraft, restoreFocus);
@@ -1063,17 +1016,14 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         endLifecycle("app-reconciled", after);
         return null;
       }
-      // Always remove the temporary host before appending the canonical
-      // change. The React Adapter must own the permanent preview.
+      // Remove the temporary host before appending the change: the React Adapter must own the permanent preview.
       const restoreFocus = editorOwnsFocus();
       if (!restoreDraft(candidate, host, candidate.before, ownership)) {
         cancelForReconciliation();
         return null;
       }
       if (change?.kind === "text-content" && editDecision.scope === "rendered-instance") {
-        // The second text value is alternate evidence for re-entry after a
-        // previous projection. Validation happens after unwrapping because a
-        // mounted draft can make another identical root look unique.
+        // candidate.before is alternate evidence for re-entry; validate after unwrapping, when a mounted draft can make another identical root look unique.
         const resolved = resolveTextProjectionTarget(doc, change.target, candidate.before);
         if (resolved.status !== "resolved") {
           if (!resumeDraft(after)) cancelForReconciliation(after);
@@ -1171,8 +1121,7 @@ export const inlineTextEditor: InlineTextEditor = {
   },
 };
 
-/** Re-enter an existing canonical rendered-text projection through its empty
- * inspector affordance. This never guesses a new DOM target or source node. */
+/** Re-enters an existing projection; never guesses a new DOM target or source node. */
 export function beginInlineTextEditFromEmptyProjection(
   marker: HTMLElement,
 ): InlineTextSession | TextEditRejection {
@@ -1195,9 +1144,7 @@ export function beginInlineTextEditFromEmptyProjection(
   }
   const candidate = resolveEmptyProjectionCandidate(marker);
   if (isTextEditRejection(candidate)) return recordTextEditRejection(marker, candidate);
-  // Hide the affordance while its retained empty Text node is wrapped by the
-  // native editor. The marker is restored on cancel and removed by projection
-  // reconciliation on a successful non-empty commit.
+  // Hide the affordance while the editor wraps its empty Text node; cancel restores it, a non-empty commit removes it via reconciliation.
   marker.hidden = true;
   try {
     return makeSession(candidate);

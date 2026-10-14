@@ -46,7 +46,6 @@ describe("workspaceLease", () => {
     it("returns false when another live lease exists", () => {
       acquireLease();
 
-      // Simulate another tab by writing a different owner lease
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -65,7 +64,6 @@ describe("workspaceLease", () => {
     });
 
     it("acquires an expired lease", () => {
-      // Write an expired lease
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -121,7 +119,6 @@ describe("workspaceLease", () => {
         }),
       );
 
-      // Simulate storage event
       const event = new StorageEvent("storage", {
         key: STORAGE_KEY,
         oldValue: null,

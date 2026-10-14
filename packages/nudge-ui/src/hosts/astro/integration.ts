@@ -11,17 +11,9 @@ import { installMarkdownIdentity } from "./markdownIdentity.ts";
 
 export type { NudgeUiOptions };
 
-/**
- * Options for `nudgeUiAstro`. The token/component knowledge options are
- * forwarded to the shared Vite plugin unchanged; Astro-specific concerns
- * (gating, injection, instrumentation) stay internal.
- */
 export interface NudgeUiAstroOptions extends NudgeUiOptions {}
 
-/**
- * Adds the prebuilt client as an external module. The inspector dependency
- * graph therefore never enters Astro's Vite optimizer.
- */
+/** Loads the prebuilt client as an external module so the inspector graph never enters Astro's Vite optimizer. */
 const BOOTSTRAP_ENTRY_CONTENT = [
   'if (!document.querySelector("script[data-nudge-ui-client]")) {',
   '  const script = document.createElement("script");',
@@ -32,30 +24,14 @@ const BOOTSTRAP_ENTRY_CONTENT = [
   "  document.head.append(script);",
   "}",
 ].join("\n");
-// Astro loads this URL directly from the installed package. Keep the source
-// suffix for the workspace test/dev path and select the compiled sibling in a
-// published package, where `middleware.ts` is intentionally not shipped.
+// Astro loads this URL directly from the installed package: the .ts sibling serves
+// workspace dev, while the compiled .js sibling ships in the published package.
 const MIDDLEWARE_ENTRYPOINT = new URL(
   import.meta.url.endsWith(".ts") ? "./middleware.ts" : "./middleware.js",
   import.meta.url,
 );
 
-/**
- * Nudge UI host Adapter for Astro dev servers (ADR-0011).
- *
- * Dev-only by contract (ADR-0002): unless `command === "dev"`,
- * `enabled !== false`, and `NUDGE_UI` is not `0`, the integration registers nothing at all — no Vite
- * plugins, no injected scripts, no middleware — so `astro build` output is
- * byte-identical to a project without the integration.
- *
- * In dev it wires three pieces:
- * 1. the shared `nudgeUi()` Vite plugin (token knowledge and island JSX
- *    identity transforms), the client transport, and project context;
- * 2. one external client script, injected on every rendered page;
- * 3. an `addMiddleware` response instrumentation that buffers rendered HTML
- *    responses and adds the response-level identity layer through the
- *    identity Module.
- */
+/** Dev-only by contract: outside `command === "dev"` with Nudge UI enabled, nothing is registered, so `astro build` output is byte-identical to a project without the integration. */
 export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegration {
   const enabled = isNudgeUiEnabled(options.enabled);
   const sharedOptions: NudgeUiOptions = { ...options };
@@ -68,10 +44,8 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
 
         const markdown = installMarkdownIdentity(config.markdown, fileURLToPath(config.root));
 
-        // The shared plugin objects are plain Vite plugin records, but this
-        // monorepo typechecks them against a different Vite major than the
-        // installed Astro resolves internally; the runtime contract
-        // (config/resolveId/load/transform hooks) is identical.
+        // Plain Vite plugin records; the monorepo typechecks them against a different Vite
+        // major than Astro resolves, but the runtime contract is identical.
         updateConfig({
           ...(markdown ? { markdown } : {}),
           vite: {
@@ -85,8 +59,6 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
           },
         });
 
-        // The page stage runs on every rendered page. It only appends an
-        // external script; no inspector dependency enters Vite's graph.
         injectScript("page", BOOTSTRAP_ENTRY_CONTENT);
 
         addMiddleware({ entrypoint: MIDDLEWARE_ENTRYPOINT, order: "pre" });
@@ -95,13 +67,7 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
   };
 }
 
-/**
- * Adds Nudge UI to an Astro configuration without inspecting its shape.
- *
- * This wrapper is the stable installer seam. It works with shorthand,
- * variable, spread, and computed integration lists because it treats the
- * configuration as a value rather than rewriting `integrations`.
- */
+/** Treats the configuration as a value, so shorthand, variable, spread and computed integration lists all work. */
 export function withNudgeUi(
   config: AstroUserConfig,
   options: NudgeUiAstroOptions = {},

@@ -36,12 +36,7 @@ function querySourceSiteMatches(el: HTMLElement): number {
   try { return doc.querySelectorAll(selector).length; } catch { return 0; }
 }
 
-/**
- * Counts the rendered elements matching a source site. The result is memoized
- * per (element identity, scope revision) so the selection render path no longer
- * runs a full-document querySelectorAll on every render; it only recomputes
- * when the caller's scope revision changes.
- */
+/** Memoized per element and scope revision so the render path avoids repeated full-document queries. */
 export function countSourceSiteMatches(el: HTMLElement, revision = 0): number {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
@@ -87,11 +82,7 @@ type BatchScopeDecision =
   | BatchScopeFields
   | { scope: "new-rendered-instance"; target: RenderedInstanceRef };
 
-/**
- * Plans the scope for every target in a batch edit without mutating the DOM or
- * transient instance state. A partial repeated-source group is editable only
- * when each selected output has evidence that resolves uniquely.
- */
+/** A partial repeated-source group is editable only when each selected output resolves uniquely. */
 function analyzeBatchEditScopes(
   selectedElements: readonly HTMLElement[],
 ): ReadonlyMap<HTMLElement, BatchScopeDecision> | null {
@@ -139,7 +130,6 @@ function analyzeBatchEditScopes(
   return plan;
 }
 
-/** Returns whether every element can be addressed safely by one batch edit. */
 export function canPlanBatchEditScopes(selectedElements: readonly HTMLElement[]): boolean {
   return analyzeBatchEditScopes(selectedElements) !== null;
 }

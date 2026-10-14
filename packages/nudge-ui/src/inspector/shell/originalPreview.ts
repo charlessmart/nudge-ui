@@ -22,12 +22,7 @@ export function useOriginalPreviewActive(): boolean {
   );
 }
 
-/**
- * Hold-to-view-original (NUD-30). While active the host document shows the
- * page without any inspector changes; the draft preview owns that projection.
- * Canonical intent stays in the workspace, so releasing restores the edited
- * preview without loss.
- */
+/** While active the document shows the page without inspector changes; canonical intent is never cleared. */
 export function setOriginalPreviewActive(next: boolean): void {
   if (next === previewingOriginal) return;
   previewingOriginal = next;

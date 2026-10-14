@@ -136,17 +136,14 @@ export function InspectorShell(): ReactElement {
   useInteractionStatePreview(selectedElements.length === 1 ? selectedElements[0]!.domElement : null, styleState);
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;  useEffect(() => {
-    // A new selection should never inherit an incidental state from the
-    // previous element. Base is the inspector's deliberate default.
+    // A new selection must not inherit an incidental state from the previous element; base is the deliberate default.
     setActiveStyleState("base");
     setStyleState("base");
   }, [selected?.domElement, isMultiSelection]);
 
   useEffect(() => {
     if (!selected) return;
-    // The selected element can live inside a card iframe (canvas mode); observe
-    // its own ownerDocument rather than the parent app's document, otherwise
-    // removal inside the iframe would never be noticed.
+    // In canvas mode the element can live in a card iframe, so observe its ownerDocument, not the parent app's.
     const observers: MutationObserver[] = [];
     const roots = new Map<Document, HTMLElement>();
     for (const target of selectedElements) {
@@ -208,8 +205,7 @@ export function InspectorShell(): ReactElement {
         setSelectedElement(null);
         return;
       }
-      // macOS labels the physical Backspace key as Delete, while browsers
-      // report it as "Backspace". Support both without stealing text edits.
+      // macOS labels the physical Backspace key as Delete; browsers report "Backspace". Support both.
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
         if (!isMultiSelection && deleteElement(selected)) setSelectedElement(null);

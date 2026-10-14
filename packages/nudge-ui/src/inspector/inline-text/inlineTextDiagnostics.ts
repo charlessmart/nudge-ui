@@ -66,7 +66,6 @@ export function useInlineTextDiagnostic(): InlineTextDiagnostic | null {
   return getInlineTextDiagnostic();
 }
 
-/** Clear the current diagnostic, optionally only when it belongs to a frame. */
 export function clearInlineTextDiagnostics(ownerDocument?: Document): void {
   const current = diagnostics.at(-1);
   if (!current) return;
@@ -75,7 +74,6 @@ export function clearInlineTextDiagnostics(ownerDocument?: Document): void {
   notify();
 }
 
-/** Keep feedback for the target that was just selected, but clear stale feedback. */
 export function clearInlineTextDiagnosticsForSelection(
   selectedElements: readonly HTMLElement[],
 ): void {

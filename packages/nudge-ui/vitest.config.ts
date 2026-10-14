@@ -5,8 +5,7 @@ export default defineConfig({
   test: {
     // Cursor images resolve their default tokens from the foundation stylesheet.
     css: { include: [/Foundation\.css/] },
-    // The Next.js suites spawn real sidecar processes and debounced watchers;
-    // concurrent files contend for them and a settled batch misses its window.
+    // Next.js suites spawn real sidecars and debounced watchers; parallel files contend and miss their window.
     fileParallelism: false,
     testTimeout: 20_000,
     setupFiles: ["./vitest.setup.ts"],

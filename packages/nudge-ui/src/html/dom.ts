@@ -30,7 +30,6 @@ export function getAttributeValue(element: HtmlElement, name: string): string | 
   return element.attrs.find((candidate) => candidate.name === name)?.value;
 }
 
-/** Every `<body>` in the document, skipping inert `<template>` content. */
 export function findBodyElements(
   document: DefaultTreeAdapterTypes.Document,
 ): HtmlElement[] {

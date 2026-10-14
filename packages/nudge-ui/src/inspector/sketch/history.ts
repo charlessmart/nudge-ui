@@ -10,7 +10,6 @@ type SketchHistoryEntry =
   | { readonly kind: "add"; readonly stroke: SketchStroke }
   | { readonly kind: "erase"; readonly gesture: number; readonly erased: readonly ErasedStroke[] };
 
-/** Strokes plus the undo and redo stacks of the edits that produced them. */
 export interface SketchHistory {
   readonly strokes: readonly SketchStroke[];
   readonly undo: readonly SketchHistoryEntry[];
@@ -42,10 +41,7 @@ function removeStrokes(strokes: readonly SketchStroke[], ids: ReadonlySet<string
   return { strokes: remaining, erased };
 }
 
-/**
- * Erases strokes as one undoable edit. Strokes erased by the same `gesture`
- * share an entry, so one eraser drag undoes in a single step.
- */
+/** Strokes erased by the same `gesture` share one undo entry, so an eraser drag undoes in one step. */
 export function eraseSketchStrokes(
   history: SketchHistory,
   ids: readonly string[],

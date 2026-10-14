@@ -129,16 +129,11 @@ async function persistBaseline(): Promise<void> {
   console.log(`perf | baseline written to test-results/perf-baseline.json`);
 }
 
-// The init script must be installed on each test's page: Playwright gives
-// every test a fresh page, and a module-level flag would leave later tests
-// without the storage reset (a previous test's autosave then rehydrates an
-// edited session and breaks the fixture's expected values).
+// One init script per page: a module-level flag would skip the storage reset, and a previous test's autosave would rehydrate an edited session.
 const fixtureStorageResetPages = new WeakSet<Page>();
 
 async function loadFixture(page: Page): Promise<FrameLocator> {
-  // Clear storage in an init script on the *next* document so a previous
-  // page's beforeunload autosave cannot repopulate localStorage after we
-  // intended a clean fixture load.
+  // Clears storage on the next document so a previous page's beforeunload autosave cannot repopulate localStorage.
   if (!fixtureStorageResetPages.has(page)) {
     await page.addInitScript(() => {
       if (window !== window.top) return;
@@ -173,8 +168,7 @@ async function revealMs(page: Page, frame: FrameLocator, perfId: number): Promis
   await target.evaluate((element) => {
     const parent = window.parent as Window & { __perfProbe?: Probe };
     parent.__perfProbe = { clickAt: 0, done: false, ms: 0 };
-    // Window capture precedes the renderer's document-capture handler, which
-    // intentionally stops application clicks before they reach the element.
+    // Window capture precedes the renderer's document-capture handler, which stops application clicks.
     element.ownerDocument.defaultView?.addEventListener("click", () => {
       const probe = parent.__perfProbe;
       if (probe && probe.clickAt === 0) probe.clickAt = parent.performance.now();
@@ -236,9 +230,7 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
     const el = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector<HTMLIFrameElement>('.canvas-card__iframe')?.contentDocument?.querySelector(`[data-perf-id="perf-${id}"]`);
     const ownerWindow = el?.ownerDocument.defaultView;
     if (!el || !ownerWindow) return "";
-    // Compute the browser-normalized target value on a same-class clone. This
-    // catches a commit that merely changes the panel while leaving the host
-    // element unchanged, including values such as percentages and colors.
+    // Browser-normalized target from a same-class clone, so a panel-only commit (e.g. percentages) cannot pass.
     const probe = el.cloneNode(false) as HTMLElement;
     probe.removeAttribute("data-perf-id");
     probe.style.setProperty(hostProp, value);
@@ -297,9 +289,7 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
 }
 
 async function revealSpacingGroup(page: Page, group: "padding" | "margin"): Promise<void> {
-  // Zero-valued groups are collapsed behind an add button; revealing the
-  // grouped fields (e.g. margin-vertical) requires only the add click —
-  // expanding individual sides replaces the grouped rows.
+  // Zero-valued groups are collapsed behind an add button; expanding individual sides replaces the grouped rows.
   const section = page.locator(`[data-test="spacing-${group}"]`);
   const add = section.locator('[data-test="add-value"]');
   if (await add.count()) await add.click();
@@ -382,10 +372,7 @@ test("perf: session growth stays sublinear (commit #20 <= 2x commit #1)", async 
     const durations: number[] = [];
     for (let step = 0; step < COMMIT_STEPS.length; step += 1) {
       if (step === 8) {
-        // The panel collapses zero-margin groups behind an add button, so the
-        // margin group must be revealed before the first grouped margin
-        // commit. Individual sides come later (step 14) because toggling them
-        // replaces the grouped rows.
+        // The margin group must be revealed before its first grouped commit; individual sides come later because they replace the grouped rows.
         await revealSpacingGroup(page, "margin");
       }
       if (step === 14) {

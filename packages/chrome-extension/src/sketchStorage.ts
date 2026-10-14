@@ -15,7 +15,7 @@ import {
   type StoredSketchRecords,
 } from "./protocol.ts";
 
-// Distributes over the union so each request keeps its own fields.
+// Distributive so each request keeps its own fields.
 type RequestBody<Request = SketchRequest> = Request extends unknown ? Omit<Request, "id"> : never;
 
 // Bounds String.fromCharCode's argument count.
@@ -54,11 +54,7 @@ function decodeDocument(document: StoredSketchDocument): SketchDocument {
   } as unknown as SketchDocument;
 }
 
-/**
- * Persists sketches to extension storage through the isolated-world bridge,
- * so the inspected site's IndexedDB is never written. Requests cross the
- * world boundary as JSON strings, like inspector storage writes.
- */
+/** Persists sketches through the isolated-world bridge so the inspected site's own storage is never written. */
 export function createExtensionSketchStorage(): SketchStorage {
   let nextId = 0;
   const pending = new Map<number, (response: SketchResponse) => void>();

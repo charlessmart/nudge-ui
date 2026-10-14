@@ -34,10 +34,7 @@ function scopedCss(fixture: ConformanceFixture, targetClass: string): string {
     .replace(/\.subject\b/g, `.${targetClass}`);
 }
 
-/**
- * What the inspector field should show — the decomposed component for
- * structured borders, not the full authored shorthand repeated on every face.
- */
+/** Decomposed component for structured borders, not the authored shorthand repeated on every face. */
 function fieldDisplayValue(property: string, expected: ConformancePropertyExpectation): string {
   const structure = expected.structure;
   if (structure) {

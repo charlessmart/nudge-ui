@@ -67,7 +67,6 @@ interface FrameOverlayState {
   spacing: SpacingDescriptor | null;
   spacingGuides: Rect[];
   spacingAreas: Rect[];
-  /** Value badge for the spacing handle under the pointer. */
   spacingHandleBadge: { point: { x: number; y: number }; value: number } | null;
 }
 
@@ -99,24 +98,18 @@ interface CanvasSpacingBadgeState {
   value: number;
 }
 
-/** A committed spacing drag whose preview inline is held until the renderer
- * applies the projected managed rule, so the authored value never flashes. */
+/** A committed drag's preview inline, held until the renderer applies the projected rule so the value never flashes. */
 interface PendingSpacingCommit {
   iframe: CanvasFrame;
   element: HTMLElement;
   property: string;
   committedValue: string;
-  /** Change keys created by the commit; gone once the rule is undone/reverted. */
   keys: string[];
   originalInlineValue: string;
   originalInlinePriority: string;
 }
 
-/**
- * Selects a gesture's element. An element that is already the only selection
- * keeps its record: re-resolving it can differ only in derived metadata, and
- * replacing the selection re-renders and re-inspects the whole panel.
- */
+/** An element that is already the only selection keeps its record; re-resolving can differ only in derived metadata. */
 function selectGestureElement(element: HTMLElement): void {
   const current = getSelectedElements();
   if (current.length === 1 && current[0]!.domElement === element) return;
@@ -214,14 +207,7 @@ function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
   endLayoutPreview(drag.element, drag.affordance.property);
 }
 
-/**
- * Commits a managed rule for the drag's final value. Returns the created change
- * records (empty for a no-op drag). The preview inline is intentionally left
- * applied at the committed value once a record exists; the caller must register
- * a PendingSpacingCommit and release it after the renderer acknowledges the
- * projected sheet. Restoring the authored declaration first would flash the old
- * value for the postMessage round trip the sheet takes.
- */
+/** On a real change the preview inline stays applied; the caller must register a PendingSpacingCommit. */
 function commitSpacingDrag(drag: CanvasSpacingDragState): ElementChangeRecord[] {
   if (drag.currentValue === drag.startValue) {
     restoreSpacingPreview(drag);
@@ -234,9 +220,7 @@ function commitSpacingDrag(drag: CanvasSpacingDragState): ElementChangeRecord[] 
   }]);
 }
 
-/** Removes a deferred preview inline as soon as the projected sheet alone
- * reproduces the committed value; keeps it otherwise and retries on the next
- * projection acknowledgement from that frame. */
+/** Removes the preview inline once the projected sheet alone reproduces the value; retries on the next acknowledgement. */
 function tryReleasePendingSpacingCommit(commit: PendingSpacingCommit): boolean {
   const { element, property, committedValue } = commit;
   if (!element.isConnected) return true;
@@ -265,9 +249,7 @@ function releasePendingSpacingCommits(
   pending.length = write;
 }
 
-/** Restores any held preview inline whose committed rule was undone, reverted,
- * or cleared before its sheet landed. Runs synchronously with the workspace
- * change, so the inline never outlives the intent behind it. */
+/** Restores a held preview inline whose committed rule was undone, reverted, or cleared. */
 function reconcilePendingSpacingCommits(pending: PendingSpacingCommit[]): void {
   if (pending.length === 0) return;
   const survivingKeys = new Set(getActiveDraftChanges().changes.map(changeKey));
@@ -289,9 +271,7 @@ function reconcilePendingSpacingCommits(pending: PendingSpacingCommit[]): void {
   pending.length = write;
 }
 
-/** Registers a held preview inline, folding an older unapplied commit for the
- * same element and property into the newest one so the held value and the
- * authored baseline both stay coherent across rapid successive drags. */
+/** Folds an older unapplied commit for the same element and property into the newest one. */
 function pushPendingSpacingCommit(
   pending: PendingSpacingCommit[],
   next: PendingSpacingCommit,
@@ -364,9 +344,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     })
     : [];
 
-  // Camera transforms commit on the board before iframe viewport geometry is
-  // readable. Re-render once after that commit so overlays use the transformed
-  // frame rectangle rather than the previous camera position.
+  // Camera transforms commit before iframe viewport geometry is readable; re-render once so overlays use the new frame rect.
   useLayoutEffect(() => {
     const geometryChanged = previousProjectionGeometryKey.current !== projectionGeometryKey;
     previousProjectionGeometryKey.current = projectionGeometryKey;
@@ -407,9 +385,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     };
   }, []);
 
-  // The selected element's identity is computed once per selection change
-  // (never per hover), so the measurement self-rulers exclusion can compare
-  // identities without a per-hover scan of the frame document.
+  // Computed once per selection change, never per hover, so the measurement exclusion needs no per-hover scan.
   const selectedIdentity = useMemo((): ElementIdentity | null => {
     const el = selected?.domElement;
     if (!el) return null;
@@ -417,9 +393,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     return elementId ? { elementId } : null;
   }, [selected?.domElement]);
 
-  // A held spacing preview inline must not outlive the committed rule behind
-  // it: undo/redo/revert/clear remove the record synchronously, so restore the
-  // authored declaration before the renderer's next replace-styles lands.
+  // Undo/redo/revert/clear remove the record synchronously; restore the authored declaration before the next replace-styles lands.
   useEffect(() => {
     return subscribeActiveDraftChanges(() => {
       reconcilePendingSpacingCommits(pendingSpacingCommitsRef.current);
@@ -707,8 +681,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     && selectedIdentity
     && hoverInSelectedFrame.identity.elementId === selectedIdentity.elementId,
   );
-  // Selected elements already have a live geometry outline. The hover outline
-  // is based on a cached renderer message and can lag during spacing previews.
+  // Selected elements already have a live outline; the hover outline is cached and can lag during spacing previews.
   const showHoverOutline = Boolean(projectedHoverRect && !isSelfHover);
   const showMeasurement = Boolean(
     showGuideOverlay

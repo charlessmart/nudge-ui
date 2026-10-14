@@ -1,7 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-/** Shared esbuild options for the self-contained browser client. */
 export function clientBuildOptions(entryPoint, outputFile) {
   return {
     entryPoints: [entryPoint],
@@ -19,7 +18,6 @@ export function clientBuildOptions(entryPoint, outputFile) {
   };
 }
 
-/** Builds one self-contained browser client with inline stylesheet imports. */
 export async function buildBrowserClient(build, entryPoint, outputFile) {
   mkdirSync(dirname(outputFile), { recursive: true });
   await build(clientBuildOptions(entryPoint, outputFile));

@@ -65,9 +65,7 @@ async function installParentProbe(page: Page): Promise<void> {
       if (event.button !== 0) return;
       scope.__nudgeDragProbe = { startX: event.clientX, startY: event.clientY, thresholdAt: 0 };
     }, true);
-    // Window capture runs before the inspector's document capture handler.
-    // This timestamp therefore starts at the first event that can activate a
-    // drag, rather than after the handler has done its work.
+    // Window capture runs before the inspector's document capture handler, so the timestamp starts at the first event that can activate a drag.
     window.addEventListener("mousemove", (event) => {
       const probe = scope.__nudgeDragProbe;
       if (!probe || probe.thresholdAt > 0 || event.buttons !== 1) return;
@@ -97,8 +95,7 @@ async function installFrameProbe(page: Page, frame: FrameLocator): Promise<void>
       if (event.button !== 0) return;
       parentScope.__nudgeDragProbe = { startX: event.clientX, startY: event.clientY, thresholdAt: 0 };
     }, true);
-    // The renderer listens on the iframe document. Capture on the iframe
-    // window records the threshold before that handler posts to the parent.
+    // The renderer listens on the iframe document; capture on the iframe window records the threshold before it posts to the parent.
     window.addEventListener("mousemove", (event) => {
       const probe = parentScope.__nudgeDragProbe;
       if (!probe || probe.thresholdAt > 0 || event.buttons !== 1) return;

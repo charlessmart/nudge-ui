@@ -100,7 +100,6 @@ export interface BrowserStream {
   end(): void;
 }
 
-/** Proof that a request came from the paired browser. */
 export interface BrowserGrant {
   readonly origin: string;
   readonly sessionToken: string;
@@ -115,33 +114,25 @@ export interface PromptDispatchInput {
 
 export interface ListenOptions {
   readonly signal?: AbortSignal;
-  /** MCP client name shown in the browser while this listener is active. */
+  /** Shown in the browser while this listener is active. */
   readonly agentClientName?: string;
 }
 
-/** In-process controls a host or an embedded agent uses on one project session. */
 export interface BridgeSessionControls {
   getStatus(): AgentStatusSnapshot;
-  /** Host-side approval of a browser origin from the allow-list. */
   pairBrowser(origin: string, pageUrl?: string): PairingResponse;
   /** Revokes the pairing and interrupts any working request. */
   disconnectBrowser(sessionToken: string): void;
-  /** Blocks until the paired browser dispatches a prompt. */
   waitForPrompt(options?: ListenOptions): Promise<AgentDeliveredPrompt>;
   /** Retrieves an unacknowledged request, including its sketch attachments. */
   getRequest(requestId: string): AgentDeliveredPrompt;
-  /** Reports the status of the request currently in flight. */
   updateRequestStatus(update: AgentStatusUpdate | AgentRequestOutcome): void;
-  /** Emits temporary source attribution for the working request. */
   reportActivity(activity: AgentActivity): void;
   /** Sends a Canvas command to the browser and waits for one bounded acknowledgement. */
   dispatchCanvasCommand(input: CanvasCommandInput): Promise<CanvasCommandResult>;
 }
 
-/**
- * The transport-free state of one project bridge. Browser-facing transitions
- * trust their caller to have authorized the request first.
- */
+/** Browser-facing transitions trust their caller to have authorized the request first. */
 export interface BridgeSession extends BridgeSessionControls {
   readonly projectId: string;
   readonly agentClaimed: boolean;
@@ -166,9 +157,7 @@ export interface BridgeSession extends BridgeSessionControls {
 
 export interface BridgeSessionOptions {
   readonly projectId: string;
-  /** Canonical app origin that pairing and Canvas routes must use. */
   readonly origin: string;
-  /** Other explicit browser origins, such as loopback aliases on the same port. */
   readonly allowedOrigins?: readonly string[];
   readonly commandTimeoutMs?: number;
   readonly clock?: BridgeClock;
@@ -188,7 +177,6 @@ interface PendingCanvasCommand {
   readonly timeout: unknown;
 }
 
-/** An authorized origin and its normalized page, ready to pair. */
 interface PairingTarget {
   readonly origin: string;
   readonly pageUrl?: string;
@@ -270,8 +258,7 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
   const publishStatus = (): void => publish({ type: "status", status: getStatus() });
 
   const authorizeOrigin = (candidate: string | null): string => {
-    // Before pairing only a configured origin is eligible; an empty allow-list
-    // stays closed rather than trusting the first caller.
+    // An empty allow-list stays closed rather than trusting the first caller.
     if (candidate && (candidate === pairing?.origin || isAllowedOrigin(candidate, allowedOrigins))) return candidate;
     throw new BridgeSessionError("origin_not_allowed", "The browser origin is not allowed for this project.");
   };

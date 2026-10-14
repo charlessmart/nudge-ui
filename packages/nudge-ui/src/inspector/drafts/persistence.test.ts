@@ -223,9 +223,7 @@ describe("draft intent persistence", () => {
   });
 
   it("serializes canonical intent without preview diagnostics", () => {
-    // Guard against re-introducing transient preview state on the durable
-    // record: ElementChangeRecord has no previewResult field, so this can only
-    // fail if preview diagnostics leak back into canonical intent.
+    // Guards against transient preview state leaking back into the durable record.
     appendChange(makeElementChange());
     saveDraft();
     const session = storedContents();

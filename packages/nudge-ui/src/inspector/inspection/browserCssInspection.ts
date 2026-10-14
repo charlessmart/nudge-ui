@@ -29,8 +29,7 @@ import {
 export interface BrowserTokenKnowledge {
   /** Build-time definitions normalized by a build-tool Adapter. */
   definitions: readonly TokenDefinition[];
-  /** Optional compiler entries used to resolve authored references that are
-   * intentionally not mounted as custom properties in the current document. */
+  /** Compiler entries for authored references intentionally not mounted as custom properties. */
   entries?: readonly TokenEntry[];
   /** Changes whenever the Adapter publishes a new token inventory. */
   generation: string | number;
@@ -41,12 +40,7 @@ export interface BrowserCssInspectionConfig {
   tokenKnowledge: BrowserTokenKnowledge;
 }
 
-/**
- * Cascade transform owned exclusively by this module:
- * - authored: interaction-state attribution (default; state defaults to base)
- * - live: raw CSSOM matching as currently painted
- * - stable: drops transient pseudo-class rules for editor token linking
- */
+/** authored: interaction-state attribution; live: raw CSSOM as painted; stable: drops transient pseudo-class rules for token linking. */
 export type InspectionCascade = "authored" | "live" | "stable";
 
 export interface BrowserCssInspectionOptions {
@@ -121,8 +115,7 @@ export interface BrowserCssInspection {
   subscribe(listener: (revision: InspectionRevision) => void): () => void;
   /** Integration hook for writes to the inspector's own managed stylesheets. */
   notifyStylesheetChange(): void;
-  /** Optional: warms the CSSOM rule snapshot so the next inspect does not pay
-   * the stylesheet walk inside its own budget. Cheap when already warm. */
+  /** Warms the CSSOM rule snapshot so the next inspect does not pay the stylesheet walk. */
   prewarmRules?(): void;
   dispose(): void;
 }
@@ -304,8 +297,7 @@ export function createBrowserCssInspection(
   const releaseDocumentResolution = retainDocumentResolution(config.document);
   const revisionUnsubscribers = new Set<() => void>();
   const elementTables = new WeakMap<HTMLElement, ElementTableCache>();
-  // When compiler entries are merged ahead of runtime availability, keep one
-  // table per availableTokens identity so resolver caches stay warm.
+  // When compiler entries are merged ahead of runtime availability, keep one table per availableTokens identity so resolver caches stay warm.
   const mergedTables = new WeakMap<readonly TokenEntry[], TokenTable>();
   const mediaCleanup: Array<() => void> = [];
 
@@ -390,10 +382,7 @@ export function createBrowserCssInspection(
 
       try {
         const { availableTokens, table } = tokenTableFor(element);
-        // Only the authored cascade reports which interaction states have
-        // authored rules (the panel's state selector reads it there). Stable
-        // and live consumers project properties only, so skip the O(rules)
-        // per-state matching sweep for them.
+        // Only the authored cascade reports authored interaction states; the O(rules) per-state sweep is skipped elsewhere.
         const availableStates: readonly InteractionState[] = cascade === "stable"
           ? ["base"]
           : getAvailableInteractionStates(element);

@@ -188,9 +188,7 @@ export async function handleHtmlArtifactRequest(
             temporaryFiles.push({ temporary, destination: join(target, file) });
             await writeFile(temporary, html);
           }
-          // Keep the final check and replacements in one controller critical section.
-          // External tools must finish their file writes before handoff; they do
-          // not participate in this process's request queue.
+          // External writers do not join this request queue, so the final check and replacements stay in one critical section.
           const latest = {
             document: revision(readFileSync(join(target, "document.html"))),
             preview: revision(readFileSync(join(target, "preview.html"))),

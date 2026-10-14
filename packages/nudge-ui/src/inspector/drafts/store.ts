@@ -17,7 +17,6 @@ import { targetFromKey, targetKey, type Draft, type DraftContents, type DraftSna
 
 const preview = createDraftPreview(() => drafts.getActive());
 
-/** The Workspace's drafts, wired to the Canvas lease, session timeline, local storage, and host preview. */
 const drafts = createDraftStore({
   canWrite: () => canWriteWorkspace(),
   timeline: sessionTimeline,
@@ -99,7 +98,6 @@ export interface AppendChangesOptions {
   verificationTargets?: ReadonlyMap<string, HTMLElement | null>;
 }
 
-/** Appends records and reports whether canonical workspace state changed. */
 export function appendChanges(incoming: readonly ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
   return drafts.commitChanges(incoming, options.verificationTargets);
 }
@@ -116,7 +114,6 @@ export function discardChangesForSelector(selector: string): void {
   drafts.discardChanges({ kind: "selector", selector });
 }
 
-/** Relink removes every CSS declaration owned by one durable rendered target. */
 export function discardChangesForInstanceOverride(overrideId: string): void {
   drafts.discardChanges({ kind: "instance-override", id: overrideId });
 }
@@ -142,10 +139,7 @@ export function redo(): boolean {
   return drafts.redo();
 }
 
-/**
- * Removes source-verified records without letting older undo snapshots
- * resurrect their previews. Newer, unsent edits and their history survive.
- */
+/** Removes only source-verified records, and older undo snapshots must not resurrect their previews. */
 export function reconcileDraftChanges(
   id: string,
   verifiedKeys: ReadonlySet<string>,
@@ -163,7 +157,6 @@ export function clearActiveDraft(): void {
   drafts.clearActive();
 }
 
-/** Drops a draft whose content no longer exists, such as a deleted iteration. */
 export function forgetDraft(id: string): void {
   drafts.forget(id);
 }
@@ -240,7 +233,6 @@ export function clearSavedIterationDraft(cardId: string, expectedRevision?: numb
   return !!draftId && drafts.clear(draftId, expectedRevision);
 }
 
-/** Returns the first preferred frame that exists, then the first frame. */
 export function getEditableCardId(...preferredCardIds: readonly (string | null | undefined)[]): string | null {
   const cards = getCanvasCards();
   return preferredCardIds.find((id): id is string => !!id && cards.some((card) => card.id === id)) ?? cards[0]?.id ?? null;

@@ -19,7 +19,7 @@ export interface SpacingGuideData {
   guide: Rect;
   affectedGuides: Rect[];
   affectedAreas: Rect[];
-  /** A 16px-thick pointer target centred on the visible, up-to-40px guide handle. */
+  /** Pointer target centred on the visible guide handle. */
   hit: Rect;
 }
 
@@ -77,8 +77,7 @@ function boxEdges(element: HTMLElement): BoxEdges {
   };
 }
 
-// Computed style resolves to px in browsers, so drag math normalizes to px.
-// An authored rem/% is intentionally rewritten as px on commit.
+// Computed style is px; an authored rem/% is intentionally rewritten as px on commit.
 function numberValue(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
@@ -352,9 +351,7 @@ function gapDragHit(segment: GapSegment): Rect {
   return guideHit(gapGuide(segment), orientation);
 }
 
-/** Matches the padding bar whose visible area contains the pointer, whether or
- * not the point is inside the drag handle. Returns the first side by the same
- * priority order as the drag affordances so both paths agree on overlaps. */
+/** Matches the padding bar's visible area; same side priority as the drag handles. */
 function paddingAffordanceInAreaAtPoint(
   element: HTMLElement,
   x: number,
@@ -373,9 +370,7 @@ function paddingAffordanceInAreaAtPoint(
   return null;
 }
 
-/** Matches a layout gap whose visible area contains the pointer, whether or not
- * the point is inside the drag handle. Shares segment priority and geometry
- * with gapAffordanceAtPoint so hover and drag agree on crossed gap properties. */
+/** Matches a layout gap's visible area; shares segment priority with gapAffordanceAtPoint. */
 function gapAffordanceInAreaAtPoint(
   element: HTMLElement,
   x: number,
@@ -410,9 +405,7 @@ function gapValue(style: CSSStyleDeclaration, property: "row-gap" | "column-gap"
     || (property === "row-gap" ? style.rowGap : style.columnGap);
   if (direct.trim()) return numberValue(direct);
 
-  // jsdom and a few older browser CSSOM implementations expose `gap` but not
-  // the longhands through getPropertyValue(). Keep the gesture model aligned
-  // with the browser's shorthand fallback in those realms.
+  // jsdom and some CSSOM implementations expose only the `gap` shorthand.
   const shorthand = style.getPropertyValue("gap") || style.gap;
   const values = shorthand.trim().split(/\s+/).filter(Boolean);
   if (values.length === 0) return 0;
@@ -437,7 +430,6 @@ function trackedElementsAtPoint(doc: Document, x: number, y: number): HTMLElemen
   return result;
 }
 
-/** Finds the spacing target under a document-local pointer location. */
 export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number): SpacingAffordance | null {
   const candidates = trackedElementsAtPoint(doc, x, y);
   for (const element of candidates) {
@@ -451,10 +443,7 @@ export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number)
   return null;
 }
 
-/** Finds the spacing target whose visible padding or gap area contains the
- * pointer, even when the pointer is outside the drag handle. Hover previews use
- * this; drags and the resize cursor still require the handle hit from
- * getSpacingAffordanceAtPoint. */
+/** Hover previews use this; drags and the resize cursor require the handle from getSpacingAffordanceAtPoint. */
 export function getSpacingHoverAtPoint(doc: Document, x: number, y: number): SpacingAffordance | null {
   const candidates = trackedElementsAtPoint(doc, x, y);
   for (const element of candidates) {
@@ -468,13 +457,7 @@ export function getSpacingHoverAtPoint(doc: Document, x: number, y: number): Spa
   return null;
 }
 
-/**
- * The affordance a whole-document search would return, but only when it
- * belongs to `element`; otherwise null. Candidates run innermost first and
- * padding beats gaps, so only descendants of `element` and `element` itself
- * can win. Ancestors are examined only to confirm a gap match, since an
- * ancestor's padding handle would take precedence over it.
- */
+/** Only descendants of `element` can win: candidates run innermost first and padding beats gaps. */
 function affordanceForElement(
   candidates: readonly HTMLElement[],
   element: HTMLElement,
@@ -507,20 +490,10 @@ function elementSpacingHandle(candidates: readonly HTMLElement[], element: HTMLE
   );
 }
 
-/**
- * The drag handle under a pointer when it belongs to `element`. Equivalent to
- * filtering getSpacingAffordanceAtPoint by element, without measuring every
- * ancestor.
- */
 export function getElementSpacingHandleAtPoint(doc: Document, element: HTMLElement, x: number, y: number): SpacingAffordance | null {
   return elementSpacingHandle(trackedElementsAtPoint(doc, x, y), element, x, y);
 }
 
-/**
- * The drag handle and hover area under a pointer that belong to `element`.
- * Equivalent to filtering getSpacingAffordanceAtPoint and
- * getSpacingHoverAtPoint by element, without measuring every ancestor.
- */
 export function getElementSpacingAtPoint(
   doc: Document,
   element: HTMLElement,
@@ -539,7 +512,6 @@ export function getElementSpacingAtPoint(
   };
 }
 
-/** Re-resolves a renderer-reported spacing descriptor in its owner document. */
 export function getSpacingAffordanceForDescriptor(
   element: HTMLElement,
   descriptor: SpacingDescriptor,
@@ -561,14 +533,7 @@ export function getSpacingAffordanceForDescriptor(
   );
 }
 
-/**
- * Calculates a direct-manipulation value, optionally stepping changes by 8px.
- * While Shift is held the value snaps to a step anchor: the first displacement
- * picks the nearest multiple of 8 from the authored value in the drag
- * direction (ties resolve upward), and further movement adds whole 8px steps
- * from that anchor, so the result is always a multiple of 8 once the drag
- * moves. At the exact start point the authored value is preserved.
- */
+/** With Shift, snaps to a multiple of 8 from the authored value in the drag direction. */
 export function spacingValueForDrag(
   affordance: Pick<SpacingAffordance, "dragAxis" | "direction" | "value">,
   start: { x: number; y: number },
@@ -593,7 +558,7 @@ export function spacingValueCss(value: number): string {
   return `${Math.max(0, Math.round(value))}px`;
 }
 
-/** Serializes the stable part of an affordance for renderer-to-controller messages. */
+/** The stable subset sent across the renderer boundary. */
 export function toSpacingDescriptor(affordance: SpacingAffordance): SpacingDescriptor {
   return {
     kind: affordance.kind,

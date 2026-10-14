@@ -15,11 +15,7 @@ export interface InspectorPopoverProps {
   "data-test"?: string;
 }
 
-/**
- * Base UI popover anchored inside the inspector shadow root. Unlike the
- * listbox popover, this leaves the popup content to the caller for compound
- * settings panels and field controls.
- */
+/** Leaves the popup content to the caller, unlike PopoverListbox. */
 export function InspectorPopover({
   triggerElement,
   children,

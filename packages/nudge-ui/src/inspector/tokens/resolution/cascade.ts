@@ -7,11 +7,7 @@ export interface AuthorCascadePriority {
   sourceOrder: number;
 }
 
-/**
- * Compares declarations from the author origin. Positive means `a` wins.
- * Normal declarations prefer unlayered rules and later layers; important
- * declarations reverse both relationships as required by the CSS cascade.
- */
+/** Positive means `a` wins; important declarations reverse layer precedence per the CSS cascade. */
 export function compareAuthorCascade(
   a: AuthorCascadePriority,
   b: AuthorCascadePriority,

@@ -15,7 +15,6 @@ export interface HtmlIterationStorage {
   commit(id: string, expected: HtmlArtifactRevision, html?: string): Promise<HtmlArtifactRevision>;
 }
 
-/** Owns save ordering, draft settlement, and external document promotion. */
 export function createHtmlIterationCoordinator(storage: HtmlIterationStorage) {
   const operations = new Map<string, Promise<unknown>>();
 

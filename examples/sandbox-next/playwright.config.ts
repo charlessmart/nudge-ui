@@ -18,8 +18,7 @@ const devServer = {
 } as const;
 
 const prodServer = {
-  // ADR-0002 production proof: the wrapper must be a complete no-op
-  // under next build / next start.
+  // Production proof: the wrapper must be a complete no-op under next build / next start.
   command: `NODE_ENV=production pnpm build && pnpm start --port ${PROD_PORT}`,
   url: PROD_URL,
   reuseExistingServer: false,

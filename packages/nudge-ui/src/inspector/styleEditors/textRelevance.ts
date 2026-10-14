@@ -26,7 +26,7 @@ function hasTextContent(element: Element, includeBlocks: boolean): boolean {
   });
 }
 
-/** Text styling is useful for text runs and containers that author descendant typography. */
+/** Block descendants count only when the element authors descendant typography. */
 export function isTextRelevant(element: HTMLElement, rows: readonly ResolvedProperty[]): boolean {
   const authorsTypography = rows.some((row) => TYPOGRAPHY_PROPERTIES.has(row.property) && hasAuthoredStyle(row));
   return hasTextContent(element, authorsTypography);
