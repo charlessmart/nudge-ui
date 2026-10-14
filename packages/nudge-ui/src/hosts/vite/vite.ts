@@ -927,7 +927,10 @@ export function createVitePlugins(
       // The landing app's static demo build imports the virtual module from the app
       // entry, because Vite cannot preserve the dev HTML virtual-module URL.
       if (!enabled || demoBuild) return;
-      const headScript = options.demo === true ? undefined : framework?.documentHeadScript;
+      // Demo dev serving gets the script like any React app. Demo builds return
+      // above: they ship production React, which has no prop-editing toolkit,
+      // so tagged callsites there are prompt-only whatever the HTML holds.
+      const headScript = framework?.documentHeadScript;
       const out = transformIndexHtmlHtml(html, command, {
         debug: options.debug === true,
         demoBuild,

@@ -13,6 +13,7 @@ import {
   withNudgeUi,
 } from "./index.ts";
 import { interpretDialects } from "../../css/dialects/index.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -124,6 +125,16 @@ describe("transformIndexHtmlHtml", () => {
     }];
     const out = plugin.transformIndexHtml?.(SAMPLE_HTML);
     expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
+  });
+
+  it.each([{}, { demo: true }])("injects React's renderer capture script ahead of the app (%o)", (options) => {
+    const [plugin] = createNudgeUiPlugins(options) as unknown as [{
+      transformIndexHtml?: (html: string) => string | undefined;
+    }];
+    const out = plugin.transformIndexHtml?.(SAMPLE_HTML) ?? "";
+    const capture = out.indexOf(`<script data-nudge-ui-head>${REACT_RENDERER_CAPTURE_SCRIPT}</script>`);
+    expect(capture).toBeGreaterThan(-1);
+    expect(out.indexOf("<script")).toBe(capture);
   });
 
   it("returns null in build mode (ADR-0002)", () => {

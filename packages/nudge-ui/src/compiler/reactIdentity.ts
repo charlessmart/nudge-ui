@@ -14,6 +14,8 @@ import {
   type ComponentInstrumentationPolicy,
 } from "./componentInstrumentation.ts";
 import { relativePath, stripModuleExtension } from "./sourcePaths.ts";
+import type { ComponentInvocationMeta } from "./componentContractTypes.ts";
+import { IDENTITY_ATTRIBUTES } from "./identityAttributes.ts";
 
 export type { ComponentInstrumentationOptions } from "./componentInstrumentation.ts";
 
@@ -52,7 +54,7 @@ const ALL_SCOPE_TYPES = new Set([
   ...EXPRESSION_SCOPE_TYPES,
 ]);
 
-const IDENTITY_ATTRS = new Set(["data-cid", "data-src", "data-cprops"]);
+const IDENTITY_ATTRS = new Set<string>(IDENTITY_ATTRIBUTES);
 
 function isComponentName(name: string): boolean {
   return /^[A-Z]/.test(name);
@@ -207,17 +209,7 @@ interface WalkState {
   instrumentedComponents: boolean;
   componentPolicy: ComponentInstrumentationPolicy;
   /** Callsites left unwrapped, registered so the runtime can still name them. */
-  registeredCallsites: ComponentInvocationMetadata[];
-}
-
-interface ComponentInvocationMetadata {
-  callsiteId: string;
-  componentId: string;
-  componentName: string;
-  file: string;
-  line: number;
-  column: number;
-  authoredProps: ReturnType<typeof authoredPropKinds>;
+  registeredCallsites: ComponentInvocationMeta[];
 }
 
 function componentIdFor(
@@ -319,7 +311,7 @@ function walk(
       && typeof line === "number"
       && typeof column === "number"
     ) {
-      const meta: ComponentInvocationMetadata = {
+      const meta: ComponentInvocationMeta = {
         callsiteId: `${relPath}:${line}:${column + 1}`,
         componentId: state.componentPolicy.componentId(componentName)
           ?? componentIdFor(componentName, relPath, state.componentPolicy.bindings),

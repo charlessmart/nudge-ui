@@ -105,8 +105,9 @@ describe("tagged React callsites", () => {
       meta: BADGE,
       props: { tone: "info" },
       mountedCount: 1,
-      livePreview: true,
     });
+    // Live is the default, so only a prompt-only target carries the flag.
+    expect(targets[0]).not.toHaveProperty("livePreview");
     expect(targets[0]!.props).not.toHaveProperty("data-src");
     expect(targets[1]!.meta.componentId).toBe("@fixture/ds#Box");
   });
@@ -149,6 +150,25 @@ describe("tagged React callsites", () => {
     act(() => replaceReactComponentOverrides([]));
     await flush();
     expect(tones()).toEqual(["success", "success"]);
+  });
+
+  it("restores the authored value after several overrides of the same prop", async () => {
+    act(() => root?.render(boxed(badge("info"))));
+    inspectReactComponentTargets(host.querySelector("span") as HTMLElement);
+    const tone = () => host.querySelector("span")?.textContent;
+    const override = (value: string) => act(() => replaceReactComponentOverrides([
+      { framework: "react", callsiteId: BADGE.callsiteId, prop: "tone", value },
+    ]));
+
+    override("critical");
+    await flush();
+    override("warning");
+    await flush();
+    expect(tone()).toBe("warning");
+
+    act(() => replaceReactComponentOverrides([]));
+    await flush();
+    expect(tone()).toBe("info");
   });
 
   it("ignores identity tags the compiler did not register", () => {

@@ -47,9 +47,12 @@ walk of the mounted tree, cached until the next commit.
 **Live preview edits fiber props through the DevTools seam.** A classic inline
 script in the document head records every renderer injected into the hook
 (React Refresh's stub hook does not). Overrides are applied with one
-whole-props `overrideProps` call per invocation, reapplied after any commit
-that hands an invocation its authored props again, and removed by writing back
-the authored value recorded when the override was last applied.
+whole-props `overrideProps` call per invocation, through the renderer that
+committed the invocation's root only, and reapplied after any commit that
+hands an invocation its authored props again. Each overridden prop keeps its
+authored value and the override last applied; a rendered value that is not
+that override came from the application and replaces the authored value.
+Removing an override writes the authored value back.
 
 **Without the seam, semantics degrade to prompt-only.** A target the runtime
 can name but not edit reports `livePreview: false`; the panel says the change
@@ -69,9 +72,13 @@ whether a callsite is visible to the inspector.
   read for boundaries) and the DevTools renderer toolkit. A future React that
   removes the toolkit loses live preview for tagged callsites, not
   identification.
-- The head script is injected by the Vite host. Hosts that do not inject it
-  (Next.js, Astro without an HTML entry) identify tagged callsites but preview
-  them only if another hook retains renderers, such as the DevTools extension.
+- The head script is injected by the Vite host, including demo dev serving.
+  Hosts that do not inject it (Next.js, Astro without an HTML entry) identify
+  tagged callsites but preview them only if another hook retains renderers,
+  such as the DevTools extension. Demo builds ship production React, which has
+  no prop-editing toolkit, so tagged callsites there are prompt-only.
+- A root whose renderer is known but lacks the toolkit is prompt-only; the
+  runtime never edits a fiber through another renderer.
 - An identity tag that a component spreads into a nested component of its own
   is attributed to the outer callsite. That matches what the DOM attribute
   already reports.
@@ -79,13 +86,18 @@ whether a callsite is visible to the inspector.
 ## Verification
 
 - Runtime tests render real React trees under jsdom with the capture script
-  installed: nearest-first naming across memo/forwardRef layers, multiplicity,
-  root invocations, live preview that survives parent renders, and restoration
-  of an authored value that changed during the override.
-- A separate test without any hook covers prompt-only targets.
+  installed: nearest-first naming across memo/forwardRef layers,
+  multiplicity, root invocations, live preview that survives parent renders,
+  restoration of an authored value that changed during the override, and
+  restoration after several overrides of the same prop.
+- A separate test without any hook covers prompt-only targets; another covers
+  renderer ownership, including a known owner without the toolkit.
 - Compiler tests cover registration inside opaque package subtrees, the
   single-line prelude, and authored `data-src`; the Next.js loader test keeps
-  registration after a `"use client"` directive.
-- The sandbox playground's `ThinkingOrb`, a package component, shows its props
-  in the panel, previews `state` and `theme` changes live on React 18, and
-  restores both on undo.
+  registration after a `"use client"` directive. Vite host tests check that the
+  plugin injects the capture script ahead of every other script, in demo mode
+  too, and that a host without a framework injects none.
+- A sandbox Playwright test (`package-component-props.dev.spec.ts`) joins the
+  compiler and runtime: it selects the playground's `ThinkingOrb`, a package
+  component, changes `state` twice, checks the rendered label, and reverts to
+  the authored value.

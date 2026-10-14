@@ -31,8 +31,11 @@ export interface FiberRoot {
 const COMMIT_OBSERVER: unique symbol = Symbol.for("nudge-ui.react-commit-observer");
 
 interface CommitObserver {
+  /** Each root with the renderer that committed it; -1 for a root found from the DOM before any commit. */
   readonly roots: Map<FiberRoot, number>;
   readonly listeners: Set<(root: FiberRoot) => void>;
+  /** Counts commits, so callers can tell whether a mounted tree may have changed. */
+  generation: number;
 }
 
 function hook(): ReactDevtoolsHook | null {
@@ -42,17 +45,22 @@ function hook(): ReactDevtoolsHook | null {
   return typeof value === "object" && value !== null ? value : null;
 }
 
-/** The renderer that can edit props for a root, or any capable renderer when the root is unknown. */
+/**
+ * The renderer that owns a root, when it can edit props. A fiber must only be
+ * edited by its own renderer, so a known owner without the toolkit (a
+ * production build) answers null rather than borrowing another copy's. An
+ * unknown owner is resolved only when exactly one capable renderer exists.
+ */
 export function propEditingRenderer(root?: FiberRoot): ReactRendererInternals | null {
   const renderers = hook()?.renderers;
   if (!(renderers instanceof Map)) return null;
   const rendererId = root ? commitObserver()?.roots.get(root) : undefined;
-  const preferred = rendererId === undefined ? undefined : renderers.get(rendererId);
-  if (typeof preferred?.overrideProps === "function") return preferred;
-  for (const renderer of renderers.values()) {
-    if (typeof renderer?.overrideProps === "function") return renderer;
+  if (rendererId !== undefined && rendererId >= 0) {
+    const owner = renderers.get(rendererId);
+    return typeof owner?.overrideProps === "function" ? owner : null;
   }
-  return null;
+  const capable = [...renderers.values()].filter((renderer) => typeof renderer?.overrideProps === "function");
+  return capable.length === 1 ? capable[0]! : null;
 }
 
 /**
@@ -64,10 +72,11 @@ function commitObserver(): CommitObserver | null {
   if (!target) return null;
   const existing = target[COMMIT_OBSERVER];
   if (existing) return existing;
-  const observer: CommitObserver = { roots: new Map(), listeners: new Set() };
+  const observer: CommitObserver = { roots: new Map(), listeners: new Set(), generation: 0 };
   const previous = target.onCommitFiberRoot;
   target.onCommitFiberRoot = function onCommitFiberRoot(rendererId, root, ...details) {
     if (typeof previous === "function") previous.call(this, rendererId, root, ...details);
+    observer.generation += 1;
     if (root && typeof root === "object") {
       observer.roots.set(root, rendererId);
       for (const listener of observer.listeners) listener(root);
@@ -75,6 +84,11 @@ function commitObserver(): CommitObserver | null {
   };
   target[COMMIT_OBSERVER] = observer;
   return observer;
+}
+
+/** Commits seen so far, or null when commits cannot be observed. */
+export function commitGeneration(): number | null {
+  return commitObserver()?.generation ?? null;
 }
 
 /** True once commits are observable, which needs a hook on the page. */

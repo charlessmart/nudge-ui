@@ -1,6 +1,8 @@
 import type { ComponentInvocationMeta, ComponentRootInvocation } from "../types.ts";
+import { IDENTITY_ATTRIBUTES } from "../../../compiler/identityAttributes.ts";
 import { HOST_ROOT_TAG, hostOutputCount, isHostOutput, type Fiber, type FiberProps } from "./fibers.ts";
 import {
+  commitGeneration,
   onCommit,
   propEditingRenderer,
   rememberRoot,
@@ -22,7 +24,7 @@ import {
  * edits reach the prompt only.
  */
 
-const IDENTITY_PROPS = new Set(["data-cid", "data-src", "data-cprops"]);
+const IDENTITY_PROPS: ReadonlySet<string> = new Set(IDENTITY_ATTRIBUTES);
 const callsites = new Map<string, ComponentInvocationMeta>();
 let overridesByCallsite = new Map<string, FiberProps>();
 
@@ -37,7 +39,7 @@ export interface TaggedInvocation {
 /** Called from transformed modules before any of their JSX renders. */
 export function registerReactCallsites(metas: readonly ComponentInvocationMeta[]): void {
   for (const meta of metas) callsites.set(meta.callsiteId, meta);
-  treeGeneration += 1;
+  registrations += 1;
   observeCommits();
 }
 
@@ -77,7 +79,8 @@ function resolveRoot(host: Fiber): TreePosition {
   return { root, onCurrentTree: root.current === top };
 }
 
-function current(fiber: Fiber, onCurrentTree: boolean): Fiber {
+/** The counterpart React is currently displaying. */
+function displayedFiber(fiber: Fiber, onCurrentTree: boolean): Fiber {
   return onCurrentTree ? fiber : fiber.alternate ?? fiber;
 }
 
@@ -104,9 +107,9 @@ export function taggedInvocationsAbove(host: Fiber): TaggedInvocation[] {
     if (!meta) continue;
     const existing = found.get(meta.callsiteId);
     if (existing && chain === meta.callsiteId) {
-      existing.fiber = current(fiber, onCurrentTree);
+      existing.fiber = displayedFiber(fiber, onCurrentTree);
     } else if (!existing) {
-      found.set(meta.callsiteId, { meta, fiber: current(fiber, onCurrentTree), depth, root });
+      found.set(meta.callsiteId, { meta, fiber: displayedFiber(fiber, onCurrentTree), depth, root });
       chain = meta.callsiteId;
     } else {
       chain = null;
@@ -133,22 +136,25 @@ export function taggedRootInvocations(host: Fiber): Array<ComponentRootInvocatio
 }
 
 /**
- * A mounted tree only changes at a commit, so while commits are observed one
- * walk per root serves every inspection until the next one. Registration
+ * A mounted tree only changes at a commit, so one walk per root serves every
+ * inspection until the commit observer reports the next one. Registration
  * also invalidates, because it changes which fibers count as callsites.
+ * Without an observer there is no signal, so nothing is cached.
  */
-let treeGeneration = 0;
-const walkedRoots = new WeakMap<FiberRoot, { generation: number; invocations: Map<string, Fiber[]> }>();
+let registrations = 0;
+const walkedRoots = new WeakMap<FiberRoot, { version: string; invocations: Map<string, Fiber[]> }>();
 
 /** Outermost fiber of every mounted invocation, grouped by callsite, top-down. */
 function mountedInvocations(roots: Iterable<FiberRoot>): Map<string, Fiber[]> {
   const merged = new Map<string, Fiber[]>();
+  const commits = commitGeneration();
+  const version = commits === null ? null : `${commits}:${registrations}`;
   for (const root of roots) {
     const cached = walkedRoots.get(root);
-    const invocations = stopObserving && cached?.generation === treeGeneration
+    const invocations = version !== null && cached?.version === version
       ? cached.invocations
       : walkRoot(root);
-    if (stopObserving) walkedRoots.set(root, { generation: treeGeneration, invocations });
+    if (version !== null) walkedRoots.set(root, { version, invocations });
     for (const [callsiteId, fibers] of invocations) {
       merged.set(callsiteId, [...(merged.get(callsiteId) ?? []), ...fibers]);
     }
@@ -200,12 +206,16 @@ export function canPreviewLive(root: FiberRoot | null): boolean {
 interface AuthoredValue {
   present: boolean;
   value: unknown;
+  /** The override last written, which is how a later render is told apart from the author's own. */
+  applied: unknown;
 }
 
 /**
  * The authored value a prop had before it was overridden, per mounted
- * invocation. It is refreshed whenever a parent render hands the authored
- * value back, so restoring never resurrects a stale one. Both fibers of an
+ * invocation. A rendered value that is not the override last applied came
+ * from a parent render and replaces the record, so restoring never
+ * resurrects a stale value; one that is the last override leaves it alone,
+ * so a second edit cannot record the first as authored. Both fibers of an
  * invocation share the record because React alternates between them.
  */
 const authoredValues = new WeakMap<Fiber, Map<string, AuthoredValue>>();
@@ -242,7 +252,12 @@ function editInvocation(
   }
   for (const [prop, value] of Object.entries(overrides ?? {})) {
     if (Object.is(rendered[prop], value)) continue;
-    authored.set(prop, { present: Object.hasOwn(rendered, prop), value: rendered[prop] });
+    const record = authored.get(prop);
+    if (record && Object.is(rendered[prop], record.applied)) {
+      record.applied = value;
+    } else {
+      authored.set(prop, { present: Object.hasOwn(rendered, prop), value: rendered[prop], applied: value });
+    }
     next[prop] = value;
     changed = true;
   }
@@ -287,7 +302,6 @@ let stopObserving: (() => void) | null = null;
 function observeCommits(): void {
   if (stopObserving) return;
   const stop = onCommit(() => {
-    treeGeneration += 1;
     if (overridesByCallsite.size === 0 || reapplyQueued) return;
     reapplyQueued = true;
     queueMicrotask(() => {

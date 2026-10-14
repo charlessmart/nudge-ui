@@ -200,10 +200,29 @@ export function instrumentReactComponent(
   );
 }
 
-function boundaryProps(fiber: Fiber): Partial<BoundaryProps> {
-  // SAFETY: only a boundary fiber's props are read as BoundaryProps, and
-  // callers check `isBoundaryType` and each field before using them.
-  return (fiber.memoizedProps ?? {}) as Partial<BoundaryProps>;
+/** A boundary fiber's props, or null for any other fiber. */
+function boundaryOf(fiber: Fiber): BoundaryProps | null {
+  if (!isBoundaryType(fiber.type)) return null;
+  // SAFETY: a boundary fiber's props are the `{ element, meta }` it was created with; both are checked below.
+  const props = (fiber.memoizedProps ?? {}) as Partial<BoundaryProps>;
+  return props.meta && props.element ? { meta: props.meta, element: props.element } : null;
+}
+
+interface Ranked<T> {
+  depth: number;
+  callsiteId: string;
+  value: T;
+}
+
+/**
+ * Merges boundary and tagged results nearest first. A callsite answered by
+ * its boundary is not answered again by its tag.
+ */
+function nearestFirst<T>(boundaries: readonly Ranked<T>[], tagged: readonly Ranked<T>[]): T[] {
+  const wrapped = new Set(boundaries.map((entry) => entry.callsiteId));
+  return [...boundaries, ...tagged.filter((entry) => !wrapped.has(entry.callsiteId))]
+    .sort((left, right) => left.depth - right.depth)
+    .map((entry) => entry.value);
 }
 
 /**
@@ -215,16 +234,16 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
   const host = findFiber(element);
   if (!host) return [];
-  const ranked: Array<{ depth: number; target: RuntimeComponentTarget }> = [];
-  const wrapped = new Set<string>();
+  const boundaries: Ranked<RuntimeComponentTarget>[] = [];
   let depth = 0;
   for (let fiber: Fiber | null = host; fiber; fiber = fiber.return ?? null, depth += 1) {
-    const { meta, element: sourceElement } = boundaryProps(fiber);
-    if (!isBoundaryType(fiber.type) || !meta || !sourceElement) continue;
-    wrapped.add(meta.callsiteId);
-    ranked.push({
+    const boundary = boundaryOf(fiber);
+    if (!boundary) continue;
+    const { meta, element: sourceElement } = boundary;
+    boundaries.push({
       depth,
-      target: {
+      callsiteId: meta.callsiteId,
+      value: {
         framework: "react",
         meta,
         props: {
@@ -235,42 +254,40 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
       },
     });
   }
-  for (const invocation of taggedInvocationsAbove(host)) {
-    if (wrapped.has(invocation.meta.callsiteId)) continue;
-    ranked.push({
-      depth: invocation.depth,
-      target: {
-        framework: "react",
-        meta: invocation.meta,
-        props: invocationProps(invocation.fiber),
-        mountedCount: taggedCallsiteMultiplicity(invocation.meta.callsiteId, invocation.root) ?? undefined,
-        livePreview: canPreviewLive(invocation.root),
-      },
-    });
-  }
-  return ranked.sort((left, right) => left.depth - right.depth).map(({ target }) => target);
+  const tagged = taggedInvocationsAbove(host).map((invocation): Ranked<RuntimeComponentTarget> => ({
+    depth: invocation.depth,
+    callsiteId: invocation.meta.callsiteId,
+    value: {
+      framework: "react",
+      meta: invocation.meta,
+      props: invocationProps(invocation.fiber),
+      mountedCount: taggedCallsiteMultiplicity(invocation.meta.callsiteId, invocation.root) ?? undefined,
+      ...(canPreviewLive(invocation.root) ? {} : { livePreview: false }),
+    },
+  }));
+  return nearestFirst(boundaries, tagged);
 }
 
 export function inspectReactRootInvocations(element: HTMLElement): ComponentRootInvocation[] | null {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return null;
   const host = findFiber(element);
   if (!host) return null;
-  const ranked: Array<ComponentRootInvocation & { depth: number }> = [];
+  const boundaries: Ranked<ComponentRootInvocation>[] = [];
   let depth = 0;
   for (let fiber = host.return ?? null; fiber && !isHostOutput(fiber); fiber = fiber.return ?? null) {
     depth += 1;
-    const { meta } = boundaryProps(fiber);
-    if (!isBoundaryType(fiber.type) || !meta) continue;
+    const boundary = boundaryOf(fiber);
+    if (!boundary) continue;
     if (hostOutputCount(fiber) !== 1) break;
-    ranked.push({ callsiteId: meta.callsiteId, componentName: meta.componentName, depth });
+    const { callsiteId, componentName } = boundary.meta;
+    boundaries.push({ depth, callsiteId, value: { callsiteId, componentName } });
   }
-  const seen = new Set(ranked.map((invocation) => invocation.callsiteId));
-  for (const invocation of taggedRootInvocations(host)) {
-    if (!seen.has(invocation.callsiteId)) ranked.push(invocation);
-  }
-  return ranked
-    .sort((left, right) => left.depth - right.depth)
-    .map(({ callsiteId, componentName }) => ({ callsiteId, componentName }));
+  const tagged = taggedRootInvocations(host).map(({ depth: taggedDepth, callsiteId, componentName }) => ({
+    depth: taggedDepth,
+    callsiteId,
+    value: { callsiteId, componentName },
+  }));
+  return nearestFirst(boundaries, tagged);
 }
 
 /** Boundary accounting first; a tagged callsite is counted from the mounted tree. */
