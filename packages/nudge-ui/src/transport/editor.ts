@@ -194,7 +194,7 @@ export function createNudgeUiEditorDocument(): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nudge UI</title>
+  <title></title>
   <style>html,body,#${NUDGE_UI_MOUNT_ID}{width:100%;height:100%;margin:0}body{overflow:hidden}</style>
 </head>
 <body>

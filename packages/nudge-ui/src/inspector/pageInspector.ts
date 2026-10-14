@@ -256,6 +256,8 @@ function mountPageInspector(): () => void {
  * Canvas renderer frames, which the caller loads the inspector into.
  */
 function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
+  // The editor never owns the tab title; it shows the application's own title.
+  const pageTitle = document.title;
   document.head.replaceChildren();
   document.body.replaceChildren();
   for (const element of [document.documentElement, document.body]) {
@@ -263,7 +265,7 @@ function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
     element.removeAttribute("hidden");
     element.removeAttribute("inert");
   }
-  document.title = "Nudge UI";
+  document.title = pageTitle;
   const layout = new CSSStyleSheet();
   layout.replaceSync(`html, body, #${MOUNT_ID} { display: block; width: 100%; height: 100%; margin: 0; overflow: hidden; }`);
   document.adoptedStyleSheets = [layout];
@@ -296,7 +298,20 @@ function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
       onRendererFrameLoad?.();
     }
   };
-  window.setInterval(announceReadyDocuments, 100);
+  // Mirrors the primary application frame's title, which follows its navigation.
+  const syncApplicationTitle = (): void => {
+    for (const frame of frames()) {
+      const frameTitle = applicationDocument(frame)?.title;
+      if (frameTitle) {
+        if (document.title !== frameTitle) document.title = frameTitle;
+        return;
+      }
+    }
+  };
+  window.setInterval(() => {
+    announceReadyDocuments();
+    syncApplicationTitle();
+  }, 100);
   // Script-built styles exist only in the application frames, not in this document.
   const collectFrameTokens = (frame: HTMLIFrameElement): void => {
     const frameDocument = applicationDocument(frame);
