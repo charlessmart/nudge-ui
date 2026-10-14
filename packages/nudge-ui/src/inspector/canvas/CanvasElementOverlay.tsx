@@ -796,7 +796,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
-      {domNavigationEnabled && !inlineTextSession && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
+      {domNavigationEnabled && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
         <DomNavigator
           selected={selected}
           hierarchy={hierarchy}
