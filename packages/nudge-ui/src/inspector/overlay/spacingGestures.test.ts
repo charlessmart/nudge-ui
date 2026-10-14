@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  getElementSpacingAtPoint,
+  getElementSpacingHandleAtPoint,
   getSpacingAffordanceAtPoint,
   getSpacingHoverAtPoint,
   spacingValueForDrag,
@@ -238,5 +240,62 @@ describe("spacing gestures", () => {
     // An already-multiples value anchors on itself.
     expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 30 }, true)).toBe(32);
     expect(spacingValueForDrag(affordance, { x: 100, y: 20 }, { x: 100, y: 22 }, true)).toBe(24);
+  });
+
+  it("scopes affordances to one element exactly like filtering the document-wide search", () => {
+    const outer = trackedElement();
+    outer.style.padding = "24px";
+    const row = document.createElement("div");
+    row.dataset.cid = "row";
+    row.style.display = "flex";
+    row.style.gap = "16px";
+    row.style.padding = "8px";
+    const first = document.createElement("div");
+    first.dataset.cid = "first";
+    const second = document.createElement("div");
+    second.dataset.cid = "second";
+    second.style.padding = "12px";
+    second.style.display = "grid";
+    second.style.rowGap = "10px";
+    const top = document.createElement("div");
+    top.dataset.cid = "top";
+    const bottom = document.createElement("div");
+    bottom.dataset.cid = "bottom";
+    second.append(top, bottom);
+    row.append(first, second);
+    outer.append(row);
+    const boxes = new Map<HTMLElement, DOMRect>([
+      [outer, rect(0, 0, 400, 300)],
+      [row, rect(24, 24, 352, 252)],
+      [first, rect(32, 32, 100, 236)],
+      [second, rect(148, 32, 200, 236)],
+      [top, rect(160, 44, 176, 100)],
+      [bottom, rect(160, 154, 176, 102)],
+    ]);
+    for (const [element, box] of boxes) Object.defineProperty(element, "getBoundingClientRect", { value: () => box });
+    const deepestFirst = [top, bottom, first, second, row, outer];
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: (x: number, y: number) => deepestFirst.find((element) => {
+        const box = boxes.get(element)!;
+        return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+      }) ?? null,
+    });
+
+    let matches = 0;
+    for (let x = 0; x <= 400; x += 8) {
+      for (let y = 0; y <= 300; y += 8) {
+        const handle = getSpacingAffordanceAtPoint(document, x, y);
+        const area = getSpacingHoverAtPoint(document, x, y);
+        for (const element of deepestFirst) {
+          const scoped = getElementSpacingAtPoint(document, element, x, y);
+          expect(scoped.handle).toEqual(handle?.element === element ? handle : null);
+          expect(scoped.area).toEqual(area?.element === element ? area : null);
+          expect(getElementSpacingHandleAtPoint(document, element, x, y)).toEqual(scoped.handle);
+          if (scoped.handle || scoped.area) matches++;
+        }
+      }
+    }
+    expect(matches).toBeGreaterThan(20);
   });
 });

@@ -5,8 +5,9 @@ import type { Alias } from "vite";
 import { injectIdentity } from "../../compiler/reactIdentity.ts";
 import { extractComponentContracts } from "../../compiler/componentContracts.ts";
 import {
-  collectPackageComponentModules,
+  collectPackageComponentImports,
   extractPackageComponentContractCatalog,
+  type PackageComponentImport,
 } from "../../compiler/packageComponentContracts.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
 import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
@@ -63,7 +64,7 @@ export interface FrameworkTransformContext {
 
 export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   const contractsByFile = new Map<string, ComponentContract[]>();
-  const packageModulesByFile = new Map<string, string[]>();
+  const packageImportsByFile = new Map<string, PackageComponentImport[]>();
   const reportedPolicyDiagnostics = new Set<string>();
   const manualComponentIds = new Set(
     options.componentMetadata?.map((contract) => contract.componentId) ?? [],
@@ -82,21 +83,17 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   }
 
   /**
-   * Fingerprinted on the module-to-importer mapping so an unchanged import
-   * graph costs nothing; every component edit reaches this path.
+   * Fingerprinted on the rendered package exports so an unchanged import graph
+   * costs nothing; every component edit reaches this path.
    */
   function refreshPackageContracts(): void {
-    const hostByModule = new Map<string, string>();
-    for (const [hostFile, modules] of [...packageModulesByFile].sort(([left], [right]) =>
-      left.localeCompare(right))) {
-      for (const moduleSpecifier of modules) {
-        if (!hostByModule.has(moduleSpecifier)) hostByModule.set(moduleSpecifier, hostFile);
+    const importsByKey = new Map<string, PackageComponentImport>();
+    for (const imports of packageImportsByFile.values()) {
+      for (const packageImport of imports) {
+        importsByKey.set(`${packageImport.moduleSpecifier}#${packageImport.exportName}`, packageImport);
       }
     }
-    const fingerprint = [...hostByModule]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([moduleSpecifier, hostFile]) => `${moduleSpecifier}\0${hostFile}`)
-      .join("\n");
+    const fingerprint = [...importsByKey.keys()].sort().join("\n");
     if (fingerprint === packageFingerprint) return;
 
     for (const key of [...contractsByFile.keys()]) {
@@ -106,10 +103,11 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     const catalog = root
       ? extractPackageComponentContractCatalog({
         hostFile: join(root, "__nudge_ui_package_contracts__.tsx"),
-        moduleSpecifiers: [...hostByModule.keys()],
+        imports: [...importsByKey.values()],
       })
       : [];
-    for (const moduleSpecifier of hostByModule.keys()) {
+    const moduleSpecifiers = new Set([...importsByKey.values()].map((entry) => entry.moduleSpecifier));
+    for (const moduleSpecifier of moduleSpecifiers) {
       contractsByFile.set(
         `package-types:${moduleSpecifier}`,
         catalog.filter((contract) =>
@@ -182,14 +180,14 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       if (!COMPONENT_EXTENSION.test(id) || !host.isHostSource(id)) return;
       const fileId = id.split(/[?#]/, 1)[0] ?? id;
       contractsByFile.set(fileId, extractComponentContracts(code, host.catalogPath(fileId)));
-      packageModulesByFile.set(fileId, collectPackageComponentModules(code, fileId));
+      packageImportsByFile.set(fileId, collectPackageComponentImports(code, fileId));
       if (refreshPackages) refreshPackageContracts();
     },
 
     /** Drops a module whose source could not be read after a change. */
     forget(id: string): void {
       contractsByFile.set(id, []);
-      packageModulesByFile.delete(id);
+      packageImportsByFile.delete(id);
       refreshPackageContracts();
     },
 

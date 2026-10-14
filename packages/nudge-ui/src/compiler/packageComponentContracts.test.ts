@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
-  collectPackageComponentModules,
+  collectPackageComponentImports,
+  extractPackageComponentContractCatalog,
   extractPackageComponentContracts,
 } from "./packageComponentContracts.ts";
 
@@ -20,18 +21,55 @@ function writeFixtureFile(root: string, path: string, content: string): string {
 }
 
 describe("extractPackageComponentContracts", () => {
-  it("collects only bare imports rendered as JSX components", () => {
-    expect(collectPackageComponentModules(`
+  it("collects only bare-module exports rendered as JSX components", () => {
+    expect(collectPackageComponentImports(`
       import type { ButtonProps } from "@fixture/design-system/components";
-      import { Button, buttonVariants } from "@fixture/design-system/components";
+      import { Button, Badge as Pill, buttonVariants, Unused } from "@fixture/design-system/components";
+      import Logo from "@fixture/brand";
       import * as Layout from "@fixture/layout";
+      import * as Unrendered from "@fixture/unrendered";
       import { LocalCard } from "./LocalCard";
       const value = buttonVariants[0];
-      export const App = () => <><Button variant={value} /><Layout.Stack /><LocalCard /></>;
+      export const App = () => (
+        <><Button variant={value} /><Pill /><Logo /><Layout.Stack.Item /><LocalCard /></>
+      );
     `, "src/App.tsx")).toEqual([
-      "@fixture/design-system/components",
-      "@fixture/layout",
+      { moduleSpecifier: "@fixture/brand", exportName: "default" },
+      { moduleSpecifier: "@fixture/design-system/components", exportName: "Badge" },
+      { moduleSpecifier: "@fixture/design-system/components", exportName: "Button" },
+      { moduleSpecifier: "@fixture/layout", exportName: "Stack" },
     ]);
+  });
+
+  it("describes only the rendered exports of a package with many components", () => {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-package-catalog-"));
+    try {
+      const hostFile = writeFixtureFile(root, "src/App.tsx", "export {};");
+      writeFixtureFile(
+        root,
+        "node_modules/@fixture/icons/package.json",
+        JSON.stringify({ name: "@fixture/icons", types: "index.d.ts" }),
+      );
+      const icons = Array.from({ length: 50 }, (_, index) => `Icon${index}`);
+      writeFixtureFile(root, "node_modules/@fixture/icons/index.d.ts", [
+        "interface IconProps { size?: \"small\" | \"large\" }",
+        ...icons.map((name) => `export declare function ${name}(props: IconProps): unknown;`),
+      ].join("\n"));
+
+      expect(extractPackageComponentContractCatalog({
+        hostFile,
+        imports: [
+          { moduleSpecifier: "@fixture/icons", exportName: "Icon7" },
+          { moduleSpecifier: "@fixture/icons", exportName: "Icon3" },
+          { moduleSpecifier: "@fixture/icons", exportName: "Missing" },
+        ],
+      }).map((contract) => contract.componentId)).toEqual([
+        "@fixture/icons#Icon3",
+        "@fixture/icons#Icon7",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("follows a barrel into a ForwardRefExoticComponent declaration and resolves a tuple alias", () => {

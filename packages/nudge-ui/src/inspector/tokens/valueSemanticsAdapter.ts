@@ -30,11 +30,26 @@ function colorTuple(value: string): string | null {
   return rgb ? [rgb[1], rgb[2], rgb[3]].map((part) => String(Math.round(Number(part)))).join(",") : null;
 }
 
+const frameworkColorIndexes = new WeakMap<TokenTable, Map<string, TokenEntry>>();
+
+/** The first Tailwind v3 token for each color tuple, built once per table. */
+function frameworkColorIndex(tokenTable: TokenTable): Map<string, TokenEntry> {
+  let index = frameworkColorIndexes.get(tokenTable);
+  if (index) return index;
+  index = new Map();
+  for (const entry of Object.values(tokenTable)) {
+    if (entry.adapter !== "tailwind-v3") continue;
+    const tuple = colorTuple(entry.value);
+    if (tuple && !index.has(tuple)) index.set(tuple, entry);
+  }
+  frameworkColorIndexes.set(tokenTable, index);
+  return index;
+}
+
 function directFrameworkColor(value: string, tokenTable: TokenTable): TokenEntry | undefined {
   const tuple = colorTuple(value);
   if (!tuple) return undefined;
-  return Object.values(tokenTable).find((entry) =>
-    entry.adapter === "tailwind-v3" && colorTuple(entry.value) === tuple);
+  return frameworkColorIndex(tokenTable).get(tuple);
 }
 
 function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribution {

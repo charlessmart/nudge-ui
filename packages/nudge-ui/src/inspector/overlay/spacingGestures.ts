@@ -468,6 +468,77 @@ export function getSpacingHoverAtPoint(doc: Document, x: number, y: number): Spa
   return null;
 }
 
+/**
+ * The affordance a whole-document search would return, but only when it
+ * belongs to `element`; otherwise null. Candidates run innermost first and
+ * padding beats gaps, so only descendants of `element` and `element` itself
+ * can win. Ancestors are examined only to confirm a gap match, since an
+ * ancestor's padding handle would take precedence over it.
+ */
+function affordanceForElement(
+  candidates: readonly HTMLElement[],
+  element: HTMLElement,
+  padding: (candidate: HTMLElement) => SpacingAffordance | null,
+  gap: (candidate: HTMLElement) => SpacingAffordance | null,
+): SpacingAffordance | null {
+  const index = candidates.indexOf(element);
+  if (index < 0) return null;
+  for (let candidate = 0; candidate <= index; candidate++) {
+    const match = padding(candidates[candidate]!);
+    if (match) return match.element === element ? match : null;
+  }
+  let gapMatch: SpacingAffordance | null = null;
+  for (let candidate = 0; candidate <= index && !gapMatch; candidate++) {
+    gapMatch = gap(candidates[candidate]!);
+  }
+  if (gapMatch?.element !== element) return null;
+  for (let candidate = index + 1; candidate < candidates.length; candidate++) {
+    if (padding(candidates[candidate]!)) return null;
+  }
+  return gapMatch;
+}
+
+function elementSpacingHandle(candidates: readonly HTMLElement[], element: HTMLElement, x: number, y: number): SpacingAffordance | null {
+  return affordanceForElement(
+    candidates,
+    element,
+    (candidate) => paddingAffordanceAtPoint(candidate, x, y),
+    (candidate) => gapAffordanceAtPoint(candidate, x, y),
+  );
+}
+
+/**
+ * The drag handle under a pointer when it belongs to `element`. Equivalent to
+ * filtering getSpacingAffordanceAtPoint by element, without measuring every
+ * ancestor.
+ */
+export function getElementSpacingHandleAtPoint(doc: Document, element: HTMLElement, x: number, y: number): SpacingAffordance | null {
+  return elementSpacingHandle(trackedElementsAtPoint(doc, x, y), element, x, y);
+}
+
+/**
+ * The drag handle and hover area under a pointer that belong to `element`.
+ * Equivalent to filtering getSpacingAffordanceAtPoint and
+ * getSpacingHoverAtPoint by element, without measuring every ancestor.
+ */
+export function getElementSpacingAtPoint(
+  doc: Document,
+  element: HTMLElement,
+  x: number,
+  y: number,
+): { handle: SpacingAffordance | null; area: SpacingAffordance | null } {
+  const candidates = trackedElementsAtPoint(doc, x, y);
+  return {
+    handle: elementSpacingHandle(candidates, element, x, y),
+    area: affordanceForElement(
+      candidates,
+      element,
+      (candidate) => paddingAffordanceInAreaAtPoint(candidate, x, y),
+      (candidate) => gapAffordanceInAreaAtPoint(candidate, x, y),
+    ),
+  };
+}
+
 /** Re-resolves a renderer-reported spacing descriptor in its owner document. */
 export function getSpacingAffordanceForDescriptor(
   element: HTMLElement,

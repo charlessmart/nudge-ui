@@ -36,18 +36,26 @@ import {
   type SerializedManagedStyles,
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
-import { adoptStylesheet, allowsStyleElements } from "../runtime/ownedStylesheets.ts";
+import { adoptStylesheet, allowsStyleElements, getAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
 import { applyRuntimeIdentityClaims, isRuntimeIdentityClaim } from "../runtime/runtimeIdentityClaims.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
+let adoptedCss: string | null = null;
+
 function replaceRendererCss(css: string): void {
   if (!allowsStyleElements(document)) {
+    // Structural and text projections resend unchanged CSS; rewriting it
+    // would discard every cached stylesheet-derived resolution.
+    const adopted = getAdoptedStylesheet(document, SHEET_ID);
+    if (adopted && adoptedCss === css && document.adoptedStyleSheets.includes(adopted)) return;
     adoptStylesheet(document, SHEET_ID, css);
+    adoptedCss = css;
     notifyBrowserStylesheetChange(document);
     return;
   }
   let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
+  if (sheet?.textContent === css) return;
   if (!sheet) {
     sheet = document.createElement("style");
     sheet.id = SHEET_ID;

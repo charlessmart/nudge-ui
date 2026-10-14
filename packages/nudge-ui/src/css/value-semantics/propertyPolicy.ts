@@ -248,19 +248,22 @@ function hasUnresolvedVariable(value: string): boolean {
   return /\bvar\s*\(/i.test(value);
 }
 
-function resolveValueInElement(entry: TokenEntry, element?: HTMLElement): string {
+/** One computed style per selection request, shared by every token it resolves. */
+function elementStyle(element?: HTMLElement): CSSStyleDeclaration | null {
+  const view = element?.ownerDocument.defaultView;
+  return element && view && typeof view.getComputedStyle === "function" ? view.getComputedStyle(element) : null;
+}
+
+function resolveValueInElement(entry: TokenEntry, style: CSSStyleDeclaration | null): string {
   const variableName = tokenVariableName(entry);
-  if (element && variableName.startsWith("--")) {
-    const view = element.ownerDocument.defaultView;
-    if (view && typeof view.getComputedStyle === "function") {
-      const computed = view.getComputedStyle(element).getPropertyValue(variableName).trim();
-      if (computed) return computed;
-    }
+  if (style && variableName.startsWith("--")) {
+    const computed = style.getPropertyValue(variableName).trim();
+    if (computed) return computed;
   }
   return entry.value.trim();
 }
 
-function browserCss(element?: HTMLElement): { supports?(property: string, value: string): boolean } | undefined {
+function browserCss(element?: HTMLElement): CssSupports | undefined {
   const elementCss = element?.ownerDocument.defaultView?.CSS;
   if (elementCss) return elementCss;
   return globalThis.CSS;
@@ -296,6 +299,33 @@ function fallbackSupports(property: string, value: string): boolean {
   return false;
 }
 
+type CssSupports = { supports?(property: string, value: string): boolean };
+
+const SUPPORTS_CACHE_LIMIT = 20_000;
+const supportsCaches = new WeakMap<CssSupports, Map<string, boolean>>();
+
+/**
+ * CSS.supports answers depend only on the realm's grammar, so each answer is
+ * kept per CSS object. Token pickers ask the same questions for every field
+ * on every selection, and large catalogs make the uncached calls dominate.
+ */
+function cachedSupports(css: CssSupports, property: string, value: string): boolean | null {
+  if (typeof css.supports !== "function") return null;
+  let cache = supportsCaches.get(css);
+  if (!cache) {
+    cache = new Map();
+    supportsCaches.set(css, cache);
+  }
+  const key = `${property}\n${value}`;
+  let supported = cache.get(key);
+  if (supported === undefined) {
+    if (cache.size >= SUPPORTS_CACHE_LIMIT) cache.clear();
+    supported = css.supports(property, value);
+    cache.set(key, supported);
+  }
+  return supported;
+}
+
 /**
  * Host-realm grammar factory. Uses the element's window CSS when available,
  * then `globalThis.CSS`, and falls back to a conservative non-browser matcher.
@@ -305,8 +335,7 @@ export function browserCssGrammar(element?: HTMLElement): CssValueGrammar {
   return {
     supports(property, value) {
       if (hasUnresolvedVariable(value) || !value.trim()) return false;
-      if (typeof css?.supports === "function") return css.supports(property, value);
-      return fallbackSupports(property, value);
+      return (css ? cachedSupports(css, property, value) : null) ?? fallbackSupports(property, value);
     },
   };
 }
@@ -365,9 +394,10 @@ export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest)
   const slot = request.slot ?? semanticSlotForProperty(request.property) ?? undefined;
   const property = validationProperty(request.property, slot);
   const preferredGroup = groupForProperty(request.property, slot);
+  const style = elementStyle(request.element);
   return request.entries
     .map((entry): TokenCandidate => {
-      const resolvedValue = resolveValueInElement(entry, request.element);
+      const resolvedValue = resolveValueInElement(entry, style);
       const presentation = presentationForToken({ ...entry, value: resolvedValue }, grammar);
       return {
         entry,
@@ -404,9 +434,10 @@ export function selectTokens(request: TokenSelectionRequest): TokenSelection {
   }
 
   const grammar = request.grammar ?? browserCssGrammar(request.element);
+  const style = elementStyle(request.element);
   return {
     candidates: request.entries.map((entry) => {
-      const resolvedValue = resolveValueInElement(entry, request.element);
+      const resolvedValue = resolveValueInElement(entry, style);
       const presentation = presentationForToken({ ...entry, value: resolvedValue }, grammar);
       return {
         entry,
