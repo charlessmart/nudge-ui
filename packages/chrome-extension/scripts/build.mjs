@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -44,6 +44,8 @@ mkdirSync(cursorDirectory);
 for (const [name, svg] of Object.entries(cursorImageFiles())) {
   writeFileSync(resolve(cursorDirectory, `${name}.svg`), svg);
 }
+
+cpSync(resolve(packageRoot, "src/icons"), resolve(outputDirectory, "icons"), { recursive: true });
 
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "src/manifest.json"), "utf8"));
 writeFileSync(resolve(outputDirectory, "manifest.json"), `${JSON.stringify({ ...manifest, version }, null, 2)}\n`);

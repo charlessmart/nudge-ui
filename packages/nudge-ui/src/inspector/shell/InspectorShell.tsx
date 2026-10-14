@@ -37,6 +37,7 @@ import { canEditStyles } from "../tokens/editActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
+import { NudgeLogoIcon } from "./NudgeLogoIcon.tsx";
 import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -449,7 +450,7 @@ export function InspectorShell(): ReactElement {
               data-test="show-inspector"
               onClick={() => setInspectorOpen(true)}
             >
-              <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
+              <NudgeLogoIcon />
             </IconButton>
           </Tooltip>
         </div>
