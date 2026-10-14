@@ -332,6 +332,9 @@ export function InspectorShell(): ReactElement {
             </StatusCallout>
           ) : selected ? (
             <>
+              {/* Component props come first: the State select below scopes the style sections that follow it. */}
+              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
+
               {showInteractionState || hasEditScopeCallout ? (
                 <div
                   className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
@@ -340,6 +343,25 @@ export function InspectorShell(): ReactElement {
                   data-selected-src={selected.src}
                   data-selected-count={selectedElements.length}
                   >
+                    {showInteractionState ? (
+                      <FieldRow label="State" className="style-state" data-test="style-state">
+                        <Select
+                          value={styleState}
+                          data-test="style-state-select"
+                          aria-label="Style State"
+                          options={availableInteractionStates.map((state) => ({
+                            value: state,
+                            label: formatInspectorLabel(state),
+                          }))}
+                          onValueChange={(state) => {
+                            const nextState = availableInteractionStates.find((candidate) => candidate === state);
+                            if (!nextState) return;
+                            setActiveStyleState(nextState);
+                            setStyleState(nextState);
+                          }}
+                        />
+                      </FieldRow>
+                    ) : null}
                     {hasEditScopeCallout ? (
                       <StatusCallout
                         tone={editScope === "rendered-instance" ? "neutral" : "accent"}
@@ -380,29 +402,8 @@ export function InspectorShell(): ReactElement {
                         )}
                       </StatusCallout>
                     ) : null}
-                    {showInteractionState ? (
-                      <FieldRow label="State" className="style-state" data-test="style-state">
-                        <Select
-                          value={styleState}
-                          data-test="style-state-select"
-                          aria-label="Style State"
-                          options={availableInteractionStates.map((state) => ({
-                            value: state,
-                            label: formatInspectorLabel(state),
-                          }))}
-                          onValueChange={(state) => {
-                            const nextState = availableInteractionStates.find((candidate) => candidate === state);
-                            if (!nextState) return;
-                            setActiveStyleState(nextState);
-                            setStyleState(nextState);
-                          }}
-                        />
-                      </FieldRow>
-                    ) : null}
                 </div>
               ) : null}
-
-              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
 
               {selectionEditable ? (
                 <AtRuleContextProvider rows={tokenRows}>
