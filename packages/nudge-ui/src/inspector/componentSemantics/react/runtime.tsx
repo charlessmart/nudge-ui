@@ -17,10 +17,10 @@ import type {
   ComponentRootInvocation,
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
-} from "./types.ts";
-import { registerHostRuntimeAdapter } from "./runtimeBridge.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
-import { findFiber, hostOutputCount, isHostOutput, type Fiber } from "./reactFibers.ts";
+} from "../types.ts";
+import { registerHostRuntimeAdapter } from "../runtimeBridge.ts";
+import { getNudgeUiRuntimeConfig } from "../../runtime/runtimeConfig.ts";
+import { findFiber, hostOutputCount, isHostOutput, type Fiber } from "./fibers.ts";
 import {
   canPreviewLive,
   invocationProps,
@@ -29,9 +29,9 @@ import {
   taggedCallsiteMultiplicity,
   taggedInvocationsAbove,
   taggedRootInvocations,
-} from "./reactCallsiteRuntime.ts";
+} from "./callsites.ts";
 
-export { registerReactCallsites } from "./reactCallsiteRuntime.ts";
+export { registerReactCallsites } from "./callsites.ts";
 
 const BOUNDARY_MARKER = Symbol.for("nudge-ui.react-component-boundary");
 const EMPTY_OVERRIDE: Readonly<Record<string, unknown>> = Object.freeze({});

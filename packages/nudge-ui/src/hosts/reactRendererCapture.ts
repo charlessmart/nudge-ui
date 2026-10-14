@@ -5,6 +5,9 @@
  * without DevTools has no hook at all, so this records every injected
  * renderer on `hook.renderers` either way. An existing hook (the DevTools
  * extension, or a stub already present) is extended, never replaced.
+ *
+ * Hosts inject it; `inspector/componentSemantics/react/devtoolsHook.ts`
+ * reads the renderers it records.
  */
 export const REACT_RENDERER_CAPTURE_SCRIPT = [
   "(function(w){",

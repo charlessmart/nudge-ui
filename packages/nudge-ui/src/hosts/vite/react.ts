@@ -11,7 +11,7 @@ import {
 } from "../../compiler/packageComponentContracts.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
 import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
-import { REACT_RENDERER_CAPTURE_SCRIPT } from "../../inspector/componentSemantics/reactRendererCapture.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
 import {
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,

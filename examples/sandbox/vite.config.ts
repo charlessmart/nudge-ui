@@ -24,7 +24,7 @@ function liveSourcePlugin(): Plugin {
             { find: "nudge-ui/testing", replacement: nudgeUiSource("inspector/testing.ts") },
             {
               find: "nudge-ui/internal/component-runtime",
-              replacement: nudgeUiSource("inspector/componentSemantics/reactRuntime.tsx"),
+              replacement: nudgeUiSource("inspector/componentSemantics/react/runtime.tsx"),
             },
           ],
         },

@@ -1,5 +1,5 @@
-import type { ComponentInvocationMeta, ComponentRootInvocation } from "./types.ts";
-import { HOST_ROOT_TAG, hostOutputCount, isHostOutput, type Fiber, type FiberProps } from "./reactFibers.ts";
+import type { ComponentInvocationMeta, ComponentRootInvocation } from "../types.ts";
+import { HOST_ROOT_TAG, hostOutputCount, isHostOutput, type Fiber, type FiberProps } from "./fibers.ts";
 import {
   onCommit,
   propEditingRenderer,
@@ -8,7 +8,7 @@ import {
   trackedRootsAvailable,
   type FiberRoot,
   type ReactRendererInternals,
-} from "./reactDevtoolsHook.ts";
+} from "./devtoolsHook.ts";
 
 /**
  * Semantic identity for callsites the compiler did not wrap.

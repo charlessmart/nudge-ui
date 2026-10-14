@@ -48,7 +48,7 @@ export default {
         "packages/nudge-ui/src/inspector/canvas/rendererStylesheet.ts",
         "packages/nudge-ui/src/inspector/canvas/sessionStore.ts",
         "packages/nudge-ui/src/inspector/componentSemantics/boundaries.ts",
-        "packages/nudge-ui/src/inspector/componentSemantics/reactRuntime.tsx",
+        "packages/nudge-ui/src/inspector/componentSemantics/react/runtime.tsx",
         "packages/nudge-ui/src/inspector/componentSemantics/runtimeTypes.ts",
         "packages/nudge-ui/src/inspector/inline-text/textChangeBoundary.ts",
         "packages/nudge-ui/src/inspector/projection/renderedInstance.ts",

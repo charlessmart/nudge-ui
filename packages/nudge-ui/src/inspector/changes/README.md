@@ -170,7 +170,7 @@ Current coverage includes:
   `tokens/editActions.test.ts`, and `projection/managedStylesheet.test.ts`.
 - Component target identity, scope safety, runtime overrides, and semantic text
   binding in `componentSemantics/changeAction.test.ts`,
-  `componentSemantics/reactRuntime.test.ts`, and
+  `componentSemantics/react/runtime.test.ts`, and
   `componentSemantics/textBinding.test.ts`.
 - Text record validation, merging, persistence, prompts, target resolution,
   lazy mounting, and override handling in `inline-text/textContentChange.test.ts`

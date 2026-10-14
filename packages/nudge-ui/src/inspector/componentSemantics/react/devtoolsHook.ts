@@ -1,4 +1,4 @@
-import type { Fiber, FiberProps } from "./reactFibers.ts";
+import type { Fiber, FiberProps } from "./fibers.ts";
 
 /**
  * React development builds hand this toolkit to `__REACT_DEVTOOLS_GLOBAL_HOOK__`

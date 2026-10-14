@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import {
   instrumentReactComponent,
   resetReactComponentRuntime,
-} from "../componentSemantics/reactRuntime.tsx";
+} from "../componentSemantics/react/runtime.tsx";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { resetDrafts } from "../drafts/store.ts";
 import { captureStructuralTarget, resolveRenderedInstance } from "./renderedInstance.ts";

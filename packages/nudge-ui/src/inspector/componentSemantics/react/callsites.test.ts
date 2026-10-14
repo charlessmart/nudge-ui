@@ -9,15 +9,15 @@ import {
   type ReactNode,
 } from "react";
 import type { Root } from "react-dom/client";
-import { REACT_RENDERER_CAPTURE_SCRIPT } from "./reactRendererCapture.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../../../hosts/reactRendererCapture.ts";
 import {
   inspectReactComponentTargets,
   inspectReactRootInvocations,
   registerReactCallsites,
   replaceReactComponentOverrides,
   resetReactComponentRuntime,
-} from "./reactRuntime.tsx";
-import type { ComponentInvocationMeta } from "./types.ts";
+} from "./runtime.tsx";
+import type { ComponentInvocationMeta } from "../types.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

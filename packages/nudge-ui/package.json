@@ -59,9 +59,9 @@
       "default": "./dist/inspector/index.js"
     },
     "./internal/component-runtime": {
-      "types": "./dist/inspector/componentSemantics/reactRuntime.d.ts",
-      "import": "./dist/inspector/componentSemantics/reactRuntime.js",
-      "default": "./dist/inspector/componentSemantics/reactRuntime.js"
+      "types": "./dist/inspector/componentSemantics/react/runtime.d.ts",
+      "import": "./dist/inspector/componentSemantics/react/runtime.js",
+      "default": "./dist/inspector/componentSemantics/react/runtime.js"
     },
     "./internal/host-runtime": {
       "types": "./dist/inspector/componentSemantics/runtimeBridge.d.ts",

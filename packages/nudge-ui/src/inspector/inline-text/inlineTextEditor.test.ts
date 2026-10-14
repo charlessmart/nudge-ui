@@ -19,7 +19,7 @@ import {
 } from "./inlineTextEditor.ts";
 import { getInlineTextFeedback } from "./inlineTextFeedback.ts";
 import { getTextProjectionReports, TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
-import { reactComponentRuntimeAdapter } from "../componentSemantics/reactRuntime.tsx";
+import { reactComponentRuntimeAdapter } from "../componentSemantics/react/runtime.tsx";
 
 function boundary(meta: Record<string, unknown>, props: Record<string, unknown>) {
   const type = Object.assign(() => null, {
