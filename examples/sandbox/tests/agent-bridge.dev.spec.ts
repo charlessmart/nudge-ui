@@ -10,8 +10,7 @@ async function configureBridge(page: Page, bridge: BrowserBridge): Promise<void>
   const address = bridge.address;
   if (!address) throw new Error("The test bridge did not expose an address.");
 
-  // The host manifest owns bridge configuration. Override that owned transport
-  // contract so each test uses its isolated companion rather than a dev server's.
+  // Override the host manifest's bridge config so each test uses its isolated companion.
   await page.route("**/__nudge_ui__/manifest", async (route) => {
     const response = await route.fetch();
     const manifest = await response.json();
@@ -57,8 +56,7 @@ async function connectBrowser(
   await eventsResponse;
   await expect(connect).toContainText("Send prompt", { timeout: 10_000 });
 
-  // Stop this helper's listener after pairing so a Canvas command cannot be
-  // mistaken for a prompt.
+  // Stop this helper's listener after pairing so a Canvas command cannot be mistaken for a prompt.
   if (promptListener) return listener;
   listener.abort.abort();
   await listener.promise;
@@ -112,8 +110,7 @@ test.describe("Nudge MCP browser bridge", () => {
   });
 
   test("shows the connected client logo beside MCP and uses a robot for an unknown client", async ({ page }) => {
-    // The host manifest supplies the endpoint after bootstrap. Route this
-    // test's manifest to the isolated bridge instead of the host's companion.
+    // Route this test's manifest to the isolated bridge instead of the host's companion.
     await page.route("**/__nudge_ui__/manifest", async (route) => {
       const response = await route.fetch();
       const manifest = await response.json();

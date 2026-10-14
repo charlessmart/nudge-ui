@@ -21,7 +21,6 @@ describe("token inventory normalized contributions", () => {
     });
 
     const definition = inventory.snapshot().definitions.find((entry) => entry.cssName === "--tw-primary")!;
-    // The literal replaces the stylesheet row for the same key, not appends.
     expect(definition).toMatchObject({ name: "primary", adapter: "tailwind-v3", origin: "project", editable: true });
     expect(definition.declarations).toHaveLength(1);
     expect(definition.declarations[0]!.value).toBe("#3b82f6");
@@ -60,12 +59,9 @@ describe("token inventory normalized contributions", () => {
     });
 
     const definition = inventory.snapshot().definitions.find((entry) => entry.cssName === "--x")!;
-    // Definition-level merge appends declarations...
     expect(definition.declarations.map((declaration) => declaration.value)).toEqual(["1px", "2px"]);
     expect(definition.declarations[0]!.source).toBe("src/theme.css:1");
-    // ...`name`/`adapter` win, while the stylesheet-derived origin is
-    // preserved. A project CSS row has no editability of its own, so the
-    // contributed editability applies (legacy contract-merge semantics).
+    // `name`/`adapter` win; editability comes from the contribution since a project CSS row has none.
     expect(definition).toMatchObject({
       name: "theme.x",
       adapter: "vanilla-extract",
@@ -154,16 +150,13 @@ describe("token inventory normalized contributions", () => {
     const first = inventory.snapshot().generation;
     expect(first).toBeTruthy();
 
-    // Identical re-apply is a no-op.
     inventory.applyContribution(contribution);
     expect(inventory.snapshot().generation).toBe(first);
 
-    // A real fact change bumps the generation.
     inventory.applyContribution({ ...contribution, definitions: [{ cssName: "--x", name: "theme.y", adapter: "vanilla-extract", declarations: [] }] });
     expect(inventory.snapshot().generation).not.toBe(first);
     expect(inventory.snapshot().definitions[0]!.name).toBe("theme.y");
 
-    // A replacing contribution with different facts also bumps.
     const second = inventory.snapshot().generation;
     inventory.applyContribution({ ...contribution, tokens: [{ name: "--z", value: "9px", source: "adapter" }] });
     expect(inventory.snapshot().generation).not.toBe(second);
@@ -184,8 +177,7 @@ describe("token inventory normalized contributions", () => {
       }
       return inventory.snapshot();
     };
-    // Later contributions win on the same key, so "two" is authoritative in
-    // both orders and the snapshot (including the generation) is identical.
+    // Later contributions win on the same key, so both orders produce the same snapshot.
     expect(build(false)).toEqual(build(true));
     expect(build(false).definitions[0]!.name).toBe("two");
   });
@@ -224,7 +216,6 @@ describe("token inventory normalized contributions", () => {
       artifact: "@fixture/contract",
       message: "Could not resolve vanilla-extract contract module @fixture/contract.",
     }]);
-    // A removed contribution drops its diagnostics too.
     inventory.removeContribution("contract");
     expect(inventory.snapshot().diagnostics).toEqual([]);
   });

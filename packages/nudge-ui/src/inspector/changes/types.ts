@@ -7,12 +7,8 @@ import type {
   TextContentChangeRecord,
 } from "./editModel.ts";
 
-/** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
-  /**
-   * Why the element has no authored source location.
-   * Omitted by legacy records, which are all runtime-created DOM.
-   */
+  /** Omitted by legacy records, which are all runtime-created DOM. */
   reason?: "runtime-created" | "unannotated";
   tagName: string;
   text: string | null;
@@ -23,11 +19,10 @@ export interface RuntimeElementEvidence {
   elementId?: string | null;
 }
 
-/** Bounded authored facts for one annotated element. */
 export interface SourceElementEvidence {
   tagName: string;
   props: string | null;
-  /** Rendered identification details; omitted by older saved changes. */
+  /** Omitted by older saved changes. */
   text?: string | null;
   ariaLabel?: string | null;
   domPath?: string | null;
@@ -43,7 +38,6 @@ export interface ElementChangeRecord {
   column?: number;
   selector: string;
   property: string;
-  /** CSSOM-declared source context that the inspector projection came from. */
   sourceProperty?: string;
   /** Best-effort CSSOM serialization; not an exact source-text quote. */
   sourceAuthoredValue?: string;
@@ -52,12 +46,11 @@ export interface ElementChangeRecord {
   rawValue?: string;
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
-  /** Present when the selected element has a document-local runtime identity. */
   runtimeEvidence?: RuntimeElementEvidence;
   /** Authored facts that relocate the source site after its position shifts. */
   sourceEvidence?: SourceElementEvidence;
   scope?: EditScope;
-  /** Matching rendered items when captured; presentation only, absent in older edits. */
+  /** Presentation only; absent from older edits. */
   sourceInstanceCount?: number;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;

@@ -32,7 +32,7 @@ function colorTuple(value: string): string | null {
 
 const frameworkColorIndexes = new WeakMap<TokenTable, Map<string, TokenEntry>>();
 
-/** The first Tailwind v3 token for each color tuple, built once per table. */
+/** First Tailwind v3 token per color tuple. */
 function frameworkColorIndex(tokenTable: TokenTable): Map<string, TokenEntry> {
   let index = frameworkColorIndexes.get(tokenTable);
   if (index) return index;
@@ -79,7 +79,6 @@ function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribut
     };
 }
 
-/** Inspector Adapter for framework-specific token attribution facts. */
 export function createInspectorValueContext(
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,

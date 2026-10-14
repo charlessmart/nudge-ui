@@ -115,8 +115,7 @@ describe("text projection identity and diagnostics", () => {
     expect(element.hasAttribute(TEXT_PROJECTION_ATTR)).toBe(false);
     expect(element.textContent).toBe("Original");
 
-    // If the app reconciles newer copy into the marked node, diagnostics report
-    // an override and a subsequent snapshot must not reapply the old value.
+    // If the app reconciles newer copy, diagnostics report an override and later snapshots must not reapply.
     applyTextContentProjection(document, [change]);
     element.textContent = "Application value";
     await flushMutationValidation();

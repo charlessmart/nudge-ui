@@ -33,7 +33,6 @@ export function planAgentCommand(
   throw new Error("Usage: nudge-ui agent <setup|doctor> [options]");
 }
 
-/** Runs an agent command with the application's working directory and terminal. */
 export function runAgentCommand(args: readonly string[], packageVersion?: string): void {
   const command = planAgentCommand(args, process.cwd(), packageVersion);
   const result = spawnSync(command.executable, command.args, { cwd: process.cwd(), stdio: "inherit" });

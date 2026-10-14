@@ -1,7 +1,4 @@
-/**
- * Keep canvas card controls usable while the board is zoomed out without
- * letting them grow without bound relative to the card.
- */
+/** Keeps card controls usable while the board is zoomed out, without letting them outgrow the card. */
 export const CANVAS_TOOLBAR_MAX_SCALE = 2;
 export const CANVAS_TOOLBAR_SCALE_CAP_ZOOM = 1 / CANVAS_TOOLBAR_MAX_SCALE;
 

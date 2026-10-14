@@ -7,7 +7,6 @@ export function beginLayoutPreview(el: HTMLElement, property: string): void {
   activePreviews.set(el, properties);
 }
 
-/** Clears a temporary inline preview after the canvas drag is restored or committed. */
 export function endLayoutPreview(el: HTMLElement, property: string): void {
   const properties = activePreviews.get(el);
   if (!properties) return;

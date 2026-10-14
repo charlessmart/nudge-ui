@@ -21,14 +21,7 @@ export function normalizedUrlKey(normalized: NormalizedUrl): string {
   return `${normalized.origin}${canonicalRoutePath(normalized.pathname)}${normalized.search}`;
 }
 
-/**
- * Directory-index pages resolve to the directory URL: `/` and `/index.html`
- * are one route served from one file on every supported dev server, so card
- * deduplication must treat them as the same key or link discovery spawns a
- * duplicate card for the page already on the board.
- */
+/** Dev servers serve `/` and `/index.html` from one file, so dedup must treat them as the same key. */
 function canonicalRoutePath(pathname: string): string {
-  // "/docs/index.html" becomes the directory form "/docs/"; a bare
-  // "/index.html" becomes "/".
   return pathname.replace(/\/index\.html?$/i, "/");
 }

@@ -280,9 +280,7 @@ describe("runtime HTML evidence", () => {
   });
 
   it("uses unannotated-source evidence when authored markup has no usable data-src", () => {
-    // Degraded Astro identity (ADR-0011): server-rendered markup with a
-    // generated cid and no source annotation. Prompts must treat the
-    // location as unknown, not fabricate `file:0`.
+    // Degraded Astro identity: no source annotation, so prompts must treat the location as unknown.
     const heading = document.createElement("h1");
     heading.setAttribute("data-cid", "astro:H1");
     heading.textContent = "About the studio";

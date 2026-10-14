@@ -17,10 +17,7 @@ const STORAGE_BRIDGE = "storage-bridge.js";
 /** Marks the document a toggle navigates away from, so its late load events are ignored. */
 const LEAVING_GLOBAL = "__NUDGE_UI_LEAVING__";
 
-/**
- * `"opening"` while the tab reloads into the editor; `"editor"` once the
- * inspector runs there. Kept in session storage because the worker restarts.
- */
+/** `"opening"` while the tab reloads into the editor, `"editor"` once the inspector runs there; session storage survives worker restarts. */
 interface EditorTab {
   phase: "opening" | "editor";
   ruleIds: number[];
@@ -51,12 +48,7 @@ async function writeEditorTab(tabId: number, state: EditorTab): Promise<void> {
   await chrome.storage.session.set({ [editorTabKey(tabId)]: state });
 }
 
-/**
- * Lets this tab frame its own origin, and stops the application's scripts in
- * the editor document so only its renderer frames run it. Header rules take
- * effect only for origins the `activeTab` grant covers. Returns the rule IDs,
- * which must be unique across the extension and fit in 32 bits.
- */
+/** Lets the tab frame its own origin and stops the application's scripts in the editor document; header rules apply only where `activeTab` covers the origin. */
 async function installEditorRules(tabId: number, origin: string): Promise<number[]> {
   const pending = ruleUpdates.then(() => addEditorRules(tabId, origin));
   ruleUpdates = pending.catch(() => undefined);
@@ -243,10 +235,7 @@ async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<v
   }
 }
 
-/**
- * Starts the editor once its document loads, and covers reloads of it.
- * Renderer frame loads also complete the tab, so an existing inspector is left alone.
- */
+/** Starts the editor once its document loads, covering reloads; renderer frame loads also complete the tab. */
 async function resumeEditor(tabId: number): Promise<void> {
   const state = await readEditorTab(tabId);
   if (!state) return;

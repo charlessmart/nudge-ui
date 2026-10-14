@@ -4,7 +4,6 @@ import type { ReactElement, ReactNode } from "react";
 
 export interface DisclosureProps {
   readonly title: ReactNode;
-  /** Optional accessory rendered between the label and the chevron (e.g. a count badge). */
   readonly badge?: ReactNode;
   readonly children: ReactNode;
   readonly className?: string;
@@ -19,10 +18,6 @@ export interface DisclosureProps {
   readonly triggerDataTest?: string;
 }
 
-/**
- * A single collapsible disclosure built on Base UI Collapsible.
- * Replaces native details/summary for consistent 12px label styling and chevron.
- */
 export function Disclosure({
   title,
   badge,

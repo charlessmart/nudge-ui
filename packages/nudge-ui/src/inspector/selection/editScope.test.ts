@@ -54,12 +54,10 @@ describe("edit scope", () => {
     const first = add("one"); add("two");
     expect(countSourceSiteMatches(first)).toBe(2);
 
-    // The DOM gained a third sibling, but the scope revision is unchanged so
-    // the memoized count for revision 0 stays put.
+    // A third sibling appears, but the unchanged scope revision keeps the memoized count.
     add("three");
     expect(countSourceSiteMatches(first)).toBe(2);
 
-    // Bumping the scope revision recomputes the full-document scan.
     expect(countSourceSiteMatches(first, 1)).toBe(3);
   });
 

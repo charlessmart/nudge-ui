@@ -18,15 +18,7 @@ let catalogRevision = 0;
 
 function currentTokenKnowledge(): BrowserTokenKnowledge {
   const { tokenCatalog, tokenGeneration } = getNudgeUiRuntimeConfig();
-  // The inventory snapshot generation is the authoritative fingerprint: when
-  // observable inventory facts change, the virtual module re-evaluates and
-  // `tokenGeneration` carries a new value, so document sessions recreate with
-  // the new definitions instead of freezing the first catalog snapshot.
-  //
-  // A catalog signature supplements the inventory generation because S2-B
-  // still has temporary post-snapshot Tailwind/vanilla-extract enrichment.
-  // It advances only when those observable transport definitions change, not
-  // for a no-op virtual-module replacement.
+  // The inventory generation recreates document sessions with new definitions; the catalog signature supplements it for post-snapshot enrichment.
   if (catalogReference !== tokenCatalog) {
     catalogReference = tokenCatalog;
     const nextSignature = JSON.stringify(tokenCatalog);
@@ -41,10 +33,6 @@ function currentTokenKnowledge(): BrowserTokenKnowledge {
   return { definitions: tokenCatalog, generation };
 }
 
-/**
- * Binds a document to token knowledge. When generation changes, the previous
- * session is disposed and replaced so callers never keep a stale catalog.
- */
 export function bindBrowserCssInspection(
   doc: Document,
   knowledge: BrowserTokenKnowledge,
@@ -65,17 +53,14 @@ export function bindBrowserCssInspection(
   return session;
 }
 
-/** Returns the one browser inspection session owned by a document. */
 export function getBrowserCssInspection(doc: Document = document): BrowserCssInspection {
   return bindBrowserCssInspection(doc, currentTokenKnowledge());
 }
 
-/** Invalidates every browser-inspection snapshot affected by a CSSOM write. */
 export function notifyBrowserStylesheetChange(doc: Document = document): void {
   getBrowserCssInspection(doc).notifyStylesheetChange();
 }
 
-/** Releases a document session when its inspector/Canvas lifecycle ends. */
 export function disposeBrowserCssInspection(doc: Document): void {
   const entry = sessions.get(doc);
   if (!entry) return;

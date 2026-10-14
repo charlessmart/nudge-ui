@@ -5,11 +5,7 @@ import { dirname, join, parse } from "node:path";
 const MCP_PACKAGE = "@nudge-ui/mcp";
 const MCP_BIN = "nudge-mcp";
 
-/**
- * Locates the optional MCP package installed for an application. Only the
- * application's own dependency tree counts; a global or unrelated copy never
- * starts a bridge or answers diagnostics for this project.
- */
+/** Only the application's own dependency tree counts; a global or unrelated copy never bridges this project. */
 export function findProjectMcpRoot(appRoot: string): string | null {
   let directory = appRoot;
   const { root } = parse(directory);
@@ -27,7 +23,6 @@ export function findProjectMcpRoot(appRoot: string): string | null {
   }
 }
 
-/** Absolute path of the installed package's `nudge-mcp` executable entry. */
 export function projectMcpCliEntry(mcpRoot: string): string | null {
   const bin = readManifest(join(mcpRoot, "package.json"))?.bin;
   const entry = typeof bin === "string" ? bin : isRecord(bin) ? bin[MCP_BIN] : undefined;

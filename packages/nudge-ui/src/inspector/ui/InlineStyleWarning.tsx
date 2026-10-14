@@ -3,7 +3,6 @@ import { cx } from "./classNames.ts";
 import { Tooltip } from "./Tooltip.tsx";
 
 export interface InlineStyleWarningProps {
-  /** Inline declaration blocking the field; renders nothing when null. */
   blockedBy: string | null;
   dataTest?: string;
   tooltipDataTest?: string;

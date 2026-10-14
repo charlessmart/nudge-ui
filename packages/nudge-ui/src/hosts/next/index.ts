@@ -19,6 +19,4 @@ export {
   type NextModuleTransformOptions,
   type NextModuleTransformResult,
 } from "./loader.ts";
-// `./loader-plugin.cts` is the compiler-facing entry; it is CommonJS by
-// contract (see its header) and is therefore not re-exported through this
-// ESM surface.
+// `./loader-plugin.cts` is CommonJS by contract and deliberately not re-exported through this ESM surface.

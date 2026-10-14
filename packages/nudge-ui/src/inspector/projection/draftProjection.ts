@@ -37,7 +37,6 @@ export interface SerializedManagedStyles {
   readonly css: string;
 }
 
-/** A complete, read-only projection for one document-local runtime. */
 export interface DraftProjectionPlan<ManagedStyles> {
   readonly sourceRevision: number;
   readonly managedStyles: ManagedStyles;
@@ -45,14 +44,10 @@ export interface DraftProjectionPlan<ManagedStyles> {
   readonly structuralChanges: readonly StructuralChange[];
   readonly textContentChanges: readonly TextContentChangeRecord[];
   readonly componentOverrides: readonly ComponentOverride[];
-  /**
-   * Generated identities the saved edits refer to. Omitted by plans that
-   * only hide edits (hold-to-view-original), which keep the attached ones.
-   */
+  /** Omitted by hold-to-view-original plans, which keep the attached identities. */
   readonly runtimeIdentities?: readonly RuntimeIdentityClaim[];
 }
 
-/** Applies every projection dimension to one document-local runtime. */
 export interface DocumentProjectionAdapter<ManagedStyles> {
   applyRuntimeIdentities(claims: readonly RuntimeIdentityClaim[]): void;
   applyStructural(changes: readonly StructuralChange[]): void;
@@ -84,14 +79,7 @@ export function compileDraftProjection(
   };
 }
 
-/**
- * Replaces one document projection in the required order.
- *
- * Generated identities are attached first: every selector and resolver below
- * looks elements up by them. Structural intent follows because later rendered-instance evidence
- * can depend on the restored element order. Managed CSS is applied last so
- * selectors can use the document-local instance markers installed above.
- */
+/** Order matters: identities first (selectors resolve by them), then structural, then managed CSS last (selectors use the instance markers above). */
 export function applyDraftProjection<ManagedStyles>(
   adapter: DocumentProjectionAdapter<ManagedStyles>,
   plan: DraftProjectionPlan<ManagedStyles>,

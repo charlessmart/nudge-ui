@@ -11,16 +11,10 @@ import { stripModuleExtension } from "./sourcePaths.ts";
 /** Whether replacing a JSX element type with the semantic boundary is safe. */
 export interface ComponentProtocol {
   readonly wrap: boolean;
-  /**
-   * JSX-valued slots where the compiler may apply each descendant's resolved
-   * protocol. A component that resolves to project-owned source defaults to
-   * `wrap: true` with `children: "rendered"`; every other slot stays opaque
-   * until a host declares it.
-   */
+  /** JSX-valued slots descendants may be instrumented through; undeclared slots stay opaque. */
   readonly slots?: Readonly<Record<string, "rendered" | "opaque">>;
 }
 
-/** Component protocols exported by one canonical module specifier. */
 export interface ComponentModuleProtocol {
   readonly default?: ComponentProtocol;
   readonly exports?: Readonly<Record<string, ComponentProtocol>>;
@@ -34,7 +28,6 @@ interface MutableComponentModuleProtocols {
   [source: string]: ComponentModuleProtocol | undefined;
 }
 
-/** Build-tool operations needed to resolve an authored import to its defining module. */
 export interface ComponentModuleAdapter {
   resolve(specifier: string, importer: string): Promise<string | null>;
   read(id: string): Promise<string | null>;
@@ -59,7 +52,6 @@ export interface ComponentPolicyDiagnostic {
   readonly exportName: string;
 }
 
-/** Data-only policy consumed by the source compiler after a host resolves imports. */
 export interface HostComponentPolicy {
   readonly components: Readonly<Record<string, ResolvedComponentProtocol>>;
   readonly diagnostics: readonly ComponentPolicyDiagnostic[];
@@ -71,7 +63,6 @@ export interface ResolveHostComponentPolicyOptions {
   readonly compatibleComponentImports?: Readonly<Record<string, readonly string[]>>;
 }
 
-/** Merge a host's protocol additions over a shared compatibility catalog. */
 export function mergeComponentModuleProtocols(
   defaults: ComponentModuleProtocols,
   overrides: ComponentModuleProtocols | undefined,
@@ -104,7 +95,6 @@ interface ModuleAnalysis {
   readonly declarations: Map<string, SyntaxNode>;
   readonly exports: Map<string, ExportTarget>;
   readonly exportAll: string[];
-  /** Imported JSX component names used by this module, sorted for determinism. */
   readonly importedJsxNames: string[];
 }
 
@@ -117,7 +107,6 @@ type TraceResult =
   | { readonly resolved: true; readonly protocol: ResolvedComponentProtocol }
   | { readonly resolved: false; readonly code: ComponentPolicyDiagnosticCode };
 
-/** A resolution failure that carries only the reason a host reports. */
 function unresolved(code: ComponentPolicyDiagnosticCode): TraceResult {
   return { resolved: false, code };
 }
@@ -128,13 +117,7 @@ type ExpressionReference =
 
 const MAX_REEXPORT_DEPTH = 24;
 
-/**
- * Analyses are a pure function of module source, so a content-addressed cache
- * is correct across HMR without host-specific invalidation: an edited file
- * simply misses and is re-analysed, while every unchanged re-export target
- * skips its parse. Without this, policy resolution reparses every reachable
- * module on every transform.
- */
+/** Keyed by module source, so the cache is correct across HMR without host-specific invalidation. */
 const ANALYSIS_CACHE_LIMIT = 128;
 const analysisCache = new Map<string, ModuleAnalysis | null>();
 
@@ -151,12 +134,7 @@ function analyseModuleSource(code: string): ModuleAnalysis | null {
   return analysis;
 }
 
-/**
- * Resolve the imported JSX values used by one source file.
- *
- * The compiler owns syntax and re-export traversal. The host Adapter owns all
- * build-tool resolution, source ownership, and stable path decisions.
- */
+/** The compiler owns syntax and re-export traversal; the host Adapter owns build-tool resolution and path decisions. */
 export async function resolveHostComponentPolicy(
   code: string,
   importer: string,
@@ -191,7 +169,6 @@ export async function resolveHostComponentPolicy(
   return { components, diagnostics };
 }
 
-/** Depth-first pre-order traversal of every node in a tree. */
 function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
   callback(node);
   for (const child of childNodes(node)) visit(child, callback);
@@ -317,27 +294,18 @@ function importedReference(
   return { source: binding.source, exportName };
 }
 
-/** Where one trace stands: what it has visited and how deep it has gone. */
 interface TraceState {
   readonly visited: ReadonlySet<string>;
   readonly depth: number;
 }
 
-/** One parsed module participating in a trace. */
 interface TracedModule {
   readonly analysis: ModuleAnalysis;
-  /** Build-tool id used to resolve further requests from this module. */
   readonly moduleId: string;
-  /** Stable source path recorded in resolved component ids. */
+  /** Stable source path recorded in component ids, unlike the build-tool moduleId. */
   readonly canonicalSource: string;
 }
 
-/**
- * Trace authored imports to the protocol of the component they name.
- *
- * The tracer closes over the host Adapter and the protocol catalog, so each
- * step carries only its request, the module it sits in, and its trace state.
- */
 function createTracer(adapter: ComponentModuleAdapter, options: ResolveHostComponentPolicyOptions) {
   async function request(
     source: string,
@@ -444,7 +412,6 @@ function createTracer(adapter: ComponentModuleAdapter, options: ResolveHostCompo
   }
 
   return {
-    /** Resolve one authored import to the protocol of the component it names. */
     request: (source: string, exportName: string, importer: string) =>
       request(source, exportName, importer, { visited: new Set(), depth: 0 }),
   };
@@ -509,19 +476,11 @@ function resolvedProtocol(
   };
 }
 
-/**
- * Default protocol for a component that resolves to project-owned source.
- *
- * The inspected codebase owns the definition, so replacing the element type is
- * safe and its authored `children` may be traversed. Named JSX props stay
- * opaque: only a host-declared protocol can promise that a named slot renders
- * its contents.
- */
+/** Project-owned source is safe to wrap, but named JSX props stay opaque until a host promises they render. */
 function projectProtocol(source: string, exportName: string): TraceResult {
   return resolvedProtocol(source, exportName, { wrap: true, slots: { children: "rendered" } });
 }
 
-/** One actionable message per diagnostic code and source. */
 export interface GroupedComponentPolicyDiagnostic {
   /** Stable dedupe key for host-side "warn once" tracking. */
   readonly key: string;
@@ -530,10 +489,7 @@ export interface GroupedComponentPolicyDiagnostic {
   readonly total: number;
 }
 
-/**
- * Roll per-component diagnostics up so a host emits one warning per package
- * instead of one per skipped export.
- */
+/** Rolls per-component diagnostics up so a host warns once per package, not once per skipped export. */
 export function groupComponentPolicyDiagnostics(
   diagnostics: readonly ComponentPolicyDiagnostic[],
   maxNames = 5,
@@ -553,7 +509,6 @@ export function groupComponentPolicyDiagnostics(
   }));
 }
 
-/** Host-facing warning text for one grouped diagnostic. */
 export function formatComponentPolicyWarning(
   grouped: GroupedComponentPolicyDiagnostic,
   location: string,

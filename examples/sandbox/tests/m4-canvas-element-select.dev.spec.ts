@@ -2,23 +2,6 @@ import { clickFrameAction } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { getAppFrame } from "@nudge-ui/compatibility/playwright";
 
-/**
- * Cross-iframe element selection. These tests exercise the path where the
- * user clicks a tracked element (`[data-cid]`) inside a canvas-card iframe
- * and the inspector should populate with the right component. Behaviours
- * under test:
- *
- * 1. Clicking a plain tracked element (heading, button, paragraph) inside a
- *    single-card canvas selects it in the inspector without triggering its
- *    application action or unmounting the workspace.
- * 2. Clicking a same-origin anchor (`<a href="/conformance">`) keeps the
- *    editing surface and lets the application handle its own navigation.
- * 3. Clicking a tracked element inside a sibling card whose URL differs from
- *    the parent's route must NOT navigate the parent page away from canvas
- *    mode (regression: `selectCard` used to call `window.location.href = ...`
- *    whenever the card URL didn't match the host's URL).
- */
-
 test.beforeEach(async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -174,8 +157,7 @@ test("dev: clicking a navigable same-origin anchor navigates the same editing su
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  // The conformance anchor carries `data-cid="App"`; its click must reach the
-  // navigation listener instead of being swallowed by element selection.
+  // The conformance anchor carries `data-cid="App"`; its click must reach the navigation listener, not element selection.
   await page.frameLocator(".canvas-card__iframe").first()
     .locator('a[href="/conformance"]')
     .click();
@@ -201,8 +183,6 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   await waitForIframeReady(page, 0);
   const parentUrlBefore = page.url();
 
-  // Create an explicit comparison, then navigate that card. Selecting in the
-  // comparison must not navigate the editor shell.
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   await expect(page.locator(".canvas-card")).toHaveCount(2);
   await waitForIframeReady(page, 1);
@@ -220,11 +200,10 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   await heading.click();
   await page.waitForTimeout(400);
 
-  // Regression check: parent must remain in canvas mode on the original URL.
+  // Regression: the parent must remain in canvas mode on the original URL.
   expect(page.url()).toBe(parentUrlBefore);
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // The canvas outline is the selection contract for a plain single element;
-  // the Inspector badge is rendered only for groups, states, or edit scopes.
+  // The outline is the selection contract for a plain element; the Inspector badge appears only for groups, states, or edit scopes.
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
 });

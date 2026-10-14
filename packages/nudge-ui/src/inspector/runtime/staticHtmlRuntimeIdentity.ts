@@ -1,16 +1,8 @@
-/**
- * Source identity reserved for elements created by a static HTML page after
- * the server's source-preserving pass has completed.
- *
- * The value intentionally does not match `file:line:column`. It is a
- * document-local selector identity, not a claim about source location.
- */
+/** Document-local identity for runtime-created elements; intentionally not a file:line:column source claim. */
 export const RUNTIME_UNKNOWN_SOURCE_PREFIX = "nudge-ui:unknown:";
 export const RUNTIME_ELEMENT_CID_PREFIX = "nudge-ui-runtime-";
-/** Maximum length retained for any runtime DOM evidence field. */
 export const RUNTIME_EVIDENCE_MAX_LENGTH = 120;
 
-/** Bounds an untrusted runtime evidence string without changing its content. */
 export function boundRuntimeEvidence(value: string | null): string | null {
   return value === null ? null : value.slice(0, RUNTIME_EVIDENCE_MAX_LENGTH);
 }
@@ -30,10 +22,7 @@ function domPathSegment(element: Element): string {
   return segment;
 }
 
-/**
- * Describes an element by its nearest ancestors so a prompt without source
- * locations still carries searchable class names, ids, and test ids.
- */
+/** Ancestor description so a prompt without source locations still carries searchable ids, classes, and test ids. */
 export function runtimeDomPath(element: Element): string | null {
   const segments: string[] = [];
   let current: Element | null = element;
@@ -47,14 +36,12 @@ export function runtimeDomPath(element: Element): string | null {
   return path.length > DOM_PATH_MAX_LENGTH ? `…${path.slice(-DOM_PATH_MAX_LENGTH)}` : path;
 }
 
-/** Normalizes rendered text before it becomes durable runtime evidence. */
 export function normalizeRuntimeText(value: string | null): string | null {
   if (value === null) return null;
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized ? boundRuntimeEvidence(normalized) : null;
 }
 
-/** Keeps a runtime tag suitable for the prompt's inline element notation. */
 export function normalizeRuntimeTag(value: string): string {
   return boundRuntimeEvidence(value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "")) ?? "";
 }
@@ -70,12 +57,10 @@ const EXCLUDED_SUBTREE_TAGS = new Set([
 
 const runtimeCreatedElements = new WeakSet<Element>();
 
-/** Returns true for the source values generated for runtime DOM. */
 export function isRuntimeGeneratedSource(src: string | null | undefined): boolean {
   return typeof src === "string" && src.startsWith(RUNTIME_UNKNOWN_SOURCE_PREFIX);
 }
 
-/** Returns whether this document-local element received generated identity. */
 export function isRuntimeCreatedElement(element: Element | null | undefined): boolean {
   return element !== null && element !== undefined && runtimeCreatedElements.has(element);
 }
@@ -105,16 +90,7 @@ function existingAttributeValues(doc: Document, name: string): Set<string> {
   );
 }
 
-/**
- * Installs document-local identity for eligible elements that a static HTML
- * application creates at runtime.
- *
- * The server owns source locations for the initial response. This Adapter
- * only fills missing attributes, observes added subtrees, and leaves the
- * author document untouched on disk. The returned function disconnects the
- * observer; generated attributes remain available to managed CSS until the
- * page is replaced.
- */
+/** Fills only missing identity attributes and observes added subtrees; the returned function disconnects the observer. */
 export function installStaticHtmlRuntimeIdentity(doc: Document = document): () => void {
   const ensureIdentity = createIdentityAllocator(doc);
   let disposed = false;
@@ -163,20 +139,11 @@ export function installStaticHtmlRuntimeIdentity(doc: Document = document): () =
 const LAZY_IDENTITY_EVENTS = ["pointerover", "pointerdown", "mousedown", "click", "dblclick"] as const;
 const LAZY_DESCENDANT_DEPTH = 2;
 
-/**
- * Assigns runtime identity only to elements the pointer reaches: the target,
- * its ancestors, two levels of descendants for the DOM navigator, and its
- * siblings, which structural moves capture as anchors.
- *
- * Unlike `installStaticHtmlRuntimeIdentity`, nothing observes DOM mutations,
- * so a busy application pays no cost for subtrees nobody inspects. Install it
- * before the inspector so its capture listeners run first.
- */
+/** Install before the inspector so its capture listeners run first. */
 export function installLazyRuntimeIdentity(doc: Document = document): () => void {
-  // Pointer order differs between page loads, so sequential numbers would
-  // hand a saved edit's identity to whichever element is hovered first after
-  // a reload. A per-install scope keeps fresh identities distinct from saved
-  // ones; `runtimeIdentityClaims` re-attaches the saved ones by evidence.
+  // Pointer order differs between page loads, so sequential numbers could hand a saved
+  // edit's identity to a different element; a per-install scope keeps fresh identities
+  // distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
   const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
 
   function tagDescendants(element: Element, depth: number): void {

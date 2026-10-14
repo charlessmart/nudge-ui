@@ -18,13 +18,11 @@ interface SketchFrameOverlayProps {
 export function sketchRouteKey(url: string): string | null {
   try {
     const parsed = new URL(url);
-    // These parameters belong to the inspector host, not to the application
-    // route. Removing them lets a sketch follow the same page in Focus mode,
-    // the canvas, and a direct editor launch.
+    // Inspector-host params: removing them keeps one sketch attached across
+    // Focus mode, the canvas, and direct launch.
     parsed.searchParams.delete("__nudge_ui_direct");
     parsed.searchParams.delete("nudge-ui");
-    // Hashes identify an in-document location, not a different sketch canvas.
-    // Keep saved marks attached when navigation changes only the anchor.
+    // Hashes are in-document anchors, so marks stay attached when only the anchor changes.
     return `${parsed.origin}${parsed.pathname}${parsed.search}`;
   } catch {
     return null;
@@ -59,9 +57,8 @@ export function projectSketchPoint(
   const viewportWidth = Math.max(1, frameWindow.innerWidth || width);
   const viewportHeight = Math.max(1, frameWindow.innerHeight || height);
   const scroll = getSketchScrollPosition(frameWindow);
-  // Preserve the point's relative horizontal position when the responsive
-  // iframe changes width. Apply the scroll delta separately so horizontal
-  // page scrolling still moves the sketch with the content.
+  // Horizontal position scales with the responsive iframe width; the scroll
+  // delta is applied separately.
   const captureLocalX = (point.x / imageWidth) * capture.viewportWidth;
   const currentLocalX = (captureLocalX / Math.max(1, capture.viewportWidth)) * viewportWidth
     - (scroll.x - capture.scrollX);

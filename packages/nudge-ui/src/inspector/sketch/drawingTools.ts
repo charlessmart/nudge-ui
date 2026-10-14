@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { SKETCH_PEN_COLORS, SKETCH_STROKE_COLOR, type SketchPenColor } from "./model.ts";
 
-/** Drawing mode chosen from the canvas toolbar while the sketch tool is active. */
 export type SketchDrawingTool = "pen" | "eraser" | "rectangle";
 
 export interface SketchDrawingToolsSnapshot {
@@ -53,12 +52,11 @@ export function setSketchStrokeColor(color: SketchPenColor): void {
   publish({ tool: snapshot.tool === "eraser" ? "pen" : snapshot.tool, color });
 }
 
-/** Every sketch session starts with the pen; the chosen color is kept. */
+/** Resets the tool only; the chosen color is kept. */
 export function resetSketchDrawingTool(): void {
   setSketchDrawingTool("pen");
 }
 
-/** Restores the default tool and color. */
 export function restoreDefaultSketchDrawingTools(): void {
   snapshot = DEFAULT_SNAPSHOT;
 }

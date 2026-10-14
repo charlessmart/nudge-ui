@@ -296,7 +296,6 @@ describe("injectIdentity — data-cprops", () => {
     const once = injectIdentity(code, "/src/App.tsx");
     expect(once).not.toBeNull();
     const twice = injectIdentity(once!.code, "/src/App.tsx");
-    // Second pass should find all three already present and produce no new injection.
     expect(twice).toBeNull();
   });
 
@@ -304,8 +303,6 @@ describe("injectIdentity — data-cprops", () => {
     const code = `function App() { return <Button data-cid="X" variant="primary">Save</Button>; }`;
     const res = injectIdentity(code, "/src/App.tsx");
     expect(res).not.toBeNull();
-    // data-cid already present -> not re-injected; variant serialised; identity
-    // attr names never appear inside cprops.
     const cidMatches = res!.code.match(/data-cid="X"/g);
     expect(cidMatches?.length).toBe(1);
     expect(res!.code).toContain('data-cprops="variant:primary"');

@@ -23,13 +23,7 @@ const INTERACTION_CSS = `
     outline: 0 !important;
   }
 
-  /*
-   * An empty rendered-text projection has no glyph for the browser to hit
-   * test. The projection module inserts this inspector-owned slot beside the
-   * original empty Text node. It is intentionally borderless: the blue fill
-   * is the affordance, while the normal selected-element outline remains a
-   * separate overlay.
-   */
+  /* Inspector-owned hit target for empty text projections, which have no glyph to hit test. */
   [data-empty-text] {
     display: inline-block !important;
     width: 0.75em !important;
@@ -51,7 +45,7 @@ export function isInteractionStylesInstalled(doc: Document = document): boolean 
   return interactionStyleDocuments.has(doc);
 }
 
-/** Installs temporary interaction affordances without mutating tracked nodes. */
+/** Installs affordances via a stylesheet, leaving tracked nodes untouched. */
 export function installInteractionStyles(doc: Document = document): () => void {
   if (!allowsStyleElements(doc)) return installAdoptedInteractionStyles(doc);
   // SAFETY: getElementById returns an Element; the style element is created as HTMLStyleElement below when missing.

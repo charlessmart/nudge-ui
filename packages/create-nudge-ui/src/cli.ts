@@ -32,7 +32,7 @@ import {
 
 export interface RunAgentSetupOptions {
   readonly agents?: readonly string[];
-  /** Optional package specifier or tarball used for both bridge and adapter testing. */
+  /** Package specifier or tarball used for both the bridge and adapter installs. */
   readonly mcpPackageSpecifier?: string;
   readonly dryRun?: boolean;
   readonly nudgeUiVersion?: string;
@@ -40,7 +40,6 @@ export interface RunAgentSetupOptions {
   readonly yes?: boolean;
 }
 
-/** Runs the Nudge UI project initializer. */
 export async function runCli(args = process.argv.slice(2), projectRoot = process.cwd()): Promise<void> {
   const options = parseArguments(args);
   if (options.help) {
@@ -63,8 +62,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
 
   const detected = detectFrameworks(projectRoot, manifest);
   const framework = options.framework ?? await selectFramework(detected);
-  // One package serves every host; the framework only decides which
-  // subpath the generated configuration imports.
+  // One package serves every host; the framework only picks the configuration subpath it imports.
   const command = installCommand(packageManager, `nudge-ui@${initializerVersion()}`);
   const change = planConfiguration(projectRoot, framework);
   const staticRoot = framework === "standalone" ? detectStaticRoot(projectRoot) : undefined;
@@ -115,7 +113,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   }
 }
 
-/** Installs and configures the reusable MCP adapter and project bridge dependency. Safe to rerun for repairs. */
+/** Safe to rerun to repair an existing setup. */
 export async function runAgentSetup(
   projectRoot = process.cwd(),
   options: RunAgentSetupOptions = {},

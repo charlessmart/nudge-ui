@@ -58,11 +58,10 @@ const SESSION_ERROR_STATUS: Readonly<Record<BridgeSessionErrorCode, number>> = {
 };
 
 export interface BrowserBridgeOptions {
-  /** Stable project identity used to scope every browser message. */
   readonly projectId: string;
   /** Canonical app origin that pairing and Canvas routes must use. */
   readonly origin: string;
-  /** Other explicit browser origins accepted by the loopback HTTP server. */
+  /** Other explicit browser origins, such as loopback aliases on the same port. */
   readonly allowedOrigins?: readonly string[];
   readonly host?: "127.0.0.1" | "::1" | "localhost";
   /** Use port 0 in tests or when several projects run concurrently. */
@@ -83,7 +82,6 @@ export interface BridgeAddress {
   readonly url: string;
 }
 
-/** A loopback HTTP server exposing one project session to its browser and MCP adapter. */
 export interface BrowserBridge extends BridgeSessionControls {
   readonly projectId: string;
   readonly address: BridgeAddress | null;
@@ -262,10 +260,7 @@ function writeSse(response: ServerResponse, envelope: BridgeEnvelope): boolean {
   }
 }
 
-/**
- * Creates the local browser bridge. It binds only to loopback and keeps every
- * pairing, prompt, command, and acknowledgement in process memory.
- */
+/** Binds only to loopback and keeps every pairing, prompt, command, and acknowledgement in process memory. */
 export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBridge {
   const host = options.host ?? "127.0.0.1";
   if (!LOOPBACK_HOSTS.has(host)) throw new TypeError("The browser bridge must bind to a loopback host");

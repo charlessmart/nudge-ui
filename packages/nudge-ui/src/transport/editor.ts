@@ -16,7 +16,6 @@ const TARGET_QUERY_PARAM = "url";
 const DIRECT_TAB_SESSION_KEY = "nudge-ui:direct-tab";
 const FORCED_TAB_SESSION_KEY = "nudge-ui:forced-tab";
 
-/** Returns the editor URL for one same-origin application location. */
 export function createNudgeUiEditorUrl(applicationHref: string): string {
   const applicationUrl = new URL(applicationHref);
   assertApplicationUrl(applicationUrl);
@@ -38,7 +37,6 @@ export function createNudgeUiEditorUrl(applicationHref: string): string {
   return applicationUrl.href;
 }
 
-/** Resolves the application URL carried by an editor URL. */
 export function readNudgeUiEditorTarget(editorHref: string): string | null {
   const editorUrl = new URL(editorHref);
   if (editorUrl.pathname !== NUDGE_UI_EDITOR_PATH) {
@@ -66,7 +64,6 @@ export function readNudgeUiEditorTarget(editorHref: string): string | null {
 
 type RequestHeaderValue = string | readonly string[] | undefined;
 
-/** Returns whether a host request should receive the pure editor document. */
 export function isNudgeUiEditorDocumentRequest(
   requestHref: string,
   method: string | undefined,
@@ -86,7 +83,6 @@ export function isNudgeUiEditorDocumentRequest(
     || header("accept").toLowerCase().includes("text/html");
 }
 
-/** Adds the persistent marker that bypasses editor entry for a plain app view. */
 export function createNudgeUiDirectUrl(applicationHref: string): string {
   const url = new URL(applicationHref);
   assertApplicationUrl(url);
@@ -94,7 +90,6 @@ export function createNudgeUiDirectUrl(applicationHref: string): string {
   return url.href;
 }
 
-/** Reads the public `nudge-ui=off` / `nudge-ui=on` switch from an application URL. */
 export function readNudgeUiQuerySwitch(href: string): "off" | "on" | null {
   const url = new URL(href);
   const values = url.searchParams.getAll(NUDGE_UI_EDITOR_QUERY_PARAM);
@@ -104,17 +99,14 @@ export function readNudgeUiQuerySwitch(href: string): "off" | "on" | null {
   return values.includes(NUDGE_UI_ON_QUERY_VALUE) ? "on" : null;
 }
 
-/** Returns whether this application location explicitly bypasses editor entry. */
 export function isNudgeUiDirectUrl(href: string): boolean {
   return readNudgeUiQuerySwitch(href) === "off";
 }
 
-/** Remembers that this browser tab was explicitly opened outside the editor. */
 export function rememberNudgeUiDirectTabIntent(): void {
   rememberNudgeUiTabSwitch("off");
 }
 
-/** Remembers an explicit URL switch so later navigations in this tab keep it. */
 export function rememberNudgeUiTabSwitch(value: "off" | "on"): void {
   try {
     sessionStorage.setItem(value === "off" ? DIRECT_TAB_SESSION_KEY : FORCED_TAB_SESSION_KEY, "1");
@@ -124,12 +116,10 @@ export function rememberNudgeUiTabSwitch(value: "off" | "on"): void {
   }
 }
 
-/** Returns whether this browser tab should remain outside the editor. */
 export function hasNudgeUiDirectTabIntent(): boolean {
   return readTabFlag(DIRECT_TAB_SESSION_KEY);
 }
 
-/** Returns whether this browser tab explicitly asked for the editor with `nudge-ui=on`. */
 export function hasNudgeUiForcedTabIntent(): boolean {
   return readTabFlag(FORCED_TAB_SESSION_KEY);
 }
@@ -158,7 +148,7 @@ export interface NudgeUiClientEntryContext {
   readonly automated?: boolean;
 }
 
-/** Chooses the browser-client role before any runtime manifest is fetched. */
+/** Resolved before any runtime manifest is fetched. */
 export function resolveNudgeUiClientEntry(
   href: string,
   context: NudgeUiClientEntryContext,
@@ -187,7 +177,6 @@ function assertApplicationUrl(url: URL): void {
   }
 }
 
-/** Renders the host-neutral editor document served by every development Adapter. */
 export function createNudgeUiEditorDocument(): string {
   return `<!doctype html>
 <html lang="en" data-nudge-ui-editor>

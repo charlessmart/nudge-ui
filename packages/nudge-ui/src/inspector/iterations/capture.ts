@@ -2,7 +2,6 @@ import type { CanvasFrame } from "../canvas/canvasFrame.ts";
 import { HTML_ARTIFACT_REVISION_ATTRIBUTE } from "../../transport/artifacts.ts";
 import { FRAME_SCROLLBAR_STYLE_ID } from "../canvas/frameScrollbarStyles.ts";
 
-/** Captures the visible DOM of a same-origin frame as a script-free HTML iteration. */
 export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> {
   const source = frame.contentDocument;
   const view = frame.contentWindow;
@@ -19,11 +18,9 @@ export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> 
     const sourceElement = sourceElements[index]!;
     const copied = copiedElements[index]!;
     if (sourceElement.nodeType !== 1 || copied.nodeType !== 1) continue;
-    // Renderer IDs belong to the source iframe's node registry. The iteration's
-    // fresh registry can reuse those values for different nodes.
+    // Renderer IDs belong to the source iframe's registry; the iteration's fresh registry can reuse them for different nodes.
     copied.removeAttribute("data-renderer-id");
-    // Preserve authored inline values (percentages, variables, and calc), rather
-    // than replacing them with computed dimensions at the capture viewport.
+    // Keep authored inline values (percentages, variables, calc) instead of computed dimensions.
     const inline = copied.getAttribute("style");
     if (inline) copied.setAttribute("style", await resolveCssUrls(inline, source.baseURI, assets));
     if (sourceElement.tagName === "INPUT" && copied.tagName === "INPUT") {
@@ -94,8 +91,7 @@ async function captureStylesheets(
         if (!response.ok) continue;
         css = await response.text();
       } catch {
-        // Keep the stylesheet link when CORS prevents embedding it. Its URL
-        // still resolves against the original base and retains responsiveness.
+        // Keep the stylesheet link when CORS prevents embedding it; its URL still resolves against the original base.
         continue;
       }
     }
@@ -106,8 +102,7 @@ async function captureStylesheets(
       }
     }
     style.textContent = await resolveCssUrls(css, sheet.href ?? document.baseURI, assets);
-    // Captured edits become the iteration's base. The renderer must create its own
-    // managed stylesheet for new edits instead of clearing these captured rules.
+    // Captured edits become the iteration's base; the renderer must create its own managed stylesheet for new edits.
     if (style.id === "nudge-ui-styles") {
       style.removeAttribute("id");
       style.removeAttribute("data-nudge-ui");

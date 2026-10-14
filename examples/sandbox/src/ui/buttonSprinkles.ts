@@ -3,12 +3,7 @@ export interface ButtonSprinkles {
   size: "small" | "large";
 }
 
-/**
- * Sandbox stand-in for the class contract an internal Vanilla Extract
- * Sprinkles package exports. The semantic editor cares about the component
- * prop contract; the existing Vanilla Extract adapter remains responsible for
- * explaining the generated classes and tokens.
- */
+// Sandbox stand-in for an internal Vanilla Extract Sprinkles contract; the semantic editor only cares about the prop contract.
 export function buttonSprinkles({ variant, size }: ButtonSprinkles): string {
   return [
     "semantic-button",

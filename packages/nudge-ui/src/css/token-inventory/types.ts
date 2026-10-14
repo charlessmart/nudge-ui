@@ -1,10 +1,3 @@
-/**
- * Token inventory contracts: artifact input, normalized styling contributions,
- * diagnostics, and immutable snapshots.
- *
- * This Node/build-time seam is intentionally absent from the browser-safe
- * `nudge-ui/css` export graph.
- */
 import type {
   TokenCatalogDiagnosticCode,
   TokenDefinition,
@@ -16,13 +9,12 @@ import type {
 export type ArtifactStage = "authored" | "transformed";
 export type ArtifactProvenance = TokenOrigin;
 
-/** One authored or transformed observation supplied by a build-tool Adapter. */
 export interface StylesheetArtifact {
   readonly buildTool: string;
   readonly id: string;
   readonly stage: ArtifactStage;
   readonly provenance: ArtifactProvenance;
-  /** Authoritative stylesheet/import order, only when the Adapter can prove it. */
+  /** Only when the Adapter can prove the stylesheet/import order. */
   readonly order?: number;
   /** Deterministic scan rank when browser/cascade order is not known. */
   readonly discoveryOrder?: number;
@@ -31,7 +23,6 @@ export interface StylesheetArtifact {
   readonly adapter?: string;
   /** A recoverable transformed-observation failure; authored facts are retained. */
   readonly failed?: boolean;
-  /** Adapter failures associated with this observation. */
   readonly diagnostics?: readonly ArtifactDiagnosticInput[];
 }
 
@@ -81,7 +72,6 @@ export interface InventoryTokenDefinition extends Omit<TokenDefinition, "declara
   readonly declarations: readonly InventoryTokenDeclaration[];
 }
 
-/** Declarative metadata rewrite for matching aggregated definitions. */
 export interface TokenDefinitionRelabelling {
   readonly adapter: string;
   readonly fromOrigin: TokenOrigin;
@@ -89,10 +79,7 @@ export interface TokenDefinitionRelabelling {
   readonly editable?: boolean;
 }
 
-/**
- * A normalized styling contribution. Re-applying the same `id` replaces its
- * prior facts; contribution order is explicit or deterministically id-based.
- */
+/** Re-applying the same `id` replaces its prior facts. */
 export interface TokenContribution {
   readonly id: string;
   readonly tokens?: readonly TokenEntry[];

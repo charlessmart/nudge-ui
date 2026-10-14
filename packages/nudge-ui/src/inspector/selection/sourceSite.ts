@@ -6,17 +6,11 @@ const SOURCE_POSITION = /^(.+):\d+:\d+$/;
 export function sourceSiteSelector(cid: string, src: string): string | null {
   if (!cid) return null;
   if (!src) return `[data-cid="${escapeAttrValue(cid)}"]`;
-  // A source site is the complete file:line:column identity injected by the
-  // Vite transform. Keeping only file:line makes separate JSX elements on a
-  // single formatted line share a managed rule.
+  // File:line alone would merge separate JSX elements on one formatted line into a single managed rule.
   return `[data-cid="${escapeAttrValue(cid)}"][data-src="${escapeAttrValue(src)}"]`;
 }
 
-/**
- * Finds a source site whose position moved because its file gained or lost
- * lines. It returns a site only when the original renders nothing and exactly
- * one other position in the same file and component renders matching elements.
- */
+/** Returns a moved position only when the original renders nothing and exactly one other position in the file matches. */
 export function relocateSourceSite(
   doc: Document,
   site: { readonly cid: string; readonly src: string },

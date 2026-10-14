@@ -73,12 +73,10 @@ function stableSerialized(value: unknown): string {
   return JSON.stringify(stableJsonValue(value));
 }
 
-/** Stable, preview-metadata-free identity for one prompt handoff record. */
 export function handoffChangeFingerprint(change: ChangeRecord): string {
   return stableSerialized(change);
 }
 
-/** Stable identity for one structural record included in a prompt handoff. */
 export function handoffStructuralFingerprint(change: StructuralChange): string {
   return stableSerialized(change);
 }
@@ -98,7 +96,7 @@ function queryTargets(doc: Document, selector: string | null): HTMLElement[] {
   }
 }
 
-/** Resolves current style targets, following a source site whose position shifted. */
+/** Falls back to relocating a shifted source site. */
 function styleTargets(change: PreviewableChangeRecord, doc: Document): HTMLElement[] {
   if (isTokenChange(change)) return queryTargets(doc, change.selector);
   // The projection marker is lifted for verification; evidence names the instance.
@@ -145,12 +143,7 @@ function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc
     && (resolved.element.textContent ?? "") === "";
 }
 
-/**
- * A delete verifies when its target no longer resolves in the document once
- * the preview is lifted: the source really removed it. Ambiguous evidence
- * still means identical elements are present, so only a definitive miss
- * verifies.
- */
+/** Only a definitive miss verifies; ambiguous evidence still means identical elements are present. */
 function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolean {
   if (!change.route || !change.state || !doc.location) return false;
   let currentRoute: string;
@@ -166,12 +159,7 @@ function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolea
     && resolveMovedRenderedInstance(doc, change.target).status === "missing";
 }
 
-/**
- * A move verifies when the element sits at its recorded destination without
- * the preview holding it there. The projection rebuild returns a cleanly
- * applied move preview to its captured origin, so such records conservatively
- * stay unverified instead of trusting rendered placement alone.
- */
+/** A cleanly applied preview returns to its captured origin, so only a move that stays at its recorded destination verifies. */
 function verifyStructuralMove(change: StructuralMove, doc: Document): boolean {
   const target = resolveMovedRenderedInstance(doc, change.target);
   if (target.status !== "resolved") return false;
@@ -197,12 +185,7 @@ function verifiedStructuralChangeIds(
   return verified;
 }
 
-/**
- * Positively verifies browser-observable source results after the inspector's
- * own projections have been removed. Component props and interaction states
- * intentionally remain unresolved because rendered output alone cannot prove
- * that their source was updated.
- */
+/** Component props and interaction states stay unresolved: rendered output alone cannot prove their source changed. */
 export function verifiedChangeKeys(
   sentChanges: readonly ChangeRecord[],
   doc: Document = document,
@@ -218,7 +201,6 @@ export function verifiedChangeKeys(
   return verified;
 }
 
-/** Captures the exact canonical edits associated with one dispatched prompt. */
 export function recordAgentDispatch(
   revision: number,
   changes: readonly ChangeRecord[],
@@ -232,12 +214,10 @@ export function recordAgentDispatch(
   });
 }
 
-/** Drops a captured revision when the bridge rejects its dispatch. */
 export function discardAgentDispatch(revision: number): void {
   dispatches.delete(revision);
 }
 
-/** Returns how many canonical edits were in flight for one dispatch. */
 export function getAgentDispatchSize(revision: number): number {
   const snapshot = dispatches.get(revision);
   if (!snapshot) return 0;
@@ -264,11 +244,7 @@ function afterBrowserPaint(doc: Document): Promise<void> {
   });
 }
 
-/**
- * Reconciles only records that still equal the sent snapshot and that remain
- * observable after removing Nudge's own preview. Newer edits and ambiguous
- * records are preserved.
- */
+/** Newer edits and ambiguous records are preserved. */
 export async function verifyAndReconcileHandoff(
   snapshot: HandoffSnapshot,
   doc: Document | null = handoffDocument(snapshot.owner),
@@ -294,8 +270,6 @@ export async function verifyAndReconcileHandoff(
   const eligibleKeys = new Set(eligible.map(changeKey));
   const remaining = current.filter((change) => !eligibleKeys.has(changeKey(change)));
 
-  // The same "still unchanged" rule for structural intent: only canonical
-  // records byte-identical to the dispatched snapshot may be reconciled.
   const sentStructural = new Map(
     snapshot.structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
   );
@@ -320,9 +294,7 @@ export async function verifyAndReconcileHandoff(
       && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
     const verified = verifiedChangeKeys(eligible, doc);
     const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, doc);
-    // A user can make another inspector edit while the two-frame verification
-    // window is open. Recheck byte identity immediately before reconciliation
-    // so a newer value at the same key can never be removed.
+    // Recheck byte identity before reconciling; a user edit can land while the two-frame window is open.
     const currentByKey = new Map(
       getDraftChanges(snapshot.owner.draftId).changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
     );
@@ -342,12 +314,7 @@ export async function verifyAndReconcileHandoff(
     if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
     return reconcileDraftChanges(snapshot.owner.draftId, stillVerified, stillVerifiedStructural);
   } finally {
-    // Reconciliation reapplies the canonical set. If it was unable to write
-    // (for example, a read-only Canvas lease), restore the untouched set here.
-    // A Canvas restore settles on the renderer's acknowledgement: that
-    // acknowledgement invalidates the frame's stylesheet revision, and a
-    // caller still inside this verification must not mistake it for a source
-    // change and schedule another verification.
+    // If reconciliation could not write (read-only Canvas lease), restore the untouched set; a Canvas restore settles on the renderer's acknowledgement.
     if (doc === document) await applyProjection(getActiveDraftChanges());
     else await restoreCanonicalFrameProjection(doc);
   }
@@ -370,12 +337,10 @@ function handoffDocument(owner: HandoffOwner): Document | null {
   return owner.target.kind === "application" && !isEditorShellDocument() ? document : null;
 }
 
-/** Returns the records captured for one dispatch until it is reconciled. */
 export function getAgentDispatch(revision: number): HandoffSnapshot | null {
   return dispatches.get(revision) ?? null;
 }
 
-/** Records in the owner draft that still equal what a handoff sent. */
 export function unchangedHandoffRecords(snapshot: HandoffSnapshot): Pick<HandoffSnapshot, "changes" | "structuralChanges"> {
   const sent = new Set(snapshot.changes.map(handoffChangeFingerprint));
   const sentStructural = new Set(snapshot.structuralChanges.map(handoffStructuralFingerprint));
@@ -386,7 +351,6 @@ export function unchangedHandoffRecords(snapshot: HandoffSnapshot): Pick<Handoff
   };
 }
 
-/** Reconciles the captured records for one completed connected-agent request. */
 export async function verifyAndReconcileAgentDispatch(revision: number): Promise<number> {
   const snapshot = dispatches.get(revision);
   if (!snapshot) return 0;

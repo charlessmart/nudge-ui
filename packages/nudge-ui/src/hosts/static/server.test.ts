@@ -323,8 +323,7 @@ describe("createStandaloneServer", () => {
     expect(await fileResponse.text()).toBe("percent file");
 
     const traversalResponse = await fetch(address.url + "%2e%2e/secret.txt");
-    // Fetch normalizes dot segments before sending this URL; the resulting
-    // request is still rejected and never serves a file outside the root.
+    // Fetch normalizes dot segments before sending; the request is still rejected and never serves outside the root.
     expect(traversalResponse.status).toBe(404);
   });
 

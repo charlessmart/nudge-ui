@@ -115,16 +115,7 @@ function pickWinningDeclaration(
   return winner;
 }
 
-/**
- * Strips host-declared structural scoping markers from a selector so
- * human-facing labels present only author vocabulary (ADR-0011). The marker
- * grammar — Astro's `[data-astro-cid-<hash>]` attribute selectors or
- * `.astro-<hash>` classes, a future Vue/Svelte equivalent — is declared by
- * the host Adapter through the runtime configuration; the raw selector is
- * retained in `context.selector` so resolution keeps matching the rendered
- * DOM. A `:where(...)` wrapper left empty by the removals disappears
- * entirely.
- */
+/** Strips host-declared scoping markers for labels; `context.selector` keeps the raw selector for matching. */
 export function humanizeSelector(selector: string, scopingPattern: RegExp | null): string {
   const stripped = scopingPattern === null ? selector : selector.replace(scopingPattern, "");
   return stripped

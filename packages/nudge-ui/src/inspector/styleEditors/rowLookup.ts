@@ -1,6 +1,5 @@
 import type { ResolvedProperty } from "../../css/model/index.ts";
 
-/** Finds the resolved row for one CSS property, or null when it is absent. */
 export function findTokenRow(
   rows: readonly ResolvedProperty[],
   property: string,
@@ -8,10 +7,7 @@ export function findTokenRow(
   return rows.find((row) => row.property === property) ?? null;
 }
 
-/**
- * Source provenance for an edit, taken from the row that produced it. Omitted
- * when the row carries no authored origin, so the caller sends no metadata.
- */
+/** Undefined when the row has no authored origin, so callers send no metadata. */
 export function metadataFor(row: ResolvedProperty | null | undefined) {
   return row?.sourceProperty
     ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }

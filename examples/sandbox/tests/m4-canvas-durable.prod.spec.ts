@@ -22,13 +22,11 @@ test("prod: managed stylesheet is absent", async ({ page }) => {
 test("prod: no canvas or inspector persisted state", async ({ page }) => {
   await page.goto("/");
 
-  // No canvas host element
   const hasCanvasHost = await page.evaluate(() => {
     return document.getElementById("nudge-ui-canvas-host") !== null;
   });
   expect(hasCanvasHost).toBe(false);
 
-  // No session management UI
   const pageHtml = await page.content();
   expect(pageHtml).not.toContain("restore-notice");
   expect(pageHtml).not.toContain("clear-session");

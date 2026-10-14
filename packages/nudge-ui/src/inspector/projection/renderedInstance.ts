@@ -72,7 +72,6 @@ function candidates(doc: Document, sourceSite: SourceSiteRef): HTMLElement[] {
   }
 }
 
-/** Captures conservative, serializable identity at the moment of the action. */
 export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
@@ -97,16 +96,10 @@ export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | 
   };
 }
 
-/**
- * Resolves exactly one element, or declines to apply. Occurrence documents the
- * captured placement, but structural previews can legitimately change it.
- * Evidence, narrowed by a recorded invocation when present, must therefore
- * identify one current candidate before an edit can be applied.
- */
+/** Occurrence documents captured placement, but structural previews can change it; evidence must identify exactly one current candidate. */
 export function resolveRenderedInstance(doc: Document, ref: RenderedInstanceRef): ResolutionResult {
   const sourceCandidates = candidates(doc, ref.sourceSite);
   const { props, text, ariaLabel = null, invocation } = ref.locator;
-  // An ordinal alone is not an identity for a repeated source site.
   if (!invocation && sourceCandidates.length > 1 && props === null && text === null && ariaLabel === null) {
     return { status: "ambiguous" };
   }
@@ -125,18 +118,12 @@ export function resolveRenderedInstance(doc: Document, ref: RenderedInstanceRef)
     matchingEvidence = scoped;
   }
   if (matchingEvidence.length === 0) return { status: "missing" };
-  // Evidence alone is never enough to choose between two identical rendered
-  // outputs. This is particularly important for structural anchors: applying
-  // one move to an arbitrary identical parent would reorder the wrong group.
+  // Evidence alone never chooses between identical outputs; an arbitrary pick would reorder the wrong group.
   if (matchingEvidence.length > 1) return { status: "ambiguous" };
   return { status: "resolved", element: matchingEvidence[0]! };
 }
 
-/**
- * Resolves a reference whose source position may have moved since capture.
- * A relocated site still renders matching authored evidence, so an evidence
- * miss there is reported as ambiguous rather than as proof of absence.
- */
+/** A relocated site still renders matching evidence, so an evidence miss is reported as ambiguous, not missing. */
 export function resolveMovedRenderedInstance(doc: Document, ref: RenderedInstanceRef): ResolutionResult {
   const exact = resolveRenderedInstance(doc, ref);
   if (exact.status !== "missing") return exact;
@@ -148,12 +135,7 @@ export function resolveMovedRenderedInstance(doc: Document, ref: RenderedInstanc
   return moved.status === "missing" ? { status: "ambiguous" } : moved;
 }
 
-/**
- * Captures identity for a structural target. When evidence matches several
- * identical outputs, the nearest component invocation whose entire output is
- * this element can still identify it. Otherwise the evidence-only reference
- * is returned and resolves as ambiguous.
- */
+/** Falls back to the nearest component invocation when evidence matches several identical outputs. */
 export function captureStructuralTarget(el: HTMLElement): RenderedInstanceRef | null {
   const ref = captureRenderedInstance(el);
   if (!ref || resolveRenderedInstance(el.ownerDocument, ref).status !== "ambiguous") return ref;
@@ -165,7 +147,7 @@ export function captureStructuralTarget(el: HTMLElement): RenderedInstanceRef | 
   return ref;
 }
 
-/** Checks stable source/evidence fields without treating a post-move ordinal as identity. */
+/** Ignores the ordinal, which is not identity after a move. */
 export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedInstanceRef): boolean {
   const { props, text, ariaLabel = null } = ref.locator;
   return (el.getAttribute("data-cid") ?? "") === ref.sourceSite.cid
@@ -175,14 +157,12 @@ export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedIn
     && el.getAttribute("aria-label") === ariaLabel;
 }
 
-/** Builds an instance override without changing the element's transient edit scope. */
 export function buildRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
   const target = captureRenderedInstance(el);
   if (!target) return null;
   return buildRenderedInstanceOverrideForTarget(target);
 }
 
-/** Creates a serializable override for identity that was already validated. */
 export function buildRenderedInstanceOverrideForTarget(target: RenderedInstanceRef): RenderedInstanceOverride {
   return {
     id: `override-${crypto.randomUUID?.() ?? nextOverrideId++}`,
@@ -197,7 +177,6 @@ export function createRenderedInstanceOverride(el: HTMLElement): RenderedInstanc
   return override;
 }
 
-/** Returns an active transient target or the canonical target projected here. */
 export function getRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
   const transient = transientTargets.get(el);
   if (transient) return transient;
@@ -216,7 +195,6 @@ export function instanceSelector(override: RenderedInstanceOverride): string | n
   return source ? `${source}[${PROJECTION_ATTR}="${escapeAttrValue(override.id)}"]` : null;
 }
 
-/** Extracts the distinct canonical targets which renderers must resolve. */
 export function collectRenderedInstanceOverrides(
   changes: ReadonlyArray<unknown>,
 ): RenderedInstanceOverride[] {
@@ -307,10 +285,7 @@ function getDocumentState(doc: Document): DocumentProjectionState {
   return state;
 }
 
-/**
- * The document-projection adapter only applies a new canonical snapshot. A
- * later reconciliation changes diagnostics but never starts a reapply loop.
- */
+/** A later reconciliation changes diagnostics but never starts a reapply loop. */
 export function applyRenderedInstanceProjection(
   doc: Document,
   overrides: ReadonlyArray<RenderedInstanceOverride>,
@@ -355,7 +330,6 @@ export function getRenderedInstanceProjectionReports(doc: Document): readonly Do
   return reportsByDocument.get(doc) ?? [];
 }
 
-/** Diagnostics arrive independently when a renderer reports or React reconciles. */
 export function subscribeRenderedInstanceDiagnostics(listener: () => void): () => void {
   diagnosticListeners.add(listener);
   return () => diagnosticListeners.delete(listener);

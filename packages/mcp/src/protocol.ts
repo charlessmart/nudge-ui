@@ -1,10 +1,3 @@
-/**
- * Companion-facing aliases and transport envelopes.
- *
- * The domain contracts live in the private shared protocol module. This public
- * subpath keeps transport names discoverable for Node consumers while
- * preserving one protocol vocabulary for browser and agent adapters.
- */
 export {
   AGENT_PROTOCOL_LIMITS,
   AGENT_PROTOCOL_VERSION,
@@ -97,7 +90,6 @@ export const AGENT_CONTROL_ENDPOINTS = {
 
 export type BridgeEndpoint = (typeof BRIDGE_ENDPOINTS)[keyof typeof BRIDGE_ENDPOINTS];
 
-/** Error body returned by every rejected bridge request. */
 export interface BridgeHttpError {
   readonly error: {
     readonly code: string;

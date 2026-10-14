@@ -1,9 +1,4 @@
-/**
- * A tiny lifecycle seam keeps canonical-history clearing independent from the
- * editor implementation. The editor registers its active-session disposer;
- * changesLog can then cancel it without importing the editor back through a
- * circular module edge.
- */
+// Keeps canonical-history clearing independent of the editor without importing it back through a circular edge.
 import { clearInlineTextDiagnostics } from "./inlineTextDiagnostics.ts";
 
 let clearHandler: (() => void) | null = null;

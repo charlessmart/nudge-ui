@@ -4,7 +4,6 @@ import {
   type SessionOwnerImplementation,
 } from "./lifecycle.ts";
 
-/** The mounted DOM node that hosts an inspector session. */
 export type InspectorHost = HTMLElement;
 
 /** Resources that survive inspector remounts. */
@@ -13,14 +12,12 @@ export interface Workspace extends SessionOwner {
   createDocumentSession(doc: Document): DocumentSession;
 }
 
-/** Resources owned by one mounted inspector. */
 export interface InspectorSession extends SessionOwner {
   readonly host: InspectorHost;
   readonly workspace: Workspace;
   createDocumentSession(doc: Document): DocumentSession;
 }
 
-/** Resources and caches associated with one inspected document lifetime. */
 export interface DocumentSession extends SessionOwner {
   readonly document: Document;
   readonly inspector: InspectorSession | null;
@@ -73,10 +70,6 @@ function createInspectorSessionFor(workspace: Workspace, parent: SessionOwnerImp
   return session;
 }
 
-/**
- * Creates the workspace owner. A workspace owns mounted inspector sessions
- * and any document sessions created directly from the workspace.
- */
 export function createWorkspace(): Workspace {
   const owner = createSessionOwner("workspace");
   let workspace: Workspace;
@@ -99,12 +92,10 @@ export function createWorkspace(): Workspace {
   return workspace;
 }
 
-/** Creates an inspector session owned by the supplied workspace. */
 export function createInspectorSession(workspace: Workspace, host: InspectorHost): InspectorSession {
   return workspace.createInspectorSession(host);
 }
 
-/** Creates a document session owned by a workspace or mounted inspector. */
 export function createDocumentSession(
   owner: Workspace | InspectorSession,
   doc: Document,

@@ -89,8 +89,7 @@ export const App = () => <Button />;`;
     expect(await createPlugin()).not.toContain("__nudgeUiInstrumentComponent");
     const transformed = await createPlugin(["../../packages/ui"]);
     expect(transformed).toContain("__nudgeUiInstrumentComponent");
-    // Project-root relative, so a workspace package never collides with the
-    // application's own `src/App.tsx` and no machine path is serialised.
+    // Project-root relative, so a workspace package never collides with the app's own `src/App.tsx` and no machine path is serialised.
     expect(transformed).toContain('data-src="../../packages/ui/src/App.tsx:2:27"');
   });
 });
@@ -143,7 +142,6 @@ describe("transformIndexHtmlHtml", () => {
 
   it("appends the injection when </body> is absent", () => {
     const html = `<html><head></head><body><div id="root"></div></body>`;
-    // still contains </body> here; try one without
     const noBody = `<div>no body</div>`;
     const out = transformIndexHtmlHtml(noBody, "serve");
     expect(out).not.toBeNull();
@@ -314,8 +312,7 @@ describe("nudgeUi Astro component-style unwrapping (ADR-0011)", () => {
         "__vite__updateStyle(__vite__id, __vite__css)",
         "import.meta.hot.accept()",
       ].join("\n");
-      // Build the real wrapper with an escaped JSON string so quotes inside
-      // the CSS survive JS parsing exactly like Vite's serializer emits them.
+      // Rebuild the wrapper with an escaped JSON string so quotes survive JS parsing as Vite's serializer emits them.
       const css = `.card[data-astro-cid-x]{${declarations}}`;
       const code = wrapper.replace(
         "`" + `.card[data-astro-cid-x]{\${declarations}}` + "`",
@@ -356,8 +353,8 @@ describe("nudgeUi Astro component-style unwrapping (ADR-0011)", () => {
   });
 });
 
-describe("nudgeUi react alias configuration", () => {  // A root with React installed is required for the resolver to find entries;
-  // the sandbox fixture is a stable in-repo candidate.
+describe("nudgeUi react alias configuration", () => {
+  // A React-installed root lets the resolver find entries; the sandbox fixture is stable in-repo.
   const sandboxRoot = join(
     fileURLToPath(new URL(".", import.meta.url)),
     "../../examples/sandbox",
@@ -1191,17 +1188,14 @@ describe("nudgeUi token catalog compiler", () => {
     const authoredFirst = await build(false);
     const transformFirst = await build(true);
 
-    // Cold-start output is identical regardless of which observation lands
-    // first — the inventory reconciles the artifact pair deterministically.
+    // Cold-start output is identical regardless of which observation lands first.
     expect(transformFirst).toEqual(authoredFirst);
 
-    // The transformed observation is the browser-relevant fact set...
+    // The transformed observation supplies the browser-relevant facts; authored names keep project provenance.
     expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
       .toMatchObject({ declarations: [expect.objectContaining({ value: "#123456", context: { selector: ":root, :host" } })] });
-    // ...while authored names keep project provenance and become editable.
     expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
       .toMatchObject({ origin: "project", editable: true, adapter: "tailwind-v4" });
-    // Compiler-emitted names that have no authored counterpart are framework.
     expect(authoredFirst.find((entry) => entry.cssName === "--tw-brand-opacity"))
       .toMatchObject({ origin: "framework", editable: false, adapter: "tailwind-v4" });
   });
@@ -1235,10 +1229,9 @@ describe("nudgeUi token catalog compiler", () => {
         declarations: Array<{ value: string }>;
       }>;
 
-      // The authored observation is retained as the browser-relevant facts.
+      // The authored observation stays the browser-relevant facts; the failed transform surfaces as a diagnostic.
       expect(catalog.find((definition) => definition.cssName === "--color-brand"))
         .toMatchObject({ origin: "project", declarations: [expect.objectContaining({ value: "#123456" })] });
-      // ...and the failed transform surfaces as a recoverable diagnostic.
       expect(code).toContain("transform-observation-failed");
     } finally {
       rmSync(parent, { recursive: true, force: true });
@@ -1277,8 +1270,7 @@ describe("nudgeUi token catalog compiler", () => {
       plugin.configureServer!(server);
       plugin.buildStart!();
 
-      // HMR for an edited file whose post-transform request fails: the authored
-      // facts are retained alongside a recoverable diagnostic.
+      // HMR for an edited file whose post-transform request fails: authored facts stay with a recoverable diagnostic.
       writeFileSync(appCss, ':root { --color-brand: #abcdef; }');
       await plugin.handleHotUpdate!({
         file: appCss,
@@ -1290,8 +1282,7 @@ describe("nudgeUi token catalog compiler", () => {
       expect(code).toContain("transform-observation-failed");
       expect(code).toContain("#abcdef");
 
-      // The transform recovers: the pipeline feeds the transformed observation,
-      // which clears the diagnostic and keeps the authored facts as the facts.
+      // Recovery feeds the transformed observation, clearing the diagnostic while authored facts stay the facts.
       transformFails = false;
       await plugin.handleHotUpdate!({
         file: appCss,
@@ -1336,9 +1327,7 @@ describe("nudgeUi token catalog compiler", () => {
       plugin.buildStart!();
       expect(await plugin.load!("\0virtual:design-tokens")).toContain("--color-brand");
 
-      // The file is deleted: ctx.read() throws and the disk scan no longer sees
-      // it, so rows are removed and NO transform-observation-failed diagnostic
-      // is recorded for the removal.
+      // Deletion removes rows and must NOT record a transform-observation-failed diagnostic.
       rmSync(appCss);
       await plugin.handleHotUpdate!({
         file: appCss,
@@ -1400,9 +1389,7 @@ describe("nudgeUi token catalog compiler", () => {
         generation: JSON.parse(code.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""'),
       };
 
-      // Rebuild the inventory from the same observable facts and contributions.
-      // If load() still post-processed the snapshot, the published catalog,
-      // tokens, or generation would diverge from this engine output.
+      // Rebuild the inventory from the same facts; any post-processing in load() would diverge from this engine output.
       const expected = createTokenInventory();
       expected.apply({
         buildTool: "vite",
@@ -1483,8 +1470,7 @@ describe("nudgeUi token catalog compiler", () => {
       const first = await generation();
       expect(first).toMatch(/^g[0-9a-f]+$/);
 
-      // Change: one observable snapshot change -> exactly one invalidation and
-      // a new generation, even though the event feeds authored + graph facts.
+      // One observable change feeds authored + graph facts but must invalidate and bump exactly once.
       writeFileSync(appCss, ':root { --color-brand: #abcdef; --extra-token: 4px; }');
       await plugin.handleHotUpdate!({
         file: appCss,
@@ -1506,7 +1492,6 @@ describe("nudgeUi token catalog compiler", () => {
       expect(invalidations).toHaveLength(1);
       expect(await generation()).toBe(changed);
 
-      // Genuinely different content bumps exactly once more.
       writeFileSync(appCss, ':root { --color-brand: #ffffff; }');
       await plugin.handleHotUpdate!({
         file: appCss,

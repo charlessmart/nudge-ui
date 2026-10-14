@@ -1,9 +1,4 @@
-/**
- * Node's recursive `fs.watch` is not available on every supported platform, so
- * this watches each directory and adds watches for ones created later. The
- * public surface is lifecycle and settled batches; debounce and symlink
- * confinement stay internal.
- */
+/** Node's recursive `fs.watch` is not available on every supported platform, so directories are watched individually. */
 import { watch, type FSWatcher, type Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { realpathSync, statSync } from "node:fs";
@@ -38,7 +33,6 @@ interface DirectoryWatch {
   readonly watcher: FSWatcher;
 }
 
-/** Creates a watcher that starts and stops explicitly with the server. */
 export function createProjectFileWatcher(
   options: ProjectFileWatcherOptions,
 ): ProjectFileWatcher {
@@ -116,8 +110,7 @@ export function createProjectFileWatcher(
     }
 
     watches.set(directory, { directory, canonicalDirectory, watcher: directoryWatcher });
-    // Watch before scanning so events during the async walk are not missed. Scans
-    // run serially and re-check `closed` after every await, so none leak past close().
+    // Watch before scanning so events during the async walk are not missed.
     pendingScans += 1;
     scanQueue = scanQueue
       .then(() => scanSubdirectories(directory))

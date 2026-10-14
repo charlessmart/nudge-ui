@@ -1,25 +1,3 @@
-/**
- * Structured and box value interpretation (plan slice 3.5).
- *
- * One browser-safe Module turns an authored CSSOM value for a box/border/
- * radius/font property into a structured projection tree: the physical sides,
- * border longhands, radius corners, or font longhands it expands to, each with
- * source-property provenance and its own token interpretation.
- *
- * One interpretation tree: each distinct authored component is token-interpreted
- * once and every projected field that carries that component reuses the same
- * interpretation (tokenName, tokens, opacity, modifiers, cycle). A border color
- * token, a multi-value spacing token, or a radius token is therefore resolved
- * once per declaration, not once per projected longhand.
- *
- * Conservative fallbacks: ambiguous borders, slash-separated radius forms,
- * complex fonts, and everything outside the supported families stay a single
- * raw/composite row with the resolution's existing capability classification.
- *
- * Browser-safe contract: this module imports only the shared model and the
- * other value-semantics Modules. Directionality is an explicit input fact; it
- * never walks the DOM or CSSOM.
- */
 import type {
   BorderStructure,
   ColorOpacity,
@@ -46,7 +24,6 @@ import {
 
 export type { Directionality } from "./boxSemantics.ts";
 
-/** One projected longhand row from the structured interpretation. */
 export interface StructuredField {
   property: string;
   /** The authored value projected to this field (per-side/corner/longhand). */
@@ -65,14 +42,9 @@ export interface StructuredField {
   diagnostic?: string;
 }
 
-/** Explicit, DOM-free facts the structured interpretation needs. */
 export interface StructuredValuesContext {
-  /** Token table plus the integration's token-interpretation policies. */
   tokenContext: TokenInterpretationContext;
-  /**
-   * Writing-mode/direction facts for logical→physical mapping. Absent →
-   * `ltr` / `horizontal-tb`.
-   */
+  /** Writing-mode/direction facts for logical→physical mapping; defaults to `ltr`/`horizontal-tb`. */
   directionality?: Directionality;
 }
 
@@ -173,12 +145,7 @@ function fieldFor(property: string, declaredValue: string, sourceProperty: strin
   });
 }
 
-/**
- * Expands authored raw values into per-position entries, deriving each
- * component's token interpretation once. A bare `var()` whose resolved value
- * is multiple lengths expands into multiple positions, preserving the token
- * on every one.
- */
+/** A multi-length `var()` expands into one position per length, each keeping the token. */
 function expandPositionValues(rawValues: string[], ctx: StructuredValuesContext): PositionValue[] {
   return rawValues.flatMap((rawValue) => {
     const res = interpretTokenValue(rawValue, ctx.tokenContext);
@@ -221,7 +188,7 @@ function expandBorder(
   const sourceProperty = lower as BorderStructure["sourceProperty"];
   const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
   // Interpret each distinct component once; every projected longhand reuses
-  // that component result rather than resolving the same token repeatedly.
+  // that component result instead of re-resolving the same token.
   const { widthResult, styleResult, colorResult } = components;
   const scopedStructure: BorderStructure = {
     kind: "border",
@@ -326,13 +293,7 @@ function expandGap(
     projectPositionField(longhand, property, axisValues[index]!));
 }
 
-/**
- * Interprets one authored value for a property into a structured projection
- * tree. Returns the projected fields, or a single conservative raw/composite
- * field when the value cannot be decomposed faithfully. The declared order of
- * the families mirrors CSS projection precedence: logical sides, border, font,
- * border-radius corners, gap, physical spacing, then the raw fallback.
- */
+/** Values that cannot be decomposed faithfully collapse to one conservative raw/composite field; families are checked in CSS precedence order. */
 export function interpretValue(
   property: string,
   authored: string,
@@ -381,5 +342,5 @@ export function interpretValue(
   return [rawField(property, authored, ctx)];
 }
 
-/** @internal Use the package-level `interpretValue` Interface in production. */
+/** @internal Use `interpretValue` in production. */
 export const interpretStructuredValue = interpretValue;

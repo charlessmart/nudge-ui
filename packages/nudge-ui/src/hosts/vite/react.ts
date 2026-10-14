@@ -22,42 +22,28 @@ import {
   type ComponentModuleProtocols,
 } from "../../compiler/index.ts";
 
-/**
- * What React means to a host, with no knowledge of which host is asking. The
- * Vite host owns the build tool; this module owns React semantics. `FrameworkHost`
- * is everything React needs back, and the Vite host accepts `null` in its place,
- * which is what proves it does not secretly depend on any of this.
- */
-
 const COMPONENT_EXTENSION = /\.(?:tsx|jsx)(?:$|[?#])/;
 const COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 
 const packageRequire = createRequire(import.meta.url);
 
 export interface ReactOptions {
-  /**
-   * Skip the React aliases used only by the legacy bundled landing demo.
-   * @deprecated Normal development clients no longer add React aliases.
-   */
+  /** @deprecated Normal development clients no longer add React aliases. */
   skipReactAliases?: boolean;
   /** Fills gaps for packages whose public type graph cannot describe an editable prop. */
   componentMetadata?: ComponentContract[];
   /** Package imports are fail-closed unless listed here or described by a component protocol. */
   compatibleComponentImports?: ComponentInstrumentationOptions["compatibleComponentImports"];
-  /** Additional package or project component protocols resolved by the host. */
   componentProtocols?: ComponentModuleProtocols;
 }
 
-/** Everything React needs from whichever host is driving it. */
 export interface FrameworkHost {
   root(): string | undefined;
-  /** True when a module belongs to the application rather than a dependency. */
   isHostSource(id: string): boolean;
   /** The project-relative path recorded in contracts and diagnostics. */
   catalogPath(id: string): string;
 }
 
-/** The parts of a transform hook React uses, named without the build tool. */
 export interface FrameworkTransformContext {
   resolve(specifier: string, importer: string): Promise<string | null>;
   warn(message: string): void;
@@ -72,8 +58,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   );
   let packageFingerprint = "";
 
-  // Aliased so the injected specifier resolves in a packed install, where the
-  // application's dependency graph has never heard of it.
+  // Aliased so the injected specifier resolves in a packed install, where the application's graph has never heard of it.
   const componentRuntimePath = resolveComponentRuntime();
 
   if (options.componentMetadata?.length) {
@@ -83,10 +68,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     })));
   }
 
-  /**
-   * Fingerprinted on the rendered package exports so an unchanged import graph
-   * costs nothing; every component edit reaches this path.
-   */
+  /** Fingerprinted on the rendered package exports, so an unchanged import graph costs nothing. */
   function refreshPackageContracts(): void {
     const importsByKey = new Map<string, PackageComponentImport>();
     for (const imports of packageImportsByFile.values()) {
@@ -119,7 +101,6 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   }
 
   return {
-    /** Manifest labels for a host composing React. */
     hostLabel: "vite-react" as const satisfies NudgeUiRuntimeConfig["host"],
     framework: "React" as const satisfies NudgeUiRuntimeConfig["framework"],
     virtualModuleId: "virtual:nudge-ui-components",
@@ -130,11 +111,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       return COMPONENT_EXTENSION.test(id);
     },
 
-    /**
-     * Dedupe is the load-bearing part: instrumented callsites must use the
-     * application's own React, and a linked or nested copy would create a
-     * second runtime.
-     */
+    /** Dedupe is load-bearing: instrumented callsites must use the application's own React, not a linked or nested copy. */
     viteConfig(context: { projectRoot: string; demo: boolean; existingDedupe: readonly string[] }) {
       const demoAliases = context.demo && options.skipReactAliases !== true
         ? resolveReactAliases(context.projectRoot)
@@ -165,7 +142,6 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
         + "Semantic component callsites will fall back to application resolution of that specifier.";
     },
 
-    /** Cold-start scan, so the first manifest is not missing every contract. */
     warmUp(): void {
       const root = host.root();
       if (!root) return;
@@ -187,7 +163,6 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       if (refreshPackages) refreshPackageContracts();
     },
 
-    /** Drops a module whose source could not be read after a change. */
     forget(id: string): void {
       contractsByFile.set(id, []);
       packageImportsByFile.delete(id);
@@ -248,7 +223,6 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   };
 }
 
-/** The framework support a host composes, or `null` for no framework at all. */
 export type FrameworkSupport = ReturnType<typeof createReactSupport>;
 
 function scanComponentFiles(rootDir: string, files: string[] = [], dir = rootDir): string[] {

@@ -3,11 +3,7 @@ import { realpathSync } from "node:fs";
 
 const PROJECT_DIGEST_LENGTH = 24;
 
-/**
- * Names a project deterministically across restarts. The root is canonicalized
- * first, so a symlinked working directory resolves to the same project — and
- * therefore the same durable session — as its real path.
- */
+/** The root is canonicalized first so a symlinked working directory names the same project as its real path. */
 export function createProjectId(host: string, root: string): string {
   let canonical = root;
   try {

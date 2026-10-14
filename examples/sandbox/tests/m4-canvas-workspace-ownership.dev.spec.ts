@@ -55,15 +55,12 @@ test.describe("Canvas workspace lease — single ownership", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Tab 1 has inspector working normally
     await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
 
-    // Open a second tab
     const page2 = await context.newPage();
     await page2.goto("/playground");
     await waitForLockedNotice(page2);
 
-    // Second tab should show locked notice, not inspector
     const lockedNotice = page2.locator('[data-test="locked-workspace-notice"]');
     await expect(lockedNotice).toBeVisible();
     const noticeText = await lockedNotice.textContent();
@@ -72,11 +69,9 @@ test.describe("Canvas workspace lease — single ownership", () => {
     expect(noticeText).not.toContain("Active workspace");
     await expect(lockedNotice.locator(".locked-notice__detail")).toHaveCount(0);
 
-    // Takeover button should exist
     const takeoverBtn = page2.locator('[data-test="takeover-here"]');
     await expect(takeoverBtn).toBeVisible();
 
-    // Close second tab
     await page2.close();
   });
 
@@ -92,11 +87,9 @@ test.describe("Canvas workspace lease — single ownership", () => {
     await page2.goto("/playground");
     await waitForLockedNotice(page2);
 
-    // Take over in second tab
     await page2.locator('[data-test="takeover-here"]').click();
 
-    // Takeover is an in-place handoff: B becomes editable without a reload and
-    // A is replaced by the locked panel before it can issue another edit.
+    // Takeover is an in-place handoff: the second tab becomes editable without a reload.
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
     const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
@@ -107,7 +100,6 @@ test.describe("Canvas workspace lease — single ownership", () => {
     await waitForLockedNotice(page);
     await expect(page.locator('[data-test="inspect-tab"]')).not.toBeVisible();
 
-    // Close pages
     await page2.close();
   });
 });
@@ -120,7 +112,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Simulate an expired lease by writing one with old heartbeat
+    // Write an expired lease (old heartbeat) directly.
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) => k.startsWith("nudge-ui:") && k.endsWith(":lease"));
       if (keys.length > 0) {
@@ -133,11 +125,9 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
       }
     });
 
-    // Open a second tab — should acquire the expired lease
     const page2 = await context.newPage();
     await page2.goto("/playground");
 
-    // Should get inspector (not locked notice), since lease was expired
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="inspect-tab"]')).toBeVisible();
     const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
@@ -158,17 +148,13 @@ test.describe("Canvas workspace — stale change detection", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Make an edit so we have a persisted change
     await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
 
-    // Persist a session with that edit
-    // (session is auto-saved on change)
-
+    // Sessions auto-save on change.
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("nudge-ui-drafts:")))).toBe(true);
 
-    // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.addInitScript(() => {
       const keys = Object.keys(localStorage).filter((k) =>
         k.startsWith("nudge-ui-drafts:") && k.endsWith(":v2"),
@@ -197,13 +183,11 @@ test.describe("Canvas workspace — stale change detection", () => {
     await page.reload();
     await waitForInspector(page);
 
-    // Restored sessions should keep the clear action available below Changes
     const clearSession = page.locator('[data-test="clear-session"]');
     await expect(clearSession).toBeVisible();
     await expect(clearSession.locator(".."))
       .toHaveClass(/changes__session-action/);
 
-    // The stale change should be in the changes log
     const changeRows = page.locator('[data-test="change-row"]');
     await expect.poll(() => changeRows.count()).toBeGreaterThanOrEqual(1);
 
@@ -218,7 +202,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("nudge-ui-drafts:")))).toBe(true);
 
-    // Keep the saved layout and inject stale intent into its authoritative draft.
+    // Keep the saved layout; only the draft's changes are replaced.
     await page.addInitScript(() => {
       const key = Object.keys(localStorage).find((key) => key.startsWith("nudge-ui-drafts:") && key.endsWith(":v2"));
       if (!key) throw new Error("expected persisted draft history");
@@ -236,22 +220,18 @@ test.describe("Canvas workspace — stale change detection", () => {
     await page.reload();
     await waitForInspector(page);
 
-    // Restore notice should appear
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
 
-    // Wait for stale detection timeout
+    // Wait for the stale-detection timeout.
     await page.waitForTimeout(7000);
 
-    // The stale change should still be present (not deleted, not broadened)
     const sheet = await managedSheetContent(page);
-    // The rule should be applied (stale does not mean deleted)
+    // Stale does not mean deleted: the rule still applies.
     expect(sheet).toContain("16px");
 
-    // Verify clear session works even with stale changes
     const clearBtn = page.locator('[data-test="clear-session"]');
     if (await clearBtn.isVisible().catch(() => false)) {
       await clearBtn.click();
-      // After clearing, no stale changes remain
       await expect.poll(() => managedSheetContent(page)).not.toContain("16px");
     }
   });

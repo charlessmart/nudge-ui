@@ -29,7 +29,6 @@ function computedFrom(values: Readonly<Record<string, string>>): ComputedStyleRe
   return (property, fallback) => values[property] ?? fallback;
 }
 
-/** Computed longhands for a border that is the same on every side. */
 function uniformSides(width: string, style: string, color: string): Record<string, string> {
   return Object.fromEntries(BORDER_SIDES.flatMap((side) => [
     [`border-${side}-width`, width],

@@ -20,7 +20,6 @@ function boundedRenderedText(el: HTMLElement): string | null {
   return normalizeRuntimeText(el.textContent);
 }
 
-/** Authored source location plus runtime provenance for one rendered element. */
 interface SourceFields {
   file: string;
   line: number;
@@ -52,9 +51,7 @@ function sourceFields(el: HTMLElement): SourceFields {
     };
   }
   if (!parsed) {
-    // Authored markup whose source annotation is absent or unusable — for
-    // example Astro dev-annotation degraded mode. Prompts must say the
-    // location is unknown instead of rendering a fabricated `file:0`.
+    // Unannotated authored markup (e.g. Astro degraded mode): prompts must report an unknown location, never a fabricated `file:0`.
     return {
       file: "",
       line: 0,
@@ -85,7 +82,7 @@ export interface StyleEditMetadata {
   sourceAuthoredValue?: string;
 }
 
-/** Returns whether a style write can address every element in the target safely. */
+/** True only when a write can address every element in the target. */
 export function canEditStyles(target: EditTarget): boolean {
   return canPlanBatchEditScopes(targetElements(target));
 }

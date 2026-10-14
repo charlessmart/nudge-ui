@@ -10,14 +10,10 @@ const suiteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(suiteRoot, "../..");
 const maxDiagnosticCharacters = 256_000;
 const upstreamRegistry = "https://registry.npmjs.org";
-/** Every host installs the same distribution package and reaches its host through a subpath. */
+/** Every host installs this one package and reaches its adapter through a subpath. */
 const distributionPackage = "nudge-ui";
 
-/**
- * The packed compatibility matrix deliberately varies one seam at a time:
- * minimum/current framework versions, React major, package manager, project
- * topology, callback configuration, and a structural-child library.
- */
+/** Varies one seam at a time: framework/React version, package manager, topology, callbacks, structural-child library. */
 export const PACKED_CONSUMER_MATRIX = [
   {
     adapter: "vite-react",
@@ -200,8 +196,7 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     "create-nudge-ui": `file:${initializerPackage.tarball}`,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  // The distribution package is unscoped, and npm only supports per-scope registries, so the
-  // consumer resolves everything through the local registry and it proxies what it does not pack.
+  // npm only supports per-scope registries, so the unscoped package resolves through the local registry, which proxies the rest.
   const registryConfig = `registry=${registryUrl}\n`;
   writeFileSync(join(projectRoot, ".npmrc"), registryConfig);
   if (installDirectory !== projectRoot) writeFileSync(join(installDirectory, ".npmrc"), registryConfig);

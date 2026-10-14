@@ -29,11 +29,7 @@ import {
 } from "./canvasStore.ts";
 import { getCanvasMode, setCanvasMode } from "./viewStore.ts";
 
-/**
- * Renderer acknowledgements are deliberately shorter than the companion's
- * request timeout. A controller can therefore receive a useful partial-failure
- * acknowledgement instead of waiting for the browser bridge to expire first.
- */
+/** Deliberately shorter than the companion's request timeout, so partial failures surface as acknowledgements. */
 export const DEFAULT_RENDERER_READY_TIMEOUT_MS = 4_000;
 export const MAX_RENDERER_READY_TIMEOUT_MS = 5_000;
 export const MAX_PRESENTATION_ROUTES = AGENT_PROTOCOL_LIMITS.routeCount;
@@ -51,7 +47,6 @@ export interface AgentRendererReadiness {
   timedOutCardIds: string[];
 }
 
-/** Direct callers may use URL strings; the shared command uses AgentRoute. */
 export interface AgentPresentationRoute {
   url: string;
   title?: string | null;
@@ -274,7 +269,6 @@ function beginRendererReadiness(cardIds: readonly string[]): void {
   settleReadinessWaiters();
 }
 
-/** Records the renderer acknowledgement for one newly presented card. */
 export function acknowledgeAgentRendererReady(cardId: string): void {
   if (!isNonEmptyString(cardId)) return;
   rendererReadiness.set(cardId, { status: "ready" });
@@ -341,7 +335,6 @@ function groupCardIds(groupId: string): string[] {
     .map((card) => card.id);
 }
 
-/** Returns the compact state shape shared with the companion bridge. */
 export function readCanvasState(): CanvasState {
   const focusedCardId = getFocusedCardId();
   const focusedCard = focusedCardId
@@ -386,8 +379,7 @@ export async function presentAgentRoutes(
     }
 
     const readyTimeoutMs = clampReadyTimeout(input.readyTimeoutMs);
-    // Opening Canvas for an agent group appends only the requested routes. It
-    // never creates or repositions the current Inspect route.
+    // Appends only the requested routes; the current Inspect route is never created or repositioned.
     setCanvasMode("canvas");
     const cards = batchCanvasChanges(() => {
       setFrameGroup({ id: groupId, kind: "agent", label, agentId, routes: routes.map((route) => ({ ...route })) });
@@ -573,11 +565,7 @@ function credentialsFrom(options: AgentPresentationAdapterOptions): Presentation
   };
 }
 
-/**
- * Creates the browser-controller adapter consumed by the inspector's
- * CopyPromptButton. It does not install window events or define a second
- * message protocol; callers pass the plain shared CanvasCommand they received.
- */
+/** Does not install window events or define a second message protocol; callers pass the shared CanvasCommand. */
 export function createAgentPresentationAdapter(
   options: AgentPresentationAdapterOptions = {},
 ): AgentPresentationCommandPort {

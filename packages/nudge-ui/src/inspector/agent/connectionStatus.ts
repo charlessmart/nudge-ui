@@ -25,7 +25,6 @@ export interface AgentConnectionStatus {
   };
 }
 
-/** Returns the user-facing connection state shared by the prompt UI and MCP panel. */
 export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentConnectionStatus {
   if (snapshot.state === "disabled") {
     return { kind: "unavailable", label: "Unavailable in this build", tone: "neutral" };

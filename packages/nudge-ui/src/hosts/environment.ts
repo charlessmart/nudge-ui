@@ -1,10 +1,3 @@
-/**
- * The `NUDGE_UI` environment switch shared by every development host.
- *
- * - `0`, `false`, or `off` disables the host Adapter for that run.
- * - `1`, `true`, or `on` also opens the editor in automated browsers, which
- *   otherwise receive the plain application.
- */
 export type NudgeUiEnvironmentSwitch = "off" | "on" | null;
 
 export function readNudgeUiEnvironmentSwitch(
@@ -16,7 +9,6 @@ export function readNudgeUiEnvironmentSwitch(
   return null;
 }
 
-/** An explicit `enabled: false` or `NUDGE_UI=0` disables the Adapter. */
 export function isNudgeUiEnabled(
   enabled: boolean | undefined,
   env: Readonly<Record<string, string | undefined>> = process.env,

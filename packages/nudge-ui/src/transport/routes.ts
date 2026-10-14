@@ -1,9 +1,3 @@
-/**
- * The reserved URL namespace every host serves the inspector through. Hosts
- * own their own middleware and reload policy, but the paths are one contract:
- * the browser client is built once and requests the same URLs everywhere.
- */
-
 /** A host must not serve project files here. */
 export const NUDGE_UI_ROUTE_PREFIX = "/__nudge_ui__/";
 

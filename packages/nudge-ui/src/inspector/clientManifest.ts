@@ -6,10 +6,8 @@ import {
 export type { NudgeUiRuntimeConfig, NudgeUiRuntimeFeatures } from "./runtime/runtimeConfig.ts";
 export { detectStylingSystem } from "./runtime/runtimeConfig.ts";
 
-/** Version of the host-to-inspector runtime manifest Interface. */
 export const NUDGE_UI_CLIENT_MANIFEST_VERSION = 1;
 
-/** Runtime document consumed by the self-contained inspector client. */
 export interface NudgeUiClientManifest {
   readonly version: typeof NUDGE_UI_CLIENT_MANIFEST_VERSION;
   readonly revision: number;
@@ -34,7 +32,7 @@ export interface NudgeUiClientManifest {
   readonly inspectAutomatedBrowsers?: true;
 }
 
-/** Parses and normalizes an external manifest before it replaces inspector state. */
+/** Narrows and normalizes an untrusted manifest before it replaces inspector state. */
 export function parseNudgeUiClientManifest(
   // JSON is untrusted at this I/O boundary and is narrowed below.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters

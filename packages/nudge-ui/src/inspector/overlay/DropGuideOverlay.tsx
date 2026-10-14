@@ -26,7 +26,6 @@ function fixedRect(rect: DropGuideRect): CSSProperties {
   };
 }
 
-/** Shared visual wrapper; each view only supplies its projected viewport geometry. */
 export function DropGuideOverlay({
   guide,
   lineClassName,

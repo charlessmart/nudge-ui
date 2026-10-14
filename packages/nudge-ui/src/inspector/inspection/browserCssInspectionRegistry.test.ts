@@ -47,8 +47,7 @@ describe("browser CSS inspection registry", () => {
 
     disposeBrowserCssInspection(document);
 
-    // Monotonic, never reset: disposal advances past (4,2) to (5,3) so
-    // pre-disposal revision-keyed caches miss instead of hitting at (0,0).
+    // Revision counters never reset: disposal advances past (4,2) so pre-disposal caches miss.
     expect(documentRevisions(document)).toEqual({ element: 5, stylesheet: 3 });
     expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
   });

@@ -1,14 +1,4 @@
-/**
- * Inline classic script for the document head. It must run before the
- * application's renderer loads, which no module script can guarantee. React
- * Refresh installs a hook stub that does not retain renderers, and a page
- * without DevTools has no hook at all, so this records every injected
- * renderer on `hook.renderers` either way. An existing hook (the DevTools
- * extension, or a stub already present) is extended, never replaced.
- *
- * Hosts inject it; `inspector/componentSemantics/react/devtoolsHook.ts`
- * reads the renderers it records.
- */
+/** Must run before the application's renderer loads; extends any existing DevTools hook and never replaces it. */
 export const REACT_RENDERER_CAPTURE_SCRIPT = [
   "(function(w){",
   "var h=w.__REACT_DEVTOOLS_GLOBAL_HOOK__;",

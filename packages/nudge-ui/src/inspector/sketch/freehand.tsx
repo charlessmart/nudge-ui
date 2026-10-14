@@ -73,7 +73,6 @@ export interface SketchSvgLayerProps {
   readonly annotationScale?: number;
 }
 
-/** Renders sketch geometry as DOM-native SVG shapes. */
 export function SketchSvgLayer({
   strokes,
   annotations = [],

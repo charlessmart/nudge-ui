@@ -1,14 +1,3 @@
-/**
- * Box and spacing value semantics (plan slice 3.5).
- *
- * One browser-safe Module owns physical and logical box-value expansion:
- * 1–4 value shorthand expansion for `margin`/`padding`/`inset`, two-value
- * expansion for `gap`, border-radius corner names, and the logical→physical
- * side mapping. The logical mapping is a pure function over an explicit
- * `Directionality` fact supplied by the integration (browser CSS inspection
- * reads direction/writing-mode from the selected element); this module never
- * touches the DOM or CSSOM.
- */
 import type { StringArrayMap } from "./stringMaps.ts";
 
 export const SPACING_SIDES: StringArrayMap = {
@@ -31,15 +20,9 @@ export const BORDER_RADIUS_CORNERS: StringArrayMap = {
   ],
 };
 
-/**
- * Explicit, DOM-free writing facts for logical→physical side mapping. The
- * integration reads `direction` and `writing-mode` from the selected element's
- * computed style and passes them here; the neutral Module applies them.
- */
+/** Writing facts the integration reads from the selected element's computed style. */
 export interface Directionality {
-  /** CSS `direction` value, e.g. `"ltr"` or `"rtl"`. */
   direction: string;
-  /** CSS `writing-mode` value, e.g. `"horizontal-tb"` or `"vertical-rl"`. */
   writingMode: string;
 }
 
@@ -59,13 +42,7 @@ export function expandTwoValueShorthand<T>(values: readonly T[]): [T, T] | null 
   return values.length === 1 ? [values[0]!, values[0]!] : [values[0]!, values[1]!];
 }
 
-/**
- * Maps a logical `margin`/`padding`/`inset` property (inline/block forms,
- * with optional start/end edges) to the physical sides it paints, using the
- * element's writing-mode/direction facts. Returns null for non-logical
- * properties. Without directionality the mapping assumes `ltr` /
- * `horizontal-tb`, matching the resolver's element-less behaviour.
- */
+/** Maps logical margin/padding/inset properties to physical sides; null for non-logical properties. */
 export function logicalPhysicalSides(property: string, directionality?: Directionality): string[] | null {
   const match = /^(margin|padding|inset)-(inline|block)(?:-(start|end))?$/.exec(property.toLowerCase());
   if (!match) return null;

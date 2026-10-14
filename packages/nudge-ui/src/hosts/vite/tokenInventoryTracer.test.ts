@@ -47,9 +47,7 @@ describe("nudgeUi plain-CSS token inventory transport", () => {
       expect(catalog.find((definition) => definition.cssName === "--color-tracer"))
         .toMatchObject({ origin: "project" });
 
-      // The serialized generation is the inventory snapshot fingerprint for
-      // the exact artifact the plugin fed, and the declaration identity comes
-      // from the inventory (not reassigned inside load()).
+      // Generation is the snapshot fingerprint; declaration identity still comes from the inventory.
       const publishedGeneration = JSON.parse(extract(code, "tokenGeneration")) as string;
       const expected = createTokenInventory();
       expected.apply({
@@ -66,7 +64,6 @@ describe("nudgeUi plain-CSS token inventory transport", () => {
         order: 1,
       });
 
-      // Identical reloads publish the identical generation (deterministic).
       const again = (await plugin.load!("\0virtual:design-tokens"))!;
       expect(JSON.parse(extract(again, "tokenGeneration")) as string).toBe(publishedGeneration);
     } finally {

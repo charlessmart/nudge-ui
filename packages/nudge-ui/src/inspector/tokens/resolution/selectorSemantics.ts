@@ -38,22 +38,15 @@ const SPECIFICITY_MEMO_LIMIT = 32_768;
 const specificityMemo = new Map<string, number>();
 let specificityComputations = 0;
 
-/** Test-only specificity cache size. */
 export function specificityComputationCount(): number {
   return specificityComputations;
 }
 
-/** Test-only specificity cache reset. */
 export function resetSpecificityMemo(): void {
   specificityMemo.clear();
   specificityComputations = 0;
 }
 
-/**
- * Computes the cascade weight for a selector without asking the DOM to match
- * it. Results are memoized per selector string for the resolution paths that
- * still recompute branch specificity (multi-branch selectors).
- */
 export function computeSpecificity(selectorText: string): number {
   const cached = specificityMemo.get(selectorText);
   if (cached !== undefined) return cached;
@@ -64,7 +57,6 @@ export function computeSpecificity(selectorText: string): number {
   return result;
 }
 
-/** Unmemoized implementation used by equivalence tests. */
 export function computeSpecificityCore(selectorText: string): number {
   const selector = selectorText.trim();
   const commaParts = splitSelectorAtTopLevel(selector, ",");
@@ -238,8 +230,7 @@ function computeElementSensitiveSelector(selector: string): boolean {
       else if (character === "]") attributeDepth--;
       continue;
     }
-    // Tailwind escapes utility variants such as `.sm\\:text-red-500`. The
-    // escaped colon is part of the class name, not a pseudo-class boundary.
+    // Tailwind escapes variants (`.sm\\:text-red-500`); an escaped colon is part of the class, not a pseudo boundary.
     if (escaped) {
       escaped = false;
       continue;
@@ -257,9 +248,7 @@ function computeElementSensitiveSelector(selector: string): boolean {
     const pseudoElement = selector[index + 1] === ":";
     const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + (pseudoElement ? 2 : 1)))?.[0];
     if (pseudoElement) {
-      // Pseudo-elements do not change whether the originating element matches
-      // a selector. Continue scanning after the name so a real pseudo-class
-      // elsewhere in the selector remains element-sensitive.
+      // Pseudo-elements do not make the originating element element-sensitive; keep scanning after the name.
       if (!pseudo) return true;
       index += pseudo.length + 1;
       let next = index + 1;
@@ -278,10 +267,7 @@ function computeElementSensitiveSelector(selector: string): boolean {
       index = end;
       continue;
     }
-    // :root and :host are represented by the complete ancestor/document
-    // context. Other pseudo-classes can vary per concrete element without an
-    // attribute or sibling mutation (for example :checked, :visited, and
-    // :target), so keep them in the element-sensitive bucket.
+    // :root/:host are covered by ancestor context; other pseudo-classes (:checked, :visited, :target) can vary per element, so keep them element-sensitive.
     if (STATIC_PSEUDO_CLASSES.has(pseudoName)) continue;
     return true;
   }
@@ -440,20 +426,12 @@ function selectorClassRequirements(selector: string): readonly string[] {
   return requirements;
 }
 
-/**
- * One class the subject of a single selector branch requires, or null when the
- * subject requires none. An element without this class cannot match the branch.
- */
+/** Class the selector's subject (rightmost compound) requires, or null when it requires none. */
 export function selectorSubjectClass(selector: string): string | null {
   return selectorClassRequirements(selector)[0] ?? null;
 }
 
-/**
- * Rejects selectors whose rightmost compound requires a class the element
- * does not have. This is a conservative prefilter: it only returns false for
- * an impossible positive class requirement and leaves all other selectors to
- * the browser's selector engine.
- */
+/** Conservative prefilter: false only for an impossible required subject class; everything else goes to the browser engine. */
 export function canMatchSelectorSubject(el: Element, selector: string): boolean {
   return selectorClassRequirements(selector).every((className) => el.classList.contains(className));
 }

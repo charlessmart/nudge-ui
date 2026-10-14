@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { McpServerConfig } from "add-mcp";
 
-/** Verifies the configured executable, initialization, and tools without claiming a project. */
+/** Verifies the adapter without claiming a project. */
 export async function verifyAgentServer(config: McpServerConfig): Promise<void> {
   if (!config.command) throw new Error("The MCP adapter has no executable.");
   const client = new Client({ name: "nudge-setup", version: "1.0.0" });

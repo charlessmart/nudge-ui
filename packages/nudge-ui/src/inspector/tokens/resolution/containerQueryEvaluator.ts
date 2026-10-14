@@ -16,11 +16,7 @@ export interface ContainerQueryEvaluator {
 
 let nextProbeId = 0;
 
-/**
- * Evaluates container conditions in batches for one inspection refresh.
- * Each pair gets its own property, so inherited probe values cannot answer
- * another element's query. No stylesheet or marker survives a batch.
- */
+/** Each pair gets its own probe property so inherited values cannot answer another element's query; nothing survives a batch. */
 export function createContainerQueryEvaluator(doc: Document): ContainerQueryEvaluator {
   const results = new WeakMap<HTMLElement, Map<string, boolean>>();
   const key = (conditions: readonly string[]): string => JSON.stringify(conditions);

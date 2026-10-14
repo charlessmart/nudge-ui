@@ -1,13 +1,4 @@
-/**
- * Entry for loading the inspector into any page without a host Adapter.
- *
- * Everything a host normally supplies is derived from the live document:
- * runtime identity is assigned lazily under the pointer, and tokens come from
- * readable stylesheets plus the root's computed custom properties. Source
- * locations, component semantics, iterations, and the agent bridge are
- * unavailable. In editor mode the application runs in Canvas frames;
- * otherwise the page itself is the only Canvas card.
- */
+/** Loads the inspector into a page without a host Adapter; everything a host normally supplies is derived from the live document. */
 import {
   bootstrapNudgeUi,
   configureNudgeUiRuntime,
@@ -47,10 +38,7 @@ export interface PageInspectorOptions {
   sketchStorage?: SketchStorage;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
-  /**
-   * `"editor"` turns a document whose URL carries the editor marker into the
-   * iframe editor; otherwise the page itself is the only Canvas card.
-   */
+  /** `"editor"` requires the editor URL marker; otherwise the page itself is the only Canvas card. */
   surface?: "editor" | "page";
   /** Shows a short error instead of enabling inspection on an unsupported page. */
   unavailableReason?: string;
@@ -113,11 +101,7 @@ async function collectSheet(sheet: CSSStyleSheet, index: number, base: string): 
   }
 }
 
-/**
- * Custom properties visible on the root element but absent from readable
- * stylesheets: definitions in cross-origin sheets without CORS, scoped theme
- * rules the inventory rejects, or variables set from JavaScript.
- */
+/** Root custom properties missing from readable stylesheets: CORS-blocked sheets, rejected scoped rules, or JS-set variables. */
 function computedRootDeclarations(doc: Document, definedNames: Set<string>): string | null {
   const declarations: string[] = [];
   const view = doc.defaultView ?? window;
@@ -251,10 +235,7 @@ function mountPageInspector(): () => void {
   };
 }
 
-/**
- * Replaces the page's content with the iframe editor. The application runs in
- * Canvas renderer frames, which the caller loads the inspector into.
- */
+/** Replaces the page content with the iframe editor; the caller loads the inspector into its renderer frames. */
 function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
   // The editor never owns the tab title; it shows the application's own title.
   const pageTitle = document.title;
@@ -336,16 +317,11 @@ function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
   watch();
 }
 
-/** Leaves the editor by loading the application URL it frames. */
 function exitEditor(): void {
   location.replace(readNudgeUiEditorTarget(location.href) ?? location.href);
 }
 
-/**
- * Starts the inspector on the current page. Running a second bundle copy in
- * the same window toggles the first instance instead, because only the first
- * copy's stores drive the UI.
- */
+/** A second bundle copy in the same window toggles the first instance, whose stores own the UI. */
 export async function startPageInspector(options: PageInspectorOptions = {}): Promise<void> {
   const target = window as PageInspectorWindow;
   const loaded = target[LOADED_FLAG];
@@ -379,10 +355,7 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
   );
 }
 
-/**
- * Starts the renderer in an editor's Canvas frame. Does nothing in any other
- * document, or when the frame already runs one.
- */
+/** Only acts inside an editor Canvas frame that has no renderer yet. */
 export function startCanvasRenderer(options: Pick<PageInspectorOptions, "adoptStylesheets"> = {}): void {
   const target = window as PageInspectorWindow;
   if (!isCanvasRenderer() || target[LOADED_FLAG]) return;

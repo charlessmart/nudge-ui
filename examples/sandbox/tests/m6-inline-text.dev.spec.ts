@@ -99,8 +99,7 @@ test("falls back to rendered text, restores after refresh, and supports prompt/r
   await host.press("Enter");
   await expect(copy).toHaveText("Updated rendered copy");
 
-  // Edit persistence is deliberately debounced; wait for the durable session
-  // write before exercising the refresh path.
+  // Persistence is debounced; wait for the durable session write before refreshing.
   await expect.poll(() => page.evaluate(() =>
     Object.values(localStorage).some((value) => value.includes("Updated rendered copy"))
   )).toBe(true);
@@ -138,8 +137,7 @@ test("re-enters a rendered text projection after it is committed empty", async (
   await expect(affordance).toHaveCSS("border-style", "none");
 
   await affordance.dblclick();
-  // An empty native editing host has no glyph and therefore no layout box;
-  // it is focused and attached while the inspector slot supplies the hit area.
+  // An empty editing host has no layout box; the inspector slot supplies the hit area.
   await expect(host).toHaveCount(1);
   await host.pressSequentially("Restored from empty");
   await host.press("Enter");
@@ -338,8 +336,7 @@ test("edits an exact nested icon label, pastes plaintext, and suppresses the app
   const host = app.locator('[data-inline-editor="true"]');
   await expect(host).toBeVisible();
 
-  // A click on the interactive host must not invoke the page button while the
-  // inspector owns the draft.
+  // A click on the interactive host must not invoke the page button while the inspector owns the draft.
   await button.click();
   await expect(host).toBeVisible();
   await expect(button.locator('[data-test="nested-icon-label-text"]')).toHaveText("Save");

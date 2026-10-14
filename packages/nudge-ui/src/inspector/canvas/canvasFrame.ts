@@ -1,7 +1,4 @@
-/**
- * The renderer behind a Canvas card, as controller code sees it. Cards on the
- * Canvas pass their iframe; the page surface passes the inspected window.
- */
+/** The renderer behind a Canvas card (its iframe) or the page surface (the inspected window). */
 export interface CanvasFrame {
   readonly contentWindow: Window | null;
   readonly contentDocument: Document | null;
@@ -11,12 +8,11 @@ export interface CanvasFrame {
   getBoundingClientRect(): DOMRect;
 }
 
-/** The card's iframe element, or null for the page surface. */
 export function canvasFrameElement(frame: CanvasFrame): HTMLIFrameElement | null {
   return typeof HTMLIFrameElement !== "undefined" && frame instanceof HTMLIFrameElement ? frame : null;
 }
 
-/** The element sketch capture measures: the iframe, or the page's root element. */
+/** What sketch capture measures: the iframe, or the page's root element. */
 export function canvasFrameHost(frame: CanvasFrame | null): HTMLElement | null {
   if (!frame) return null;
   return canvasFrameElement(frame) ?? frame.contentDocument?.documentElement ?? null;

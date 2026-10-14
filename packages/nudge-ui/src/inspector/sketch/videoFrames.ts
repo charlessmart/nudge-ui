@@ -37,7 +37,7 @@ function videoFrame(video: HTMLVideoElement): HTMLImageElement {
         image.src = canvas.toDataURL("image/png");
       }
     } catch {
-      // Cross-origin frames can taint a canvas. Keep the poster or empty frame.
+      // Cross-origin frames can taint a canvas; the poster or empty frame is kept.
     }
   }
   return image;
@@ -58,8 +58,7 @@ export function prepareSketchVideoFrames(targetDocument: Document): {
     placeholder.hidden = true;
     placeholder.src = EMPTY_FRAME;
     placeholder.setAttribute(FRAME_ATTRIBUTE, id);
-    // The hidden sibling preserves capture order without detaching or seeking
-    // the application's video. Only its clone receives the video's styles.
+    // A hidden sibling placeholder preserves capture order without touching the live video.
     video.before(placeholder);
     placeholders.push(placeholder);
   }

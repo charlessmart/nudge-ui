@@ -12,14 +12,6 @@ import {
   type CssValueGrammar,
 } from "./propertyPolicy.ts";
 
-/**
- * Fast Interface tests for the value-semantics property/value policy
- * (plan slice 3.3): capability classification, property→semantic-slot
- * knowledge, presentation grouping, and compatible-token candidate selection
- * behind one implementation. Eligibility is decided by resolved concrete value
- * plus the injected browser grammar; names never grant eligibility.
- */
-
 function entry(name: string, value: string, extra: Partial<TokenEntry> = {}): TokenEntry {
   return { name, value, source: "theme.css:1", ...extra };
 }

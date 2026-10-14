@@ -1,7 +1,6 @@
 import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 
-/** The default guidance included in every generated prompt. */
 export const DEFAULT_CUSTOM_INSTRUCTIONS =
   "Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.";
 
@@ -9,7 +8,6 @@ function storageKey(projectId: string): string {
   return `nudge-ui:${projectId}:prompt-settings`;
 }
 
-/** Reads the project-scoped custom prompt instructions from browser storage. */
 export function loadCustomInstructions(projectId: string): string {
   if (isDemoRuntime()) return DEFAULT_CUSTOM_INSTRUCTIONS;
   try {
@@ -19,7 +17,6 @@ export function loadCustomInstructions(projectId: string): string {
   }
 }
 
-/** Persists custom prompt instructions without making storage availability a prerequisite for editing. */
 export function saveCustomInstructions(projectId: string, instructions: string): void {
   if (isDemoRuntime()) return; // demo runtimes never persist
   try {

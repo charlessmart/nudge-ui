@@ -9,14 +9,6 @@ import type {
   PromptDispatchResponse,
 } from "@nudge-ui/agent-protocol";
 
-/**
- * Browser transport port for the shared Nudge agent protocol.
- *
- * Domain messages come from the private shared protocol module; this file only
- * adds the browser's injectable HTTP/SSE transport boundary. Keeping that
- * boundary local lets inspector tests use a deterministic fake while the
- * companion remains the owner of MCP and Node-specific code.
- */
 export {
   AGENT_PROTOCOL_LIMITS,
   AGENT_PROTOCOL_VERSION,
@@ -157,7 +149,6 @@ export interface AgentEventSubscription {
   readonly close: () => void;
 }
 
-/** Events delivered by the companion's SSE stream. */
 export type AgentBridgeEvent =
   | { readonly type: "activity"; readonly activity: AgentActivity }
   | { readonly type: "status"; readonly status: AgentStatusSnapshot }

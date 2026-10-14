@@ -30,9 +30,7 @@ describe("isNudgeUiDev", () => {
   });
 
   it("follows the vitest-provided Vite define by default", () => {
-    // Vitest runs inspector units through Vite, so `import.meta.env.DEV` is
-    // defined and true here. This asserts the seam did not break the
-    // bundler-defined path that Vite and the standalone build rely on.
+    // Vitest runs units through Vite, so `import.meta.env.DEV` is defined and true; the seam must keep that path.
     setNudgeUiHostDevFlag(undefined);
     expect(isNudgeUiDev()).toBe(true);
   });

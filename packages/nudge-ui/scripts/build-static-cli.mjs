@@ -14,8 +14,7 @@ await build({
   format: "esm",
   platform: "node",
   target: "node20",
-  // Some CSS inventory dependencies are CommonJS. Provide Node's native
-  // require inside the ESM bundle so their lazy built-in imports remain valid.
+  // CommonJS CSS inventory dependencies need Node's native require inside the ESM bundle.
   banner: {
     js: 'import { createRequire as __nudgeUiCreateRequire } from "node:module"; const require = __nudgeUiCreateRequire(import.meta.url);',
   },

@@ -24,7 +24,7 @@ export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
 export let tokenGeneration = "";
 export const nudgeUiProjectId = getNudgeUiRuntimeConfig().projectId;
 
-/** Test-only live-binding update that mirrors Vite replacing the virtual module. */
+/** Mirrors Vite replacing the virtual module in tests. */
 export function setDesignTokensStub(
   catalog: TokenDefinition[],
   generation: string,

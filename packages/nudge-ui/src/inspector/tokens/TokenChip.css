@@ -77,7 +77,6 @@
   text-align: left;
 }
 
-/* Keep the content inside the existing label box. */
 .token-label {
   display: block;
   min-width: 0;

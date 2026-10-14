@@ -30,11 +30,7 @@ function makeTable(entries: TokenEntry[]): TokenTable {
   return buildTokenTable(entries);
 }
 
-/**
- * Local projection of the value-semantics Module with the resolution
- * integration context. Mirrors the resolver's internal `resolveTokenValue`
- * without depending on resolver-private implementation helpers.
- */
+/** Mirrors the resolver's internal `resolveTokenValue` without depending on private helpers. */
 function resolveTokenValue(
   value: string,
   table: TokenTable,
@@ -526,8 +522,7 @@ describe("source-site matched-rule cache", () => {
     const second = mountRow(container);
     await flush();
     const secondRows = getResolvedPropertiesForState(second, table, "base");
-    // The second instance reused the first's matched-rule set instead of
-    // creating a new entry.
+    // The second instance reused the first's matched-rule set instead of creating a new entry.
     expect(sourceSiteMatchCacheSize()).toBe(1);
     expect(secondRows.find((row) => row.property === "background")?.tokenName).toBe("--color-a");
   });
@@ -569,8 +564,7 @@ describe("source-site matched-rule cache", () => {
     unlinkElement(el);
     await flush();
     getResolvedPropertiesForState(el, table, "base");
-    // Unlinking records a durable target, but does not mutate the rendered
-    // document. CSS matching therefore remains source-site scoped.
+    // Unlinking records a durable target without mutating the document, so matching stays source-site scoped.
     expect(sourceSiteMatchCacheSize()).toBe(sizeBefore);
 
     const override = getRenderedInstanceOverride(el);
@@ -1793,7 +1787,7 @@ describe("resolveRuleFixture", () => {
         declarations: [{ property: "padding", value: "var(--space-2)" }],
       },
     ];
-    // button.btn (spec 10100) beats * (spec 0) even though it comes first
+    // button.btn (spec 10100) beats * (spec 0) even though it comes first.
     const result = resolveRuleFixture(btn, rules, table);
     expect(result).toHaveLength(4);
     expect(result.find((row) => row.property === "padding-top")?.tokenName).toBe("--space-1");

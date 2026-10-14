@@ -88,21 +88,17 @@ export interface TextBindingChoice {
   editableTarget: EditableComponentTarget;
   mountedCount: number;
   authoredAs: "literal" | "expression" | "spread" | "default";
-  /** Durable target/source evidence for an item-only commit. */
   renderedTarget: TextProjectionTarget | null;
   renderedSource?: TextBindingRenderedSource;
 }
 
 export interface TextBindingCandidate {
   binding: TextEditBinding;
-  /** Runtime target retained privately for semantic canonical records. */
   editableTarget?: EditableComponentTarget;
   element: HTMLElement;
   textNode: Text;
   before: string;
-  /** Equal-priority semantic candidates are selected by the inline chooser. */
   bindingChoices?: TextBindingChoice[];
-  /** Repeated literal invocations expose this scope choice before commit. */
   scope?: TextProjectionScope;
   scopeChoices?: TextProjectionScope[];
   mountedCount?: number;
@@ -124,9 +120,8 @@ function isApplicationEditingHost(element: HTMLElement): boolean {
 }
 
 function isApplicationEditingTextNode(element: HTMLElement, textNode: Text): boolean {
-  // `element.closest()` only checks the selected root. A tracked root can
-  // contain an application-owned editing island, so inspect the text node's
-  // complete ancestor chain as well.
+  // `element.closest()` only checks the selected root; an editing island can
+  // live deeper, so inspect the text node's own chain as well.
   const editingHost = textNode.parentElement?.closest<HTMLElement>("[contenteditable]");
   if (!editingHost) return false;
   return editingHost.getAttribute("data-inline-editor") !== "true"
@@ -241,9 +236,8 @@ function authoredAsFor(
 function mountedCountFor(element: HTMLElement, target: EditableComponentTarget): number | null {
   const mountedCount = callsiteMultiplicity(target);
   if (mountedCount !== null) return mountedCount;
-  // Adapters written before multiplicity was introduced may still provide a
-  // marker-backed inspection. Keep that compatibility fallback conservative:
-  // it can prove one root, but it can never prove an arbitrary count.
+  // Compatibility fallback for adapters predating multiplicity: it can prove
+  // one root, never an arbitrary count.
   return hasUniqueInvocationEvidence(element, target.meta.callsiteId) ? 1 : null;
 }
 
@@ -301,10 +295,8 @@ function renderedTextCandidate(
   }
   const componentTarget = semantic?.target ?? inspectComponentTargets(element)[0];
   const semanticProperty = semantic?.property;
-  // A component target is only source evidence when it is the callsite that
-  // produced this exact DOM root. For text inside a child host element, the
-  // nearest boundary is the enclosing component invocation, so the element's
-  // own data-src must remain the prompt/change source.
+  // A component target is source evidence only when its callsite produced this
+  // exact DOM root; otherwise the element's own data-src remains the source.
   const elementDataSrc = element.getAttribute("data-src");
   const elementSource = parseRenderedSource(elementDataSrc ?? "");
   const matchingComponentTarget = componentTarget
@@ -352,7 +344,6 @@ function renderedTextCandidate(
     element,
     textNode,
     before,
-    // Keep this private metadata on the candidate for canonical source data.
     renderedSource: {
       file: source.file,
       line: source.line,
@@ -410,11 +401,6 @@ function parseRenderedSource(src: string) {
   return { file: match[1] ?? src, line: Number(match[2]), column: Number(match[3]) };
 }
 
-/**
- * Compatibility evidence for adapters that predate the mounted-count seam.
- * React itself reports multiplicity through the runtime Adapter registry; this
- * fallback is only a one-root proof and is never used to pick an occurrence.
- */
 function hasUniqueInvocationEvidence(element: HTMLElement, callsiteId: string): boolean {
   const nodes = Array.from(
     element.ownerDocument.querySelectorAll<HTMLElement>("[data-cid]"),
@@ -445,11 +431,7 @@ function hasUniqueInvocationEvidence(element: HTMLElement, callsiteId: string): 
   return roots === 1;
 }
 
-/**
- * Resolves only a confidently matched semantic string binding. Text nodes and
- * the temporary editor host are not identity: the returned component target is
- * the durable callsite used by the canonical component-prop record.
- */
+/** Text nodes and the temporary editor host are not identity; the returned callsite is the durable one. */
 export function resolveTextBinding(
   element: HTMLElement,
   point?: { x: number; y: number },
@@ -461,10 +443,8 @@ export function resolveTextBinding(
       message: "Application-owned editing surfaces are not managed by the inspector.",
     };
   }
-  // Hard-dangerous hosts are rejected before adapter inspection. Descendant
-  // markup is intentionally not included: a confident semantic component
-  // binding may still own a nested text node, while rendered fallback keeps
-  // its stricter direct-leaf requirement.
+  // Descendant markup is intentionally not included: a semantic binding may still own a
+  // nested text node, while the rendered fallback keeps its stricter direct-leaf rule.
   if (isUnsafeTextHost(element)) {
     return {
       kind: "rejected",
@@ -523,9 +503,7 @@ export function resolveTextBinding(
     };
   });
 
-  // Multiple equal-priority candidates are not rejected or guessed. The
-  // session exposes these choices to the inline chooser and blocks commit
-  // until the user picks one.
+  // Equal-priority candidates are handed to the inline chooser, never guessed.
   if (choices.length > 1) {
     return {
       binding: firstBinding,
@@ -548,16 +526,13 @@ export function resolveTextBinding(
   const authoredAs = authoredAsFor(match.target, match.property);
   const binding = targetBinding(match.target, match.property);
   if (match.mountedCount! > 1 && authoredAs !== "literal") {
-    // Expressions/spreads are source-logic intent. A semantic callsite
-    // override would fan out to every item, so retain one durable text target
-    // and tell the prompt to update the data/source logic.
+    // Expressions/spreads are source-logic intent; a callsite override would
+    // fan out to every item, so keep one durable text target instead.
     return renderedTextCandidate(element, textNode, before, match);
   }
   if (match.mountedCount! > 1 && authoredAs === "literal") {
-    // Validate the selected output with the same bounded before-text evidence
-    // used by the durable projection. The source-site option remains safe even
-    // when identical outputs make an instance impossible to distinguish, but
-    // an item-only session is never allowed to guess.
+    // Item-only scope must validate against the same bounded before-text
+    // evidence as the durable projection; source-site stays safe either way.
     const rendered = renderedTextCandidate(element, textNode, before, match, false);
     if (!("kind" in rendered)) {
       return {
@@ -569,10 +544,8 @@ export function resolveTextBinding(
         scopeChoices: ["rendered-instance", "source-site"],
       };
     }
-    // An unsafe/missing rendered-text projection only removes the item-scoped
-    // option. The explicit all-output source-site edit is still a safe
-    // canonical component-prop change and must not be rejected because the
-    // DOM fallback cannot capture bounded instance evidence.
+    // A missing rendered projection only removes the item-scoped option; the
+    // all-output source-site edit is still a safe canonical change.
     return {
       binding,
       editableTarget: match.target,
@@ -584,9 +557,6 @@ export function resolveTextBinding(
       scopeChoices: ["source-site"],
     };
   }
-  // Unique invocation (mountedCount === 1): the callsite is unambiguous, so
-  // the source-site edit is always safe and no scope choice is offered. The
-  // mountedCount > 1 cases all returned above.
   return {
     binding,
     editableTarget: match.target,

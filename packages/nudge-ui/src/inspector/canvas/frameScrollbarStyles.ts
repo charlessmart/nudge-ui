@@ -11,7 +11,6 @@ const FRAME_SCROLLBAR_CSS = `
   }
 `;
 
-/** Gives frame documents thin scrollbars over a transparent track by default. */
 export function installFrameScrollbarStyles(doc: Document): () => void {
   if (!doc.head || doc.getElementById(FRAME_SCROLLBAR_STYLE_ID)) return () => undefined;
   const style = doc.createElement("style");

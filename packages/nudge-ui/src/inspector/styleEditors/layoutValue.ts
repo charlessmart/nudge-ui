@@ -18,16 +18,12 @@ const DEFAULT_LAYOUT_VALUES: StringRecord = {
   left: "auto",
 };
 
-/**
- * Returns the authored CSS value when one is available, without replacing
- * keywords such as `auto` with the browser's used pixel value.
- */
+/** Known layout properties never fall back to the browser's used pixel value. */
 export function meaningfulLayoutValue(el: HTMLElement, property: string): string {
   const authored = readAuthoredStyleValue(el, property);
   if (authored) return authored;
   const computed = getStateStyleValue(el, property);
-  // Aspect-ratio's computed serialization remains a meaningful authored-like
-  // value, unlike used dimensions such as a block's computed pixel width.
+  // Aspect-ratio's computed value stays authored-like, unlike used dimensions such as a block's pixel width.
   if (property === "aspect-ratio" && computed && computed !== "auto") return computed;
   return DEFAULT_LAYOUT_VALUES[property] ?? computed;
 }
@@ -40,8 +36,7 @@ export function readAuthoredStyleValue(el: HTMLElement, property: string): strin
     const authored = row?.authored ?? row?.declaredValue;
     if (authored?.trim()) return authored.trim();
   } catch {
-    // CSSOM can reject cross-origin stylesheets. Fall through to explicit
-    // inline CSS and the computed-value fallback used by the field layer.
+    // Reading CSSOM can throw on cross-origin stylesheets; fall through to explicit inline CSS.
   }
 
   const inline = el.style.getPropertyValue(property).trim();
@@ -54,10 +49,7 @@ export interface LayoutValue {
   computed: string;
 }
 
-/**
- * Reads both representations needed by a layout editor. Authored CSS is the
- * editable source of truth; computed CSS is only the browser preview/fallback.
- */
+/** Authored CSS is the editable source of truth; computed is preview/fallback only. */
 export function getLayoutValue(el: HTMLElement, property: string): LayoutValue {
   const authored = readAuthoredStyleValue(el, property);
   let computed = "";

@@ -32,11 +32,7 @@ function unwrapParentheses(expression: ESTree.Expression): ESTree.Expression {
   return current;
 }
 
-/**
- * Assertion chains are owned by `no-chained-type-assertions`. A SAFETY comment
- * must not become an escape hatch for a construct that the companion rule asks
- * the author to remove.
- */
+/** Assertion chains are rejected by `no-chained-type-assertions`; a SAFETY comment must not exempt them. */
 function isPartOfAssertionChain(node: TypeAssertion): boolean {
   if (isTypeAssertion(unwrapParentheses(node.expression))) return true;
 

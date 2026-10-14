@@ -1,6 +1,5 @@
 import { withPromptContext } from "../prompt/promptDocument.ts";
 
-/** Defines the edit destination for every HTML-iteration handoff, including fallback copies. */
 export function htmlIterationPrompt(id: string, changes: string, noInspectorChanges: boolean, hasSketches: boolean, customInstructions = ""): string {
   const directory = `.nudge/artifacts/${id}`;
   return withPromptContext([

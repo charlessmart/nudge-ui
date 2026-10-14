@@ -12,10 +12,7 @@ export interface AtRuleContextProviderProps {
   children?: ReactNode;
 }
 
-/**
- * Makes the active conditional source context available to fields that only
- * receive a property name (not their resolved property row) as props.
- */
+/** Fields that only receive a property name read their conditional context here. */
 export function AtRuleContextProvider({ rows, children }: AtRuleContextProviderProps): ReactElement {
   const atRulesByProperty = useMemo(() => {
     const next = new Map<string, readonly AtRuleCandidate[]>();

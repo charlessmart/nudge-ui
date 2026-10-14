@@ -15,10 +15,6 @@ interface ParsedNumericLiteral {
   unit: "px" | "rem" | "em" | "%" | "";
 }
 
-/**
- * Returns a nudged CSS numeric literal, or null when the value is not a
- * standalone number that the inspector can safely edit.
- */
 export function nudgeCssValue(
   property: string,
   rawValue: string,
@@ -39,17 +35,11 @@ export function nudgeCssValue(
   return `${formatNumber(next)}${parsed.unit}`;
 }
 
-/** Returns whether a style field exposes the horizontal drag nudge affordance. */
 export function supportsDragNudge(property: string): boolean {
   return DRAG_NUDGE_PROPERTY.test(property);
 }
 
-/**
- * Applies one regular nudge per sixteen horizontal pointer pixels and one large
- * nudge per eight horizontal pointer pixels. When a large drag starts from an
- * off-grid value, the first step snaps to the next large-step boundary in the
- * drag direction.
- */
+/** With `snapToLargeStep`, an off-grid start snaps once to the next large-step boundary in the drag direction. */
 export function nudgeCssValueByDrag(
   property: string,
   rawValue: string,
@@ -77,13 +67,11 @@ export function nudgeCssValueByDrag(
   return next;
 }
 
-/** Returns whether a field has a numeric value that can respond to dragging. */
 export function canNudgeCssValueByDrag(property: string, rawValue: string): boolean {
   return nudgeCssValueByDrag(property, rawValue, DRAG_PIXELS_PER_STEP) !== null
     || nudgeCssValueByDrag(property, rawValue, -DRAG_PIXELS_PER_STEP) !== null;
 }
 
-/** Returns a clamped opacity percentage nudged by 1%, or 10% with Shift. */
 export function nudgeOpacityValue(
   rawValue: string,
   direction: NudgeDirection,

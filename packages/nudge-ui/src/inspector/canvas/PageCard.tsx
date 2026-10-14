@@ -18,7 +18,6 @@ interface PageCardProps {
   documentOwner?: InspectorSession;
 }
 
-/** The page-surface Canvas card: the inspected page is the renderer. */
 export function PageCard({ card, documentOwner }: PageCardProps): ReactElement {
   const cardRef = useRef(card);
   cardRef.current = card;

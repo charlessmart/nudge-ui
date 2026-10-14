@@ -1,4 +1,4 @@
-/** Converts wheel units to pixel distances for consistent canvas panning. */
+/** deltaMode 1 is lines (16px) and 2 is pages, so both need converting to pixels. */
 export function wheelPanDelta(
   event: Pick<WheelEvent, "deltaX" | "deltaY" | "deltaMode" | "shiftKey">,
   viewport: { width: number; height: number },

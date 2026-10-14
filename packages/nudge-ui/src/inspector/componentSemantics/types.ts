@@ -8,15 +8,11 @@ export const COMPONENT_FRAMEWORKS = ["react"] as const;
 export type ComponentFramework = (typeof COMPONENT_FRAMEWORKS)[number];
 export type ComponentChangeScope = EditScope;
 
-/** Returns whether a host value names a supported component framework. */
 export function isComponentFramework(value: string): value is ComponentFramework {
   return COMPONENT_FRAMEWORKS.some((framework) => framework === value);
 }
 
-/**
- * Bounded evidence for the rendered invocation that a text edit started from.
- * This is deliberately JSON data, never a DOM node or a React fiber.
- */
+/** Deliberately JSON data, never a DOM node or a React fiber. */
 export interface ComponentInvocationEvidence {
   occurrence: number;
   props: string | null;
@@ -46,9 +42,7 @@ export interface ComponentChangeRecord {
   before: ComponentPropBaseline;
   after: ComponentPropValue;
   authoredAs: AuthoredPropKind;
-  /** `source-site` is the historical/default semantic projection scope. */
   scope?: ComponentChangeScope;
-  /** Present when an inline scope decision was made from one rendered item. */
   evidence?: ComponentInvocationEvidence;
 }
 
@@ -59,12 +53,8 @@ export interface RuntimeComponentTarget {
   framework: ComponentFramework;
   meta: ComponentInvocationMeta;
   props: RuntimeProps;
-  /** Adapter-reported mounted invocation count for this callsite. */
   mountedCount?: number;
-  /**
-   * False when the runtime can name this invocation but cannot render a prop
-   * change; the change still reaches the prompt. Absent means live.
-   */
+  /** False when the runtime cannot render a prop change (the change still reaches the prompt); absent means live. */
   livePreview?: boolean;
 }
 
@@ -104,16 +94,8 @@ export interface ComponentRuntimeAdapter {
   framework: ComponentFramework;
   inspect(element: HTMLElement): RuntimeComponentTarget[];
   replaceOverrides(overrides: ComponentOverride[]): void;
-  /**
-   * Return the number of currently mounted invocations for a callsite. A
-   * runtime that cannot prove this must return null/undefined so callers can
-   * fail closed instead of broadening a semantic override.
-   */
+  /** A runtime that cannot prove the count must return null so callers fail closed. */
   getCallsiteMultiplicity?(callsiteId: string): number | null | undefined;
-  /**
-   * Return, nearest first, the invocations whose entire rendered output is
-   * this element. A runtime that cannot read the element's ancestry must
-   * return null so structural identity fails closed.
-   */
+  /** Nearest first; null when the runtime cannot read the element's ancestry, so structural identity fails closed. */
   rootInvocations?(element: HTMLElement): ComponentRootInvocation[] | null;
 }

@@ -82,18 +82,15 @@ test("dev: layout section shows flex container controls and edits write to manag
   await waitForEditors(page);
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-container"), { timeout: 5000 }).toBe(true);
 
-  // Layout section should be visible
   const layoutSection = await shadowQueryExists(page, "layout-section");
   expect(layoutSection).toBe(true);
 
   const displaySelect = page.locator('[data-test="layout-select-display"]');
   await expect(displaySelect).toHaveAttribute("role", "combobox");
 
-  // Flex container sub-section should be visible
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
   expect(flexContainer).toBe(true);
 
-  // The compact flex direction control should expose row as the active state.
   const rowDirectionActive = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const control = sr?.querySelector('[data-test="layout-direction-row"]');
@@ -124,19 +121,16 @@ test("dev: layout section shows flex container controls and edits write to manag
       .sort();
   }), { timeout: 5000 }).toEqual(["column-gap", "row-gap"]);
 
-  // Change flex-direction to column.
   await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement | null)?.click();
   });
 
-  // Computed style should update
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-direction"), { timeout: 5000 })
     .toBe("column");
 
-  // In a column layout, the grid's top-right cell means top + right:
-  // justify-content: flex-start and align-items: flex-end.
+  // In a column layout the align grid's top-right cell means top + right: justify-content: flex-start, align-items: flex-end.
   await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-align-flex-end-flex-start"]') as HTMLButtonElement | null)?.click();
@@ -212,7 +206,6 @@ test("dev: layout section shows flex container controls and edits write to manag
     }, { timeout: 5000 })
     .toBe(true);
 
-  // ChangesLog should show the edit
   await expect
     .poll(async () => {
       const log = await changesLogText(page);
@@ -228,17 +221,13 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   await waitForEditors(page);
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-child"), { timeout: 5000 }).toBe(true);
 
-  // Layout section should be visible
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
 
-  // Flex child sub-section should be visible (parent is flex)
   expect(await shadowQueryExists(page, "layout-flex-child")).toBe(true);
 
-  // Flex child properties should be present
   const hasFlexChildSettings = await shadowQueryExists(page, "layout-flex-child-settings");
   expect(hasFlexChildSettings).toBe(true);
 
-  // Frequently used flex child fields are direct text inputs.
   const hasFlexGrow = await shadowQueryExists(page, "layout-combo-input-flex-grow");
   expect(hasFlexGrow).toBe(true);
 
@@ -261,17 +250,14 @@ test("dev: layout section shows flex child controls when selecting a child of a 
 
   await page.mouse.move(0, 0);
 
-  // Change flex-grow to 2
   const flexGrowInput = page.locator('[data-test="layout-combo-input-flex-grow"]');
   await flexGrowInput.fill("2");
   await flexGrowInput.blur();
 
-  // Computed style should update
   await expect
     .poll(async () => computedPropOn(page, "flex-child-a", "flex-grow"), { timeout: 5000 })
     .toBe("2");
 
-  // Managed stylesheet should have the rule
   await expect
     .poll(async () => (await sheetText(page)).includes("flex-grow: 2"), { timeout: 5000 })
     .toBe(true);
@@ -283,10 +269,8 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await (await getAppFrame(page)).locator('[data-test="positioned-box"]').click();
   await waitForEditors(page);
 
-  // Layout section should be visible
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
 
-  // Inset sub-section should be visible (position is relative)
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
   const editorOrder = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -301,23 +285,18 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
   await page.locator('[data-test="add-inset"]').click();
 
-  // Inset starts with the same grouped horizontal/vertical controls as padding and margin.
   await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-horizontal"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-vertical"]')).toBeVisible();
   await page.locator('[data-test="layout-inset"] [data-test="individual-sides"]').click();
 
-  // Expanded inset sides use the regular token/raw input.
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
   expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
-  // Change top from "0" to "auto"
   await setInput(page, "top", "auto");
 
-  // Managed stylesheet should have the rule
   await expect
     .poll(async () => (await sheetText(page)).includes("top: auto"), { timeout: 5000 })
     .toBe(true);
 
-  // ChangesLog should show the edit
   await expect
     .poll(async () => {
       const log = await changesLogText(page);

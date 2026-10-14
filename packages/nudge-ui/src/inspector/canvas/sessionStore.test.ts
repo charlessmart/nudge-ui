@@ -303,7 +303,6 @@ describe("sessionStore hydration", () => {
     setBoardCamera({ x: 50, y: 100, zoom: 1.5 });
     persistSession();
 
-    // Reset state
     setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     setBoardCamera({ x: 0, y: 0, zoom: 1 });
@@ -616,8 +615,7 @@ describe("sessionStore auto-save", () => {
       appendChange(makeElementChange());
       scheduleAutoSave();
 
-      // The write is coalesced behind a trailing timer so commits never block
-      // on serialization; it must land once the debounce window elapses.
+      // Writes are coalesced behind a trailing timer so a commit never blocks on serialization.
       expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
       vi.advanceTimersByTime(600);
       expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
@@ -627,7 +625,7 @@ describe("sessionStore auto-save", () => {
   });
 
   it("scheduleAutoSave no-ops when not enabled", () => {
-    // resetAllState already called resetAutoSave
+    // resetAllState already called resetAutoSave, so auto-save is disabled here.
     appendChange(makeElementChange());
     scheduleAutoSave();
 

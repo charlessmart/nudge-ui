@@ -12,21 +12,6 @@ import {
   NUDGE_UI_ROUTE_PREFIX,
 } from "../../transport/index.ts";
 
-/**
- * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
- *
- * Development-phase gated per ADR-0002: the returned config factory
- * instruments only `next dev` (`PHASE_DEVELOPMENT_SERVER` with
- * `NODE_ENV=development`). Every other phase returns the original
- * configuration untouched and nothing is registered, spawned, or injected.
- * Production builds cannot observe Nudge UI.
- *
- * The wrapper is written against a structural subset of Next's config types
- * so this package stays typecheckable without `next` installed; consumers
- * pass their real NextConfig object straight through.
- */
-
-/** Structural subset of Next.js config this wrapper reads and writes. */
 export interface NudgeUiNextConfig {
   [key: string]: unknown;
   turbopack?: {
@@ -41,7 +26,6 @@ export interface NudgeUiNextConfig {
   transpilePackages?: string[];
 }
 
-/** Host-specific policy additions passed to the shared source compiler. */
 export interface NudgeUiNextOptions {
   /** `false` returns the configuration untouched. `NUDGE_UI=0` has the same effect for one run. */
   readonly enabled?: boolean;
@@ -67,29 +51,13 @@ const NAMESPACE_PREFIX = NUDGE_UI_ROUTE_PREFIX.slice(0, -1);
 
 const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
 
-/**
- * Both compilers register the esbuild-bundled CommonJS loaders from
- * `dist/hosts/next/loaders/` (built by `pnpm --filter nudge-ui build`):
- *
- * - Turbopack's LoaderRunner requires the module itself to be the loader
- *   function (CJS emission), and Node 20 cannot parse TypeScript sources —
- *   so the raw .cts sources are authoring truth only, never registered.
- * - Webpack cannot execute TypeScript loaders at all.
- *
- * The bundles are fully self-contained (plugin modules inlined), so no
- * runtime resolution of raw TypeScript happens on any supported Node.
- */
-/** Absolute paths to the bundled loader entrypoints the host config must reference. */
+/** Both compilers load the bundled CJS loaders from `dist/`: neither executes TypeScript loaders, and Turbopack needs the module itself to be the loader. */
 interface LoaderPaths {
   identity: string;
   plugin: string;
 }
 
-/**
- * Resolved from the package root so the path is identical whether this module
- * runs from `src/hosts/next/` during development or `dist/hosts/next/` when
- * installed. The loaders only ever exist in `dist`.
- */
+/** Resolved from the package root so the path is the same from `src/` and `dist/`. */
 function loaderPaths(): LoaderPaths {
   const loaders = new URL("../../../dist/hosts/next/loaders/", import.meta.url);
   return {
@@ -98,7 +66,6 @@ function loaderPaths(): LoaderPaths {
   };
 }
 
-/** Absolute directory of a package installed in the host project, or null. */
 function hostPackageDir(root: string, name: string): string | null {
   try {
     const require = createRequire(join(root, "package.json"));
@@ -108,7 +75,6 @@ function hostPackageDir(root: string, name: string): string | null {
   }
 }
 
-/** Absolute path for an Adapter-owned package export, resolved beside this package. */
 function adapterPackageExport(specifier: string): string | null {
   try {
     return createRequire(import.meta.url).resolve(specifier);
@@ -131,14 +97,7 @@ function resolveNextVersion(root: string): string | null {
   }
 }
 
-/**
- * ADR-0010 gates instrumentation on the supported range: a RESOLVED version
- * outside it fails closed (no registration) with a diagnostic — instrumenting
- * an unsupported compiler risks breaking the host build. An unresolvable
- * version gets the benefit of the doubt and proceeds with a diagnostic,
- * since refusing to work because we could not read a version number would
- * make the adapter brittle for no safety gain.
- */
+/** Fails closed on a resolved unsupported version; an unresolvable one proceeds with a diagnostic. */
 function gateUnsupportedVersion(version: string | null): boolean {
   if (version && isVersionSupported(version)) return true;
   console.warn(
@@ -154,7 +113,6 @@ function isVersionSupported(version: string): boolean {
   if (!match) return false;
   const major = Number(match[1]);
   const minor = Number(match[2]);
-  // >=15.3 <17
   return (major === 15 && minor >= 3) || (major >= 16 && major < 17);
 }
 
@@ -171,34 +129,11 @@ function collectUserRewriteSources(rewrites: RewritesShape): string[] {
 /** Mirrors next/constants PHASE_DEVELOPMENT_SERVER. */
 export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
 
-/**
- * Returns whether this config evaluation belongs to Next's development
- * server. The phase argument is supplied by Next when it invokes a config
- * factory, so object exports are converted to factories before any
- * instrumentation can run. Keeping the phase check here means an object
- * export cannot accidentally instrument `next build` when a caller has
- * forced `NODE_ENV=development`.
- */
+/** Object exports are converted to factories so the phase is always available; the phase gate keeps `NODE_ENV=development next build` uninstrumented. */
 function isDevelopmentEvaluation(phase: string): boolean {
   return process.env.NODE_ENV === "development" && phase === DEVELOPMENT_SERVER_PHASE;
 }
 
-/**
- * Wraps a Next.js configuration with Nudge UI instrumentation.
- *
- * Two input forms are supported:
- *
- * - **Function form (recommended):** pass `(phase) => nextConfig`; the
- *   wrapper resolves and instruments ONLY for PHASE_DEVELOPMENT_SERVER, so
- *   `NODE_ENV=development next build` cannot register instrumentation
- *   (ADR-0002) regardless of environment tricks.
- * - **Object form:** converted to a phase-aware config factory. This keeps
- *   the convenient `withNudgeUi(nextConfig)` invocation while ensuring Next
- *   supplies the phase before any instrumentation can be registered.
- *
- * @param config The application's existing configuration or a config factory.
- * @returns A configuration (or factory) to export in its place.
- */
 /** Function form: gates instrumentation on PHASE_DEVELOPMENT_SERVER. */
 export function withNudgeUi<T extends object>(
   factory: (phase: string) => T,
@@ -225,11 +160,9 @@ export function withNudgeUi<T extends object>(
 
 function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptions): T {
 
-  // Consumers pass their real NextConfig object; the structural subset is an
-  // internal view so this package stays typecheckable without next installed.
+  // Consumers pass their real NextConfig; the structural view keeps this package typecheckable without next installed.
   const source = config as NudgeUiNextConfig;
   const root = process.cwd();
-  // Fail closed per ADR-0010 when the resolved version is unsupported.
   if (!gateUnsupportedVersion(resolveNextVersion(root))) {
     return config;
   }
@@ -237,9 +170,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
   const bridgeOrigin = nextDevelopmentOrigin();
 
-  // ensureSidecar is a per-process singleton; awaiting it wherever the port
-  // is needed removes any config-evaluation race. The same authored roots
-  // reach token discovery so workspace CSS is visible to both integrations.
+  // ensureSidecar is a per-process singleton; awaiting it wherever the port is needed removes any config-evaluation race.
   const sidecarPort = (): Promise<number> =>
     ensureSidecar(root, {
       manifest: buildManifest({ root }),
@@ -256,7 +187,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
 
   const nextConfig: NudgeUiNextConfig = { ...source };
 
-  // --- transpilePackages -------------------------------------------------
   const nudgeUiPackages = ["nudge-ui"];
   const userTranspile = Array.isArray(source.transpilePackages)
     ? source.transpilePackages
@@ -266,7 +196,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ...nudgeUiPackages.filter((name) => !userTranspile.includes(name)),
   ];
 
-  // --- Turbopack rules (primary compiler) ---------------------------------
   const turbopackRules: Record<string, unknown> = {
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
@@ -282,18 +211,12 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         loader: paths.plugin,
         options: loaderOptions,
       }],
-      // 'foreign' is Turbopack's builtin condition for dependency code, so
-      // `not: foreign` confines the loader to first-party sources. The path
-      // guard additionally keeps build output (.next) out of scope.
+      // 'foreign' marks dependency code in Turbopack; `not: foreign` plus the path guard confines the loader to first-party sources outside .next.
       condition: {
         all: [
           { not: "foreign" },
           { not: { path: "(**/)?\\.next/**" } },
-          // Workspace symlinks are NOT foreign (they are source-backed), so
-          // the Nudge UI packages themselves must be excluded explicitly:
-          // instrumenting the inspector's own UI would wrap every control in
-          // override boundaries and pollute the panel with identity attrs.
-          // The list is shared with the loader's runtime scope check.
+          // Workspace symlinks are not 'foreign', so Nudge UI's own packages must be excluded explicitly or the inspector would instrument itself.
           {
             not: {
               path: nudgeUiRepositoryPackagePath,
@@ -302,11 +225,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         ],
       },
     };
-    /**
-     * Rules are COMPOSED with any user rule for the same key by building a
-     * rule collection (Next supports arrays of items per glob) — silently
-     * overwriting host configuration is never acceptable.
-     */
+    /** Composed with any user rule for the same key: silently overwriting host configuration is never acceptable. */
     const compose = (key: string, rule: Record<string, unknown>): void => {
       const existing = turbopackRules[key];
       if (existing === undefined) {
@@ -320,12 +239,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     compose("*.jsx", { ...identityRule });
 
   }
-  // --- Single React instance (ADR-0004 via module resolution) -------------
-  // Nudge UI packages carry their own react dependency for standalone
-  // consumers. Without an alias, SWC resolves their `react` imports against
-  // those copies while the host application runs its own — two Reacts in one
-  // document, and inspector state updates silently stop rendering. Aliasing
-  // to the host project's copies pins one instance for every compilation.
+  // Nudge UI carries its own react copy for standalone consumers; without an alias
+  // SWC loads both, and two Reacts in one document silently break inspector rendering.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
   const componentRuntime = adapterPackageExport("nudge-ui/internal/component-runtime");
@@ -352,7 +267,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     rules: turbopackRules,
   };
 
-  // --- Webpack mode (secondary target, Stage 6 verifies parity) ----------
   const userWebpack = source.webpack;
   nextConfig.webpack = (webpackConfig: Record<string, unknown>, context: { dev: boolean }) => {
     const merged = userWebpack ? userWebpack(webpackConfig, context) : webpackConfig;
@@ -362,11 +276,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     const userAlias = (resolveConfig.alias ?? {}) as Record<string, unknown>;
     const rules = Array.isArray(module.rules) ? [...(module.rules as unknown[])] : [];
     const paths = loaderPaths();
-    // Next 16 removed the webpack CSS pipeline entirely
-    // (nextjs.org/docs/messages/built-in-css-disabled): applications using
-    // stylesheets cannot run under `next dev --webpack` on 16 at all,
-    // with or without Nudge UI. Registration stays so Next 15.x within
-    // the supported range keeps working; flag the combination loudly.
+    // Next 16 removed the webpack CSS pipeline entirely (nextjs.org/docs/messages/built-in-css-disabled);
+    // registration stays so Next 15.x works, and the combination is flagged loudly.
     const version = resolveNextVersion(root);
     if (version && Number(version.split(".")[0]) >= 16) {
       console.warn(
@@ -399,7 +310,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     };
   };
 
-  // --- Manifest transport rewrite ----------------------------------------
   const proxyRewrite = (port: number): RewritesSource => ({
     source: `${NUDGE_UI_ROUTE_PREFIX}:path*`,
     destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path*`,
@@ -435,9 +345,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     }
 
     return {
-      // Port 0 (sidecar failed to bind) yields a dead destination; the mount
-      // surfaces an honest fetch failure instead of silently pretending to
-      // work.
+      // Port 0 (failed sidecar) yields a dead destination: an honest fetch failure beats silently pretending to work.
       beforeFiles: [
         proxyRewrite(port),
         editorRewrite(port, { key: "accept", value: ".*text/html.*" }),
@@ -449,11 +357,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     };
   };
 
-  // Preserve callability while keeping our async resolver.
   nextConfig.rewrites = resolveRewrites;
 
-  // The structural view carries every original field through the spread;
-  // consumers keep their NextConfig typing via the generic passthrough.
   return nextConfig as T;
 }
 

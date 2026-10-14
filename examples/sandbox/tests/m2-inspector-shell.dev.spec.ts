@@ -32,11 +32,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles from the keyboard", 
 });
 
 test("dev: inspector controls respond while the iframe element selector is active", async ({ page }) => {
-  // Regression guard: the element selector swallows ordinary application
-  // clicks at the document capture phase, but real browser clicks are
-  // composed and their propagation path includes the document even when they
-  // originate inside the inspector's shadow root. The selector must let
-  // inspector-UI clicks through so the panel's own controls keep working.
+  // Regression guard: composed clicks from inside the shadow root must still reach the inspector's own controls.
   await openEditor(page, "/playground");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();

@@ -26,7 +26,6 @@ export interface SessionHealth {
   readonly status: AgentStatusSnapshot;
 }
 
-/** Represents an HTTP response from a project bridge that could be classified. */
 export class ProjectSessionResponseError extends Error {
   readonly status: number;
 
@@ -93,7 +92,6 @@ async function requestJson<T>(
   return decoded;
 }
 
-/** Reads and validates a bridge's health; an invalid body is a classified response error. */
 export async function readSessionHealth(
   session: StoredProjectSession,
   timeoutMs = CONTROL_TIMEOUT_MS,
@@ -101,7 +99,6 @@ export async function readSessionHealth(
   return await requestJson(session, AGENT_CONTROL_ENDPOINTS.health, decodeSessionHealth, {}, { timeoutMs });
 }
 
-/** Owns one project's claim, heartbeat, and authenticated control requests. */
 export class ProjectSessionClient {
   readonly descriptor: StoredProjectSession;
   readonly agentId: string;

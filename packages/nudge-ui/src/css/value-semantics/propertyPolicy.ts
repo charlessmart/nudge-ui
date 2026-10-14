@@ -1,15 +1,3 @@
-/**
- * Property/value policy (plan slice 3.3).
- *
- * One implementation owns capability classification, property→semantic-slot
- * knowledge, token presentation grouping, and compatible-token candidate
- * selection for value semantics. Eligibility always uses the resolved concrete
- * value plus browser grammar; a token name is a presentation preference and
- * never grants eligibility.
- *
- * Browser-safe contract: this module imports only the shared model and must
- * never pull React, Vite, PostCSS, Node, or filesystem code into a bundle.
- */
 import type { ColorValueFacts, EditCapability, TokenEntry } from "../model/index.ts";
 import { interpretColorValue } from "./colorSemantics.ts";
 
@@ -22,8 +10,6 @@ declare global {
   }
 }
 
-
-/** Semantic slot vocabulary for a CSS property. */
 export type TokenSemanticSlot =
   | "color"
   | "length"
@@ -36,7 +22,6 @@ export type TokenSemanticSlot =
   | "shadow"
   | "opacity";
 
-/** Presentation category for token pickers and catalog rows. */
 export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "shadow" | "generic";
 
 export const TOKEN_GROUP_LABELS = {
@@ -57,7 +42,6 @@ export const TOKEN_GROUP_ORDER: TokenGroup[] = [
   "generic",
 ];
 
-/** Browser grammar is injectable so the policy stays unit-testable. */
 export interface CssValueGrammar {
   supports(property: string, value: string): boolean;
 }
@@ -77,9 +61,8 @@ export interface TokenCandidate {
 }
 
 export interface TokenCompatibilityRequest {
-  /** The selected host element, used to resolve custom properties in its cascade. */
+  /** Resolves custom properties in this element's cascade. */
   element?: HTMLElement;
-  /** The outer CSS property being edited. */
   property: string;
   /** A scalar slot inside a composite property, such as the color in a shadow. */
   slot?: TokenSemanticSlot;
@@ -160,11 +143,7 @@ function normaliseProperty(property: string): string {
   return property.trim().toLowerCase();
 }
 
-/**
- * Property knowledge lives here rather than in every picker. It supplies a
- * presentation preference and validation slot; it never filters a candidate
- * merely because of that candidate's name.
- */
+/** Property knowledge lives here rather than in every picker: a presentation preference and validation slot, never a name-based filter. */
 export function semanticSlotForProperty(property: string): TokenSemanticSlot | null {
   const normalized = normaliseProperty(property);
   if (COLOR_PROPERTIES.has(normalized) || /(^|-)color$/.test(normalized)) return "color";
@@ -196,18 +175,12 @@ export function groupForProperty(property: string, slot?: TokenSemanticSlot): To
   return "generic";
 }
 
-/**
- * Edit-capability classification for a property and its authored value.
- * Preserves the resolver's original precedence exactly: raw functions first,
- * then spacing families, border structure, colors, atomic var(), composites,
- * then literal atomic values.
- */
+/** Precedence is load-bearing and must match the resolver's. */
 export function classifyEditCapability(property: string, value: string): EditCapability {
   const p = property.toLowerCase();
   const v = value.trim().toLowerCase();
-  // Functions whose authored expression cannot be represented faithfully by
-  // a numeric side control remain raw even when the property itself is a
-  // spacing property. The computed value is still available as a preview.
+  // A numeric side control cannot represent these functions faithfully, so
+  // the authored expression stays raw even on a spacing property.
   if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
   if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
@@ -222,11 +195,7 @@ export function classifyEditCapability(property: string, value: string): EditCap
   return "raw";
 }
 
-/**
- * Name-prefix presentation hint. This is a display preference only: it never
- * makes an invalid value eligible for a slot. `value` is a secondary hint used
- * for concrete values with an unfamiliar name.
- */
+/** Presentation hint only; a name never makes an invalid value eligible for a slot. */
 export function classifyToken(name: string, value = ""): TokenGroup {
   if (name.startsWith("--color-")) return "color";
   if (name.startsWith("--space-")) return "spacing";
@@ -248,7 +217,7 @@ function hasUnresolvedVariable(value: string): boolean {
   return /\bvar\s*\(/i.test(value);
 }
 
-/** One computed style per selection request, shared by every token it resolves. */
+/** Hoisted so one request resolves each token against a single computed style. */
 function elementStyle(element?: HTMLElement): CSSStyleDeclaration | null {
   const view = element?.ownerDocument.defaultView;
   return element && view && typeof view.getComputedStyle === "function" ? view.getComputedStyle(element) : null;
@@ -281,11 +250,7 @@ function isOpacity(value: string): boolean {
   return /^[+-]?(?:\d+\.?\d*|\.\d+)(?:%)?$/.test(value.trim());
 }
 
-/**
- * Modern browsers provide CSS.supports. The small fallback keeps non-browser
- * unit environments conservative and never treats a var() expression as a
- * resolved value.
- */
+/** Conservative fallback for non-browser environments that lack CSS.supports. */
 function fallbackSupports(property: string, value: string): boolean {
   const normalized = normaliseProperty(property);
   if (COLOR_PROPERTIES.has(normalized) || /(^|-)color$/.test(normalized)) return isColor(value);
@@ -304,11 +269,7 @@ type CssSupports = { supports?(property: string, value: string): boolean };
 const SUPPORTS_CACHE_LIMIT = 20_000;
 const supportsCaches = new WeakMap<CssSupports, Map<string, boolean>>();
 
-/**
- * CSS.supports answers depend only on the realm's grammar, so each answer is
- * kept per CSS object. Token pickers ask the same questions for every field
- * on every selection, and large catalogs make the uncached calls dominate.
- */
+/** Cached per CSS object: pickers repeat the same questions for every field on every selection. */
 function cachedSupports(css: CssSupports, property: string, value: string): boolean | null {
   if (typeof css.supports !== "function") return null;
   let cache = supportsCaches.get(css);
@@ -326,10 +287,6 @@ function cachedSupports(css: CssSupports, property: string, value: string): bool
   return supported;
 }
 
-/**
- * Host-realm grammar factory. Uses the element's window CSS when available,
- * then `globalThis.CSS`, and falls back to a conservative non-browser matcher.
- */
 export function browserCssGrammar(element?: HTMLElement): CssValueGrammar {
   const css = browserCss(element);
   return {
@@ -350,11 +307,6 @@ function nameHint(name: string): TokenGroup | null {
   return null;
 }
 
-/**
- * Presentation may use a name to make familiar token sets easier to scan, but
- * a name never grants eligibility. Unfamiliar concrete colors still group as
- * Color via the same CSS grammar used by the candidate selector.
- */
 export function presentationForToken(entry: TokenEntry, grammar: CssValueGrammar = browserCssGrammar()): TokenPresentation {
   const value = entry.value.trim();
   const group = !hasUnresolvedVariable(value) && grammar.supports("color", value)
@@ -383,12 +335,7 @@ function compareCandidates(preferred: TokenGroup) {
   };
 }
 
-/**
- * The single candidate-selection seam for every token-editing control and the
- * inspection bridge. Concrete values are checked in the selected element's
- * cascade, then the browser grammar decides eligibility. Presentation labels
- * only rank results.
- */
+/** The single candidate-selection seam; presentation labels only rank results. */
 export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest): TokenCandidate[] {
   const grammar = request.grammar ?? browserCssGrammar(request.element);
   const slot = request.slot ?? semanticSlotForProperty(request.property) ?? undefined;
@@ -412,11 +359,7 @@ export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest)
     .sort(compareCandidates(preferredGroup));
 }
 
-/**
- * The public token-selection operation. With a property it returns only
- * browser-compatible candidates; without one it returns presentation metadata
- * for inventory rows without inventing eligibility.
- */
+/** Without a property, returns presentation metadata only — never invents eligibility. */
 export function selectTokens(request: TokenSelectionRequest): TokenSelection {
   if (request.property) {
     const slot = request.slot ?? semanticSlotForProperty(request.property) ?? undefined;

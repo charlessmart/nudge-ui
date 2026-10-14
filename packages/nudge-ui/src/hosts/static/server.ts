@@ -41,15 +41,11 @@ const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const DEFAULT_PORT = 4173;
 const packageRequire = createRequire(import.meta.url);
 
-/** Options for the loopback-only standalone static server. */
 export interface StandaloneServerOptions {
   /** The explicit directory whose files may be served. */
   readonly rootDirectory: string;
-  /** The loopback address to bind. Defaults to `127.0.0.1`. */
   readonly host?: "127.0.0.1" | "::1" | "localhost";
-  /** The TCP port. Use `0` to ask the operating system for an available port. */
   readonly port?: number;
-  /** The prebuilt browser client artifact. */
   readonly clientPath?: string;
   /** Override the deterministic project identity in tests or embedding hosts. */
   readonly projectId?: string;
@@ -57,22 +53,17 @@ export interface StandaloneServerOptions {
   readonly watchDebounceMs?: number;
 }
 
-/** A canonical file resolved below the configured project root. */
 export interface StaticFileResolution {
-  /** The canonical file path on disk. */
   readonly absolutePath: string;
-  /** The slash-separated project-relative path used for source identity. */
   readonly projectPath: string;
 }
 
-/** The address returned after the server starts listening. */
 export interface StandaloneServerAddress {
   readonly host: string;
   readonly port: number;
   readonly url: string;
 }
 
-/** The running standalone server and its lifecycle methods. */
 export interface StandaloneServer {
   readonly httpServer: Server;
   readonly rootDirectory: string;
@@ -82,17 +73,7 @@ export interface StandaloneServer {
   close(): Promise<void>;
 }
 
-/**
- * Creates a Nudge UI-owned static server for one explicit project root.
- *
- * The server binds to loopback, reserves its own route namespace, and only
- * reads prototype files. HTML instrumentation and bootstrap nodes exist in
- * response memory; the configured source directory is never rewritten.
- *
- * @param options Server root, address, port, and client artifact options.
- * @returns A server that has not started listening yet.
- * @throws If the root is missing, not a directory, or the host is not loopback.
- */
+/** Serves one explicit project root over loopback, reserving its own route namespace; the configured source directory is never rewritten. */
 export function createStandaloneServer(options: StandaloneServerOptions): StandaloneServer {
   const rootDirectory = canonicalDirectory(options.rootDirectory);
   const host = options.host ?? "127.0.0.1";
@@ -110,14 +91,12 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
     revision,
   );
   let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
-  // The initial scan runs asynchronously; start() awaits it so the first
-  // request and manifest always observe the complete project token knowledge.
+  // start() awaits the initial scan so the first request observes complete token knowledge.
   const initialTokens = createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" }).then((tokens) => {
     manifest = createStandaloneRuntimeManifest(projectId, tokens, revision);
     return tokens;
   });
-  // start() awaits and surfaces scan failures; this second handler only
-  // prevents an unhandled rejection when a server is created but never started.
+  // Prevents an unhandled rejection when a server is created but never started.
   void initialTokens.catch(() => undefined);
   const reloadClients = new Set<ServerResponse>();
   let fileWatcher: ProjectFileWatcher | null = null;
@@ -147,10 +126,8 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   };
   const processSettledChanges = (_changes: readonly ProjectFileChange[]): void => {
     changeQueue = changeQueue.then(async () => {
-      // Rebuild every settled batch. fs.watch can report a directory or omit a
-      // filename, so an extension check cannot reliably identify CSS changes.
-      // The scan is asynchronous and bounded to the project root; rebuilding
-      // once per settled batch keeps the manifest coherent before reload.
+      // fs.watch can omit a filename, so CSS changes cannot be identified by extension:
+      // rebuild once per settled batch to keep the manifest coherent before reload.
       const tokens = await createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" });
       manifest = {
         ...createStandaloneRuntimeManifest(projectId, tokens, revision + 1),
@@ -159,9 +136,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       revision += 1;
       notifyReload();
     }).catch((error: unknown) => {
-      // A later settled batch can still rebuild the snapshot after a failed
-      // callback. Source edits must not terminate the static server, but a
-      // skipped reload must be visible to the developer.
+      // A failed rebuild must not terminate the server, but a skipped reload must stay visible.
       console.warn(
         "Nudge UI standalone reload was skipped because rebuilding token knowledge failed:",
         error,
@@ -289,20 +264,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   return server;
 }
 
-/**
- * Resolves one URL pathname to a canonical file under the project root.
- *
- * URL decoding occurs before path normalization, which makes encoded dot
- * segments subject to the same confinement check as ordinary traversal. The
- * canonical existing ancestor check also rejects a symlink that escapes the
- * root when the requested leaf does not yet exist. Hidden path segments are
- * refused, including encoded and multiply encoded forms, and a visible
- * symlink cannot be used to reach a hidden target.
- *
- * @param rootDirectory The configured project root.
- * @param requestPath A request target or URL pathname.
- * @returns A file resolution, or `null` for malformed, missing, or unsafe paths.
- */
+/** Decodes before normalizing so encoded dot segments face the same confinement check; the canonical-ancestor check also rejects escaping symlinks. */
 export function resolveStaticFile(
   rootDirectory: string,
   requestPath: string,
@@ -348,20 +310,17 @@ function resolveDecodedStaticFile(
   return { absolutePath: filePath, projectPath: relativePath };
 }
 
-/** Returns the deterministic project identity used for session persistence. */
 export function createStandaloneProjectId(rootDirectory: string): string {
   const canonicalRoot = canonicalDirectory(rootDirectory);
   const digest = createHash("sha256").update(canonicalRoot).digest("hex").slice(0, 24);
   return `static-html:${digest}`;
 }
 
-/** Returns a common response content type for a project-relative file. */
 export function contentTypeForPath(filePath: string): string {
   const extension = extname(filePath).toLowerCase();
   return MIME_TYPES[extension] ?? "application/octet-stream";
 }
 
-/** Returns whether a decoded pathname belongs to the server-owned route space. */
 export function isReservedNudgeUiRoute(pathname: string): boolean {
   return pathname === NUDGE_UI_ROUTE_PREFIX.slice(0, -1)
     || pathname.startsWith(NUDGE_UI_ROUTE_PREFIX);
@@ -402,12 +361,7 @@ function decodeRequestPath(requestPath: string): string | null {
   return pathname;
 }
 
-/**
- * Detects suspicious paths that become hidden or traversal paths after a
- * second URL decode. The server resolves request URLs exactly once so literal
- * percent-containing filenames continue to work, but nested encodings must
- * not provide an alternate spelling for a sensitive path.
- */
+/** Request URLs are decoded exactly once, so a second decode must not yield an alternate spelling of a sensitive path. */
 function hasNestedUnsafePathEncoding(pathname: string): boolean {
   let candidate = pathname;
   for (let depth = 0; depth < 5; depth += 1) {
@@ -502,11 +456,8 @@ async function handleRequest(input: {
   const contentType = contentTypeForPath(resolution.projectPath);
 
   if (request.method === "HEAD") {
-    // HEAD answers headers without running the response transform: the body
-    // would be discarded anyway, and the instrumented GET length cannot be
-    // known without performing it. Content-Length is omitted for HTML so the
-    // header cannot disagree with a subsequent GET body; untransformed files
-    // report their exact length.
+    // HEAD answers headers without the response transform; Content-Length is omitted for
+    // HTML so it cannot disagree with a subsequent GET body.
     const body = await readProjectFile(resolution.absolutePath);
     if (isHtml) {
       response.writeHead(200, {
@@ -528,15 +479,7 @@ async function handleRequest(input: {
   sendBody(response, 200, body, contentType, isHtml ? { "Cache-Control": "no-cache" } : {});
 }
 
-/**
- * Instruments one HTML response while guaranteeing byte preservation.
- *
- * The identity inserter only edits the decoded string at parser offsets, so
- * the decode itself must be lossless. A non-UTF-8 document cannot round-trip
- * through `toString("utf8")` without replacing every invalid sequence with
- * U+FFFD, so such documents are served untouched with a warning instead of
- * being silently corrupted.
- */
+/** Served untouched when not valid UTF-8: identity insertion works at parser offsets, so a lossy decode would corrupt the document. */
 function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
   let source: string;
   try {

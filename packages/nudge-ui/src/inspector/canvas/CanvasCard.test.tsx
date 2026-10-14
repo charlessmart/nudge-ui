@@ -116,8 +116,7 @@ describe("CanvasCard renderer handshake", () => {
       height: 600,
     };
     root = createRoot(host);
-    // The component reads its iframe through the ref, so render with a stubbed
-    // createElement that hands back the prepared frame when asked for one.
+    // The component reads its iframe through the ref; the stubbed createElement hands back the prepared frame.
     const rendered = createElement(CanvasCard, { card });
     act(() => {
       root!.render(rendered);

@@ -20,7 +20,6 @@ export interface SessionInspection {
   readonly live: LiveProjectSession[];
 }
 
-/** Separates absent, invalid, incompatible, and unreachable registrations. */
 export async function inspectProjectSessions(registryRoot: string): Promise<SessionInspection> {
   const names = (await readRegistryDirectory(registryRoot)).filter((name) => name.endsWith(".json"));
   const records = await Promise.all(names.map((name) => readDescriptor(resolve(registryRoot, name))));
@@ -37,7 +36,6 @@ export async function inspectProjectSessions(registryRoot: string): Promise<Sess
   };
 }
 
-/** Keeps only compatible bridges that answer authenticated probes. */
 export async function readLiveProjectSessions(registryRoot: string): Promise<LiveProjectSession[]> {
   return (await inspectProjectSessions(registryRoot)).live;
 }

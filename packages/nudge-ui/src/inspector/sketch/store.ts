@@ -137,7 +137,6 @@ function randomId(prefix: string): string {
       return `${prefix}-${crypto.randomUUID()}`;
     }
   } catch {
-    // Fall through to the deterministic-enough browser fallback.
   }
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
@@ -408,8 +407,8 @@ export function settleSketchDispatch(
   return enqueue(async () => {
     if (hydration) await hydration;
     assertWritable(projectId, expectedGeneration);
-    // Resolve the current revisions inside the write queue so a pending save
-    // or requeue cannot be removed by an older completion event.
+    // Resolved inside the write queue so an older completion event cannot
+    // remove a pending save or requeue.
     const changes = snapshot.items.flatMap(({ document, handoff }) => {
       if (!handoff || handoff.sketchRevision !== document.revision
         || handoff.transport !== "direct" || handoff.batchRevision !== batchRevision) return [];

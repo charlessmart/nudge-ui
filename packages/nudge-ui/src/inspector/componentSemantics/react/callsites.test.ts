@@ -48,7 +48,6 @@ const BADGE = meta("src/App.tsx:5:5", "Badge");
 /** Identity tags arrive as ordinary props, exactly as the compiler emits them. */
 type Tagged<P> = P & { [tag: `data-${string}`]: string };
 
-/** A package layout primitive: memo + forwardRef layers, props spread into an inner component. */
 const BoxImpl = (props: { children?: ReactNode }) => createElement("section", null, props.children);
 const Box = memo(forwardRef<HTMLElement, Tagged<{ children?: ReactNode }>>(function Box(props, _ref) {
   return createElement(BoxImpl, props);
@@ -58,7 +57,6 @@ function Badge({ tone }: Tagged<{ tone: string }>) {
   return createElement("span", { "data-tone": tone }, tone);
 }
 
-/** Authored JSX after the compiler: identity tags on every component callsite. */
 function badge(tone: string, key?: string) {
   return createElement(Badge, { key, tone, "data-cid": "Badge", "data-src": BADGE.callsiteId });
 }

@@ -1,14 +1,3 @@
-/**
- * Border shorthand structure (plan slice 3.5).
- *
- * One browser-safe Module owns the conservative `border` / `border-side`
- * shorthand decomposition: width/style/color parts, CSS initial values for
- * omitted components, css-wide-keyword rejection, and the explicit rejection
- * of image layers, non-token slash forms, and ambiguous component counts.
- *
- * Browser-safe contract: this module imports only the shared model and the
- * value-semantics token interpreter. It never touches the DOM or CSSOM.
- */
 import { splitTopLevelWhitespace } from "./cssSyntax.ts";
 import {
   interpretTokenValue,
@@ -23,7 +12,6 @@ export const BORDER_CSS_WIDE = new Set(["inherit", "initial", "unset", "revert",
 /** CSS initial values for omitted `border` / `border-*` shorthand components. */
 export const BORDER_INITIAL = { width: "medium", style: "none", color: "currentcolor" } as const;
 
-/** Width/style/color components of a decomposable border value. */
 export interface BorderComponents {
   width: string;
   style: string;
@@ -33,13 +21,7 @@ export interface BorderComponents {
   colorResult: TokenValueInterpretation;
 }
 
-/**
- * Conservative border-shorthand classification: splits the authored value
- * into width/style/color components with CSS initial values for omitted parts,
- * and interprets each distinct component once. Returns null when the value
- * cannot be decomposed faithfully (ambiguous component order, image layers,
- * non-token slash forms, css-wide keywords, or multi-value junk).
- */
+/** Conservative decomposition; null when the value cannot be split faithfully. */
 export function parseBorderComponents(value: string, tokenContext: TokenInterpretationContext): BorderComponents | null {
   const trimmed = value.trim();
   if (!trimmed || BORDER_CSS_WIDE.has(trimmed.toLowerCase())) return null;
@@ -68,9 +50,8 @@ export function parseBorderComponents(value: string, tokenContext: TokenInterpre
 
     const isVariable = /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(part);
     const interpreted = isVariable ? interpret(part).resolvedValue.trim() : part;
-    // A custom property can substitute an entire shorthand. If its grammar is
-    // unresolved or expands to multiple components, assigning it to one slot
-    // would invent structure that the authored declaration does not prove.
+    // A custom property can substitute an entire shorthand; unresolved or
+    // multi-component results cannot be assigned to one slot.
     if (isVariable && (/^var\(/i.test(interpreted) || splitTopLevelWhitespace(interpreted).length !== 1)) return null;
     const candidate = interpreted.toLowerCase();
     const isWidth = BORDER_WIDTHS.has(candidate)

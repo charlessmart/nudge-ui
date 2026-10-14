@@ -2,7 +2,6 @@ import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
 import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 
-/** Retains a changed target only when its source site still identifies one output. */
 export function resolveCommentElement(doc: Document, target: RenderedInstanceRef): HTMLElement | null {
   const exact = resolveRenderedInstance(doc, target);
   if (exact.status === "resolved") return exact.element;
@@ -28,7 +27,7 @@ export function commentViewport(doc: Document): string {
   return `${doc.defaultView?.innerWidth}:${doc.defaultView?.innerHeight}`;
 }
 
-/** Captures rendered content and appearance, excluding inspector identity and transient cursors. */
+/** Ignores inspector identity attributes and transient cursor styling. */
 export function commentFingerprint(element: HTMLElement): string {
   const clone = element.cloneNode(true) as HTMLElement;
   for (const node of [clone, ...clone.querySelectorAll("*")]) {

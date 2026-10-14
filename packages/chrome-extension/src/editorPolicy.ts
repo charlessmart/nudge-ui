@@ -1,8 +1,4 @@
-/**
- * Blocks the discarded application's scripts and assets in the editor document.
- * Extension scripts and resources are exempt; frames may load the application.
- * Sketch previews use local blob URLs.
- */
+/** Editor-document CSP: the discarded application's scripts and assets are blocked; extension resources and frames are exempt. */
 export const EDITOR_DOCUMENT_POLICY = [
   "script-src 'none'",
   "style-src 'unsafe-inline'",

@@ -5,14 +5,6 @@ import { tmpdir } from "node:os";
 import { createVitePlugins } from "./vite.ts";
 import { createReactSupport } from "./react.ts";
 
-/**
- * The Vite host composed with no framework, which is the proof obligation for
- * splitting `./vite.ts` from `./react.ts`. It must still do everything the
- * build tool owns — observe stylesheets, publish tokens, serve the transport,
- * inject the bootstrap — and must not touch a source module or ask anything of
- * Vite's module resolution.
- */
-
 const STYLESHEET = ":root { --brand: #123456; --space: 8px; }";
 
 const COMPONENT_SOURCE = `export function Card(props: { tone: "quiet" | "loud" }) {
@@ -39,7 +31,6 @@ function frameworkFreeHost(root: string): HostPlugin {
   return plugin;
 }
 
-/** Drives the transport middleware and returns the manifest it served. */
 async function manifestFor(plugins: readonly unknown[], root: string): Promise<{
   runtime: {
     host: string;

@@ -162,11 +162,6 @@ function AlignmentControl({ axis, value, elements, onChange }: AlignmentControlP
   );
 }
 
-/**
- * Grid child controls expose only placement starts and per-axis alignment.
- * All edits commit as managed CSS declarations. Moving a start line preserves
- * an existing span where CSS makes that span unambiguous.
- */
 export function GridChildSection({
   domElement: el,
   editTarget,

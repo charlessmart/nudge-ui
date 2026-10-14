@@ -14,8 +14,7 @@ describe("repository package scope", () => {
   });
 
   it("keeps the Turbopack condition path in its Next-facing form", () => {
-    // The Next-facing matcher is not a JavaScript RegExp literal: it must not
-    // carry the doubled escaping the loader-side pattern needs.
+    // The Next-facing matcher is not a RegExp literal, so it must not carry the loader-side doubled escaping.
     expect(nudgeUiRepositoryPackagePath.startsWith("[\\/]packages[\\/]")).toBe(true);
     expect(nudgeUiRepositoryPackagePath).not.toContain("\\\\/");
   });

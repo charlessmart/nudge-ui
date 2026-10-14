@@ -4,15 +4,7 @@ import {
   getNudgeUiRuntimeConfig,
 } from "../runtime/runtimeConfig.ts";
 
-/**
- * Vitest uses this module in place of the host-generated virtual module.
- *
- * Tests intentionally mutate the exported fixture between cases. The real
- * host passes component contracts through `configureNudgeUiRuntime`, which
- * defensively clones and freezes them. Mirror that boundary after each test
- * fixture mutation so the fixture stays mutable while the runtime keeps its
- * production snapshot semantics.
- */
+/** Vitest stand-in for the host virtual module; re-syncs runtime config after fixture mutations to keep production snapshot semantics. */
 const mutableComponentContracts: ComponentContract[] = [];
 
 function syncComponentContracts(): void {

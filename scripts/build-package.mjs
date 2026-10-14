@@ -1,13 +1,5 @@
-/**
- * Build one workspace package for publication.
- *
- * TypeScript owns the module/declaration emit so package sources can keep
- * their strict typecheck configuration. `rewriteRelativeImportExtensions`
- * turns authored `.ts`/`.tsx` references into runnable `.js` references in
- * both JavaScript and declarations. Inspector CSS is imported with Vite's
- * `?inline` convention; release output has no Vite transform, so those
- * imports are replaced with the stylesheet text after TypeScript emits.
- */
+// TypeScript owns the module and declaration emit; Vite-only `?inline` CSS imports are
+// replaced with the stylesheet text after emit, since release output has no Vite transform.
 import {
   copyFileSync,
   mkdirSync,
@@ -94,10 +86,8 @@ function inlineCssImports(directory, sourceDirectory) {
   }
 }
 
-// TypeScript consumes declaration-only inputs but does not copy them to the
-// output directory. Preserve ambient public contracts such as
-// `virtual-design-tokens.d.ts` so every declared export target exists in the
-// packed artifact.
+// TypeScript does not copy declaration-only inputs to the output directory;
+// preserve ambient contracts like `virtual-design-tokens.d.ts` in the packed artifact.
 function copyDeclarationFiles(sourceDirectory, outputDirectory) {
   for (const entry of readdirSync(sourceDirectory, { withFileTypes: true })) {
     const sourcePath = resolve(sourceDirectory, entry.name);
@@ -134,9 +124,8 @@ function copyStaticAssets(sourceDirectory, outputDirectory) {
   }
 }
 
-// `rewriteRelativeImportExtensions` currently rewrites emitted JavaScript but
-// leaves declaration references unchanged. A consumer loading a declaration
-// through package exports must still reach the executable sibling in dist.
+// `rewriteRelativeImportExtensions` leaves declaration references unchanged; a consumer
+// resolving them must still reach the executable sibling in dist.
 function rewriteDeclarationExtensions(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const absolutePath = resolve(directory, entry.name);

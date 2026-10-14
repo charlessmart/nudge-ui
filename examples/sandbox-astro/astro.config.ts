@@ -3,10 +3,8 @@ import react from "@astrojs/react";
 import mdx from "@astrojs/mdx";
 import { nudgeUiAstro } from "nudge-ui/astro";
 
-// https://astro.build/config
 export default defineConfig({
-  // Keep Astro's source-annotation feature enabled when the installed
-  // compiler exposes it; the current compiler-rs release may still omit it.
+  // Keep Astro's source annotations enabled; the installed compiler release may omit them.
   devToolbar: { enabled: true },
   integrations: [react(), mdx(), nudgeUiAstro()],
 });

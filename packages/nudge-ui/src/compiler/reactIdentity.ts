@@ -22,16 +22,12 @@ export type { ComponentInstrumentationOptions } from "./componentInstrumentation
 export interface InjectResult {
   code: string;
   map: SourceMap | null;
-  /**
-   * The exact line prepended to bind the component runtime, or null. Hosts
-   * whose module must start with a directive prologue relocate this line.
-   */
+  /** The exact single line prepended to bind the runtime, or null; hosts with a directive prologue relocate it. */
   prelude: string | null;
 }
 
 export interface InjectIdentityOptions extends ComponentInstrumentationOptions {
   instrumentComponents?: boolean;
-  /** Module specifier emitted for the host-owned semantic runtime. */
   componentRuntimeModule?: string;
 }
 
@@ -45,9 +41,6 @@ const EXPRESSION_SCOPE_TYPES = new Set([
   "ClassExpression",
 ]);
 
-// Scopes that contribute an id to the scope stack: declarations push their
-// own name; expressions are pushed at their VariableDeclarator binding, or
-// here by their own id (may be null) when anonymous.
 const ALL_SCOPE_TYPES = new Set([
   "FunctionDeclaration",
   "ClassDeclaration",
@@ -116,9 +109,7 @@ function serialiseAttribute(attr: Node): string | null {
     if (expr.type === "BooleanLiteral") {
       return `${key}:${expr.value ? "true" : "false"}`;
     }
-    // Inline function expressions are rendered as `fn(key)` per PLAN.md.
-    // Bare identifiers are omitted (they may reference any type — PLAN.md's
-    // canonical example omits `onClick={handleClick}`).
+    // Inline functions render as `fn(key)`; bare identifiers and other expressions are omitted.
     if (
       expr.type === "ArrowFunctionExpression" ||
       expr.type === "FunctionExpression"
@@ -174,11 +165,7 @@ function authoredPropKinds(attrs: Node[], children: Node[] = []) {
   return result;
 }
 
-/**
- * Preserve the authored shape of primitive JSX children in invocation
- * metadata. This is metadata for the dev runtime only; it does not add a
- * production attribute or wrapper to the application output.
- */
+/** Dev-runtime metadata only; nothing here reaches production output. */
 function authoredChildrenKind(children: Node[]): "literal" | "expression" | "spread" | null {
   if (children.length === 0) return null;
   let kind: "literal" | "expression" | "spread" | null = null;
@@ -247,9 +234,7 @@ function walkChildren(
     if (Array.isArray(value)) {
       for (const child of value) {
         if (isNode(child)) {
-          // A component can inspect its children or slot props before React
-          // renders them. Preserve those element values unless the receiving
-          // interface explicitly promises to render them.
+          // A component may inspect children or slot props before rendering them; only promised slots are traversed.
           const renderedChild = !customElement
             || (key === "children" && state.componentPolicy.rendersChildren(componentName!))
             || (key === "attributes" && state.componentPolicy.rendersProp(componentName!, elementName(child.name) ?? ""))
@@ -273,8 +258,7 @@ function walk(
   state: WalkState,
   allowComponentWrapping: boolean,
 ): void {
-  // A function/class expression bound to a variable inherits the variable's
-  // name as its component name (arrows have no own id).
+  // A function/class expression inherits the variable's name as its component name (arrows have no own id).
   if (node.type === "VariableDeclarator") {
     const init = (node.init as Node | null | undefined) ?? null;
     const varName =
@@ -288,7 +272,6 @@ function walk(
   }
 
   if (ALL_SCOPE_TYPES.has(node.type)) {
-    // Named/anonymous function and class scopes: push their own id (may be null).
     scopeStack.push(getScopeName(node));
     walkChildren(node, scopeStack, ms, relPath, options, state, allowComponentWrapping);
     scopeStack.pop();
@@ -328,10 +311,7 @@ function walk(
         && typeof end === "number"
       ) {
         const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
-        // appendRight preserves insertion order when two JSX siblings have no
-        // whitespace between them. At the shared `</First><Second>` boundary,
-        // the first component's closing wrapper must be emitted before the
-        // second component's opening wrapper.
+        // appendRight preserves insertion order at a shared `</First><Second>` boundary.
         ms.appendRight(
           start,
           `${needsExpression ? "{" : ""}__nudgeUiInstrumentComponent(`,
@@ -340,8 +320,7 @@ function walk(
         state.changed = true;
         state.instrumentedComponents = true;
       } else if (!hasAttr(attrs, "data-src")) {
-        // Not safe to wrap, but the injected `data-src` tag still reaches the
-        // component's props, which is all the runtime needs to name it.
+        // Not safe to wrap; the injected `data-src` still reaches the component's props, which is all the runtime needs to name it.
         state.registeredCallsites.push(meta);
         state.changed = true;
       }
@@ -351,11 +330,7 @@ function walk(
   if (node.type === "JSXOpeningElement") {
     const attrs = (node.attributes as Node[]) ?? [];
     const nameNode = node.name as Node;
-    // TypeScript JSX type arguments sit between the component name and its
-    // attributes (`<Button<Props> size="small" />`). Injecting immediately
-    // after the name would produce the invalid `<Button data-cid...<Props>`
-    // shape, so place identity attributes after the complete type argument
-    // list when one is present.
+    // JSX type arguments (`<Button<Props> size="small" />`) must stay adjacent to the name, so attributes go after the complete type argument list.
     const typeArguments =
       (node.typeArguments as Node | null | undefined) ??
       (node.typeParameters as Node | null | undefined);
@@ -429,7 +404,6 @@ export function injectIdentity(
   };
 }
 
-/** One line, so a host can move it past a directive prologue intact. */
 function componentRuntimePrelude(runtimeModule: string, state: WalkState): string | null {
   const bindings = [
     ...(state.instrumentedComponents ? ["instrumentReactComponent as __nudgeUiInstrumentComponent"] : []),

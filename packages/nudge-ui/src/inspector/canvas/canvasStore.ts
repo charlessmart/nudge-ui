@@ -117,7 +117,7 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
-/** Adds one card while retaining the existing placement policy. */
+/** Adds one card to the end of the row. */
 export function addCanvasCard(url: string, title?: string): CanvasCard {
   const before = cards;
   const size = lastUsedCardSize ?? defaultViewportSize();
@@ -188,8 +188,7 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
   const shifts = layoutShifts(before, cards);
   const restore = (redo: boolean) => {
     if (!redo) {
-      // Direct creation drags finish placement after the creation was recorded.
-      // Redo must recover the dropped position, dimensions, and loaded title.
+      // Direct creation drags finish placement after recording, so redo must recover the dropped geometry and title.
       for (const [index, recorded] of after.entries()) {
         const current = createdIds.has(recorded.id) && cards.find((card) => card.id === recorded.id);
         if (current) after[index] = { ...current };
@@ -271,10 +270,7 @@ export function removeCanvasCard(id: string, { undoable = false }: { undoable?: 
   if (!undoable) releaseUnusedIteration(removed);
 }
 
-/**
- * Opens one editor target in the iframe workspace without replacing restored
- * cards or their dimensions.
- */
+/** Opens one editor target without replacing restored cards or their dimensions. */
 export function activateIframeWorkspace(
   url: string,
   viewport: { width: number; height: number },
@@ -423,7 +419,7 @@ export function fitAllCards(viewport?: { width: number; height: number }): void 
   placeBoardCamera(fitCamera(bounds, viewport ?? windowViewport(), FIT_ALL_PADDING) ?? DEFAULT_CAMERA);
 }
 
-/** Centers a selected set of cards without changing the current zoom. */
+/** Centers the cards without changing the current zoom. */
 export function focusCanvasCards(
   cardIds: readonly string[],
   viewport?: { width: number; height: number },
@@ -498,11 +494,7 @@ function cardGeometry(id: string): FrameGeometry | null {
   return card ? { x: card.x, y: card.y, width: card.width, height: card.height } : null;
 }
 
-/**
- * Starts a user move or resize. The returned commit records the whole gesture
- * as one undo step; programmatic placement through `setCardPosition` and
- * `resizeCard` stays out of history.
- */
+/** The returned commit records the whole gesture as one undo step; programmatic placement stays out of history. */
 export function beginCardGeometryChange(id: string): () => void {
   const before = cardGeometry(id);
   let committed = false;
@@ -583,7 +575,6 @@ function frameRoute(card: CanvasCard): { key: string; label: string } {
   };
 }
 
-/** Returns a route-based label that distinguishes copies and HTML iterations. */
 export function getCanvasCardLabel(card: CanvasCard, frameCards: readonly CanvasCard[] = cards): string {
   const route = frameRoute(card);
   const candidates = frameCards.some((candidate) => candidate.id === card.id) ? frameCards : [...frameCards, card];

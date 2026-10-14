@@ -14,8 +14,7 @@ test.describe("Canvas spatial board", () => {
       const t = getComputedStyle(el).transform;
       return t !== "none";
     });
-    // After the initial canvas fit, the board content should have a transform
-    // (scale may be 1, but translate may be present if content doesn't fill viewport)
+    // After the initial fit the transform may be translate-only, so assert presence, not scale.
     const transformValue = await boardContent.evaluate((el: HTMLElement) => {
       return el.style.transform;
     });

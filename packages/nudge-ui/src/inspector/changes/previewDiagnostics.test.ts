@@ -74,8 +74,7 @@ describe("preview diagnostics", () => {
 
     appendChanges([change]);
 
-    // A new commit must not delete earlier diagnostics. The revision stamp
-    // rejects late publishes per key, but reads survive until overwritten.
+    // New commits must not delete earlier diagnostics; the revision stamp rejects late publishes per key.
     expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(false);
 
@@ -95,8 +94,6 @@ describe("preview diagnostics", () => {
     expect(publishPreviewDiagnostic(firstAttempt, changeKey(change), result)).toBe(true);
 
     expect(appendChanges([secondChange])).toBe("applied");
-    // Earlier diagnostics survive the second commit; the new change verifies
-    // at the new revision without wiping the first.
     expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
     const secondAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
     const secondResult = { ...result, requestedValue: "blue", computedValue: "blue" };

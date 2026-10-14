@@ -9,12 +9,7 @@ import {
   runtimeDomPath,
 } from "./staticHtmlRuntimeIdentity.ts";
 
-/**
- * A generated identity that a saved edit refers to, plus the rendered facts
- * captured with it. Generated identities are document-local: after a reload
- * no element carries them until the claim is re-attached to the one element
- * whose rendered facts still match.
- */
+/** Document-local identity that survives a reload only by re-attaching to the element whose rendered facts match. */
 export interface RuntimeIdentityClaim {
   readonly cid: string;
   readonly src: string | null;
@@ -57,11 +52,10 @@ function claimFromEvidence(cid: string, src: string | null, evidence: RuntimeEle
   };
 }
 
-/** Collects one claim per generated identity referenced by saved edits. */
 export function collectRuntimeIdentityClaims({ changes, structuralChanges }: DraftContents): RuntimeIdentityClaim[] {
   const claims = new Map<string, RuntimeIdentityClaim>();
-  // The page still renders the text from before an inline text edit, so a
-  // text edit's original text wins over evidence captured after the preview.
+  // The page still renders the text from before an inline text edit, so a text
+  // edit's original text wins over evidence captured after the preview.
   const originalText = new Map<string, string | null>();
   for (const change of changes) {
     if (change.kind === "text-content") {
@@ -115,11 +109,7 @@ function hasStructuralMatch(element: HTMLElement, claim: RuntimeIdentityClaim): 
     && (claim.domPath === null || runtimeDomPath(element) === claim.domPath);
 }
 
-/**
- * Finds the single element a claim describes, or null when none or several
- * match. Elements holding authored identity, or another claim's identity,
- * are never taken. Conflicting text evidence leaves the claim unattached.
- */
+/** Never takes an element that holds authored identity or another claim's identity. */
 function findClaimedElement(doc: Document, claim: RuntimeIdentityClaim, claimed: ReadonlySet<string>): HTMLElement | null {
   if (!claim.tagName) return null;
   let elements: HTMLElement[];
@@ -160,9 +150,8 @@ function observe(doc: Document, state: ClaimState): void {
   if (state.observer || state.claims.size === 0) return;
   const Observer = doc.defaultView?.MutationObserver;
   if (!Observer || !doc.documentElement) return;
-  // Frameworks replace server-rendered elements during hydration and route
-  // changes. Re-attach once per mutation batch; attaching only writes to an
-  // element that lacks the identity, so it cannot feed itself.
+  // Attaching only writes to an element that lacks the identity, so hydration and route
+  // changes cannot feed the observer its own writes.
   state.observer = new Observer(() => {
     if (state.queued) return;
     state.queued = true;
@@ -175,11 +164,7 @@ function observe(doc: Document, state: ClaimState): void {
   state.observer.observe(doc.documentElement, { childList: true, subtree: true });
 }
 
-/**
- * Replaces the generated identities saved edits refer to in one document and
- * attaches each to its element, now and whenever the document's elements are
- * replaced. Unmatched claims stay pending; their edits simply do not apply.
- */
+/** Unmatched claims stay pending; their edits simply do not apply. */
 export function applyRuntimeIdentityClaims(doc: Document, claims: readonly RuntimeIdentityClaim[]): void {
   if (claims.length === 0) {
     disposeRuntimeIdentityClaims(doc);
@@ -195,7 +180,7 @@ export function applyRuntimeIdentityClaims(doc: Document, claims: readonly Runti
   observe(doc, state);
 }
 
-/** Stops reattachment for a disposed document session, including queued work. */
+/** Stops reattachment for a document session, including queued work. */
 export function disposeRuntimeIdentityClaims(doc: Document): void {
   states.get(doc)?.observer?.disconnect();
   states.delete(doc);

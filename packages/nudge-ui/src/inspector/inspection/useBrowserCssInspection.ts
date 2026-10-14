@@ -72,11 +72,7 @@ function inspectView(
   };
 }
 
-/**
- * React Adapter for one revision-aware browser inspection view. This is the
- * sole owner of subscription and scheduling policy; UI callers only project
- * the returned snapshots.
- */
+/** Sole owner of subscription and scheduling policy; callers only project the returned snapshots. */
 export function useBrowserCssInspection(
   selected: SelectedElement | readonly SelectedElement[] | null,
   state: InteractionState = "base",
@@ -135,10 +131,7 @@ export function useBrowserCssInspection(
 
   const scheduleSelectionInspection = (): void => {
     cancelScheduledInspection();
-    // Leading-edge resolve: a selection change resolves immediately instead
-    // of always waiting out the debounce. Rapid re-selections inside the
-    // trailing window still coalesce onto one trailing resolve, so the final
-    // view is identical and repeated selections cannot stack full sweeps.
+    // Leading-edge resolve: a selection change resolves immediately, and rapid re-selections coalesce onto one trailing resolve.
     const sinceLast = performance.now() - lastSelectionResolveAtRef.current;
     if (sinceLast >= SELECTION_DEBOUNCE_MS) {
       resolveSync();
@@ -152,12 +145,7 @@ export function useBrowserCssInspection(
 
   const scheduleRevisionInspection = (): void => {
     cancelScheduledInspection();
-    // Let the host commit and paint before refreshing the inspector
-    // projection. The extra frames keep the refresh start past the gap
-    // between rapid successive edits, so a new revision cancels the pending
-    // refresh instead of colliding with a running one, and they give the
-    // stylesheet walk its own frame so no single refresh task blocks for the
-    // combined duration of the walk plus a cascade sweep.
+    // Let the host commit and paint: the extra frames let a new revision cancel the pending refresh and give the stylesheet walk its own frame.
     revisionFrameRef.current = requestAnimationFrame(() => {
       revisionFrameRef.current = null;
       revisionSecondFrameRef.current = requestAnimationFrame(() => {
@@ -181,10 +169,7 @@ export function useBrowserCssInspection(
 
   useEffect(() => session.subscribe(scheduleRevisionInspection), [session]);
 
-  // Warm the CSSOM rule snapshot during idle time so the first selection does
-  // not pay the stylesheet walk inside its own interaction. The idle timeout
-  // bounds the wait without competing with page-load paint; the walk is
-  // idempotent per stylesheet revision, so this is a no-op once warm.
+  // Warm during idle so the first selection does not pay the stylesheet walk; the walk is idempotent per stylesheet revision.
   const prewarmedSessionRef = useRef<BrowserCssInspection | null>(null);
   useEffect(() => {
     if (prewarmedSessionRef.current === session) return;
@@ -199,8 +184,7 @@ export function useBrowserCssInspection(
     return () => clearTimeout(timeoutId);
   }, [session, selectedDocument]);
 
-  // Selection effects run after children render. Never expose the previous
-  // element's authored rows while the new selection is waiting for inspection.
+  // Selection effects run after children render; never expose the previous element's rows while inspection is pending.
   const matchesSelection = view.session === session && view.state === state
     && view.selection.length === selectedElements.length
     && view.selection.every((element, index) => element.domElement === selectedElements[index]?.domElement);

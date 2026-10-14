@@ -1,7 +1,6 @@
 import { applicationTarget, htmlTarget, type DraftTarget } from "../drafts/model.ts";
 import { artifactDocumentUrl } from "../iterations/client.ts";
 
-/** Content identity is independent of frame geometry and its editable draft. */
 export type FrameContent =
   | { kind: "route"; url: string; navigationUrl?: string }
   | { kind: "iteration"; artifactId: string; sourceUrl: string };

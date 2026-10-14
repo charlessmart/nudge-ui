@@ -6,13 +6,7 @@ interface CounterProps {
   disabled?: boolean;
 }
 
-/**
- * Inner island component: Astro creates island roots outside any transformed
- * JSX, so the shared React Adapter can only attach its override boundary to
- * uppercase invocations inside island source. Wrapping the whole subtree here
- * lets one typed override rerender every rendered artifact — classes, copy,
- * and the disabled control — through the real component (ADR-0007).
- */
+/** Astro island roots are outside any transformed JSX, so the override boundary wraps the subtree from inside island source (ADR-0007). */
 function IslandCounter({ label, variant = "primary", disabled = false }: CounterProps) {
   const [count, setCount] = useState(0);
 
@@ -36,9 +30,7 @@ function IslandCounter({ label, variant = "primary", disabled = false }: Counter
   );
 }
 
-/** React island root: hydrates through client:load and carries the shared
- * React Adapter instrumentation injected into island JSX by the shared
- * Vite plugin. */
+/** Island root hydrated via client:load; island JSX is instrumented by the shared Vite plugin. */
 export default function Counter({ label, variant, disabled }: CounterProps) {
   return <IslandCounter label={label} variant={variant} disabled={disabled} />;
 }

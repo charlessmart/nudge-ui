@@ -19,9 +19,6 @@ test("prod: inspector mount point and shell absent in production build (ADR-0002
           }
         }
         if (el.textContent?.includes("Inspector shell ready")) {
-          // Text could appear in the host app by coincidence; require it be
-          // inside a shadow root to count. Re-check that this match isn't in
-          // the light DOM by looking for the panel class instead.
           if (el.classList?.contains("panel") || el.querySelector(".panel")) return true;
         }
         for (const child of Array.from(el.childNodes)) {

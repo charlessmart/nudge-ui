@@ -68,11 +68,7 @@ function supportsRole(element: HTMLElement, role: StyleRole): boolean {
   }
 }
 
-/**
- * Builds the group style projection used by all style editors. Computed CSS
- * is the value source, while individual inspection snapshots provide authored
- * and token provenance where it exists.
- */
+/** Computed CSS is the value source; snapshots add authored and token provenance where it exists. */
 export function createStyleSelection(
   elements: readonly SelectedElement[],
   snapshots: readonly InspectionSnapshot[],

@@ -359,8 +359,7 @@ describe("document revision observer", () => {
 
     disposeDocumentResolution(document);
 
-    // Disposal bumps the monotonic counters once to invalidate pre-disposal
-    // revision-keyed caches, then disconnects the observer.
+    // Disposal bumps the monotonic counters once to invalidate pre-disposal caches, then disconnects.
     expect(oldRevisions).toEqual({
       element: beforeDisposal.element + 1,
       stylesheet: beforeDisposal.stylesheet + 1,
@@ -389,9 +388,6 @@ describe("document revision observer", () => {
     disposeDocumentResolution(document);
 
     const freshRevisions = documentRevisions(document);
-    // Monotonic, never reset: disposal invalidates caches by advancing past
-    // every pre-disposal (element, stylesheet) pair instead of restarting at
-    // (0,0) where a stale cache entry would hit immediately.
     expect(freshRevisions).toEqual({
       element: beforeDisposal.element + 1,
       stylesheet: beforeDisposal.stylesheet + 1,

@@ -3,16 +3,6 @@ import type { Frame, Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/**
- * Stage 4 conformance (docs/features/astro-host-adapter.md): token lifecycle
- * and reload coherence for the Astro host Adapter.
- *
- * The shared Vite plugin owns token inventory, exactly-once publication, and
- * the reload contract; Astro inherits them because its dev server is a Vite
- * dev server. These specs pin that inheritance end-to-end against the real
- * Astro pipeline.
- */
-
 const CSS_PATH = join(process.cwd(), "src", "styles", "global.css");
 
 interface CatalogEntry {
@@ -21,7 +11,6 @@ interface CatalogEntry {
   declarations: Array<{ value: string; source: string; context?: { selector?: string } }>;
 }
 
-/** Inspect an element through the page's bridge and return its token catalog. */
 function bridgeCatalog(frame: Frame, selector: string): Promise<CatalogEntry[]> {
   return frame.evaluate((sel) =>
     (
@@ -53,7 +42,6 @@ async function waitForInspector(page: Page): Promise<Frame> {
   return frame;
 }
 
-/** Parse the serialized virtual token module served by the dev server. */
 async function readVirtualTokenModule(request: {
   get(url: string): Promise<{ text(): Promise<string> }>;
 }): Promise<{
@@ -86,7 +74,6 @@ test("dev: :root custom properties are listed with project-relative provenance",
   await page.goto("/");
   const frame = await waitForInspector(page);
 
-  // Tokens settings lists the fixture's global custom properties.
   await page.locator('[data-test="tokens-button"]').click();
   await page.locator('[data-test="settings-nav-tokens"]').click();
   const panel = page.locator('[data-test="tokens-panel"]');
@@ -94,14 +81,10 @@ test("dev: :root custom properties are listed with project-relative provenance",
   for (const name of ["--color-accent", "--color-surface", "--color-ink", "--space-lg", "--radius-card"]) {
     await expect(panel.locator(`[data-token-name="${name}"]`)).toBeAttached();
   }
-  // The token rows are the user-visible inventory contract. The old compact
-  // count badge is not part of the current settings panel.
   await expect
     .poll(() => panel.locator("[data-token-name]").count())
     .toBeGreaterThanOrEqual(5);
 
-  // Provenance is project-relative with authored line numbers, carried through
-  // the inspection bridge's catalog.
   await expect.poll(async () => {
     const entry = findEntry(await bridgeCatalog(frame, ".site-header .site-title"), "--color-accent");
     return entry?.declarations[0]?.source ?? "";
@@ -123,8 +106,7 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
 
   const originalCss = await readFile(CSS_PATH, "utf8");
   const accentValue = "#de446e";
-  // A new :root table row proves the reloaded document received a fresh
-  // snapshot rather than a stale cached module.
+  // A new :root table row proves the reloaded document got a fresh snapshot, not a stale cached module.
   const probeRule = `\n:root {\n  --stage4-reload-probe: 7px;\n}\n`;
   const updatedCss = originalCss
     .replace("--color-accent: #0f62fe;", `--color-accent: ${accentValue};`)
@@ -135,20 +117,15 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
   try {
     await writeFile(CSS_PATH, updatedCss);
 
-    // Exactly ONE full reload carries the new document; token knowledge is
-    // already refreshed when it arrives (one coherent snapshot).
+    // Exactly one reload must carry the new document, with token knowledge already refreshed.
     await expect.poll(() => navigations, { timeout: 20_000 }).toBe(1);
     frame = await waitForInspector(page);
 
-    // The reloaded document renders the edited token value...
     await expect.poll(() =>
       frame.locator(".site-header .site-title").evaluate((element) =>
         getComputedStyle(element).getPropertyValue("color").trim()),
     ).toBe("rgb(222, 68, 110)");
 
-    // ...and its token knowledge contains BOTH the changed value and the newly
-    // appended declaration with correct provenance (a fresh snapshot, not a
-    // stale cached one).
     await expect.poll(async () => {
       const catalog = await bridgeCatalog(frame, ".site-header .site-title");
       const accent = findEntry(catalog, "--color-accent");
@@ -160,12 +137,10 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
       ].join("|");
     }, { timeout: 15_000 }).toBe(`${accentValue}|7px|src/styles/global.css:${probeLine}`);
 
-    // The published generation actually bumped across the edit.
     const after = await readVirtualTokenModule(page.request);
     expect(after.generation).not.toBe(before.generation);
     expect(after.tokens).toContain("--stage4-reload-probe");
 
-    // No second reload followed the first.
     await expect.poll(() => navigations, { timeout: 10_000 }).toBe(1);
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   } finally {
@@ -185,8 +160,7 @@ test("dev: malformed CSS publishes a diagnostic and keeps raw CSS inspection ali
   try {
     await writeFile(CSS_PATH, ":root {\n  --color-accent: #0f62fe;\n  --broken {{{;\n");
 
-    // The inventory keeps serving the catalog and reports the broken artifact
-    // through the transport instead of going dark.
+    // The inventory keeps serving the catalog and reports the broken artifact instead of going dark.
     await expect.poll(async () => {
       const module = await readVirtualTokenModule(page.request);
       return module.diagnostics.some((diagnostic) =>
@@ -194,11 +168,7 @@ test("dev: malformed CSS publishes a diagnostic and keeps raw CSS inspection ali
         && (diagnostic.module ?? "").includes("src/styles/global.css"));
     }, { timeout: 20_000 }).toBe(true);
 
-    // The dev server still renders the page and the inspector mounts on it.
-    // (Proxy assertion: "raw inspection alive" is pinned via mount, since a
-    // broken stylesheet chain cannot meaningfully serve a preview.) The
-    // navigation can abort while the broken module chain settles, so retry
-    // until it completes with a response.
+    // The navigation can abort while the broken module chain settles, so retry until it completes with a response.
     await expect.poll(async () => {
       try {
         const response = await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -212,7 +182,6 @@ test("dev: malformed CSS publishes a diagnostic and keeps raw CSS inspection ali
     await writeFile(CSS_PATH, originalCss);
   }
 
-  // Recovery: the diagnostic clears once the stylesheet parses again.
   await expect.poll(async () => {
     const module = await readVirtualTokenModule(page.request);
     return module.diagnostics.filter((diagnostic) => diagnostic.code === "stylesheet-parse-failed").length;
@@ -224,10 +193,7 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
   await page.goto("/");
   const frame = await waitForInspector(page);
 
-  // Card.astro declares eight scoped custom properties so the theme-table
-  // policy admits the scoped rule into the build catalog. Scoped tokens do
-  // not apply to the document root, so the Tokens panel intentionally omits
-  // them; they surface through per-element inspection instead.
+  // Scoped tokens do not apply to :root, so the Tokens panel omits them and they surface only through per-element inspection.
   await expect.poll(async () => {
     const catalog = await bridgeCatalog(frame, "article.card");
     const cardBg = findEntry(catalog, "--card-bg");
@@ -238,8 +204,7 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
     ].join("|");
   }, { timeout: 20_000 }).toMatch(/^present\|\S+\|src\/components\/Card\.astro:\d+$/);
 
-  // The raw scoped selector is retained on the declaration so managed-rule
-  // resolution keeps matching the rendered DOM.
+  // The raw scoped selector stays on the declaration so managed-rule resolution keeps matching the rendered DOM.
   const rawSelector = await frame.evaluate(() => {
     const catalog = (
       window as unknown as { __nudgeUi?: { inspect(selector: string): { catalog: CatalogEntry[] } | null } }
@@ -250,10 +215,7 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
   expect(rawSelector).toContain("[data-astro-cid-");
   expect(rawSelector).toContain(".card");
 
-  // Editing a property onto a scoped token yields a prompt naming the token
-  // without leaking Astro's scoping structure. border-radius starts backed by
-  // the global --radius-card; swapping it to the scoped --card-radius creates
-  // an element change record.
+  // The prompt must name the scoped token without leaking Astro's scoping structure.
   const card = frame.locator("article.card").first();
   await expect(card).toHaveAttribute("data-cid", /astro:/);
   await card.click();

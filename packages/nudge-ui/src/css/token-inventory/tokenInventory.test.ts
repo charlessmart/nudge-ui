@@ -97,7 +97,6 @@ describe("token inventory contract", () => {
     expect(definition.declarations[0]!.context).toEqual({ selector: ":root" });
     expect(definition.declarations[1]!.context).toEqual({ selector: ':root[data-theme="dark"]' });
     expect(definition.declarations[1]!.important).toBe(true);
-    // global positional order follows artifact order then local source order
     expect(definition.declarations.map((declaration) => declaration.order)).toEqual([0, 1]);
     expect(definition.declarations[0]!.id).not.toBe(definition.declarations[1]!.id);
   });
@@ -295,14 +294,11 @@ describe("token inventory contract", () => {
     const first = inventory.snapshot().generation;
     expect(first).toBeTruthy();
 
-    // identical re-apply is a no-op
     inventory.apply(artifact({ id: "s.css", content: ":root { --x: 1px; }" }));
     expect(inventory.snapshot().generation).toBe(first);
 
-    // a second snapshot without mutations does not recompute
     expect(inventory.snapshot().generation).toBe(first);
 
-    // observable content change bumps the generation
     inventory.apply(artifact({ id: "s.css", content: ":root { --x: 2px; }" }));
     expect(inventory.snapshot().generation).not.toBe(first);
 
@@ -314,7 +310,6 @@ describe("token inventory contract", () => {
     inventory.applyContribution({ id: "adapter", tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).toBe(third);
 
-    // removal changes observable facts
     inventory.apply(artifact({ id: "s.css" }));
     expect(inventory.snapshot().generation).not.toBe(third);
   });

@@ -107,8 +107,7 @@
 }
 
 .sketch__live-note-panel {
-  /* Keep the note editor in the workspace viewport, outside the active frame's
-     scaled and clipped coordinate system. */
+  /* Outside the active frame's scaled and clipped coordinate system. */
   position: fixed;
   left: calc((100vw - var(--panel-width)) / 2);
   bottom: calc(var(--control-height-xlarge) + var(--space-20) + var(--space-8) + var(--space-8));
@@ -183,8 +182,8 @@
   transition: grid-template-rows 180ms ease, opacity 140ms ease, margin 180ms ease;
 }
 
-/* Bleed the banner to the panel's top edge only while it is open, so the closed
-   banner does not eat the panel padding above the note input. */
+/* Bleeds to the panel's top edge only while open, so the closed banner does
+   not eat the padding above the note input. */
 .sketch__prompt-error[data-open="true"] {
   grid-template-rows: 1fr;
   margin-top: calc(-1 * var(--space-8));

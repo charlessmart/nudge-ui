@@ -1,7 +1,4 @@
-/**
- * Describes the small amount of CSS value semantics the inspector can safely
- * assist with. Values outside these policies remain raw CSS.
- */
+/** Values outside these policies stay raw CSS. */
 export type CssUnit = "px" | "rem" | "em" | "%" | "";
 
 export type ValuePolicy =
@@ -91,7 +88,6 @@ const PIXEL_LENGTH_PROPERTIES = new Set([
   "border-radius",
 ]);
 
-/** Returns the default and supported units for an editable CSS property. */
 export function valuePolicyFor(property: string): ValuePolicy {
   if (NUMBER_PROPERTIES.has(property)) return NUMBER_VALUE;
   if (property === "font-size") return FONT_SIZE;

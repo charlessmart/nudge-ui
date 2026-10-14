@@ -147,8 +147,7 @@ describe("the guarantee hosts rely on", () => {
   };
 
   it("derives token knowledge from evidence alone, so any host supplying it gets the same result", () => {
-    // Hosts share no code path, so reaching this function with equal evidence is
-    // what makes their token knowledge identical rather than merely similar.
+    // Hosts share no code path, so identical evidence is what makes their token knowledge identical.
     expect(interpretDialects(evidence)).toEqual(interpretDialects(structuredClone(evidence)));
   });
 
@@ -158,8 +157,7 @@ describe("the guarantee hosts rely on", () => {
     expect(evidence).toEqual(original);
   });
 
-  // The browser runtime imports this module, so a Node import would break the
-  // bundle instead of failing here.
+  // This module ships to the browser runtime, so a Node import breaks the bundle, not this test.
   it("stays browser-safe", () => {
     const offenders = readdirSync(dialectsDir)
       .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))

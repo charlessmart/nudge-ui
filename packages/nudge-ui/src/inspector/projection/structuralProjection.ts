@@ -30,11 +30,7 @@ export {
   isStructuralProjectionReport,
 } from "./structuralProjectionBoundary.ts";
 
-/**
- * Controller-owned structural intent. It contains no DOM node, placeholder,
- * position, or renderer-local identity. Each document resolves a snapshot for
- * itself and keeps any physical preview artefacts private to that document.
- */
+/** Canonical intent carries no DOM node, placeholder, or renderer-local identity; each document keeps its own preview artefacts. */
 export type {
   StructuralChange,
   StructuralDelete,
@@ -68,7 +64,6 @@ function isUnsupportedWrappedFlexRow(element: HTMLElement): boolean {
     && Boolean(style.flexWrap && style.flexWrap !== "nowrap");
 }
 
-/** Conservative HTML containment policy shared by gesture and projection code. */
 export function canContainElement(parent: HTMLElement, child: HTMLElement): boolean {
   const parentTag = parent.tagName.toLowerCase();
   if (VOID_PARENT_TAGS.has(parentTag)
@@ -82,11 +77,7 @@ export type StructuralMoveLegality =
   | { valid: true; sourceParent: HTMLElement; destinationParent: HTMLElement; before: HTMLElement | null }
   | { valid: false; reason: StructuralProjectionReason };
 
-/**
- * Applies the one conservative move policy used by guide calculation, commit,
- * and resolved document projection. The returned elements are document-local
- * and must never be stored in canonical structural intent.
- */
+/** Returned elements are document-local and must never be stored in canonical intent. */
 export function getStructuralMoveLegality(
   element: HTMLElement,
   destination: { parent: HTMLElement; before: Node | null },
@@ -170,7 +161,6 @@ interface DocumentProjectionState {
   applied: Map<string, AppliedStructuralChange>;
   /** Application order is required to reconstruct the source baseline safely. */
   appliedOrder: string[];
-  /** The document-local controller snapshot used for later observer reports. */
   snapshot: StructuralChange[];
   snapshotKey: string | null;
   observer: MutationObserver | null;
@@ -274,8 +264,7 @@ export function documentStateKey(doc: Document, excluded?: HTMLElement): string 
 }
 
 function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[] {
-  // Structural changes are small JSON-safe records. Cloning their top-level
-  // array is enough: no operation mutates a change or its nested references.
+  // Shallow clone is enough: no operation mutates a change or its nested references.
   return [...snapshot];
 }
 
@@ -285,7 +274,6 @@ function projectStructuralChanges(): void {
   for (const doc of documentStates.keys()) applyStructuralProjection(doc, changes);
 }
 
-/** Captures a delete intent once, in the controller, at the user gesture. */
 export function createStructuralDelete(element: HTMLElement, id = structuralId()): StructuralDelete | null {
   const target = captureStructuralTarget(element);
   if (!target) return null;
@@ -303,11 +291,7 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   return change;
 }
 
-/**
- * Capture a move only when every address can be represented by durable
- * rendered-instance references. Local DOM positions are deliberately never a
- * fallback: a missed preview is safer than moving the wrong item.
- */
+/** Local DOM positions are never a fallback: a missed preview beats moving the wrong item. */
 export function createStructuralMove(
   element: HTMLElement,
   destination: { parent: HTMLElement; before: Node | null },
@@ -356,7 +340,6 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
   return getStructuralChanges().filter((change): change is StructuralDelete => change.kind === "delete");
 }
 
-/** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
   const changed = revertDraftStructuralChange(changeId);
   if (changed) projectStructuralChanges();
@@ -371,13 +354,11 @@ export function subscribeStructuralChanges(listener: () => void): () => void {
 /** Compatibility name retained while the controller moved to a full union. */
 export const subscribeStructuralDeletes = subscribeStructuralChanges;
 
-/** Diagnostics change after host/frame resolution or a one-shot conflict check. */
 export function subscribeStructuralDiagnostics(listener: () => void): () => void {
   diagnosticListeners.add(listener);
   return () => diagnosticListeners.delete(listener);
 }
 
-/** Monotonic snapshot for React consumers of document-local diagnostics. */
 export function getStructuralDiagnosticRevision(): number {
   return diagnosticRevision;
 }
@@ -425,14 +406,10 @@ function scheduleValidation(doc: Document, state: DocumentProjectionState): void
   state.validationQueued = true;
   queueMicrotask(() => {
     state.validationQueued = false;
-    // A renderer can receive its projection before its application tree has
-    // mounted. Retry unresolved records after that tree changes so a valid
-    // late mount converges without requiring another controller message.
+    // Retry unresolved records when the tree changes so a late-mounting renderer converges without another controller message.
     if (hasUnresolvedAppliedChange(state)) {
       rebuildForSnapshot(doc, state, state.snapshot, false);
-      // The replay is synchronous, so external renderer mutations cannot
-      // interleave with it. Discard only the records produced by the replay;
-      // future renderer mutations remain observed and can trigger another try.
+      // The replay is synchronous, so discarding its records only drops the replay's own mutations.
       state.observer?.takeRecords();
       storeReports(doc, reportsForSnapshot(state, state.snapshot));
       return;
@@ -469,8 +446,7 @@ function reportsForSnapshot(state: DocumentProjectionState, snapshot: readonly S
 function restoreApplied(local: AppliedStructuralChange): void {
   if (local.kind === "unresolved") return;
   if (local.kind === "delete") {
-    // If React already replaced our placeholder, never reinsert the stale
-    // detached node. The observer will (or already did) report overridden.
+    // Never reinsert a stale detached node when React already replaced our placeholder.
     if (local.placeholder.isConnected) local.placeholder.replaceWith(local.element);
     return;
   }
@@ -485,8 +461,7 @@ function rebuildForSnapshot(
   snapshot: readonly StructuralChange[],
   schedulePostReplayValidation = true,
 ): void {
-  // React may have changed a projected node before its mutation callback ran.
-  // Validate synchronously so a rebuild never restores a framework-owned node.
+  // React may have changed a projected node before its mutation callback ran; validate before rebuilding.
   validateAppliedPreview(doc, state);
 
   const activeIds = new Set(snapshot.map((change) => change.id));
@@ -495,9 +470,7 @@ function rebuildForSnapshot(
     if (local.status === "overridden" && activeIds.has(id)) retainedOverrides.set(id, local);
   }
 
-  // Undo in reverse application order, reconstructing this document's source
-  // baseline before replaying the desired canonical sequence. This is what
-  // makes reverting an earlier move correct when later moves remain.
+  // Undo in reverse order to reconstruct the source baseline; this is what makes reverting an earlier move correct when later moves remain.
   for (const id of [...state.appliedOrder].reverse()) {
     const local = state.applied.get(id);
     if (local && local.status !== "overridden") restoreApplied(local);
@@ -513,8 +486,7 @@ function rebuildForSnapshot(
     applyChangeToDocument(doc, state, change);
   }
 
-  // Moves need to verify the final placement, after all later canonical
-  // operations have replayed, rather than the transient first insertion.
+  // Verify the final placement after all later canonical operations replayed, not the transient first insertion.
   for (const local of state.applied.values()) {
     if (local.kind === "move" && local.status === "applied") {
       local.expectedParent = local.element.parentElement ?? local.expectedParent;
@@ -619,11 +591,7 @@ function validateAppliedPreview(doc: Document, state: DocumentProjectionState): 
   storeReports(doc, reportsForSnapshot(state, state.snapshot));
 }
 
-/**
- * Apply one full controller snapshot to one document. Physical nodes and
- * placeholders stay in the document state only; history stays serializable in
- * the controller. A same snapshot never reapplies an overridden preview.
- */
+/** Physical nodes stay document-local; an unchanged snapshot never reapplies an overridden preview. */
 export function applyStructuralProjection(
   doc: Document,
   snapshot: readonly StructuralChange[],
@@ -636,7 +604,7 @@ export function applyStructuralProjection(
   return reports;
 }
 
-/** Compatibility entry point for the delete-only 0050 callers. */
+/** Compatibility entry point for delete-only callers. */
 export function applyStructuralDeleteProjection(
   doc: Document,
   snapshot: readonly StructuralDelete[],
@@ -648,10 +616,7 @@ export function getStructuralProjectionReports(doc: Document): readonly Structur
   return reportsByDocument.get(doc) ?? [];
 }
 
-/**
- * Frames may report only their document-local outcome. The controller owns
- * these reports and filters them against its current canonical change set.
- */
+/** Frames report document-local outcomes; the controller filters them against its canonical change set. */
 export function recordCanvasStructuralProjectionReports(
   cardId: string,
   revision: number,
@@ -676,7 +641,6 @@ export function clearCanvasStructuralProjectionReports(cardId: string): void {
   notifyDiagnostics();
 }
 
-/** Removes document-local reports for canonical intents that no longer exist. */
 export function pruneStructuralProjectionReports(changeIds: ReadonlySet<string>): void {
   if (changeIds.size === 0) return;
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
@@ -688,7 +652,6 @@ export function pruneStructuralProjectionReports(changeIds: ReadonlySet<string>)
   notifyDiagnostics();
 }
 
-/** Clears reports before restoring or clearing an atomic workspace snapshot. */
 export function clearStructuralProjectionReports(): void {
   reportsByCanvasCard.clear();
   reportsByDocument = new WeakMap();
@@ -725,13 +688,7 @@ export function resetStructuralDeleteProjection(): void {
   notifyDiagnostics();
 }
 
-/**
- * Releases one document's structural projection without touching canonical
- * workspace intent. Applied deletes/moves owned by this document are restored
- * and the document observer is disconnected; the controller snapshot stays
- * intact so a later remount can re-project from canonical state. Register as
- * a document-session cleanup alongside disposeBrowserCssInspection.
- */
+/** Restores this document's previews and disconnects its observer; canonical intent stays intact for a later remount. */
 export function releaseDocumentProjection(doc: Document): void {
   const state = documentStates.get(doc);
   if (!state) {

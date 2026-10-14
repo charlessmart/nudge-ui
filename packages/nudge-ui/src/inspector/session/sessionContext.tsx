@@ -17,7 +17,6 @@ export interface InspectorSessionProviderProps {
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-/** Delivers the active inspector and document handles to editor descendants. */
 export function InspectorSessionProvider({
   inspector,
   documentSession = null,
@@ -35,7 +34,6 @@ export function InspectorSessionProvider({
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
-/** Returns all active session handles, or throws when no provider is mounted. */
 export function useSessionContext(): SessionContextValue {
   const value = useContext(SessionContext);
   if (!value) {
@@ -44,12 +42,10 @@ export function useSessionContext(): SessionContextValue {
   return value;
 }
 
-/** Returns the active mounted-inspector handle. */
 export function useInspectorSession(): InspectorSession {
   return useSessionContext().inspector;
 }
 
-/** Returns the active inspected-document handle, when one is mounted. */
 export function useDocumentSession(): DocumentSession | null {
   return useSessionContext().document;
 }

@@ -59,8 +59,7 @@ describe("runtime identity claims", () => {
     const second = (doc: Document) => doc.querySelectorAll<HTMLElement>("p")[1]!;
     const claims = claimsAfterReload(second, "nudge-ui-runtime-1");
     dispose = installLazyRuntimeIdentity();
-    // Hovering the heading tags it, its ancestors, and its siblings, including
-    // the saved edit's paragraph, before the saved edits arrive.
+    // Hovering tags the heading, its ancestors, and its siblings before the saved edits arrive.
     document.querySelector("h1")!.dispatchEvent(new Event("pointerover", { bubbles: true }));
     expect(document.querySelector('[data-cid="nudge-ui-runtime-1"]')).toBeNull();
 

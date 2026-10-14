@@ -31,7 +31,7 @@ import { ERASER_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
 import { useTemporaryAppInteraction } from "../canvas/viewStore.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
 
-/** Eraser reach around the pointer in screen pixels, matching the cursor ring. */
+/** Screen-pixel eraser reach; must match the cursor ring. */
 const ERASER_RADIUS_PX = 8;
 
 function sketchCursor(tool: SketchDrawingTool): string {
@@ -165,9 +165,8 @@ export function SketchOverlay({ open, hostElement, selectTarget, onCancel, onDon
     if (open) svgRef.current?.focus();
   }, [open]);
 
-  // Listen on the window rather than the dialog: the drawing options live in
-  // the canvas toolbar, so focus is often outside the dialog while sketching.
-  // Text fields keep their native undo.
+  // Window-level so shortcuts work while focus is in the canvas toolbar; text
+  // fields keep their native undo.
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent): void {
@@ -211,8 +210,8 @@ export function SketchOverlay({ open, hostElement, selectTarget, onCancel, onDon
       || event.clientY < drawingViewport.offsetY || event.clientY > drawingViewport.offsetY + drawingViewport.displayHeight) return;
     const point = pointFromEvent(event, drawingViewport);
 
-    // Drawing cancels the browser's focus change, so move focus here
-    // explicitly; otherwise undo keeps going to the note or a toolbar button.
+    // Drawing cancels the browser's focus change, so move focus here or undo
+    // goes to the note or toolbar.
     event.preventDefault();
     svgRef.current?.focus({ preventScroll: true });
     pointerId.current = event.pointerId;

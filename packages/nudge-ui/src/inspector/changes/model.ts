@@ -7,11 +7,6 @@ import {
   type ChangeRecord,
 } from "./types.ts";
 
-/**
- * The CSS value a token swap writes into the managed stylesheet and the
- * prompt must describe: an adapter-provided literal when present, otherwise a
- * var() reference on the authored cssName (falling back to the entry name).
- */
 export function tokenReference(token: TokenEntry): string {
   return token.cssValue ?? `var(${token.cssName ?? token.name})`;
 }
@@ -36,9 +31,7 @@ export function changeKey(change: ChangeRecord): string {
     ].join("\u0000");
   }
   if (isTextContentChange(change)) {
-    // The marker id is document-local projection identity. `beforeText` is
-    // part of the durable evidence: two outputs at one source site may have
-    // different initial copy and must remain distinct canonical intents.
+    // Two outputs at one source site may have different initial copy, so beforeText keeps them distinct.
     return [
       "text-content",
       change.target.sourceSite.cid,

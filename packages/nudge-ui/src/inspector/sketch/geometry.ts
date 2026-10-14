@@ -59,7 +59,6 @@ function pointBounds(points: readonly SketchPoint[]): {
   return { minX, maxX, minY, maxY };
 }
 
-/** Returns the topmost drawable object under a point in canvas coordinates. */
 export function findSketchElementAt(
   point: SketchPoint,
   strokes: readonly SketchStroke[],
@@ -130,11 +129,7 @@ export function translateSketchAnnotation(
   };
 }
 
-/**
- * Returns the ids of strokes whose drawn line passes within `radius` of the
- * eraser path from `start` to `end`. Rectangles are hit on their outline only,
- * so erasing across the inside of a box leaves it in place.
- */
+/** Rectangles are hit on their outline only, so erasing inside a box leaves it in place. */
 export function findErasedSketchStrokeIds(
   start: SketchPoint,
   end: SketchPoint,

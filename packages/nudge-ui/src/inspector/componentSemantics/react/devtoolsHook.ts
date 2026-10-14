@@ -1,17 +1,11 @@
 import type { Fiber, FiberProps } from "./fibers.ts";
 
-/**
- * React development builds hand this toolkit to `__REACT_DEVTOOLS_GLOBAL_HOOK__`
- * when the renderer loads. It is the private seam React DevTools edits props
- * through; React 16 through 19 ship it, so it is read defensively and its
- * absence only removes live preview.
- */
+/** The private seam React DevTools edits props through; read defensively because it is not public API. */
 export interface ReactRendererInternals {
   /** An empty path replaces the whole props object, which is the only form used here. */
   overrideProps?: (fiber: Fiber, path: [], value: FiberProps) => void;
 }
 
-/** React passes the scheduler priority and an error flag after the root. */
 type CommitDetails = Array<number | boolean | undefined>;
 
 interface ReactDevtoolsHook {
@@ -46,10 +40,9 @@ function hook(): ReactDevtoolsHook | null {
 }
 
 /**
- * The renderer that owns a root, when it can edit props. A fiber must only be
- * edited by its own renderer, so a known owner without the toolkit (a
- * production build) answers null rather than borrowing another copy's. An
- * unknown owner is resolved only when exactly one capable renderer exists.
+ * A fiber must only be edited by its own renderer: a known owner without the toolkit
+ * (a production build) answers null rather than borrowing another copy's; an unknown
+ * owner resolves only when exactly one capable renderer exists.
  */
 export function propEditingRenderer(root?: FiberRoot): ReactRendererInternals | null {
   const renderers = hook()?.renderers;
@@ -63,10 +56,7 @@ export function propEditingRenderer(root?: FiberRoot): ReactRendererInternals | 
   return capable.length === 1 ? capable[0]! : null;
 }
 
-/**
- * Observes commits through the hook once per realm. Roots are recorded so
- * the runtime can walk mounted trees without a DOM query.
- */
+/** Observes commits through the hook once per realm; roots are recorded so the runtime can walk mounted trees without a DOM query. */
 function commitObserver(): CommitObserver | null {
   const target = hook();
   if (!target) return null;

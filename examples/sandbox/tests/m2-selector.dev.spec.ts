@@ -117,11 +117,7 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
     });
   }
 
-  /*
-   * A selection should walk each sheet once, not rewalk all sheets for each
-   * editor field. The inspector may add a runtime stylesheet after selection,
-   * so allow a small buffer beyond the pre-selection stylesheet count.
-   */
+  // One sheet walk per selection; the buffer allows for a runtime stylesheet added after selection.
   expect(reads).toBeLessThanOrEqual(stylesheetCount + 3);
 });
 

@@ -6,9 +6,7 @@ import { ExamplesHubPage } from "./ExamplesHubPage";
 import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
 import "./styles.css";
 
-// Keep the generated spacing corpus behind a dev-only dynamic import. The
-// fixture markup contains inspector identity attributes by design, so this
-// route must not become part of the production runtime or bundle.
+// Dev-only dynamic import: the fixture markup carries inspector identity attributes by design and must stay out of the production bundle.
 const DevSpacingConformancePage = import.meta.env.DEV
   ? lazy(() => import("./SpacingConformancePage").then(({ SpacingConformancePage }) => ({ default: SpacingConformancePage })))
   : null;
@@ -30,10 +28,7 @@ const DevPerfFixturePage = import.meta.env.DEV
 const DevComponentPropsPage = import.meta.env.DEV
   ? lazy(() => import("./ComponentPropsPage").then(({ ComponentPropsPage }) => ({ default: ComponentPropsPage })))
   : null;
-// Dev-only fixture surface: the previous landing-page demo corpus (repeated
-// items, flex lab, conformance links, token table) that the Playwright suite
-// drives the inspector against. The public landing route renders the
-// Penpot "Landing V6 — Mono" design instead.
+// Dev-only fixture surface the Playwright suite drives the inspector against.
 const DevPlaygroundPage = import.meta.env.DEV
   ? lazy(() => import("./playground/PlaygroundPage").then(({ PlaygroundPage }) => ({ default: PlaygroundPage })))
   : null;

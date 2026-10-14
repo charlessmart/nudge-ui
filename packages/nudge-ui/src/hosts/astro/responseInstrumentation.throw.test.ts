@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { instrumentAstroResponse } from "./responseInstrumentation.ts";
 
-// The catch branch exists so identity extraction can never break a dev page
-// load. Driving it injects a failing identity transform for this file only,
-// which keeps the main suite's happy-path coverage unpolluted.
+// The catch guards dev page loads; injecting the failure here keeps the happy-path suite clean.
 function throwingInstrumenter(): never {
   throw new Error("synthetic identity failure");
 }

@@ -252,9 +252,7 @@ test("dev: an application snap-back reports a cross-container preview override w
   await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
 
   await (await getAppFrame(page)).evaluate(() => {
-    // Simulate the authored React tree winning reconciliation. The real
-    // framework owns this parent relationship; the inspector must report the
-    // conflict and leave the application-owned placement alone.
+    // Simulate the authored React tree winning reconciliation; the inspector must report the conflict, not reapply.
     window.__nudgeUiRerender?.();
     const source = document.querySelector('[data-test="structural-source"]');
     const target = document.querySelector('[data-test="structural-move-target"]');
@@ -372,8 +370,7 @@ test("dev: duplicate structural evidence refuses an ambiguous delete", async ({ 
   const target = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await target.click();
 
-  // Keep the selected element, but add an indistinguishable rendered sibling
-  // before creating intent. The structural resolver must decline to guess.
+  // An indistinguishable rendered sibling must make the structural resolver decline to guess.
   await (await getAppFrame(page)).evaluate(() => {
     const original = Array.from(document.querySelectorAll<HTMLElement>(".repeated-item"))
       .find((element) => element.textContent?.trim() === "Repeated 3");

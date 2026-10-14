@@ -68,7 +68,6 @@ function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
   return previewDocument ? configuredEndpointInDocument(previewDocument) : undefined;
 }
 
-/** Returns whether the dev host supplied a trusted project bridge endpoint. */
 export function shouldAutoConnectAgentBridge(): boolean {
   return configuredEndpoint()?.autoConnect === true;
 }
@@ -91,8 +90,7 @@ function safeUrl(value: string, origin: string): URL | null {
   try {
     const url = new URL(value, origin);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    // A same-origin reverse proxy is valid; a separately hosted bridge must
-    // remain loopback-only to match ADR-0013.
+    // A separately hosted bridge must remain loopback-only; a same-origin reverse proxy is valid.
     if (url.origin !== origin && !isLoopback(url.hostname)) return null;
     return url;
   } catch {
@@ -168,13 +166,6 @@ function eventData(event: MessageEvent<unknown>): unknown {
   }
 }
 
-/**
- * HTTP/SSE browser adapter for the companion's canonical endpoints.
- *
- * The adapter is inert when no endpoint is configured. A host can publish an
- * endpoint with `window.__NUDGE_UI_AGENT_BRIDGE__` or the meta tag named
- * `nudge-ui-agent-bridge`; tests can inject a transport directly instead.
- */
 export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   private readonly config: AgentBridgeEndpointConfig;
 

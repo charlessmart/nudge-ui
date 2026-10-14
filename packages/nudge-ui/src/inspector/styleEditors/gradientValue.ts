@@ -29,7 +29,7 @@ function angleDegrees(value: string): number | null {
   }
 }
 
-/** Parse editable computed gradients. Leave unsupported syntax in the CSS field. */
+/** Null for gradients the editor cannot represent; callers keep the raw CSS. */
 export function parseGradient(value: string): GradientValue | null {
   if (splitTopLevel(value, ",").length !== 1) return null;
   const match = /^(repeating-)?(linear|radial|conic)-gradient\((.*)\)$/s.exec(value.trim());
@@ -46,7 +46,7 @@ export function parseGradient(value: string): GradientValue | null {
       const direction = /^(to\s+(?:(?:left|right|top|bottom)(?:\s+|$)){1,2})/.exec(prelude)?.[0]?.trim();
       if (direction) {
         const directions: Record<string, number> = { top: 0, "top right": 45, "right top": 45, right: 90, "bottom right": 135, "right bottom": 135, bottom: 180, "bottom left": 225, "left bottom": 225, left: 270, "top left": 315, "left top": 315 };
-        // Corner directions depend on the element's aspect ratio. Keep them as CSS.
+        // Corner directions depend on the element's aspect ratio; keep them as CSS.
         if (direction.slice(3).includes(" ")) return null;
         angle = directions[direction.slice(3)] ?? 180;
         prelude = prelude.slice(direction.length).trim();

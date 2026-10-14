@@ -196,8 +196,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
     getStructuralChanges,
     getStructuralChanges,
   );
-  // Diagnostics arrive independently from structural state when a renderer
-  // resolves a snapshot or its document observer detects a reconciliation.
+  // Diagnostics update independently of structural state, so they need their own subscriptions.
   useSyncExternalStore(
     subscribeStructuralDiagnostics,
     getStructuralDiagnosticRevision,

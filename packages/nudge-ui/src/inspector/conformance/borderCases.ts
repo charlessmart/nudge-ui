@@ -35,11 +35,6 @@ function structuredProps(
   );
 }
 
-/**
- * Framework-neutral border corpus. Covers shorthand decomposition into width,
- * style, and color longhands (including omitted CSS initials), side-specific
- * shorthands, token attribution, border-radius, and true raw fallbacks.
- */
 export const BORDER_CASES: ConformanceFixture[] = [
   {
     id: "border-shorthand-literal",

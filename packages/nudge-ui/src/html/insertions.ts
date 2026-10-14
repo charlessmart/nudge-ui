@@ -1,6 +1,5 @@
 import type { StartTagLocation } from "./dom.ts";
 
-/** Attribute text to splice into the original source at one byte offset. */
 export interface Insertion {
   readonly offset: number;
   readonly text: string;
@@ -23,7 +22,7 @@ export function insertionOffsetFor(source: string, startTag: StartTagLocation): 
   return source[endOffset - 2] === "/" ? endOffset - 2 : endOffset - 1;
 }
 
-/** Splices insertions into the source, leaving every other byte untouched. */
+/** Leaves every other byte untouched. */
 export function applyInsertions(source: string, insertions: readonly Insertion[]): string {
   const byOffset = new Map<number, string[]>();
   for (const insertion of insertions) {
@@ -42,12 +41,7 @@ export function applyInsertions(source: string, insertions: readonly Insertion[]
   return result + source.slice(cursor);
 }
 
-/**
- * One-based positions computed from the original source, not from parse5,
- * which normalizes `\r\n` and lone `\r` to `\n` and would drift from the bytes
- * these operations preserve. Columns count UTF-16 code units, so a tab is one
- * column, matching grep-style tooling rather than editor tab stops.
- */
+/** One-based; computed from the original source because parse5 normalizes line endings. Columns count UTF-16 code units. */
 export interface SourcePositionIndex {
   readonly lineStarts: readonly number[];
 }

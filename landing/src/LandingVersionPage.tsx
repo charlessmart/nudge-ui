@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 
-/**
- * Historical hero snapshots used by the public canvas demo.
- *
- * Version 1 is based on 396fb8a, the first landing package commit. Version 2
- * is the centered hero from 8a9d44d.
- */
+/** Historical hero snapshots shown in the public Canvas demo. */
 export type LandingVersion = "1" | "2";
 
 function InstallCommand({ children }: { children: ReactNode }): ReactNode {

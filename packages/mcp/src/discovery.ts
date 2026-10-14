@@ -59,7 +59,7 @@ export async function discoverProjectSessions(
   }).sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 }
 
-/** Routes MCP tools to one selected live project, following it across bridge restarts. */
+/** Follows one selected live project across bridge restarts. */
 export class DiscoveredProjectRouter {
   readonly workspaceRoot: string;
   readonly applicationRoot: string;

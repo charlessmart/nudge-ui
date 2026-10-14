@@ -56,7 +56,6 @@ test.describe("Canvas durable session", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Make an element edit in Inspect mode
     await expandSpacing(page);
     await setInput(page, "padding-top", "32px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
@@ -65,15 +64,12 @@ test.describe("Canvas durable session", () => {
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
     await expect(page.locator('[data-test="changes-log"]')).toBeVisible();
 
-    // Reload the page
     await page.reload();
     await waitForInspector(page);
 
-    // The restore-count message should stay hidden, while the clear action remains available below Changes
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
     await expect(page.locator('[data-test="session-actions"]')).toHaveClass(/changes__session-action/);
 
-    // The edit should still be present
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
   });
 
@@ -101,18 +97,14 @@ test.describe("Canvas durable session", () => {
     await waitForCanvasTransition(page);
     await waitForInspector(page);
 
-    // Enter Canvas mode
       await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-    // Card should exist
     const board = page.locator('[data-test="canvas-board"]');
     await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-    // Reload
     await page.reload();
     await waitForInspector(page);
 
-    // Should return to Canvas mode with the card
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
     await expect(board.locator(".canvas-card")).toHaveCount(1);
   });
@@ -125,7 +117,6 @@ test.describe("Canvas durable session", () => {
 
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-    // Reload
     await page.reload();
     await waitForInspector(page);
 
@@ -139,18 +130,15 @@ test.describe("Canvas durable session", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Make edits
     await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
 
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-    // Click "Clear Session" from the session actions
     await page.reload();
     await waitForInspector(page);
 
-    // Restored sessions should have the clear button
     const clearBtn = page.locator('[data-test="clear-session"]');
     const clearVisible = await clearBtn.isVisible().catch(() => false);
     if (clearVisible) {
@@ -159,10 +147,8 @@ test.describe("Canvas durable session", () => {
       // If no stored session, just verify state is clean
     }
 
-    // After clearing, edits should be gone
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");
 
-    // Clearing recovers a clean primary editing surface.
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
     await expect(page.locator(".canvas-card")).toHaveCount(1);
   });
@@ -173,7 +159,6 @@ test.describe("Canvas durable session", () => {
     await waitForCanvasTransition(page);
     await waitForInspector(page);
 
-    // Open Tokens settings and edit a global token
     await page.locator('[data-test="settings-button"]').click();
     await page.locator('[data-test="settings-nav-tokens"]').click();
     await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
@@ -189,11 +174,9 @@ test.describe("Canvas durable session", () => {
 
     await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
 
-    // Reload
     await page.reload();
     await waitForInspector(page);
 
-    // Token edit should survive
     await page.locator('[data-test="settings-button"]').click();
     await page.locator('[data-test="settings-nav-tokens"]').click();
     await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
@@ -213,8 +196,7 @@ test.describe("Canvas durable session", () => {
       els.map((el) => getComputedStyle(el).fontSize));
     await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
 
-    // A host refresh restores canonical refs, resolves the third item again,
-    // and derives a new local marker rather than persisting a DOM node id.
+    // A host refresh restores canonical refs, resolves the third item again, and derives a new local marker rather than persisting a DOM node id.
     await page.reload();
     await waitForInspector(page);
     await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
@@ -345,20 +327,16 @@ test.describe("Canvas durable session — restore safety", () => {
     await waitForCanvasTransition(page);
     await waitForInspector(page);
 
-    // Inject malformed session data into localStorage
     await page.evaluate(() => {
-      // Find any existing nudge-ui key and corrupt it
       const keys = Object.keys(localStorage).filter((k) => k.startsWith("nudge-ui:"));
       for (const key of keys) {
         localStorage.setItem(key, "not-valid-json{{");
       }
     });
 
-    // Reload — should not crash
     await page.reload();
     await waitForInspector(page);
 
-    // Inspector should load normally (no restore notice, no corrupted state)
     await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
   });
 });

@@ -38,9 +38,7 @@ export interface InspectorProjection {
 }
 
 const AXIS_SIDES = {
-  // Preserve CSS physical-side order within each axis. This makes a mixed
-  // horizontal value read as right, left and a mixed vertical value as top,
-  // bottom when the compact editor renders both values.
+  // CSS physical-side order per axis, so a mixed pair reads right/left, top/bottom.
   horizontal: ["right", "left"] as const,
   vertical: ["top", "bottom"] as const,
 } satisfies Record<ProjectionAxis, readonly [ProjectionSide, ProjectionSide]>;
@@ -51,10 +49,7 @@ function fieldProjection(
   property: string,
 ): InspectorFieldProjection {
   const row = rows.find((candidate) => candidate.property === property) ?? null;
-  // The selected element is the rendering authority. Resolved rows can be
-  // one render behind while the debounced inspector refreshes, so use the
-  // live computed side value for grouping when available and retain the row
-  // for authored/token/source provenance.
+  // Resolved rows can be one render behind; the live value is the grouping authority, the row only supplies provenance.
   const liveValue = getStateStyleValue(el, property);
   const rowValue = row?.computed || row?.resolvedValue;
   const rowIsCurrent = !liveValue || !row || Boolean(row.sourceProperty) || !rowValue || rowValue === liveValue;
@@ -71,10 +66,7 @@ function fieldProjection(
 }
 
 function fieldSignature(field: InspectorFieldProjection): string {
-  // Source property is provenance, not visible value identity. Two physical
-  // longhands with the same authored/token value may still use the compact
-  // axis control; the individual source properties remain attached to their
-  // fields for prompt generation and edit metadata.
+  // Source property is provenance, not value identity, so it stays out of the signature.
   return [field.authoredValue, field.tokenName ?? "", field.value].join("|");
 }
 
@@ -114,13 +106,6 @@ function spacingProjection(
   };
 }
 
-/**
- * Projects resolved physical side facts into the compact spacing UI shape.
- * Authored value, token identity, computed value, and source property all
- * participate in shared/mixed detection so visually equal values cannot
- * accidentally discard authored CSS intent. Source properties remain on each
- * field as provenance but do not by themselves force expansion.
- */
 export function projectInspectorValues(
   el: HTMLElement,
   rows: ResolvedProperty[],
@@ -187,7 +172,6 @@ function selectionSpacing(
   };
 }
 
-/** Projects computed group values into the existing spacing editor model. */
 export function projectInspectorValuesForSelection(selection: StyleSelection): InspectorProjection {
   if (selection.elements.length === 1) {
     return projectInspectorValues(selection.primary.domElement, [...selection.primaryRows]);

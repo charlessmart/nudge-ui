@@ -38,7 +38,6 @@ export interface AgentInstallOutcome {
   readonly backups?: readonly string[];
 }
 
-/** Plans the project bridge dependency and an independent, versioned adapter installation. */
 export function planAgentSetup(
   projectRoot: string,
   packageManager: PackageManager,
@@ -68,17 +67,14 @@ export function planAgentSetup(
   };
 }
 
-/** Checks that a node_modules based install produced the configured executable. */
 export function isAgentServerAvailable(plan: AgentSetupPlan): boolean {
   return existsSync(plan.serverEntry);
 }
 
-/** Returns agents that support a reusable stdio MCP configuration. */
 export function projectAgentTypes(): AgentType[] {
   return getAgentTypes().filter((agent) => agents[agent].supportedTransports.includes("stdio"));
 }
 
-/** Detects installed or already configured agents. */
 export async function detectProjectAgentCandidates(projectRoot: string): Promise<AgentType[]> {
   const supported = new Set(projectAgentTypes());
   const detected = [

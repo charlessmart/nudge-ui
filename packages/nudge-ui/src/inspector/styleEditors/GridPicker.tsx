@@ -61,7 +61,7 @@ function splitTrackList(value: string): string[] {
   return parts;
 }
 
-/** Returns a definite track count, or null when CSS itself determines it. */
+/** Null when the browser determines the track count (auto-fill/auto-fit, none, subgrid). */
 export function countGridTracks(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed || /^(?:none|subgrid)$/i.test(trimmed)) return null;
@@ -129,9 +129,7 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
       const picker = pickerRef.current;
       if (!picker) return;
       const target = event.target;
-      // Document listeners see a shadow-root event through its host as the
-      // retargeted `event.target`. Use the composed path so pointer-downs on
-      // the grid cells are not mistaken for outside clicks.
+      // Shadow-root events are retargeted to the host for document listeners, so use the composed path.
       if (event.composedPath().includes(picker)) return;
       if (target instanceof Node && picker.contains(target)) return;
       setOpen(false);

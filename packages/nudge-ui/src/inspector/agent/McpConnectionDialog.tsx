@@ -307,12 +307,7 @@ export function McpConnectionContent({
   );
 }
 
-/**
- * Explains and controls the project-scoped MCP companion connection.
- *
- * This compatibility wrapper keeps the existing standalone MCP surface while
- * the shared content is also embedded in the general settings modal.
- */
+/** Compatibility wrapper: the shared content is also embedded in the general settings modal. */
 export function McpConnectionDialog({
   open,
   projectId,

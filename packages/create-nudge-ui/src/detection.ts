@@ -6,7 +6,6 @@ const nextConfigNames = ["next.config.ts", "next.config.mts", "next.config.mjs",
 const astroConfigNames = ["astro.config.ts", "astro.config.mts", "astro.config.mjs", "astro.config.js"];
 const viteConfigNames = ["vite.config.ts", "vite.config.mts", "vite.config.mjs", "vite.config.js"];
 
-/** Reads only the package metadata needed for framework and package-manager detection. */
 export function readProjectManifest(projectRoot: string): ProjectManifest {
   const manifestPath = join(projectRoot, "package.json");
   if (!existsSync(manifestPath)) {
@@ -63,7 +62,6 @@ export function detectFrameworks(projectRoot: string, manifest = readProjectMani
   return [];
 }
 
-/** Detects the project's package manager, preferring its declared package manager. */
 export function detectPackageManager(projectRoot: string, manifest = readProjectManifest(projectRoot)): PackageManager {
   const declared = manifest.packageManager?.split("@")[0];
   if (declared === "pnpm" || declared === "npm" || declared === "yarn" || declared === "bun") return declared;
@@ -80,7 +78,6 @@ export function detectPackageManager(projectRoot: string, manifest = readProject
   return "npm";
 }
 
-/** Finds an HTML document root without recursively scanning dependency or build output. */
 export function detectStaticRoot(projectRoot: string): string | undefined {
   const entries = readDirectory(projectRoot);
   if (entries.some((entry) => entry.isFile() && entry.name.endsWith(".html"))) return projectRoot;

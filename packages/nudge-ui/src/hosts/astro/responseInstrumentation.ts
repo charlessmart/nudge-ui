@@ -2,58 +2,26 @@ import { instrumentRenderedHtml, type HtmlIdentityDiagnostic } from "../../html/
 
 const HTML_MEDIA_TYPE_PATTERN = /^text\/html$/i;
 
-/**
- * Measures `Content-Length` in bytes without assuming a Node global; the
- * middleware itself may run on any runtime that serves Astro's dev server.
- */
+// Measures Content-Length in bytes without assuming a Node global; the middleware may run on any runtime.
 const HTML_BYTE_LENGTH_ENCODER = new TextEncoder();
 
-/**
- * Classifies a response Content-Type header. Only `text/html` responses
- * (with optional parameters such as charset) are eligible for identity
- * instrumentation; everything else must pass through untouched.
- */
+/** Only `text/html` (with optional parameters such as charset) is eligible; everything else passes through untouched. */
 export function isHtmlContentType(contentType: string | undefined): boolean {
   if (contentType === undefined) return false;
   const mediaType = contentType.split(";", 1)[0]?.trim() ?? "";
   return HTML_MEDIA_TYPE_PATTERN.test(mediaType);
 }
 
-/** The instrumented response plus the identity diagnostics it produced. */
 export interface InstrumentedAstroResponse {
-  /** A response safe to hand back to Astro. */
   readonly response: Response;
-  /** Identity diagnostics in source order; empty for untouched responses. */
+  /** Empty for untouched responses. */
   readonly diagnostics: readonly HtmlIdentityDiagnostic[];
 }
 
-/**
- * The identity transform applied to an eligible HTML body. Injectable so the
- * failure-tolerance suite can drive the catch branch through a real seam
- * instead of replacing the identity module wholesale.
- */
+/** Injectable so failure handling can be driven through a real seam rather than by replacing the identity module. */
 export type AstroHtmlInstrumenter = typeof instrumentRenderedHtml;
 
-/**
- * Instruments one rendered dev response at the Astro middleware seam
- * (ADR-0011).
- *
- * HTML bodies are materialized once, transformed through the identity Module,
- * and re-emitted as a new `Response` whose headers carry a corrected
- * `Content-Length`; every other response is returned by reference with its
- * stream untouched. If the body read or instrumentation throws, the original
- * response forwards so identity extraction can never break a dev page load —
- * a failed read returns the original response by reference (its stream is the
- * only remaining representation), while a failed transform returns a fresh
- * `Response` over the already-materialized body. Diagnostics always
- * accompany the result so callers can surface degraded identity.
- *
- * @param response The response produced downstream (the rendered page).
- * @param projectRoot Project root used to relativize annotation paths.
- * @param instrument Identity transform to apply; defaults to the real
- *   `instrumentRenderedHtml`. Tests inject a failing implementation to exercise
- *   the catch branch.
- */
+/** HTML bodies are materialized once to re-emit with a corrected Content-Length; every other response is returned by reference, stream untouched. */
 export async function instrumentAstroResponse(
   response: Response,
   projectRoot: string | undefined,
@@ -67,9 +35,7 @@ export async function instrumentAstroResponse(
   try {
     source = await response.text();
   } catch {
-    // The body read itself failed; the original response is the only
-    // remaining representation of the body, so forward it by reference
-    // instead of rejecting into the middleware chain.
+    // Forward the original response by reference: its stream is the only remaining body.
     return { response, diagnostics: [] };
   }
   try {
@@ -88,8 +54,7 @@ export async function instrumentAstroResponse(
       diagnostics: result.diagnostics,
     };
   } catch {
-    // Identity extraction must never break a dev page load; forward the
-    // untouched body instead.
+    // Identity extraction must never break a dev page load; forward the untouched body.
     return {
       response: new Response(source, {
         status: response.status,

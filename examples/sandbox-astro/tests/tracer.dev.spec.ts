@@ -1,13 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Frame, Page } from "@playwright/test";
 
-/**
- * Tracer-bullet conformance for the Astro host Adapter (ADR-0011, Stage 3).
- * The full portfolio suite (selection edits, prompt copy, island prop
- * changes, build purity in CI) lands with Stage 6; scripts/smoke.mjs carries
- * the same checks as a standalone script.
- */
-
 async function inspectorReady(page: Page): Promise<Frame> {
   await page.goto("/");
   await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
@@ -39,8 +32,7 @@ test("dev: inspector mounts and rendered pages carry honest Astro identity", asy
   });
 
   expect(identity.cid).toMatch(/^astro:/);
-  // Source coordinates are optional in Astro's compiler contract. When they
-  // are absent, the adapter must not invent a file location.
+  // Source coordinates are optional in Astro's compiler contract; without them the adapter must not invent a location.
   expect(identity.src === null || /\.astro:\d+:\d+$/.test(identity.src)).toBe(true);
 });
 
@@ -48,8 +40,7 @@ test("dev: server HTML carries the response identity layer", async ({ request })
   const response = await request.get("/");
   const html = await response.text();
   expect(html).toContain('data-cid="astro:');
-  // Astro may include source annotations, depending on compiler support. The
-  // response layer must preserve them when present and remain valid without.
+  // Astro may omit source annotations depending on compiler support; the response layer preserves them when present.
   const annotationCount = html.match(/data-astro-source-file=/g)?.length ?? 0;
   if (annotationCount > 0) {
     expect(html).toContain("data-astro-source-loc=");

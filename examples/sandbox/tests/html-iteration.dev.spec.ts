@@ -313,11 +313,9 @@ test("a stale iteration handoff keeps pending edits and the agent's file", async
     await expect(heading).toContainText("Pending browser design");
     await expect(page.locator('[data-test="changes-log"]')).toContainText("Pending browser design");
 
-    // The conflicting browser design can be kept as a separate iteration.
     await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
     await expect(cards).toHaveCount(3);
     await expect(cards.nth(2).locator("iframe").contentFrame().locator("h1").first()).toContainText("Pending browser design");
-    // Pan back to the conflicting iteration, then reveal its hover toolbar.
     await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
     });

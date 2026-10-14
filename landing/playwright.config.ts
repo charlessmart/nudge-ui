@@ -1,7 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Defaults to the built public site so tests see exactly what visitors get;
-// NUDGE_UI_LANDING_TARGET=dev runs against the dev server instead.
+// Defaults to the built site; NUDGE_UI_LANDING_TARGET=dev targets the dev server.
 const target = process.env.NUDGE_UI_LANDING_TARGET ?? "prod";
 const port = process.env.NUDGE_UI_LANDING_PORT ?? (target === "prod" ? "4180" : "5180");
 const baseURL = `http://localhost:${port}`;

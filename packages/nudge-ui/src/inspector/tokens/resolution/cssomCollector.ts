@@ -30,12 +30,7 @@ interface DocumentResolutionReference {
 
 const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
-/**
- * Bumped by every invalidation that could change a page-owned stylesheet's
- * walk without replacing its CSSStyleSheet object (media changes, resizes,
- * explicit invalidation). Inspector-owned stylesheet writes leave it alone so
- * page stylesheets keep their walked rules across edits.
- */
+/** Bumped when a page-owned stylesheet's walk could change without replacing its CSSStyleSheet object; inspector-owned writes leave it alone. */
 const pageSheetEpochs = new WeakMap<Document, number>();
 
 function bumpPageSheetEpoch(doc: Document): void {
@@ -56,10 +51,6 @@ function notifyDocumentRevision(doc: Document): void {
   documentRevisionListeners.get(doc)?.forEach((cb) => cb({ ...revisions }));
 }
 
-/**
- * Subscribes to cascade revisions for one document. This is the narrow
- * document-scoped seam used by the browser inspection Module.
- */
 export function subscribeDocumentRevision(
   doc: Document,
   cb: (revisions: Readonly<DocumentRevisions>) => void,
@@ -78,12 +69,7 @@ export function subscribeDocumentRevision(
   };
 }
 
-/**
- * Elements whose attribute changes can affect a cached cascade outcome. The
- * observer only counts attribute mutations against registered elements so
- * unrelated host churn (React commits, hover states, animations) cannot bump
- * the element revision. Registration is idempotent.
- */
+/** Only attribute mutations on registered elements bump the element revision; unrelated host churn is ignored. */
 export function registerResolutionElement(el: Element): void {
   registeredElements.add(el);
 }
@@ -96,7 +82,6 @@ export function registerResolutionLineage(element: HTMLElement): void {
   }
 }
 
-/** Releases the observer, listener, and cached state owned by one document. */
 export function disposeDocumentResolution(doc: Document): void {
   const session = documentResolutionSessions.get(doc);
   if (session) {
@@ -111,14 +96,7 @@ export function disposeDocumentResolution(doc: Document): void {
   }
   documentResolutionReferences.delete(doc);
 
-  // Keep revision counters monotonic per Document. Resetting them to (0,0)
-  // resurrects stale revision-keyed caches in property resolution, token
-  // availability, and rule matching: an entry written at
-  // (0,0) before disposal matches immediately after disposal at (0,0), even
-  // though the CSSOM changed while no observer was attached. Bump instead so
-  // every pre-disposal cache entry misses, then let the next
-  // documentRevisions() observe from the bumped baseline. Only bump when a
-  // session was actually torn down so repeated disposes stay idempotent.
+  // Counters stay monotonic: resetting to (0,0) would resurrect stale revision-keyed caches written before disposal.
   if (session) {
     const record = revisionRecords.get(doc);
     if (record) {
@@ -189,7 +167,6 @@ function isPageStylesheetNode(node: Node | null): boolean {
   return isStylesheetNode(node) && !isManagedStylesheetNode(node);
 }
 
-/** Like changesStylesheet, ignoring the inspector's managed stylesheet. */
 function changesPageStylesheet(record: MutationRecord): boolean {
   if (record.type === "attributes") return isPageStylesheetNode(record.target);
   if (record.type === "characterData") return isPageStylesheetNode(record.target.parentElement);
@@ -198,15 +175,7 @@ function changesPageStylesheet(record: MutationRecord): boolean {
     || Array.from(record.removedNodes).some(isPageStylesheetNode);
 }
 
-/**
- * Records that cannot affect cascade outcomes are skipped: mutations made by
- * the tool's own probes (attribution, container-query, and value), attribute
- * churn on elements outside the resolution registry, and the container-query
- * marker attribute set on registered elements. Managed stylesheet text is
- * intentionally observed because it is a real cascade input.
- */
-// The renderer rewrites these on hover and spacing drags; letting them bump
-// the element revision re-resolves the whole selected cascade per pointer move.
+// The renderer rewrites these on hover and spacing drags; bumping the element revision would re-resolve the cascade per pointer move.
 const RENDERER_INLINE_CURSOR_PROPERTIES = ["cursor", INTERACTION_CURSOR_PROPERTY];
 
 function styleTextWithoutCursor(doc: Document, text: string | null): string {
@@ -224,18 +193,14 @@ function isCursorOnlyStyleChange(target: Element, oldValue: string | null): bool
 function isProbeMutation(record: MutationRecord): boolean {
   if (record.type === "attributes") {
     const target = record.target as Element;
-    // Stylesheet attributes change which rules are present or active even when
-    // the stylesheet element has never been registered as a resolution target.
-    // Handle them before the generic unregistered-element fast path.
+    // Stylesheet attributes change the rules even for unregistered elements, so check them before the registry fast path.
     if (isStylesheetNode(target)) {
       const name = record.attributeName ?? "";
       if (isManagedStylesheetNode(target)) return name !== "data-nudge-ui";
       return name.startsWith("data-nudge-ui");
     }
     const name = record.attributeName ?? "";
-    // Renderer-owned IDs are lookup metadata, not authored cascade inputs.
-    // Ignore them before the registry check so hovering an unregistered canvas
-    // node does not invalidate the selected element's resolution snapshot.
+    // data-renderer-id is lookup metadata, not a cascade input; ignore it before the registry check.
     if (name === "data-renderer-id") return true;
     if (!registeredElements.has(target)) return true;
     return name.startsWith("data-nudge-ui")
@@ -246,8 +211,7 @@ function isProbeMutation(record: MutationRecord): boolean {
     return isProbeNode(record.target) && !isManagedStylesheetNode(record.target.parentElement);
   }
   if (isProbeNode(record.target) && !isManagedStylesheetNode(record.target)) return true;
-  // Removed nodes are already disconnected, so their ancestor chain is gone;
-  // check the record's target subtree and the nodes themselves instead.
+  // Removed nodes are already disconnected, so check their own attributes instead of an ancestor chain.
   const nodes = [...record.addedNodes, ...record.removedNodes];
   if (nodes.some(isManagedStylesheetNode)) return false;
   return nodes.length > 0 && nodes.every((node) =>
@@ -260,10 +224,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
     record = { element: 0, stylesheet: 0 };
     revisionRecords.set(doc, record);
   }
-  // A disposed document keeps its monotonic record (see
-  // disposeDocumentResolution) but loses its observer session. Recreate the
-  // session so later mutations are observed from the bumped baseline instead
-  // of silently freezing the counters.
+  // A disposed document keeps its record but loses its observer; recreate the session so mutations are not silently unobserved.
   if (documentResolutionSessions.get(doc)) return record;
 
   const session: DocumentResolutionSession = {
@@ -274,9 +235,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
   };
   documentResolutionSessions.set(doc, session);
 
-  // MutationObserver is a global constructor of the document realm, but it is
-  // not a property in every TypeScript Window declaration used by consumers.
-  // Keep the cast local so the observer and its callback remain document-local.
+  // Not every TypeScript Window declaration types MutationObserver; the local cast keeps the observer document-local.
   const viewWithObserver = session.view as ((Window & { MutationObserver?: typeof MutationObserver }) | null);
   const Observer = viewWithObserver?.MutationObserver
     ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
@@ -317,7 +276,6 @@ function stylesheetRevision(doc: Document): number {
   return documentRevisions(doc).stylesheet;
 }
 
-/** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
 export function invalidateStyleResolutionCache(doc: Document = document): void {
   const record = documentRevisions(doc);
   record.element++;
@@ -327,10 +285,7 @@ export function invalidateStyleResolutionCache(doc: Document = document): void {
   notifyDocumentRevision(doc);
 }
 
-/**
- * Invalidates CSSOM-derived snapshots after the inspector rewrote only its own
- * stylesheets. Page stylesheets are re-read only if their objects changed.
- */
+/** Inspector-only invalidation; page sheets are re-read only if their objects changed. */
 export function invalidateOwnedStyleResolution(doc: Document = document): void {
   const record = documentRevisions(doc);
   record.element++;
@@ -346,13 +301,7 @@ function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRu
     && "selectorText" in rule && "style" in rule;
 }
 
-/**
- * Reads the declarations the browser accepted for a style rule. This is the
- * semantic source for authored values; it intentionally does not inspect the
- * stylesheet element's original text. CSSOM may expose a shorthand as empty
- * longhand entries through indexed enumeration, so prefer its serialized
- * declaration block and use enumeration as a compatibility fallback.
- */
+/** Prefers the serialized declaration block; enumeration is a fallback because a shorthand can enumerate empty longhands. */
 export function declarationsFromCssom(style: CSSStyleDeclaration): StyleDeclaration[] {
   const declarations = parseCssomDeclarations(style.cssText);
   const seen = new Set(declarations.map((declaration) => declaration.property));
@@ -461,10 +410,7 @@ function contextForRule(
     return params ? { kind: "media", params } : null;
   }
   if (/^\s*@container\b/i.test(cssText)) {
-    // CSSContainerRule's `conditionText` is the whole prelude, name included;
-    // only prepend `containerName` for engines whose `conditionText` omits it.
-    // Fall back to the serialised prelude so named, style, and newer
-    // container queries remain presentable without hand-parsing their grammar.
+    // conditionText includes the container name in some engines and omits it in others; prepend only when missing.
     const containerName = record.containerName?.trim();
     const condition = record.conditionText?.trim() ?? "";
     const hasName = Boolean(containerName) && containerName !== "none";
@@ -483,9 +429,7 @@ function contextForRule(
 
 function isNestedDeclarations(rule: CSSRule, doc: Document): rule is CSSRule & { style: CSSStyleDeclaration } {
   if (isStyleRuleInDocument(rule, doc) || !("style" in rule) || "selectorText" in rule) return false;
-  // Chromium represents declarations nested in a style rule's @supports /
-  // @media block as CSSNestedDeclarations. Its public type is not yet in
-  // lib.dom, so identify its declaration-only CSSOM shape conservatively.
+  // Chromium's CSSNestedDeclarations is not yet in lib.dom; identify its declaration-only shape conservatively.
   return !/^\s*@/.test(rule.cssText ?? "") && typeof (rule as { style?: unknown }).style === "object";
 }
 
@@ -501,13 +445,7 @@ interface SheetWalk {
   events: WalkEvent[];
 }
 
-/**
- * Walks of page-owned stylesheets. Inspector edits rewrite only the inspector's
- * own sheets, so re-reading thousands of page rules after each edit is waste.
- * A sheet's walk is reused while the same object keeps its rule count, the
- * page epoch is unchanged, and every media condition it read still answers
- * the same way.
- */
+/** Page-owned walks survive inspector edits; walkStillValid() defines when one must be re-read. */
 const pageSheetWalks = new WeakMap<CSSStyleSheet, SheetWalk>();
 
 function walkStillValid(walk: SheetWalk, rules: CSSRuleList, epoch: number, view: Window | null): boolean {
@@ -602,10 +540,7 @@ function walkSheet(rules: CSSRuleList, doc: Document): Pick<SheetWalk, "events" 
           const isLayer = /^\s*@layer\b/i.test(cssText);
           if (isMedia && record.conditionText) childActive = active && mediaMatches(record.conditionText);
           else if (isSupports && record.conditionText) childActive = active && (view?.CSS?.supports(record.conditionText) ?? false);
-          // A container query is evaluated relative to the styled element, so
-          // it cannot be answered while walking a document-level stylesheet.
-          // Resolution evaluates its retained context against the selected
-          // element using a harmless browser probe.
+          // A container query depends on the styled element, so the walk only retains it; resolution evaluates it against the selection.
           const context = contextForRule(cssText, record);
           const childLayer = isLayer
             ? nestedLayerName(layer, record.name ?? cssText.slice(6, cssText.indexOf("{")).trim())

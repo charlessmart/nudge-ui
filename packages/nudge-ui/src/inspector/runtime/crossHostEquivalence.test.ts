@@ -8,14 +8,6 @@ import {
 } from "./runtimeConfig.ts";
 import { storageKey } from "../canvas/sessionStore.ts";
 
-/**
- * Cross-host equivalence (ADR-0010 verification strategy): one logical
- * runtime-config fixture configured under each host must produce equivalent
- * inspector behavior. The hosts differ ONLY in transport and identity
- * labels — validation, prompt naming, and storage namespacing are shared
- * Modules and must behave identically.
- */
-
 type Host = NudgeUiRuntimeConfig["host"];
 
 const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro"];
@@ -73,7 +65,6 @@ describe("cross-host runtime equivalence", () => {
       NudgeUiRuntimeConfig,
     ];
 
-    // Everything except host/projectId is byte-identical across hosts.
     const stripIdentity = (s: NudgeUiRuntimeConfig) =>
       JSON.stringify({ ...s, host: null, projectId: null });
     expect(stripIdentity(staticHtml)).toBe(stripIdentity(vite));

@@ -11,7 +11,6 @@ test("dev: clicking a same-origin link navigates the focused card", async ({ pag
   // Select mode passes clicks to the app; Design mode edits the clicked element.
   await page.locator('[data-test="canvas-tool-select"]').click();
 
-  // Click the conformance link inside the iframe
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const conformanceLink = frame.locator('a[href="/conformance"]').first();
   await expect(conformanceLink).toBeVisible({ timeout: 20000 });
@@ -46,11 +45,9 @@ test("dev: same-document hash links do not create new cards", async ({ page }) =
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  // Click a hash link inside the iframe
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const hashLink = frame.locator('a[href="#features"]').first();
   await hashLink.click();
-  // Should still have only 1 card (hash links don't create cards)
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 });
 
@@ -62,15 +59,12 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   await page.locator('[data-test="canvas-show-canvas"]').click();
-  // Click the duplicate button on the first card
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
   await expect(duplicateBtn).toBeAttached();
   await clickFrameAction(page, duplicateBtn);
 
-  // Two cards now
   await expect(board.locator(".canvas-card")).toHaveCount(2);
 
-  // Both cards should have distinct IDs
   const cards = board.locator(".canvas-card");
   const ids = await cards.evaluateAll((els) =>
     els.map((el) => el.getAttribute("data-card-id")),
@@ -85,26 +79,20 @@ test("dev: delete key removes a comparison card and recovers the final editing s
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.locator('[data-test="canvas-show-canvas"]').click();
 
-  // Add a second card first
   await page.evaluate(() => {
     const win = window as unknown as Record<string, unknown>;
-    // We'll use the duplicate mechanism instead
   });
 
-  // Create a duplicate card to have 2 cards
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
   await clickFrameAction(page, duplicateBtn);
 
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(2);
 
-  // Delete the selected card.
   await page.keyboard.press("Delete");
 
-  // One card remains
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  // Select the remaining card, then delete it. The primary route recovers.
   await board.locator('[data-test^="canvas-card-reload-"]').click();
   await page.keyboard.press("Delete");
 
@@ -142,7 +130,6 @@ test("dev: open app escapes the editor to the plain application route", async ({
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.locator('[data-test="canvas-show-canvas"]').click();
 
-  // Open the focused route as a plain application page.
   const popupPromise = page.waitForEvent("popup");
   await page.locator('[data-test^="canvas-card-open-app-"]').first().click();
   const application = await popupPromise;

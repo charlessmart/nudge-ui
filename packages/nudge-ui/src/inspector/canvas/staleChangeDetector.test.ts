@@ -192,8 +192,7 @@ describe("staleChangeDetector", () => {
 
       const updated = getPreviewableChanges();
       const key = changeKey(updated[0]!);
-      // A Canvas-only match is verified, not a host conflict. A document that
-      // does not contain the target says nothing about staleness.
+      // A Canvas-only match is verified, not a host conflict.
       expect(getPreviewDiagnostic(key)).toBeUndefined();
       expect(getPreviewDiagnostic(key, getCanvasPreviewDocument(card.id).logicalDocument)).toBeUndefined();
 

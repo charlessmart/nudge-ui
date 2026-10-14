@@ -19,10 +19,6 @@ function boxProperties(
   return Object.fromEntries(Object.entries(values).map(([property, authored]) => [property, { authored, capability }]));
 }
 
-/**
- * Shared spacing corpus. Unit tests run every case through the fixture runner;
- * browser tests select representative cases where real CSSOM behaviour matters.
- */
 export const SPACING_CASES: ConformanceFixture[] = [
   {
     id: "spacing-physical-four-value",

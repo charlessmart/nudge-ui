@@ -65,9 +65,7 @@ describe("Vite stylesheet artifact adapter", () => {
       root,
       { sourceRoots: [workspaceRoot] },
     )).toBe(false);
-    // The primary root keeps authored directories whose names collide with
-    // generated-output conventions; the declared output root is excluded by
-    // path instead.
+    // The primary root keeps authored directories that collide with generated-output names; the declared output root is excluded by path.
     expect(isHostApplicationSource("/repo/apps/web/src/build/Button.tsx", root)).toBe(true);
     expect(isHostApplicationSource(
       "/repo/apps/web/dist/Button.jsx",

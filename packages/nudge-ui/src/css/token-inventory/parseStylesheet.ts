@@ -1,21 +1,3 @@
-/**
- * Internal ordinary-CSS parsing for the token inventory.
- *
- * This is the canonical home of the parsing previously owned by the plugin's
- * legacy `parseTokens`/`parseTokenCatalog` projections (removed in S2-D).
- * Behavior is preserved exactly for root/host themes, contextual selectors,
- * wrapper capture, duplicate declarations, importance, and source locations;
- * the two differences are:
- *
- * 1. Declarations carry a deterministic `id` and a `source`-anchored local
- *    order so the inventory can aggregate without Vite.
- * 2. Malformed CSS no longer silently yields an empty list — it produces a
- *    structured `stylesheet-parse-failed` diagnostic plus an empty
- *    contribution for that artifact.
- *
- * This module runs at build time only (Node) and is not reachable from the
- * browser-safe subpaths.
- */
 import postcss, {
   type Node as PostcssNode,
   type Declaration,
@@ -31,17 +13,12 @@ import type {
 import { GLOBAL_TOKEN_AT_RULES, MIN_THEME_TABLE_DECLARATIONS } from "./policy.ts";
 import type { InventoryDiagnostic, StylesheetArtifact } from "./types.ts";
 
-/** The parsed contribution of one stylesheet artifact. */
 export interface ParsedContribution {
   readonly definitions: readonly TokenDefinition[];
   readonly diagnostics: readonly InventoryDiagnostic[];
 }
 
-/**
- * Deterministic declaration identity, keyed by (artifact id, cssName, source
- * line, context, local order). The id does not depend on event-batch timing:
- * the same facts always produce the same ids.
- */
+/** Deterministic per declaration: identical facts always produce the same id. */
 function declarationId(
   artifact: StylesheetArtifact,
   cssName: string,
@@ -65,12 +42,7 @@ function isRootOnlySelector(rule: Rule): boolean {
   return parts.length > 0 && parts.every(isRootSelectorPart);
 }
 
-/**
- * Scoped theme-table policy — see `policy.ts` for the named constant and
- * rationale. A sufficiently large rule made entirely of custom properties is a
- * theme table, not a component-local variable declaration; its selector is
- * retained in the catalog and resolved against the selected element later.
- */
+/** A large rule made entirely of custom properties is a theme table; see the policy in `policy.ts`. */
 function isScopedThemeTable(rule: Rule): boolean {
   const declarations = rule.nodes?.filter((node): node is Declaration => node.type === "decl") ?? [];
   return declarations.length >= MIN_THEME_TABLE_DECLARATIONS
@@ -87,9 +59,7 @@ function isAtRule(node: PostcssNode): node is AtRule {
 
 
 function nearestGlobalAncestor(decl: Declaration): boolean {
-  // Walk up; return true ONLY if we encounter a :root rule or a global at-rule
-  // BEFORE encountering any non-:root rule. A non-:root rule (e.g. .button)
-  // inside @layer still means the declaration is local, not a global token.
+  // Global only when a :root rule or global at-rule is reached before any other rule.
   let cur: PostcssNode | undefined = decl.parent;
   while (cur) {
     if (isRule(cur)) {
@@ -116,8 +86,7 @@ function declarationContext(decl: Declaration): TokenContext {
       context.selector = current.selector;
     } else if (isAtRule(current)) {
       if (current.name === "media" || current.name === "supports" || current.name === "scope" || current.name === "layer") {
-        // Parents are visited inner-to-outer; prepend to preserve the source
-        // nesting order and retain repeated/interleaved wrapper kinds.
+        // Parents are visited inner-to-outer, so prepend to keep source nesting order.
         wrappers.unshift({ kind: current.name, params: current.params });
       }
     }
@@ -127,14 +96,7 @@ function declarationContext(decl: Declaration): TokenContext {
   return context;
 }
 
-/**
- * Parse one stylesheet artifact into grouped definitions plus diagnostics.
- *
- * The returned declarations carry `id` (stable per declaration) and the
- * definition list preserves source order. `order` is assigned by the
- * inventory during snapshot assembly because it is a positional fact across
- * artifacts, not a per-artifact one.
- */
+/** `order` is assigned by the inventory because it is positional across artifacts, not per-artifact. */
 export function parseStylesheetArtifact(artifact: StylesheetArtifact): ParsedContribution {
   const content = artifact.content ?? "";
   let root;

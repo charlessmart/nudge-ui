@@ -17,7 +17,6 @@ export interface PromptSettingsFieldsProps {
   instructionsRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
-/** Edits the instructions appended to every generated prompt. */
 export function PromptSettingsFields({
   value,
   onChange,

@@ -6,7 +6,6 @@ export interface InstallCommand {
   readonly args: readonly string[];
 }
 
-/** Returns the native development-dependency command for a package manager. */
 export function installCommand(packageManager: PackageManager, packageName: string): InstallCommand {
   if (packageManager === "pnpm") return { executable: "pnpm", args: ["add", "-D", packageName] };
   if (packageManager === "yarn") return { executable: "yarn", args: ["add", "-D", packageName] };
@@ -14,7 +13,6 @@ export function installCommand(packageManager: PackageManager, packageName: stri
   return { executable: "npm", args: ["install", "--save-dev", packageName] };
 }
 
-/** Runs a package-manager command with the user's terminal attached. */
 export function installPackage(command: InstallCommand, projectRoot: string): void {
   const executable = process.platform === "win32" ? `${command.executable}.cmd` : command.executable;
   const result = spawnSync(executable, command.args, { cwd: projectRoot, stdio: "inherit" });

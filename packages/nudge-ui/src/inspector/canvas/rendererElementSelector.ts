@@ -241,8 +241,7 @@ export function installRendererElementSelector(
     const selector = buildSelector(element);
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
-    // The handle hit is the only target that starts a drag, so it is the only
-    // one that changes the cursor. The area-wide match is purely visual.
+    // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
     const elementSpacing = !commentMode && !clear && pending.point
       ? getElementSpacingAtPoint(document, element, pending.point.x, pending.point.y)
       : null;
@@ -368,8 +367,7 @@ export function installRendererElementSelector(
     spacing: SpacingDescriptor | null;
   } | null = null;
   let dragging = false;
-  // The browser follows a drag's mouseup with a click on the common ancestor
-  // of its start and end targets; that click must not reselect the ancestor.
+  // The browser clicks the common ancestor after a drag; that click must not reselect the ancestor.
   let suppressClickAfterDrag = false;
   let lastDragPoint: { x: number; y: number } | null = null;
   let lastSelected: HTMLElement | null = null;
@@ -482,9 +480,7 @@ export function installRendererElementSelector(
       lastHoverPoint = null;
     }
     const identity = getRendererIdentity();
-    // A spacing drag owns the pointer gesture. Do not start an inline-text
-    // attempt for the same down event; padding and gaps are intentionally not
-    // editable text targets.
+    // A spacing drag owns the gesture; padding and gaps are not editable text targets.
     if (identity && !spacing) {
       const emptyProjectionId = event.target instanceof Element
         ? event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)?.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) ?? undefined
@@ -601,9 +597,7 @@ export function installRendererElementSelector(
     return phase === "keydown";
   }
 
-  // Global tool shortcuts need to run before application capture handlers on
-  // the iframe document. A page-level window handler can otherwise stop the
-  // event before it reaches the document listener.
+  // Must run before application capture handlers on the iframe document, which can stop the event.
   trackListener<KeyboardEvent>(window, "keydown", (event: KeyboardEvent) => {
     if (isEditableEvent(event)) return;
     if (forwardKeyboardShortcut(event, "keydown")) event.preventDefault();
@@ -755,8 +749,7 @@ export function installRendererElementSelector(
       const target = event.target;
       if (!(target instanceof Element)) return;
 
-      // Design-tool clicks are editing gestures and must not reach the
-      // rendered application; the Select tool is how the app receives them.
+      // Design-tool clicks are editing gestures and must not reach the rendered application.
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) {
         blockApplicationClick(event);

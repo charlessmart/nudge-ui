@@ -2,16 +2,13 @@ import type { TokenContextWrapper } from "../../css/model/index.ts";
 
 export type EditScope = "source-site" | "rendered-instance";
 
-/** A JSX instrumentation site. This is stable across documents. */
+/** JSX instrumentation site; stable across documents. */
 export interface SourceSiteRef {
   cid: string;
   src: string;
 }
 
-/**
- * Serializable identity for one rendered output. It deliberately contains no
- * DOM reference or generated node id: each document resolves it independently.
- */
+/** Deliberately free of DOM references and generated node ids; each document resolves it independently. */
 export interface RenderedInstanceRef {
   sourceSite: SourceSiteRef;
   locator: {
@@ -25,15 +22,11 @@ export interface RenderedInstanceRef {
     tagName?: string;
     domPath?: string | null;
     elementId?: string | null;
-    /**
-     * The component invocation whose entire output is this element. Present
-     * only when evidence alone cannot tell identical outputs apart.
-     */
+    /** Present only when evidence alone cannot tell identical outputs apart. */
     invocation?: InvocationRef;
   };
 }
 
-/** A component callsite, as stamped by the compiler, and its component name. */
 export interface InvocationRef {
   callsiteId: string;
   componentName: string;
@@ -84,7 +77,6 @@ export function isRenderedInstanceOverride(value: unknown): value is RenderedIns
     && isRenderedInstanceRef(value.target);
 }
 
-/** Validates the serializable context carried by a token change. */
 export function isStyleRuleContextValue(value: unknown): value is StyleRuleContext {
   if (!isRecord(value) || !hasOnlyKeys(value, ["wrappers"])) return false;
   const wrappers = value.wrappers;
@@ -98,7 +90,6 @@ export function isStyleRuleContextValue(value: unknown): value is StyleRuleConte
   }));
 }
 
-/** A source site shared by text and rendered-instance evidence. */
 export type TextProjectionSourceSite = SourceSiteRef;
 
 export interface TextProjectionTarget {
@@ -117,7 +108,6 @@ export interface TextProjectionTarget {
 
 export type TextProjectionScope = EditScope;
 
-/** Bounded semantic evidence retained alongside an instance text projection. */
 export interface TextBindingEvidence {
   callsiteId: string;
   componentName: string;

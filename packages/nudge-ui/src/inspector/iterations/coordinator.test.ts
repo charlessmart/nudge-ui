@@ -161,8 +161,7 @@ it("queues external refresh behind an in-flight handoff", async () => {
   const handoff = coordinator.prepare("iteration", "artifact", base, async () => "Saved browser design");
   await committing.promise;
 
-  // Refresh must see the settled draft and new preview, rather than skip the
-  // in-flight intent and leave a frame displaying its old editing base.
+  // Refresh must see the settled draft and new preview rather than skip the in-flight intent.
   const refresh = coordinator.refresh("iteration", "artifact", base, () => true);
   finishCommit.release();
   await handoff;

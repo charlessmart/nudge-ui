@@ -19,12 +19,7 @@ export interface ElementMatch {
   specificity: number;
 }
 
-/**
- * The selector set used by a resolution. Interaction states strip or drop
- * pseudo-class rules, `live` keeps the raw CSSOM rules (used by
- * `getResolvedProperties`), and `stable` drops transient rules (used by
- * `getResolvedPropertiesStable`).
- */
+/** Resolution vocabulary: interaction states strip matching pseudo-classes, `stable` drops transient rules, `live` keeps raw CSSOM rules. */
 type CascadeTransform = InteractionState | "live" | "stable";
 
 const TRANSIENT_PSEUDO_CLASSES = new Set([
@@ -38,10 +33,7 @@ const TRANSIENT_PSEUDO_CLASSES = new Set([
 ]);
 const INTERACTION_PSEUDO_CLASSES = new Set<string>(INTERACTION_STATES);
 
-/**
- * Applies a per-branch selector transform to a selector list, so one stateful
- * branch such as `.b:active` cannot drop a plain sibling branch such as `.a`.
- */
+/** Per-branch transform, so a stateful branch such as `.b:active` cannot drop a plain sibling branch. */
 function transformSelectorBranches(
   selector: string,
   transformBranch: (branch: string) => string | null,
@@ -70,9 +62,7 @@ function branchForState(selector: string, state: InteractionState): string | nul
   const states = new Set(pseudoClasses.map(({ name }) => name));
   if (state === "base") return states.size === 0 ? selector : null;
   if (!states.has(state)) return states.size === 0 ? selector : null;
-  // CSSOM cannot ask the browser whether a hypothetical pseudo-class matches.
-  // Removing interaction pseudo-classes gives the authored rule a stable
-  // element match for inspection. The real rule remains untouched.
+  // CSSOM cannot test a hypothetical pseudo-class, so strip it for a stable element match; the real rule is untouched.
   let transformed = selector;
   for (let index = pseudoClasses.length - 1; index >= 0; index--) {
     const pseudoClass = pseudoClasses[index]!;
@@ -82,16 +72,13 @@ function branchForState(selector: string, state: InteractionState): string | nul
 }
 
 function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {
-  // Single-branch selectors reuse the specificity collected from CSSOM; the
-  // matched branch is the whole selector. Multi-branch selectors need the
-  // matched branch's own weight, so recompute per branch.
+  // Multi-branch selectors need the matched branch's own weight; a single branch reuses the CSSOM specificity.
   return rule.selectorText.includes(",") ? computeSpecificity(branch) : rule.specificity;
 }
 
 const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
 
-// Every stylesheet revision produces a new rule snapshot, but nearly all of
-// its selectors are unchanged, so transformed selectors are kept by text.
+// Lists change per revision but selectors rarely do, so transformed selectors are cached by text.
 const TRANSFORMED_SELECTOR_CACHE_MAX = 32_768;
 const transformedSelectorMemo = new Map<CascadeTransform, Map<string, string | null>>();
 
@@ -132,11 +119,7 @@ function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): A
 
 type MatchEntry = { rule: MatchedRule; selectorText: string };
 
-/**
- * Entries keyed by a class their subject requires, the way browsers bucket
- * rules. Utility stylesheets hold thousands of single-class rules, and testing
- * each one against every element in a lineage dominates selection latency.
- */
+/** Entries keyed by a subject-required class, as browsers do, because testing thousands of utility rules dominates latency. */
 interface SubjectClassIndex {
   byClass: Map<string, number[]>;
   /** Entries with a branch whose subject requires no class. */
@@ -190,10 +173,7 @@ function subjectClassIndex(entries: readonly MatchEntry[]): SubjectClassIndex {
   return built;
 }
 
-/**
- * The entries whose selectors can match `el`, in their original order. This
- * only skips branches `canMatchSelectorSubject` would reject anyway.
- */
+/** Entries that can match `el`, in original order; only skips branches `canMatchSelectorSubject` would reject anyway. */
 function candidateEntries(entries: readonly MatchEntry[], el: Element): readonly MatchEntry[] {
   const index = subjectClassIndex(entries);
   if (el.classList.length === 0 || index.byClass.size === 0) return index.unindexedEntries;
@@ -251,27 +231,18 @@ interface SourceSiteMatchCacheEntry {
 let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCacheEntry>>();
 let sourceSiteMatchCacheEntries = 0;
 const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
-// The all-rules sweep shares the active sweep's revision cache for stable
-// selectors. Element-sensitive selectors stay fresh because browser state can
-// change without a mutation observed by the registry.
 const allMatchesMemo = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 
-/** Test-only cache reset. */
 export function resetSourceSiteMatchCache(): void {
   sourceSiteMatchCaches = new WeakMap();
   sourceSiteMatchCacheEntries = 0;
 }
 
-/** Test-only cache size. */
 export function sourceSiteMatchCacheSize(): number {
   return sourceSiteMatchCacheEntries;
 }
 
-/**
- * Captures selector-relevant state without serializing the whole document.
- * Element and ancestor attributes cover the common source-site selectors while
- * child/sibling-sensitive selectors are handled conservatively below.
- */
+/** Selector-relevant element and ancestor attributes, without serializing the whole document. */
 function sourceSiteContextKey(el: HTMLElement): string {
   const lineage: string[] = [];
   let current: HTMLElement | null = el;
@@ -287,12 +258,7 @@ function sourceSiteContextKey(el: HTMLElement): string {
   return lineage.join("\u0001");
 }
 
-/**
- * Source-site identity key for the matched-rule cache. The element's class is
- * part of the key because sibling instances of a source site can carry
- * different classes (for example rows in a large list), which changes which
- * rules match even though their `data-cid`/`data-src` are identical.
- */
+/** `data-cid`/`data-src` are identical across sibling instances, so the class is part of the key. */
 function sourceSiteKey(el: HTMLElement, transform: CascadeTransform): string {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
@@ -312,11 +278,7 @@ export function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule;
   };
 }
 
-/**
- * Captures the current match outcome for selectors whose truth can change
- * without a document revision. This keeps the expensive resolved-row cache
- * usable while invalidating it when states such as `checked` actually change.
- */
+/** Match key for selectors whose truth can change without a document revision. */
 function elementSensitiveMatchKey(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -358,11 +320,7 @@ function sensitiveMatchesForElement(
   return matched;
 }
 
-/**
- * Matches transformed rules against one element. Stable source-site identities
- * reuse revision-keyed matches; unstable identities and relationship-sensitive
- * selectors are matched on each call.
- */
+/** Stable source-site identities reuse revision-keyed matches; unstable identities and relationship-sensitive selectors match per call. */
 function getCachedElementMatches(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -437,19 +395,14 @@ function getCachedElementMatches(
       matched: cachedMatches,
     });
   }
-  // Browser state such as `checked` or `target` can change without a DOM or
-  // stylesheet revision, so element-sensitive matches must stay fresh.
+  // Browser state (:checked, :target) can change without a revision, so element-sensitive matches stay fresh.
   const elementMatches = elementSensitive.length > 0
     ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement).filter((match) => match.rule.active !== false)
     : [];
   return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
 }
 
-/**
- * Matches selectors without applying conditional wrappers. The result retains
- * inactive media alternatives for attribution, while transient selectors and
- * the `live` transform retain their freshness requirements.
- */
+/** Keeps inactive media alternatives for attribution; transient and `live` matches keep their freshness requirements. */
 function getAllElementMatches(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -498,14 +451,10 @@ function getAllElementMatches(
   return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
 }
 
-// Branch splits repeat across sweeps, so memoize them for the finite selector
-// set in a stylesheet snapshot.
+// Branch splits repeat across sweeps over a finite selector set, so memoize them.
 const SELECTOR_SPLIT_CACHE_MAX = 32_768;
 const selectorSplitMemo = new Map<string, string[]>();
 
-// Branch matches are reusable for state-independent selectors. Transient
-// selectors stay uncached because their state is not represented by document
-// revisions.
 const ELEMENT_BRANCH_CACHE_MAX = 16384;
 const elementBranchMemo = new WeakMap<Element, Map<string, {
   elementRevision: number;
@@ -563,17 +512,12 @@ function matchingSelectorBranch(el: Element, selectorText: string): string | nul
   return branch;
 }
 
-/**
- * Shares dynamic matches across cache validation and ancestry within one sweep.
- * Element-relative conditions, such as container queries, remain the resolver's
- * responsibility; these results describe selector matches and stylesheet activity.
- */
+/** Element-relative conditions (container queries) stay the resolver's job; these describe selector matches and stylesheet activity. */
 export interface RuleMatcher {
   dynamicMatchKey(element: HTMLElement): string;
   matchesForElement(element: HTMLElement): { matched: ElementMatch[]; allMatched: ElementMatch[] };
 }
 
-/** Creates a matcher for one CSSOM snapshot. */
 export function createRuleMatcher(rules: MatchedRule[], transform: CascadeTransform): RuleMatcher {
   const sensitiveMatches = new Map<HTMLElement, ElementMatch[]>();
   return {
@@ -585,10 +529,7 @@ export function createRuleMatcher(rules: MatchedRule[], transform: CascadeTransf
   };
 }
 
-/**
- * Interaction states whose pseudo-class appears in the snapshot. Skipping
- * absent states avoids a full match sweep after each stylesheet revision.
- */
+/** States whose pseudo-class appears in the snapshot, so absent states skip a full match sweep. */
 const statesWithPseudoInSnapshot = new WeakMap<MatchedRule[], Set<InteractionState>>();
 
 function statesWithPseudoInSelectors(rules: MatchedRule[]): Set<InteractionState> {
@@ -607,10 +548,7 @@ function statesWithPseudoInSelectors(rules: MatchedRule[]): Set<InteractionState
   return present;
 }
 
-/**
- * Builds the per-snapshot selector transforms, buckets, and class indexes a
- * selection sweep needs, so an idle frame can pay their parsing cost.
- */
+/** Warms transforms, buckets, and class indexes so an idle frame pays their parsing cost. */
 export function prewarmRuleMatching(rules: MatchedRule[]): void {
   const transforms: CascadeTransform[] = ["base", "stable", "live", ...statesWithPseudoInSelectors(rules)];
   for (const transform of new Set(transforms)) {

@@ -1,12 +1,4 @@
-/**
- * Dev-only watcher for the inspector browser client. Rebuilds
- * `dist/client.mjs` whenever inspector source changes, so consumer dev
- * servers (which serve that bundle verbatim) pick up edits without a package
- * build. Generated output stays out of version control.
- *
- * Importing this module has no side effects; call `startClientWatch()` or run
- * the file directly (`node scripts/watch-client.mjs`).
- */
+/** Importing has no side effects; call `startClientWatch()` or run the file directly. */
 import { context } from "esbuild";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

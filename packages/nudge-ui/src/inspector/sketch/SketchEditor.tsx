@@ -349,7 +349,6 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
-      // The pointer may already have been released by the browser.
     }
     if (draftPointLimitReached.current) {
       draftPointLimitReached.current = false;

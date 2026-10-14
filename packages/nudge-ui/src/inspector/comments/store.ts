@@ -111,7 +111,7 @@ export function clearComments(target?: DraftTarget): void {
   publish(getComments().filter((comment) => !cleared.has(comment.id)));
 }
 
-/** Arms only the exact notes successfully copied or accepted by an agent. */
+/** Marks only exact id+note matches, so an edited note is not marked handed off. */
 export function markCommentsHandedOff(sent: readonly ElementComment[]): void {
   publish(getComments().map((item) => sent.some((candidate) => candidate.id === item.id && candidate.note === item.note)
     ? { ...item, handedOff: true } : item));

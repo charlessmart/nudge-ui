@@ -2,20 +2,10 @@ import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import { createVitePlugins, type NudgeUiOptions } from "./vite.ts";
 import { createReactSupport } from "./react.ts";
 
-/**
- * Composes two independent halves: `./vite.ts` owns the build tool and knows
- * nothing about JSX, `./react.ts` owns React and knows nothing about Vite.
- * This is deliberately the only file that names both.
- */
 export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   return createVitePlugins(options, createReactSupport);
 }
 
-/**
- * Adds this host to an existing Vite configuration export. Object, promise,
- * and function forms are resolved at the same boundary Vite uses, so the host
- * keeps ownership of its runtime root and dependency graph.
- */
 export function withNudgeUi(
   config: UserConfigExport,
   options: NudgeUiOptions = {},
@@ -66,6 +56,5 @@ export type {
   TokenDefinition,
   TokenEntry,
 } from "./virtual/design-tokens.ts";
-// Interpretation lives in css/dialects, where the browser runtime reaches the
-// same grammar; this host only gathers evidence.
+// Interpretation lives in css/dialects; this host only gathers evidence.
 export type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";

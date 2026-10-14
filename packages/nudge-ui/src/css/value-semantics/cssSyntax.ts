@@ -1,13 +1,4 @@
-/**
- * Low-level, browser-safe CSS value splitting helpers shared by the
- * value-semantics Modules (plan slice 3.4). These are internal parsing seams,
- * not public Interface: they split structure, they do not interpret meaning.
- */
-
-/**
- * Balanced `var()` scanning. Handles nested parentheses and takes the first
- * top-level comma as the fallback separator.
- */
+/** Scans balanced `var()` calls; the first top-level comma separates the fallback. */
 export function extractVarCalls(value: string): Array<{ name: string; fallback?: string }> {
   const calls: Array<{ name: string; fallback?: string }> = [];
   let i = 0;
@@ -35,7 +26,6 @@ export function extractVarCalls(value: string): Array<{ name: string; fallback?:
   return calls;
 }
 
-/** Index of the first top-level `/` in a value, or -1 when none exists. */
 export function topLevelSlashIndex(value: string): number {
   let depth = 0;
   for (let index = 0; index < value.length; index++) {
@@ -47,7 +37,6 @@ export function topLevelSlashIndex(value: string): number {
   return -1;
 }
 
-/** Splits CSS values at top-level combinators or an optional delimiter. */
 export function splitTopLevel(s: string, sep?: string): string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -59,7 +48,6 @@ export function splitTopLevel(s: string, sep?: string): string[] {
       parts.push(s.slice(start, i));
       start = i + 1;
     } else if (depth === 0 && !sep && (s[i] === " " || s[i] === ">" || s[i] === "+" || s[i] === "~")) {
-      // Only split on combinators that have non-space around them.
       if (i > start) parts.push(s.slice(start, i).trim());
       start = i + 1;
     }
@@ -69,7 +57,6 @@ export function splitTopLevel(s: string, sep?: string): string[] {
   return parts;
 }
 
-/** Splits a value at top-level whitespace, honoring quotes and nesting. */
 export function splitTopLevelWhitespace(value: string): string[] {
   const parts: string[] = [];
   let depth = 0;

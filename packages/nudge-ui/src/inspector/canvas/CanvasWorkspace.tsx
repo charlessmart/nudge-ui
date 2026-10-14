@@ -195,8 +195,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       : null;
     if (!board || !card || !cardElement || typeof cardElement.animate !== "function" || camera.zoom <= 0) return;
 
-    // The previous layout is already gone, so derive it: focus fills the
-    // board, and canvas places the card through the camera.
+    // The previous layout is gone, so derive it: focus fills the board, canvas places the card through the camera.
     const boardRect = snapshotRect(board.getBoundingClientRect());
     const canvasRect: RectSnapshot = {
       left: boardRect.left + camera.x + card.x * camera.zoom,
@@ -572,8 +571,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       };
       if (isProjectionAppliedMessage(msg, identity)) {
         recordCanvasProjectionApplied(frame.cardId, msg.revision);
-        // While hold-to-view-original is active the frame intentionally shows
-        // the page without inspector changes; skip conflict verification.
+        // Peek shows the page without inspector changes; skip conflict verification.
         if (isOriginalPreviewActive()) return;
         const frameDocument = frame.document();
         const plan = getCanonicalFrameProjection(frame.cardId, msg.revision);
@@ -620,8 +618,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (msg.type === "frame-ready") {
         acknowledgeAgentRendererReady(frame.cardId);
         syncActiveFrameUrl(msg.url);
-        // A card can finish loading after Space was pressed on the controller.
-        // Seed it with the current modifier state before its first pointer event.
+        // A card can load after Space was pressed, so seed the current modifier state.
         frame.post({ type: "pan-modifier", spaceHeld: spaceHeldRef.current });
         sendInspectorInteractionState(
           frame,
@@ -821,7 +818,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, interactionTool, panCanvasByWheel, zoomAtPointer]);
 
-  // Every page card would share the one page renderer, so restored extra cards stay unmounted.
+  // Every page card would share the one page renderer, so extra restored cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (
     card.id === presentationCardId ? <PageCard key={card.id} card={card} documentOwner={inspectorSession} /> : null
   ) : (

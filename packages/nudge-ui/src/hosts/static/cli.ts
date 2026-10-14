@@ -2,14 +2,12 @@ import { resolve } from "node:path";
 import { runAgentCommand } from "../../cli/agentCommand.ts";
 import { createStandaloneServer, type StandaloneServer } from "./server.ts";
 
-/** Parsed arguments for `nudge-ui serve`. */
 export interface ServeCommandOptions {
   readonly rootDirectory: string;
   readonly host: "127.0.0.1" | "::1" | "localhost";
   readonly port: number;
 }
 
-/** Parses the standalone CLI's intentionally small command surface. */
 export function parseServeArguments(
   args: readonly string[],
   currentDirectory = process.cwd(),
@@ -45,7 +43,6 @@ export function parseServeArguments(
   return { rootDirectory: resolve(currentDirectory, directory), host, port };
 }
 
-/** Starts the CLI server and waits until the process receives a termination signal. */
 export async function runServeCommand(options: ServeCommandOptions): Promise<void> {
   const server = createStandaloneServer(options);
   const address = await server.start();
@@ -53,7 +50,6 @@ export async function runServeCommand(options: ServeCommandOptions): Promise<voi
   await waitForTermination(server);
 }
 
-/** Runs the standalone command. */
 export async function main(args = process.argv.slice(2), packageVersion?: string): Promise<void> {
   if (args[0] === "agent") {
     runAgentCommand(args.slice(1), packageVersion);

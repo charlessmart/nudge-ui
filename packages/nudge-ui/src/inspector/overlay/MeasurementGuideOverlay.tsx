@@ -3,20 +3,13 @@ import type { Rect } from "./overlayGeometry.ts";
 import type { MeasurementSegment } from "./measurementGeometry.ts";
 
 interface MeasurementGuideOverlayProps {
-  /** The selected element in the overlay's screen coordinate system. */
   selectedRect: Rect;
-  /** The viewport that alignment guides should span. */
   guideViewport?: Rect;
-  /** Measurement geometry in the overlay's screen coordinate system. */
   segments: MeasurementSegment[];
   testId?: string;
 }
 
-/**
- * Renders measurement geometry over a viewport. The Inspect surface passes
- * browser coordinates directly; Canvas projects iframe-local coordinates into
- * the same screen coordinate system before rendering here.
- */
+/** Geometry arrives in the overlay's screen coordinates; Canvas projects iframe-local coordinates before rendering here. */
 export function MeasurementGuideOverlay({
   selectedRect,
   guideViewport,

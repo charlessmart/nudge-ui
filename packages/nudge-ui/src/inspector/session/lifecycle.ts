@@ -1,13 +1,6 @@
-/** A callback released when its owning session is disposed. */
 export type CleanupCallback = () => void;
 
-/**
- * The lifecycle surface shared by workspace and session handles.
- *
- * Registration after disposal is ignored and returns a no-op unregister
- * function. Disposal is idempotent. Implementations dispose adopted children
- * before their own callbacks.
- */
+/** Registration after disposal returns a no-op; disposal is idempotent and disposes adopted children before own callbacks. */
 export interface SessionOwner {
   readonly id: string;
   readonly disposed: boolean;
@@ -29,7 +22,6 @@ function nextId(kind: SessionKind): string {
   return `${kind}-${nextOwnerId}`;
 }
 
-/** Creates the small lifecycle implementation used by session handles. */
 export function createSessionOwner(kind: SessionKind): SessionOwnerImplementation {
   let disposed = false;
   const children = new Set<SessionOwner>();

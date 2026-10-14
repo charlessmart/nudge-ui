@@ -151,17 +151,7 @@ function InteractionStateExamples() {
   );
 }
 
-/**
- * PlaygroundPage — dev-only fixture surface preserved from the previous
- * landing page. The Playwright suite drives the inspector against its
- * repeated items, flex lab, conformance links, and token table. The public
- * landing page (App.tsx) is the Penpot "Landing V6 — Mono" design; this route
- * keeps the old demo corpus available at /playground without polluting it.
- *
- * The component keeps its historical internal name `App` so the dev identity
- * contract injected on its root element still reads data-cid="App"
- * (asserted by m1-foundation.dev.spec.ts); it is exported as PlaygroundPage.
- */
+/** Keeps the internal name `App`: the injected dev identity on its root must still read data-cid="App" (asserted by m1-foundation.dev.spec.ts). */
 function App() {
   const [clicks, setClicks] = useState(0);
 

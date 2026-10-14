@@ -60,11 +60,7 @@ function hasLength(from: number, to: number): boolean {
   return Math.abs(to - from) > EPSILON;
 }
 
-/**
- * Finds the labelled ruler(s) for one axis. A positive gap gets a single
- * nearest-edge ruler. On overlap, the measurement changes to the hovered
- * element's far edge; containment has two meaningful inset measurements.
- */
+/** On overlap the ruler switches to the hovered element's far edge; containment gets two inset measurements. */
 function getAxisRulers(
   selected: AxisBounds,
   hovered: AxisBounds,
@@ -102,8 +98,8 @@ function getAxisRulers(
     ].filter((ruler) => hasLength(ruler.selectedEdge, ruler.hoveredEdge));
   }
 
-  // The boxes partially overlap. Measure from the selected outside edge to
-  // the hover's far edge rather than rendering a zero or negative gap.
+  // Partially overlapping boxes measure from the selected outside edge to the
+  // hover's far edge rather than a zero or negative gap.
   if (centerFromBounds(selected) >= centerFromBounds(hovered)) {
     return [{ selectedEdge: selected.min, hoveredEdge: hovered.min }];
   }
@@ -129,11 +125,7 @@ function createSegment(
   };
 }
 
-/**
- * Solid rulers always run through the selected element's centerline. If the
- * centerline does not meet the hovered edge, a perpendicular dotted extension
- * starts at that hovered edge and joins the ruler.
- */
+/** A perpendicular dotted extension joins the centerline ruler when it misses the hovered edge. */
 function appendPrimaryRulers(
   segments: MeasurementSegment[],
   selected: Rect,

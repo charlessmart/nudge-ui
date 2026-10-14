@@ -19,8 +19,7 @@ export function useFieldVisibility(
       elements, property, styleState, present,
       visible: selectionChanged ? present : previous.visible || present,
     };
-    // Adjust before rendering children so a selection change cannot briefly
-    // mount the previous selection's controls or interrupt an active drag.
+    // Adjust during render: a selection change must not briefly mount the previous controls or interrupt an active drag.
     setPrevious(current);
   }
   return {

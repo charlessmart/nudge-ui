@@ -228,8 +228,7 @@ describe("BrowserCssInspection", () => {
 
     const first = session.inspect(button, { state: "base", cascade: "authored" });
     const second = session.inspect(button, { state: "base", cascade: "authored" });
-    // Snapshot properties are cloned defensively, but attribution must stay
-    // identical when the cascade inputs have not changed.
+    // Properties are cloned defensively, but attribution stays identical when cascade inputs are unchanged.
     expect(second.properties).toEqual(first.properties);
     expect(second.revision).toEqual(first.revision);
 

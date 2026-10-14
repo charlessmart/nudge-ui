@@ -1,12 +1,3 @@
-/**
- * Verify the publication boundary without contacting a registry.
- *
- * `pnpm package:verify` builds the packages once before this script packs them
- * without rerunning lifecycle scripts. This script then checks the exact
- * tarball contents and the package metadata that a clean consumer will resolve.
- * Keeping this as a local command makes release regressions visible before a
- * version is published.
- */
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -183,14 +174,7 @@ function verifyPackage(packageRoot) {
   console.log(`  ${packageJson.name}@${packageJson.version}: ${entries.length} files`);
 }
 
-/**
- * Installs the packed package graph into React 18 and React 19 consumers.
- *
- * This catches workspace-link behavior that package-level tests cannot see,
- * including missing exported files and peer-resolution assumptions. This
- * optional networked check is enabled with `--install-consumers`; the
- * default package verifier remains registry-independent.
- */
+/** Installs the packed tarballs into React 18 and 19 consumers, catching workspace-link blind spots. */
 function verifyPackedAstroConsumers() {
   const tarballs = new Map();
   for (const entry of readdirSync(outputDirectory).filter((name) => name.endsWith(".tgz"))) {
@@ -198,7 +182,7 @@ function verifyPackedAstroConsumers() {
     const packageJson = JSON.parse(tarFile(tarball, "package/package.json"));
     tarballs.set(packageJson.name, tarball);
   }
-  // Package names, not export subpaths: the hosts now ship as subpaths of the
+  // Package names, not export subpaths: the hosts ship as subpaths of the
   // single distribution package, so there is no separate tarball to install.
   const requiredPackages = [
     "nudge-ui",

@@ -51,8 +51,7 @@ describe("inline authored values", () => {
     subject.style.setProperty("inset", "0");
     document.body.appendChild(subject);
 
-    // jsdom expands margin but not inset (browsers expand both); either way
-    // the longhand reports as inline-blocked.
+    // jsdom expands margin but not inset (browsers expand both).
     expect(inlineAuthoredValue(subject, "margin-top")).toBe("margin-top: 0px");
     expect(inlineAuthoredValue(subject, "left")).toBe("inset: 0");
   });

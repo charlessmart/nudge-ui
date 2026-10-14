@@ -406,8 +406,7 @@ describe("CanvasElementOverlay", () => {
     dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
     dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
 
-    // The preview inline stays at the committed value; dropping it before the
-    // renderer applies the managed rule would flash the authored 20px.
+    // Dropping the inline preview before the renderer applies the managed rule would flash the authored 20px.
     expect(card.style.paddingTop).toBe("32px");
 
     // The projected sheet lands in the renderer, then it acknowledges.
@@ -465,8 +464,7 @@ describe("CanvasElementOverlay", () => {
     dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
     dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
 
-    // Acknowledge a projection that does not contain the committed rule: the
-    // renderer still shows the authored 20px, so the inline preview must stay.
+    // The renderer still shows the authored 20px, so the inline preview must stay.
     dispatch({ type: "projection-applied", revision: 1 });
     expect(card.style.paddingTop).toBe("32px");
 
@@ -525,8 +523,7 @@ describe("CanvasElementOverlay", () => {
     dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
     expect(card.style.paddingTop).toBe("32px");
 
-    // Undo removes the committed rule before the sheet ever lands; the held
-    // inline must follow the workspace intent instead of shadowing it.
+    // Undo removes the committed rule first; the held inline must follow the workspace intent.
     act(() => {
       undo();
     });

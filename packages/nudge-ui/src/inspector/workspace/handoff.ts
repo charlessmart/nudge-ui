@@ -94,11 +94,7 @@ export async function copyHandoff(handoff: PreparedHandoff): Promise<void> {
   }
 }
 
-/**
- * Sends the prompt to a connected agent, or copies it when no agent is given.
- * A failed send without sketches falls back to the clipboard; a failed sketch
- * send is returned so the user can choose to copy without the images.
- */
+/** Falls back to the clipboard; a failed sketch send returns so the caller can copy without the images. */
 export async function deliverHandoff(handoff: PreparedHandoff, projectId: string, agent: PromptDispatcher | null): Promise<HandoffOutcome> {
   if (agent) {
     const outcome = await dispatchHandoff(handoff, projectId, agent);

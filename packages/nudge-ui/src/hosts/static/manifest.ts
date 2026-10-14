@@ -12,20 +12,8 @@ export {
   NUDGE_UI_ROUTE_PREFIX,
 } from "../../transport/index.ts";
 
-/** The serializable runtime document sent to a standalone client. */
 export interface StandaloneRuntimeManifest extends NudgeUiClientManifest {}
 
-/**
- * Creates the first valid static-HTML runtime snapshot.
- *
- * Stage 4 replaces the empty token arrays with the CSS token-inventory
- * snapshot. Keeping this constructor here makes the manifest contract
- * explicit and prevents the server from manufacturing a partial runtime
- * configuration.
- *
- * @param projectId The deterministic identity of the served project.
- * @returns A complete runtime manifest with no framework contracts or tokens.
- */
 export function createStandaloneRuntimeManifest(
   projectId: string,
   tokenSnapshot: ProjectTokenSnapshot = emptyTokenSnapshot(),
@@ -39,9 +27,7 @@ export function createStandaloneRuntimeManifest(
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
-      // Canvas shares the Vite host's controller/renderer runtime (ADR-0012):
-      // every served document carries the bootstrap, so card iframes boot as
-      // renderers without host-specific code.
+      // Canvas shares the Vite host's controller/renderer runtime (ADR-0012).
       capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
       tokenCatalog: tokenSnapshot.tokenCatalog,
       tokens: tokenSnapshot.tokens,

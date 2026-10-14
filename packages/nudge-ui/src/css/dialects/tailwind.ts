@@ -1,33 +1,15 @@
 import type { TokenEntry } from "../model/index.ts";
 import type { TokenContribution } from "../token-inventory/types.ts";
 
-/**
- * Tailwind's two major versions keep tokens in different places, so they get
- * separate treatment rather than a shared "Tailwind" concept. v3 keeps them in
- * a JavaScript config and compiles literal values into utilities, making the
- * config the only source of authored names. v4 declares them as custom
- * properties in `@theme`, so parsed CSS is the source of truth and this module
- * only corrects provenance the generic parser cannot infer.
- */
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ---------------------------------------------------------------------------
-// Tailwind v4
-// ---------------------------------------------------------------------------
-
-/** Markers proving a stylesheet participates in Tailwind v4. */
 export function detectTailwindV4(css: string): boolean {
   return /@(?:import\s+["']tailwindcss|theme\b)/i.test(css) || /--tw-[\w-]+/.test(css);
 }
 
-/**
- * v4 tokens reach the CSS whether authored or Tailwind-generated, and the
- * generic parser cannot tell those apart. Authored `@theme` entries stay
- * project-owned and editable; generated ones are framework-owned and are not.
- */
+/** The generic parser cannot tell authored from generated v4 tokens, so this corrects provenance and editability. */
 export function tailwindV4Relabelling(): TokenContribution {
   return {
     id: "tailwind-v4-naming",
@@ -42,7 +24,6 @@ export function tailwindV4Relabelling(): TokenContribution {
 /** A color utility that applies alpha to a catalog token, e.g. `bg-brand/40`. */
 export interface TailwindAlphaUtility {
   readonly utility: string;
-  /** The base catalog token the utility draws its color from. */
   readonly baseName: string;
   /** Normalized alpha, always percent-suffixed. */
   readonly alpha: string;
@@ -50,11 +31,7 @@ export interface TailwindAlphaUtility {
 
 const V4_ALPHA_UTILITY = /^bg-([\w-]+)\/(\d{1,3}%?)$/;
 
-/**
- * Null when the class is not an alpha utility. The build-time catalog and the
- * browser runtime both parse this and must agree, or an edit gets attributed
- * to the wrong token.
- */
+/** Parsed by both the build-time catalog and the browser runtime, which must agree on attribution. */
 export function readTailwindV4AlphaUtility(className: string): TailwindAlphaUtility | null {
   const match = V4_ALPHA_UTILITY.exec(className.trim());
   const color = match?.[1];
@@ -67,16 +44,10 @@ export function readTailwindV4AlphaUtility(className: string): TailwindAlphaUtil
   return { utility: className, baseName: `--color-${color}`, alpha: `${numeric}%` };
 }
 
-/** The CSS Tailwind v4 emits for an alpha utility. */
 export function tailwindV4AlphaExpression(baseCssName: string, alpha: string): string {
   return `color-mix(in oklab, var(${baseCssName}) ${alpha}, transparent)`;
 }
 
-// ---------------------------------------------------------------------------
-// Tailwind v3
-// ---------------------------------------------------------------------------
-
-/** The parts of a v3 config that carry design tokens. */
 export interface TailwindV3Config {
   theme?: {
     colors?: Record<string, unknown>;
@@ -93,7 +64,6 @@ export interface TailwindV3Config {
   [key: string]: unknown;
 }
 
-/** Distinguishes a v3 config object from a v4 one, which has no `theme` key. */
 export function isTailwindV3Config(config: unknown): config is TailwindV3Config {
   return isRecord(config)
     && isRecord(config.theme)
@@ -162,7 +132,6 @@ function sectionEntries(
   return entries;
 }
 
-/** Flattens a v3 config's theme into token entries, applying `theme.extend`. */
 export function readTailwindV3Config(
   config: TailwindV3Config,
   source = "tailwind.config.js",

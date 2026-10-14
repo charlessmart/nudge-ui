@@ -150,8 +150,7 @@ export function SpacingField({
     };
   });
   const hasSpacing = SIDE_NAMES.some((side) => {
-    // Zero spacing is visually empty regardless of whether it came from a
-    // reset, a component rule, or a token. Open editors stay open below.
+    // Zero spacing is visually empty whatever its source; open editors stay open below.
     const value = spacingProjection.fields[side].value.trim();
     return value !== "" && !isZeroCssValue(value) && (property !== "inset" || value !== "auto");
   });
@@ -323,9 +322,7 @@ function PairedTokenField({
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
   const isCalcAuthored = isCalcValue(calcAuthored);
   const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
-  // Some browsers expose the used pixel size for horizontal auto margins.
-  // Keep the authored keyword visible because replacing it with that transient
-  // size would misrepresent the declaration and change the edit semantics.
+  // Some browsers report the used pixel size for horizontal auto margins; keep the authored keyword.
   const committedValue = groupMixed
     ? "Mixed"
     : valuesMatch

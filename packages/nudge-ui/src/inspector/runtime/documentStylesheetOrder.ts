@@ -5,7 +5,6 @@ import type {
 } from "../../css/model/index.ts";
 import type { NudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 
-/** Evidence collected from the browser's current stylesheet order. */
 export interface DocumentStylesheetOrderEvidence {
   readonly projectPaths: readonly string[];
   /** False when a sheet is cross-origin, inline, unloaded, or duplicated. */
@@ -38,7 +37,6 @@ export function collectDocumentStylesheetOrder(
   return { projectPaths, complete };
 }
 
-/** Token catalog plus diagnostics produced by document-order reconciliation. */
 export interface DocumentTokenCatalogReconciliation {
   readonly catalog: readonly TokenDefinition[];
   readonly diagnostics: readonly TokenCatalogDiagnostic[];
