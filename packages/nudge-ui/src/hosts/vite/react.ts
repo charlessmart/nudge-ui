@@ -11,6 +11,7 @@ import {
 } from "../../compiler/packageComponentContracts.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
 import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../../inspector/componentSemantics/reactRendererCapture.ts";
 import {
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,
@@ -122,6 +123,8 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     hostLabel: "vite-react" as const satisfies NudgeUiRuntimeConfig["host"],
     framework: "React" as const satisfies NudgeUiRuntimeConfig["framework"],
     virtualModuleId: "virtual:nudge-ui-components",
+    /** Lets live preview reach React's renderer, which loads before any module the host controls. */
+    documentHeadScript: REACT_RENDERER_CAPTURE_SCRIPT,
 
     owns(id: string): boolean {
       return COMPONENT_EXTENSION.test(id);

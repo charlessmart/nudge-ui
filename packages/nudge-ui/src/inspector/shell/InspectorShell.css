@@ -389,6 +389,12 @@
   text-transform: uppercase;
 }
 
+.component-props__hint {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .component-props .field-row__label {
   min-width: 0;
   overflow: hidden;

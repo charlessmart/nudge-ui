@@ -67,6 +67,11 @@ export interface RuntimeComponentTarget {
   props: RuntimeProps;
   /** Adapter-reported mounted invocation count for this callsite. */
   mountedCount?: number;
+  /**
+   * False when the runtime can name this invocation but cannot render a prop
+   * change; the change still reaches the prompt. Absent means live.
+   */
+  livePreview?: boolean;
 }
 
 /** A component invocation whose entire rendered output is one DOM element. */

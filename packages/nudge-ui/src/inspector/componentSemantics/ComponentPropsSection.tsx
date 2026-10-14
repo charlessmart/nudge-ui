@@ -54,6 +54,11 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
       <div className="editor__title-row">
         <div className="editor__title">{target.meta.componentName}</div>
       </div>
+      {target.livePreview === false ? (
+        <div className="component-props__hint" data-test="component-props-prompt-only">
+          Live preview isn't available here. Changes are added to the prompt.
+        </div>
+      ) : null}
       {visibleProps.map((prop) => {
         const current = pendingValue(target, prop, changes)!;
         return (

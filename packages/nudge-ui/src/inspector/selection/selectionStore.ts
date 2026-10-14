@@ -64,7 +64,7 @@ function sameComponentTargets(a: RuntimeComponentTarget[], b: RuntimeComponentTa
   if (a.length !== b.length) return false;
   return a.every((left, index) => {
     const right = b[index];
-    if (!right || left.framework !== right.framework) return false;
+    if (!right || left.framework !== right.framework || left.livePreview !== right.livePreview) return false;
     const leftMeta = left.meta;
     const rightMeta = right.meta;
     if (leftMeta.callsiteId !== rightMeta.callsiteId

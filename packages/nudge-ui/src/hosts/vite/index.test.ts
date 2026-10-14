@@ -106,6 +106,13 @@ describe("transformIndexHtmlHtml", () => {
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
   });
 
+  it("places a head script ahead of every other script", () => {
+    const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { headScript: "window.early = true;" })!;
+    const head = out.indexOf("<script data-nudge-ui-head>window.early = true;</script>");
+    expect(head).toBeGreaterThan(out.indexOf("<head"));
+    expect(out.indexOf("<script")).toBe(head);
+  });
+
   it("marks the mount for debug-only Inspector features when requested", () => {
     const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { debug: true });
     expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');

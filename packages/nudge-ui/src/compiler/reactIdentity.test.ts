@@ -47,6 +47,49 @@ export const App = () => <main><Button /><Menu /></main>;`;
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Menu");
   });
 
+  it("registers callsites it cannot wrap so the runtime can still name them", () => {
+    const code = `import { Box } from "@ui/components";
+import { Card } from "./Card";
+export const App = () => <Box><Card /></Box>;`;
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+      hostPolicy: {
+        components: { Card: { componentId: "src/Card#Card", wrap: true, slots: { children: "rendered" } } },
+        diagnostics: [],
+      },
+    });
+
+    // Card sits inside a package component with unknown slots, so it stays unwrapped too.
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(");
+    const prelude = result?.prelude ?? "";
+    expect(result?.code.startsWith(prelude)).toBe(true);
+    expect(prelude.trimEnd().split("\n")).toHaveLength(1);
+    expect(prelude).toContain('import { registerReactCallsites as __nudgeUiRegisterCallsites } from "nudge-ui/internal/component-runtime";');
+    const registered = JSON.parse(/__nudgeUiRegisterCallsites\((.*)\);$/.exec(prelude.trimEnd())![1]!) as unknown[];
+    expect(registered).toEqual([
+      expect.objectContaining({ callsiteId: "src/App.tsx:3:27", componentId: "@ui/components#Box", componentName: "Box" }),
+      expect.objectContaining({ callsiteId: "src/App.tsx:3:32", componentId: "src/Card#Card", componentName: "Card" }),
+    ]);
+    expect(result?.code).toContain('<Box data-cid="Box" data-src="src/App.tsx:3:27"');
+  });
+
+  it("binds both runtime entries in one prelude line and skips callsites with an authored data-src", () => {
+    const code = `import { Box } from "@ui/components";
+import { Card } from "./Card";
+export const App = () => <main><Card /><Box data-src="custom" /></main>;`;
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+      hostPolicy: {
+        components: { Card: { componentId: "src/Card#Card", wrap: true, slots: { children: "rendered" } } },
+        diagnostics: [],
+      },
+    });
+
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Card");
+    expect(result?.prelude).toContain("instrumentReactComponent as __nudgeUiInstrumentComponent");
+    expect(result?.prelude).not.toContain("registerReactCallsites");
+  });
+
   it("recognizes project-owned factory and tagged-template component definitions", () => {
     const code = `import { lazy } from "react";
 import styled from "styled-components";
