@@ -80,7 +80,7 @@ function TextStage(): ReactNode {
 function TokenStage(): ReactNode {
   return (
     <div className="landing-bento-tokens">
-      <LandingButton type="button" variant="primary">
+      <LandingButton type="button" variant="secondary">
         Try it out
         <IconArrowUpRight className="landing-button-icon" stroke={2} aria-hidden="true" />
       </LandingButton>

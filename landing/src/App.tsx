@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { IconArrowsMove, IconComponents, IconEdit, IconLayoutGrid, IconMessageCircle, IconPalette, IconSend, IconSketching } from "@tabler/icons-react";
+import { IconArrowUpRight, IconArrowsMove, IconComponents, IconEdit, IconLayoutGrid, IconMessageCircle, IconPalette, IconSend, IconSketching } from "@tabler/icons-react";
 import demoVideo from "../assets/demo.mp4";
 import inspectorArrowHead from "../assets/arrow-head.svg";
 import inspectorArrowTail from "../assets/arrow-tail.svg";
@@ -8,6 +8,8 @@ import { FeatureBento } from "./components/FeatureBento";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
 import { LandingButton } from "./components/LandingButton";
 
+const chromeStoreUrl = "https://chromewebstore.google.com/detail/nudge-ui/adhhommjgomlfggojnkkpbaklgplopcm";
+const npmPackageUrl = "https://www.npmjs.com/package/create-nudge-ui";
 const installPrompt = "Run npm create nudge-ui@latest in this project";
 const OPEN_NUDGE_EVENT = "nudge-ui:open";
 const manualSetupCode = [
@@ -48,6 +50,14 @@ function DoneIcon(): ReactNode {
   return (
     <svg className="landing-install-copy-icon-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m5 12 4 4L19 6" />
+    </svg>
+  );
+}
+
+function ChromeIcon(): ReactNode {
+  return (
+    <svg className="landing-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8.00029 0.799805C10.5336 0.799805 12.867 2.13314 14.2003 4.26647H8.00029H7.93363C6.26695 4.33314 4.93363 5.3998 4.46695 6.93316L2.46695 3.3998C3.80029 1.73314 5.80029 0.799805 8.00029 0.799805ZM8.00029 10.5332C6.60029 10.5332 5.53363 9.39982 5.53363 8.06642C5.53363 6.66649 6.66696 5.53314 8.00029 5.53314C9.40029 5.53314 10.467 6.66649 10.467 7.99982C10.5336 9.39982 9.40029 10.5332 8.00029 10.5332ZM6.80029 15.1332C3.40029 14.5332 0.800293 11.5332 0.800293 7.99982C0.800293 6.73316 1.13363 5.53314 1.73363 4.46647L4.60029 9.39982C5.20029 10.7998 6.53363 11.6664 8.00029 11.6664C8.26696 11.6664 8.60029 11.5998 8.86696 11.5332L6.80029 15.1332ZM8.06696 15.1998L10.9336 10.2664C11.467 9.59982 11.7336 8.79982 11.7336 7.99982C11.7336 6.99982 11.3336 6.06647 10.667 5.3998H14.8003C15.1336 6.1998 15.267 7.13316 15.267 7.99982C15.2003 11.9332 12.0003 15.1998 8.06696 15.1998Z" fill="currentColor" />
     </svg>
   );
 }
@@ -355,22 +365,28 @@ function InstallCommand(): ReactNode {
   };
 
   return (
-    <div className="landing-install">
-      <span className="landing-install-command">{installPrompt}</span>
-      <LandingButton
-        type="button"
-        variant="primary"
-        className="landing-install-copy"
-        data-copied={copied}
-        aria-label={copied ? "Install prompt copied" : "Copy install prompt"}
-        onClick={copyPrompt}
-      >
-        {copied ? "Copied" : "Copy"}
-        <span className="landing-install-copy-icon" aria-hidden="true">
-          <CopyIcon />
-          <DoneIcon />
-        </span>
-      </LandingButton>
+    <div className="landing-install-actions">
+      <a className="landing-button landing-button--primary" href={chromeStoreUrl} target="_blank" rel="noreferrer">
+        <ChromeIcon />
+        Add to Chrome
+      </a>
+      <div className="landing-install-copy-wrap">
+        <LandingButton
+          type="button"
+          variant="secondary"
+          className="landing-install-copy"
+          data-copied={copied}
+          aria-describedby="landing-install-tooltip"
+          onClick={copyPrompt}
+        >
+          <span className="landing-install-copy-icon" aria-hidden="true">
+            <CopyIcon />
+            <DoneIcon />
+          </span>
+          {copied ? "Install prompt copied" : "Copy install prompt"}
+        </LandingButton>
+        <span className="landing-install-tooltip" id="landing-install-tooltip" role="tooltip">{installPrompt}</span>
+      </div>
     </div>
   );
 }
@@ -449,7 +465,6 @@ export function App(): ReactNode {
                 <p className="landing-hero-intro">
                   Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
                 </p>
-                <p className="landing-install-label">Ask your agent to install:</p>
                 <InstallCommand />
               </div>
             </div>
@@ -459,9 +474,31 @@ export function App(): ReactNode {
 
           <DemoIntro />
 
-          <section className="landing-setup landing-inner" aria-labelledby="landing-setup-title">
+          <section className="landing-setup landing-setup--intro landing-inner" aria-label="Install options">
+            <div className="landing-setup-columns">
+              <div className="landing-setup-option">
+                <h3 className="landing-setup-option-title">Chrome extension</h3>
+                <p className="landing-setup-lead">For quickly messing with production.<br />Edit any page you have open, with no setup.</p>
+                <LandingButton variant="tertiary" href={chromeStoreUrl} target="_blank" rel="noreferrer">
+                  <ChromeIcon />
+                  Add to Chrome
+                </LandingButton>
+              </div>
+
+              <div className="landing-setup-option">
+                <h3 className="landing-setup-option-title">npm package</h3>
+                <p className="landing-setup-lead">For deeper work.<br />Use your real components, share with collaborators, and iterate on the canvas with html mockups.</p>
+                <LandingButton variant="tertiary" href={npmPackageUrl} target="_blank" rel="noreferrer">
+                  View on npm
+                  <IconArrowUpRight size={16} stroke={1.6} aria-hidden="true" />
+                </LandingButton>
+              </div>
+            </div>
+          </section>
+
+          <section className="landing-setup landing-setup--steps landing-inner" aria-labelledby="landing-setup-title">
             <h2 className="landing-content-column" id="landing-setup-title">Installation</h2>
-            <div className="landing-setup-content landing-content-column">
+            <div className="landing-setup-content landing-content-column" id="install-steps">
               <div className="landing-setup-step">
                 <p className="landing-setup-lead">Detect your framework and configure Nudge UI:</p>
                 <pre className="landing-setup-code landing-setup-code--command"><code>npm create nudge-ui@latest</code></pre>
