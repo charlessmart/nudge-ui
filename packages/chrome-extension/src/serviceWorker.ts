@@ -6,6 +6,8 @@ import {
   applicationUrl,
   INJECT_RENDERERS_MESSAGE,
   isEditorUrl,
+  isNumberArray,
+  isRecord,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
   type ExtensionBoot,
@@ -39,9 +41,18 @@ function queueTabTask(tabId: number, task: () => Promise<void>): Promise<void> {
   return pending;
 }
 
+/** Session storage survives worker restarts, so stored state is parsed before use. */
+function parseEditorTab(value: unknown): EditorTab | undefined {
+  if (!isRecord(value)) return undefined;
+  const { phase, ruleIds, applicationHref } = value;
+  if ((phase !== "opening" && phase !== "editor") || !isNumberArray(ruleIds)
+    || (applicationHref !== undefined && typeof applicationHref !== "string")) return undefined;
+  return { phase, ruleIds, applicationHref };
+}
+
 async function readEditorTab(tabId: number): Promise<EditorTab | undefined> {
   const key = editorTabKey(tabId);
-  return (await chrome.storage.session.get(key))[key] as EditorTab | undefined;
+  return parseEditorTab((await chrome.storage.session.get(key))[key]);
 }
 
 async function writeEditorTab(tabId: number, state: EditorTab): Promise<void> {

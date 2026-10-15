@@ -12,12 +12,12 @@ type Host = NudgeUiRuntimeConfig["host"];
 
 const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro"];
 
-const PROJECT_IDS: Record<Host, string> = {
+const PROJECT_IDS = {
   "vite-react": "fixture-project",
   "static-html": "static-html:standalone-fixture",
   "nextjs-react": "nextjs:9f2ab4c1",
   astro: "astro-fixture",
-};
+} satisfies Record<Host, string>;
 
 function fixtureFor(host: Host): NudgeUiRuntimeConfig {
   return {

@@ -125,10 +125,9 @@ export function SketchFrameOverlay({ cardId, iframe, cardUrl, artifactId, ready 
   const frameWindow = iframe?.contentWindow ?? null;
   const layers = useMemo(() => {
     if (!iframe || !frameWindow || documents.length === 0) {
-      return {
-        strokes: [] as SketchStroke[],
-        annotations: [] as SketchAnnotation[],
-      };
+      const strokes: SketchStroke[] = [];
+      const annotations: SketchAnnotation[] = [];
+      return { strokes, annotations };
     }
     const strokes: SketchStroke[] = [];
     const annotations: SketchAnnotation[] = [];

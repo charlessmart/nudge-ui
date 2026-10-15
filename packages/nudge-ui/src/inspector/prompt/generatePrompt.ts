@@ -59,11 +59,11 @@ interface ElementPromptGroup extends PromptSection {
 /** Labels describe the observed tag, without guessing its role in the page. */
 function elementLabel(tag: string): string {
   const normalized = normalizeRuntimeTag(tag);
-  const labels: Readonly<Record<string, string>> = {
-    p: "Paragraph", button: "Button", a: "Link", img: "Image", input: "Input",
-    textarea: "Text area", select: "Select", form: "Form", nav: "Navigation", section: "Section",
-  };
-  const label = /^h[1-6]$/.test(normalized) ? "Heading" : labels[normalized] ?? "Element";
+  const labels = new Map<string, string>([
+    ["p", "Paragraph"], ["button", "Button"], ["a", "Link"], ["img", "Image"], ["input", "Input"],
+    ["textarea", "Text area"], ["select", "Select"], ["form", "Form"], ["nav", "Navigation"], ["section", "Section"],
+  ]);
+  const label = /^h[1-6]$/.test(normalized) ? "Heading" : labels.get(normalized) ?? "Element";
   return normalized ? `${label} (${promptText(`<${normalized}>`)})` : label;
 }
 

@@ -30,7 +30,7 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_PROMPT_BODY_BYTES = 12 * 1024 * 1024;
 
-const SESSION_ERROR_STATUS: Readonly<Record<BridgeSessionErrorCode, number>> = {
+const SESSION_ERROR_STATUS = {
   project_not_found: 404,
   origin_not_allowed: 403,
   origin_mismatch: 403,
@@ -55,7 +55,7 @@ const SESSION_ERROR_STATUS: Readonly<Record<BridgeSessionErrorCode, number>> = {
   session_claimed: 409,
   agent_not_owner: 409,
   session_closed: 409,
-};
+} satisfies Readonly<Record<BridgeSessionErrorCode, number>>;
 
 export interface BrowserBridgeOptions {
   readonly projectId: string;

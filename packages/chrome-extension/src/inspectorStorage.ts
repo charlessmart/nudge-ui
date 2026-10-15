@@ -1,5 +1,5 @@
 import { createMirroredStorage, type InspectorStorage } from "nudge-ui/internal/page-inspector";
-import { STORAGE_READ_EVENT, STORAGE_READ_RESPONSE_EVENT, STORAGE_WRITE_EVENT, type StorageReadResponse } from "./protocol.ts";
+import { parseStorageReadResponse, STORAGE_READ_EVENT, STORAGE_READ_RESPONSE_EVENT, STORAGE_WRITE_EVENT } from "./protocol.ts";
 
 /** Reloads saved state under the workspace lease; writes remain synchronous to callers. */
 export function createExtensionInspectorStorage(initial: Record<string, string>): InspectorStorage {
@@ -11,15 +11,8 @@ export function createExtensionInspectorStorage(initial: Record<string, string>)
       document.removeEventListener(STORAGE_READ_RESPONSE_EVENT, onResponse);
     };
     const onResponse = (event: Event): void => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (typeof detail !== "string") return;
-      let response: StorageReadResponse;
-      try {
-        response = JSON.parse(detail) as StorageReadResponse;
-      } catch {
-        return;
-      }
-      if (response.id !== id) return;
+      const response = parseStorageReadResponse((event as CustomEvent<unknown>).detail);
+      if (!response || response.id !== id) return;
       finish();
       if (response.values) resolve(response.values);
       else reject(new Error(response.error ?? "Inspector storage could not be read."));

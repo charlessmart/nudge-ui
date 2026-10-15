@@ -51,5 +51,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isPnpRuntime(): boolean {
-  return typeof (process.versions as NodeJS.ProcessVersions & { pnp?: unknown }).pnp === "string";
+  return "pnp" in process.versions && typeof process.versions.pnp === "string";
 }

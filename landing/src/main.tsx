@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { LandingVersionPage, type LandingVersion } from "./LandingVersionPage";
+import { LandingVersionPage } from "./LandingVersionPage";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -17,7 +17,7 @@ const demoControllerDocument = !directApplication
   && (landingDemoBuild || (import.meta.env.DEV && window.location.pathname === "/"));
 const landingVersion = params.get("landing-version");
 const page = landingVersion === "1" || landingVersion === "2"
-  ? <LandingVersionPage version={landingVersion as LandingVersion} />
+  ? <LandingVersionPage version={landingVersion} />
   : <App />;
 
 if (landingDemoBuild && !import.meta.env.DEV) {

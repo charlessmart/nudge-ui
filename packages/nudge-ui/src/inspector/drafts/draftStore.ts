@@ -125,7 +125,7 @@ interface PersistedDrafts {
 }
 
 const EMPTY: DraftContents = { changes: [], structuralChanges: [] };
-const PROJECTION_RANK: Record<DraftProjectionEvent["kind"], number> = { edit: 1, reconcile: 2, switch: 3, reset: 4 };
+const PROJECTION_RANK = { edit: 1, reconcile: 2, switch: 3, reset: 4 } satisfies Record<DraftProjectionEvent["kind"], number>;
 
 function cloneValue<T>(value: T, key?: string): T {
   if (key === "oldToken" || key === "newToken") return value;

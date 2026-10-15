@@ -196,7 +196,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ...nudgeUiPackages.filter((name) => !userTranspile.includes(name)),
   ];
 
-  const turbopackRules: Record<string, unknown> = {
+  const turbopackRules = {
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
   const paths = loaderPaths();

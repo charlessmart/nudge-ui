@@ -141,14 +141,14 @@ function commentCursorSvg(tokenSource?: Element | null): string {
 }
 
 /** Image files for hosts that serve cursors from a base URL; the comment cursor uses default tokens. */
-export function cursorImageFiles(): Record<CursorImage, string> {
+export function cursorImageFiles() {
   return {
     "design-select": DESIGN_SELECT_CURSOR_SVG,
     drag: DRAG_CURSOR_SVG,
     sketch: SKETCH_CURSOR_SVG,
     eraser: ERASER_CURSOR_SVG,
     comment: commentCursorSvg(),
-  };
+  } satisfies Record<CursorImage, string>;
 }
 
 export const COMMENT_CURSOR = createCommentCursor();

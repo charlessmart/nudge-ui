@@ -1,4 +1,4 @@
-import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "./viewStore.ts";
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM, type CanvasCamera } from "./viewStore.ts";
 
 export interface LayoutCard {
   readonly id: string;
@@ -13,6 +13,12 @@ export interface Bounds {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+}
+
+/** Where a new card or iteration is placed on the board. */
+export interface CardPosition {
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface LayoutShift {
@@ -35,7 +41,7 @@ export function boundsOf(cards: readonly LayoutCard[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-export function nextCardPosition(cards: readonly LayoutCard[], gap: number): { x: number; y: number } {
+export function nextCardPosition(cards: readonly LayoutCard[], gap: number): CardPosition {
   if (cards.length === 0) return { x: 0, y: 0 };
   return { x: Math.max(...cards.map((card) => card.x + card.width + gap)), y: cards[0]!.y };
 }
@@ -65,7 +71,7 @@ export function pushOverlappingCards<T extends LayoutCard>(cards: readonly T[], 
   return shifts.size ? cards.map((card) => shifts.has(card.id) ? { ...card, x: card.x + shifts.get(card.id)! } : card) : [...cards];
 }
 
-export function iterationPosition(cards: readonly LayoutCard[], source: LayoutCard, gap: number): { x: number; y: number } {
+export function iterationPosition(cards: readonly LayoutCard[], source: LayoutCard, gap: number): CardPosition {
   const x = source.x;
   let y = source.y + source.height + gap * 2;
   for (const neighbor of [...cards].sort((a, b) => a.y - b.y)) {
@@ -75,7 +81,7 @@ export function iterationPosition(cards: readonly LayoutCard[], source: LayoutCa
   return { x, y };
 }
 
-export function fitCamera(bounds: Bounds, viewport: { width: number; height: number }, padding: number): { x: number; y: number; zoom: number } | null {
+export function fitCamera(bounds: Bounds, viewport: { width: number; height: number }, padding: number): CanvasCamera | null {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   if (width <= 0 || height <= 0) return null;
@@ -87,7 +93,7 @@ export function fitCamera(bounds: Bounds, viewport: { width: number; height: num
   return centerCamera(bounds, zoom, viewport);
 }
 
-export function centerCamera(bounds: Bounds, zoom: number, viewport: { width: number; height: number }): { x: number; y: number; zoom: number } {
+export function centerCamera(bounds: Bounds, zoom: number, viewport: { width: number; height: number }): CanvasCamera {
   return {
     x: -((bounds.minX + bounds.maxX) / 2) * zoom + viewport.width / 2,
     y: -((bounds.minY + bounds.maxY) / 2) * zoom + viewport.height / 2,

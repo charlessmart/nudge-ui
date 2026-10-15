@@ -5,14 +5,13 @@ import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
 import { clearComments, commentRoute, getComments, getCommentsForTarget, loadComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
 import { applicationTarget, htmlTarget } from "../drafts/model.ts";
-import { projectDraftToDocument } from "../canvas/projection.ts";
-import { reconcileComments } from "./verification.ts";
+import { reconcileComments, type CommentProjectionTransport } from "./verification.ts";
 
 // The renderer transport is the boundary; DOM identity and fingerprinting remain real.
-vi.mock("../canvas/projection.ts", () => ({
+const transport: CommentProjectionTransport = {
   projectDraftToDocument: vi.fn(async () => 1),
   isCanvasProjectionRevisionCurrent: () => true,
-}));
+};
 
 function target(text = "Save"): HTMLButtonElement {
   const button = document.createElement("button");
@@ -73,7 +72,7 @@ describe("element comments", () => {
     saveComment(saved);
     markCommentsHandedOff([saved]);
     button.textContent = "Publish";
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toEqual([]);
   });
 
@@ -89,7 +88,7 @@ describe("element comments", () => {
 
     list.dataset.src = "src/App.tsx:312:12";
     list.innerHTML = "<li>One</li><li>Two</li>";
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
 
     expect(getComments()).toEqual([]);
   });
@@ -105,7 +104,7 @@ describe("element comments", () => {
     twin.dataset.src = "src/App.tsx:20:3";
 
     expect(resolveCommentElement(document, saved.target)).toBeNull();
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toHaveLength(1);
   });
 
@@ -114,7 +113,7 @@ describe("element comments", () => {
     const saved = comment(button);
     saveComment(saved);
     button.textContent = "Publish";
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toEqual([saved]);
   });
 
@@ -125,7 +124,7 @@ describe("element comments", () => {
     markCommentsHandedOff([saved]);
     button.dataset.rendererId = "r9";
     button.style.cursor = "ew-resize";
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toHaveLength(1);
   });
 
@@ -136,14 +135,14 @@ describe("element comments", () => {
     markCommentsHandedOff([saved]);
     target();
     expect(resolveCommentElement(document, saved.target)).toBeNull();
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toHaveLength(1);
     document.body.innerHTML = "";
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(getComments()).toHaveLength(1);
     const replacement = target("Publish");
     saveComment({ ...saved, viewport: "different viewport", handedOff: true });
-    await reconcileComments(document);
+    await reconcileComments(document, transport);
     expect(replacement.textContent).toBe("Publish");
     expect(getComments()).toHaveLength(1);
   });
@@ -164,11 +163,11 @@ describe("element comments", () => {
     let finishRead!: (revision: number) => void;
     const started = new Promise<void>((resolve) => { startRead = resolve; });
     const pending = new Promise<number>((resolve) => { finishRead = resolve; });
-    vi.mocked(projectDraftToDocument).mockImplementationOnce(() => {
+    vi.mocked(transport.projectDraftToDocument).mockImplementationOnce(() => {
       startRead();
       return pending;
     });
-    const checking = reconcileComments(document);
+    const checking = reconcileComments(document, transport);
     await started;
     const latest = { ...saved, baseline: "new-owner-baseline", handedOff: true };
     const key = Object.keys(localStorage).find((key) => key.endsWith(":comments:v1"))!;

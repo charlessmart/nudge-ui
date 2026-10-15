@@ -7,20 +7,35 @@ import { commentRoute, getCommentClearRevision, getComments, removeComment } fro
 const documentReads = new WeakMap<Document, Promise<unknown>>();
 const readingDocuments = new WeakSet<Document>();
 
+/** Controller transport used while reconciling notes; tests replace the renderer round-trip. */
+export interface CommentProjectionTransport {
+  readonly projectDraftToDocument: typeof projectDraftToDocument;
+  readonly isCanvasProjectionRevisionCurrent: typeof isCanvasProjectionRevisionCurrent;
+}
+
+const controllerTransport: CommentProjectionTransport = {
+  projectDraftToDocument,
+  isCanvasProjectionRevisionCurrent,
+};
+
 export function isReadingCommentSource(doc: Document): boolean { return readingDocuments.has(doc); }
 
 /** Serializes clean reads and restores the latest previews even if the read fails. */
-export function readCommentSource<T>(doc: Document, read: () => T): Promise<T | null> {
+export function readCommentSource<T>(
+  doc: Document,
+  read: () => T,
+  transport: CommentProjectionTransport = controllerTransport,
+): Promise<T | null> {
   const previous = documentReads.get(doc) ?? Promise.resolve();
   const operation = previous.catch(() => undefined).then(async () => {
     readingDocuments.add(doc);
     try {
-      const revision = await projectDraftToDocument(doc, { changes: [], structuralChanges: [] });
-      if (revision === null || !isCanvasProjectionRevisionCurrent(doc, revision)) return null;
+      const revision = await transport.projectDraftToDocument(doc, { changes: [], structuralChanges: [] });
+      if (revision === null || !transport.isCanvasProjectionRevisionCurrent(doc, revision)) return null;
       return read();
     } finally {
       try {
-        await projectDraftToDocument(doc, getDraftChanges(targetKey(documentTarget(doc.location.href))));
+        await transport.projectDraftToDocument(doc, getDraftChanges(targetKey(documentTarget(doc.location.href))));
         // Deliver projection mutation records before accepting another source signal.
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       } finally {
@@ -33,7 +48,10 @@ export function readCommentSource<T>(doc: Document, read: () => T): Promise<T | 
 }
 
 /** Changed, uniquely located elements resolve after handoff; missing and ambiguous targets remain. */
-export async function reconcileComments(doc: Document): Promise<void> {
+export async function reconcileComments(
+  doc: Document,
+  transport: CommentProjectionTransport = controllerTransport,
+): Promise<void> {
   const revision = getCommentClearRevision();
   const sent = getComments().filter((item) => item.handedOff && item.route === commentRoute(doc));
   if (sent.length === 0) return;
@@ -41,7 +59,7 @@ export async function reconcileComments(doc: Document): Promise<void> {
     if (item.viewport !== commentViewport(doc)) return false;
     const element = resolveCommentElement(doc, item.target);
     return element !== null && commentFingerprint(element) !== item.baseline;
-  }));
+  }), transport);
   if (revision !== getCommentClearRevision()) return;
   for (const item of resolved ?? []) {
     if (getComments().some((current) => current.id === item.id && current.note === item.note && current.handedOff)) removeComment(item.id);

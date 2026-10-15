@@ -1,16 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { domToBlob } from "modern-screenshot";
-import { captureViewport, getSketchScrollPosition } from "./capture.ts";
+import { captureViewport, getSketchScrollPosition, type DomCaptureToBlob, type SketchCaptureResources } from "./capture.ts";
 import { getPngDimensions } from "./raster.ts";
 
-vi.mock("modern-screenshot", () => ({
-  domToBlob: vi.fn(),
-}));
-
-vi.mock("./raster.ts", () => ({
-  getPngDimensions: vi.fn(),
-}));
+// The renderer and PNG reader need canvas APIs jsdom lacks, so every capture injects stand-ins.
+const toBlob = vi.fn<DomCaptureToBlob>();
+const pngDimensions = vi.fn<typeof getPngDimensions>();
+const resources: SketchCaptureResources = { toBlob, pngDimensions };
 
 const pngHeader = new Uint8Array([
   137, 80, 78, 71, 13, 10, 26, 10,
@@ -20,8 +16,8 @@ const pngHeader = new Uint8Array([
 
 describe("DOM sketch capture", () => {
   beforeEach(() => {
-    vi.mocked(domToBlob).mockResolvedValue(new Blob([pngHeader], { type: "image/png" }));
-    vi.mocked(getPngDimensions).mockResolvedValue({ width: 1, height: 1 });
+    toBlob.mockResolvedValue(new Blob([pngHeader], { type: "image/png" }));
+    pngDimensions.mockResolvedValue({ width: 1, height: 1 });
   });
 
   it("falls back to document scrolling for horizontal page offsets", () => {
@@ -47,17 +43,8 @@ describe("DOM sketch capture", () => {
     document.body.append(hostElement);
     document.documentElement.setAttribute("data-nudge-ui-panel", "open");
 
-    const captured = await captureViewport({ hostElement });
-    type DomCaptureOptions = {
-      readonly type?: string;
-      readonly width?: number;
-      readonly height?: number;
-      readonly features?: { readonly restoreScrollPosition?: boolean };
-      readonly filter?: (node: Node) => boolean;
-      readonly onCloneEachNode?: (node: Node) => void;
-    };
-    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, DomCaptureOptions]>;
-    const [node, options] = calls[0] ?? [];
+    const captured = await captureViewport({ hostElement }, resources);
+    const [node, options] = toBlob.mock.calls[0] ?? [];
 
     expect(node).toBe(document.documentElement);
     expect(options).toMatchObject({
@@ -87,20 +74,18 @@ describe("DOM sketch capture", () => {
     shadowRoot.append(panel);
     document.body.append(hostElement);
 
-    await captureViewport({ hostElement });
+    await captureViewport({ hostElement }, resources);
 
-    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, { readonly width?: number }]>;
-    expect(calls.at(-1)?.[1].width).toBe(640);
+    expect(toBlob.mock.calls.at(-1)?.[1]?.width).toBe(640);
   });
 
   it("keeps stalled media from consuming the full capture budget", async () => {
     const hostElement = document.createElement("div");
     document.body.append(hostElement);
 
-    await captureViewport({ hostElement });
+    await captureViewport({ hostElement }, resources);
 
-    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, { readonly timeout?: number }]>;
-    expect(calls.at(-1)?.[1].timeout).toBe(500);
+    expect(toBlob.mock.calls.at(-1)?.[1]?.timeout).toBe(500);
   });
 
   it("removes remote Google font stylesheets from the cloned document", async () => {
@@ -111,25 +96,21 @@ describe("DOM sketch capture", () => {
     document.head.append(link);
     document.body.append(hostElement);
 
-    await captureViewport({ hostElement });
+    await captureViewport({ hostElement }, resources);
 
-    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[
-      Node,
-      { readonly onCloneEachNode?: (node: Node) => void; readonly font?: false },
-    ]>;
-    const prepareClone = calls.at(-1)?.[1].onCloneEachNode;
-    prepareClone?.(link);
+    const options = toBlob.mock.calls.at(-1)?.[1];
+    options?.onCloneEachNode?.(link);
 
     expect(link.isConnected).toBe(false);
-    expect(calls.at(-1)?.[1].font).toBe(false);
+    expect(options?.font).toBe(false);
   });
 
   it("reports a processing timeout when rendering does not settle", async () => {
     const hostElement = document.createElement("div");
     document.body.append(hostElement);
-    vi.mocked(domToBlob).mockImplementation(() => new Promise<Blob>(() => undefined));
+    toBlob.mockImplementation(() => new Promise<Blob>(() => undefined));
 
-    await expect(captureViewport({ hostElement, processingTimeoutMs: 10 })).rejects.toMatchObject({
+    await expect(captureViewport({ hostElement, processingTimeoutMs: 10 }, resources)).rejects.toMatchObject({
       code: "processing-timeout",
     });
   });

@@ -78,9 +78,10 @@ export function getHostRuntimeAdapters(
   ownerGlobal: typeof globalThis = globalThis,
 ): readonly ComponentRuntimeAdapter[] {
   if (ownerGlobal === globalThis) return [...registry().adapters.values()];
+  // SAFETY: the symbol key is this module's private registry slot; symbol lookup works across realms.
   const current = (ownerGlobal as GlobalWithHostRuntime)[HOST_RUNTIME_KEY];
   if (current === undefined) return [];
-  const mapConstructor = Reflect.get(ownerGlobal, "Map") as MapConstructor | undefined;
+  const mapConstructor = ownerGlobal.Map;
   if (!mapConstructor
     || typeof current !== "object"
     || current === null

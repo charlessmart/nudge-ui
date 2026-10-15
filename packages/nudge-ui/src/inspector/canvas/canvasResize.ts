@@ -33,7 +33,7 @@ interface ResizeEdges {
   readonly vertical: "top" | "bottom" | null;
 }
 
-const RESIZE_EDGES: Record<CanvasResizeDirection, ResizeEdges> = {
+const RESIZE_EDGES = {
   "top-left": { horizontal: "left", vertical: "top" },
   top: { horizontal: null, vertical: "top" },
   "top-right": { horizontal: "right", vertical: "top" },
@@ -42,7 +42,7 @@ const RESIZE_EDGES: Record<CanvasResizeDirection, ResizeEdges> = {
   bottom: { horizontal: null, vertical: "bottom" },
   "bottom-left": { horizontal: "left", vertical: "bottom" },
   left: { horizontal: "left", vertical: null },
-};
+} satisfies Record<CanvasResizeDirection, ResizeEdges>;
 
 export function getCanvasResizeEdges(direction: CanvasResizeDirection): ResizeEdges {
   return RESIZE_EDGES[direction];

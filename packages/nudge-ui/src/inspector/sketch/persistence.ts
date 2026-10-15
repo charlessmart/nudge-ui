@@ -164,12 +164,13 @@ export async function readSketchPersistence(projectId: string): Promise<SketchPe
   try {
     const transaction = database.transaction([SKETCH_DOCUMENTS_STORE, SKETCH_HANDOFFS_STORE], "readonly");
     const done = transactionDone(transaction);
-    const documentsPromise = requestResult(
+    // Records come back as stored; the store drops anything that fails validation during hydration.
+    const documentsPromise = requestResult<SketchDocument[]>(
       transaction.objectStore(SKETCH_DOCUMENTS_STORE).index("projectId").getAll(projectId),
-    ) as Promise<SketchDocument[]>;
-    const handoffsPromise = requestResult(
+    );
+    const handoffsPromise = requestResult<SketchHandoffRecord[]>(
       transaction.objectStore(SKETCH_HANDOFFS_STORE).index("projectId").getAll(projectId),
-    ) as Promise<SketchHandoffRecord[]>;
+    );
     const [documents, handoffs] = await Promise.all([documentsPromise, handoffsPromise, done]);
     return { documents, handoffs };
   } catch (error) {

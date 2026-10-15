@@ -61,7 +61,12 @@ async function directory(root: string, id: string): Promise<string> {
   return join(actual, id);
 }
 
-async function body(request: IncomingMessage): Promise<unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Both artifact endpoints accept JSON objects only. */
+async function body(request: IncomingMessage): Promise<Record<string, unknown> | null> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
@@ -71,7 +76,9 @@ async function body(request: IncomingMessage): Promise<unknown> {
     chunks.push(data);
   }
   const text = Buffer.concat(chunks).toString("utf8");
-  return text.length === 0 ? {} : JSON.parse(text) as unknown;
+  if (text.length === 0) return {};
+  const parsed: unknown = JSON.parse(text);
+  return isRecord(parsed) ? parsed : null;
 }
 
 function respond(response: ServerResponse, status: number, content: string, type = "text/plain; charset=utf-8"): void {
@@ -113,7 +120,7 @@ export async function handleHtmlArtifactRequest(
   try {
     if (request.method === "POST" && parts.length === 0) {
       const input = await body(request);
-      if (!validArtifact(input)) { respond(response, 400, "Invalid artifact"); return true; }
+      if (!input || !validArtifact(input)) { respond(response, 400, "Invalid artifact"); return true; }
       const target = await directory(root, input.id);
       const temporary = `${target}.create-${crypto.randomUUID()}`;
       const metadata: HtmlArtifactMetadata = {
@@ -164,22 +171,21 @@ export async function handleHtmlArtifactRequest(
       if ((request.method === "PUT" && parts[1] === "document")
         || (request.method === "POST" && parts[1] === "commit")) {
         const input = await body(request);
-        if (!input || typeof input !== "object") { respond(response, 400, "Invalid document"); return true; }
-        const item = input as Record<string, unknown>;
-        if (!isHtmlArtifactRevision(item.expected)) {
+        if (!input) { respond(response, 400, "Invalid document"); return true; }
+        if (!isHtmlArtifactRevision(input.expected)) {
           respond(response, 428, "An expected iteration revision is required"); return true;
         }
-        if ((item.html !== undefined && typeof item.html !== "string")
-          || (request.method === "PUT" && typeof item.html !== "string")) {
+        if ((input.html !== undefined && typeof input.html !== "string")
+          || (request.method === "PUT" && typeof input.html !== "string")) {
           respond(response, 400, "Invalid document"); return true;
         }
-        const expected = item.expected;
+        const expected = input.expected;
         if (!sameRevision(await readRevision(target), expected)) {
           respond(response, 409, HTML_ITERATION_CONFLICT); return true;
         }
-        const html = typeof item.html === "string" ? item.html : await readFile(join(target, "document.html"), "utf8");
+        const html = typeof input.html === "string" ? input.html : await readFile(join(target, "document.html"), "utf8");
         const writes = request.method === "POST" ? ["preview.html"] : [];
-        if (typeof item.html === "string") writes.push("document.html");
+        if (typeof input.html === "string") writes.push("document.html");
         const previewBefore = await readFile(join(target, "preview.html"));
         const temporaryFiles: Array<{ temporary: string; destination: string }> = [];
         try {
@@ -235,12 +241,11 @@ export async function handleHtmlArtifactRequest(
 }
 
 function validArtifact(value: unknown): value is HtmlArtifactMetadata & { html: string } {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
-  const viewport = item.viewport as Record<string, unknown> | undefined;
-  return typeof item.id === "string" && ID.test(item.id)
-    && typeof item.sourceUrl === "string" && item.sourceUrl.length < 4096
-    && typeof item.title === "string" && item.title.length < 512
-    && typeof item.html === "string" && item.html.length > 0
-    && !!viewport && typeof viewport.width === "number" && typeof viewport.height === "number";
+  if (!isRecord(value)) return false;
+  const viewport = value.viewport;
+  return typeof value.id === "string" && ID.test(value.id)
+    && typeof value.sourceUrl === "string" && value.sourceUrl.length < 4096
+    && typeof value.title === "string" && value.title.length < 512
+    && typeof value.html === "string" && value.html.length > 0
+    && isRecord(viewport) && typeof viewport.width === "number" && typeof viewport.height === "number";
 }

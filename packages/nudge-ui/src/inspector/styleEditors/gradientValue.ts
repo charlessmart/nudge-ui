@@ -102,6 +102,7 @@ export function parseGradient(value: string): GradientValue | null {
     }
     start = end;
   }
+  // SAFETY: interpolation above fills every null position, so each stop has a numeric position.
   return { type, repeating: Boolean(match[1]), angle, prelude, stops: stops as GradientStop[] };
 }
 

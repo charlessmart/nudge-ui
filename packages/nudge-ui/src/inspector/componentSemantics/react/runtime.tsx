@@ -171,11 +171,11 @@ const ReactComponentOverride = forwardRef<unknown, BoundaryProps>(
     const hasOverride = Object.keys(override).length > 0;
     if (!hasInjectedProps && !hasOverride && forwardedRef === null) return element;
 
-    const props: Record<string, unknown> = {
+    const props = {
       ...injectedProps,
       ...override,
+      ...(forwardedRef === null ? {} : { ref: mergedRef }),
     };
-    if (forwardedRef !== null) props.ref = mergedRef;
     return cloneElement(element, props);
   },
 ) as BoundaryType;

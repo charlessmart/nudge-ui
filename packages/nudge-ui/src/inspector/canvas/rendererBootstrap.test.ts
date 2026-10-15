@@ -1,20 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRendererIdentity, PROTOCOL_VERSION, setRendererIdentity } from "./frameProtocol.ts";
-import { bootstrapRenderer, type RendererBootstrapHandle } from "./rendererBootstrap.ts";
-import { installRendererElementSelector } from "./rendererElementSelector.ts";
-import { startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
+import { bootstrapRenderer, type RendererBootstrapHandle, type RendererBootstrapResources } from "./rendererBootstrap.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
-vi.mock("./rendererElementSelector.ts", () => ({
-  installRendererElementSelector: vi.fn(() => vi.fn()),
-}));
-
-vi.mock("./rendererStylesheet.ts", () => ({
-  handleReplaceStyles: vi.fn(),
-  startRendererProjectionDiagnostics: vi.fn(() => vi.fn()),
-}));
+// The element selector and diagnostics own real DOM listeners; browser tests supply inert resources.
+function bootstrapRendererForTest(resources: RendererBootstrapResources = {}): RendererBootstrapHandle | undefined {
+  return bootstrapRenderer({
+    installElementSelector: () => () => undefined,
+    startProjectionDiagnostics: () => () => undefined,
+    ...resources,
+  });
+}
 
 const identity = {
   projectId: "project-a",
@@ -64,10 +62,11 @@ describe("bootstrapRenderer teardown", () => {
   it("disposes renderer-owned selector and diagnostics resources", () => {
     const disposeSelector = vi.fn();
     const disposeDiagnostics = vi.fn();
-    vi.mocked(installRendererElementSelector).mockReturnValue(disposeSelector);
-    vi.mocked(startRendererProjectionDiagnostics).mockReturnValue(disposeDiagnostics);
 
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest({
+      installElementSelector: () => disposeSelector,
+      startProjectionDiagnostics: () => disposeDiagnostics,
+    });
     handle?.teardown();
 
     expect(disposeSelector).toHaveBeenCalledOnce();
@@ -79,9 +78,9 @@ describe("bootstrapRenderer teardown", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
     const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
 
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     expect(handle).toBeDefined();
-    expect(bootstrapRenderer()).toBe(handle);
+    expect(bootstrapRendererForTest()).toBe(handle);
     expect(window.history.pushState).not.toBe(originalPushState);
 
     setRendererIdentity(identity);
@@ -102,7 +101,7 @@ describe("bootstrapRenderer teardown", () => {
     expect(window.history.pushState).toBe(originalPushState);
     expect(window.history.replaceState).toBe(originalReplaceState);
 
-    const nextHandle = bootstrapRenderer();
+    const nextHandle = bootstrapRendererForTest();
     expect(nextHandle).toBeDefined();
     expect(window.history.pushState).not.toBe(originalPushState);
     nextHandle?.teardown();
@@ -115,7 +114,7 @@ describe("bootstrapRenderer teardown", () => {
     setRendererIdentity(identity);
     const applicationPushState = vi.fn(originalPushState);
 
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     expect(handle).toBeDefined();
     window.history.pushState = applicationPushState as typeof window.history.pushState;
 
@@ -127,7 +126,7 @@ describe("bootstrapRenderer teardown", () => {
   it("routes scrolling to board panning only when enabled and preserves modified-wheel zoom", () => {
     setRendererIdentity(identity);
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     const setGestures = (enabled: boolean, panScroll: boolean) => window.dispatchEvent(new MessageEvent("message", {
       origin: window.location.origin, source: window.parent,
       data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled, panScroll, ...identity },
@@ -171,7 +170,7 @@ describe("bootstrapRenderer teardown", () => {
     try {
       setRendererIdentity(identity);
       const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-      handle = bootstrapRenderer();
+      handle = bootstrapRendererForTest();
 
       window.dispatchEvent(new MessageEvent("message", {
         origin: window.location.origin,
@@ -213,7 +212,7 @@ describe("bootstrapRenderer teardown", () => {
     const previous = getNudgeUiRuntimeConfig();
     setRendererIdentity(identity);
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
 
     configureNudgeUiRuntime({ ...previous, tokenGeneration: "hmr-generation" });
 
@@ -230,7 +229,7 @@ describe("bootstrapRenderer teardown", () => {
   it("leaves cross-origin self-navigation inside the renderer", () => {
     setRendererIdentity(identity);
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     const anchor = document.createElement("a");
     anchor.href = "https://example.com/docs";
     document.body.append(anchor);
@@ -251,7 +250,7 @@ describe("bootstrapRenderer teardown", () => {
 describe("bootstrapRenderer app interaction", () => {
   it("reports the A key while focus is inside the iframe", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     dispatchParentReady();
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", key: "a" }));
     expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "app-interaction-modifier", held: true }));
@@ -264,7 +263,7 @@ describe("bootstrapRenderer app interaction", () => {
   });
 
   it("preserves Shift-modified link clicks for the application", () => {
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     dispatchParentReady();
     const link = document.createElement("a");
     link.href = "/pricing";
@@ -314,7 +313,7 @@ describe("bootstrapRenderer app interaction", () => {
 
   it("keeps the card's route and asks for a new card while links open in cards", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
-    handle = bootstrapRenderer();
+    handle = bootstrapRendererForTest();
     dispatchParentReady();
 
     sendLinkTargetState(true);

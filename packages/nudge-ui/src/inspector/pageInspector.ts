@@ -25,6 +25,7 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 export type { InspectorStorage } from "./runtime/inspectorStorage.ts";
 export { createMirroredStorage } from "./runtime/inspectorStorage.ts";
 export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./sketch/persistence.ts";
+export { isSketchDocument, isSketchHandoffRecord } from "./sketch/model.ts";
 export type { SketchDocument, SketchHandoffRecord } from "./sketch/model.ts";
 
 const MOUNT_ID = "nudge-ui-root";

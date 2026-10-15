@@ -60,7 +60,7 @@ export function isRenderedInstanceRef(value: unknown): value is RenderedInstance
     || !isRecord(locator)
     || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel", "tagName", "domPath", "elementId", "invocation"])) return false;
   return locator.kind === "evidence"
-    && Number.isSafeInteger(locator.occurrence) && (locator.occurrence as number) >= 0
+    && isNonNegativeSafeInteger(locator.occurrence)
     && (typeof locator.props === "string" || locator.props === null)
     && (typeof locator.text === "string" || locator.text === null)
     && (locator.ariaLabel === undefined || typeof locator.ariaLabel === "string" || locator.ariaLabel === null)

@@ -160,7 +160,7 @@ function validateLabel(value: unknown): string {
   return label;
 }
 
-function routeForValidation(value: unknown): Record<string, unknown> {
+function routeForValidation(value: unknown): { url?: unknown; title?: unknown; label?: unknown } {
   if (typeof value === "string") return { url: value };
   if (!isRecord(value)) {
     throw new AgentPresentationError("invalid-route", "Each presented route must be a URL object.");

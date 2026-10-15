@@ -37,6 +37,12 @@ export interface RendererBootstrapHandle {
   teardown(): void;
 }
 
+/** Replaces the renderer resources a caller cannot exercise directly, such as jsdom-based browser tests. */
+export interface RendererBootstrapResources {
+  readonly installElementSelector?: typeof installRendererElementSelector;
+  readonly startProjectionDiagnostics?: typeof startRendererProjectionDiagnostics;
+}
+
 interface CancellableFrameThrottle {
   cancel(): void;
 }
@@ -184,7 +190,7 @@ function teardownRenderer(owner: RendererBootstrapOwner): void {
   clearRendererIdentity();
 }
 
-export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
+export function bootstrapRenderer(resources: RendererBootstrapResources = {}): RendererBootstrapHandle | undefined {
   if (!getNudgeUiRuntimeConfig().capabilities.canvas) return;
   if (!isNudgeUiDev()) return;
   if (activeRendererBootstrap) return activeRendererBootstrap.handle;
@@ -207,9 +213,9 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
     observeFrameMetadata(owner);
     owner.resourceDisposers.push(() => disposeRuntimeIdentityClaims(document));
     owner.resourceDisposers.push(subscribeNudgeUiRuntime(() => sendFrameRuntime(owner)));
-    const disposeDiagnostics = startRendererProjectionDiagnostics();
+    const disposeDiagnostics = (resources.startProjectionDiagnostics ?? startRendererProjectionDiagnostics)();
     if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
-    const disposeSelector = installRendererElementSelector();
+    const disposeSelector = (resources.installElementSelector ?? installRendererElementSelector)();
     if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
     installRendererPanProxy(owner);
 

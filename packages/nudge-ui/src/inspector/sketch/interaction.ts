@@ -71,14 +71,14 @@ export function beginSketchCapture(): void {
   publish({ captureState: "sketching", captured: null, editingId: null, error: null, draftId: getActiveDraftChanges().draftId });
 }
 
-export function completeSketchCapture(hostElement: HTMLElement): Promise<CapturedSketch> {
+export function completeSketchCapture(hostElement: HTMLElement, capture: typeof captureViewport = captureViewport): Promise<CapturedSketch> {
   captureController?.abort();
   const controller = new AbortController();
   captureController = controller;
   const draftId = snapshot.draftId;
   publish({ captureState: "capturing", captured: null, editingId: null, error: null, draftId });
   const options: SketchCaptureOptions = { hostElement, signal: controller.signal };
-  return captureViewport(options)
+  return capture(options)
     .then((captured) => {
       if (captureController !== controller) return captured;
       captureController = null;

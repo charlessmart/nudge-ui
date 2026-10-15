@@ -1,18 +1,21 @@
-import type {
-  SketchDocument,
-  SketchHandoffRecord,
-  SketchPersistenceSnapshot,
-  SketchStorage,
-  SketchStorageChange,
+import {
+  isSketchDocument,
+  isSketchHandoffRecord,
+  type SketchDocument,
+  type SketchHandoffRecord,
+  type SketchPersistenceSnapshot,
+  type SketchStorage,
+  type SketchStorageChange,
 } from "nudge-ui/internal/page-inspector";
 import {
+  parseSketchResponse,
   SKETCH_REQUEST_EVENT,
   SKETCH_RESPONSE_EVENT,
   type SketchRequest,
   type SketchResponse,
   type StoredImage,
   type StoredSketchDocument,
-  type StoredSketchRecords,
+  type StoredSketchHandoff,
 } from "./protocol.ts";
 
 // Distributive so each request keeps its own fields.
@@ -45,13 +48,18 @@ async function encodeDocument(document: SketchDocument): Promise<StoredSketchDoc
   return { ...document, originalImage, annotatedImage };
 }
 
-// The store validates every hydrated document, so malformed records are dropped there.
-function decodeDocument(document: StoredSketchDocument): SketchDocument {
-  return {
-    ...document,
-    originalImage: decodeImage(document.originalImage),
-    annotatedImage: decodeImage(document.annotatedImage),
-  } as unknown as SketchDocument;
+// A corrupt image or invalid record drops only its own sketch.
+function decodeDocument(document: StoredSketchDocument): SketchDocument | null {
+  try {
+    const decoded = {
+      ...document,
+      originalImage: decodeImage(document.originalImage),
+      annotatedImage: decodeImage(document.annotatedImage),
+    };
+    return isSketchDocument(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Persists sketches through the isolated-world bridge so the inspected site's own storage is never written. */
@@ -59,14 +67,8 @@ export function createExtensionSketchStorage(): SketchStorage {
   let nextId = 0;
   const pending = new Map<number, (response: SketchResponse) => void>();
   document.addEventListener(SKETCH_RESPONSE_EVENT, (event) => {
-    const detail = (event as CustomEvent<unknown>).detail;
-    if (typeof detail !== "string") return;
-    let response: SketchResponse;
-    try {
-      response = JSON.parse(detail) as SketchResponse;
-    } catch {
-      return;
-    }
+    const response = parseSketchResponse((event as CustomEvent<unknown>).detail);
+    if (!response) return;
     const settle = pending.get(response.id);
     pending.delete(response.id);
     settle?.(response);
@@ -74,7 +76,7 @@ export function createExtensionSketchStorage(): SketchStorage {
 
   const send = (body: RequestBody): Promise<SketchResponse & { ok: true }> => new Promise((resolve, reject) => {
     nextId += 1;
-    const request = { ...body, id: nextId } as SketchRequest;
+    const request: SketchRequest = { ...body, id: nextId };
     pending.set(request.id, (response) => {
       if (response.ok) resolve(response);
       else reject(new Error(response.error));
@@ -87,23 +89,21 @@ export function createExtensionSketchStorage(): SketchStorage {
       const { records } = await send({ op: "read" });
       const documents: SketchDocument[] = [];
       for (const document of records?.documents ?? []) {
-        try {
-          documents.push(decodeDocument(document));
-        } catch {
-          // A corrupt image drops only its own sketch.
-        }
+        const decoded = decodeDocument(document);
+        if (decoded && decoded.projectId === projectId) documents.push(decoded);
       }
-      const handoffs = (records?.handoffs ?? []) as unknown as SketchHandoffRecord[];
-      return {
-        documents: documents.filter((document) => document.projectId === projectId),
-        handoffs: handoffs.filter((handoff) => handoff.projectId === projectId),
-      };
+      const handoffs: SketchHandoffRecord[] = [];
+      for (const handoff of records?.handoffs ?? []) {
+        if (isSketchHandoffRecord(handoff) && handoff.projectId === projectId) handoffs.push(handoff);
+      }
+      return { documents, handoffs };
     },
     async update(_projectId: string, change: SketchStorageChange): Promise<void> {
       const documents = await Promise.all((change.documents ?? []).map(encodeDocument));
+      const handoffs: StoredSketchHandoff[] = (change.handoffs ?? []).map((handoff) => ({ ...handoff }));
       await send({
         op: "update",
-        put: { documents, handoffs: [...(change.handoffs ?? [])] as unknown as StoredSketchRecords["handoffs"] },
+        put: { documents, handoffs },
         deleteDocumentIds: [...(change.deleteDocumentIds ?? [])],
         deleteHandoffIds: [...(change.deleteHandoffIds ?? [])],
       });

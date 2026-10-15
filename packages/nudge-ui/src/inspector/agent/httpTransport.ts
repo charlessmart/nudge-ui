@@ -138,14 +138,10 @@ export class AgentBridgeHttpError extends Error {
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = {};
-  }
+  const body: unknown = await response.json().catch(() => null);
+  const payload = isRecord(body) ? body : {};
   if (!response.ok) {
-    const error = isRecord(payload) && isRecord(payload.error) ? payload.error : payload;
+    const error = isRecord(payload.error) ? payload.error : payload;
     const message = isRecord(error) ? stringValue(error.message) : undefined;
     const code = isRecord(error) ? stringValue(error.code) : undefined;
     throw new AgentBridgeHttpError(
@@ -154,16 +150,7 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
       code,
     );
   }
-  return isRecord(payload) ? payload : {};
-}
-
-function eventData(event: MessageEvent<unknown>): unknown {
-  if (typeof event.data !== "string") return event.data;
-  try {
-    return JSON.parse(event.data) as unknown;
-  } catch {
-    return null;
-  }
+  return payload;
 }
 
 export class HttpAgentBridgeTransport implements AgentBridgeTransport {
@@ -242,8 +229,13 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
     });
     const source = new EventSource(eventUrl.href);
     let closed = false;
-    const handleMessage = (event: MessageEvent<unknown>): void => {
-      const envelope = eventData(event);
+    const handleMessage = (event: MessageEvent<string>): void => {
+      let envelope: unknown;
+      try {
+        envelope = JSON.parse(event.data);
+      } catch {
+        return;
+      }
       if (!isRecord(envelope)
         || envelope.protocolVersion !== AGENT_PROTOCOL_VERSION
         || envelope.projectId !== request.projectId

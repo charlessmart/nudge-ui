@@ -11,6 +11,9 @@ import {
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
 
+type WebpackConfig = { module?: unknown; resolve?: unknown };
+type WebpackHook = (config: WebpackConfig, context: { dev: boolean }) => WebpackConfig;
+
 /** Bundled loader directory; asserted exactly because a plausible-but-wrong suffix shipped once. */
 const loaderDirectory = fileURLToPath(new URL("../../../dist/hosts/next/loaders/", import.meta.url));
 
@@ -256,10 +259,8 @@ describe("withNudgeUi — development output shape", () => {
     expect(composed.webpack).not.toBe(userHook);
 
     // The hook RETURNS a new config (Next's contract); rules live there.
-    const devConfig: Record<string, unknown> = { module: {} };
-    const devOut = (
-      composed.webpack as (c: Record<string, unknown>, ctx: { dev: boolean }) => Record<string, unknown>
-    )(devConfig, { dev: true });
+    const devConfig: WebpackConfig = { module: {} };
+    const devOut = (composed.webpack as WebpackHook)(devConfig, { dev: true });
     expect(userHook).toHaveBeenCalled();
 
     const rules = ((devOut.module as { rules?: unknown[] }).rules ?? []) as Array<Record<string, unknown>>;
@@ -275,10 +276,8 @@ describe("withNudgeUi — development output shape", () => {
       }),
     );
 
-    const prodConfig: Record<string, unknown> = { module: { rules: ["keep"] } };
-    const prodOut = (
-      composed.webpack as (c: Record<string, unknown>, ctx: { dev: boolean }) => Record<string, unknown>
-    )(prodConfig, { dev: false });
+    const prodConfig: WebpackConfig = { module: { rules: ["keep"] } };
+    const prodOut = (composed.webpack as WebpackHook)(prodConfig, { dev: false });
     expect(prodOut).toEqual(prodConfig);
     expect((prodOut.module as { rules: unknown[] }).rules).toEqual(["keep"]);
   });

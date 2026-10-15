@@ -172,7 +172,7 @@ export class ProjectSessionClient {
 
   async dispatchCanvasCommand(input: CanvasCommandInput): Promise<CanvasCommandResult> {
     await this.claim();
-    const command = { ...input, commandId: input.commandId ?? randomUUID() } as CanvasCommand;
+    const command = { ...input, commandId: input.commandId ?? randomUUID() };
     return await this.send(
       AGENT_CONTROL_ENDPOINTS.canvas,
       guarded(isCanvasCommandResult),

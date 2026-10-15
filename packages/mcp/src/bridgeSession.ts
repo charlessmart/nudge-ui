@@ -35,17 +35,20 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
 export const AGENT_CLAIM_TIMEOUT_MS = 30_000;
 export const AGENT_ACKNOWLEDGMENT_TIMEOUT_MS = 60_000;
 
+/** Timer handle: Node returns Timeout objects and test clocks use numeric IDs; only the creating clock interprets it. */
+export type BridgeTimeoutHandle = NodeJS.Timeout | number;
+
 /** A clock port keeps command timeout and claim expiry tests deterministic. */
 export interface BridgeClock {
   now(): number;
-  setTimeout(callback: () => void, delayMs: number): unknown;
-  clearTimeout(handle: unknown): void;
+  setTimeout(callback: () => void, delayMs: number): BridgeTimeoutHandle;
+  clearTimeout(handle: BridgeTimeoutHandle): void;
 }
 
 const SYSTEM_CLOCK: BridgeClock = {
   now: () => Date.now(),
   setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+  clearTimeout: (handle) => clearTimeout(handle),
 };
 
 type WithOptionalCommandId<T extends CanvasCommand> = Omit<T, "commandId"> & { readonly commandId?: string };
@@ -174,7 +177,7 @@ interface PendingPrompt {
 interface PendingCanvasCommand {
   readonly command: CanvasCommand;
   readonly resolve: (result: CanvasCommandResult) => void;
-  readonly timeout: unknown;
+  readonly timeout: BridgeTimeoutHandle;
 }
 
 interface PairingTarget {
@@ -194,10 +197,11 @@ type CurrentRequest = NonNullable<AgentStatusSnapshot["request"]>;
 function canonicalOrigins(options: BridgeSessionOptions): string[] {
   const origins = [options.origin, ...(options.allowedOrigins ?? [])].map((candidate) => canonicalOrigin(candidate));
   if (origins[0] === null) throw new TypeError("origin must be a canonical HTTP(S) origin");
-  if (origins.some((candidate) => candidate === null)) {
+  const canonical = origins.filter((candidate) => candidate !== null);
+  if (canonical.length !== origins.length) {
     throw new TypeError("allowedOrigins must contain canonical HTTP(S) origins");
   }
-  return origins as string[];
+  return canonical;
 }
 
 export function createBridgeSession(options: BridgeSessionOptions): BridgeSession {
@@ -218,12 +222,12 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
   let listener: PendingPrompt | null = null;
   let currentRequest: CurrentRequest | null = null;
   let deliveredRequest: AgentDeliveredPrompt | null = null;
-  let acknowledgmentTimeout: unknown = null;
+  let acknowledgmentTimeout: BridgeTimeoutHandle | null = null;
   let pendingCanvas: PendingCanvasCommand | null = null;
   let agentOwner: string | null = null;
   let agentClientName: string | undefined;
   let agentOwnerSeenAt = 0;
-  let agentOwnerExpiry: unknown = null;
+  let agentOwnerExpiry: BridgeTimeoutHandle | null = null;
 
   const getStatus = (): AgentStatusSnapshot => {
     const listenerActive = listener !== null;
@@ -479,7 +483,7 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
     if (!pairing) throw new BridgeSessionError("browser_unpaired", "No browser is paired with this project.");
     const { origin } = pairing;
     if (pendingCanvas) throw new BridgeSessionError("command_in_flight", "A Canvas command is already in flight.");
-    const command = { ...input, commandId: input.commandId ?? options.idFactory() } as CanvasCommand;
+    const command = { ...input, commandId: input.commandId ?? options.idFactory() };
     if (!isCanvasCommand(command)) throw new BridgeSessionError("invalid_canvas_command", "command must be a valid Canvas command.");
     if (command.type === "present-routes") {
       // The browser checks routes again; rejecting here keeps cross-origin URLs out of the project.

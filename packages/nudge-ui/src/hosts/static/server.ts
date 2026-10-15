@@ -318,7 +318,7 @@ export function createStandaloneProjectId(rootDirectory: string): string {
 
 export function contentTypeForPath(filePath: string): string {
   const extension = extname(filePath).toLowerCase();
-  return MIME_TYPES[extension] ?? "application/octet-stream";
+  return MIME_TYPES.get(extension) ?? "application/octet-stream";
 }
 
 export function isReservedNudgeUiRoute(pathname: string): boolean {
@@ -638,7 +638,7 @@ function sendBody(
   else response.end();
 }
 
-const MIME_TYPES: Readonly<Record<string, string>> = {
+const MIME_TYPES = new Map(Object.entries({
   ".avif": "image/avif",
   ".css": "text/css; charset=utf-8",
   ".csv": "text/csv; charset=utf-8",
@@ -664,4 +664,4 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".xml": "application/xml; charset=utf-8",
-};
+}));

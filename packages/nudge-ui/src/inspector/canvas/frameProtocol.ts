@@ -333,7 +333,7 @@ export type ControllerToRendererMessage =
   | BoardGestureStateMessage
   | InspectorInteractionStateMessage;
 
-const RENDERER_MESSAGE_TYPES: Record<RendererToControllerMessage["type"], true> = {
+const RENDERER_MESSAGE_TYPES = {
   "renderer-hello": true,
   "frame-ready": true,
   "frame-runtime": true,
@@ -365,7 +365,7 @@ const RENDERER_MESSAGE_TYPES: Record<RendererToControllerMessage["type"], true> 
   "zoom": true,
   "wheel-pan": true,
   "app-interaction-modifier": true,
-};
+} satisfies Record<RendererToControllerMessage["type"], true>;
 
 export function isRendererMessageType(type: unknown): type is RendererToControllerMessage["type"] {
   return typeof type === "string" && Object.hasOwn(RENDERER_MESSAGE_TYPES, type);

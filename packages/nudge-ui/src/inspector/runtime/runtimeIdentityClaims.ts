@@ -191,8 +191,8 @@ export function isRuntimeIdentityClaim(value: unknown): value is RuntimeIdentity
   if (!value || typeof value !== "object") return false;
   const claim = value as Record<string, unknown>;
   const nullableString = (field: unknown) => field === null || typeof field === "string";
-  return isGeneratedCid(claim.cid as string)
-    && (claim.src === null || isRuntimeGeneratedSource(claim.src as string))
+  return typeof claim.cid === "string" && isGeneratedCid(claim.cid)
+    && (claim.src === null || (typeof claim.src === "string" && isRuntimeGeneratedSource(claim.src)))
     && typeof claim.tagName === "string"
     && nullableString(claim.text)
     && nullableString(claim.props)

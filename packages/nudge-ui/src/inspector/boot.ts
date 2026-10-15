@@ -1,5 +1,5 @@
 import { startWorkspaceController } from "./workspace/controller.ts";
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { toggleInspector, setInspectorOpen } from "./shell/openStore.ts";
@@ -53,6 +53,8 @@ import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
+/** Rendered by every mount until the next bootstrap; replaced so tests and embedders can supply a lighter shell. */
+let inspectorShell: InspectorShell = AppShell;
 const workspace = createWorkspace();
 let inspectorSession: InspectorSession | null = null;
 let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
@@ -107,7 +109,10 @@ function disposeInspectorSession(): void {
   session?.dispose();
 }
 
-export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
+export type InspectorShell = () => ReactElement;
+
+export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShell = AppShell): void {
+  inspectorShell = shell;
   controllerStartId += 1;
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const explicitDemo = isDemoRuntime();
@@ -273,7 +278,7 @@ export function mountInspector(host: HTMLElement): void {
     reactRoot.render(createElement(
       InspectorSessionProvider,
       { inspector: inspectorSession, documentSession: null },
-      createElement(AppShell),
+      createElement(inspectorShell),
     ));
     window.addEventListener("keydown", onKeydown);
     window.addEventListener("keyup", onKeyup);

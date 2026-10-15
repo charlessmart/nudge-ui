@@ -1,4 +1,4 @@
-import { domToBlob } from "modern-screenshot";
+import { domToBlob, type Options } from "modern-screenshot";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { SKETCH_LIMITS } from "./model.ts";
 import { getPngDimensions } from "./raster.ts";
@@ -50,6 +50,15 @@ export interface SketchCaptureOptions {
   readonly hostElement: HTMLElement;
   readonly signal?: AbortSignal;
   readonly processingTimeoutMs?: number;
+}
+
+/** The `domToBlob` call shape this module uses: a node plus render options. */
+export type DomCaptureToBlob = (node: Node, options?: Options) => Promise<Blob>;
+
+/** Replaces the DOM renderer and PNG reader for callers that cannot rasterize, such as jsdom tests. */
+export interface SketchCaptureResources {
+  readonly toBlob?: DomCaptureToBlob;
+  readonly pngDimensions?: typeof getPngDimensions;
 }
 
 function abortError(): SketchCaptureError {
@@ -334,8 +343,11 @@ async function runWithProcessingTimeout<T>(
 
 async function captureDomFrame(
   options: SketchCaptureOptions,
+  resources: SketchCaptureResources,
   signal?: AbortSignal,
 ): Promise<{ readonly blob: Blob; readonly width: number; readonly height: number }> {
+  const toBlob: DomCaptureToBlob = resources.toBlob ?? domToBlob;
+  const readPngDimensions = resources.pngDimensions ?? getPngDimensions;
   const surface = getSketchSurface(options.hostElement);
   const viewport = domViewportDimensions(options.hostElement);
   let scale = viewport.scale;
@@ -354,7 +366,7 @@ async function captureDomFrame(
     signal?.addEventListener("abort", restore, { once: true });
     let blob: Blob;
     try {
-      blob = await domToBlob(surface.document.documentElement, {
+      blob = await toBlob(surface.document.documentElement, {
         type: "image/png",
         width: viewport.width,
         height: viewport.height,
@@ -383,7 +395,7 @@ async function captureDomFrame(
     }
     assertNotAborted(signal);
 
-    const dimensions = await getPngDimensions(blob);
+    const dimensions = await readPngDimensions(blob);
     if (!dimensions
       || dimensions.width > SKETCH_LIMITS.imageEdge
       || dimensions.height > SKETCH_LIMITS.imageEdge) {
@@ -399,7 +411,7 @@ async function captureDomFrame(
 }
 
 /** DOM-rendered, so no screen-capture permission is required. */
-export async function captureViewport(options: SketchCaptureOptions): Promise<CapturedSketch> {
+export async function captureViewport(options: SketchCaptureOptions, resources: SketchCaptureResources = {}): Promise<CapturedSketch> {
   if (typeof document === "undefined" || typeof window === "undefined") {
     throw new SketchCaptureError("unsupported", "Viewport capture is only available in a browser.");
   }
@@ -409,7 +421,7 @@ export async function captureViewport(options: SketchCaptureOptions): Promise<Ca
     const surface = getSketchSurface(options.hostElement);
     const frame = await runWithProcessingTimeout(async (processingSignal) => {
       await waitForLayout(processingSignal, surface.document);
-      return captureDomFrame(options, processingSignal);
+      return captureDomFrame(options, resources, processingSignal);
     }, options.processingTimeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS, options.signal);
     assertNotAborted(options.signal);
 

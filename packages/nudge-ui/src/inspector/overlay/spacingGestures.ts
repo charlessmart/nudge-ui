@@ -92,12 +92,12 @@ interface BoxModel {
 
 function boxModel(element: HTMLElement): BoxModel {
   const style = getElementComputedStyle(element);
-  const padding: Record<PaddingSide, number> = {
+  const padding = {
     top: numberValue(style.paddingTop),
     right: numberValue(style.paddingRight),
     bottom: numberValue(style.paddingBottom),
     left: numberValue(style.paddingLeft),
-  };
+ } satisfies Record<PaddingSide, number>;
   const border = {
     top: numberValue(style.borderTopWidth),
     right: numberValue(style.borderRightWidth),

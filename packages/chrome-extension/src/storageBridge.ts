@@ -1,5 +1,9 @@
 import {
   INJECT_RENDERERS_MESSAGE,
+  parseSketchRequest,
+  parseStorageWrite,
+  parseStoredSketchDocument,
+  parseStoredSketchHandoff,
   RENDERER_FRAME_LOAD_EVENT,
   siteKeyPrefix,
   SKETCH_REQUEST_EVENT,
@@ -10,54 +14,11 @@ import {
   STORAGE_READ_RESPONSE_EVENT,
   type SketchRequest,
   type SketchResponse,
-  type StorageWrite,
   type StoredSketchRecords,
   type StorageReadResponse,
 } from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
-
-function parseWrite(detail: unknown): StorageWrite | null {
-  if (typeof detail !== "string") return null;
-  try {
-    const parsed: unknown = JSON.parse(detail);
-    if (!parsed || typeof parsed !== "object") return null;
-    const { key, value } = parsed as Record<string, unknown>;
-    if (typeof key !== "string" || (typeof value !== "string" && value !== null)) return null;
-    return { key, value };
-  } catch {
-    return null;
-  }
-}
-
-function isRecordList(value: unknown): value is { id: string }[] {
-  return Array.isArray(value) && value.every((record: unknown) => (
-    !!record && typeof record === "object" && typeof (record as { id?: unknown }).id === "string"
-  ));
-}
-
-function isIdList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((id) => typeof id === "string");
-}
-
-function parseSketchRequest(detail: unknown): SketchRequest | null {
-  if (typeof detail !== "string") return null;
-  try {
-    const parsed: unknown = JSON.parse(detail);
-    if (!parsed || typeof parsed !== "object") return null;
-    const request = parsed as Record<string, unknown>;
-    if (typeof request.id !== "number") return null;
-    if (request.op === "read") return { id: request.id, op: "read" };
-    const put = request.put as Record<string, unknown> | undefined;
-    if (
-      request.op !== "update" || !put || !isRecordList(put.documents) || !isRecordList(put.handoffs)
-      || !isIdList(request.deleteDocumentIds) || !isIdList(request.deleteHandoffIds)
-    ) return null;
-    return parsed as SketchRequest;
-  } catch {
-    return null;
-  }
-}
 
 async function handleSketchRequest(prefix: string, request: SketchRequest): Promise<StoredSketchRecords | undefined> {
   const documentKey = (id: string) => `${prefix}doc:${id}`;
@@ -67,8 +28,13 @@ async function handleSketchRequest(prefix: string, request: SketchRequest): Prom
     const stored = keys.length === 0 ? {} : await chrome.storage.local.get(keys);
     const records: StoredSketchRecords = { documents: [], handoffs: [] };
     for (const [key, value] of Object.entries(stored)) {
-      if (key.startsWith(documentKey(""))) records.documents.push(value as StoredSketchRecords["documents"][number]);
-      else if (key.startsWith(handoffKey(""))) records.handoffs.push(value as StoredSketchRecords["handoffs"][number]);
+      if (key.startsWith(documentKey(""))) {
+        const document = parseStoredSketchDocument(value);
+        if (document) records.documents.push(document);
+      } else if (key.startsWith(handoffKey(""))) {
+        const handoff = parseStoredSketchHandoff(value);
+        if (handoff) records.handoffs.push(handoff);
+      }
     }
     return records;
   }
@@ -104,7 +70,7 @@ if (!scope[BRIDGE_FLAG]) {
     }).catch((error: unknown) => respond({ id, error: error instanceof Error ? error.message : String(error) }));
   });
   document.addEventListener(STORAGE_WRITE_EVENT, (event) => {
-    const write = parseWrite((event as CustomEvent<unknown>).detail);
+    const write = parseStorageWrite((event as CustomEvent<unknown>).detail);
     if (!write) return;
     const key = prefix + write.key;
     const done = write.value === null

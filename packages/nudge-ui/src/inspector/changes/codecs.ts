@@ -140,7 +140,8 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || (value.runtimeEvidence !== undefined && !isRuntimeElementEvidenceValue(value.runtimeEvidence))
     || (value.sourceEvidence !== undefined && !isSourceElementEvidenceValue(value.sourceEvidence))
     || !isEditScopeValue(value.scope)
-    || (value.sourceInstanceCount !== undefined && (!Number.isSafeInteger(value.sourceInstanceCount) || (value.sourceInstanceCount as number) < 1))
+    || (value.sourceInstanceCount !== undefined
+      && (!isNonNegativeSafeInteger(value.sourceInstanceCount) || value.sourceInstanceCount < 1))
     || (value.instanceOverride !== undefined && value.scope !== "rendered-instance")
     || (value.scope === "rendered-instance" && !isRenderedInstanceOverride(value.instanceOverride))
     || (value.state !== undefined && !isElementStateValue(value.state))) {

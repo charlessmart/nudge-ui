@@ -9,10 +9,6 @@ import {
 } from "./interaction.ts";
 import { captureViewport } from "./capture.ts";
 
-vi.mock("./capture.ts", () => ({
-  captureViewport: vi.fn(),
-}));
-
 const captured = {
   originalImage: new Blob(["png"], { type: "image/png" }),
   imageWidth: 1,
@@ -33,10 +29,13 @@ const captured = {
   },
 };
 
+const capture = vi.fn<typeof captureViewport>();
+
 describe("sketch interaction", () => {
   beforeEach(() => {
     resetSketchInteraction();
-    vi.mocked(captureViewport).mockResolvedValue(captured);
+    capture.mockClear();
+    capture.mockResolvedValue(captured);
   });
 
   it("waits for Done before capturing a newly started sketch", async () => {
@@ -44,12 +43,12 @@ describe("sketch interaction", () => {
     beginSketchCapture();
 
     expect(getSketchInteractionSnapshot().captureState).toBe("sketching");
-    expect(captureViewport).not.toHaveBeenCalled();
+    expect(capture).not.toHaveBeenCalled();
 
-    await completeSketchCapture(hostElement);
+    await completeSketchCapture(hostElement, capture);
     await vi.waitFor(() => expect(getSketchInteractionSnapshot().captureState).toBe("ready"));
 
-    expect(captureViewport).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
+    expect(capture).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
 
     closeSketchEditor();
 

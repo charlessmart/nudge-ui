@@ -7,9 +7,18 @@ export interface DraftContents {
   readonly structuralChanges: readonly StructuralChange[];
 }
 
-export type DraftTarget =
-  | { readonly kind: "application"; readonly route: string }
-  | { readonly kind: "html"; readonly artifactId: string; readonly path: string };
+export interface ApplicationTarget {
+  readonly kind: "application";
+  readonly route: string;
+}
+
+export interface HtmlTarget {
+  readonly kind: "html";
+  readonly artifactId: string;
+  readonly path: string;
+}
+
+export type DraftTarget = ApplicationTarget | HtmlTarget;
 
 /** A draft's ID is its target key, so every frame showing the same page or iteration edits one draft. */
 export interface Draft {
@@ -27,7 +36,7 @@ export interface DraftSnapshot {
 
 const ARTIFACT_PATH = /^\/__nudge_ui__\/artifacts\/([a-f0-9-]{36})\//i;
 
-export function applicationTarget(url: string = window.location.href): { kind: "application"; route: string } {
+export function applicationTarget(url: string = window.location.href): ApplicationTarget {
   const page = new URL(url, window.location.href);
   page.searchParams.delete("nudge-ui");
   page.searchParams.sort();
@@ -35,7 +44,7 @@ export function applicationTarget(url: string = window.location.href): { kind: "
   return { kind: "application", route: normalizedUrlKey(normalized) };
 }
 
-export function htmlTarget(artifactId: string): { kind: "html"; artifactId: string; path: string } {
+export function htmlTarget(artifactId: string): HtmlTarget {
   return { kind: "html", artifactId, path: `.nudge/artifacts/${artifactId}/document.html` };
 }
 

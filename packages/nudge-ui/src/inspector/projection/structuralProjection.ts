@@ -201,8 +201,12 @@ function documentRoute(doc: Document): string | undefined {
   }
 }
 
-function stableStateValue(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (!value || typeof value !== "object") return value;
+/** JSON-safe projection of history state; values JSON cannot hold become strings so the key stays stable. */
+type StableStateValue = null | boolean | number | string | StableStateValue[] | { [key: string]: StableStateValue };
+
+function stableStateValue(value: unknown, seen = new WeakSet<object>()): StableStateValue {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value !== "object") return String(value);
   if (seen.has(value)) return "[Circular]";
   seen.add(value);
   if (Array.isArray(value)) return value.map((entry) => stableStateValue(entry, seen));
@@ -380,6 +384,7 @@ function getDocumentState(doc: Document): DocumentProjectionState {
 }
 
 function installDocumentObserver(doc: Document, state: DocumentProjectionState): void {
+  // SAFETY: attaches are read from the document's own realm so cross-origin frames use their own MutationObserver.
   const viewWithObserver = doc.defaultView as ((Window & { MutationObserver?: typeof MutationObserver }) | null | undefined);
   const Observer = viewWithObserver?.MutationObserver
     ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);

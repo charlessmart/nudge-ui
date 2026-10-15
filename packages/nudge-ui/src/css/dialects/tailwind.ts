@@ -87,7 +87,7 @@ type TokenSection = typeof TOKEN_SECTIONS[number];
 function mergeSection(
   base: Record<string, unknown>,
   extension: Record<string, unknown>,
-): Record<string, unknown> {
+) {
   const merged = { ...base };
   for (const [key, value] of Object.entries(extension)) {
     const existing = merged[key];

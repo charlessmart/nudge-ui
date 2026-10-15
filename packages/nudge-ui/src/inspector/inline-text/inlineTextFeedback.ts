@@ -5,7 +5,7 @@ export interface InlineTextFeedback {
   readonly message: string;
 }
 
-const FEEDBACK_BY_REASON: Record<TextEditRejectionReason, InlineTextFeedback> = {
+const FEEDBACK_BY_REASON = {
   "no-text": {
     message: "Cannot edit text - No visible text",
   },
@@ -21,7 +21,7 @@ const FEEDBACK_BY_REASON: Record<TextEditRejectionReason, InlineTextFeedback> = 
   "unsafe-target": {
     message: "Cannot edit text - Unsupported text markup",
   },
-};
+} satisfies Record<TextEditRejectionReason, InlineTextFeedback>;
 
 function isTextEditRejectionReason(
   reason: InlineTextDiagnostic["reason"],
