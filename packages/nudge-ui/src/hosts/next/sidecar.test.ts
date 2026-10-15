@@ -179,8 +179,9 @@ async function settle(ms = 900): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }
 
-async function waitForBadgeProps(
+async function waitForContractProps(
   port: number,
+  componentId: string,
   predicate: (names: string[]) => boolean,
   timeoutMs = 5_000,
 ): Promise<string[]> {
@@ -195,16 +196,31 @@ async function waitForBadgeProps(
         }>;
       };
     };
-    const badge = manifest.runtime.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
-    const names = badge?.props.map((p) => p.name);
+    const contract = manifest.runtime.componentContracts.find((c) => c.componentId === componentId);
+    const names = contract?.props.map((p) => p.name);
     if (names && predicate(names)) return names;
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error(`Timed out waiting for the Badge contract to settle; got ${JSON.stringify(names ?? null)}.`);
+      throw new Error(`Timed out waiting for the ${componentId} contract to settle; got ${JSON.stringify(names ?? null)}.`);
     }
     await new Promise((resolve) => setTimeout(resolve, Math.min(50, remaining)));
   }
+}
+
+/** macOS starts delivering `fs.watch` events after the call returns, so re-save a probe until one is seen. */
+async function waitForWatcher(root: string, port: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const prop = `probe${attempt}`;
+    writeFileSync(join(root, "app", "Probe.tsx"), `export function Probe({ ${prop} }: { ${prop}: string }) {\n  return <i>{${prop}}</i>;\n}\n`);
+    try {
+      await waitForContractProps(port, "app/Probe#Probe", (names) => names.includes(prop), 500);
+      return;
+    } catch {
+      /* the save landed before the watcher was live; save again */
+    }
+  }
+  throw new Error("The project watcher never reported the probe file.");
 }
 
 describe("sidecar contract aggregation (Stage 5)", () => {
@@ -548,6 +564,7 @@ describe("sidecar source contract scan", () => {
     writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
     const handle = await ensureSidecar(root, { tokens: true });
     handles.push(handle);
+    await waitForWatcher(root, handle.port);
 
     const sourcePath = join(root, "app", "Badge.tsx");
     const temporaryPath = join(root, "app", "Badge.tsx.tmp");
@@ -557,7 +574,7 @@ describe("sidecar source contract scan", () => {
       `${BADGE_SOURCE.replace('  tone?: "accent" | "quiet";\n', "").replace('tone = "quiet", ', "")}\n`,
     );
     renameSync(temporaryPath, sourcePath);
-    const names = await waitForBadgeProps(handle.port, (names) => !names.includes("tone"));
+    const names = await waitForContractProps(handle.port, "app/Badge#Badge", (names) => !names.includes("tone"));
     expect(names).not.toContain("tone");
   });
 });
