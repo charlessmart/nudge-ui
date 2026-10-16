@@ -236,7 +236,7 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
           const match = /^([+-]?(?:\d*\.)?\d+)(?:deg)?$/.exec(raw.trim());
           if (match && Number.isFinite(Number(match[1]))) commitGradient({ ...gradient, angle: Number(match[1]) });
         }) : null}
-        <IconButton variant="quiet" label="Reverse gradient" disabled={blockedBy !== null}
+        <IconButton variant="secondary" label="Reverse gradient" disabled={blockedBy !== null}
           onClick={() => commitGradient({ ...gradient, stops: [...gradient.stops].reverse().map((stop) => ({ ...stop, position: 100 - stop.position })) })}>
           <IconArrowsDiff aria-hidden="true" /></IconButton>
         <IconButton variant="quiet" label="Add gradient stop" disabled={blockedBy !== null} onClick={() => addStop()}>

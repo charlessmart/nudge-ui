@@ -227,7 +227,16 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
         {isFlexChild ? (
           <div className="layout__group" data-test="layout-flex-child">
-            <div className="editor__title">Flex Child</div>
+            <div className="layout__flex-heading">
+              <div className="editor__title">Flex Child</div>
+              <FlexChildSettingsMenu
+                domElement={el}
+                editTarget={editTarget}
+                selection={selection}
+                revision={computedRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+            </div>
             <div className="layout__flex-child-fields">
               <FlexChildValueField
                 label="Grow"
@@ -259,13 +268,6 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 editTarget={editTarget}
                 selection={selection}
                 inputOnly
-                revision={computedRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <FlexChildSettingsMenu
-                domElement={el}
-                editTarget={editTarget}
-                selection={selection}
                 revision={computedRevision}
                 onAfterEdit={notifyAfterEdit}
               />

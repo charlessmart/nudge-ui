@@ -34,14 +34,26 @@ function valueFromOption(prop: ComponentPropContract, serialized: string): Compo
   return prop.options.find((option) => String(option) === serialized) ?? serialized;
 }
 
-export function ComponentPropsSection({ selected }: { selected: SelectedElement }): ReactElement | null {
+export interface ComponentPropsView {
+  target: EditableComponentTarget;
+  visibleProps: ComponentPropContract[];
+  changes: ReturnType<typeof useChanges>;
+}
+
+export function useComponentProps(selected: SelectedElement | null): ComponentPropsView | null {
   const changes = useChanges();
-  const target = editableComponentTargets(selected.componentTargets)[0];
+  const target = selected ? editableComponentTargets(selected.componentTargets)[0] : undefined;
   if (!target) return null;
   // Text props are owned by the scoped inline editor, not this panel.
   const visibleProps = target.contract.props.filter((prop) =>
     prop.control !== "text" && pendingValue(target, prop, changes) !== undefined);
-  if (visibleProps.length === 0) return null;
+  return visibleProps.length === 0 ? null : { target, visibleProps, changes };
+}
+
+export function ComponentPropsSection({ selected }: { selected: SelectedElement }): ReactElement | null {
+  const view = useComponentProps(selected);
+  if (!view) return null;
+  const { target, visibleProps, changes } = view;
 
   return (
     <section

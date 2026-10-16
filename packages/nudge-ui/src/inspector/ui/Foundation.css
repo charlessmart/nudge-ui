@@ -1,6 +1,6 @@
 :host {
   all: initial;
-  --surface-panel: #F5F5F4;
+  --surface-panel: #fff;
   --surface-control: var(--surface-well);
   --surface-control-hover: var(--surface-well-2x);
   --surface-raised: #FAFAFA;
@@ -19,6 +19,7 @@
   --text-muted-subtle: #a1a1a1;
 
   --accent: #0096ff;
+  --linked: #8b5cf6;
   --accent-surface: rgba(0, 176, 255, 0.15);
   --warning: #d97706;
   --warning-text: #9a5b00;

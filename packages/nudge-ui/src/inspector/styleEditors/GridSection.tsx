@@ -54,97 +54,94 @@ export function GridSection({
   return (
     <>
       {showContainer ? <div className="layout__group layout__grid" data-test="layout-grid-container">
+          <div className="layout__grid-heading">
+            <div className="editor__title">Grid</div>
+            <InspectorPopover
+              data-test="layout-grid-settings"
+              side="bottom"
+              align="end"
+              triggerTooltip="Grid settings"
+              triggerElement={(
+                <IconButton
+                  variant="quiet"
+                  size="default"
+                  label="Grid settings"
+                  data-active={advancedOpen}
+                  data-test="layout-grid-settings"
+                >
+                  <IconSettings size={16} stroke={1.8} aria-hidden="true" />
+                </IconButton>
+              )}
+              open={advancedOpen}
+              onOpenChange={setAdvancedOpen}
+            >
+              <div className="layout__grid-advanced" data-test="layout-grid-advanced">
+                <div className="editor__title">Advanced grid CSS</div>
+                <div className="layout__grid-fields">
+                  <GridValueField property="grid-template-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                  <GridValueField property="grid-template-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                  <LayoutDropdown
+                    property="grid-auto-flow"
+                    options={GRID_AUTO_FLOW_OPTIONS}
+                    domElement={el}
+                    editTarget={editTarget}
+                    selection={selection}
+                    revision={revision}
+                    onAfterEdit={onAfterEdit}
+                  />
+                  <GridValueField property="grid-auto-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                  <GridValueField property="grid-auto-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                </div>
+                <div className="layout__grid-alignment" data-test="layout-grid-alignment">
+                  <LayoutDropdown
+                    property="justify-content"
+                    options={GRID_CONTENT_ALIGNMENT_OPTIONS}
+                    domElement={el}
+                    editTarget={editTarget}
+                    selection={selection}
+                    stacked
+                    revision={revision}
+                    onAfterEdit={onAfterEdit}
+                  />
+                  <LayoutDropdown
+                    property="align-content"
+                    options={GRID_CONTENT_ALIGNMENT_OPTIONS}
+                    domElement={el}
+                    editTarget={editTarget}
+                    selection={selection}
+                    stacked
+                    revision={revision}
+                    onAfterEdit={onAfterEdit}
+                  />
+                  <LayoutDropdown
+                    property="justify-items"
+                    options={GRID_ITEM_ALIGNMENT_OPTIONS}
+                    domElement={el}
+                    editTarget={editTarget}
+                    selection={selection}
+                    stacked
+                    revision={revision}
+                    onAfterEdit={onAfterEdit}
+                  />
+                  <LayoutDropdown
+                    property="align-items"
+                    options={GRID_ITEM_ALIGNMENT_OPTIONS}
+                    domElement={el}
+                    editTarget={editTarget}
+                    selection={selection}
+                    stacked
+                    revision={revision}
+                    onAfterEdit={onAfterEdit}
+                  />
+                </div>
+              </div>
+            </InspectorPopover>
+          </div>
         <div className="layout__grid-primary">
           <div className="layout__grid-picker-column">
-            <div className="layout__grid-heading">
-              <div className="editor__title">Grid</div>
-              <InspectorPopover
-                data-test="layout-grid-settings"
-                side="bottom"
-                align="end"
-                triggerTooltip="Grid settings"
-                triggerElement={(
-                  <IconButton
-                    variant="quiet"
-                    size="default"
-                    label="Grid settings"
-                    data-active={advancedOpen}
-                    data-test="layout-grid-settings"
-                  >
-                    <IconSettings size={16} stroke={1.8} aria-hidden="true" />
-                  </IconButton>
-                )}
-                open={advancedOpen}
-                onOpenChange={setAdvancedOpen}
-              >
-                <div className="layout__grid-advanced" data-test="layout-grid-advanced">
-                  <div className="editor__title">Advanced grid CSS</div>
-                  <div className="layout__grid-fields">
-                    <GridValueField property="grid-template-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-template-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <LayoutDropdown
-                      property="grid-auto-flow"
-                      options={GRID_AUTO_FLOW_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <GridValueField property="grid-auto-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-auto-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                  </div>
-                  <div className="layout__grid-alignment" data-test="layout-grid-alignment">
-                    <LayoutDropdown
-                      property="justify-content"
-                      options={GRID_CONTENT_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="align-content"
-                      options={GRID_CONTENT_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="justify-items"
-                      options={GRID_ITEM_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="align-items"
-                      options={GRID_ITEM_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                  </div>
-                </div>
-              </InspectorPopover>
-            </div>
             <GridPicker domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
           <div className="layout__grid-gap" data-test="layout-grid-gap">
-            <div className="layout__grid-heading" data-test="layout-grid-gap-heading" aria-hidden="true">
-              <div className="editor__title" />
-            </div>
             <div className="layout__grid-gap-fields">
               <ControlSurface className="layout__spacing-field" data-test="layout-grid-row-gap">
                 <GapField

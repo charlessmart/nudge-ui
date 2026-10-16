@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  background: var(--surface-panel);
 }
 
 .appearance {
@@ -94,7 +93,7 @@
 .box-shadow-editor__dimensions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-8);
 }
 
 .box-shadow-editor__layer {

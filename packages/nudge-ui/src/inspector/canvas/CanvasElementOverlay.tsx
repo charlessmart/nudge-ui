@@ -34,6 +34,8 @@ import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts"
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
+import { getEditScope, sourceSiteSelector } from "../selection/editScope.ts";
+import { useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { setInspectorOpen, toggleInspector } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
@@ -290,6 +292,21 @@ function pushPendingSpacingCommit(
   };
 }
 
+const LINKED_PEER_LIMIT = 200;
+
+/** Other elements rendered from the selected element's source site. */
+function findLinkedPeers(element: HTMLElement): HTMLElement[] {
+  const selector = sourceSiteSelector(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
+  if (!selector) return [];
+  try {
+    return [...element.ownerDocument.querySelectorAll<HTMLElement>(selector)]
+      .filter((candidate) => candidate !== element)
+      .slice(0, LINKED_PEER_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
@@ -344,6 +361,15 @@ export function CanvasElementOverlay(): ReactElement | null {
     })
     : [];
 
+  const componentProps = useComponentProps(selectedElements.length === 1 ? selected : null);
+  const linkedPeers = selectedInCanvas && selectedElements.length === 1 && selected && getEditScope(selected.domElement) === "source-site"
+    ? findLinkedPeers(selected.domElement)
+    : [];
+  const projectedLinkedPeers = selectedFrameViewport
+    ? linkedPeers.map((peer) => ({ peer, rect: toViewportRect(selectedFrameViewport, toRect(peer.getBoundingClientRect())) }))
+    : [];
+  const selectionIsLinked = componentProps !== null || linkedPeers.length > 0;
+
   // Camera transforms commit before iframe viewport geometry is readable; re-render once so overlays use the new frame rect.
   useLayoutEffect(() => {
     const geometryChanged = previousProjectionGeometryKey.current !== projectionGeometryKey;
@@ -356,9 +382,10 @@ export function CanvasElementOverlay(): ReactElement | null {
 
   useEffect(() => {
     if (!selectedInCanvas || !selected) return;
-    const stops = selectedElements.map((candidate) => observeSelectedGeometry(candidate.domElement, refreshSelectedGeometry));
+    const stops = [...selectedElements.map((candidate) => candidate.domElement), ...linkedPeers]
+      .map((element) => observeSelectedGeometry(element, refreshSelectedGeometry));
     return () => stops.forEach((stop) => stop());
-  }, [selected, selectedElements, selectedInCanvas]);
+  }, [selected, selectedElements, selectedInCanvas, linkedPeers.length]);
 
   useEffect(() => {
     const broadcastMeasureModifier = (altKey: boolean): void => {
@@ -747,10 +774,20 @@ export function CanvasElementOverlay(): ReactElement | null {
           )) : null}
         </>
       ) : null}
+      {projectedLinkedPeers.map(({ peer, rect }, index) => (
+        <div
+          key={`${peer.getAttribute("data-cid")}-${index}`}
+          className="canvas-linked-outline"
+          data-test="canvas-linked-outline"
+          style={overlayStyle(rect)}
+          aria-hidden="true"
+        />
+      ))}
       {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
           key={`${element.cid}-${index}`}
           className="canvas-selected-outline"
+          data-linked={selectionIsLinked ? "true" : undefined}
           data-test="canvas-selected-outline"
           data-selected-cid={element.cid}
           data-selected-index={index}

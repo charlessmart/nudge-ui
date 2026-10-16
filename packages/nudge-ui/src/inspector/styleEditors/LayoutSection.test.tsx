@@ -311,7 +311,6 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]')).toBeFalsy();
     const gridGap = handle.host.querySelector('[data-test="layout-grid-gap"]');
     expect(gridGap).toBeTruthy();
-    expect(gridGap?.querySelector('[data-test="layout-grid-gap-heading"] .editor__title')).toBeTruthy();
     for (const property of ["row-gap", "column-gap"]) {
       const surface = gridGap?.querySelector(`[data-test="layout-grid-${property}"]`);
       expect(surface?.querySelector(`[data-test="layout-spacing-icon-${property}"]`)).toBeTruthy();

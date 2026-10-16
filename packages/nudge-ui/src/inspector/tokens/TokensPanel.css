@@ -33,7 +33,7 @@
 .token-row__inline {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 8px;
+  gap: var(--space-8);
   align-items: center;
 }
 
