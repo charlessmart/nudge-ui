@@ -85,6 +85,7 @@
     }
   },
   "scripts": {
+    "dev:client": "node scripts/watch-inspector-client.mjs",
     "build": "node ../../scripts/build-package.mjs && node ../../scripts/vendor-agent-protocol.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-static-cli.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",

@@ -1,6 +1,8 @@
+import { InspectorPanel } from "./InspectorPanel.tsx";
+import { InspectorSelection } from "./InspectorSelection.tsx";
+import { InspectorEditors } from "./InspectorEditors.tsx";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useInspectorOpen, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -21,34 +23,21 @@ declare global {
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { AgentStatusButton } from "./AgentStatusButton.tsx";
-import { SpacingBox } from "../styleEditors/SpacingBox.tsx";
-import { Typography } from "../styleEditors/Typography.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
-import { BackgroundEditor } from "../styleEditors/BackgroundEditor.tsx";
-import { ColorPicker } from "../styleEditors/ColorPicker.tsx";
-import { BorderEditor } from "../styleEditors/BorderEditor.tsx";
-import { AppearanceSection } from "../styleEditors/AppearanceSection.tsx";
-import { BoxShadowEditor } from "../styleEditors/BoxShadowEditor.tsx";
-import { LayoutSection } from "../styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForInstanceOverride, undo, redo } from "../drafts/store.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "../selection/editScope.ts";
 import { canEditStyles } from "../tokens/editActions.ts";
-import { Button } from "../ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
 import { NudgeLogoIcon } from "./NudgeLogoIcon.tsx";
 import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import { useInteractionStatePreview } from "./interactionStatePreview.ts";
 import type { InteractionState } from "./styleState.ts";
 import { getInspectorToggleShortcutLabel, isEditableEvent } from "./shortcuts.ts";
-import { formatInspectorLabel } from "../ui/labels.ts";
-import { FieldRow } from "../ui/FieldRow.tsx";
-import { Select } from "../ui/Select.tsx";
 import { clearSelectedFrameChanges } from "../canvas/sessionStore.ts";
 import {
   useFocusedCardId,
@@ -59,7 +48,6 @@ import { canvasFrameHost } from "../canvas/canvasFrame.ts";
 import { getFrameRegistryVersion, subscribeFrameRegistry } from "../canvas/projection.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
-import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
 import {
   cancelInlineTextEdit,
@@ -75,7 +63,6 @@ import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
 import { useSketchInteractionActive } from "../sketch/interaction.ts";
-import { Tooltip } from "../ui/Tooltip.tsx";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
@@ -242,7 +229,6 @@ export function InspectorShell(): ReactElement {
   const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
   const showText = selectedElements.length > 0 && selectedElements.every((element, index) =>
     isTextRelevant(element.domElement, cssInspection.elements[index]?.properties ?? []));
-  const showInteractionState = !isMultiSelection && availableInteractionStates.length > 1;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
     if (!selected) return null;
@@ -256,8 +242,6 @@ export function InspectorShell(): ReactElement {
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
-  const hasEditScopeCallout = !isMultiSelection
-    && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -275,182 +259,90 @@ export function InspectorShell(): ReactElement {
   return (
     <>
       <InspectorStyle testId="inspector-styles" css={UI_STYLES} />
-      <div className="panel" data-open={isOpen ? "true" : "false"}>
-        <div className="panel__tabs" aria-label="Inspector controls">
-          <div
-            className="panel__header-row"
-            data-test="inspect-tab"
+      <InspectorPanel
+        isOpen={isOpen}
+        collapseDisabled={sketchActive}
+        toggleShortcut={getInspectorToggleShortcutLabel()}
+        onOpenChange={(open) => {
+          if (!open) cancelInlineTextEdit();
+          setInspectorOpen(open);
+        }}
+        headerActions={<><PeekOriginalButton /><AgentStatusButton onOpenSettings={openSettings} /></>}
+        prompt={<CopyPromptButton
+          settingsOpen={settingsOpen}
+          settingsSection={settingsSection}
+          onOpenSettings={openSettings}
+          onSettingsOpenChange={setSettingsOpen}
+        />}
+      >
+        {inlineTextFeedback ? (
+          <StatusCallout
+            tone="danger"
+            className="inline-text-diagnostic"
+            data-test="inline-text-diagnostic"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
-            <Tooltip content="Hide inspector" shortcut={getInspectorToggleShortcutLabel()} stableTrigger>
-              <IconButton
-                variant="quiet"
-                label="Collapse inspector"
-                data-test="collapse-inspector"
-                disabled={sketchActive}
-                style={{ marginLeft: "calc(var(--space-8) * -1)" }}
-                onClick={() => {
-                  cancelInlineTextEdit();
-                  setInspectorOpen(false);
-                }}
-              >
-                <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              </IconButton>
-            </Tooltip>
-            <div className="panel__header-actions">
-              <PeekOriginalButton />
-              <AgentStatusButton onOpenSettings={openSettings} />
-            </div>
-          </div>
-          <div className="panel__copy-row">
-            <CopyPromptButton
-              settingsOpen={settingsOpen}
-              settingsSection={settingsSection}
-              onOpenSettings={openSettings}
-              onSettingsOpenChange={setSettingsOpen}
+            <span>{inlineTextFeedback.message}</span>
+          </StatusCallout>
+        ) : null}
+        {runtimeConfig.inspectionUnavailableReason ? (
+          <StatusCallout tone="danger" data-test="page-inspection-error" role="status">
+            Can’t load Nudge on this page due to {runtimeConfig.inspectionUnavailableReason}.
+          </StatusCallout>
+        ) : selected ? (
+          <>
+            {/* Component props come first: the State select below scopes the style sections that follow it. */}
+            {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
+
+            <InspectorSelection
+              identity={selected}
+              count={selectedElements.length}
+              editScope={editScope}
+              sourceSiteMatchCount={sourceSiteMatchCount}
+              styleState={styleState}
+              availableInteractionStates={availableInteractionStates}
+              onStyleStateChange={(state) => {
+                setActiveStyleState(state);
+                setStyleState(state);
+              }}
+              onRelink={() => {
+                const overrideId = relinkElement(selected.domElement);
+                if (overrideId) discardChangesForInstanceOverride(overrideId);
+                refreshScopeState();
+              }}
+              onUnlink={() => {
+                unlinkElement(selected.domElement);
+                refreshScopeState();
+              }}
             />
-          </div>
-        </div>
-        <div className="panel__body">
-          {inlineTextFeedback ? (
-            <StatusCallout
-              tone="danger"
-              className="inline-text-diagnostic"
-              data-test="inline-text-diagnostic"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <span>{inlineTextFeedback.message}</span>
-            </StatusCallout>
-          ) : null}
-          {runtimeConfig.inspectionUnavailableReason ? (
-            <StatusCallout tone="danger" data-test="page-inspection-error" role="status">
-              Can’t load Nudge on this page due to {runtimeConfig.inspectionUnavailableReason}.
-            </StatusCallout>
-          ) : selected ? (
-            <>
-              {/* Component props come first: the State select below scopes the style sections that follow it. */}
-              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
 
-              {showInteractionState || hasEditScopeCallout ? (
-                <div
-                  className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
-                  data-test="selection"
-                  data-selected-cid={selected.cid}
-                  data-selected-src={selected.src}
-                  data-selected-count={selectedElements.length}
-                  >
-                    {showInteractionState ? (
-                      <FieldRow label="State" className="style-state" data-test="style-state">
-                        <Select
-                          value={styleState}
-                          data-test="style-state-select"
-                          aria-label="Style State"
-                          options={availableInteractionStates.map((state) => ({
-                            value: state,
-                            label: formatInspectorLabel(state),
-                          }))}
-                          onValueChange={(state) => {
-                            const nextState = availableInteractionStates.find((candidate) => candidate === state);
-                            if (!nextState) return;
-                            setActiveStyleState(nextState);
-                            setStyleState(nextState);
-                          }}
-                        />
-                      </FieldRow>
-                    ) : null}
-                    {hasEditScopeCallout ? (
-                      <StatusCallout
-                        tone={editScope === "rendered-instance" ? "neutral" : "accent"}
-                        data-test="edit-scope"
-                        data-lost="false"
-                      >
-                        {editScope === "rendered-instance" ? (
-                          <div className="scope__unlinked">
-                            <span>Element unlinked</span>
-                            <Button
-                              size="compact"
-                              className="scope__action"
-                              data-test="relink-element"
-                              onClick={() => {
-                                const overrideId = relinkElement(selected.domElement);
-                                if (overrideId) discardChangesForInstanceOverride(overrideId);
-                                refreshScopeState();
-                              }}
-                            >
-                              Relink
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="scope__linked">
-                            <span>Affects {sourceSiteMatchCount} elements.</span>
-                            <Button
-                              size="compact"
-                              variant="quiet"
-                              data-test="unlink-element"
-                              onClick={() => {
-                                unlinkElement(selected.domElement);
-                                refreshScopeState();
-                              }}
-                            >
-                              Unlink
-                            </Button>
-                          </div>
-                        )}
-                      </StatusCallout>
-                    ) : null}
-                </div>
-              ) : null}
-
-              {selectionEditable ? (
-                <AtRuleContextProvider rows={tokenRows}>
-                  <div className="style-editors" data-test="style-editors">
-                  {/* CSS edits publish through changesLog and browser inspection;
-                      component metadata does not change. LayoutSection keeps its
-                      own revision for controls that depend on computed layout. */}
-                  <LayoutSection key={`layout-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  <SpacingBox key={`spacing-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  <AppearanceSection key={`appearance-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  {showText ? <>
-                    <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                    <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
-                  </> : null}
-                  <BackgroundEditor key={`background-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRow={backgroundTokenRow} />
-                  <BorderEditor key={`border-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  </div>
-                </AtRuleContextProvider>
-              ) : (
-                <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
-                  These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
-                </StatusCallout>
-              )}
-            </>
-          ) : (
-            <EmptyState />
-          )}
-          <ChangesLog
-            onClearSession={clearInspectorSession}
-          />
-        </div>
-      </div>
+            {selectionEditable ? (
+              <InspectorEditors
+                selected={selected}
+                styleSelection={styleSelection}
+                tokenEntries={tokenEntries}
+                tokenRows={tokenRows}
+                styleState={styleState}
+                showText={showText}
+                backgroundTokenRow={backgroundTokenRow}
+              />
+            ) : (
+              <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
+                These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
+              </StatusCallout>
+            )}
+          </>
+        ) : (
+          <EmptyState />
+        )}
+        <ChangesLog
+          onClearSession={clearInspectorSession}
+        />
+      </InspectorPanel>
       {sketchEnabled ? (
         <SketchWorkspace hostElement={sketchHost} projectId={runtimeConfig.projectId} />
-      ) : null}
-      {!isOpen ? (
-        <div className="panel__restore">
-          <Tooltip>
-            <IconButton
-              variant="quiet"
-              label="Show inspector"
-              className="panel__restore-button"
-              data-test="show-inspector"
-              onClick={() => setInspectorOpen(true)}
-            >
-              <NudgeLogoIcon />
-            </IconButton>
-          </Tooltip>
-        </div>
       ) : null}
     </>
   );

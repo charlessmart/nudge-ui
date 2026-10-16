@@ -1,3 +1,4 @@
+import { PromptActionButton } from "./PromptActionButton.tsx";
 import { Menu } from "@base-ui/react/menu";
 import { iterationId } from "../canvas/frameContent.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -6,7 +7,6 @@ import {
   IconArtboard,
   IconBoltFilled,
   IconCheck,
-  IconChevronDown,
   IconCopy,
   IconPencil,
   IconPlugConnected,
@@ -366,26 +366,17 @@ export function CopyPromptButton({
       : "Edits made in the inspector";
 
   const promptButton = (
-    <Button
-      variant="primary"
-      className="copy-prompt__main"
-      data-test="copy-prompt"
-      type="button"
+    <PromptActionButton
       disabled={disabled}
-      data-copied={copied ? "true" : "false"}
-      data-agent-state={agent.state}
-      aria-busy={preparing || working || connecting ? "true" : undefined}
+      copied={copied}
+      agentState={agent.state}
+      busy={preparing || working || connecting}
       onClick={hasMenu ? undefined : onClick}
-    >
-      {icon}
-      {label}
-      {badgeCount > 0 ? (
-        <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
-          {badgeCount}
-        </span>
-      ) : null}
-      {hasMenu ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
-    </Button>
+      icon={icon}
+      label={label}
+      badgeCount={badgeCount}
+      hasMenu={hasMenu}
+    />
   );
 
   return (
