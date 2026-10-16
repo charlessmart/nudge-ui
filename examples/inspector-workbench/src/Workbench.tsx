@@ -1,7 +1,9 @@
 import { useLayoutEffect, useMemo, useState, type ReactElement } from "react";
 import { InspectorPanel } from "@inspector/shell/InspectorPanel.tsx";
 import { InspectorSelection } from "@inspector/shell/InspectorSelection.tsx";
+import { describeElement } from "@inspector/shell/elementName.ts";
 import { InspectorEditors } from "@inspector/shell/InspectorEditors.tsx";
+import { ComponentPropsSection, useComponentProps } from "@inspector/componentSemantics/ComponentPropsSection.tsx";
 import { EmptyState } from "@inspector/shell/EmptyState.tsx";
 import { AgentStatusButtonView } from "@inspector/shell/AgentStatusButton.tsx";
 import { PromptActionButton } from "@inspector/shell/PromptActionButton.tsx";
@@ -21,7 +23,7 @@ import { intersectTokenEntries } from "@inspector/inspection/selectionProperty.t
 import { isTextRelevant } from "@inspector/styleEditors/textRelevance.ts";
 import { findTokenRow } from "@inspector/styleEditors/rowLookup.ts";
 import type { InteractionState } from "@inspector/shell/styleState.ts";
-import { FixtureTargets } from "./FixtureTargets.tsx";
+import { ComponentExamples, FixtureTargets } from "./FixtureTargets.tsx";
 import { ControlledFields } from "./ControlledFields.tsx";
 import { agentFixture, scenarios, type Scenario } from "./scenarios.ts";
 
@@ -35,7 +37,8 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
   useLayoutEffect(() => {
     clearActiveDraft();
     setActiveStyleState("base");
-    const nodes = [...document.querySelectorAll<HTMLElement>(`[data-fixture="${scenario.target}"]`)];
+    const nodes = [...document.querySelectorAll<HTMLElement>(`[data-fixture="${scenario.target}"]`)]
+      .map((node) => (node.dataset.fixtureSelect ? node.querySelector<HTMLElement>(node.dataset.fixtureSelect) : null) ?? node);
     const selected = nodes.map(resolveSelectionFromElement).filter((value): value is SelectedElement => value !== null);
     setTargets(scenario.target === "mixed" ? selected : selected.slice(0, 1));
     if (scenario.id === "changes" && selected[0]) {
@@ -46,6 +49,7 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
   }, [scenario.id, scenario.target]);
   const inspection = useBrowserCssInspection(targets, styleState);
   const primary = targets[0] ?? null;
+  const componentProps = useComponentProps(primary);
   const selection = useMemo(() => createStyleSelection(targets, inspection.elements, primary), [targets, inspection.elements, primary]);
   const rows = useMemo(() => [...(selection?.primaryRows ?? [])], [selection]);
   const entries = useMemo(() => intersectTokenEntries(inspection.elements.map((snapshot) => snapshot.availableTokens)), [inspection.elements]);
@@ -64,11 +68,13 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
         : scenario.target === "controls" ? <ControlledFields />
           : primary ? <>
             <InspectorSelection
-              identity={primary} count={targets.length} editScope={scope}
+              identity={primary} count={targets.length} name={componentProps ? { title: componentProps.target.meta.componentName } : describeElement(primary.domElement)} editScope={scope}
               sourceSiteMatchCount={scope === "source-site" ? 3 : 1}
               styleState={styleState} availableInteractionStates={inspection.element?.availableStates ?? ["base"]}
               onStyleStateChange={(state) => { setActiveStyleState(state); setStyleState(state); }} onUnlink={() => setScope("rendered-instance")} onRelink={() => setScope("source-site")}
-            />
+            >
+              {targets.length === 1 ? <ComponentPropsSection selected={primary} /> : null}
+            </InspectorSelection>
             <InspectorEditors selected={primary} styleSelection={selection} tokenEntries={entries} tokenRows={rows} styleState={styleState} showText={showText} backgroundTokenRow={findTokenRow(rows, "background-color")} />
           </> : <EmptyState />}
       <ChangesLog />
@@ -100,6 +106,7 @@ export function Workbench(): ReactElement {
       </section>
       <aside className="workbench-help"><h2>Edit the inspector</h2><p>Use Nudge to select controls in this preview and adjust their styles. Copy the resulting prompt to implement changes in the shared inspector source.</p><p>Use Nudge’s app interaction mode to operate the preview controls and switch scenarios.</p><a href="?nudge-ui=off">Open without Nudge</a></aside>
     </div>
+    <ComponentExamples />
     <FixtureTargets />
   </main>;
 }

@@ -1,14 +1,19 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { InteractionState } from "./styleState.ts";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
-import { Button } from "../ui/Button.tsx";
+import { IconLink, IconUnlink } from "@tabler/icons-react";
+import { IconButton } from "../ui/IconButton.tsx";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import type { ElementName } from "./elementName.ts";
 
 export interface InspectorSelectionProps {
   readonly identity?: { readonly cid: string; readonly src: string };
   readonly count: number;
+  readonly name: ElementName | null;
+  /** Component props, shown between the name and the link status. */
+  readonly children?: ReactNode;
   readonly editScope: "source-site" | "rendered-instance" | null;
   readonly sourceSiteMatchCount: number;
   readonly styleState: InteractionState;
@@ -19,11 +24,11 @@ export interface InspectorSelectionProps {
 }
 
 /** Presents selection scope and interaction states without reading the DOM. */
-export function InspectorSelection({ identity, count, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
+export function InspectorSelection({ identity, count, name, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
   const showInteractionState = count === 1 && availableInteractionStates.length > 1;
   const hasEditScopeCallout = count === 1 && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
   return <>
-    {showInteractionState || hasEditScopeCallout ? (
+    {name || children || showInteractionState || hasEditScopeCallout ? (
       <div
         className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
         data-test="selection"
@@ -31,39 +36,47 @@ export function InspectorSelection({ identity, count, editScope, sourceSiteMatch
         data-selected-src={identity?.src}
         data-selected-count={count}
       >
-        {hasEditScopeCallout ? (
-          <StatusCallout
-            tone={editScope === "rendered-instance" ? "neutral" : "accent"}
-            data-test="edit-scope"
-            data-lost="false"
-          >
-            {editScope === "rendered-instance" ? (
-              <div className="scope__unlinked">
-                <span>Element unlinked</span>
-                <Button
-                  size="compact"
-                  className="scope__action"
-                  data-test="relink-element"
-                  onClick={onRelink}
-                >
-                  Relink
-                </Button>
-              </div>
-            ) : (
-              <div className="scope__linked">
-                <span>Affects {sourceSiteMatchCount} elements.</span>
-                <Button
-                  size="compact"
-                  variant="quiet"
-                  data-test="unlink-element"
-                  onClick={onUnlink}
-                >
-                  Unlink
-                </Button>
-              </div>
-            )}
-          </StatusCallout>
+        {name ? (
+          <div className="editor__title-row selection__name" data-test="selection-name">
+            <div className="editor__title">{name.title}</div>
+            {hasEditScopeCallout ? (
+              <StatusCallout
+                tone={editScope === "rendered-instance" ? "neutral" : "accent"}
+                className="selection__scope"
+                data-test="edit-scope"
+                data-lost="false"
+              >
+                {editScope === "rendered-instance" ? (
+                  <div className="scope__unlinked">
+                    <span>Unlinked</span>
+                    <IconButton
+                      variant="quiet"
+                      label="Relink element"
+                      className="scope__action"
+                      data-test="relink-element"
+                      onClick={onRelink}
+                    >
+                      <IconLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                    </IconButton>
+                  </div>
+                ) : (
+                  <div className="scope__linked">
+                    <span>Linked ({sourceSiteMatchCount})</span>
+                    <IconButton
+                      variant="quiet"
+                      label="Unlink element"
+                      data-test="unlink-element"
+                      onClick={onUnlink}
+                    >
+                      <IconUnlink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                    </IconButton>
+                  </div>
+                )}
+              </StatusCallout>
+            ) : null}
+          </div>
         ) : null}
+        {children}
         {showInteractionState ? (
           <FieldRow label="State" className="style-state" data-test="style-state">
             <Select

@@ -348,10 +348,6 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.selection--without-scope-callout {
-  border-bottom: 0;
-}
-
 .style-state {
   grid-template-columns: var(--label-column) minmax(0, 1fr);
   column-gap: var(--space-8);
@@ -387,14 +383,16 @@
   text-transform: uppercase;
 }
 
-/* The State select reads as the last row of the component section above it. */
-.component-props:has(+ .selection) {
-  border-bottom: 0;
+/* One component section: name with link status, props and state share a single border. */
+.selection .selection__scope {
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
 }
 
-.component-props + .selection {
-  padding-top: var(--space-8);
-  border-bottom: 1px solid var(--border-subtle);
+.selection .component-props {
+  padding: 0;
+  border-bottom: 0;
 }
 
 .component-props__hint {

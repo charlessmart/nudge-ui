@@ -41,6 +41,14 @@ export default defineConfig({
     projectId: "inspector-workbench",
     sourceRoots: [inspector],
   }) as PluginOption],
-  resolve: { alias: { "@inspector": inspector }, dedupe: ["react", "react-dom"] },
+  resolve: {
+    // Share one component runtime between transformed fixtures and the source-imported inspector.
+    alias: [
+      { find: "nudge-ui/internal/component-runtime", replacement: resolve(inspector, "componentSemantics/react/runtime.tsx") },
+      { find: "@inspector", replacement: inspector },
+    ],
+    dedupe: ["react", "react-dom"],
+  },
+  optimizeDeps: { exclude: ["nudge-ui/internal/component-runtime"] },
   server: { port: 5186, strictPort: true },
 });

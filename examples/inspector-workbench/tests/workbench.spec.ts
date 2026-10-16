@@ -6,11 +6,11 @@ test("renders real editors and resets local fixture state", async ({ page }) => 
   await page.goto("/?nudge-ui=off&scenario=linked");
   const fixture = page.locator(".workbench-preview");
   await expect(fixture.locator('[data-test="typography"]')).toBeVisible();
-  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Affects 3 elements");
+  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Linked (3)");
   await fixture.getByRole("button", { name: "Unlink", exact: true }).click();
-  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Element unlinked");
+  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Unlinked");
   await page.getByRole("button", { name: "Reset fixture" }).click();
-  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Affects 3 elements");
+  await expect(fixture.locator('[data-test="edit-scope"]')).toContainText("Linked (3)");
   expect(errors).toEqual([]);
 });
 

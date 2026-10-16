@@ -1,5 +1,6 @@
 import { InspectorPanel } from "./InspectorPanel.tsx";
 import { InspectorSelection } from "./InspectorSelection.tsx";
+import { describeElement } from "./elementName.ts";
 import { InspectorEditors } from "./InspectorEditors.tsx";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -48,7 +49,7 @@ import { canvasFrameHost } from "../canvas/canvasFrame.ts";
 import { getFrameRegistryVersion, subscribeFrameRegistry } from "../canvas/projection.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
-import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
+import { ComponentPropsSection, useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
 import {
   cancelInlineTextEdit,
   isInlineTextEditingActive,
@@ -115,6 +116,7 @@ export function InspectorShell(): ReactElement {
   const sketchHost = selectedCardId || focusedCardId ? canvasFrameHost(getActiveCanvasFrame()) : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
+  const componentProps = useComponentProps(selected);
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
@@ -293,12 +295,10 @@ export function InspectorShell(): ReactElement {
           </StatusCallout>
         ) : selected ? (
           <>
-            {/* Component props come first: the State select below scopes the style sections that follow it. */}
-            {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
-
             <InspectorSelection
               identity={selected}
               count={selectedElements.length}
+              name={isMultiSelection ? { title: `${selectedElements.length} elements` } : componentProps ? { title: componentProps.target.meta.componentName } : describeElement(selected.domElement)}
               editScope={editScope}
               sourceSiteMatchCount={sourceSiteMatchCount}
               styleState={styleState}
@@ -316,7 +316,9 @@ export function InspectorShell(): ReactElement {
                 unlinkElement(selected.domElement);
                 refreshScopeState();
               }}
-            />
+            >
+              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
+            </InspectorSelection>
 
             {selectionEditable ? (
               <InspectorEditors
