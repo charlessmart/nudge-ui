@@ -1,9 +1,10 @@
-import type {
-  NudgeUiClientManifest,
-  NudgeUiRuntimeConfig,
+import {
+  createNudgeUiClientManifest,
+  type NudgeUiClientManifest,
+  type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
 import { createProjectId } from "../../project/identity.ts";
-import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
+import { NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 
 export interface NudgeUiManifestInput {
   root: string;
@@ -37,25 +38,24 @@ export function nextjsProjectId(root: string): string {
 }
 
 export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
-  return {
-    version: NUDGE_UI_MANIFEST_VERSION,
-    revision: 0,
-    runtime: {
-      projectId: nextjsProjectId(input.root),
-      host: "nextjs-react",
-      framework: "React",
-      stylingSystem: "CSS custom properties",
-      // Canvas shares the Vite host's controller/renderer runtime (ADR-0006).
-      capabilities: { canvas: true, componentSemantics: true, domNavigation: true },
-      tokenCatalog: [],
-      tokens: [],
-      tokenDiagnostics: [],
-      tokenGeneration: "",
-      componentContracts: [],
-    },
+  const runtime: MutableRuntime = {
+    projectId: nextjsProjectId(input.root),
+    host: "nextjs-react",
+    framework: "React",
+    stylingSystem: "CSS custom properties",
+    // Canvas shares the Vite host's controller/renderer runtime (ADR-0006).
+    capabilities: { canvas: true, componentSemantics: true, domNavigation: true },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    componentContracts: [],
+  };
+  return createNudgeUiClientManifest({
+    runtime,
     reload: {
       endpoint: NUDGE_UI_RELOAD_PATH,
       strategy: "refresh-manifest",
     },
-  };
+  });
 }
