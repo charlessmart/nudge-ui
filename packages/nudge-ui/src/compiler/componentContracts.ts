@@ -1,5 +1,6 @@
 import { parse } from "@babel/parser";
 import type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./componentContractTypes.ts";
+import { componentIdentity } from "./sourcePaths.ts";
 
 type Node = {
   type: string;
@@ -200,7 +201,7 @@ function componentContract(
     .filter((prop): prop is ComponentPropContract => prop !== null);
   if (props.length === 0) return null;
   return {
-    componentId: `${file.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "")}#${name}`,
+    componentId: componentIdentity(file, name),
     name,
     file,
     props,
