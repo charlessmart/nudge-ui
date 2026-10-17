@@ -12,10 +12,15 @@ import {
   activateDraft,
   activateDraftForCard,
   draftIdForCard,
+  forgetDraft,
   getActiveDraftChanges,
+  isDraftLocked,
   subscribeDrafts,
 } from "../drafts/store.ts";
 import { applicationTarget, targetKey } from "../drafts/model.ts";
+import { iterationId, contentEditTarget } from "../canvas/frameContent.ts";
+import { setFrameLifecycle } from "../canvas/frameLifecycle.ts";
+import { removeHtmlArtifact } from "../iterations/client.ts";
 import {
   hydrateSession,
   enableAutoSave,
@@ -35,6 +40,19 @@ export function startWorkspaceController() {
   loadDrafts(config.projectId, { persistent });
   const result = persistent ? hydrateSession() : { restored: false };
   const save = persistent ? scheduleAutoSave : () => undefined;
+  // Canvas reports a removed frame; drafts and artifacts decide what to release.
+  setFrameLifecycle({
+    canEdit: () => !isDraftLocked(),
+    release: (released, remaining) => {
+      const artifactId = iterationId(released);
+      if (!artifactId) return;
+      if (remaining.some((content) => iterationId(content) === artifactId)) return;
+      forgetDraft(targetKey(contentEditTarget(released)));
+      void removeHtmlArtifact(artifactId).catch((error: unknown) => {
+        console.warn("Nudge UI could not remove an unused HTML iteration:", error);
+      });
+    },
+  });
   let active = "";
   const synchronize = () => {
     const cardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
@@ -75,6 +93,7 @@ export function startWorkspaceController() {
       window.removeEventListener("beforeunload", beforeunload);
       window.removeEventListener("pagehide", pagehide);
       setCanvasHistoryActivator(() => undefined);
+      setFrameLifecycle(null);
       resetAutoSave();
     },
   };

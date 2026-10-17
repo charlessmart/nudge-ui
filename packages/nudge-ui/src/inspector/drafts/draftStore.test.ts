@@ -37,6 +37,7 @@ function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams[
   const lease = { writable: true };
   const timeline = createTimeline();
   const projections: DraftProjectionEvent["kind"][] = [];
+  const reveals: Array<[string, string | undefined]> = [];
   const store = createDraftStore({
     canWrite: () => lease.writable,
     timeline,
@@ -49,12 +50,13 @@ function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams[
       getSnapshot: () => ({ ready: true, documents: [] }),
       subscribe: () => () => undefined,
     },
+    revealDraft: (draftId, cardId) => { reveals.push([draftId, cardId]); },
     project: (snapshot, event) => {
       projections.push(event.kind);
       onProject?.(snapshot, event);
     },
   });
-  return { store, storage, lease, timeline, projections };
+  return { store, storage, lease, timeline, projections, reveals };
 }
 
 describe("draft history", () => {
@@ -237,6 +239,18 @@ describe("draft projection", () => {
 
     expect(store.getActive().draftId).toBe(OTHER_DRAFT);
     expect(projections).toEqual(["switch"]);
+  });
+
+  it("replays the frame that owned the draft when the edit was committed", () => {
+    const { store, reveals } = setup();
+    store.activate(OTHER_DRAFT, "card-7");
+    store.commitChanges([styleChange("color", "red")]);
+    store.activate(targetKey(applicationTarget()));
+    reveals.length = 0;
+
+    expect(store.undo()).toBe(true);
+
+    expect(reveals).toContainEqual([OTHER_DRAFT, "card-7"]);
   });
 
   it("does not project a draft that is not active", () => {
