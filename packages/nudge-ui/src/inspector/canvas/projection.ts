@@ -6,14 +6,8 @@ import { getCanvasCards } from "./canvasStore.ts";
 import { getCanvasMode } from "./viewStore.ts";
 import type { ReplaceStylesMessage } from "./frameProtocol.ts";
 import { connectFrame } from "./frameConnection.ts";
-import {
-  clearCanvasRenderedInstanceProjectionReports,
-  setCanonicalRenderedInstanceOverrides,
-} from "../projection/renderedInstance.ts";
-import {
-  clearCanvasTextProjectionReports,
-  setCanonicalTextContentChanges,
-} from "../projection/textProjection.ts";
+import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
+import { clearCanvasTextProjectionReports } from "../projection/textProjection.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import {
   invalidatePreviewDocumentSession,
@@ -29,8 +23,6 @@ import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection, notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 
 let revision = 0;
-let lastRulesKey: string | null = null;
-let lastPeekActive = false;
 export interface FrameProjection extends DraftProjectionPlan<CompiledManagedStyles> {
   readonly draftId: string;
   readonly draftRevision: number;
@@ -88,45 +80,6 @@ export function invalidateCanvasPreviewDocument(cardId: string): void {
   previewDocuments.delete(cardId);
 }
 
-function projectionKey(plan: DraftProjectionPlan<CompiledManagedStyles>): string {
-  // The key must cover every projection dimension: a delete-only snapshot has empty CSS but still needs a new revision.
-  return `${plan.managedStyles.css}\u0000${JSON.stringify(plan.instanceOverrides)}\u0000${JSON.stringify(plan.structuralChanges)}\u0000${JSON.stringify(plan.textContentChanges)}\u0000${JSON.stringify(plan.componentOverrides)}`;
-}
-
-export function computeProjection() {
-  const plan = compileDraftProjection(getActiveDraftChanges());
-  if (isOriginalPreviewActive()) {
-    // Peek: frames show the page without inspector changes while the canonical projection key stays untouched.
-    if (!lastPeekActive) {
-      lastPeekActive = true;
-      revision += 1;
-    }
-    return {
-      ...plan,
-      managedStyles: { rules: [], css: "" },
-      css: "",
-      instanceOverrides: [],
-      structuralChanges: [],
-      textContentChanges: [],
-      componentOverrides: [],
-      revision,
-    };
-  }
-  if (lastPeekActive) {
-    // Force the canonical projection to resend after a peek even though its key is unchanged.
-    lastPeekActive = false;
-    lastRulesKey = null;
-  }
-  setCanonicalRenderedInstanceOverrides(plan.instanceOverrides);
-  setCanonicalTextContentChanges(plan.textContentChanges);
-  const key = projectionKey(plan);
-  if (key !== lastRulesKey) {
-    lastRulesKey = key;
-    revision += 1;
-  }
-  return { ...plan, css: plan.managedStyles.css, revision };
-}
-
 export function computeProjectionForCard(cardId: string): FrameProjection {
   const draftId = draftIdForCard(cardId);
   const workspace = draftId ? getDraftChanges(draftId) : getActiveDraftChanges();
@@ -168,8 +121,6 @@ export function getCanvasCardIdForDocument(doc: Document): string | null {
 
 export function resetProjectionRevision(): void {
   revision = 0;
-  lastRulesKey = null;
-  lastPeekActive = false;
   draftPlans.clear();
   for (const state of frameProjectionStates.values()) {
     state.sentRevision = -1;

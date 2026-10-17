@@ -158,7 +158,7 @@ describe("sessionStore persistence", () => {
 
     clearClipboardHandoff();
     clearActiveDraft();
-    expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 0 });
+    expect(hydrateSession()).toMatchObject({ restored: true });
 
     expect(getClipboardHandoffSnapshot()).toMatchObject({
       drafts: [{ owner: { target: { kind: "application" } }, changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
@@ -275,7 +275,7 @@ describe("sessionStore hydration", () => {
     clearActiveDraft();
     hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
 
-    expect(hydrateSession()).toEqual({ restored: true, changeCount: 0 });
+    expect(hydrateSession()).toEqual({ restored: true });
     expect(getChangesList()).toEqual([]);
     loadDrafts(nudgeUiProjectId);
     activateDraftForCard(getFocusedCardId()!);
@@ -287,7 +287,7 @@ describe("sessionStore hydration", () => {
   it("restores geometry without replacing the current draft's intent", () => {
     persistSession();
     appendChange(makeElementChange({ rawValue: "purple" }));
-    expect(hydrateSession()).toEqual({ restored: true, changeCount: 0 });
+    expect(hydrateSession()).toEqual({ restored: true });
     expect(getChangesList()).toMatchObject([{ rawValue: "purple" }]);
   });
 
@@ -334,7 +334,6 @@ describe("sessionStore hydration", () => {
   it("returns no restoration when no session exists", () => {
     const result = hydrateSession();
     expect(result.restored).toBe(false);
-    expect(result.changeCount).toBe(0);
   });
 
   it("returns no restoration for malformed JSON", () => {
@@ -363,7 +362,7 @@ describe("sessionStore hydration", () => {
     delete session[field];
     localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(hydrateSession()).toEqual({ restored: false });
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
@@ -373,7 +372,7 @@ describe("sessionStore hydration", () => {
     legacySession.schemaVersion = SCHEMA_VERSION - 1;
     localStorage.setItem(legacyKey, JSON.stringify(legacySession));
 
-    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(hydrateSession()).toEqual({ restored: false });
     expect(localStorage.getItem(legacyKey)).not.toBeNull();
   });
 

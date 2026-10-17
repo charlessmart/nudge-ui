@@ -33,7 +33,7 @@ import {
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
 
 export { getAvailableInteractionStates, resetSourceSiteMatchCache, sourceSiteMatchCacheSize } from "./resolution/ruleMatching.ts";
-export { buildTokenTable, getTokenTable, getAvailableTokenEntriesForElement, getAvailableTokenCatalog } from "./tokenAvailability.ts";
+export { buildTokenTable, getAvailableTokenEntriesForElement, getAvailableTokenCatalog } from "./tokenAvailability.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 
 /** Idempotent per stylesheet revision; warms the snapshot ahead of a sweep so its blocking time stays small. */

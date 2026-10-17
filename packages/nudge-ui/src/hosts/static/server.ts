@@ -24,9 +24,10 @@ import {
   NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_RELOAD_PATH,
-  NUDGE_UI_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
+import { isReservedNudgeUiRoute } from "../../transport/index.ts";
+export { isReservedNudgeUiRoute };
 import { startOptionalProjectBridge } from "../projectBridge.ts";
 import { createProjectTokenSnapshot, EMPTY_PROJECT_TOKEN_SNAPSHOT } from "../../project/tokens.ts";
 import {
@@ -319,11 +320,6 @@ export function createStandaloneProjectId(rootDirectory: string): string {
 export function contentTypeForPath(filePath: string): string {
   const extension = extname(filePath).toLowerCase();
   return MIME_TYPES.get(extension) ?? "application/octet-stream";
-}
-
-export function isReservedNudgeUiRoute(pathname: string): boolean {
-  return pathname === NUDGE_UI_ROUTE_PREFIX.slice(0, -1)
-    || pathname.startsWith(NUDGE_UI_ROUTE_PREFIX);
 }
 
 function canonicalDirectory(directory: string): string {
