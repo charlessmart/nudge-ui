@@ -4,6 +4,7 @@ import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
 import {
   applyValueEdit,
+  isCalcExpression,
   normalizeOpacityPercent,
   selectTokens,
 } from "../../css/value-semantics/index.ts";
@@ -845,7 +846,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
     || tokenRow.color?.isExpression));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
-  const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
+  const isCalcAuthored = isCalcExpression(authored);
   const selectedTokenName = selectedProperty?.token.kind === "common"
     ? selectedProperty.token.name
     : null;

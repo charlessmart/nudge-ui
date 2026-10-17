@@ -7,6 +7,7 @@ import type { StyleRuleContext } from "../changes/editModel.ts";
 import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { getElementComputedStyle, getElementWindow } from "../runtime/domRealm.ts";
 import { selectTokens } from "../../css/value-semantics/index.ts";
+import { parseSingleVarReference } from "../../css/value-semantics/cssSyntax.ts";
 import type { TokenGroup } from "../../css/value-semantics/index.ts";
 import { cascadeLayerOrder } from "./resolution/cssomCollector.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
@@ -195,10 +196,10 @@ export function filterTokenRows(rows: readonly TokenCatalogRow[], query: string)
   );
 }
 
-const EXACT_ALIAS = /^var\(\s*(--[\w-]+)\s*\)$/;
-
+/** An alias is a whole-string reference with no fallback; a fallback changes the value. */
 export function aliasName(value: string): string | null {
-  return value.trim().match(EXACT_ALIAS)?.[1] ?? null;
+  const reference = parseSingleVarReference(value);
+  return reference && reference.fallback === undefined ? reference.name : null;
 }
 
 export function createsAliasCycle(

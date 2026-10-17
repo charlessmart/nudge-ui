@@ -14,6 +14,7 @@ import {
   type SideValueSlot,
 } from "../ui/SideValuesField.tsx";
 import { setStyles, swapTokens } from "../tokens/editActions.ts";
+import { isCalcExpression } from "../../css/value-semantics/index.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import {
@@ -87,7 +88,7 @@ export function SpacingField({
           editTarget={editTarget}
           entries={entries}
           suggestions={suggestions}
-          displayValue={isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
+          displayValue={isCalcExpression(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
@@ -267,7 +268,7 @@ function PairedTokenField({
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
-  const isCalcAuthored = isCalcValue(calcAuthored);
+  const isCalcAuthored = isCalcExpression(calcAuthored);
   const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
   // Some browsers report the used pixel size for horizontal auto margins; keep the authored keyword.
   const committedValue = groupMixed
@@ -330,11 +331,7 @@ function PairedTokenField({
 }
 
 function fieldDisplayValue(field: InspectorFieldProjection): string {
-  return isCalcValue(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
-}
-
-function isCalcValue(value: string): boolean {
-  return /\bcalc\s*\(/i.test(value);
+  return isCalcExpression(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
 }
 
 function splitAxisValue(value: string): readonly [string, string] | null {

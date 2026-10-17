@@ -6,7 +6,7 @@ import type {
   TokenReference,
   ValueModifier,
 } from "../model/index.ts";
-import { splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
+import { isSingleVarReference, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
 import { parseBorderComponents, type BorderComponents } from "./borderSemantics.ts";
 import { parseFontShorthand } from "./fontSemantics.ts";
 import { normalizeOpacityPercent } from "./colorSemantics.ts";
@@ -150,7 +150,7 @@ function expandPositionValues(rawValues: string[], ctx: StructuredValuesContext)
   return rawValues.flatMap((rawValue) => {
     const res = interpretTokenValue(rawValue, ctx.tokenContext);
     const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
-    if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
+    if (res.tokenName && isSingleVarReference(rawValue) && tokenValues.length > 1) {
       return tokenValues.map((resolvedValue) => ({
         declaredValue: rawValue,
         resolvedValue,
