@@ -596,7 +596,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           src={card.content.kind === "iteration" ? contentDocumentUrl(card.content) : initialUrlRef.current}
           title={frameLabel}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           data-test={`canvas-card-iframe-${card.id}`}
         />
         <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
