@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { computeDescendants, computeHierarchy, computeNavigationNodes } from "./hierarchy.ts";
+import {
+  computeHierarchy,
+  computeNavigationParents,
+  computeTrackedChildren,
+  hasTrackedChildren,
+  NAVIGATOR_CHILD_LIMIT,
+} from "./hierarchy.ts";
 
 describe("computeHierarchy", () => {
   let host: HTMLDivElement;
@@ -92,72 +98,56 @@ describe("computeHierarchy", () => {
     expect(computeHierarchy(child)).toEqual([child, parent]);
   });
 
-  it("returns the nearest tracked descendants breadth-first", () => {
-    const root = document.createElement("main");
-    root.dataset.cid = "Root";
-    const first = document.createElement("section");
-    first.dataset.cid = "First";
-    const firstChild = document.createElement("button");
-    firstChild.dataset.cid = "FirstChild";
-    const second = document.createElement("section");
-    second.dataset.cid = "Second";
-    root.append(first, second);
-    first.appendChild(firstChild);
-    document.body.appendChild(root);
+  function tracked(cid: string, tag = "div"): HTMLElement {
+    const element = document.createElement(tag);
+    element.dataset.cid = cid;
+    return element;
+  }
 
-    expect(computeDescendants(root)).toEqual([
-      { element: first, depth: 1 },
-      { element: second, depth: 1 },
-    ]);
-    expect(computeDescendants(root, 2, 3)).toEqual([
-      { element: first, depth: 1 },
-      { element: second, depth: 1 },
-      { element: firstChild, depth: 2 },
-    ]);
+  it("lists every direct tracked child in document order, looking through untracked wrappers", () => {
+    const root = tracked("Root", "main");
+    const first = tracked("First");
+    const wrapper = document.createElement("div");
+    const wrapped = tracked("Wrapped");
+    const nested = tracked("Nested");
+    const last = tracked("Last");
+    wrapper.append(wrapped);
+    first.append(nested);
+    root.append(first, wrapper, last);
+    document.body.append(root);
+
+    expect(computeTrackedChildren(root)).toEqual({ elements: [first, wrapped, last], hidden: 0 });
+    expect(computeTrackedChildren(first)).toEqual({ elements: [nested], hidden: 0 });
   });
 
-  it("uses two parents and two descendants when both directions exist", () => {
-    const grandparent = document.createElement("div");
-    grandparent.dataset.cid = "Grandparent";
-    const parent = document.createElement("div");
-    parent.dataset.cid = "Parent";
-    const selected = document.createElement("div");
-    selected.dataset.cid = "Selected";
-    const child = document.createElement("div");
-    child.dataset.cid = "Child";
-    const grandchild = document.createElement("div");
-    grandchild.dataset.cid = "Grandchild";
-    grandparent.append(parent);
-    parent.append(selected);
-    selected.append(child);
-    child.append(grandchild);
-    document.body.append(grandparent);
+  it("collapses children past the limit into a count", () => {
+    const root = tracked("Root");
+    const children = Array.from({ length: NAVIGATOR_CHILD_LIMIT + 7 }, (_, index) => tracked(`Child${index}`));
+    root.append(...children);
+    document.body.append(root);
 
-    expect(computeNavigationNodes(selected, [selected, parent, grandparent])).toEqual([
-      { element: parent, direction: "up", depth: 1 },
-      { element: grandparent, direction: "up", depth: 2 },
-      { element: child, direction: "down", depth: 1 },
-      { element: grandchild, direction: "down", depth: 2 },
-    ]);
+    const result = computeTrackedChildren(root);
+
+    expect(result.elements).toEqual(children.slice(0, NAVIGATOR_CHILD_LIMIT));
+    expect(result.hidden).toBe(7);
+    expect(computeTrackedChildren(root, 3)).toEqual({ elements: children.slice(0, 3), hidden: children.length - 3 });
   });
 
-  it("uses four parents when there are no descendants", () => {
-    const nodes = Array.from({ length: 5 }, (_, index) => {
-      const node = document.createElement("div");
-      node.dataset.cid = `Node${index}`;
-      return node;
-    });
-    nodes.slice(1).reduce((child, parent) => {
-      parent.append(child);
-      return parent;
-    }, nodes[0]!);
-    document.body.append(nodes.at(-1)!);
+  it("reports whether an element has any tracked descendant child", () => {
+    const root = tracked("Root");
+    const wrapper = document.createElement("div");
+    document.body.append(root);
+    root.append(wrapper);
+    expect(hasTrackedChildren(root)).toBe(false);
 
-    expect(computeNavigationNodes(nodes[0]!, nodes)).toEqual([
-      { element: nodes[1], direction: "up", depth: 1 },
-      { element: nodes[2], direction: "up", depth: 2 },
-      { element: nodes[3], direction: "up", depth: 3 },
-      { element: nodes[4], direction: "up", depth: 4 },
-    ]);
+    wrapper.append(tracked("Deep"));
+    expect(hasTrackedChildren(root)).toBe(true);
+  });
+
+  it("uses two parents when children also show and four when there are none", () => {
+    const nodes = Array.from({ length: 5 }, (_, index) => tracked(`Node${index}`));
+
+    expect(computeNavigationParents(nodes, true)).toEqual([nodes[1], nodes[2]]);
+    expect(computeNavigationParents(nodes, false)).toEqual([nodes[1], nodes[2], nodes[3], nodes[4]]);
   });
 });

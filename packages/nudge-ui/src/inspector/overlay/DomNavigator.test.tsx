@@ -3,7 +3,7 @@ import { act } from "react";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { computeHierarchy } from "../selection/hierarchy.ts";
+import { computeHierarchy, NAVIGATOR_CHILD_LIMIT } from "../selection/hierarchy.ts";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { DomNavigator } from "./DomNavigator.tsx";
@@ -61,7 +61,7 @@ describe("DomNavigator", () => {
     expect(getSelectedElement()?.domElement).toBe(parent);
   });
 
-  it("keeps the selected element between visible parents and children", () => {
+  it("keeps the selected element between visible parents and its direct children", () => {
     const grandparent = document.createElement("main");
     grandparent.dataset.cid = "Grandparent";
     const parent = document.createElement("section");
@@ -91,9 +91,46 @@ describe("DomNavigator", () => {
 
     act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
     const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[data-test="dom-navigator-item"]'));
-    expect(items.map((item) => item.textContent)).toEqual(["main", "section", "button", "span", "em"]);
-    expect(items.map((item) => item.dataset.depth)).toEqual(["0", "1", "2", "3", "4"]);
+    expect(items.map((item) => item.textContent)).toEqual(["main", "section", "button", "span"]);
+    expect(items.map((item) => item.dataset.depth)).toEqual(["0", "1", "2", "3"]);
     expect(items[2]?.dataset.current).toBe("true");
+
+    const expander = document.body.querySelector<HTMLButtonElement>('[data-test="dom-navigator-expander"]')!;
+    expect(expander.getAttribute("aria-expanded")).toBe("false");
+    act(() => expander.click());
+    const expanded = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[data-test="dom-navigator-item"]'));
+    expect(expanded.map((item) => item.textContent)).toEqual(["main", "section", "button", "span", "em"]);
+    expect(expanded[4]?.dataset.depth).toBe("4");
+    expect(document.body.querySelector('[data-test="dom-navigator-expander"]')?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("lists every child and counts the ones past the limit", () => {
+    const selected = document.createElement("div");
+    selected.dataset.cid = "Selected";
+    const children = Array.from({ length: NAVIGATOR_CHILD_LIMIT + 3 }, (_, index) => {
+      const child = document.createElement("span");
+      child.dataset.cid = `Child${index}`;
+      return child;
+    });
+    selected.append(...children);
+    host.append(selected);
+
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(DomNavigator, {
+        selected: resolveSelectionFromElement(selected)!,
+        hierarchy: computeHierarchy(selected),
+        anchor: { left: 10, top: 20, width: 30, height: 30 },
+        project: () => null,
+      }));
+    });
+
+    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
+
+    const items = document.body.querySelectorAll('[data-test="dom-navigator-item"]');
+    expect(items).toHaveLength(NAVIGATOR_CHILD_LIMIT + 1);
+    expect(document.body.querySelector('[data-test="dom-navigator-more"]')?.textContent).toBe("+3 more");
+    expect(document.body.querySelector('[data-test="dom-navigator-expander"]')).toBeNull();
   });
 
   it("opens only on icon click and stays open when the pointer leaves", () => {

@@ -19,47 +19,50 @@ export function computeHierarchy(el: HTMLElement): HTMLElement[] {
   return chain;
 }
 
-export interface DescendantNode {
-  element: HTMLElement;
-  depth: number;
+/** Direct children listed in the DOM navigator before the rest collapse into a count. */
+export const NAVIGATOR_CHILD_LIMIT = 50;
+
+export interface TrackedChildren {
+  elements: HTMLElement[];
+  /** Tracked children past the limit. */
+  hidden: number;
 }
 
-export interface NavigationNode {
-  element: HTMLElement;
-  direction: "up" | "down";
-  depth: number;
+function htmlElementConstructor(el: HTMLElement): typeof HTMLElement | null {
+  return el.ownerDocument.defaultView?.HTMLElement ?? null;
 }
 
-/** Returns the nearest tracked descendants, breadth-first and document-ordered. */
-export function computeDescendants(
-  el: HTMLElement,
-  maxDepth = 2,
-  maxNodes = 2,
-): DescendantNode[] {
-  if (maxDepth < 1 || maxNodes < 1) return [];
-  const descendants = Array.from(el.querySelectorAll<HTMLElement>('[data-cid]'))
-    .map((element, order) => {
-      let depth = 1;
-      let ancestor = element.parentElement;
-      while (ancestor && ancestor !== el) {
-        if (ancestor.hasAttribute('data-cid')) depth += 1;
-        ancestor = ancestor.parentElement;
-      }
-      return ancestor === el ? { element, depth, order } : null;
-    })
-    .filter((node): node is DescendantNode & { order: number } => node !== null && node.depth <= maxDepth)
-    .sort((left, right) => left.depth - right.depth || left.order - right.order);
-  return descendants.slice(0, maxNodes).map(({ element, depth }) => ({ element, depth }));
+/** The nearest tracked elements below `el` in document order, looking through untracked wrappers. */
+export function computeTrackedChildren(el: HTMLElement, limit = NAVIGATOR_CHILD_LIMIT): TrackedChildren {
+  const constructor = htmlElementConstructor(el);
+  const result: TrackedChildren = { elements: [], hidden: 0 };
+  if (!constructor) return result;
+  const visit = (parent: Element): void => {
+    for (const child of parent.children) {
+      if (!(child instanceof constructor)) continue;
+      if (!child.hasAttribute("data-cid")) visit(child);
+      else if (result.elements.length < limit) result.elements.push(child);
+      else result.hidden += 1;
+    }
+  };
+  visit(el);
+  return result;
 }
 
-export function computeNavigationNodes(
-  el: HTMLElement,
-  hierarchy: HTMLElement[] = computeHierarchy(el),
-): NavigationNode[] {
-  const children = computeDescendants(el, 2, 2);
-  const parents = hierarchy.slice(1, (children.length > 0 ? 2 : 4) + 1);
-  return [
-    ...parents.map((element, index) => ({ element, direction: "up" as const, depth: index + 1 })),
-    ...children.map(({ element, depth }) => ({ element, direction: "down" as const, depth })),
-  ];
+export function hasTrackedChildren(el: HTMLElement): boolean {
+  const constructor = htmlElementConstructor(el);
+  if (!constructor) return false;
+  const visit = (parent: Element): boolean => {
+    for (const child of parent.children) {
+      if (!(child instanceof constructor)) continue;
+      if (child.hasAttribute("data-cid") || visit(child)) return true;
+    }
+    return false;
+  };
+  return visit(el);
+}
+
+/** Nearest tracked ancestors, fewer when children also fill the menu. */
+export function computeNavigationParents(hierarchy: readonly HTMLElement[], hasChildren: boolean): HTMLElement[] {
+  return hierarchy.slice(1, (hasChildren ? 2 : 4) + 1);
 }
