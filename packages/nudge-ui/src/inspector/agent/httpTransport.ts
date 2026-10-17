@@ -1,5 +1,6 @@
 import {
   AGENT_PROTOCOL_VERSION,
+  BRIDGE_ENDPOINTS,
   type AgentBridgeTransport,
   type AgentBridgeEndpointConfig,
   type AgentDiscoveryRequest,
@@ -161,7 +162,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async discover(request: AgentDiscoveryRequest, signal?: AbortSignal): Promise<AgentStatusSnapshot | null> {
-    const url = endpointUrl(this.config, "healthUrl", "/health", pageOrigin());
+    const url = endpointUrl(this.config, "healthUrl", BRIDGE_ENDPOINTS.health, pageOrigin());
     if (!url || typeof fetch !== "function") return null;
     const response = await fetch(withQuery(url, {
       projectId: request.projectId,
@@ -178,7 +179,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async pair(request: AgentPairRequest, signal?: AbortSignal): Promise<PairingResponse> {
-    const url = endpointUrl(this.config, "pairUrl", "/pair", pageOrigin());
+    const url = endpointUrl(this.config, "pairUrl", BRIDGE_ENDPOINTS.pair, pageOrigin());
     if (!url || typeof fetch !== "function") throw new Error("Agent bridge is unavailable.");
     const response = await fetch(url, {
       method: "POST",
@@ -192,7 +193,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async takeOver(request: AgentPairRequest, signal?: AbortSignal): Promise<PairingResponse> {
-    const url = endpointUrl(this.config, "takeoverUrl", "/takeover", pageOrigin());
+    const url = endpointUrl(this.config, "takeoverUrl", BRIDGE_ENDPOINTS.takeover, pageOrigin());
     if (!url || typeof fetch !== "function") throw new Error("Agent bridge is unavailable.");
     const response = await fetch(url, {
       method: "POST",
@@ -206,7 +207,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async restore(request: AgentSessionRequest, signal?: AbortSignal): Promise<AgentStatusSnapshot | null> {
-    const url = endpointUrl(this.config, "statusUrl", "/status", pageOrigin());
+    const url = endpointUrl(this.config, "statusUrl", BRIDGE_ENDPOINTS.status, pageOrigin());
     if (!url || typeof fetch !== "function") return null;
     const response = await fetch(withQuery(url, {
       projectId: request.projectId,
@@ -218,7 +219,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   openEvents(request: AgentEventsRequest, handlers: AgentEventHandlers): AgentEventSubscription {
-    const url = endpointUrl(this.config, "eventsUrl", "/events", pageOrigin());
+    const url = endpointUrl(this.config, "eventsUrl", BRIDGE_ENDPOINTS.events, pageOrigin());
     if (!url || typeof EventSource !== "function") {
       queueMicrotask(() => handlers.onDisconnect("Agent event transport is unavailable."));
       return { close: () => undefined };
@@ -265,7 +266,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async dispatch(request: AgentPromptDispatch, signal?: AbortSignal): Promise<PromptDispatchResponse> {
-    const url = endpointUrl(this.config, "promptUrl", "/prompt", pageOrigin());
+    const url = endpointUrl(this.config, "promptUrl", BRIDGE_ENDPOINTS.prompt, pageOrigin());
     if (!url || typeof fetch !== "function") throw new Error("Agent bridge is unavailable.");
     const response = await fetch(url, {
       method: "POST",
@@ -279,7 +280,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
   }
 
   async disconnect(request: AgentDisconnectRequest, signal?: AbortSignal): Promise<void> {
-    const url = endpointUrl(this.config, "disconnectUrl", "/disconnect", pageOrigin());
+    const url = endpointUrl(this.config, "disconnectUrl", BRIDGE_ENDPOINTS.disconnect, pageOrigin());
     if (!url || typeof fetch !== "function") return;
     await fetch(url, {
       method: "POST",
@@ -293,7 +294,7 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
     request: AgentCanvasAcknowledgementRequest,
     signal?: AbortSignal,
   ): Promise<void> {
-    const url = endpointUrl(this.config, "canvasAckUrl", "/canvas/ack", pageOrigin());
+    const url = endpointUrl(this.config, "canvasAckUrl", BRIDGE_ENDPOINTS.canvasAcknowledgement, pageOrigin());
     if (!url || typeof fetch !== "function") return;
     await fetch(url, {
       method: "POST",

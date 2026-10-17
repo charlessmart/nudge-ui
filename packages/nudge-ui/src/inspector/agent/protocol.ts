@@ -12,6 +12,7 @@ import type {
 export {
   AGENT_PROTOCOL_LIMITS,
   AGENT_PROTOCOL_VERSION,
+  BRIDGE_ENDPOINTS,
   CANVAS_COMMAND_TYPES,
   canonicalOrigin,
   decodeAgentStatusSnapshot,
