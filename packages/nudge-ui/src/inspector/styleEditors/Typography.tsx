@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
+import { isExpressionRow } from "./fieldValue.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
@@ -169,10 +170,7 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
   const tokenName = selectedProperty
     ? selectedProperty.token.kind === "common" ? selectedProperty.token.name : null
     : tokenRow?.tokenName;
-  const hasTokenChip = Boolean(tokenName
-    && tokenRow?.capability !== "raw"
-    && tokenRow?.capability !== "composite"
-    && !tokenRow?.modifiers?.some((modifier) => modifier.kind === "alpha"));
+  const hasTokenChip = Boolean(tokenName && !isExpressionRow(tokenRow));
   return (
     <ControlSurface className={`typography__field typography__field--${property}`}>
       <TokenField

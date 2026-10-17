@@ -15,6 +15,7 @@ import {
 } from "../ui/SideValuesField.tsx";
 import { setStyles, swapTokens } from "../tokens/editActions.ts";
 import { isCalcExpression } from "../../css/value-semantics/index.ts";
+import { deriveActiveTokenName, isExpressionRow } from "./fieldValue.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import {
@@ -265,11 +266,10 @@ function PairedTokenField({
   const row = pairTokenRow(displayProperty, axisProjection);
   const groupMixed = axisProjection.fields.some((field) => field.value === "Mixed");
   const valuesMatch = axisProjection.state === "shared" && !groupMixed;
-  const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
-    || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
+  const expression = isExpressionRow(row);
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
   const isCalcAuthored = isCalcExpression(calcAuthored);
-  const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
+  const activeTokenName = deriveActiveTokenName({ row, mixed: !valuesMatch, authored: calcAuthored });
   // Some browsers report the used pixel size for horizontal auto margins; keep the authored keyword.
   const committedValue = groupMixed
     ? "Mixed"
