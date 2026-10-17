@@ -233,20 +233,22 @@ export function installRendererElementSelector(
     clear: boolean;
     point: { x: number; y: number } | null;
   }): void {
-    const { element, clear } = pending;
+    const { clear } = pending;
     const identity = getRendererIdentity();
     if (!identity) return;
 
+    // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
+    const elementSpacing = !commentMode && !clear && pending.point
+      ? getElementSpacingAtPoint(document, pending.element, pending.point.x, pending.point.y)
+      : null;
+    // A margin belongs to a child of the hovered element; hovering it reports that child.
+    const element = elementSpacing?.handle?.element ?? elementSpacing?.area?.element ?? pending.element;
+    const spacing = elementSpacing?.handle?.element === element ? elementSpacing.handle : null;
+    const hoverSpacing = elementSpacing?.area?.element === element ? elementSpacing.area : null;
     const cid = element.getAttribute("data-cid")!;
     const selector = buildSelector(element);
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
-    // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
-    const elementSpacing = !commentMode && !clear && pending.point
-      ? getElementSpacingAtPoint(document, element, pending.point.x, pending.point.y)
-      : null;
-    const spacing = elementSpacing?.handle ?? null;
-    const hoverSpacing = elementSpacing?.area ?? null;
     if (spacing) {
       setSpacingCursor(spacing.element, spacing.cursor);
     } else {
@@ -499,9 +501,10 @@ export function installRendererElementSelector(
       };
       sendToParent(message);
     }
-    lastSelected = element;
+    const owner = spacingAffordance?.element ?? element;
+    lastSelected = owner;
     pendingDrag = {
-      element,
+      element: owner,
       point: { x: event.clientX, y: event.clientY },
       spacing,
     };

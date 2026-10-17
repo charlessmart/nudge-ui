@@ -4,6 +4,7 @@ import {
   getElementSpacingAtPoint,
   getElementSpacingHandleAtPoint,
   getSpacingAffordanceAtPoint,
+  getSpacingAffordanceForDescriptor,
   getSpacingHoverAtPoint,
   spacingValueForDrag,
   toSpacingDescriptor,
@@ -294,5 +295,93 @@ describe("spacing gestures", () => {
       }
     }
     expect(matches).toBeGreaterThan(20);
+  });
+
+  describe("margins", () => {
+    function parentWithChild(childMargin: string): { parent: HTMLElement; child: HTMLElement } {
+      const parent = trackedElement();
+      const child = document.createElement("div");
+      child.dataset.cid = "child";
+      child.dataset.src = "src/child.tsx:1:1";
+      child.style.margin = childMargin;
+      parent.append(child);
+      const boxes = new Map<HTMLElement, DOMRect>([
+        [parent, rect(0, 0, 400, 300)],
+        [child, rect(100, 80, 200, 100)],
+      ]);
+      for (const [element, box] of boxes) Object.defineProperty(element, "getBoundingClientRect", { value: () => box });
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: (x: number, y: number) => [child, parent].find((element) => {
+          const box = boxes.get(element)!;
+          return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+        }) ?? null,
+      });
+      return { parent, child };
+    }
+
+    it("finds a child's margin handle in the band outside its border box and grows it by dragging away", () => {
+      const { child } = parentWithChild("40px 0 0 0");
+
+      const affordance = getSpacingAffordanceAtPoint(document, 200, 60);
+
+      expect(affordance).toMatchObject({
+        kind: "margin",
+        property: "margin-top",
+        side: "top",
+        axis: "horizontal",
+        value: 40,
+        cursor: "ns-resize",
+        guide: { left: 100, top: 59, width: 200, height: 2 },
+        affectedAreas: [{ left: 100, top: 40, width: 200, height: 40 }],
+      });
+      expect(affordance?.element).toBe(child);
+      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 52 })).toBe(48);
+      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 80 })).toBe(20);
+      expect(toSpacingDescriptor(affordance!)).toEqual({ kind: "margin", property: "margin-top", side: "top" });
+    });
+
+    it("grows left and right margins away from the element", () => {
+      parentWithChild("0 30px 0 50px");
+
+      const left = getSpacingAffordanceAtPoint(document, 75, 130);
+      const right = getSpacingAffordanceAtPoint(document, 315, 130);
+
+      expect(left).toMatchObject({ property: "margin-left", direction: -1, value: 50 });
+      expect(right).toMatchObject({ property: "margin-right", direction: 1, value: 30 });
+      expect(spacingValueForDrag(left!, { x: 75, y: 130 }, { x: 65, y: 130 })).toBe(60);
+      expect(spacingValueForDrag(right!, { x: 315, y: 130 }, { x: 325, y: 130 })).toBe(40);
+    });
+
+    it("previews the whole margin band on hover and not outside it", () => {
+      parentWithChild("40px 0 0 0");
+
+      expect(getSpacingHoverAtPoint(document, 120, 45)).toMatchObject({ kind: "margin", property: "margin-top" });
+      expect(getSpacingHoverAtPoint(document, 120, 20)).toBeNull();
+    });
+
+    it("scopes a margin to the hovered parent and reports the child as its owner", () => {
+      const { parent, child } = parentWithChild("40px 0 0 0");
+
+      const scoped = getElementSpacingAtPoint(document, parent, 200, 60);
+
+      expect(scoped.handle?.element).toBe(child);
+      expect(scoped.area?.element).toBe(child);
+      expect(getElementSpacingAtPoint(document, child, 200, 60).handle).toBeNull();
+    });
+
+    it("resolves a descriptor back to the margin affordance of its element", () => {
+      const { child } = parentWithChild("0 0 24px 0");
+
+      expect(getSpacingAffordanceForDescriptor(child, { kind: "margin", property: "margin-bottom", side: "bottom" }))
+        .toMatchObject({ value: 24, guide: { top: 191, left: 100, width: 200, height: 2 } });
+      expect(getSpacingAffordanceForDescriptor(child, { kind: "margin", property: "margin-top", side: "top" })).toBeNull();
+    });
+
+    it("does not expose zero margins", () => {
+      parentWithChild("0");
+
+      expect(getSpacingAffordanceAtPoint(document, 200, 79)).toBeNull();
+    });
   });
 });

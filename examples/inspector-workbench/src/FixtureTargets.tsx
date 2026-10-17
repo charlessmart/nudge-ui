@@ -15,6 +15,9 @@ export function ComponentExamples(): ReactElement {
       <WorkbenchBadge label="Draft" tone="warning" size="small" />
       <WorkbenchButton label="Save" variant="secondary" size="small" disabled={false} />
     </WorkbenchCard>
+    <div className="workbench-margin-demo">
+      <div className="workbench-margin-box">Box with margin</div>
+    </div>
   </section>;
 }
 

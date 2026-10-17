@@ -32,6 +32,14 @@
   background: #ec4899;
 }
 
+.canvas-spacing-fill[data-kind="margin"] {
+  background: rgb(239 68 68 / 14%);
+}
+
+.canvas-spacing-guide[data-kind="margin"] {
+  background: #ef4444;
+}
+
 .canvas-spacing-value-badge {
   position: fixed;
   z-index: 2;

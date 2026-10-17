@@ -53,3 +53,5 @@ body { margin: 0; }
 .wb-card--large { padding: 32px; }
 .workbench-components { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; padding: 24px 0; }
 .workbench-components h2 { flex: 0 0 100%; margin: 0; font-size: 13px; }
+.workbench-margin-demo { width: 240px; background: #fff; border: 1px dashed #cfd3dd; border-radius: 12px; }
+.workbench-margin-box { margin: 24px 32px; padding: 12px 16px; background: #dbe5ff; border-radius: 8px; font: 500 14px/1.4 system-ui; }
