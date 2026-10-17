@@ -1,12 +1,15 @@
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-import { act } from "react";
+import { act, createElement, Fragment } from "react";
+import type { ReactElement } from "react";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
 import { publishInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import { getActiveStyleState } from "../shell/styleState.ts";
+import { LayoutSection, type LayoutSectionProps } from "./LayoutSection.tsx";
+import { PositionSection } from "./PositionSection.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -148,4 +151,9 @@ export function publishInspection(el: HTMLElement): void {
   const session = createBrowserCssInspection({ document, tokenKnowledge: { definitions: [], generation: "test" } });
   publishInspectionSnapshot(el, session.inspect(el, { state: getActiveStyleState() }));
   session.dispose();
+}
+
+/** Padding lives in the Layout section and margin in the Position section; spacing tests need both. */
+export function SpacingSections(props: LayoutSectionProps): ReactElement {
+  return createElement(Fragment, null, createElement(LayoutSection, props), createElement(PositionSection, props));
 }

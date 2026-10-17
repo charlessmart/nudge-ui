@@ -4,7 +4,6 @@ import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
-import type { SelectedElement } from "../selection/selectionStore.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import {
   SideValuesField,
@@ -24,73 +23,21 @@ import {
   type InspectorSpacingProjection,
   projectInspectorValuesForSelection,
 } from "../spacing/projection.ts";
-import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 
-export interface SpacingBoxProps {
-  element: SelectedElement;
-  selection?: StyleSelection | null;
-  entries?: TokenEntry[];
-  tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
-}
-
-export function SpacingBox(props: SpacingBoxProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
-  const el = element.domElement;
-  const allEntries = entries ?? [];
-  const projection = selection
+/** Values for one selection, projected from its computed styles or the shared selection model. */
+export function projectSpacing(
+  element: HTMLElement,
+  selection: StyleSelection | null | undefined,
+  tokenRows: ResolvedProperty[],
+): ReturnType<typeof projectInspectorValues>["spacing"] {
+  return (selection
     ? projectInspectorValuesForSelection(selection)
-    : projectInspectorValues(el, tokenRows);
-  const showRelativeInset = selection
-    ? selection.supportsRole("relative-position")
-    : (() => {
-      const value = getStateStyleValue(el, "position", "static").trim().toLowerCase();
-      return value === "relative" || value === "sticky";
-    })();
-  const editTarget: EditTarget = selection?.target ?? el;
-
-  return (
-    <div className="editor" data-test="spacing-box">
-      <div className="editor__title">Spacing</div>
-      <div className="spacing">
-        <SpacingField
-          property="padding"
-          projection={projection.spacing.padding}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        />
-        <SpacingField
-          property="margin"
-          projection={projection.spacing.margin}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        />
-        {showRelativeInset ? <SpacingField
-          property="inset"
-          projection={projection.spacing.inset}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        /> : null}
-      </div>
-    </div>
-  );
+    : projectInspectorValues(element, tokenRows)).spacing;
 }
 
 export interface SpacingFieldProps {

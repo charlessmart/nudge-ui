@@ -1,54 +1,21 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconAdjustmentsHorizontal, IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLetterH, IconLetterW, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
-import type { TokenEntry } from "../../css/model/index.ts";
+import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
-import type { ResolvedProperty } from "../../css/model/index.ts";
-import { TokenField } from "../tokens/TokenField.tsx";
-import { LayoutDropdown } from "./LayoutDropdown.tsx";
-import { LayoutComboField } from "./LayoutComboField.tsx";
-import { GapField } from "./GapField.tsx";
-import { AspectRatioField } from "./AspectRatioField.tsx";
-import { PositionInsets } from "./PositionInsets.tsx";
-import { GridSection } from "./GridSection.tsx";
-import { meaningfulLayoutValue } from "./layoutValue.ts";
-import { inlineBlockedBy } from "./inlineAuthored.ts";
-import { setStyle, setStyles } from "../tokens/editActions.ts";
-import { IconButton } from "../ui/IconButton.tsx";
-import { InspectorPopover } from "../ui/InspectorPopover.tsx";
-import { PopoverListbox } from "../ui/PopoverListbox.tsx";
-import { SegmentedControl } from "../ui/SegmentedControl.tsx";
-import { getStateStyleValue } from "../shell/stateValue.ts";
-import { formatInspectorLabel } from "../ui/labels.ts";
-import { getElementComputedStyle } from "../runtime/domRealm.ts";
-import { FieldRow } from "../ui/FieldRow.tsx";
-import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { Tooltip } from "../ui/Tooltip.tsx";
-import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
-import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
+import { SizeSection } from "./SizeSection.tsx";
+import { LayoutModeRow } from "./LayoutModeRow.tsx";
+import { GridContainerControls } from "./GridSection.tsx";
+import { SpacingField, projectSpacing } from "./SpacingField.tsx";
 import {
-  getCanvasProjectionAcknowledgementVersion,
-  subscribeCanvasProjectionAcknowledgements,
-} from "../canvas/projection.ts";
-
-const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
-const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
-const FLEX_DIRECTION_OPTIONS = ["row", "row-reverse", "column", "column-reverse"];
-const ALIGN_CONTENT_OPTIONS = ["normal", "stretch", "flex-start", "flex-end", "center", "space-between", "space-around"];
-const ALIGN_SELF_OPTIONS = ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"];
-
-const FLEX_GROW_PRESETS = ["0", "1", "2", "3"];
-const FLEX_SHRINK_PRESETS = ["0", "1"];
-const FLEX_BASIS_PRESETS = ["auto", "0", "0%", "100%", "50%", "fit-content"];
-const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
-const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
-const FLEX_DISTRIBUTION_OPTIONS = ["space-between", "space-around", "space-evenly"];
-const SIZE_PRESETS = ["auto", "0", "100%", "fit-content"];
-const MIN_SIZE_PRESETS = ["0", "min-content", "fit-content"];
-const MAX_WIDTH_PRESETS = ["none", "100%", "100vw", "fit-content"];
-const MAX_HEIGHT_PRESETS = ["none", "100%", "100vh", "fit-content"];
+  FlexAlignmentGrid,
+  FlexDistributionControl,
+  FlexGapField,
+  FlexWrapToggle,
+  useComputedLayoutValue,
+} from "./FlexControls.tsx";
+import { useLayoutContext } from "./useLayoutContext.ts";
 
 export interface LayoutSectionProps {
   element: SelectedElement;
@@ -58,820 +25,87 @@ export interface LayoutSectionProps {
   onAfterEdit?: () => void;
 }
 
+/** The element's own box: how it is sized and how it lays out and pads its children. */
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
-
-  const [primaryIsFlexContainer, setPrimaryIsFlexContainer] = useState(false);
-  const [primaryIsFlexChild, setPrimaryIsFlexChild] = useState(false);
-  const [primaryIsGridContainer, setPrimaryIsGridContainer] = useState(false);
-  const [primaryIsGridChild, setPrimaryIsGridChild] = useState(false);
-  const [primaryPosition, setPrimaryPosition] = useState(() => getStateStyleValue(el, "position", "static"));
-  const [layoutRevision, setLayoutRevision] = useState(0);
-  const projectionAcknowledgementVersion = useSyncExternalStore(
-    subscribeCanvasProjectionAcknowledgements,
-    getCanvasProjectionAcknowledgementVersion,
-    getCanvasProjectionAcknowledgementVersion,
-  );
-  const computedRevision = layoutRevision + projectionAcknowledgementVersion;
-  const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", computedRevision);
-  const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", computedRevision);
-  const selectedDirection = selection?.getProperty("flex-direction")?.value;
-  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
-  const mixedFlexDirection = selectedDirection?.kind === "mixed";
-  const mixedFlexWrap = selectedWrap?.kind === "mixed";
-  const sharedFlexDirection = selectedDirection?.kind === "common"
-    ? selectedDirection.value
-    : flexDirection;
-  const sharedFlexWrap = selectedWrap?.kind === "common"
-    ? selectedWrap.value
-    : flexWrap;
-  const isFlexWrapped = mixedFlexDirection || mixedFlexWrap || sharedFlexWrap !== "nowrap";
-  const relevantGap = !mixedFlexDirection && sharedFlexDirection.startsWith("column") ? "row-gap" : "column-gap";
-  const lineGap = relevantGap === "row-gap" ? "column-gap" : "row-gap";
-
-  function notifyAfterEdit(): void {
-    setLayoutRevision((revision) => revision + 1);
-    onAfterEdit?.();
-  }
-
-  useEffect(() => {
-    try {
-      const cs = getElementComputedStyle(el);
-      const display = cs.display;
-      setPrimaryIsFlexContainer(display === "flex" || display === "inline-flex");
-      setPrimaryIsGridContainer(display === "grid" || display === "inline-grid");
-      setPrimaryPosition(cs.position);
-    } catch {
-      // noop
-    }
-  }, [el, computedRevision]);
-
-  useEffect(() => {
-    try {
-      const parentEl = el.parentElement;
-      if (!parentEl) {
-        setPrimaryIsFlexChild(false);
-        setPrimaryIsGridChild(false);
-        return;
-      }
-      const pDisplay = getElementComputedStyle(parentEl).display;
-      setPrimaryIsFlexChild(pDisplay === "flex" || pDisplay === "inline-flex");
-      setPrimaryIsGridChild(pDisplay === "grid" || pDisplay === "inline-grid");
-    } catch {
-      setPrimaryIsFlexChild(false);
-      setPrimaryIsGridChild(false);
-    }
-  }, [el, computedRevision]);
-
-  const isFlexContainer = selection ? selection.supportsRole("flex-container") : primaryIsFlexContainer;
-  const isFlexChild = selection ? selection.supportsRole("flex-child") : primaryIsFlexChild;
-  const isGridContainer = selection ? selection.supportsRole("grid-container") : primaryIsGridContainer;
-  const isGridChild = selection ? selection.supportsRole("grid-child") : primaryIsGridChild;
-  const selectedPosition = selection?.getProperty("position")?.value;
-  const position = selectedPosition?.kind === "common" ? selectedPosition.value : primaryPosition;
-  const showPositionInsets = selection
-    ? selection.supportsRole("inset-position")
-    : position === "absolute" || position === "fixed";
+  const { revision, notifyAfterEdit, isFlexContainer, isGridContainer } = useLayoutContext(el, selection, onAfterEdit);
+  const common = { domElement: el, editTarget, selection, revision, onAfterEdit: notifyAfterEdit };
 
   return (
     <div className="editor" data-test="layout-section">
       <div className="editor__title">Layout</div>
       <div className="layout">
-        <div className="layout__basic">
-          <SizeSection
-            domElement={el}
-            editTarget={editTarget}
-            selection={selection}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            revision={computedRevision}
-            onAfterEdit={notifyAfterEdit}
-          />
-
-          <div className="layout__tool-row">
-            <LayoutDropdown
-              property="display"
-              options={DISPLAY_OPTIONS}
-              domElement={el}
-              editTarget={editTarget}
-              selection={selection}
-              revision={computedRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-
-            <LayoutDropdown
-              property="position"
-              options={POSITION_OPTIONS}
-              domElement={el}
-              editTarget={editTarget}
-              selection={selection}
-              revision={computedRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-          </div>
-        </div>
-
-        {isFlexContainer ? (
-          <div className="layout__group" data-test="layout-flex-container">
-            <div className="layout__flex-heading">
-              <div className="editor__title">Flex</div>
-              <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-            </div>
-            <div className="layout__flex-lower">
-              {mixedFlexDirection ? (
-                <div className="layout__alignment-grid" data-test="layout-flex-axis-mixed">
-                  Choose a shared flex direction to edit physical alignment.
-                </div>
-              ) : (
-                <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-              )}
-              <div className="layout__gap-column" data-test="layout-gap">
-                <div className="layout__direction-tools">
-                  <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-                  <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-                </div>
-                <div className="layout__gap-fields">
-                  <div className="layout__spacing-primary">
-                    <FlexGapField
-                      property={relevantGap}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      entries={allEntries}
-                      tokenRows={tokenRows}
-                      onAfterEdit={notifyAfterEdit}
-                    />
-                    <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
-                  </div>
-                  {isFlexWrapped ? (
-                    <div className="layout__spacing-primary">
-                      <FlexGapField
-                        property={lineGap}
-                        domElement={el}
-                        editTarget={editTarget}
-                        selection={selection}
-                        entries={allEntries}
-                        tokenRows={tokenRows}
-                        onAfterEdit={notifyAfterEdit}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {isFlexChild ? (
-          <div className="layout__group" data-test="layout-flex-child">
-            <div className="layout__flex-heading">
-              <div className="editor__title">Flex Child</div>
-              <FlexChildSettingsMenu
-                domElement={el}
-                editTarget={editTarget}
-                selection={selection}
-                revision={computedRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-            </div>
-            <div className="layout__flex-child-fields">
-              <FlexChildValueField
-                label="Grow"
-                property="flex-grow"
-                presets={FLEX_GROW_PRESETS}
-                domElement={el}
-                editTarget={editTarget}
-                selection={selection}
-                inputOnly
-                revision={computedRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <FlexChildValueField
-                label="Shrink"
-                property="flex-shrink"
-                presets={FLEX_SHRINK_PRESETS}
-                domElement={el}
-                editTarget={editTarget}
-                selection={selection}
-                inputOnly
-                revision={computedRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <FlexChildValueField
-                label="Basis"
-                property="flex-basis"
-                presets={FLEX_BASIS_PRESETS}
-                domElement={el}
-                editTarget={editTarget}
-                selection={selection}
-                inputOnly
-                revision={computedRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {isGridContainer || isGridChild ? (
-          <GridSection
-            domElement={el}
-            showContainer={isGridContainer}
-            showChild={isGridChild}
-            editTarget={editTarget}
-            selection={selection}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            revision={computedRevision}
-            onAfterEdit={notifyAfterEdit}
-          />
-        ) : null}
-
-        {showPositionInsets ? (
-          <PositionInsets
-            domElement={el}
-            editTarget={editTarget}
-            selection={selection}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            revision={computedRevision}
-            onAfterEdit={notifyAfterEdit}
-          />
-        ) : null}
+        <SizeSection
+          domElement={el}
+          editTarget={editTarget}
+          selection={selection}
+          entries={allEntries}
+          tokenRows={tokenRows}
+          revision={revision}
+          onAfterEdit={notifyAfterEdit}
+        />
+        <LayoutModeRow {...common} isFlexContainer={isFlexContainer} isGridContainer={isGridContainer} />
+        {isFlexContainer ? <FlexContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
+        {isGridContainer ? <GridContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
+        <SpacingField
+          property="padding"
+          projection={projectSpacing(el, selection, tokenRows).padding}
+          domElement={el}
+          editTarget={editTarget}
+          selection={selection}
+          entries={allEntries}
+          tokenRows={tokenRows}
+          onAfterEdit={notifyAfterEdit}
+        />
       </div>
     </div>
   );
 }
 
-interface SizeSectionProps {
+interface FlexContainerControlsProps {
   domElement: HTMLElement;
   editTarget: EditTarget;
   selection?: StyleSelection | null;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   revision: number;
-  onAfterEdit?: () => void;
+  onAfterEdit: () => void;
 }
 
-function SizeSection({ domElement: el, editTarget, selection, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
-  const [expanded, setExpanded] = useState(false);
-
-  const fields = [
-    { property: "width", presets: SIZE_PRESETS },
-    { property: "height", presets: SIZE_PRESETS },
-    { property: "min-width", presets: MIN_SIZE_PRESETS },
-    { property: "min-height", presets: MIN_SIZE_PRESETS },
-    { property: "max-width", presets: MAX_WIDTH_PRESETS },
-    { property: "max-height", presets: MAX_HEIGHT_PRESETS },
-  ];
-
-  function renderTokenField(property: string, presets: string[]): ReactElement {
-    return (
-      <ControlSurface className={property === "width" || property === "height" ? "layout__size-field--icon" : undefined}>
-        <TokenField
-          property={property}
-          selection={selection}
-          tokenRow={tokenRows.find((row) => row.property === property) ?? null}
-          initialValue={meaningfulLayoutValue(el, property)}
-          domElement={el}
-          editTarget={editTarget}
-          entries={entries}
-          suggestions={presets}
-          leading={property === "width"
-            ? <IconLetterW size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            : property === "height"
-              ? <IconLetterH size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              : undefined}
-          onAfterEdit={onAfterEdit}
-        />
-      </ControlSurface>
-    );
-  }
-
-  return (
-    <div className="layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
-      <div className="layout__size-grid">
-        <FieldRow label="Width" hideLabel data-test="layout-size-width" className="layout__size-cell layout__size-cell--width">
-          {renderTokenField("width", SIZE_PRESETS)}
-        </FieldRow>
-        <FieldRow label="Height" hideLabel data-test="layout-size-height" className="layout__size-cell layout__size-cell--height">
-          {renderTokenField("height", SIZE_PRESETS)}
-        </FieldRow>
-        <Tooltip>
-          <IconButton
-            className="layout__size-cell layout__size-cell--toggle"
-            variant="quiet"
-            size="default"
-            data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
-            aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
-            label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
-            onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? (
-              <IconArrowsMinimize size={16} stroke={1.8} aria-hidden="true" />
-            ) : (
-              <IconArrowsMaximize size={16} stroke={1.8} aria-hidden="true" />
-            )}
-          </IconButton>
-        </Tooltip>
-        {expanded && fields.slice(2).map(({ property, presets }) => (
-          <FieldRow
-            key={property}
-            label={property}
-            data-test={`layout-size-${property}`}
-            className={`layout__size-cell layout__size-cell--${property}`}
-          >
-            {renderTokenField(property, presets)}
-          </FieldRow>
-        ))}
-        {expanded && (
-          <AspectRatioField
-            className="layout__size-cell layout__size-cell--aspect-ratio"
-            domElement={el}
-            editTarget={editTarget}
-            selection={selection}
-            entries={entries}
-            tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
-            revision={revision}
-            onAfterEdit={onAfterEdit}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface FlexControlProps {
-  domElement: HTMLElement;
-  editTarget?: EditTarget;
-  selection?: StyleSelection | null;
-  revision?: number;
-  onAfterEdit?: () => void;
-}
-
-interface FlexChildValueFieldProps extends FlexControlProps {
-  label: string;
-  property: string;
-  presets: string[];
-  inputOnly?: boolean;
-}
-
-function FlexChildValueField({ label, property, presets, inputOnly = false, domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
-  return (
-    <FieldRow label={label} className="layout__flex-child-field">
-      <LayoutComboField
-        property={property}
-        presets={presets}
-        domElement={domElement}
-        editTarget={editTarget}
-        selection={selection}
-        inputOnly={inputOnly}
-        revision={revision}
-        onAfterEdit={onAfterEdit}
-      />
-    </FieldRow>
-  );
-}
-
-function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <InspectorPopover
-      data-test="layout-flex-child-settings"
-      side="left"
-      align="start"
-      triggerTooltip="Flex child settings"
-      triggerElement={(
-        <IconButton
-          variant="quiet"
-          size="default"
-          label="Flex child settings"
-          data-test="layout-flex-child-settings"
-        >
-          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
-        </IconButton>
-      )}
-      open={open}
-      onOpenChange={setOpen}
-    >
-      <div className="layout__flex-child-settings" data-test="layout-flex-child-settings-content">
-        <div className="layout__flex-child-settings-title">Flex Child Settings</div>
-        <LayoutDropdown
-          property="align-self"
-          options={ALIGN_SELF_OPTIONS}
-          domElement={domElement}
-          editTarget={editTarget}
-          selection={selection}
-          stacked
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-        <FlexChildValueField
-          label="Order"
-          property="order"
-          presets={ORDER_PRESETS}
-          domElement={domElement}
-          editTarget={editTarget}
-          selection={selection}
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-      </div>
-    </InspectorPopover>
-  );
-}
-
-interface FlexGapFieldProps extends FlexControlProps {
-  property: "row-gap" | "column-gap";
-  entries: TokenEntry[];
-  tokenRows: ResolvedProperty[];
-}
-
-function FlexGapField({ property, domElement, editTarget, selection, entries, tokenRows, onAfterEdit }: FlexGapFieldProps): ReactElement {
-  const GapIcon = property === "column-gap" ? IconSpacingHorizontal : IconSpacingVertical;
-  return (
-    <ControlSurface className="layout__spacing-field">
-      <GapField
-        property={property}
-        domElement={domElement}
-        editTarget={editTarget}
-        selection={selection}
-        entries={entries}
-        tokenRows={tokenRows}
-        leading={(
-          <GapIcon
-            className="layout__spacing-icon"
-            size="var(--icon-size-small)"
-            stroke={1.8}
-            aria-hidden="true"
-            data-test={`layout-spacing-icon-${property}`}
-          />
-        )}
-        onAfterEdit={onAfterEdit}
-      />
-    </ControlSurface>
-  );
-}
-
-function FlexDirectionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [direction, setDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const selectedDirection = selection?.getProperty("flex-direction")?.value;
-  const mixed = selectedDirection?.kind === "mixed";
-  const sharedDirection = selectedDirection?.kind === "common" ? selectedDirection.value : direction;
-  const orientation = sharedDirection.startsWith("column") ? "column" : "row";
-  const reverse = sharedDirection.endsWith("-reverse");
-  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "flex-direction");
-
-  function selectDirection(next: string): void {
-    if (blockedBy) return;
-    if (!FLEX_DIRECTION_OPTIONS.includes(next)) return;
-    setDirection(next);
-    setStyle(editTarget ?? domElement, "flex-direction", next);
-    onAfterEdit?.();
-  }
-
-  const control = (
-    <SegmentedControl
-      value={mixed ? null : orientation}
-      aria-label="Flex direction"
-      disabled={blockedBy !== null}
-      options={[
-        {
-          value: "row",
-          label: "Set Flex Direction To Row",
-          testId: "layout-direction-row",
-          icon: (
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path d="M2 8h11M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="var(--icon-stroke-width)" />
-            </svg>
-          ),
-        },
-        {
-          value: "column",
-          label: "Set Flex Direction To Column",
-          testId: "layout-direction-column",
-          icon: (
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path d="M8 2v11M4 9l4 4 4-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="var(--icon-stroke-width)" />
-            </svg>
-          ),
-        },
-      ]}
-      onChange={(next) => selectDirection(`${next}${!mixed && reverse ? "-reverse" : ""}`)}
-    />
-  );
-  return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{control}</Tooltip>;
-}
-
-function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
-  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
-  const mixed = selectedWrap?.kind === "mixed";
-  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
-  const isWrapped = !mixed && sharedWrap !== "nowrap";
-  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "flex-wrap");
-
-  function toggleWrap(): void {
-    if (blockedBy) return;
-    setStyle(editTarget ?? domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
-    onAfterEdit?.();
-  }
-
-  return (
-    <Tooltip content={inlineStyleWarningContent(blockedBy)}>
-      <IconButton
-        variant="quiet"
-        size="default"
-        data-active={isWrapped}
-        data-test="layout-flex-wrap-toggle"
-        label={mixed ? "Set Flex Wrap" : isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
-        aria-pressed={mixed ? "mixed" : isWrapped}
-        disabled={blockedBy !== null}
-        onClick={toggleWrap}
-      >
-        <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
-  const [alignContent] = useComputedLayoutValue(domElement, "align-content", "normal", revision);
-  const [alignItems] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
-  const [open, setOpen] = useState(false);
+/** Placement grid, gaps, wrap and distribution; direction lives in the layout mode row. */
+function FlexContainerControls({ entries, tokenRows, ...common }: FlexContainerControlsProps): ReactElement {
+  const { domElement, selection, revision } = common;
+  const [flexDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
+  const [flexWrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
   const selectedDirection = selection?.getProperty("flex-direction")?.value;
   const selectedWrap = selection?.getProperty("flex-wrap")?.value;
   const mixedDirection = selectedDirection?.kind === "mixed";
-  const mixedWrap = selectedWrap?.kind === "mixed";
-  const sharedDirection = selectedDirection?.kind === "common"
-    ? selectedDirection.value
-    : direction;
-  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
-  const orientation = sharedDirection.startsWith("column") ? "column" : "row";
-  const crossAxis = mixedDirection ? "cross axis" : orientation === "column" ? "width" : "height";
-  const isStretching = normalizeFlexAlign(alignItems) === "stretch";
-  const reverseDirection = sharedDirection.endsWith("-reverse")
-    ? orientation
-    : `${orientation}-reverse`;
-  const blockedBy = inlineBlockedBy(
-    selection?.domElements ?? [domElement],
-    "flex-direction",
-    "flex-wrap",
-    "align-content",
-    "align-items",
-  );
-
-  const items = [
-    ...(mixedDirection ? [] : [{
-      value: `flex-direction:${reverseDirection}`,
-      label: formatInspectorLabel(reverseDirection),
-      trailing: "Flex Direction",
-      current: sharedDirection === reverseDirection,
-      "data-test": "layout-flex-setting-direction-reverse",
-    }]),
-    ...(mixedWrap ? [] : [{
-      value: "flex-wrap:wrap-reverse",
-      label: formatInspectorLabel("wrap-reverse"),
-      trailing: "Flex Wrap",
-      current: sharedWrap === "wrap-reverse",
-      "data-test": "layout-flex-setting-wrap-reverse",
-    }]),
-    ...ALIGN_CONTENT_OPTIONS.map((value) => ({
-      value: `align-content:${value}`,
-      label: formatInspectorLabel(value),
-      trailing: "Align Content",
-      current: alignContent === value,
-      "data-test": `layout-flex-setting-align-content-${value}`,
-    })),
-    {
-      value: "align-items:baseline",
-      label: "Text baseline",
-      trailing: "Cross-axis fit",
-      current: alignItems === "baseline",
-      "data-test": "layout-flex-setting-align-items-baseline",
-    },
-    {
-      value: "align-items:stretch",
-      label: `Children fill ${crossAxis}`,
-      trailing: "Cross-axis fit",
-      current: isStretching,
-      "data-test": "layout-flex-setting-align-items-stretch",
-    },
-  ];
-
-  function selectSetting(setting: string): void {
-    if (blockedBy) return;
-    const separator = setting.indexOf(":");
-    if (separator < 0) return;
-    const property = setting.slice(0, separator);
-    const value = setting.slice(separator + 1);
-    setStyle(editTarget ?? domElement, property, value);
-    setOpen(false);
-    onAfterEdit?.();
-  }
+  const sharedDirection = selectedDirection?.kind === "common" ? selectedDirection.value : flexDirection;
+  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : flexWrap;
+  const isWrapped = mixedDirection || selectedWrap?.kind === "mixed" || sharedWrap !== "nowrap";
+  const mainGap = !mixedDirection && sharedDirection.startsWith("column") ? "row-gap" : "column-gap";
+  const lineGap = mainGap === "row-gap" ? "column-gap" : "row-gap";
 
   return (
-    <PopoverListbox
-      query=""
-      value={null}
-      open={open}
-      triggerElement={(
-        <IconButton
-          variant="quiet"
-          size="default"
-          label="Flex settings"
-          data-test="layout-flex-settings"
-        >
-          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
-        </IconButton>
+    <div className="layout__flex" data-test="layout-flex-container">
+      {mixedDirection ? (
+        <div className="layout__alignment-grid" data-test="layout-flex-axis-mixed">
+          Choose a shared flex direction to edit physical alignment.
+        </div>
+      ) : (
+        <FlexAlignmentGrid {...common} />
       )}
-      triggerDataTest="layout-flex-settings"
-      triggerAriaLabel="Flex settings"
-      triggerTooltip={inlineStyleWarningContent(blockedBy)}
-      disabled={blockedBy !== null}
-      items={items.map((item) => ({
-        value: item.value,
-        label: item.label,
-        trailing: item.trailing,
-        leading: item.current ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : undefined,
-        "data-test": item["data-test"],
-      }))}
-      onQueryChange={() => undefined}
-      onOpenChange={setOpen}
-      onSelect={selectSetting}
-    />
-  );
-}
-
-function FlexDistributionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
-  const justify = normalizeFlexJustify(computedJustify);
-  const lastPlacement = useRef("flex-start");
-  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
-  const [open, setOpen] = useState(false);
-  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content");
-
-  useEffect(() => {
-    if (FLEX_ALIGNMENT_OPTIONS.includes(justify)) lastPlacement.current = justify;
-  }, [justify]);
-
-  function selectDistribution(next: string): void {
-    if (blockedBy) return;
-    const value = next === "packed" ? lastPlacement.current : next;
-    setStyle(editTarget ?? domElement, "justify-content", value);
-    onAfterEdit?.();
-  }
-
-  return (
-    <PopoverListbox
-      className="layout__distribution-control"
-      query=""
-      value={distributed ? justify : "packed"}
-      open={open}
-      triggerElement={(
-        <IconButton
-          variant="quiet"
-          size="default"
-          label="Item distribution"
-          data-active={distributed}
-          data-test="layout-flex-distribution"
-        >
-          <IconAdjustmentsHorizontal size={16} stroke={1.8} aria-hidden="true" />
-        </IconButton>
-      )}
-      triggerDataTest="layout-flex-distribution"
-      triggerAriaLabel="Item distribution"
-      triggerTooltip={inlineStyleWarningContent(blockedBy)}
-      disabled={blockedBy !== null}
-      items={[
-        { value: "packed", label: "Keep grouped" },
-        { value: "space-between", label: "Spread between" },
-        { value: "space-around", label: "Spread around" },
-        { value: "space-evenly", label: "Spread evenly" },
-      ].map((item) => ({
-        ...item,
-        leading: (distributed ? justify : "packed") === item.value
-          ? <IconCheck size={14} stroke={2} aria-hidden="true" />
-          : undefined,
-        "data-test": `layout-flex-distribution-${item.value}`,
-      }))}
-      onQueryChange={() => undefined}
-      onOpenChange={setOpen}
-      onSelect={(next) => {
-        selectDistribution(next);
-        setOpen(false);
-      }}
-    />
-  );
-}
-
-function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const [computedJustify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
-  const [computedAlign, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
-  const justify = normalizeFlexJustify(computedJustify);
-  const align = normalizeFlexAlign(computedAlign);
-  const isColumn = direction.startsWith("column");
-  const isReverse = direction.endsWith("-reverse");
-  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
-  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content", "align-items");
-
-  // The grid shows physical positions: justify-content runs along the main axis, so column containers transpose the axes.
-  const rowValues = isColumn
-    ? isReverse ? [...FLEX_ALIGNMENT_OPTIONS].reverse() : FLEX_ALIGNMENT_OPTIONS
-    : FLEX_ALIGNMENT_OPTIONS;
-  const columnValues = !isColumn && isReverse
-    ? [...FLEX_ALIGNMENT_OPTIONS].reverse()
-    : FLEX_ALIGNMENT_OPTIONS;
-
-  function selectAlignment(nextJustify: string, nextAlign: string): void {
-    if (blockedBy) return;
-    // A grid click changing cross-axis alignment must not replace an explicit distribution choice.
-    const resolvedJustify = distributed ? justify : nextJustify;
-    setJustify(resolvedJustify);
-    setAlign(nextAlign);
-    setStyles(editTarget ?? domElement, [
-      { property: "justify-content", value: resolvedJustify },
-      { property: "align-items", value: nextAlign },
-    ]);
-    onAfterEdit?.();
-  }
-
-  const grid = (
-    <div
-      className="layout__alignment-grid"
-      role="group"
-      aria-label="Place flex items"
-      data-direction={isColumn ? "column" : "row"}
-      data-justify={justify}
-      data-align={align}
-      data-distributed={distributed}
-    >
-      {distributed ? (
-        <span className="layout__distribution-preview" aria-hidden="true">
-          <span /><span /><span />
-        </span>
-      ) : null}
-      {rowValues.flatMap((rowValue) =>
-        columnValues.map((columnValue) => {
-          const justifyValue = isColumn ? rowValue : columnValue;
-          const alignValue = isColumn ? columnValue : rowValue;
-          const active = justify === justifyValue && align === alignValue;
-          const label = formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`);
-          return (
-            <Tooltip key={`${alignValue}-${justifyValue}`}>
-              <IconButton
-                size="default"
-                variant="quiet"
-                className="layout__alignment-button"
-                data-active={active}
-                data-test={`layout-align-${alignValue}-${justifyValue}`}
-                label={label}
-                aria-pressed={active}
-                disabled={blockedBy !== null}
-                onClick={() => selectAlignment(justifyValue, alignValue)}
-              >
-                <span />
-              </IconButton>
-            </Tooltip>
-          );
-        }),
-      )}
+      <div className="layout__flex-gaps" data-test="layout-gap">
+        <FlexGapField property={mainGap} entries={entries} tokenRows={tokenRows} {...common} />
+        {isWrapped ? <FlexGapField property={lineGap} entries={entries} tokenRows={tokenRows} {...common} /> : null}
+      </div>
+      <div className="layout__flex-toggles">
+        <FlexDistributionControl {...common} />
+        <FlexWrapToggle {...common} />
+      </div>
     </div>
   );
-  return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{grid}</Tooltip>;
-}
-
-function normalizeFlexJustify(value: string): string {
-  // Computed `normal` behaves as `flex-start` for flex containers, so show the physical placement.
-  return value === "normal" ? "flex-start" : value;
-}
-
-function normalizeFlexAlign(value: string): string {
-  // `normal` resolves to stretch for flex items.
-  return value === "normal" ? "stretch" : value;
-}
-
-function useComputedLayoutValue(
-  domElement: HTMLElement,
-  property: string,
-  fallback: string,
-  revision: number,
-): [string, (value: string) => void] {
-  const [value, setValue] = useState(() => readLayoutValue(domElement, property, fallback));
-
-  useEffect(() => {
-    setValue(readLayoutValue(domElement, property, fallback));
-  }, [domElement, property, fallback, revision]);
-
-  return [value, setValue];
-}
-
-function readLayoutValue(domElement: HTMLElement, property: string, fallback: string): string {
-  return getStateStyleValue(domElement, property, fallback);
 }

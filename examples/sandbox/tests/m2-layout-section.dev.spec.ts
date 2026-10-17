@@ -85,15 +85,14 @@ test("dev: layout section shows flex container controls and edits write to manag
   const layoutSection = await shadowQueryExists(page, "layout-section");
   expect(layoutSection).toBe(true);
 
-  const displaySelect = page.locator('[data-test="layout-select-display"]');
-  await expect(displaySelect).toHaveAttribute("role", "combobox");
+  await expect(page.locator('[data-test="layout-mode-control"]')).toBeVisible();
 
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
   expect(flexContainer).toBe(true);
 
   const rowDirectionActive = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const control = sr?.querySelector('[data-test="layout-direction-row"]');
+    const control = sr?.querySelector('[data-test="layout-mode-row"]');
     return control?.getAttribute("aria-pressed") === "true";
   });
   expect(rowDirectionActive).toBe(true);
@@ -123,7 +122,7 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement | null)?.click();
+    (sr?.querySelector('[data-test="layout-mode-column"]') as HTMLButtonElement | null)?.click();
   });
 
   await expect
@@ -142,19 +141,10 @@ test("dev: layout section shows flex container controls and edits write to manag
     .poll(async () => computedPropOn(page, "flex-container", "align-items"), { timeout: 5000 })
     .toBe("flex-end");
 
-  // Lower-frequency flex settings live behind the settings icon.
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
-  });
-  await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
-  }), { timeout: 5000 }).toBe(true);
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
-  });
+  // Lower-frequency flex settings live behind the layout options menu.
+  await page.locator('[data-test="layout-options"]').click();
+  await expect(page.locator('[data-test="layout-select-align-content"]')).toBeVisible();
+  await page.locator('[data-test="layout-options"]').click();
   await page.locator('[data-test="layout-flex-distribution"]').click();
   await page.locator('[data-test="layout-flex-distribution-space-between"]').click();
   await expect
@@ -166,37 +156,17 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-around");
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
-  });
-  await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return !!sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]');
-  }), { timeout: 5000 }).toBe(true);
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]') as HTMLElement | null)?.click();
-  });
+  await page.locator('[data-test="layout-options"]').click();
+  await setSelect(page, "layout-select-align-items", "stretch");
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "align-items"), { timeout: 5000 })
     .toBe("stretch");
 
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
-  });
-  await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
-  }), { timeout: 5000 }).toBe(true);
-  await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]') as HTMLElement | null)?.click();
-  });
+  await setSelect(page, "layout-select-align-content", "center");
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "align-content"), { timeout: 5000 })
     .toBe("center");
+  await page.keyboard.press("Escape");
 
   // Managed stylesheet should have the rule
   await expect
@@ -277,9 +247,9 @@ test("dev: layout section shows inset controls for a positioned element", async 
     return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .editor') ?? [])
       .map((editor) => editor.getAttribute("data-test"));
   });
-  expect(editorOrder).toContain("spacing-box");
+  expect(editorOrder).toContain("position-section");
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
-  expect(await page.locator('[data-test="spacing-box"] [data-test="layout-inset"]').count()).toBe(1);
+  expect(await page.locator('[data-test="position-section"] [data-test="layout-inset"]').count()).toBe(1);
 
   // Empty relative insets stay compact until explicitly added.
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
@@ -356,9 +326,9 @@ test("dev: absolute position exposes grouped and individual inset values", async
   await (await getAppFrame(page)).locator('[data-test="right-anchored-box"]').click();
   await waitForEditors(page);
 
-  await expect(page.locator('[data-test="layout-position"]')).toBeVisible();
-  const position = page.locator('[data-test="layout-position"]');
-  await expect(position.locator('[data-test="layout-inset"]')).toHaveAttribute("data-expanded", "false");
+  await expect(page.locator('[data-test="layout-inset"]')).toBeVisible();
+  const position = page.locator('[data-test="layout-inset"]');
+  await expect(position).toHaveAttribute("data-expanded", "false");
   await expect(position.locator('[data-test="pair-value-horizontal"]')).toBeVisible();
   await expect(position.locator('[data-test="individual-sides"]')).toBeEnabled();
   await position.locator('[data-test="individual-sides"]').click();
@@ -401,8 +371,8 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-rows: repeat\(2, minmax\(0(?:px)?, 1fr\)\)/);
 
-  await page.locator('[data-test="layout-grid-settings"]').click();
-  await expect(page.locator('[data-test="layout-grid-settings-popover"] [data-test="layout-grid-advanced"]')).toBeVisible();
+  await page.locator('[data-test="layout-options"]').click();
+  await expect(page.locator('[data-test="layout-options-popover"] [data-test="layout-grid-advanced"]')).toBeVisible();
   const columns = page.locator('[data-test="layout-grid-input-grid-template-columns"]');
   await expect(columns).toHaveValue(/repeat\(3, minmax\(0(?:px)?, 1fr\)\)/);
   await expect(page.locator('[data-test="layout-grid-input-grid-template-rows"]'))
@@ -436,13 +406,13 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
     .toContain("center");
 });
 
-test("dev: Grid is selectable from the Layout display dropdown", async ({ page }) => {
+test("dev: Grid is selectable from the layout mode control", async ({ page }) => {
   await openEditor(page, "/playground");
   await (await getAppFrame(page)).locator('[data-test="grid-switch-target"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-container"]')).toHaveCount(0);
 
-  await setSelect(page, "layout-select-display", "grid");
+  await page.locator('[data-test="layout-mode-grid"]').click();
   await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("display: grid");

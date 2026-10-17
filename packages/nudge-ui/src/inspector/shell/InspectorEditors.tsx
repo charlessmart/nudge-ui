@@ -4,7 +4,7 @@ import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import type { InteractionState } from "./styleState.ts";
 import { findTokenRow } from "../styleEditors/rowLookup.ts";
-import { SpacingBox } from "../styleEditors/SpacingBox.tsx";
+import { PositionSection } from "../styleEditors/PositionSection.tsx";
 import { Typography } from "../styleEditors/Typography.tsx";
 import { BackgroundEditor } from "../styleEditors/BackgroundEditor.tsx";
 import { ColorPicker } from "../styleEditors/ColorPicker.tsx";
@@ -31,7 +31,7 @@ export function InspectorEditors({ selected, styleSelection, tokenEntries, token
       <div className="style-editors" data-test="style-editors">
         {/* Editors publish changes through the draft store and browser inspection. */}
         <LayoutSection key={`layout-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-        <SpacingBox key={`spacing-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+        <PositionSection key={`position-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
         <AppearanceSection key={`appearance-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
         {showText ? <>
           <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />

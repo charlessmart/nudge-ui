@@ -1,13 +1,7 @@
 .layout__group {
-  margin-top: 4px;
-  padding-top: 10px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-8);
   border-top: 1px solid var(--border-subtle);
-}
-
-.layout__basic {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
 }
 
 .layout__tool-row {
@@ -25,7 +19,6 @@
   min-width: 0;
   min-height: 0;
 }
-
 
 .layout__tool-row .field-row__control {
   min-width: 0;
@@ -76,7 +69,6 @@
   min-height: 0;
 }
 
-
 .layout__size-grid .field-row__control,
 .layout__size-grid .token-field {
   min-width: 0;
@@ -99,33 +91,11 @@
   min-width: 0;
 }
 
-
-.layout__grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
 .layout__grid-primary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
   gap: var(--space-8);
   align-items: start;
-}
-
-.layout__grid-picker-column,
-.layout__grid-gap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  min-width: 0;
-}
-
-.layout__grid-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--control-height-large);
-  align-items: center;
-  gap: var(--space-8);
 }
 
 .layout__grid-gap-fields {
@@ -199,21 +169,73 @@
 }
 
 .inspector-popover__popup:has(> .layout__flex-child-settings),
-.inspector-popover__popup:has(> .layout__grid-advanced) {
+.inspector-popover__popup:has(> .layout__options) {
   padding: var(--space-16);
 }
-
 
 .layout__grid-value {
   min-width: 0;
 }
 
-.layout__flex-heading,
-.layout__direction-tools {
+.layout__flex-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--control-height-large);
   gap: var(--space-8);
   min-width: 0;
+}
+
+.layout__mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.layout__mode-control {
+  grid-column: 1 / span 2;
+}
+
+.layout__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 240px;
+}
+
+.layout__options-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+
+.layout__options-pair .field-row,
+.layout__options-pair .field-row__control {
+  min-width: 0;
+}
+
+.layout__flex {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.layout__flex-gaps,
+.layout__flex-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.layout__flex .layout__alignment-grid {
+  width: 100%;
+  aspect-ratio: 1;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.layout__flex .layout__alignment-button {
+  min-height: 0;
 }
 
 .layout__alignment-grid {
@@ -318,56 +340,6 @@
   justify-content: space-evenly;
 }
 
-.layout__flex-lower {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
-  gap: var(--space-8);
-  align-items: start;
-  margin-top: 8px;
-}
-
-.layout__flex-lower .layout__alignment-grid {
-  width: 100%;
-  aspect-ratio: 1;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  justify-self: start;
-}
-
-.layout__flex-lower .layout__alignment-button {
-  min-height: 0;
-}
-
-.layout__gap-column {
-  grid-column: 2 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  min-width: 0;
-}
-
-.layout__gap-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.layout__spacing-primary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--control-height-large);
-  gap: var(--space-8);
-  align-items: center;
-  min-width: 0;
-}
-
-.layout__spacing-primary .layout-combo {
-  min-width: 0;
-}
-
-.layout__spacing-primary .layout-combo,
-.layout__spacing-primary .text-input {
-  width: 100%;
-}
-
 .layout__distribution-control {
   width: var(--control-height-large);
 }
@@ -462,4 +434,11 @@
 .layout__flex-child-settings .layout-combo {
   width: 100%;
   min-width: 0;
+}
+
+.layout__resolved {
+  padding-inline-start: var(--space-4);
+  color: var(--text-muted-subtle);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

@@ -1,0 +1,338 @@
+import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
+import { IconAdjustmentsHorizontal, IconCheck, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
+import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
+import { LayoutDropdown } from "./LayoutDropdown.tsx";
+import { LayoutComboField } from "./LayoutComboField.tsx";
+import { GapField } from "./GapField.tsx";
+import { inlineBlockedBy } from "./inlineAuthored.ts";
+import { setStyle, setStyles } from "../tokens/editActions.ts";
+import { IconButton } from "../ui/IconButton.tsx";
+import { InspectorPopover } from "../ui/InspectorPopover.tsx";
+import { PopoverListbox } from "../ui/PopoverListbox.tsx";
+import { getStateStyleValue } from "../shell/stateValue.ts";
+import { formatInspectorLabel } from "../ui/labels.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
+
+const ALIGN_SELF_OPTIONS = ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"];
+const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
+const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
+const FLEX_DISTRIBUTION_OPTIONS = ["space-between", "space-around", "space-evenly"];
+
+export interface FlexControlProps {
+  domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
+  revision?: number;
+  onAfterEdit?: () => void;
+}
+
+export interface LayoutValueFieldProps extends FlexControlProps {
+  label: string;
+  property: string;
+  presets: string[];
+  inputOnly?: boolean;
+}
+
+export function LayoutValueField({ label, property, presets, inputOnly = false, domElement, editTarget, selection, revision = 0, onAfterEdit }: LayoutValueFieldProps): ReactElement {
+  return (
+    <FieldRow label={label} className="layout__flex-child-field">
+      <LayoutComboField
+        property={property}
+        presets={presets}
+        domElement={domElement}
+        editTarget={editTarget}
+        selection={selection}
+        inputOnly={inputOnly}
+        revision={revision}
+        onAfterEdit={onAfterEdit}
+      />
+    </FieldRow>
+  );
+}
+
+export function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <InspectorPopover
+      data-test="layout-flex-child-settings"
+      side="left"
+      align="start"
+      triggerTooltip="Flex child settings"
+      triggerElement={(
+        <IconButton
+          variant="quiet"
+          size="default"
+          label="Flex child settings"
+          data-test="layout-flex-child-settings"
+        >
+          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div className="layout__flex-child-settings" data-test="layout-flex-child-settings-content">
+        <div className="layout__flex-child-settings-title">Flex Child Settings</div>
+        <LayoutDropdown
+          property="align-self"
+          options={ALIGN_SELF_OPTIONS}
+          domElement={domElement}
+          editTarget={editTarget}
+          selection={selection}
+          stacked
+          revision={revision}
+          onAfterEdit={onAfterEdit}
+        />
+        <LayoutValueField
+          label="Order"
+          property="order"
+          presets={ORDER_PRESETS}
+          domElement={domElement}
+          editTarget={editTarget}
+          selection={selection}
+          revision={revision}
+          onAfterEdit={onAfterEdit}
+        />
+      </div>
+    </InspectorPopover>
+  );
+}
+
+export interface FlexGapFieldProps extends FlexControlProps {
+  property: "row-gap" | "column-gap";
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
+}
+
+export function FlexGapField({ property, domElement, editTarget, selection, entries, tokenRows, onAfterEdit }: FlexGapFieldProps): ReactElement {
+  const GapIcon = property === "column-gap" ? IconSpacingHorizontal : IconSpacingVertical;
+  return (
+    <ControlSurface className="layout__spacing-field">
+      <GapField
+        property={property}
+        domElement={domElement}
+        editTarget={editTarget}
+        selection={selection}
+        entries={entries}
+        tokenRows={tokenRows}
+        leading={(
+          <GapIcon
+            className="layout__spacing-icon"
+            size="var(--icon-size-small)"
+            stroke={1.8}
+            aria-hidden="true"
+            data-test={`layout-spacing-icon-${property}`}
+          />
+        )}
+        onAfterEdit={onAfterEdit}
+      />
+    </ControlSurface>
+  );
+}
+
+export function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
+  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
+  const mixed = selectedWrap?.kind === "mixed";
+  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
+  const isWrapped = !mixed && sharedWrap !== "nowrap";
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "flex-wrap");
+
+  function toggleWrap(): void {
+    if (blockedBy) return;
+    setStyle(editTarget ?? domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
+    onAfterEdit?.();
+  }
+
+  return (
+    <Tooltip content={inlineStyleWarningContent(blockedBy)}>
+      <IconButton
+        variant="quiet"
+        size="default"
+        data-active={isWrapped}
+        data-test="layout-flex-wrap-toggle"
+        label={mixed ? "Set Flex Wrap" : isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
+        aria-pressed={mixed ? "mixed" : isWrapped}
+        disabled={blockedBy !== null}
+        onClick={toggleWrap}
+      >
+        <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+export function FlexDistributionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
+  const justify = normalizeFlexJustify(computedJustify);
+  const lastPlacement = useRef("flex-start");
+  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
+  const [open, setOpen] = useState(false);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content");
+
+  useEffect(() => {
+    if (FLEX_ALIGNMENT_OPTIONS.includes(justify)) lastPlacement.current = justify;
+  }, [justify]);
+
+  function selectDistribution(next: string): void {
+    if (blockedBy) return;
+    const value = next === "packed" ? lastPlacement.current : next;
+    setStyle(editTarget ?? domElement, "justify-content", value);
+    onAfterEdit?.();
+  }
+
+  return (
+    <PopoverListbox
+      className="layout__distribution-control"
+      query=""
+      value={distributed ? justify : "packed"}
+      open={open}
+      triggerElement={(
+        <IconButton
+          variant="quiet"
+          size="default"
+          label="Item distribution"
+          data-active={distributed}
+          data-test="layout-flex-distribution"
+        >
+          <IconAdjustmentsHorizontal size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      triggerDataTest="layout-flex-distribution"
+      triggerAriaLabel="Item distribution"
+      triggerTooltip={inlineStyleWarningContent(blockedBy)}
+      disabled={blockedBy !== null}
+      items={[
+        { value: "packed", label: "Keep grouped" },
+        { value: "space-between", label: "Spread between" },
+        { value: "space-around", label: "Spread around" },
+        { value: "space-evenly", label: "Spread evenly" },
+      ].map((item) => ({
+        ...item,
+        leading: (distributed ? justify : "packed") === item.value
+          ? <IconCheck size={14} stroke={2} aria-hidden="true" />
+          : undefined,
+        "data-test": `layout-flex-distribution-${item.value}`,
+      }))}
+      onQueryChange={() => undefined}
+      onOpenChange={setOpen}
+      onSelect={(next) => {
+        selectDistribution(next);
+        setOpen(false);
+      }}
+    />
+  );
+}
+
+export function FlexAlignmentGrid({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
+  const [computedJustify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
+  const [computedAlign, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
+  const justify = normalizeFlexJustify(computedJustify);
+  const align = normalizeFlexAlign(computedAlign);
+  const isColumn = direction.startsWith("column");
+  const isReverse = direction.endsWith("-reverse");
+  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
+  const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content", "align-items");
+
+  // The grid shows physical positions: justify-content runs along the main axis, so column containers transpose the axes.
+  const rowValues = isColumn
+    ? isReverse ? [...FLEX_ALIGNMENT_OPTIONS].reverse() : FLEX_ALIGNMENT_OPTIONS
+    : FLEX_ALIGNMENT_OPTIONS;
+  const columnValues = !isColumn && isReverse
+    ? [...FLEX_ALIGNMENT_OPTIONS].reverse()
+    : FLEX_ALIGNMENT_OPTIONS;
+
+  function selectAlignment(nextJustify: string, nextAlign: string): void {
+    if (blockedBy) return;
+    // A grid click changing cross-axis alignment must not replace an explicit distribution choice.
+    const resolvedJustify = distributed ? justify : nextJustify;
+    setJustify(resolvedJustify);
+    setAlign(nextAlign);
+    setStyles(editTarget ?? domElement, [
+      { property: "justify-content", value: resolvedJustify },
+      { property: "align-items", value: nextAlign },
+    ]);
+    onAfterEdit?.();
+  }
+
+  const grid = (
+    <div
+      className="layout__alignment-grid"
+      role="group"
+      aria-label="Place flex items"
+      data-direction={isColumn ? "column" : "row"}
+      data-justify={justify}
+      data-align={align}
+      data-distributed={distributed}
+    >
+      {distributed ? (
+        <span className="layout__distribution-preview" aria-hidden="true">
+          <span /><span /><span />
+        </span>
+      ) : null}
+      {rowValues.flatMap((rowValue) =>
+        columnValues.map((columnValue) => {
+          const justifyValue = isColumn ? rowValue : columnValue;
+          const alignValue = isColumn ? columnValue : rowValue;
+          const active = justify === justifyValue && align === alignValue;
+          const label = formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`);
+          return (
+            <Tooltip key={`${alignValue}-${justifyValue}`}>
+              <IconButton
+                size="default"
+                variant="quiet"
+                className="layout__alignment-button"
+                data-active={active}
+                data-test={`layout-align-${alignValue}-${justifyValue}`}
+                label={label}
+                aria-pressed={active}
+                disabled={blockedBy !== null}
+                onClick={() => selectAlignment(justifyValue, alignValue)}
+              >
+                <span />
+              </IconButton>
+            </Tooltip>
+          );
+        }),
+      )}
+    </div>
+  );
+  return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{grid}</Tooltip>;
+}
+
+function normalizeFlexJustify(value: string): string {
+  // Computed `normal` behaves as `flex-start` for flex containers, so show the physical placement.
+  return value === "normal" ? "flex-start" : value;
+}
+
+function normalizeFlexAlign(value: string): string {
+  // `normal` resolves to stretch for flex items.
+  return value === "normal" ? "stretch" : value;
+}
+
+export function useComputedLayoutValue(
+  domElement: HTMLElement,
+  property: string,
+  fallback: string,
+  revision: number,
+): [string, (value: string) => void] {
+  const [value, setValue] = useState(() => readLayoutValue(domElement, property, fallback));
+
+  useEffect(() => {
+    setValue(readLayoutValue(domElement, property, fallback));
+  }, [domElement, property, fallback, revision]);
+
+  return [value, setValue];
+}
+
+function readLayoutValue(domElement: HTMLElement, property: string, fallback: string): string {
+  return getStateStyleValue(domElement, property, fallback);
+}
