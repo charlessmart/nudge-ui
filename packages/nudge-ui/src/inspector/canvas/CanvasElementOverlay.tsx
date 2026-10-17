@@ -293,6 +293,25 @@ function pushPendingSpacingCommit(
 }
 
 const LINKED_PEER_LIMIT = 200;
+/** Frames the follow loop keeps measuring after outlines stop moving, covering the commit that applies a pan. */
+const OUTLINE_IDLE_FRAMES = 8;
+
+/** Writes the outline boxes straight to the DOM, so a stale React render cannot win; returns whether any moved. */
+function syncOutlinePositions(frame: CanvasFrame, outlines: ReadonlyMap<HTMLElement, HTMLElement>): boolean {
+  const viewport = measureFrameViewport(frame);
+  let moved = false;
+  for (const [element, node] of outlines) {
+    const rect = toViewportRect(viewport, toRect(element.getBoundingClientRect()));
+    const box = `${rect.left}|${rect.top}|${rect.width}|${rect.height}`;
+    if (node.dataset.box !== box) moved = true;
+    node.dataset.box = box;
+    node.style.left = `${rect.left}px`;
+    node.style.top = `${rect.top}px`;
+    node.style.width = `${rect.width}px`;
+    node.style.height = `${rect.height}px`;
+  }
+  return moved;
+}
 
 /** Other elements rendered from the selected element's source site. */
 function findLinkedPeers(element: HTMLElement): HTMLElement[] {
@@ -379,6 +398,37 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedBorders = selectedInCanvas && selected
     ? readBorderWidths(selected.domElement)
     : null;
+
+  const outlineNodes = useRef(new Map<HTMLElement, HTMLElement>());
+  const outlineRef = (element: HTMLElement) => (node: HTMLElement | null): void => {
+    if (node) outlineNodes.current.set(element, node);
+    else outlineNodes.current.delete(element);
+  };
+
+  // React renders a frame or more after a pan or scroll, so outlines follow the live geometry on their own frame loop.
+  useEffect(() => {
+    if (!selectedFrame) return;
+    const frameDocument = selectedFrame.contentDocument;
+    let raf: number | null = null;
+    let idleFrames = 0;
+    const tick = (): void => {
+      raf = null;
+      idleFrames = syncOutlinePositions(selectedFrame, outlineNodes.current) ? 0 : idleFrames + 1;
+      if (idleFrames < OUTLINE_IDLE_FRAMES) raf = window.requestAnimationFrame(tick);
+    };
+    const follow = (): void => {
+      idleFrames = 0;
+      if (raf === null) raf = window.requestAnimationFrame(tick);
+    };
+    const options = { capture: true, passive: true } as const;
+    window.addEventListener("wheel", follow, options);
+    frameDocument?.addEventListener("scroll", follow, options);
+    return () => {
+      window.removeEventListener("wheel", follow, options);
+      frameDocument?.removeEventListener("scroll", follow, options);
+      if (raf !== null) window.cancelAnimationFrame(raf);
+    };
+  }, [selectedFrame]);
 
   useEffect(() => {
     if (!selectedInCanvas || !selected) return;
@@ -777,6 +827,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       {projectedLinkedPeers.map(({ peer, rect }, index) => (
         <div
           key={`${peer.getAttribute("data-cid")}-${index}`}
+          ref={outlineRef(peer)}
           className="canvas-linked-outline"
           data-test="canvas-linked-outline"
           style={overlayStyle(rect)}
@@ -786,6 +837,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
           key={`${element.cid}-${index}`}
+          ref={outlineRef(element.domElement)}
           className="canvas-selected-outline"
           data-linked={selectionIsLinked ? "true" : undefined}
           data-test="canvas-selected-outline"
