@@ -14,6 +14,8 @@ import {
   type SideValueSlot,
 } from "../ui/SideValuesField.tsx";
 import { setStyles, swapTokens } from "../tokens/editActions.ts";
+import { isCalcExpression } from "../../css/value-semantics/index.ts";
+import { deriveActiveTokenName, isExpressionRow } from "./fieldValue.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import {
@@ -90,7 +92,7 @@ export function SpacingField({
           initialValue={property === "inset" ? "auto" : undefined}
           displayValue={property === "inset" && !field.tokenName
             ? field.authoredValue
-            : isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
+            : isCalcExpression(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
@@ -267,11 +269,10 @@ function PairedTokenField({
   const row = pairTokenRow(displayProperty, axisProjection);
   const groupMixed = axisProjection.fields.some((field) => field.value === "Mixed");
   const valuesMatch = axisProjection.state === "shared" && !groupMixed;
-  const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
-    || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
+  const expression = isExpressionRow(row);
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
-  const isCalcAuthored = isCalcValue(calcAuthored);
-  const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
+  const isCalcAuthored = isCalcExpression(calcAuthored);
+  const activeTokenName = deriveActiveTokenName({ row, mixed: !valuesMatch, authored: calcAuthored });
   // Some browsers report the used pixel size for horizontal auto margins; keep the authored keyword.
   const committedValue = groupMixed
     ? "Mixed"
@@ -333,11 +334,7 @@ function PairedTokenField({
 }
 
 function fieldDisplayValue(field: InspectorFieldProjection): string {
-  return isCalcValue(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
-}
-
-function isCalcValue(value: string): boolean {
-  return /\bcalc\s*\(/i.test(value);
+  return isCalcExpression(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
 }
 
 function splitAxisValue(value: string): readonly [string, string] | null {

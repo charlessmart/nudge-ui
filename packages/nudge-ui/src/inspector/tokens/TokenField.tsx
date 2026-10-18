@@ -4,6 +4,7 @@ import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
 import {
   applyValueEdit,
+  isCalcExpression,
   normalizeOpacityPercent,
   selectTokens,
 } from "../../css/value-semantics/index.ts";
@@ -12,6 +13,7 @@ import type { TokenSemanticSlot } from "../../css/value-semantics/index.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
+import { deriveActiveTokenName, isExpressionRow } from "../styleEditors/fieldValue.ts";
 import {
   canNudgeCssValueByDrag,
   nudgeCssValue,
@@ -841,20 +843,16 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
     ? tokenRow.tokenName
     : null;
-  const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
-    || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
-    || tokenRow.color?.isExpression));
+  const expression = isExpressionRow(tokenRow ?? null);
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
-  const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
-  const selectedTokenName = selectedProperty?.token.kind === "common"
-    ? selectedProperty.token.name
-    : null;
-  const activeTokenName = effectiveMixed
-    ? null
-    : tokenBackedOpacityName
-      ?? (expression || isCalcAuthored
-        ? null
-        : selectedProperty ? selectedTokenName : tokenRow?.tokenName ?? null);
+  const isCalcAuthored = isCalcExpression(authored);
+  const activeTokenName = deriveActiveTokenName({
+    row: tokenRow ?? null,
+    selectedProperty,
+    mixed: effectiveMixed,
+    authored,
+    override: tokenBackedOpacityName,
+  });
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // Suppress the chip for calc()-derived values so the UI shows the resolved pixel value, not the internal multiplier token.
   const authoredOrComputed = tokenBackedOpacityName

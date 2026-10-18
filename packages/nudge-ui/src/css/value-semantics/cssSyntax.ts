@@ -1,3 +1,46 @@
+export interface VarReference {
+  readonly name: string;
+  readonly fallback?: string;
+}
+
+/**
+ * Parses a value that is exactly one `var()` reference. The fallback may
+ * contain nested parentheses; trailing text is rejected rather than swallowed.
+ */
+export function parseSingleVarReference(value: string): VarReference | null {
+  const trimmed = value.trim();
+  if (!/^var\(/i.test(trimmed)) return null;
+  let depth = 0;
+  let comma = -1;
+  for (let index = 3; index < trimmed.length; index++) {
+    const char = trimmed[index];
+    if (char === "(") {
+      depth++;
+      continue;
+    }
+    if (char === ")") {
+      depth--;
+      if (depth !== 0) continue;
+      if (index !== trimmed.length - 1) return null;
+      const body = trimmed.slice(4, index);
+      const name = (comma < 0 ? body : body.slice(0, comma - 4)).trim();
+      if (!/^--[\w-]+$/.test(name)) return null;
+      const fallback = comma < 0 ? undefined : body.slice(comma - 3).trim();
+      return fallback ? { name, fallback } : { name };
+    }
+    if (char === "," && depth === 1 && comma < 0) comma = index;
+  }
+  return null;
+}
+
+export function isSingleVarReference(value: string): boolean {
+  return parseSingleVarReference(value) !== null;
+}
+
+export function isCalcExpression(value: string): boolean {
+  return /\bcalc\s*\(/i.test(value);
+}
+
 /** Scans balanced `var()` calls; the first top-level comma separates the fallback. */
 export function extractVarCalls(value: string): Array<{ name: string; fallback?: string }> {
   const calls: Array<{ name: string; fallback?: string }> = [];

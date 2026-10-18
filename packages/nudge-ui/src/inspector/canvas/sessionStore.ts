@@ -108,7 +108,6 @@ export type {
 
 export interface HydrationResult {
   restored: boolean;
-  changeCount: number;
 }
 
 function buildSession(): DurableSession {
@@ -163,50 +162,50 @@ function persistSessionUnchecked(): boolean {
 }
 
 export function hydrateSession(): HydrationResult {
-  if (!projectId()) return { restored: false, changeCount: 0 };
+  if (!projectId()) return { restored: false };
 
   let raw: string | null = null;
   try {
     raw = inspectorStorage()?.getItem(storageKey(projectId())) ?? null;
   } catch {
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
-  if (!raw) return { restored: false, changeCount: 0 };
+  if (!raw) return { restored: false };
 
   let session: unknown;
   try {
     session = JSON.parse(raw);
   } catch {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   if (!session || typeof session !== "object") {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const s = session as Record<string, unknown>;
 
   if (typeof s.schemaVersion !== "number" || s.schemaVersion !== SCHEMA_VERSION) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   if (typeof s.projectId !== "string" || s.projectId !== projectId()) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   if (typeof s.mode !== "string" || (s.mode !== "inspect" && s.mode !== "canvas")) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   if (!isSameOriginUrl(s.inspectUrl)) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const inspectRouteChanged = s.mode === "inspect" && s.inspectUrl !== window.location.href;
@@ -214,7 +213,7 @@ export function hydrateSession(): HydrationResult {
   const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
   if (!cards) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const serializableCards: SerializableCard[] = [];
@@ -232,7 +231,7 @@ export function hydrateSession(): HydrationResult {
       candidate.height <= 0
     ) {
       safeDiscard();
-      return { restored: false, changeCount: 0 };
+      return { restored: false };
     }
     const c = card as Record<string, unknown>;
     serializableCards.push({
@@ -249,7 +248,7 @@ export function hydrateSession(): HydrationResult {
 
   if (new Set(serializableCards.map((card) => card.id)).size !== serializableCards.length) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const cardsById = new Map(serializableCards.map((card) => [card.id, card]));
@@ -262,19 +261,19 @@ export function hydrateSession(): HydrationResult {
     !isFiniteNumber((cameraRaw as Record<string, unknown>).zoom)
   ) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const presentation = s.presentation ?? "focus";
   const groups = Array.isArray(s.groups) ? s.groups.filter((group) => group?.kind !== "linked") : s.groups ?? [];
   if ((presentation !== "focus" && presentation !== "canvas") || !Array.isArray(groups) || !groups.every(isFrameGroup)) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
   const clipboardHandoff = s.clipboardHandoff;
   if (!isClipboardHandoffSnapshot(clipboardHandoff)) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   const camera: CanvasCamera = {
@@ -289,7 +288,7 @@ export function hydrateSession(): HydrationResult {
       : undefined;
   if (focusedCardId === undefined) {
     safeDiscard();
-    return { restored: false, changeCount: 0 };
+    return { restored: false };
   }
 
   hydrateCanvasStore(
@@ -303,7 +302,7 @@ export function hydrateSession(): HydrationResult {
   hydrateClipboardHandoff(clipboardHandoff);
   // A changed URL means the user navigated while Inspect was active: keep the edits but adopt the new route.
   if (inspectRouteChanged) persistSessionUnchecked();
-  return { restored: true, changeCount: 0 };
+  return { restored: true };
 }
 
 function safeDiscard(): void {
@@ -378,8 +377,6 @@ export function scheduleAutoSave(): void {
     if (persistSession()) autoSaveDirty = false;
   }, AUTOSAVE_DEBOUNCE_MS);
 }
-
-export function scheduleCanvasSave(): void { scheduleAutoSave(); }
 
 export function flushAutoSave(): void {
   if (autosaveTimer !== null) {

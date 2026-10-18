@@ -4,6 +4,7 @@ import type { TokenEntry } from "../../css/model/index.ts";
 import { normalizeOpacityPercent } from "../../css/value-semantics/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { metadataFor } from "./rowLookup.ts";
+import { deriveActiveTokenName } from "./fieldValue.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
@@ -40,11 +41,12 @@ export function OpacityEditor({ element, selection, entries, tokenRows = [], onA
     ? "Mixed"
     : selectedProperty?.value.kind === "common" ? selectedProperty.value.value : effectiveOpacity(el, row);
   const editable = row?.propertyOpacity?.editable ?? true;
-  const activeToken = mixed
-    ? null
-    : selectedProperty
-      ? selectedProperty.token.kind === "common" ? selectedProperty.token.name : null
-      : row?.propertyOpacity?.tokenName ?? row?.tokenName;
+  const activeToken = deriveActiveTokenName({
+    row,
+    selectedProperty,
+    mixed,
+    override: selectedProperty ? null : row?.propertyOpacity?.tokenName ?? null,
+  });
 
   return (
     <div className="appearance__field opacity-editor" data-test="opacity-editor">

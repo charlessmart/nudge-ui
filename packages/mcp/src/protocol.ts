@@ -63,16 +63,8 @@ export type {
 } from "@nudge-ui/agent-protocol";
 
 /** Stable endpoint names used by the loopback browser bridge. */
-export const BRIDGE_ENDPOINTS = {
-  health: "/health",
-  pair: "/pair",
-  takeover: "/takeover",
-  events: "/events",
-  prompt: "/prompt",
-  status: "/status",
-  canvasAcknowledgement: "/canvas/ack",
-  disconnect: "/disconnect",
-} as const;
+export { BRIDGE_ENDPOINTS } from "@nudge-ui/agent-protocol";
+export type { BridgeEndpoint } from "@nudge-ui/agent-protocol";
 
 /** Private, loopback-only endpoints used by an MCP adapter process. */
 export const AGENT_CONTROL_ENDPOINTS = {
@@ -87,8 +79,6 @@ export const AGENT_CONTROL_ENDPOINTS = {
   activity: "/__nudge/agent/activity",
   canvas: "/__nudge/agent/canvas",
 } as const;
-
-export type BridgeEndpoint = (typeof BRIDGE_ENDPOINTS)[keyof typeof BRIDGE_ENDPOINTS];
 
 export interface BridgeHttpError {
   readonly error: {

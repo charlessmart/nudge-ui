@@ -31,7 +31,6 @@ import gridPickerStyles from "../styleEditors/GridPicker.css?inline";
 import layoutComboFieldStyles from "../styleEditors/LayoutComboField.css?inline";
 import tokenChipStyles from "../tokens/TokenChip.css?inline";
 import tokenFieldStyles from "../tokens/TokenField.css?inline";
-import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
@@ -73,7 +72,6 @@ export const UI_STYLES = [
   layoutComboFieldStyles,
   tokenChipStyles,
   tokenFieldStyles,
-  tokenDropdownStyles,
   tokensPanelStyles,
   changesLogStyles,
   promptSettingsStyles,

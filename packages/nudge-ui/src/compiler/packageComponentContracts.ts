@@ -5,6 +5,7 @@ import type {
   ComponentPropContract,
   ComponentPropValue,
 } from "./componentContractTypes.ts";
+import { componentIdentity } from "./sourcePaths.ts";
 
 /** hostFile is the resolution anchor; contract identity uses the specifier, never an absolute node_modules path. */
 export interface PackageContractContext {
@@ -331,7 +332,7 @@ function componentContract(
     .filter((prop): prop is ComponentPropContract => prop !== null);
   if (props.length === 0) return null;
   return {
-    componentId: `${moduleSpecifier}#${exportName}`,
+    componentId: componentIdentity(moduleSpecifier, exportName),
     name: exportName,
     file: moduleSpecifier,
     props,

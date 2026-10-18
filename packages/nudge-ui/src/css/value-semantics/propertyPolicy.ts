@@ -1,5 +1,6 @@
 import type { ColorValueFacts, EditCapability, TokenEntry } from "../model/index.ts";
 import { interpretColorValue } from "./colorSemantics.ts";
+import { isSingleVarReference } from "./cssSyntax.ts";
 
 declare global {
   interface Window {
@@ -186,9 +187,9 @@ export function classifyEditCapability(property: string, value: string): EditCap
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
   if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
-  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v)) return "atomic";
+  if (isSingleVarReference(v)) return "atomic";
   if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
-    || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
+    || (v.includes(",") && !isSingleVarReference(v))) return "composite";
   if (/\b(min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
   if (/^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
     || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";

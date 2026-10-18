@@ -415,11 +415,3 @@ function componentRuntimePrelude(runtimeModule: string, state: WalkState): strin
     : "";
   return `import { ${bindings.join(", ")} } from ${JSON.stringify(runtimeModule)};${registration}\n`;
 }
-
-export function injectDataCid(
-  code: string,
-  id: string,
-  root?: string,
-): InjectResult | null {
-  return injectIdentity(code, id, root);
-}

@@ -1,6 +1,9 @@
-import type { NudgeUiClientManifest } from "../../inspector/clientManifest.ts";
+import {
+  createNudgeUiClientManifest,
+  type NudgeUiClientManifest,
+} from "../../inspector/clientManifest.ts";
 import type { ProjectTokenSnapshot } from "../../project/tokens.ts";
-import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
+import { NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 import { automationManifestFields } from "../environment.ts";
 
 export {
@@ -12,15 +15,14 @@ export {
   NUDGE_UI_ROUTE_PREFIX,
 } from "../../transport/index.ts";
 
-export interface StandaloneRuntimeManifest extends NudgeUiClientManifest {}
+export type StandaloneRuntimeManifest = NudgeUiClientManifest;
 
 export function createStandaloneRuntimeManifest(
   projectId: string,
   tokenSnapshot: ProjectTokenSnapshot = emptyTokenSnapshot(),
   revision = 0,
 ): StandaloneRuntimeManifest {
-  return {
-    version: NUDGE_UI_MANIFEST_VERSION,
+  return createNudgeUiClientManifest({
     revision,
     runtime: {
       projectId,
@@ -45,7 +47,7 @@ export function createStandaloneRuntimeManifest(
       events: ["ready", "reload"],
     },
     ...automationManifestFields(),
-  };
+  });
 }
 
 function emptyTokenSnapshot(): ProjectTokenSnapshot {

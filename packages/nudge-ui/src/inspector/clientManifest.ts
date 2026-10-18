@@ -2,16 +2,18 @@ import {
   normalizeNudgeUiRuntimeConfig,
   type NudgeUiRuntimeConfig,
 } from "./runtime/runtimeConfig.ts";
+import { NUDGE_UI_MANIFEST_VERSION } from "../transport/index.ts";
 
 export type { NudgeUiRuntimeConfig, NudgeUiRuntimeFeatures } from "./runtime/runtimeConfig.ts";
 export { detectStylingSystem } from "./runtime/runtimeConfig.ts";
 
-export const NUDGE_UI_CLIENT_MANIFEST_VERSION = 1;
+/** The client envelope shares one version with the transport module that serves it. */
+export const NUDGE_UI_CLIENT_MANIFEST_VERSION: typeof NUDGE_UI_MANIFEST_VERSION = NUDGE_UI_MANIFEST_VERSION;
 
-export interface NudgeUiClientManifest {
+export interface NudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig = NudgeUiRuntimeConfig> {
   readonly version: typeof NUDGE_UI_CLIENT_MANIFEST_VERSION;
   readonly revision: number;
-  readonly runtime: NudgeUiRuntimeConfig;
+  readonly runtime: Runtime;
   /** Project-owned, loopback-only agent bridge started by the dev host. */
   readonly agentBridge?: {
     readonly baseUrl: string;
@@ -30,6 +32,31 @@ export interface NudgeUiClientManifest {
   };
   /** Set by `NUDGE_UI=1`: automated browsers open the editor instead of the plain app. */
   readonly inspectAutomatedBrowsers?: true;
+}
+
+/** Everything host Adapters supply; the envelope fields are owned here. */
+export interface NudgeUiClientManifestInput<Runtime extends NudgeUiRuntimeConfig = NudgeUiRuntimeConfig> {
+  readonly runtime: Runtime;
+  readonly revision?: number;
+  readonly agentBridge?: NudgeUiClientManifest["agentBridge"];
+  readonly document?: NudgeUiClientManifest["document"];
+  readonly reload?: NudgeUiClientManifest["reload"];
+  readonly inspectAutomatedBrowsers?: true;
+}
+
+/** Builds one envelope so every host publishes the same version and field set. */
+export function createNudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig>(
+  input: NudgeUiClientManifestInput<Runtime>,
+): NudgeUiClientManifest<Runtime> {
+  return {
+    version: NUDGE_UI_CLIENT_MANIFEST_VERSION,
+    revision: input.revision ?? 0,
+    runtime: input.runtime,
+    ...(input.agentBridge ? { agentBridge: input.agentBridge } : {}),
+    ...(input.document ? { document: input.document } : {}),
+    ...(input.reload ? { reload: input.reload } : {}),
+    ...(input.inspectAutomatedBrowsers ? { inspectAutomatedBrowsers: true } : {}),
+  };
 }
 
 /** Narrows and normalizes an untrusted manifest before it replaces inspector state. */
