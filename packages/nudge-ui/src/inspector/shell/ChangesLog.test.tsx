@@ -103,7 +103,7 @@ describe("ChangesLog", () => {
     const actions = container.querySelector('[data-test="session-actions"]')!;
     expect(actions.previousElementSibling).toBe(root_);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
-    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--secondary");
+    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--quiet");
   });
 
   it("shows sketches as normal change rows with a note and one undo button that removes the sketch", async () => {

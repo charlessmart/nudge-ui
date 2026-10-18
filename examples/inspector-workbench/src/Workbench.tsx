@@ -6,7 +6,7 @@ import { InspectorEditors } from "@inspector/shell/InspectorEditors.tsx";
 import { ComponentPropsSection, useComponentProps } from "@inspector/componentSemantics/ComponentPropsSection.tsx";
 import { EmptyState } from "@inspector/shell/EmptyState.tsx";
 import { AgentStatusButtonView } from "@inspector/shell/AgentStatusButton.tsx";
-import { PromptActionButton } from "@inspector/shell/PromptActionButton.tsx";
+import { PromptActionButton, PromptActionRow } from "@inspector/shell/PromptActionButton.tsx";
 import { clearActiveDraft, useChanges } from "@inspector/drafts/store.ts";
 import { setStyle } from "@inspector/tokens/editActions.ts";
 import { setActiveStyleState } from "@inspector/shell/styleState.ts";
@@ -60,7 +60,9 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
       isOpen={isOpen} onOpenChange={setOpen}
       headerActions={<><PeekOriginalButton /><AgentStatusButtonView agent={agentFixture(scenario.connected ?? false)} onOpenSettings={() => setNotice("Fixture agent status. Use the outer inspector to configure your real connection.")} /></>}
       prompt={<div className="copy-prompt__stack" data-test="copy-prompt-control">
-        <PromptActionButton disabled={changes.length === 0} badgeCount={changes.length} onClick={() => setNotice("Fixture prompt action. Use the outer inspector’s Copy prompt button to export your design changes.")} />
+        <PromptActionRow hasChanges={changes.length > 0} onClear={clearActiveDraft}>
+          <PromptActionButton disabled={changes.length === 0} badgeCount={changes.length} onClick={() => setNotice("Fixture prompt action. Use the outer inspector’s Copy prompt button to export your design changes.")} />
+        </PromptActionRow>
       </div>}
     >
       {notice ? <StatusCallout tone="neutral" role="status">{notice}</StatusCallout> : null}
@@ -68,7 +70,7 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
         : scenario.target === "controls" ? <ControlledFields />
           : primary ? <>
             <InspectorSelection
-              identity={primary} count={targets.length} name={componentProps ? { title: componentProps.target.meta.componentName } : describeElement(primary.domElement)} editScope={scope}
+              identity={primary} count={targets.length} isComponent={componentProps !== null} name={componentProps ? { title: componentProps.target.meta.componentName } : describeElement(primary.domElement)} editScope={scope}
               sourceSiteMatchCount={scope === "source-site" ? 3 : 1}
               styleState={styleState} availableInteractionStates={inspection.element?.availableStates ?? ["base"]}
               onStyleStateChange={(state) => { setActiveStyleState(state); setStyleState(state); }} onUnlink={() => setScope("rendered-instance")} onRelink={() => setScope("source-site")}
@@ -95,16 +97,15 @@ export function Workbench(): ReactElement {
   }
   return <main className="workbench">
     <style>{DRAG_CURSOR_STYLES.replaceAll(":host", ".workbench-preview")}</style>
-    <header className="workbench-header"><p className="workbench-eyebrow">Nudge UI / development</p><h1>Inspector workbench</h1><p>The real panel, ready to inspect.</p></header>
+    <header className="workbench-header"><p className="workbench-eyebrow">Nudge UI / development</p><h1>Inspector workbench</h1><a href="?nudge-ui=off">Open without Nudge</a></header>
     <div className="workbench-layout">
       <nav className="workbench-scenarios" aria-label="Inspector scenarios">
         {scenarios.map((item) => <button type="button" key={item.id} aria-current={item.id === scenarioId ? "page" : undefined} onClick={() => choose(item.id)}>{item.title}</button>)}
       </nav>
       <section className="workbench-stage" aria-label="Inspector fixture">
-        <div className="workbench-caption"><div><h2>{scenario.title}</h2><p>{scenario.description}</p></div><button type="button" onClick={() => setRevision((value) => value + 1)}>Reset fixture</button></div>
+        <div className="workbench-caption"><h2 title={scenario.description}>{scenario.title}</h2><button type="button" onClick={() => setRevision((value) => value + 1)}>Reset fixture</button></div>
         <div className="workbench-preview" key={`${scenario.id}-${revision}`}><FixturePanel scenario={scenario} /></div>
       </section>
-      <aside className="workbench-help"><h2>Edit the inspector</h2><p>Use Nudge to select controls in this preview and adjust their styles. Copy the resulting prompt to implement changes in the shared inspector source.</p><p>Use Nudge’s app interaction mode to operate the preview controls and switch scenarios.</p><a href="?nudge-ui=off">Open without Nudge</a></aside>
     </div>
     <ComponentExamples />
     <FixtureTargets />

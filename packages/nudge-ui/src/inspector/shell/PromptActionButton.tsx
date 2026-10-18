@@ -1,6 +1,8 @@
-import { forwardRef, type ReactNode } from "react";
-import { IconChevronDown, IconCopy } from "@tabler/icons-react";
+import { forwardRef, type ReactElement, type ReactNode } from "react";
+import { IconChevronDown, IconCopy, IconX } from "@tabler/icons-react";
 import { Button, type ButtonProps } from "../ui/Button.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 
 export interface PromptActionButtonProps extends ButtonProps {
   readonly copied?: boolean;
@@ -28,3 +30,34 @@ export const PromptActionButton = forwardRef<HTMLButtonElement, PromptActionButt
     {hasMenu ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
   </Button>;
 });
+
+export interface PromptActionRowProps {
+  readonly children: ReactNode;
+  /** Clears the pending changes; the close button appears over the action while there are any. */
+  readonly onClear?: () => void;
+  readonly hasChanges?: boolean;
+  readonly hasMenu?: boolean;
+}
+
+/** A prompt action with a close button that fades in over it on hover, like the sketch delete in the menu. */
+export function PromptActionRow({ children, onClear, hasChanges = false, hasMenu = false }: PromptActionRowProps): ReactElement {
+  return (
+    <div className="copy-prompt__row" data-has-menu={hasMenu ? "true" : undefined}>
+      {children}
+      {onClear && hasChanges ? (
+        <Tooltip>
+          <IconButton
+            className="copy-prompt__clear"
+            variant="quiet"
+            size="compact"
+            label="Clear changes"
+            data-test="copy-prompt-clear"
+            onClick={onClear}
+          >
+            <IconX size="var(--icon-size-small)" aria-hidden="true" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+}
