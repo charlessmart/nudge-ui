@@ -79,6 +79,7 @@ function LayoutModeControl({ domElement, editTarget, selection, revision = 0, on
         data-test="layout-mode-control"
         className="layout__mode-control"
         disabled={blockedBy !== null}
+        tooltips
         options={MODE_OPTIONS}
         onChange={selectMode}
       />
