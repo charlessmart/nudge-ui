@@ -64,7 +64,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: var(--space-12) var(--space-24);
+  padding-block: var(--space-12);
+  padding-inline: var(--space-16);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -105,6 +106,33 @@
 .copy-prompt__stack {
   width: 100%;
   min-width: 0;
+}
+
+.copy-prompt__row {
+  position: relative;
+}
+
+/* Fades in over the prompt action, like the sketch delete in its menu. */
+.copy-prompt__clear {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: var(--space-4);
+  color: var(--text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+/* Keep clear of the menu chevron. */
+.copy-prompt__row[data-has-menu="true"] .copy-prompt__clear {
+  inset-inline-end: calc(var(--space-4) + var(--control-height-small));
+}
+
+.copy-prompt__row:hover .copy-prompt__clear,
+.copy-prompt__row:focus-within .copy-prompt__clear {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .copy-prompt__main.button {
@@ -384,6 +412,28 @@
 }
 
 /* One component section: name with link status, props and state share a single border. */
+/* Doubled class: .editor__title-row, declared later, would otherwise win with space-between. */
+.editor__title-row.selection__name {
+  justify-content: flex-start;
+  gap: var(--space-4);
+}
+
+.selection__linked-icon {
+  flex: 0 0 auto;
+  color: var(--linked);
+}
+
+/* The status text sits beside the title; only the action button stays at the end. */
+.selection__scope,
+.selection__scope .scope__linked,
+.selection__scope .scope__unlinked {
+  display: contents;
+}
+
+.selection__name .icon-button {
+  margin-inline-start: auto;
+}
+
 .selection .selection__scope {
   padding: 0;
   background: transparent;

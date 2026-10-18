@@ -70,6 +70,8 @@ interface FrameOverlayState {
   spacingGuides: Rect[];
   spacingAreas: Rect[];
   spacingHandleBadge: { point: { x: number; y: number }; value: number } | null;
+  /** The hovered element shares its source site with other rendered elements. */
+  linked: boolean;
 }
 
 interface FrameMeasureState {
@@ -313,6 +315,10 @@ function syncOutlinePositions(frame: CanvasFrame, outlines: ReadonlyMap<HTMLElem
   return moved;
 }
 
+function isLinkedElement(element: HTMLElement | null): boolean {
+  return element !== null && getEditScope(element) === "source-site" && findLinkedPeers(element).length > 0;
+}
+
 /** Other elements rendered from the selected element's source site. */
 function findLinkedPeers(element: HTMLElement): HTMLElement[] {
   const selector = sourceSiteSelector(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
@@ -553,17 +559,22 @@ export function CanvasElementOverlay(): ReactElement | null {
           && spacingDescriptorMatches(handleAffordance, msg.spacing)
           ? { point: hoverPoint, value: handleAffordance.value }
           : null;
-        setHover({
+        // Hover messages arrive every frame; the peer query runs once per element entered, not per message.
+        const hoverRect = msg.rect;
+        setHover((current) => ({
           iframe: frame.iframe,
           identity: { elementId: msg.elementId },
-          rect: msg.rect,
+          rect: hoverRect,
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: frame.cardId,
           spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
           spacingGuides,
           spacingAreas,
           spacingHandleBadge,
-        });
+          linked: current?.iframe === frame.iframe && current.identity.elementId === msg.elementId
+            ? current.linked
+            : isLinkedElement(hoverElement ?? frame.element(msg)),
+        }));
       } else if (data.type === "element-measure-state") {
         const msg = data;
         setMeasureState({
@@ -807,7 +818,7 @@ export function CanvasElementOverlay(): ReactElement | null {
             />
           )) : null}
           {showHoverOutline ? (
-            <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+            <div className="canvas-element-overlay" data-linked={hover?.linked ? "true" : undefined} data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
           ) : null}
           {hoverSpacing ? projectedSpacingGuides.map((guide, index) => (
             <div
@@ -863,6 +874,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
+          linked={selectionIsLinked}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
             : null}

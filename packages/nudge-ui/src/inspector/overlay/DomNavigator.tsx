@@ -14,6 +14,8 @@ export interface DomNavigatorProps {
   hierarchy: HTMLElement[];
   anchor: Rect;
   project: (element: HTMLElement) => Rect | null;
+  /** The selection is a component or shares its source with other elements. */
+  linked?: boolean;
 }
 
 function nodeDescription(node: HTMLElement): string {
@@ -29,7 +31,7 @@ function selectNode(node: HTMLElement): void {
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, project }: DomNavigatorProps): ReactElement | null {
+export function DomNavigator({ selected, hierarchy, anchor, project, linked = false }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
   const [expanded, setExpanded] = useState(false);
@@ -123,6 +125,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
       <div
         className="dom-navigator"
         data-test="dom-navigator"
+        data-linked={linked ? "true" : undefined}
         aria-label="DOM navigator"
         style={{ left: Math.max(4, anchor.left), top: Math.max(4, anchor.top - 28) }}
       >

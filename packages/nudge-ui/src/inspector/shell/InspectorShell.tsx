@@ -275,6 +275,7 @@ export function InspectorShell(): ReactElement {
           settingsSection={settingsSection}
           onOpenSettings={openSettings}
           onSettingsOpenChange={setSettingsOpen}
+          onClearChanges={clearInspectorSession}
         />}
       >
         {inlineTextFeedback ? (
@@ -298,6 +299,7 @@ export function InspectorShell(): ReactElement {
             <InspectorSelection
               identity={selected}
               count={selectedElements.length}
+              isComponent={!isMultiSelection && componentProps !== null}
               name={isMultiSelection ? { title: `${selectedElements.length} elements` } : componentProps ? { title: componentProps.target.meta.componentName } : describeElement(selected.domElement)}
               editScope={editScope}
               sourceSiteMatchCount={sourceSiteMatchCount}

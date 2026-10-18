@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import type { InteractionState } from "./styleState.ts";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
-import { IconLink, IconUnlink } from "@tabler/icons-react";
+import { IconLink, IconSquareRotated, IconUnlink } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
@@ -12,6 +12,8 @@ export interface InspectorSelectionProps {
   readonly identity?: { readonly cid: string; readonly src: string };
   readonly count: number;
   readonly name: ElementName | null;
+  /** The selection has editable component props, which links it like a shared source site does. */
+  readonly isComponent?: boolean;
   /** Component props, shown between the name and the link status. */
   readonly children?: ReactNode;
   readonly editScope: "source-site" | "rendered-instance" | null;
@@ -24,7 +26,7 @@ export interface InspectorSelectionProps {
 }
 
 /** Presents selection scope and interaction states without reading the DOM. */
-export function InspectorSelection({ identity, count, name, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
+export function InspectorSelection({ identity, count, name, isComponent = false, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
   const showInteractionState = count === 1 && availableInteractionStates.length > 1;
   const hasEditScopeCallout = count === 1 && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
   return <>
@@ -38,6 +40,9 @@ export function InspectorSelection({ identity, count, name, children, editScope,
       >
         {name ? (
           <div className="editor__title-row selection__name" data-test="selection-name">
+            {isComponent || (hasEditScopeCallout && editScope === "source-site") ? (
+              <IconSquareRotated className="selection__linked-icon" size={14} stroke={2} aria-hidden="true" data-test="selection-linked-icon" />
+            ) : null}
             <div className="editor__title">{name.title}</div>
             {hasEditScopeCallout ? (
               <StatusCallout

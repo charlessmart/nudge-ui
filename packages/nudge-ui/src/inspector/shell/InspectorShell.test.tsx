@@ -106,6 +106,7 @@ describe("InspectorShell", () => {
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
       expect(host.shadowRoot?.querySelector('[data-test="selection-name"]')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).toBeNull();
     } finally {
       setSelectedElement(null);
       selected.remove();
@@ -160,6 +161,7 @@ describe("InspectorShell", () => {
       const scope = host.shadowRoot?.querySelector('[data-test="edit-scope"]');
       expect(scope).not.toBeNull();
       expect(scope?.textContent).toContain("Linked (2)");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).not.toBeNull();
       expect(host.shadowRoot?.querySelector('[data-test="selection"]')?.className)
         .not.toContain("selection--without-scope-callout");
     } finally {

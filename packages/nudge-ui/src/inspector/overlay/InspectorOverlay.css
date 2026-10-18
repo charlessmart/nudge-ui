@@ -107,13 +107,13 @@
   font-size: var(--font-size-base);
 }
 
-.dom-navigator__trigger,
 .dom-navigator__row {
   position: relative;
   display: grid;
 }
 
 .dom-navigator__expander {
+  appearance: none;
   position: absolute;
   top: 50%;
   z-index: 1;
@@ -144,6 +144,11 @@
   font-size: var(--font-size-base);
 }
 
+.dom-navigator[data-linked="true"] {
+  background: var(--linked);
+}
+
+.dom-navigator__trigger,
 .dom-navigator__item {
   appearance: none;
   display: flex;

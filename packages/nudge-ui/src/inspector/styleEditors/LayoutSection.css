@@ -437,6 +437,8 @@
 }
 
 .layout__resolved {
+  /* Leaves room for the media query bars at the field's right edge. */
+  margin-inline-end: var(--space-4);
   padding-inline-start: var(--space-4);
   color: var(--text-muted-subtle);
   font-variant-numeric: tabular-nums;
