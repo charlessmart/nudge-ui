@@ -36,14 +36,16 @@ describe("PromptActionRow", () => {
 
     const clear = host.querySelector<HTMLButtonElement>('[data-test="copy-prompt-clear"]')!;
     expect(clear.getAttribute("aria-label")).toBe("Clear changes");
+    expect(clear.disabled).toBe(false);
     expect(host.querySelector('[data-test="copy-prompt"]')?.contains(clear)).toBe(false);
     act(() => clear.click());
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
-  it("has no clear button without changes or without a handler", () => {
+  it("disables the clear button without changes and omits it without a handler", () => {
     render({ hasChanges: false, onClear: () => undefined });
-    expect(host.querySelector('[data-test="copy-prompt-clear"]')).toBeNull();
+    const clear = host.querySelector<HTMLButtonElement>('[data-test="copy-prompt-clear"]');
+    expect(clear?.disabled).toBe(true);
     act(() => root!.unmount());
     root = null;
 

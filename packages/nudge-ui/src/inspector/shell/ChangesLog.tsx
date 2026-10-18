@@ -1,6 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconArrowBackUp } from "@tabler/icons-react";
+import { IconArrowBackUp, IconRestore } from "@tabler/icons-react";
 import {
   isComponentChange,
   isElementChange,
@@ -369,6 +369,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
             data-test="clear-session"
             onClick={onClearSession}
           >
+            <IconRestore size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
             Clear Changes
           </Button>
         </div>

@@ -109,34 +109,21 @@
 }
 
 .copy-prompt__row {
-  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-8);
+  width: 100%;
 }
 
-/* Fades in over the prompt action, like the sketch delete in its menu. */
-.copy-prompt__clear {
-  position: absolute;
-  top: 50%;
-  inset-inline-end: var(--space-4);
-  color: var(--text-primary);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity 120ms ease;
-}
-
-/* Keep clear of the menu chevron. */
-.copy-prompt__row[data-has-menu="true"] .copy-prompt__clear {
-  inset-inline-end: calc(var(--space-4) + var(--control-height-small));
-}
-
-.copy-prompt__row:hover .copy-prompt__clear,
-.copy-prompt__row:focus-within .copy-prompt__clear {
-  opacity: 1;
-  pointer-events: auto;
+.copy-prompt__clear-changes.icon-button {
+  flex: 0 0 auto;
+  width: var(--control-height-large);
+  height: var(--control-height-large);
 }
 
 .copy-prompt__main.button {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   position: relative;
 }
 

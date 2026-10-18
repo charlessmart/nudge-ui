@@ -383,7 +383,7 @@ export function CopyPromptButton({
 
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      <PromptActionRow onClear={onClearChanges} hasChanges={changeCount > 0} hasMenu={hasMenu}>
+      <PromptActionRow onClear={onClearChanges} hasChanges={changeCount > 0}>
       {hasMenu ? (
         <Menu.Root key={activeDraftCardId} modal={false}>
           <Menu.Trigger render={promptButton} />
