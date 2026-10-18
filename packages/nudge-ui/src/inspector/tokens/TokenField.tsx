@@ -103,6 +103,8 @@ export interface TokenFieldProps {
   attributionTokens?: string[];
   inlineWarningDataTest?: string;
   inlineWarningTooltipDataTest?: string;
+  /** Sees each committed raw value first; returning true means the caller handled it and nothing is written. */
+  interceptRaw?: (value: string) => boolean;
 }
 
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
@@ -827,6 +829,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     attributionTokens,
     inlineWarningDataTest,
     inlineWarningTooltipDataTest,
+    interceptRaw,
   } = props;
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
@@ -903,6 +906,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         return completeCssValue(value.trim(), valuePolicyFor(property));
       }}
       onCommitRaw={(value) => {
+        if (interceptRaw?.(value)) return;
         if (setStyle(editTarget ?? el, property, value, effectiveMetadata)) onAfterEdit?.();
       }}
       onCommitOpacity={(value) => {

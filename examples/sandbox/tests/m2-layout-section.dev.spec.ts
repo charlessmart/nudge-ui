@@ -150,7 +150,7 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-between");
-  await expect(page.locator('[data-test="layout-flex-distribution"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="layout-combo-input-column-gap"]')).toHaveValue("Auto");
   await page.locator('[data-test="layout-flex-distribution"]').click();
   await page.locator('[data-test="layout-flex-distribution-space-around"]').click();
   await expect
@@ -189,6 +189,8 @@ test("dev: layout section shows flex child controls when selecting a child of a 
 
   await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
   await waitForEditors(page);
+  // Flex child controls sit behind the size expander.
+  await page.locator('[data-test="layout-size-expand"]').click();
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-child"), { timeout: 5000 }).toBe(true);
 
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
@@ -205,10 +207,15 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-combo-select-order"]')).toBeVisible();
 
+  await page.keyboard.press("Escape");
+
+  // Position starts static, so it is set from the layout options menu.
+  await page.locator('[data-test="layout-options"]').click();
   const positionSelect = page.locator('[data-test="layout-select-position"]');
   await positionSelect.focus();
   await positionSelect.press("r");
   await expect(positionSelect).toContainText("Relative");
+  await page.keyboard.press("Escape");
 
   const flexBasisInput = page.locator('[data-test="layout-combo-input-flex-basis"]');
   await expect(flexBasisInput).toBeVisible();
@@ -242,14 +249,8 @@ test("dev: layout section shows inset controls for a positioned element", async 
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
 
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
-  const editorOrder = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .editor') ?? [])
-      .map((editor) => editor.getAttribute("data-test"));
-  });
-  expect(editorOrder).toContain("position-section");
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
-  expect(await page.locator('[data-test="position-section"] [data-test="layout-inset"]').count()).toBe(1);
+  expect(await page.locator('[data-test="layout-section"] [data-test="layout-inset"]').count()).toBe(1);
 
   // Empty relative insets stay compact until explicitly added.
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
@@ -386,6 +387,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await appFrame.locator('[data-test="grid-child-span"]').click();
   await waitForEditors(page);
+  await page.locator('[data-test="layout-size-expand"]').click();
   await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
 
   const startInput = page.locator('[data-test="layout-grid-child-column-start"]');

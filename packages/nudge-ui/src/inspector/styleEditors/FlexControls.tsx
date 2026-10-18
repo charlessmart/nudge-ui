@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconAdjustmentsHorizontal, IconCheck, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
 import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
@@ -169,52 +169,69 @@ export function FlexWrapToggle({ domElement, editTarget, selection, revision = 0
   );
 }
 
-export function FlexDistributionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+const DISTRIBUTION_ITEMS = [
+  { value: "packed", label: "Keep grouped" },
+  { value: "space-between", label: "Spread between" },
+  { value: "space-around", label: "Spread around" },
+  { value: "space-evenly", label: "Spread evenly" },
+];
+
+/**
+ * The main-axis gap. Spreading the items (`justify-content: space-*`) replaces the fixed gap, so
+ * the field reads Auto, keeps the gap as a faint value, and typing `auto` spreads between.
+ */
+export function FlexMainGapField({ property, domElement, editTarget, selection, entries, tokenRows, revision = 0, onAfterEdit }: FlexGapFieldProps & { revision?: number }): ReactElement {
+  const GapIcon = property === "column-gap" ? IconSpacingHorizontal : IconSpacingVertical;
   const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
   const justify = normalizeFlexJustify(computedJustify);
-  const lastPlacement = useRef("flex-start");
   const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
+  const lastPlacement = useRef("flex-start");
   const [open, setOpen] = useState(false);
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [domElement], "justify-content");
+  const target = editTarget ?? domElement;
+  const gapPixels = Number.parseFloat(getStateStyleValue(domElement, property));
 
   useEffect(() => {
     if (FLEX_ALIGNMENT_OPTIONS.includes(justify)) lastPlacement.current = justify;
   }, [justify]);
 
-  function selectDistribution(next: string): void {
+  function setJustifyContent(value: string): void {
     if (blockedBy) return;
-    const value = next === "packed" ? lastPlacement.current : next;
-    setStyle(editTarget ?? domElement, "justify-content", value);
+    setStyle(target, "justify-content", value);
     onAfterEdit?.();
   }
 
-  return (
+  function interceptRaw(value: string): boolean {
+    if (value.trim().toLowerCase() === "auto") {
+      if (!distributed) setJustifyContent("space-between");
+      return true;
+    }
+    // A typed gap takes the items back out of a spread; the gap value itself is written by the field,
+    // which still saves it when justify-content is authored inline and cannot be changed here.
+    if (distributed) setJustifyContent(lastPlacement.current);
+    return false;
+  }
+
+  const chevron = (
     <PopoverListbox
-      className="layout__distribution-control"
       query=""
       value={distributed ? justify : "packed"}
       open={open}
       triggerElement={(
         <IconButton
           variant="quiet"
-          size="default"
+          size="compact"
           label="Item distribution"
-          data-active={distributed}
           data-test="layout-flex-distribution"
         >
-          <IconAdjustmentsHorizontal size={16} stroke={1.8} aria-hidden="true" />
+          <IconChevronDown size={16} stroke={1.8} aria-hidden="true" />
         </IconButton>
       )}
       triggerDataTest="layout-flex-distribution"
       triggerAriaLabel="Item distribution"
       triggerTooltip={inlineStyleWarningContent(blockedBy)}
       disabled={blockedBy !== null}
-      items={[
-        { value: "packed", label: "Keep grouped" },
-        { value: "space-between", label: "Spread between" },
-        { value: "space-around", label: "Spread around" },
-        { value: "space-evenly", label: "Spread evenly" },
-      ].map((item) => ({
+      items={DISTRIBUTION_ITEMS.map((item) => ({
         ...item,
         leading: (distributed ? justify : "packed") === item.value
           ? <IconCheck size={14} stroke={2} aria-hidden="true" />
@@ -224,10 +241,43 @@ export function FlexDistributionControl({ domElement, editTarget, selection, rev
       onQueryChange={() => undefined}
       onOpenChange={setOpen}
       onSelect={(next) => {
-        selectDistribution(next);
+        setJustifyContent(next === "packed" ? lastPlacement.current : next);
         setOpen(false);
       }}
     />
+  );
+
+  return (
+    <ControlSurface className="layout__spacing-field">
+      <GapField
+        property={property}
+        domElement={domElement}
+        editTarget={editTarget}
+        selection={selection}
+        entries={entries}
+        tokenRows={tokenRows}
+        {...(distributed ? { displayOverride: "Auto" } : {})}
+        interceptRaw={interceptRaw}
+        trailing={(
+          <>
+            {distributed && Number.isFinite(gapPixels) ? (
+              <span className="layout__resolved" data-test="layout-gap-value">{Math.round(gapPixels)}</span>
+            ) : null}
+            {chevron}
+          </>
+        )}
+        leading={(
+          <GapIcon
+            className="layout__spacing-icon"
+            size="var(--icon-size-small)"
+            stroke={1.8}
+            aria-hidden="true"
+            data-test={`layout-spacing-icon-${property}`}
+          />
+        )}
+        onAfterEdit={onAfterEdit}
+      />
+    </ControlSurface>
   );
 }
 

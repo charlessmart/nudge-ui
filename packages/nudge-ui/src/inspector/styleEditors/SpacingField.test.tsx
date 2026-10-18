@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
+import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import {
   makeSelected,
-  SpacingSections,
   mount,
   setInputValue,
   mockComputedStyle,
@@ -62,7 +62,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     showIndividualSides("padding");
     const pt = rawInput("padding-top");
     setInputValue(pt, "24px");
@@ -83,7 +83,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     showIndividualSides("margin");
     const mb = rawInput("margin-bottom");
     setInputValue(mb, "16px");
@@ -102,7 +102,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     showIndividualSides("padding");
     expect(rawInput("padding-top").value).toBe("auto");
     expect(rawInput("padding-right").value).toBe("1rem");
@@ -121,7 +121,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     const margin = handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]') as HTMLElement;
     expect(margin).toBeTruthy();
     expect(margin.querySelector('[data-test="add-value"]')).toBeTruthy();
@@ -152,7 +152,7 @@ describe("SpacingField", () => {
       "margin-bottom": "24px",
       "margin-left": "16px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="false"]')).toBeTruthy();
     expect(rawInput("margin-horizontal").value).toBe("16px");
     expect(rawInput("margin-vertical").value).toBe("8px, 24px");
@@ -184,7 +184,7 @@ describe("SpacingField", () => {
       confidence: "unknown",
       evidence: { reason: "test shorthand fixture" },
     };
-    handle = mount(createElement(SpacingSections, { element: selected, tokenRows: [shorthandRow] }));
+    handle = mount(createElement(LayoutSection, { element: selected, tokenRows: [shorthandRow] }));
 
     showIndividualSides("margin");
     expect(rawInput("margin-top").value).toBe("8px");
@@ -207,7 +207,7 @@ describe("SpacingField", () => {
       padding: "8px",
       margin: "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     setInputValue(rawInput("padding-horizontal"), "24px");
     expect(sheetText()).toContain("padding-left: 24px;");
     expect(sheetText()).toContain("padding-right: 24px;");
@@ -226,7 +226,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     const grouped = handle.host.querySelector('[data-test="token-field"][data-property="padding-horizontal"]') as HTMLElement;
     expect(grouped.querySelector('[data-test="raw-input"]')).toHaveProperty("disabled", true);
@@ -245,7 +245,7 @@ describe("SpacingField", () => {
       "margin-bottom": "0px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
@@ -270,7 +270,7 @@ describe("SpacingField", () => {
       "margin-bottom": "16px",
       "margin-left": "16px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(rawInput("margin-horizontal").value).toBe("12px, 16px");
     expect(rawInput("margin-vertical").value).toBe("16px");
@@ -299,7 +299,7 @@ describe("SpacingField", () => {
       "margin-bottom": "12px",
       "margin-left": "0px",
     });
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
@@ -351,7 +351,7 @@ describe("SpacingField", () => {
         evidence: { reason: "stale selected element fixture" },
       },
     ];
-    handle = mount(createElement(SpacingSections, { element: selected, tokenRows: staleRows }));
+    handle = mount(createElement(LayoutSection, { element: selected, tokenRows: staleRows }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
@@ -379,7 +379,7 @@ describe("SpacingField", () => {
       confidence: tokenName ? "probable" : "unknown",
       evidence: { reason: "authored intent fixture" },
     });
-    handle = mount(createElement(SpacingSections, {
+    handle = mount(createElement(LayoutSection, {
       element: selected,
       tokenRows: [
         tokenRow("padding-top", "16px", null),
@@ -416,7 +416,7 @@ describe("SpacingField", () => {
       confidence: "unknown",
       evidence: { reason: "functional spacing fixture" },
     });
-    handle = mount(createElement(SpacingSections, {
+    handle = mount(createElement(LayoutSection, {
       element: selected,
       tokenRows: ["padding-top", "padding-right", "padding-bottom", "padding-left"].map(rawRow),
     }));
@@ -447,7 +447,7 @@ describe("SpacingField", () => {
       confidence: "probable",
       evidence: { reason: "numeric calc spacing fixture" },
     });
-    handle = mount(createElement(SpacingSections, {
+    handle = mount(createElement(LayoutSection, {
       element: selected,
       tokenRows: [
         calcRow("padding-top", "12px"),
@@ -486,7 +486,7 @@ describe("SpacingField", () => {
       confidence: "unknown",
       evidence: { reason: "browser resolved an authored auto margin to its used size" },
     });
-    handle = mount(createElement(SpacingSections, {
+    handle = mount(createElement(LayoutSection, {
       element: selected,
       tokenRows: [autoMarginRow("margin-left"), autoMarginRow("margin-right")],
     }));

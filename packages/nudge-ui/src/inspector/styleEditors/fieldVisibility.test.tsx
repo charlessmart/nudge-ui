@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { act, createElement } from "react";
+import { LayoutSection } from "./LayoutSection.tsx";
 import { ColorPicker } from "./ColorPicker.tsx";
 import { BoxShadowEditor } from "./BoxShadowEditor.tsx";
 import { BorderEditor } from "./BorderEditor.tsx";
@@ -10,7 +11,7 @@ import type { SelectedElement } from "../selection/selectionStore.ts";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { setActiveStyleState } from "../shell/styleState.ts";
 import { resetPendingRules } from "../tokens/editActions.ts";
-import { makeSelected, mount, SpacingSections, setInputValue, sheetText, type MountHandle } from "./_testUtils.ts";
+import { makeSelected, mount, setInputValue, sheetText, type MountHandle } from "./_testUtils.ts";
 
 let handle: MountHandle | undefined;
 const styles: HTMLStyleElement[] = [];
@@ -37,57 +38,57 @@ describe("inspector field visibility", () => {
   it("keeps added spacing open after returning to zero and resets for another selection", () => {
     const { selected } = makeSelected();
     const other = makeSelected("Other").selected;
-    addCss("* { padding: 0; }");
-    const render = () => createElement(SpacingSections, { element: selected });
+    addCss("* { margin: 0; }");
+    const render = () => createElement(LayoutSection, { element: selected });
     handle = mount(render());
-    act(() => handle!.host.querySelector<HTMLButtonElement>('[data-test="spacing-padding"] [data-test="add-value"]')!.click());
-    const input = handle.host.querySelector<HTMLInputElement>('[data-property="padding-horizontal"] [data-test="raw-input"]')!;
+    act(() => handle!.host.querySelector<HTMLButtonElement>('[data-test="spacing-margin"] [data-test="add-value"]')!.click());
+    const input = handle.host.querySelector<HTMLInputElement>('[data-property="margin-horizontal"] [data-test="raw-input"]')!;
     setInputValue(input, "8px");
     act(() => handle!.root.render(render()));
     setInputValue(input, "0px");
     act(() => handle!.root.render(render()));
-    expect(handle.host.querySelector('[data-property="padding-horizontal"] [data-test="raw-input"]')).toBe(input);
+    expect(handle.host.querySelector('[data-property="margin-horizontal"] [data-test="raw-input"]')).toBe(input);
     expect(input.value).toBe("0px");
-    act(() => handle!.root.render(createElement(SpacingSections, { element: other })));
-    expect(handle.host.querySelector('[data-test="spacing-padding"] [data-test="add-value"]')).not.toBeNull();
+    act(() => handle!.root.render(createElement(LayoutSection, { element: other })));
+    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
   });
 
   it("compacts zero spacing on reselection without discarding the pending edit", () => {
     const { selected } = makeSelected();
     const other = makeSelected("Other").selected;
-    addCss('* { padding: 0; } [data-cid="Button"] { padding-left: 8px; padding-right: 8px; }');
-    handle = mount(createElement(SpacingSections, { element: selected }));
-    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-property="padding-horizontal"] [data-test="raw-input"]')!, "0px");
-    act(() => handle!.root.render(createElement(SpacingSections, { element: other })));
-    act(() => handle!.root.render(createElement(SpacingSections, {
+    addCss('* { margin: 0; } [data-cid="Button"] { margin-left: 8px; margin-right: 8px; }');
+    handle = mount(createElement(LayoutSection, { element: selected }));
+    setInputValue(handle.host.querySelector<HTMLInputElement>('[data-property="margin-horizontal"] [data-test="raw-input"]')!, "0px");
+    act(() => handle!.root.render(createElement(LayoutSection, { element: other })));
+    act(() => handle!.root.render(createElement(LayoutSection, {
       element: selected,
       tokenRows: [...getBrowserCssInspection().inspect(selected.domElement).properties],
     })));
-    expect(handle.host.querySelector('[data-test="spacing-padding"] [data-test="add-value"]')).not.toBeNull();
-    expect(sheetText()).toContain("padding-left: 0px;");
+    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    expect(sheetText()).toContain("margin-left: 0px;");
   });
 
-  it("keeps authored zero padding compact across a selection", () => {
+  it("keeps authored zero margin compact across a selection", () => {
     const first = makeSelected("Explicit").selected;
     const second = makeSelected("Default").selected;
-    addCss('* { padding: 0; } [data-cid="Explicit"] { padding-inline: 0px; }');
+    addCss('* { margin: 0; } [data-cid="Explicit"] { margin-inline: 0px; }');
     const inspection = getBrowserCssInspection();
     const snapshots = [inspection.inspect(first.domElement), inspection.inspect(second.domElement)];
-    handle = mount(createElement(SpacingSections, {
+    handle = mount(createElement(LayoutSection, {
       element: second,
       selection: createStyleSelection([first, second], snapshots, second),
     }));
-    expect(handle.host.querySelector('[data-test="spacing-padding"] [data-test="add-value"]')).not.toBeNull();
-    act(() => handle!.root.render(createElement(SpacingSections, {
+    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    act(() => handle!.root.render(createElement(LayoutSection, {
       element: second, tokenRows: [...snapshots[1]!.properties],
     })));
-    expect(handle.host.querySelector('[data-test="spacing-padding"] [data-test="add-value"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
   });
 
   it("keeps zero insets compact until opened", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { position: sticky; top: 0px; }');
-    handle = mount(createElement(SpacingSections, { element: selected }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     expect(handle.host.querySelector('[data-test="add-inset"]')).not.toBeNull();
     act(() => handle!.host.querySelector<HTMLButtonElement>('[data-test="add-inset"]')!.click());
     expect(handle.host.querySelector('[data-property="inset-vertical"] [data-test="raw-input"]')).not.toBeNull();

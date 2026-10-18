@@ -4,6 +4,15 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.layout__group--bottom-rule {
+  margin-top: 0;
+  margin-bottom: var(--space-4);
+  padding-top: 0;
+  padding-bottom: var(--space-8);
+  border-top: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .layout__tool-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
@@ -53,7 +62,19 @@
 
 .layout__size-cell--width { grid-area: width; }
 .layout__size-cell--height { grid-area: height; }
-.layout__size-cell--toggle { grid-area: toggle; }
+.layout__size-cell--toggle { grid-area: toggle; position: relative; }
+
+/* Flags a non-default value hidden behind the expander. */
+.layout__size-cell--toggle[data-modified="true"]::after {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  content: "";
+}
 .layout__size-cell--min-width { grid-area: min-width; }
 .layout__size-cell--min-height { grid-area: min-height; }
 .layout__size-cell--max-width { grid-area: max-width; }
@@ -173,6 +194,10 @@
   padding: var(--space-16);
 }
 
+.inspector-popover__popup:has(> .layout__options) {
+  padding-block-start: var(--space-8);
+}
+
 .layout__grid-value {
   min-width: 0;
 }
@@ -198,7 +223,7 @@
 .layout__options {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  row-gap: var(--space-16);
   min-width: 240px;
 }
 
@@ -340,12 +365,21 @@
   justify-content: space-evenly;
 }
 
-.layout__distribution-control {
-  width: var(--control-height-large);
-}
-
 .layout__spacing-field {
   color: var(--text-muted);
+}
+
+/* A trailing faint value and chevron need the room the gaps between a field's parts would take. */
+.layout__spacing-field .token-field:has(.token-field__trailing) {
+  gap: var(--space-4);
+}
+
+.layout__spacing-field .token-field__trailing {
+  gap: 0;
+}
+
+.layout__spacing-field .token-field__trailing .icon-button {
+  margin-inline-end: calc(var(--space-4) * -1);
 }
 
 .layout__spacing-icon {

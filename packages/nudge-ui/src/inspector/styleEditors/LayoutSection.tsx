@@ -7,11 +7,15 @@ import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { SizeSection } from "./SizeSection.tsx";
 import { LayoutModeRow } from "./LayoutModeRow.tsx";
 import { GridContainerControls } from "./GridSection.tsx";
+import { GridChildSection } from "./GridChildSection.tsx";
+import { FlexChildControls } from "./ChildPlacement.tsx";
+import { PositionControls } from "./PositionControls.tsx";
+import { hasHiddenSizeOverrides } from "./hiddenSizeOverrides.ts";
 import { SpacingField, projectSpacing } from "./SpacingField.tsx";
 import {
   FlexAlignmentGrid,
-  FlexDistributionControl,
   FlexGapField,
+  FlexMainGapField,
   FlexWrapToggle,
   useComputedLayoutValue,
 } from "./FlexControls.tsx";
@@ -25,14 +29,22 @@ export interface LayoutSectionProps {
   onAfterEdit?: () => void;
 }
 
-/** The element's own box: how it is sized and how it lays out and pads its children. */
+/** The element's box: sizing, how it lays out and pads its children, its margin, and its position when not static. */
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const { revision, notifyAfterEdit, isFlexContainer, isGridContainer } = useLayoutContext(el, selection, onAfterEdit);
+  const { revision, notifyAfterEdit, isFlexContainer, isGridContainer, isFlexChild, isGridChild, position } = useLayoutContext(el, selection, onAfterEdit);
   const common = { domElement: el, editTarget, selection, revision, onAfterEdit: notifyAfterEdit };
+  const spacing = projectSpacing(el, selection, tokenRows);
+  const spacingProps = { domElement: el, editTarget, selection, entries: allEntries, tokenRows, onAfterEdit: notifyAfterEdit };
+  const childPlacement = isFlexChild || isGridChild ? (
+    <>
+      {isFlexChild ? <FlexChildControls {...common} /> : null}
+      {isGridChild ? <GridChildSection {...common} /> : null}
+    </>
+  ) : null;
 
   return (
     <div className="editor" data-test="layout-section">
@@ -46,20 +58,21 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           tokenRows={tokenRows}
           revision={revision}
           onAfterEdit={notifyAfterEdit}
+          extras={childPlacement}
+          modified={hasHiddenSizeOverrides(el, { flexChild: isFlexChild, gridChild: isGridChild })}
         />
         <LayoutModeRow {...common} isFlexContainer={isFlexContainer} isGridContainer={isGridContainer} />
         {isFlexContainer ? <FlexContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
         {isGridContainer ? <GridContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
         <SpacingField
           property="padding"
-          projection={projectSpacing(el, selection, tokenRows).padding}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={notifyAfterEdit}
+          showLabel={false}
+          showEmptyState={false}
+          projection={spacing.padding}
+          {...spacingProps}
         />
+        <SpacingField property="margin" projection={spacing.margin} {...spacingProps} />
+        {position !== "static" ? <PositionControls {...spacingProps} position={position} revision={revision} /> : null}
       </div>
     </div>
   );
@@ -99,11 +112,10 @@ function FlexContainerControls({ entries, tokenRows, ...common }: FlexContainerC
         <FlexAlignmentGrid {...common} />
       )}
       <div className="layout__flex-gaps" data-test="layout-gap">
-        <FlexGapField property={mainGap} entries={entries} tokenRows={tokenRows} {...common} />
+        <FlexMainGapField property={mainGap} entries={entries} tokenRows={tokenRows} {...common} />
         {isWrapped ? <FlexGapField property={lineGap} entries={entries} tokenRows={tokenRows} {...common} /> : null}
       </div>
       <div className="layout__flex-toggles">
-        <FlexDistributionControl {...common} />
         <FlexWrapToggle {...common} />
       </div>
     </div>

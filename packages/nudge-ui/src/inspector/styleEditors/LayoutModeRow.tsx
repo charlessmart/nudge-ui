@@ -3,8 +3,9 @@ import type { ReactElement } from "react";
 import { IconDots, IconLayoutColumns, IconLayoutGrid, IconLayoutRows, IconSquare } from "@tabler/icons-react";
 import { GridAdvancedFields } from "./GridSection.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
+import { POSITION_OPTIONS, Z_INDEX_PRESETS } from "./PositionControls.tsx";
 import { layoutModeEdits, layoutModeOf, type LayoutMode } from "./layoutMode.ts";
-import { useComputedLayoutValue } from "./FlexControls.tsx";
+import { LayoutValueField, useComputedLayoutValue } from "./FlexControls.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyles } from "../tokens/editActions.ts";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -107,7 +108,7 @@ function LayoutOptionsMenu({
       triggerTooltip="Layout options"
       triggerElement={(
         <IconButton variant="quiet" size="default" label="Layout options" data-active={open} data-test="layout-options">
-          <IconDots size={16} stroke={1.8} aria-hidden="true" />
+          <IconDots size={16} stroke={2} aria-hidden="true" />
         </IconButton>
       )}
       open={open}
@@ -118,6 +119,10 @@ function LayoutOptionsMenu({
         <div className="layout__options-pair">
           <LayoutDropdown property="display" options={DISPLAY_OPTIONS} {...shared} />
           <LayoutDropdown property="overflow" options={OVERFLOW_OPTIONS} {...shared} />
+        </div>
+        <div className="layout__options-pair">
+          <LayoutDropdown property="position" options={POSITION_OPTIONS} {...shared} />
+          <LayoutValueField label="Z-index" property="z-index" presets={Z_INDEX_PRESETS} inputOnly domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
         </div>
         {isFlexContainer ? (
           <>

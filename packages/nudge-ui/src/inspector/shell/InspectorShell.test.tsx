@@ -196,7 +196,6 @@ describe("InspectorShell", () => {
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
       expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
-      expect(shadow.querySelector('[data-test="position-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="appearance-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="typography"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="border-editor"]')).not.toBeNull();

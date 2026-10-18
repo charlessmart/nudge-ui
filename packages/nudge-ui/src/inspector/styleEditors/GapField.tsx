@@ -17,6 +17,10 @@ export interface GapFieldProps {
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   leading?: ReactNode;
+  trailing?: ReactNode;
+  /** Replaces the shown value (and ignores the token) while another property overrides the gap, such as `Auto`. */
+  displayOverride?: string;
+  interceptRaw?: (value: string) => boolean;
   onAfterEdit?: () => void;
 }
 
@@ -28,9 +32,12 @@ export function GapField({
   entries,
   tokenRows,
   leading,
+  trailing,
+  displayOverride,
+  interceptRaw,
   onAfterEdit,
 }: GapFieldProps): ReactElement {
-  const tokenRow = tokenRows.find((row) => row.property === property) ?? null;
+  const tokenRow = displayOverride !== undefined ? null : tokenRows.find((row) => row.property === property) ?? null;
   return (
     <span
       className="layout-combo"
@@ -42,11 +49,14 @@ export function GapField({
         selection={selection}
         tokenRow={tokenRow}
         initialValue={meaningfulLayoutValue(el, property)}
+        displayValue={displayOverride}
         domElement={el}
         editTarget={editTarget}
         entries={entries}
         suggestions={GAP_PRESETS}
         leading={leading}
+        trailing={trailing}
+        interceptRaw={interceptRaw}
         inputDataTest={`layout-combo-input-${property}`}
         label={formatInspectorLabel(property)}
         chipVariant="small"

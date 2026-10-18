@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { ReactElement } from "react";
-import { IconArrowsMaximize, IconArrowsMinimize, IconLetterH, IconLetterW } from "@tabler/icons-react";
+import type { ReactElement, ReactNode } from "react";
+import { IconChevronDown, IconChevronUp, IconLetterH, IconLetterW } from "@tabler/icons-react";
 import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { AspectRatioField } from "./AspectRatioField.tsx";
@@ -55,6 +55,10 @@ const MAX_WIDTH_PRESETS = ["none", "100%", "100vw", "fit-content"];
 const MAX_HEIGHT_PRESETS = ["none", "100%", "100vh", "fit-content"];
 
 export interface SizeSectionProps {
+  /** Rows shown under the min and max fields while expanded, such as flex or grid child controls. */
+  extras?: ReactNode;
+  /** Something behind the expander differs from its initial value. */
+  modified?: boolean;
   domElement: HTMLElement;
   editTarget: EditTarget;
   selection?: StyleSelection | null;
@@ -64,7 +68,7 @@ export interface SizeSectionProps {
   onAfterEdit?: () => void;
 }
 
-export function SizeSection({ domElement: el, editTarget, selection, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
+export function SizeSection({ domElement: el, editTarget, selection, entries, tokenRows, revision, onAfterEdit, extras, modified = false }: SizeSectionProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
 
   const fields = [
@@ -117,15 +121,16 @@ export function SizeSection({ domElement: el, editTarget, selection, entries, to
             className="layout__size-cell layout__size-cell--toggle"
             variant="quiet"
             size="default"
+            data-modified={modified ? "true" : undefined}
             data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
             aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
             label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? (
-              <IconArrowsMinimize size={16} stroke={1.8} aria-hidden="true" />
+              <IconChevronUp size={16} stroke={1.8} aria-hidden="true" />
             ) : (
-              <IconArrowsMaximize size={16} stroke={1.8} aria-hidden="true" />
+              <IconChevronDown size={16} stroke={1.8} aria-hidden="true" />
             )}
           </IconButton>
         </Tooltip>
@@ -152,6 +157,7 @@ export function SizeSection({ domElement: el, editTarget, selection, entries, to
           />
         )}
       </div>
+      {expanded ? extras : null}
     </div>
   );
 }
