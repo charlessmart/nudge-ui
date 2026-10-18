@@ -16,6 +16,7 @@ import {
 import {
   PromptSettingsFields,
 } from "../prompt/PromptSettingsDialog.tsx";
+import { getNudgeUiRuntimeConfig, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { TokensPanel } from "../tokens/TokensPanel.tsx";
 import { useSelectedElement } from "../selection/selectionStore.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
@@ -90,7 +91,9 @@ export function SettingsDialog({
     session: getBrowserCssInspection(activeDocument),
   });
   const tokenRows = tokenInspection.documentTokens?.tokens ?? [];
-  const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0]!;
+  const mcpEnabled = isNudgeUiFeatureEnabled(getNudgeUiRuntimeConfig().features, "mcp");
+  const sections = SETTINGS_SECTIONS.filter((section) => section.id !== "mcp" || mcpEnabled);
+  const activeDefinition = sections.find((section) => section.id === activeSection) ?? sections[0]!;
 
   useEffect(() => {
     if (open) setActiveSection(initialSection);
@@ -134,13 +137,13 @@ export function SettingsDialog({
             <nav className="settings__nav" aria-label="Settings sections">
               <span className="settings__nav-label">Settings</span>
               <div className="settings__nav-items">
-                {SETTINGS_SECTIONS.map((section) => (
+                {sections.map((section) => (
                   <button
                     key={section.id}
-                    className={`settings__nav-item${activeSection === section.id ? " settings__nav-item--active" : ""}`}
+                    className={`settings__nav-item${activeDefinition.id === section.id ? " settings__nav-item--active" : ""}`}
                     data-test={`settings-nav-${section.id}`}
                     type="button"
-                    aria-current={activeSection === section.id ? "page" : undefined}
+                    aria-current={activeDefinition.id === section.id ? "page" : undefined}
                     onClick={() => setActiveSection(section.id)}
                   >
                     {section.icon}
@@ -160,7 +163,7 @@ export function SettingsDialog({
             </nav>
 
             <main className="settings__content" data-test="settings-content">
-              {activeSection === "instructions" ? (
+              {activeDefinition.id === "instructions" ? (
                 <section
                   className="settings__section"
                   data-test="prompt-settings-dialog"
@@ -178,7 +181,7 @@ export function SettingsDialog({
                 </section>
               ) : null}
 
-              {activeSection === "mcp" ? (
+              {activeDefinition.id === "mcp" ? (
                 <section className="settings__section" data-test="settings-section-mcp">
                   <h2 className="settings__section-title">{activeDefinition.label}</h2>
                   <div data-test="mcp-connection-dialog">
@@ -195,7 +198,7 @@ export function SettingsDialog({
                 </section>
               ) : null}
 
-              {activeSection === "tokens" ? (
+              {activeDefinition.id === "tokens" ? (
                 <section className="settings__section" data-test="settings-section-tokens">
                   <h2 className="settings__section-title">{activeDefinition.label}</h2>
                   <p className="settings__section-description">

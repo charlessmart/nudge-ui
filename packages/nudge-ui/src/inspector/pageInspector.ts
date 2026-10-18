@@ -194,7 +194,7 @@ function runtimeConfig(tokens: DocumentTokens, unavailableReason?: string): Nudg
     framework: "HTML",
     stylingSystem: "CSS custom properties",
     capabilities: { canvas: !unavailableReason, componentSemantics: false, domNavigation: !unavailableReason },
-    features: { canvasIterations: false, ...(unavailableReason ? { sketch: false } : {}) },
+    features: { canvasIterations: false, mcp: false, ...(unavailableReason ? { sketch: false } : {}) },
     ...(unavailableReason ? { inspectionUnavailableReason: unavailableReason } : {}),
     componentContracts: [],
     ...tokens,
