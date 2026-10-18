@@ -204,6 +204,30 @@ describe("PositionSection", () => {
     expect(topIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 
+  it("shows auto for unauthored inset sides instead of the used pixel offset", () => {
+    const { el, selected } = makeSelected();
+    el.style.left = "0";
+    mockComputedStyle({
+      display: "block",
+      position: "absolute",
+      top: "30px",
+      right: "107px",
+      bottom: "40px",
+      left: "0px",
+    });
+    handle = mount(createElement(PositionSection, { element: selected }));
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-inset"] [data-test="individual-sides"]') as HTMLButtonElement).click();
+    });
+    const sideInput = (side: string) =>
+      (handle.host.querySelector(`[data-test="side-value-${side}"] [data-test="raw-input"]`) as HTMLInputElement).value;
+
+    expect(sideInput("right")).toBe("auto");
+    expect(sideInput("top")).toBe("auto");
+    expect(sideInput("bottom")).toBe("auto");
+    expect(sideInput("left")).toBe("0px");
+  });
+
   it("shows flex child controls for a flex container inside a flex parent", () => {
     const { selected, el } = makeSelected();
     const parent = document.createElement("div");

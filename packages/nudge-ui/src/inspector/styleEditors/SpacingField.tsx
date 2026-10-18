@@ -87,7 +87,10 @@ export function SpacingField({
           editTarget={editTarget}
           entries={entries}
           suggestions={suggestions}
-          displayValue={isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
+          initialValue={property === "inset" ? "auto" : undefined}
+          displayValue={property === "inset" && !field.tokenName
+            ? field.authoredValue
+            : isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
