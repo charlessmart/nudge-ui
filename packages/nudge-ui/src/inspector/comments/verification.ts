@@ -51,17 +51,21 @@ export function readCommentSource<T>(
 export async function reconcileComments(
   doc: Document,
   transport: CommentProjectionTransport = controllerTransport,
-): Promise<void> {
+): Promise<number> {
   const revision = getCommentClearRevision();
   const sent = getComments().filter((item) => item.handedOff && item.route === commentRoute(doc));
-  if (sent.length === 0) return;
+  if (sent.length === 0) return 0;
   const resolved = await readCommentSource(doc, () => sent.filter((item) => {
     if (item.viewport !== commentViewport(doc)) return false;
     const element = resolveCommentElement(doc, item.target);
     return element !== null && commentFingerprint(element) !== item.baseline;
   }), transport);
-  if (revision !== getCommentClearRevision()) return;
+  if (revision !== getCommentClearRevision()) return 0;
+  let removed = 0;
   for (const item of resolved ?? []) {
-    if (getComments().some((current) => current.id === item.id && current.note === item.note && current.handedOff)) removeComment(item.id);
+    if (!getComments().some((current) => current.id === item.id && current.note === item.note && current.handedOff)) continue;
+    removeComment(item.id);
+    removed += 1;
   }
+  return removed;
 }
