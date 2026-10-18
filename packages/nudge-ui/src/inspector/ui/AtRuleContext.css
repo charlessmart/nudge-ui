@@ -1,40 +1,49 @@
 .at-rule-indicator {
   position: absolute;
   z-index: 2;
-  top: -4px;
-  left: -4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
+  inset-block: 0;
+  inset-inline-end: 0;
+  /* 3px of margin either side of the 4px bars; the whole column is the hover target. */
+  width: calc(var(--space-4) * 3);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised-2x);
-  color: var(--content-primary, var(--text-primary));
-  box-shadow: var(--shadow-outline);
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
+  background: transparent;
   cursor: default;
 }
 
-.at-rule-indicator::before {
+/* The bars stack in the vertical centre, 3px in from the control's right edge. */
+.at-rule-indicator__track {
   position: absolute;
-  inset: -4px;
-  content: "";
+  inset-block: 0;
+  inset-inline-end: 3px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  width: var(--space-4);
 }
 
-.at-rule-indicator:hover {
-  color: var(--content-primary, var(--text-primary));
-  background: var(--surface-raised-2x);
+/* Together the bars read as one rounded rectangle with dividing lines. */
+.at-rule-indicator__segment {
+  flex: 0 0 var(--space-4);
+  width: var(--space-4);
+  height: var(--space-4);
+  /* The lowest-emphasis border tone keeps inactive bars quiet beside the accent one. */
+  background: var(--border-subtle);
 }
 
-.at-rule-indicator__symbol {
-  display: block;
+.at-rule-indicator__segment:first-child {
+  border-start-start-radius: 2px;
+  border-start-end-radius: 2px;
+}
+
+.at-rule-indicator__segment:last-child {
+  border-end-start-radius: 2px;
+  border-end-end-radius: 2px;
+}
+
+.at-rule-indicator__segment[data-active="true"] {
+  background: var(--accent);
 }
 
 .at-rule-indicator:focus-visible {
@@ -48,10 +57,11 @@
   pointer-events: auto;
 }
 
-.at-rule-tooltip {
+/* Doubled class: .tooltip__popup is declared later and would otherwise win the padding. */
+.tooltip__popup.at-rule-tooltip {
   width: max-content;
   max-width: min(320px, calc(100vw - var(--space-24)));
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-4);
   border: 0;
   border-radius: var(--radius-8);
   background: var(--surface-raised-2x);
@@ -68,16 +78,24 @@
   gap: 2px;
 }
 
+.at-rule-tooltip__default,
 .at-rule-tooltip__rule {
   min-width: 0;
-  padding: 5px var(--space-8);
+  padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-4);
+  line-height: 1.35;
+}
+
+/* The winning rule reads as the active row, like other accent active states in the inspector. */
+.at-rule-tooltip__rules [data-active="true"] {
+  background: var(--accent-surface);
+  color: var(--accent);
 }
 
 .at-rule-tooltip code {
   display: block;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--text-primary);
+  color: inherit;
   font: inherit;
 }

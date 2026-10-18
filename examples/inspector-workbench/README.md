@@ -30,7 +30,7 @@ that client after changing inspector source.
 ## Scenarios
 
 `src/scenarios.ts` defines serializable initial states: typography, flex, grid,
-linked elements, unlinked elements, mixed selection, pending changes, empty,
+linked elements, unlinked elements, component examples, desktop-first and mobile-first media queries, mixed selection, pending changes, empty,
 inspection error, and controlled fields. Use `?scenario=linked` to open one directly.
 **Reset fixture** restores the current scenario without clearing outer Nudge edits.
 

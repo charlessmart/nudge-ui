@@ -4,7 +4,7 @@ export interface Scenario {
   readonly id: string;
   readonly title: string;
   readonly description: string;
-  readonly target: "none" | "text" | "flex" | "grid" | "button" | "mixed" | "controls" | "component-button" | "component-badge" | "component-card" | "component-nested";
+  readonly target: "none" | "text" | "flex" | "grid" | "button" | "mixed" | "controls" | "component-button" | "component-badge" | "component-card" | "component-nested" | "media-desktop-first" | "media-mobile-first";
   readonly scope?: "source-site" | "rendered-instance";
   readonly error?: string;
   readonly connected?: boolean;
@@ -21,6 +21,8 @@ export const scenarios: readonly Scenario[] = [
   { id: "component-badge", title: "Component: Badge", description: "A badge component with tone and size props.", target: "component-badge" },
   { id: "component-card", title: "Component: Card", description: "A card component selected at its root.", target: "component-card" },
   { id: "component-nested", title: "Component: nested", description: "A button inside a card, selected as the inner element.", target: "component-nested" },
+  { id: "media-desktop-first", title: "Media: desktop first", description: "Padding, gap, font size and width change at max-width breakpoints. Resize the window to move the highlighted segment.", target: "media-desktop-first" },
+  { id: "media-mobile-first", title: "Media: mobile first", description: "Padding and font size grow at min-width breakpoints, so the base sits at the small end.", target: "media-mobile-first" },
   { id: "mixed", title: "Mixed selection", description: "Two text elements with different font sizes, colors and spacing.", target: "mixed" },
   { id: "changes", title: "Pending changes", description: "Two fixture edits, the changes log and the enabled prompt action.", target: "text" },
   { id: "empty", title: "Empty panel", description: "The real empty state and keyboard shortcut disclosure.", target: "none" },

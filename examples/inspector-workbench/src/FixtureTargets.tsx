@@ -32,6 +32,8 @@ export function FixtureTargets(): ReactElement {
     <div data-fixture="component-badge" data-fixture-select="span" className="fixture-component"><WorkbenchBadge label="Beta" tone="success" size="small" /></div>
     <div data-fixture="component-card" data-fixture-select=".wb-card" className="fixture-component"><WorkbenchCard variant="outlined" padding="medium"><WorkbenchButton label="Save" variant="secondary" size="small" disabled={false} /></WorkbenchCard></div>
     <div data-fixture="component-nested" data-fixture-select="button" className="fixture-component"><WorkbenchCard variant="outlined" padding="medium"><WorkbenchButton label="Save" variant="secondary" size="small" disabled={false} /></WorkbenchCard></div>
+    <div className="fixture-responsive-desktop" data-fixture="media-desktop-first"><span>Resize the window</span><span>to cross the</span><span>breakpoints</span></div>
+    <div className="fixture-responsive-mobile" data-fixture="media-mobile-first"><span>Mobile first</span><span>min-width</span><span>queries</span></div>
     <p className="fixture-mixed-a" data-fixture="mixed">A short description</p>
     <p className="fixture-mixed-b" data-fixture="mixed">A longer description with different typography</p>
   </div>;

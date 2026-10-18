@@ -10,7 +10,7 @@ test("dev: Tailwind's nested @supports color override wins over its fallback", a
   const field = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(field.locator('[data-test="token-chip"]')).toHaveText("--color-red-500", { timeout: 5000 });
   const indicator = field.locator('[data-test="at-rule-indicator"]');
-  await expect(indicator).toHaveText("1");
+  await expect(indicator.locator(".at-rule-indicator__segment")).toHaveCount(2);
   await indicator.hover();
   await expect(page.locator('[data-test="at-rule-tooltip"] [data-active="true"]'))
     .toHaveText("(color: color-mix(in lab, red, red))");
