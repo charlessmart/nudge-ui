@@ -1,5 +1,7 @@
 /** Set in the page's main world before the inspector bundle runs. */
 export const BOOT_GLOBAL = "__NUDGE_UI_EXTENSION__";
+/** Set on the editor document's root once the editor has replaced the page markup. */
+export const EDITOR_READY_ATTRIBUTE = "data-nudge-ui-editor";
 export const PAGE_INSPECTOR_GLOBAL = "__NUDGE_UI_PAGE_INSPECTOR__";
 /** Read by nudge-ui when its bundle evaluates; see `customCursors.ts`. */
 export const CURSOR_IMAGE_BASE_GLOBAL = "__NUDGE_UI_CURSOR_IMAGE_BASE__";

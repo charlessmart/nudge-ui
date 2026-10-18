@@ -1,6 +1,7 @@
 import { startCanvasRenderer, startPageInspector } from "nudge-ui/internal/page-inspector";
 import {
   BOOT_GLOBAL,
+  EDITOR_READY_ATTRIBUTE,
   RENDERER_FRAME_LOAD_EVENT,
   type ExtensionBoot,
 } from "./protocol.ts";
@@ -26,6 +27,9 @@ if (window === window.top) {
       onRendererFrameLoad: () => document.dispatchEvent(new CustomEvent(RENDERER_FRAME_LOAD_EVENT)),
     }).catch((error: unknown) => {
       console.error("[nudge-ui] Inspector failed to start.", error);
+    }).finally(() => {
+      // Lifts the service worker's loading cover, including after a failed start.
+      if (boot.surface === "editor") document.documentElement.setAttribute(EDITOR_READY_ATTRIBUTE, "");
     });
   }
 } else {
