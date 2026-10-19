@@ -19,6 +19,7 @@ import { installStaticHtmlRuntimeIdentity } from "../runtime/staticHtmlRuntimeId
 import { deserializeChange, serializeChange } from "../changes/codecs.ts";
 import { unlinkElement } from "../selection/editScope.ts";
 import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
+import { PAGE_TARGET_CID } from "../selection/pageTarget.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -56,6 +57,31 @@ describe("buildSelector", () => {
     expect(a).not.toBe(b);
     expect(a).toBe('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(b).toBe('[data-cid="Button"][data-src="src/Button.tsx:1:5"]');
+  });
+});
+
+describe("page target", () => {
+  beforeEach(() => {
+    resetPendingRules();
+    document.body.innerHTML = "";
+  });
+  afterEach(() => {
+    resetPendingRules();
+    document.body.innerHTML = "";
+  });
+
+  it("writes body styles without a source location and asks for a global style change", () => {
+    const record = setStyle(document.body, "font-family", "Georgia, serif");
+    expect(record).toMatchObject({ cid: PAGE_TARGET_CID, selector: "body", file: "", line: 0, rawValue: "Georgia, serif" });
+    expect(record?.runtimeEvidence).toBeUndefined();
+    expect(deserializeChange(serializeChange(record!)!)).toEqual(record);
+    expect(getPendingRules()).toEqual([expect.objectContaining({ selector: "body", declarations: { "font-family": "Georgia, serif" } })]);
+
+    const prompt = generatePrompt(getChangeRecords());
+    expect(prompt).toContain("Page (`<body>`)");
+    expect(prompt).toContain("global stylesheet or root layout that styles `body`");
+    expect(prompt).toContain("`font-family`");
+    expect(prompt).not.toContain("Source:");
   });
 });
 

@@ -2,7 +2,12 @@ import type { DefaultTreeAdapterTypes } from "parse5";
 
 export const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
-/** Elements that never carry identity: they render nothing a user can select. */
+/**
+ * Elements that never carry identity. Scripts, styles, templates, and noscript render nothing.
+ * The document structure would be the hit target for every click on empty space, hosts the
+ * inspector's own mount and attributes, and has no meaningful move or delete; the page target
+ * reaches `<body>` for styling without identity.
+ */
 export const EXCLUDED_TAG_NAMES = new Set([
   "html",
   "head",

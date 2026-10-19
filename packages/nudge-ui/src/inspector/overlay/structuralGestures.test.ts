@@ -128,6 +128,15 @@ describe("structuralGestures", () => {
     expect(root.firstElementChild).toBe(first);
   });
 
+  it("never moves or deletes the page target", () => {
+    const { first, second } = fixture();
+    const page = resolveSelectionFromElement(document.body)!;
+    expect(deleteElement(page)).toBeNull();
+    expect(nudgeElement(document.body, "ArrowUp")).toBeNull();
+    expect(moveElement(document.body, getDropLocationForElement(second, first, true, false)!)).toBeNull();
+    expect(getStructuralChanges()).toEqual([]);
+  });
+
   it("captures delete intent and projects it through the host adapter", () => {
     const { first, root } = fixture();
     const change = deleteElement(resolveSelectionFromElement(first)!);

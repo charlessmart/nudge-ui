@@ -1,6 +1,7 @@
 import type { SelectedElement } from "./selectionStore.ts";
 import { inspectComponentTargets } from "../componentSemantics/index.ts";
 import { resolveSelectionTarget, selectionTargetMode, type SelectionTargetMode } from "./selectionTarget.ts";
+import { isPageTarget, PAGE_TARGET_CID } from "./pageTarget.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -33,6 +34,9 @@ function findReactFiber(el: HTMLElement): unknown {
 }
 
 export function resolveSelectionFromElement(el: HTMLElement): SelectedElement | null {
+  if (isPageTarget(el)) {
+    return { cid: PAGE_TARGET_CID, src: "", cprops: null, file: "", line: 0, column: 0, domElement: el, componentTargets: [] };
+  }
   const componentTargets = inspectComponentTargets(el);
   const nearestComponent = componentTargets[0];
   const cid = el.getAttribute("data-cid") ?? nearestComponent?.meta.componentName ?? null;

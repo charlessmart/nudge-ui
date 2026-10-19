@@ -106,7 +106,7 @@ function changeTargetLabel(change: ChangeRecord, presentation: ChangePresentatio
   if (isComponentChange(change)) return change.target.componentName;
   if (isTextContentChange(change)) return change.target.sourceSite.cid;
   if (isTokenChange(change)) return change.tokenName;
-  return isElementChange(change) ? change.cid : presentation.groupLabel;
+  return presentation.groupLabel;
 }
 
 function changeActionLabel(change: ChangeRecord, presentation: ChangePresentation): string {

@@ -20,11 +20,24 @@ export interface InspectorEditorsProps {
   readonly tokenRows: ResolvedProperty[];
   readonly styleState: InteractionState;
   readonly showText: boolean;
+  /** The page carries only inherited and canvas styles; box and structure editors do not apply. */
+  readonly pageTarget?: boolean;
   readonly backgroundTokenRow: ResolvedProperty | null;
 }
 
 /** Composes the same style editors for the live inspector and fixture hosts. */
-export function InspectorEditors({ selected, styleSelection, tokenEntries, tokenRows, styleState, showText, backgroundTokenRow }: InspectorEditorsProps): ReactElement {
+export function InspectorEditors({ selected, styleSelection, tokenEntries, tokenRows, styleState, showText, pageTarget = false, backgroundTokenRow }: InspectorEditorsProps): ReactElement {
+  if (pageTarget) {
+    return (
+      <AtRuleContextProvider rows={tokenRows}>
+        <div className="style-editors" data-test="style-editors">
+          <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+          <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
+          <BackgroundEditor key={`background-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRow={backgroundTokenRow} />
+        </div>
+      </AtRuleContextProvider>
+    );
+  }
   return (
     <AtRuleContextProvider rows={tokenRows}>
       <div className="style-editors" data-test="style-editors">

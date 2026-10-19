@@ -10,6 +10,7 @@ import {
 } from "./types.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import type { EditScope } from "../editScope.ts";
+import { isPageTargetCid } from "../selection/pageTarget.ts";
 
 export interface ChangePresentation {
   groupKey: string;
@@ -90,7 +91,7 @@ export function presentChange(change: ChangeRecord): ChangePresentation {
       change.selector,
       change.scope ?? "source-site",
     ].join("\u0000"),
-    groupLabel: change.cid,
+    groupLabel: isPageTargetCid(change.cid) ? "Page" : change.cid,
     file: change.file,
     property: change.property,
     propertyLabel: formatInspectorLabel(change.property),

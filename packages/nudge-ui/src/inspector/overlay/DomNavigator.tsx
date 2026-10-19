@@ -5,6 +5,7 @@ import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { computeNavigationParents, computeTrackedChildren, hasTrackedChildren } from "../selection/hierarchy.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { isPageTarget } from "../selection/pageTarget.ts";
 import type { Rect } from "./overlayGeometry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { cx } from "../ui/classNames.ts";
@@ -34,10 +35,14 @@ function selectNode(node: HTMLElement): void {
 export function DomNavigator({ selected, hierarchy, anchor, project, linked = false }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
+  // The page is reachable only from here, above the tracked ancestors.
+  const body = selected.domElement.ownerDocument.body;
+  const page = body && !isPageTarget(selected.domElement) && body.contains(selected.domElement) ? body : null;
+  const pageDepth = page ? 1 : 0;
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<HTMLElement>>(new Set());
-  if (parents.length === 0 && children.elements.length === 0) return null;
+  if (!page && parents.length === 0 && children.elements.length === 0) return null;
 
   const preview = hovered ? project(hovered) : null;
   const setOpen = (next: boolean): void => {
@@ -159,9 +164,10 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
                 aria-label="DOM navigator"
                 onMouseLeave={() => setHovered(null)}
               >
-                {parents.slice().reverse().map((element, index) => renderItem(`up-${index}`, element, index))}
-                {renderItem("current", null, parents.length)}
-                {renderChildren(children, parents.length + 1, "down")}
+                {page ? renderItem("page", page, 0) : null}
+                {parents.slice().reverse().map((element, index) => renderItem(`up-${index}`, element, index + pageDepth))}
+                {renderItem("current", null, parents.length + pageDepth)}
+                {renderChildren(children, parents.length + pageDepth + 1, "down")}
               </BasePopover.Popup>
             </BasePopover.Positioner>
           </BasePopover.Portal>

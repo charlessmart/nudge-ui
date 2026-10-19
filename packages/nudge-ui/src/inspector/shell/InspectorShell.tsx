@@ -23,6 +23,7 @@ declare global {
 
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { isPageTarget } from "../selection/pageTarget.ts";
 import { AgentStatusButton } from "./AgentStatusButton.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
 import { ChangesLog } from "./ChangesLog.tsx";
@@ -330,6 +331,7 @@ export function InspectorShell(): ReactElement {
                 tokenRows={tokenRows}
                 styleState={styleState}
                 showText={showText}
+                pageTarget={!isMultiSelection && isPageTarget(selected.domElement)}
                 backgroundTokenRow={backgroundTokenRow}
               />
             ) : (

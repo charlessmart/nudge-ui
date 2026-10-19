@@ -1,6 +1,7 @@
 const TAG_LABELS = new Map([
   ["a", "Link"],
   ["article", "Article"],
+  ["body", "Page"],
   ["aside", "Aside"],
   ["button", "Button"],
   ["footer", "Footer"],

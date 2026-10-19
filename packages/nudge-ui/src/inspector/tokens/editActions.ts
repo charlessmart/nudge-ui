@@ -15,6 +15,11 @@ import {
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 import { changeKey } from "../changes/model.ts";
+import { isPageTarget, PAGE_TARGET_CID } from "../selection/pageTarget.ts";
+
+function elementCid(el: HTMLElement): string {
+  return isPageTarget(el) ? PAGE_TARGET_CID : el.getAttribute("data-cid") ?? "";
+}
 
 function boundedRenderedText(el: HTMLElement): string | null {
   return normalizeRuntimeText(el.textContent);
@@ -29,6 +34,8 @@ interface SourceFields {
 }
 
 function sourceFields(el: HTMLElement): SourceFields {
+  // The page has no authored location; prompts route it to global styles by its cid.
+  if (isPageTarget(el)) return { file: "", line: 0, column: 0 };
   const src = el.getAttribute("data-src") ?? "";
   const parsed = parseDataSrc(src);
   const evidence = (reason: NonNullable<
@@ -126,7 +133,7 @@ export function swapTokens(
   const verificationTargets = new Map<string, HTMLElement | null>();
   for (const el of elements) {
     for (const change of changes) {
-      const cid = el.getAttribute("data-cid") ?? "";
+      const cid = elementCid(el);
       const { selector, state } = stateFields(el);
       if (!selector) continue;
       const source = sourceFields(el);
@@ -214,7 +221,7 @@ function buildStyleRecord(
   scopePlan: ReadonlyMap<HTMLElement, BatchScopeFields>,
   { property, value, oldRawValue, metadata }: StyleDeclaration,
 ): ElementChangeRecord | null {
-  const cid = el.getAttribute("data-cid") ?? "";
+  const cid = elementCid(el);
   const { selector, state } = stateFields(el);
   if (!selector) return null;
   const source = sourceFields(el);

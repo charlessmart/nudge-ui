@@ -26,6 +26,7 @@ import { PROMPT_TITLE } from "./promptDocument.ts";
 
 import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
 import { documentTarget } from "../drafts/model.ts";
+import { isPageTargetCid } from "../selection/pageTarget.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -478,6 +479,7 @@ export function generatePrompt(
 
   const selectedSets = new Map<string, ElementGroup[]>();
   for (const element of elementGroups) {
+    if (isPageTargetCid(element.cid)) continue;
     if (!element.instanceOverride && element.changes[0]?.sourceInstanceCount !== 1) continue;
     const key = selectedStyleGroupKey(element);
     const selected = selectedSets.get(key) ?? [];
@@ -487,6 +489,16 @@ export function generatePrompt(
   const exportedSets = new Set<string>();
 
   for (const element of elementGroups) {
+    if (isPageTargetCid(element.cid)) {
+      const group = groupFor(element.key, setHeading("Page", "body"));
+      group.details.add("- Target: page-wide styles that the whole document inherits. Change the global stylesheet or root layout that styles `body`, not a component.");
+      for (const change of element.changes) {
+        group.lines.push(elementChangeLine(change));
+        const intent = sourceIntentLine(change);
+        if (intent) group.lines.push(intent);
+      }
+      continue;
+    }
     const first = element.changes[0]!;
     const runtimeCreated = !!element.runtimeEvidence || !element.file || isRuntimeGeneratedSource(element.file);
     const src = runtimeCreated ? "" : `${element.file}:${element.line}:${element.column}`;

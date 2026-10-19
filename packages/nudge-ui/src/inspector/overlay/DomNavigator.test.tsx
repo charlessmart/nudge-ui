@@ -7,6 +7,7 @@ import { computeHierarchy, NAVIGATOR_CHILD_LIMIT } from "../selection/hierarchy.
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { DomNavigator } from "./DomNavigator.tsx";
+import { PAGE_TARGET_CID } from "../selection/pageTarget.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -172,5 +173,41 @@ describe("DomNavigator", () => {
     act(() => trigger.click());
     expect(document.body.querySelector('[role="menu"]')).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("offers the page above the tracked ancestors and lists its children once selected", () => {
+    const section = document.createElement("section");
+    section.dataset.cid = "Section";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    section.append(selected);
+    document.body.append(section);
+    const render = (element: HTMLElement): void => {
+      act(() => {
+        root!.render(createElement(DomNavigator, {
+          selected: resolveSelectionFromElement(element)!,
+          hierarchy: computeHierarchy(element),
+          anchor: { left: 10, top: 20, width: 30, height: 30 },
+          project: () => ({ left: 1, top: 2, width: 3, height: 4 }),
+        }));
+      });
+    };
+    setSelectedElement(resolveSelectionFromElement(selected));
+    root = createRoot(host);
+    render(selected);
+
+    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
+    const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[data-test="dom-navigator-item"]'));
+    expect(items.map((item) => [item.textContent, item.dataset.depth])).toEqual([["body", "0"], ["section", "1"], ["button", "2"]]);
+    act(() => items[0]!.click());
+    expect(getSelectedElement()).toMatchObject({ cid: PAGE_TARGET_CID, domElement: document.body });
+
+    render(document.body);
+    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
+    const pageItems = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[data-test="dom-navigator-item"]'));
+    // Without the inspector's shadow root, jsdom portals the menu into the body, so it lists that menu too.
+    expect(pageItems.map((item) => [item.textContent, item.dataset.current ?? null])).toEqual(expect.arrayContaining([["body", "true"], ["section", null]]));
+    expect(pageItems[0]?.dataset.current).toBe("true");
+    section.remove();
   });
 });

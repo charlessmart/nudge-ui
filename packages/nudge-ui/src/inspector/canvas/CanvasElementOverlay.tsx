@@ -121,6 +121,12 @@ function selectGestureElement(element: HTMLElement): void {
   if (selected) setSelectedElement(selected);
 }
 
+/** The renderer reports its last clicked element; the DOM navigator may have since selected another one. */
+function singleSelectedRendererElement(element: HTMLElement | null): HTMLElement | null {
+  const current = getSelectedElements();
+  return current.length === 1 && current[0]!.domElement === element ? element : null;
+}
+
 function spacingBadgeForDrag(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
@@ -697,13 +703,11 @@ export function CanvasElementOverlay(): ReactElement | null {
         dragRef.current = null;
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
-        if (getSelectedElements().length !== 1) return;
-        const element = frame.element(data);
+        const element = singleSelectedRendererElement(frame.element(data));
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (data.type === "element-nudge") {
-        if (getSelectedElements().length !== 1) return;
-        const element = frame.element(data);
+        const element = singleSelectedRendererElement(frame.element(data));
         const record = element ? nudgeElement(element, data.key) : null;
         if (element && record) {
           selectGestureElement(element);
