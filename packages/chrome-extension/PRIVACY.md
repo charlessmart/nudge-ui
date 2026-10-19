@@ -1,6 +1,6 @@
 # Nudge UI Chrome extension: privacy policy
 
-Last updated: 2026-10-14
+Last updated: 2026-10-19
 
 Nudge UI is a visual inspector for editing a web page's CSS. It runs on a tab
 only when you click its toolbar button or press its keyboard shortcut.
@@ -11,6 +11,12 @@ When you activate Nudge UI on a tab, it reads that page's DOM, computed styles,
 stylesheets, and images in your browser so it can show and preview edits. This
 happens locally. The extension requests no host permissions and does not touch
 tabs you have not activated it on.
+
+When you choose **Show system fonts** in a font family list, Nudge UI reads the
+names of the font families installed on your device so you can pick one. It
+remembers that choice for the site, and the list stays in your browser. Sites
+cannot get these names until you make that choice. After you do, the site's
+own scripts can read them while you use Nudge UI on that site.
 
 ## What it stores
 

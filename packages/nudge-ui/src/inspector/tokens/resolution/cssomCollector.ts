@@ -1,6 +1,6 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
 import { resolveNestedSelector } from "./nestedSelectors.ts";
-import { adoptedStylesheetKey, STATE_PREVIEW_SHEET_ID } from "../../runtime/ownedStylesheets.ts";
+import { adoptedStylesheetKey, STATE_PREVIEW_SHEET_ID, VALUE_PREVIEW_SHEET_ID } from "../../runtime/ownedStylesheets.ts";
 import { INTERACTION_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
 import type { AtRuleContext, MatchedRule, StyleDeclaration } from "../../../css/model/index.ts";
 
@@ -613,7 +613,7 @@ export function collectRules(doc: Document) {
       // jsdom does not currently expose CSSStyleSheet.ownerNode; the document
       // stylesheet list and stylesheet element list retain the same order.
       const owner = (sheet.ownerNode as HTMLElement | null) ?? stylesheetNodes[index] ?? null;
-      if (owner?.id === STATE_PREVIEW_SHEET_ID) continue;
+      if (owner?.id === STATE_PREVIEW_SHEET_ID || owner?.id === VALUE_PREVIEW_SHEET_ID) continue;
       const source = owner?.dataset?.viteDevId
         ?? sheet.href
         ?? (owner?.id ? `#${owner.id}` : `stylesheet:${index + 1}`);
@@ -627,7 +627,7 @@ export function collectRules(doc: Document) {
   // style-src policy they also hold the inspector's own managed rules.
   for (const [index, sheet] of Array.from(doc.adoptedStyleSheets ?? []).entries()) {
     const key = adoptedStylesheetKey(doc, sheet);
-    if (key === STATE_PREVIEW_SHEET_ID) continue;
+    if (key === STATE_PREVIEW_SHEET_ID || key === VALUE_PREVIEW_SHEET_ID) continue;
     append(sheetEvents(sheet, key === null), key ? `#${key}` : `adopted:${index + 1}`);
   }
   const snapshot = { revision, rules: out, layerOrder, inaccessible };

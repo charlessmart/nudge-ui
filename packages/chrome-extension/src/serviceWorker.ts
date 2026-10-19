@@ -9,9 +9,12 @@ import {
   isNumberArray,
   isRecord,
   EDITOR_READY_ATTRIBUTE,
+  parseFontListMessage,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
+  systemFontsKey,
   type ExtensionBoot,
+  type FontListResult,
 } from "./protocol.ts";
 import { EDITOR_DOCUMENT_POLICY } from "./editorPolicy.ts";
 
@@ -219,8 +222,11 @@ async function injectInspector(
   tabId: number, documentId: string, href: string, surface: ExtensionBoot["surface"], unavailableReason?: string,
 ): Promise<void> {
   const target = { tabId, documentIds: [documentId] };
+  const origin = new URL(href).origin;
+  const fontsKey = systemFontsKey(origin);
   const boot: ExtensionBoot = {
-    storage: await readSiteStorage(new URL(href).origin), surface,
+    storage: await readSiteStorage(origin), surface,
+    systemFontsAllowed: (await chrome.storage.local.get(fontsKey))[fontsKey] === true,
     ...(unavailableReason ? { unavailableReason } : {}),
   };
   try {
@@ -375,9 +381,28 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void queueTabTask(tabId, () => closeEditor(tabId));
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+/** Releases the list on an origin only once the user has asked for it there; `fontId` is the family name CSS matches. */
+async function readFontList(origin: string | undefined, asked: boolean): Promise<FontListResult> {
+  if (!origin) return { error: "The requesting page has no origin." };
+  const key = systemFontsKey(origin);
+  if (asked) await chrome.storage.local.set({ [key]: true });
+  else if ((await chrome.storage.local.get(key))[key] !== true) return { error: "System fonts have not been requested on this site." };
+  try {
+    return { families: (await chrome.fontSettings.getFontList()).map((font) => font.fontId) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const tabId = sender.tab?.id;
   if (tabId === undefined || sender.frameId !== 0) return;
+  const fontList = parseFontListMessage(message);
+  if (fontList) {
+    void readFontList(sender.origin, fontList.asked).then(sendResponse);
+    // Keeps the channel open for the asynchronous reply.
+    return true;
+  }
   if ((message as { type?: unknown } | null)?.type !== INJECT_RENDERERS_MESSAGE) return;
   void readEditorTab(tabId).then((state) => {
     if (state?.phase === "editor") return injectRenderers(tabId);

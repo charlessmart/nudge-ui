@@ -236,3 +236,65 @@ test("explains unsupported service-worker pages without reloading them", async (
   await expect(page.locator("#heading")).toHaveText("Extension fixture");
   await expect.poll(() => extension.ruleIds()).toEqual([]);
 });
+
+/** Asks the bridge for the font list from a page script, which has no trusted gesture to offer. */
+function requestFontsFromPage(page: Page): Promise<string> {
+  return page.evaluate(() => new Promise<string>((resolve) => {
+    const id = 990_001;
+    document.addEventListener("nudge-ui:font-list-response", (event) => {
+      const response = JSON.parse((event as CustomEvent<string>).detail) as { id: number; families?: string[]; error?: string };
+      if (response.id === id) resolve(response.error ?? `${response.families?.length ?? 0} families`);
+    });
+    document.querySelector("#nudge-ui-root")?.shadowRoot
+      ?.querySelector('[data-test="system-fonts-request"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+    document.dispatchEvent(new CustomEvent("nudge-ui:font-list-request", { detail: id }));
+  }));
+}
+
+test("lists system fonts once the user asks, and keeps them from page scripts", async ({ extension }) => {
+  const page = await extension.context.newPage();
+  await openEditor(extension, page, "/fonts");
+  const fontFamily = page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]');
+  const families = page.locator('[data-test="system-font-item"]');
+  const consent = async () => (await extension.savedState())[`system-fonts:${extension.origin}`];
+
+  await page.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await fontFamily.click();
+  await expect(page.locator('[data-test="system-fonts-request"]')).toBeVisible();
+  expect(await requestFontsFromPage(page)).toContain("only during a click or key press in Nudge UI");
+  expect(await consent()).toBeUndefined();
+
+  await page.locator('[data-test="system-fonts-request"]').click();
+  await expect(families.first()).toBeVisible();
+  await expect.poll(consent).toBe(true);
+  expect(await requestFontsFromPage(page)).toContain("only during a click or key press in Nudge UI");
+
+  await page.reload();
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
+  const heading = page.frameLocator(".canvas-card__iframe").first().locator("#heading");
+  // The renderer frame starts after the editor, so early clicks select nothing.
+  await expect(async () => {
+    await heading.click();
+    await expect(fontFamily).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await fontFamily.click();
+  await expect(families.first()).toBeVisible();
+  await expect(page.locator('[data-test="system-fonts-request"]')).toHaveCount(0);
+});
+
+test("asks for system fonts from the keyboard", async ({ extension }) => {
+  const page = await extension.context.newPage();
+  await openEditor(extension, page, "/fonts");
+  const fontFamily = page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]');
+
+  await page.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await fontFamily.click();
+  await expect(page.locator('[data-test="system-fonts-request"]')).toBeVisible();
+  await fontFamily.press("ArrowDown");
+  await expect(page.locator('[data-test="system-fonts-request"]')).toHaveAttribute("data-highlighted", "");
+  await fontFamily.press("Enter");
+
+  await expect(page.locator('[data-test="system-font-item"]').first()).toBeVisible();
+  await expect.poll(async () => (await extension.savedState())[`system-fonts:${extension.origin}`]).toBe(true);
+});

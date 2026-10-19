@@ -7,6 +7,7 @@ import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
 import { undo, redo } from "../drafts/store.ts";
+import { configureSystemFontSource, type SystemFontAccess, type SystemFontSource } from "../runtime/systemFonts.ts";
 import {
   makeSelected,
   mount,
@@ -1028,5 +1029,290 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
       .toContain("oklch(63% .2 25)");
     selected.domElement.remove();
+  });
+});
+
+describe("TokenField system fonts", () => {
+  let handle: MountHandle;
+  let target: HTMLElement;
+
+  function fontSource(access: SystemFontAccess, families = ["Georgia", "Helvetica Neue", "Avenir Next", ".SF NS"]) {
+    const source = {
+      access: vi.fn(async () => access),
+      families: vi.fn(async () => families),
+    } satisfies SystemFontSource;
+    configureSystemFontSource(source);
+    return source;
+  }
+
+  function mountFontFamily(overrides: Record<string, unknown> = {}) {
+    const { selected } = makeSelected();
+    target = selected.domElement;
+    handle = mount(createElement(TokenField, {
+      property: "font-family",
+      tokenRow: {
+        property: "font-family",
+        tokenName: null,
+        declaredValue: "Inter, sans-serif",
+        authored: "Inter, sans-serif",
+        resolvedValue: "Inter, sans-serif",
+        capability: "composite",
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [],
+      ...overrides,
+    }));
+    return handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+  }
+
+  async function settle(): Promise<void> {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  function familyLabels(): string[] {
+    return Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="system-font-item"] .popover-listbox__label'))
+      .map((item) => item.textContent ?? "");
+  }
+
+  function type(input: HTMLInputElement, value: string): void {
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  beforeEach(() => {
+    resetPendingRules();
+    document.body.innerHTML = "";
+    document.getElementById("nudge-ui-styles")?.remove();
+    mockComputedStyle({ "font-family": "Inter, sans-serif" });
+  });
+
+  afterEach(() => {
+    handle?.unmount();
+    configureSystemFontSource(null);
+    restoreComputedStyle();
+    resetPendingRules();
+    document.body.innerHTML = "";
+    document.getElementById("nudge-ui-styles")?.remove();
+  });
+
+  it("asks before listing fonts and keeps the list open while they load", async () => {
+    const source = fontSource("prompt");
+    const input = mountFontFamily();
+    expect(source.access).not.toHaveBeenCalled();
+
+    act(() => input.focus());
+    await settle();
+    const request = document.body.querySelector<HTMLElement>('[data-test="system-fonts-request"]');
+    expect(request?.textContent).toContain("Show system fonts");
+    expect(source.families).not.toHaveBeenCalled();
+
+    act(() => request!.click());
+    await settle();
+
+    expect(source.families).toHaveBeenCalledTimes(1);
+    expect(document.body.querySelector('[data-test="system-fonts-request"]')).toBeNull();
+    expect(familyLabels()).toEqual(["Avenir Next", "Georgia", "Helvetica Neue"]);
+    expect(document.body.querySelector(".popover-listbox__group-label")?.textContent).toBe("System fonts");
+    expect(input.value).toBe("Inter");
+    expect(getChangeRecords()).toHaveLength(0);
+  });
+
+  it("lists every family until the user types, then filters them", async () => {
+    fontSource("granted");
+    const input = mountFontFamily();
+
+    act(() => input.focus());
+    await settle();
+    expect(familyLabels()).toEqual(["Avenir Next", "Georgia", "Helvetica Neue"]);
+
+    type(input, "neue");
+    expect(familyLabels()).toEqual(["Helvetica Neue"]);
+  });
+
+  function chooseFamily(name: string): void {
+    const item = Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="system-font-item"]'))
+      .find((candidate) => candidate.querySelector(".popover-listbox__label")?.textContent === name);
+    act(() => item!.click());
+  }
+
+  it("commits a chosen family as a CSS family name and shows it in the field", async () => {
+    fontSource("granted");
+    const input = mountFontFamily();
+
+    act(() => input.focus());
+    await settle();
+    chooseFamily("Helvetica Neue");
+
+    expect(sheetText()).toContain('font-family: "Helvetica Neue";');
+    expect(input.value).toBe('"Helvetica Neue"');
+  });
+
+  it("keeps the family name in the field when the applied family is chosen again", async () => {
+    fontSource("granted");
+    const input = mountFontFamily({
+      tokenRow: {
+        property: "font-family",
+        tokenName: null,
+        declaredValue: "Georgia",
+        authored: "Georgia",
+        resolvedValue: "Georgia",
+        capability: "composite",
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+    });
+
+    act(() => input.focus());
+    await settle();
+    chooseFamily("Georgia");
+    expect(input.value).toBe("Georgia");
+
+    act(() => input.blur());
+    act(() => input.focus());
+    await settle();
+    expect(familyLabels()).toEqual(["Avenir Next", "Georgia", "Helvetica Neue"]);
+  });
+
+  it("offers the request again after the list fails to load", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const source = fontSource("prompt");
+    source.families.mockRejectedValueOnce(new Error("The font list did not respond."));
+    const input = mountFontFamily();
+
+    act(() => input.focus());
+    await settle();
+    act(() => document.body.querySelector<HTMLElement>('[data-test="system-fonts-request"]')!.click());
+    await settle();
+    const retry = document.body.querySelector<HTMLElement>('[data-test="system-fonts-request"]');
+    expect(retry?.textContent).toContain("Show system fonts");
+
+    act(() => retry!.click());
+    await settle();
+    expect(familyLabels()).toEqual(["Avenir Next", "Georgia", "Helvetica Neue"]);
+    warn.mockRestore();
+  });
+
+  it("hides the request once the browser refuses it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const source = fontSource("prompt");
+    source.families.mockRejectedValueOnce(new DOMException("Permission denied.", "NotAllowedError"));
+    source.access.mockResolvedValueOnce("prompt").mockResolvedValueOnce("denied");
+    const input = mountFontFamily();
+
+    act(() => input.focus());
+    await settle();
+    act(() => document.body.querySelector<HTMLElement>('[data-test="system-fonts-request"]')!.click());
+    await settle();
+
+    expect(document.body.querySelector('[data-test="system-fonts-request"]')).toBeNull();
+    expect(familyLabels()).toEqual([]);
+    warn.mockRestore();
+  });
+
+  it("offers system fonts beside the tokens in a token chip picker", async () => {
+    fontSource("granted");
+    const body: TokenEntry = { name: "--font-body", value: "Inter, sans-serif", source: "styles.css:1" };
+    mountFontFamily({
+      tokenRow: {
+        property: "font-family",
+        tokenName: body.name,
+        declaredValue: `var(${body.name})`,
+        resolvedValue: body.value,
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      },
+      entries: [body],
+    });
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    await settle();
+
+    expect(familyLabels()).toEqual(["Avenir Next", "Georgia", "Helvetica Neue"]);
+    const search = document.body.querySelector('[data-test="token-chip-search"]') as HTMLInputElement;
+    type(search, "geo");
+    expect(familyLabels()).toEqual(["Georgia"]);
+  });
+
+  it("previews the family under the arrow keys and restores the element when the list closes", async () => {
+    fontSource("granted");
+    const input = mountFontFamily();
+    const preview = () => document.getElementById("nudge-ui-value-preview")?.textContent ?? null;
+    const press = (key: string) => act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    });
+
+    act(() => input.focus());
+    await settle();
+    expect(target.hasAttribute("data-nudge-ui-value-preview")).toBe(false);
+
+    press("ArrowDown");
+    const highlighted = document.body.querySelector("[data-highlighted] .popover-listbox__label")?.textContent;
+    expect(highlighted).toBe("Avenir Next");
+    expect(target.hasAttribute("data-nudge-ui-value-preview")).toBe(true);
+    expect((document.getElementById("nudge-ui-value-preview") as HTMLStyleElement).sheet?.cssRules[0]?.cssText)
+      .toContain('font-family: "Avenir Next" !important');
+    expect(input.value).toBe("Inter");
+    expect(getChangeRecords()).toHaveLength(0);
+
+    press("Escape");
+    expect(target.hasAttribute("data-nudge-ui-value-preview")).toBe(false);
+    expect(preview()).toBeNull();
+    expect(getChangeRecords()).toHaveLength(0);
+  });
+
+  it("leaves another field's preview in place when a font family field mounts or unmounts", async () => {
+    fontSource("granted");
+    const input = mountFontFamily();
+    const previewed = target;
+    act(() => input.focus());
+    await settle();
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    });
+    expect(previewed.hasAttribute("data-nudge-ui-value-preview")).toBe(true);
+
+    const other = makeSelected();
+    const otherHandle = mount(createElement(TokenField, {
+      property: "font-family",
+      domElement: other.selected.domElement,
+      entries: [],
+    }));
+    expect(previewed.hasAttribute("data-nudge-ui-value-preview")).toBe(true);
+    otherHandle.unmount();
+    expect(previewed.hasAttribute("data-nudge-ui-value-preview")).toBe(true);
+  });
+
+  it("shows nothing when the browser cannot list fonts", async () => {
+    const source = fontSource("unavailable");
+    const input = mountFontFamily();
+
+    act(() => input.focus());
+    await settle();
+
+    expect(source.access).toHaveBeenCalledTimes(1);
+    expect(document.body.querySelector('[data-test="system-fonts-request"]')).toBeNull();
+    expect(familyLabels()).toEqual([]);
+  });
+
+  it("does not check font access for other properties", async () => {
+    const source = fontSource("granted");
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+
+    act(() => (handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).focus());
+    await settle();
+
+    expect(source.access).not.toHaveBeenCalled();
   });
 });

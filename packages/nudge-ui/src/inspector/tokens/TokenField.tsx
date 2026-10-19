@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { IconLinkOff } from "@tabler/icons-react";
+import { IconDeviceDesktop, IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
 import {
   applyValueEdit,
@@ -23,7 +23,7 @@ import {
 } from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
-import { PopoverListbox } from "../ui/PopoverListbox.tsx";
+import { PopoverListbox, type PopoverListboxItem } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
@@ -33,11 +33,13 @@ import { cx } from "../ui/classNames.ts";
 import { TokenChip } from "./TokenChip.tsx";
 import { startDragPointerLock } from "./dragPointerLock.ts";
 import { createChangeHistoryGroup } from "../workspace/timeline.ts";
-import { isMultiTarget, type EditTarget } from "../selection/editTarget.ts";
+import { isMultiTarget, targetElements, type EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "../styleEditors/inlineAuthored.ts";
 import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import { isMacPlatform } from "../shell/shortcuts.ts";
+import { cssFontFamilyName, requestSystemFonts, useSystemFonts, type SystemFontsState } from "../runtime/systemFonts.ts";
+import { startValuePreview } from "../styleEditors/valuePreview.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -59,6 +61,8 @@ export interface TokenValueFieldProps {
   onCommitRaw(value: string): void;
   onSelectToken(token: TokenEntry): boolean | void;
   onUnlink(value: string): void;
+  /** Shows a highlighted choice on the page until the highlight moves or the list closes; null ends it. */
+  onPreviewValue?(value: string | null): void;
   /** Referenced tokens used for raw color-field behavior; not rendered inline. */
   attributionTokens?: string[];
   leading?: ReactNode;
@@ -299,6 +303,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     onCommitRaw,
     onSelectToken,
     onUnlink,
+    onPreviewValue,
     attributionTokens = [],
     leading,
     trailing,
@@ -337,6 +342,17 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const isNavigatingSuggestions = useRef(false);
   const dragNudgeRef = useRef<DragNudgeState | null>(null);
   const [isDraggingNudge, setIsDraggingNudge] = useState(false);
+  const listsSystemFonts = property === "font-family";
+  const systemFonts = useSystemFonts(listsSystemFonts && (isFocused || isTokenPickerOpen));
+  const listOpen = isFocused || isTokenPickerOpen;
+  const previewValueRef = useRef(onPreviewValue);
+  previewValueRef.current = onPreviewValue;
+
+  // A closed or unmounted list leaves nothing previewed.
+  useEffect(() => {
+    if (!listOpen) previewValueRef.current?.(null);
+  }, [listOpen]);
+  useEffect(() => () => previewValueRef.current?.(null), []);
 
   useEffect(() => {
     setRawValue(committedValue);
@@ -382,8 +398,24 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const availableSuggestions = useMemo(() => {
     return Array.from(new Set(suggestions));
   }, [suggestions]);
+  // An untouched field browses every family; typing filters them.
+  const fontQuery = rawValue === committedValue ? "" : rawValue;
+  const fontItems = useMemo(
+    () => listsSystemFonts ? systemFontItems(systemFonts, fontQuery) : [],
+    [fontQuery, listsSystemFonts, systemFonts],
+  );
+  // The token picker's search filters these itself.
+  const pickerFontItems = useMemo(
+    () => listsSystemFonts ? systemFontItems(systemFonts, "") : [],
+    [listsSystemFonts, systemFonts],
+  );
 
   function handleSuggestionSelect(value: string): void {
+    if (value === SYSTEM_FONTS_REQUEST_VALUE) {
+      requestSystemFonts();
+      return;
+    }
+    onPreviewValue?.(null);
     if (value === DETACH_VALUE) {
       handleDelink();
       return;
@@ -652,6 +684,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   ) : null;
 
   const rawSuggestionItems = availableSuggestions.map(rawSuggestion);
+  const handleHighlight = onPreviewValue
+    ? (value: string | null) => onPreviewValue(value === null ? null : previewValueFor(value))
+    : undefined;
 
   if (activeToken) {
     const chipValue = chipVariant === "small" ? stripCssUnit(activeToken.value) : activeToken.name;
@@ -702,6 +737,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
               detachItem(),
               ...rawSuggestionItems,
               ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName)),
+              ...pickerFontItems,
             ]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}
@@ -709,6 +745,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             onSelect={(value) => {
               handleSuggestionSelect(value);
             }}
+            onHighlight={handleHighlight}
           />
           {chipVariant === "small" ? null : (
             <TokenChip.Action>
@@ -740,7 +777,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     );
   }
 
-  const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0);
+  const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0 || fontItems.length > 0);
   return (
     <span
       className={cx(
@@ -774,6 +811,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         items={[
           ...availableSuggestions.map(rawSuggestion),
           ...filteredTokens.slice(0, 30).map((entry) => tokenSuggestion(entry, groupByTokenName)),
+          ...fontItems,
         ]}
         onQueryChange={(value) => {
           isNavigatingSuggestions.current = false;
@@ -784,6 +822,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         onSelect={(value) => {
           handleSuggestionSelect(value);
         }}
+        onHighlight={handleHighlight}
       />
       {opacityControl}
       <AtRuleIndicator atRules={fieldAtRules} />
@@ -831,6 +870,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     inlineWarningTooltipDataTest,
     interceptRaw,
   } = props;
+  const stopPreview = useRef<(() => void) | null>(null);
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
     : null;
@@ -940,6 +980,11 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         setStyle(editTarget ?? el, property, value, effectiveMetadata);
         onAfterEdit?.();
       }}
+      onPreviewValue={property === "font-family" && !disabled && !blockedBy ? (value) => {
+        // Stops only this field's preview; another field may own the active one.
+        stopPreview.current?.();
+        stopPreview.current = value === null ? null : startValuePreview(targetElements(editTarget ?? el), property, value);
+      } : undefined}
       leading={leading}
       trailing={trailing}
       className={className}
@@ -965,6 +1010,40 @@ function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>)
 
 const RAW_SUGGESTION_PREFIX = "\u0000raw:";
 const DETACH_VALUE = "\u0000detach";
+const SYSTEM_FONTS_REQUEST_VALUE = "\u0000system-fonts";
+
+/** The CSS a list item would commit; actions have none. */
+function previewValueFor(itemValue: string): string | null {
+  if (itemValue === DETACH_VALUE || itemValue === SYSTEM_FONTS_REQUEST_VALUE) return null;
+  return decodeRawSuggestion(itemValue) ?? `var(${itemValue})`;
+}
+
+/** Families commit as raw values; until they load, one row asks for them. */
+function systemFontItems(state: SystemFontsState, query: string): PopoverListboxItem[] {
+  if (state.status === "prompt" || state.status === "loading") {
+    return [{
+      value: SYSTEM_FONTS_REQUEST_VALUE,
+      label: state.status === "loading" ? "Loading system fonts…" : "Show system fonts",
+      leading: <IconDeviceDesktop size={14} stroke={1.75} aria-hidden="true" />,
+      keepOpen: true,
+      "data-test": "system-fonts-request",
+    }];
+  }
+  if (state.status !== "ready") return [];
+  const needle = query.replace(/["']/g, "").trim().toLowerCase();
+  return state.families
+    .filter((family) => !needle || family.toLowerCase().includes(needle))
+    .map((family) => {
+      const value = cssFontFamilyName(family);
+      return {
+        value: `${RAW_SUGGESTION_PREFIX}${value}`,
+        label: family,
+        group: "System fonts",
+        "data-test": "system-font-item",
+        trailing: <span className="system-font-sample" style={{ fontFamily: `${value}, var(--font-family)` }}>Ag</span>,
+      };
+    });
+}
 
 function detachItem() {
   return {

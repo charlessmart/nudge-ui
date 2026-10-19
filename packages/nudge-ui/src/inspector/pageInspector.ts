@@ -14,6 +14,7 @@ import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { configureInspectorStorage, type InspectorStorage } from "./runtime/inspectorStorage.ts";
 import { configureSketchStorage, type SketchStorage } from "./sketch/persistence.ts";
+import { configureSystemFontSource, type SystemFontSource } from "./runtime/systemFonts.ts";
 import { preferAdoptedStylesheets } from "./runtime/ownedStylesheets.ts";
 import { enableInspectionPerformanceDiagnostics } from "./inspection/performanceDiagnostics.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
@@ -26,6 +27,7 @@ export type { InspectorStorage } from "./runtime/inspectorStorage.ts";
 export { createMirroredStorage } from "./runtime/inspectorStorage.ts";
 export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./sketch/persistence.ts";
 export { isSketchDocument, isSketchHandoffRecord } from "./sketch/model.ts";
+export type { SystemFontAccess, SystemFontSource } from "./runtime/systemFonts.ts";
 export type { SketchDocument, SketchHandoffRecord } from "./sketch/model.ts";
 
 const MOUNT_ID = "nudge-ui-root";
@@ -37,6 +39,8 @@ export interface PageInspectorOptions {
   storage?: InspectorStorage;
   /** Replaces the page origin's IndexedDB for sketch documents and handoffs. */
   sketchStorage?: SketchStorage;
+  /** Replaces the Local Font Access API for the font family list. */
+  systemFonts?: SystemFontSource;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
   /** `"editor"` requires the editor URL marker; otherwise the page itself is the only Canvas card. */
@@ -339,6 +343,7 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
   };
   if (options.storage) configureInspectorStorage(options.storage);
   if (options.sketchStorage) configureSketchStorage(options.sketchStorage);
+  if (options.systemFonts) configureSystemFontSource(options.systemFonts);
   if (options.adoptStylesheets) preferAdoptedStylesheets();
 
   const tokens = options.unavailableReason ? NO_TOKENS : await collectDocumentTokens(document);

@@ -1,5 +1,6 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Autocomplete } from "@base-ui/react/autocomplete";
+import { Fragment } from "react";
 import type { FocusEventHandler, KeyboardEventHandler, ReactElement, ReactNode, Ref } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { cx } from "./classNames.ts";
@@ -12,6 +13,26 @@ export interface PopoverListboxItem {
   leading?: ReactNode;
   trailing?: ReactNode;
   "data-test"?: string;
+  /** Consecutive items in one group render under its label. */
+  group?: string;
+  /** Runs `onSelect` without closing the list or filling the input. */
+  keepOpen?: boolean;
+}
+
+interface ItemSection {
+  key: string;
+  label?: string;
+  items: string[];
+}
+
+function itemSections(items: readonly PopoverListboxItem[]): ItemSection[] {
+  const sections: ItemSection[] = [];
+  for (const item of items) {
+    const last = sections.at(-1);
+    if (last && last.label === item.group) last.items.push(item.value);
+    else sections.push({ key: `${sections.length}:${item.group ?? ""}`, label: item.group, items: [item.value] });
+  }
+  return sections;
 }
 
 export interface PopoverListboxProps {
@@ -42,6 +63,8 @@ export interface PopoverListboxProps {
   onQueryChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
   onSelect: (value: string) => void;
+  /** The item under the pointer or arrow keys; automatic highlights report null. */
+  onHighlight?: (value: string | null) => void;
 }
 
 export function PopoverListbox({
@@ -72,9 +95,16 @@ export function PopoverListbox({
   onQueryChange,
   onOpenChange,
   onSelect,
+  onHighlight,
 }: PopoverListboxProps): ReactElement {
   const itemByValue = new Map(items.map((item) => [item.value, item]));
+  const sections = itemSections(items);
   const resolvedTriggerTooltip = triggerTooltip ?? (triggerElement ? triggerAriaLabel : undefined);
+  const handleHighlight = onHighlight
+    ? (next: string | undefined, details: { reason: string }) => {
+      onHighlight(next !== undefined && details.reason !== "none" ? next : null);
+    }
+    : undefined;
 
   function renderComboboxItem(item: PopoverListboxItem): ReactElement {
     return (
@@ -91,6 +121,42 @@ export function PopoverListbox({
     );
   }
 
+  function renderAutocompleteItem(item: PopoverListboxItem): ReactElement {
+    return (
+      <Autocomplete.Item
+        key={item.value}
+        value={item.value}
+        className="popover-listbox__item"
+        data-test={item["data-test"]}
+        onClick={(event) => {
+          if (item.keepOpen) event.preventBaseUIHandler();
+          onSelect(item.value);
+        }}
+      >
+        {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
+        <span className="popover-listbox__label">{item.label}</span>
+        {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
+      </Autocomplete.Item>
+    );
+  }
+
+  /** Static lists keep their own order; labelled sections become groups. */
+  function renderSections(renderItem: (item: PopoverListboxItem) => ReactElement): ReactNode {
+    return sections.map((section) => {
+      const rendered = section.items.flatMap((value) => {
+        const item = itemByValue.get(value);
+        return item ? [renderItem(item)] : [];
+      });
+      if (!section.label) return <Fragment key={section.key}>{rendered}</Fragment>;
+      return (
+        <Combobox.Group key={section.key} className="popover-listbox__group">
+          <Combobox.GroupLabel className="popover-listbox__group-label">{section.label}</Combobox.GroupLabel>
+          {rendered}
+        </Combobox.Group>
+      );
+    });
+  }
+
   return (
     <div className={cx("popover-listbox", className)}>
       {trigger || triggerElement ? (
@@ -98,14 +164,17 @@ export function PopoverListbox({
           value={value}
           inputValue={searchable ? undefined : query}
           open={open}
-          items={items.map((item) => item.value)}
+          items={searchable ? sections : items.map((item) => item.value)}
           filteredItems={searchable ? undefined : items.map((item) => item.value)}
           autoHighlight
           itemToStringLabel={(item: string) => itemByValue.get(item)?.label ?? item}
           onInputValueChange={(next) => onQueryChange(next)}
           onOpenChange={(next) => onOpenChange(next)}
-          onValueChange={(next) => {
-            if (typeof next === "string") onSelect(next);
+          onItemHighlighted={handleHighlight}
+          onValueChange={(next, details) => {
+            if (typeof next !== "string") return;
+            if (itemByValue.get(next)?.keepOpen) details.cancel();
+            onSelect(next);
           }}
         >
           <Tooltip content={resolvedTriggerTooltip} disabled={resolvedTriggerTooltip === undefined} stableTrigger>
@@ -138,11 +207,20 @@ export function PopoverListbox({
                 ) : null}
                 <Combobox.List className={cx("popover-listbox__list", searchable && "popover-listbox__list--searchable")}>
                   {searchable
-                    ? ((itemValue: string) => {
-                      const item = itemByValue.get(itemValue);
-                      return item ? renderComboboxItem(item) : null;
-                    })
-                    : items.map((item) => renderComboboxItem(item))}
+                    ? ((section: ItemSection) => (
+                      <Combobox.Group key={section.key} items={section.items} className="popover-listbox__group">
+                        {section.label ? (
+                          <Combobox.GroupLabel className="popover-listbox__group-label">{section.label}</Combobox.GroupLabel>
+                        ) : null}
+                        <Combobox.Collection>
+                          {(itemValue: string) => {
+                            const item = itemByValue.get(itemValue);
+                            return item ? renderComboboxItem(item) : null;
+                          }}
+                        </Combobox.Collection>
+                      </Combobox.Group>
+                    ))
+                    : renderSections(renderComboboxItem)}
                 </Combobox.List>
               </Combobox.Popup>
             </Combobox.Positioner>
@@ -157,8 +235,12 @@ export function PopoverListbox({
           autoHighlight
           mode="none"
           openOnInputClick
-          onValueChange={onQueryChange}
+          // `onSelect` handles a chosen item; filling the input would expose its encoded value.
+          onValueChange={(next, details) => {
+            if (details.reason !== "item-press") onQueryChange(next);
+          }}
           onOpenChange={(next) => onOpenChange(next)}
+          onItemHighlighted={handleHighlight}
         >
           <Autocomplete.Input
             ref={inputRef}
@@ -174,19 +256,7 @@ export function PopoverListbox({
             <Autocomplete.Positioner className="popover-listbox__positioner" sideOffset={4}>
               <Autocomplete.Popup className="popover-listbox__popup">
                 <Autocomplete.List className="popover-listbox__list">
-                  {items.map((item) => (
-                    <Autocomplete.Item
-                      key={item.value}
-                      value={item.value}
-                      className="popover-listbox__item"
-                      data-test={item["data-test"]}
-                      onClick={() => onSelect(item.value)}
-                    >
-                      {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
-                      <span className="popover-listbox__label">{item.label}</span>
-                      {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
-                    </Autocomplete.Item>
-                  ))}
+                  {renderSections(renderAutocompleteItem)}
                 </Autocomplete.List>
               </Autocomplete.Popup>
             </Autocomplete.Positioner>

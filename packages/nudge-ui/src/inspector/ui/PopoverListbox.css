@@ -116,3 +116,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.popover-listbox__group + .popover-listbox__group,
+.popover-listbox__item + .popover-listbox__group,
+.popover-listbox__group + .popover-listbox__item {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.popover-listbox__group-label {
+  padding: 5px 8px 4px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

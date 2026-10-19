@@ -7,6 +7,7 @@ import {
 } from "./protocol.ts";
 import { createExtensionSketchStorage } from "./sketchStorage.ts";
 import { createExtensionInspectorStorage } from "./inspectorStorage.ts";
+import { createExtensionSystemFonts } from "./systemFonts.ts";
 
 function takeBoot(): ExtensionBoot | undefined {
   const scope = window as Window & { [BOOT_GLOBAL]?: ExtensionBoot };
@@ -21,6 +22,7 @@ if (window === window.top) {
     void startPageInspector({
       storage: createExtensionInspectorStorage(boot.storage),
       sketchStorage: createExtensionSketchStorage(),
+      systemFonts: createExtensionSystemFonts(boot.systemFontsAllowed === true),
       adoptStylesheets: true,
       surface: boot.surface,
       ...(boot.unavailableReason ? { unavailableReason: boot.unavailableReason } : {}),
