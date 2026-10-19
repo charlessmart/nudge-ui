@@ -9,7 +9,7 @@ import { LayoutModeRow } from "./LayoutModeRow.tsx";
 import { GridContainerControls } from "./GridSection.tsx";
 import { GridChildSection } from "./GridChildSection.tsx";
 import { FlexChildControls } from "./ChildPlacement.tsx";
-import { PositionControls } from "./PositionControls.tsx";
+import { PositionControls, showsPositionControls } from "./PositionControls.tsx";
 import { hasHiddenSizeOverrides } from "./hiddenSizeOverrides.ts";
 import { SpacingField, projectSpacing } from "./SpacingField.tsx";
 import {
@@ -29,7 +29,7 @@ export interface LayoutSectionProps {
   onAfterEdit?: () => void;
 }
 
-/** The element's box: sizing, how it lays out and pads its children, its margin, and its position when not static. */
+/** The element's box: sizing, how it lays out and pads its children, its margin, and its position when it does more than establish a containing block. */
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
@@ -39,6 +39,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const common = { domElement: el, editTarget, selection, revision, onAfterEdit: notifyAfterEdit };
   const spacing = projectSpacing(el, selection, tokenRows);
   const spacingProps = { domElement: el, editTarget, selection, entries: allEntries, tokenRows, onAfterEdit: notifyAfterEdit };
+  const showPosition = showsPositionControls(el, position);
   const childPlacement = isFlexChild || isGridChild ? (
     <>
       {isFlexChild ? <FlexChildControls {...common} /> : null}
@@ -61,7 +62,12 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           extras={childPlacement}
           modified={hasHiddenSizeOverrides(el, { flexChild: isFlexChild, gridChild: isGridChild })}
         />
-        <LayoutModeRow {...common} isFlexContainer={isFlexContainer} isGridContainer={isGridContainer} />
+        <LayoutModeRow
+          {...common}
+          isFlexContainer={isFlexContainer}
+          isGridContainer={isGridContainer}
+          positionExtras={!showPosition && position === "relative" ? <SpacingField property="inset" projection={spacing.inset} {...spacingProps} /> : null}
+        />
         {isFlexContainer ? <FlexContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
         {isGridContainer ? <GridContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
         <SpacingField
@@ -72,7 +78,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           {...spacingProps}
         />
         <SpacingField property="margin" projection={spacing.margin} {...spacingProps} />
-        {position !== "static" ? <PositionControls {...spacingProps} position={position} revision={revision} /> : null}
+        {showPosition ? <PositionControls {...spacingProps} position={position} revision={revision} /> : null}
       </div>
     </div>
   );

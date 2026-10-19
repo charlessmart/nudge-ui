@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconBoxMargin, IconLetterX, IconLetterY, IconMinus, IconPlus } from "@tabler/icons-react";
+import { IconBoxMargin, IconBoxPadding, IconLetterX, IconLetterY, IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry, ResolvedProperty } from "../../css/model/index.ts";
 import { splitTopLevel, splitTopLevelWhitespace } from "../../css/value-semantics/cssSyntax.ts";
 import { interpretTokenValue } from "../../css/value-semantics/tokenInterpretation.ts";
@@ -13,6 +13,7 @@ import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { hasAuthoredProperty } from "./stylePresence.ts";
@@ -223,11 +224,16 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
                   </Tooltip>
                 ))}
               </div>
-              <IconButton variant="quiet" className="box-shadow-editor__remove"
-                label={`Remove Shadow ${index + 1}`} data-test={`remove-shadow-${index}`}
-                disabled={blockedBy !== null} onClick={() => removeShadow(index)}>
-                <IconMinus size={16} aria-hidden="true" />
-              </IconButton>
+              <Tooltip content="Inset" disableFocus>
+                <ToggleButton variant="quiet" className="box-shadow-editor__inset"
+                  label={`Inset Shadow ${index + 1}`} data-test={`shadow-${index}-inset`}
+                  pressed={layer.inset} disabled={blockedBy !== null}
+                  onPressedChange={(inset) => commitLayer(index, { ...layer, inset })}>
+                  {layer.inset
+                    ? <IconBoxPadding size={"var(--icon-size-small)"} aria-hidden="true" />
+                    : <IconBoxMargin size={"var(--icon-size-small)"} aria-hidden="true" />}
+                </ToggleButton>
+              </Tooltip>
               <Tooltip content="Color and opacity" disableFocus>
                 <ControlSurface className="box-shadow-editor__color">
                   <TokenValueField property="box-shadow" semanticSlot="color" domElement={el} isColor
@@ -245,6 +251,11 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
                     }} />
                 </ControlSurface>
               </Tooltip>
+              <IconButton variant="quiet" className="box-shadow-editor__remove"
+                label={`Remove Shadow ${index + 1}`} data-test={`remove-shadow-${index}`}
+                disabled={blockedBy !== null} onClick={() => removeShadow(index)}>
+                <IconMinus size={16} aria-hidden="true" />
+              </IconButton>
             </div>
           );
         })}

@@ -39,6 +39,8 @@ export interface LayoutModeRowProps {
   isGridContainer: boolean;
   revision?: number;
   onAfterEdit?: () => void;
+  /** Position fields that are not shown inline in the section, such as a bare relative element's insets. */
+  positionExtras?: ReactElement | null;
 }
 
 /** One row picks how the element lays out its children; the rest of the display options sit behind the menu. */
@@ -96,6 +98,7 @@ function LayoutOptionsMenu({
   isGridContainer,
   revision = 0,
   onAfterEdit,
+  positionExtras,
 }: LayoutModeRowProps): ReactElement {
   const [open, setOpen] = useState(false);
   const shared = { domElement, editTarget, selection, revision, onAfterEdit, stacked: true };
@@ -124,6 +127,7 @@ function LayoutOptionsMenu({
           <LayoutDropdown property="position" options={POSITION_OPTIONS} {...shared} />
           <LayoutValueField label="Z-index" property="z-index" presets={Z_INDEX_PRESETS} inputOnly domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
         </div>
+        {positionExtras}
         {isFlexContainer ? (
           <>
             <div className="layout__options-pair">

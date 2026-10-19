@@ -451,9 +451,30 @@ describe("LayoutSection", () => {
     expect(sheetText()).toContain("display: flex;");
   });
 
-  it("shows position and z-index controls and writes z-index", () => {
+  it("keeps a bare relative position in the layout options with its insets", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "relative", "z-index": "auto" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-position"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    expect(document.body.querySelector('[data-test="layout-options-content"] [data-test="layout-inset"]')).toBeTruthy();
+  });
+
+  it("shows a relative position inline once it has an inset", () => {
+    const { selected, el } = makeSelected();
+    mockComputedStyle({ display: "block", position: "relative", "z-index": "auto" });
+    el.style.setProperty("top", "4px");
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-position"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
+  });
+
+  it("shows position and z-index controls and writes z-index", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "relative", "z-index": "1" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-select-position"]')).toBeTruthy();

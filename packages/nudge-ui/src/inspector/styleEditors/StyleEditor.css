@@ -106,15 +106,6 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-.box-shadow-editor__remove {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.box-shadow-editor__color {
-  grid-column: 1;
-}
-
 .box-shadow-editor__dimensions > .control-surface {
   --control-surface-padding: 2px 4px;
 }
