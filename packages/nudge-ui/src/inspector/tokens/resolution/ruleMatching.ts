@@ -56,7 +56,7 @@ function stableSelector(selector: string): string | null {
   );
 }
 
-function branchForState(selector: string, state: InteractionState): string | null {
+export function branchForState(selector: string, state: InteractionState): string | null {
   const pseudoClasses = selectorPseudoClasses(selector)
     .filter(({ name }) => INTERACTION_PSEUDO_CLASSES.has(name));
   const states = new Set(pseudoClasses.map(({ name }) => name));
