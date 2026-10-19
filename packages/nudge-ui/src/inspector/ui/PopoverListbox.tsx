@@ -1,11 +1,12 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Autocomplete } from "@base-ui/react/autocomplete";
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
 import type { FocusEventHandler, KeyboardEventHandler, ReactElement, ReactNode, Ref } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { cx } from "./classNames.ts";
 import { Tooltip } from "./Tooltip.tsx";
 import { portalContainer } from "./portalContainer.ts";
+import { controlAnchor } from "./controlAnchor.ts";
 
 export interface PopoverListboxItem {
   value: string;
@@ -97,6 +98,9 @@ export function PopoverListbox({
   onSelect,
   onHighlight,
 }: PopoverListboxProps): ReactElement {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Outside a control surface, the input or trigger stays the anchor as before.
+  const anchor = controlAnchor(wrapperRef, (wrapper) => wrapper.querySelector("input, button") ?? wrapper);
   const itemByValue = new Map(items.map((item) => [item.value, item]));
   const sections = itemSections(items);
   const resolvedTriggerTooltip = triggerTooltip ?? (triggerElement ? triggerAriaLabel : undefined);
@@ -158,7 +162,7 @@ export function PopoverListbox({
   }
 
   return (
-    <div className={cx("popover-listbox", className)}>
+    <div ref={wrapperRef} className={cx("popover-listbox", className)}>
       {trigger || triggerElement ? (
         <Combobox.Root
           value={value}
@@ -189,7 +193,7 @@ export function PopoverListbox({
             </Combobox.Trigger>
           </Tooltip>
           <Combobox.Portal container={portalContainer()}>
-            <Combobox.Positioner className="popover-listbox__positioner" sideOffset={4}>
+            <Combobox.Positioner className="popover-listbox__positioner" sideOffset={4} anchor={anchor}>
               <Combobox.Popup className={cx("popover-listbox__popup", searchable && "popover-listbox__popup--searchable")}>
                 {searchable ? (
                   <>
@@ -253,7 +257,7 @@ export function PopoverListbox({
             disabled={disabled}
           />
           <Autocomplete.Portal container={portalContainer()}>
-            <Autocomplete.Positioner className="popover-listbox__positioner" sideOffset={4}>
+            <Autocomplete.Positioner className="popover-listbox__positioner" sideOffset={4} anchor={anchor}>
               <Autocomplete.Popup className="popover-listbox__popup">
                 <Autocomplete.List className="popover-listbox__list">
                   {renderSections(renderAutocompleteItem)}

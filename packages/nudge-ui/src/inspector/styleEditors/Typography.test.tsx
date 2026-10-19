@@ -32,6 +32,18 @@ describe("Typography", () => {
     document.body.innerHTML = "";
   });
 
+  it("focuses the font family input from its chevron", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-family": "Inter" });
+    handle = mount(createElement(Typography, { element: selected, entries: [] }));
+    const field = handle.host.querySelector('[data-test="token-field"][data-property="font-family"]')!;
+    const chevron = field.querySelector<HTMLElement>('[data-test="token-field-trailing"]')!;
+    const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+    act(() => { chevron.dispatchEvent(event); });
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(field.querySelector("input"));
+  });
+
   it("writes font-size via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({

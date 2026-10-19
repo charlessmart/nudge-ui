@@ -15,6 +15,10 @@
   color: var(--text-muted);
 }
 
+.token-field--raw .token-field__trailing {
+  cursor: pointer;
+}
+
 .token-field__leading {
   justify-content: center;
 }

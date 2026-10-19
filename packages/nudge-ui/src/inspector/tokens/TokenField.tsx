@@ -826,7 +826,21 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       />
       {opacityControl}
       <AtRuleIndicator atRules={fieldAtRules} />
-      {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
+      {trailing ? (
+        <span
+          className="token-field__trailing"
+          data-test="token-field-trailing"
+          // The suggestions open on input focus, so the trailing affordance hands focus to the input.
+          onMouseDown={(event) => {
+            if (fieldDisabled || event.button !== 0) return;
+            if (event.target instanceof Element && event.target.closest("button, a, input, [role='button']")) return;
+            event.preventDefault();
+            inputRef.current?.focus();
+          }}
+        >
+          {trailing}
+        </span>
+      ) : null}
       <InlineStyleWarning
         blockedBy={blockedBy}
         dataTest={inlineWarningDataTest}
