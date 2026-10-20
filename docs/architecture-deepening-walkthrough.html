@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture deepening — a walkthrough</title>
+<style>
+  :root {
+    --ink: #1c1917;
+    --muted: #57534e;
+    --faint: #a8a29e;
+    --paper: #faf9f7;
+    --card: #ffffff;
+    --line: #e7e5e4;
+    --line-strong: #d6d3d1;
+    --accent: #0f766e;
+    --accent-soft: #ccfbf1;
+    --good: #15803d;
+    --good-soft: #dcfce7;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --bad: #b91c1c;
+    --bad-soft: #fee2e2;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    padding: 72px 0 32px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(34px, 5vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+    font-weight: 700;
+  }
+  .lede { font-size: 19px; color: var(--muted); max-width: 64ch; margin: 0 0 26px; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 20px;
+    font-size: 13px; color: var(--muted);
+  }
+  .meta span { white-space: nowrap; }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  nav.toc {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(250, 249, 247, 0.94);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -24px 40px;
+    padding: 10px 24px;
+    display: flex; gap: 6px 14px; overflow-x: auto;
+    font-size: 13px;
+  }
+  nav.toc a { color: var(--muted); text-decoration: none; white-space: nowrap; padding: 4px 0; }
+  nav.toc a:hover { color: var(--accent); }
+
+  section { margin: 0 0 64px; scroll-margin-top: 64px; }
+  h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--accent); margin: 0 0 8px; font-weight: 700;
+  }
+  h3 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 16px; }
+  h4 { font-size: 17px; margin: 26px 0 8px; }
+  p { margin: 0 0 16px; }
+  .plain { font-size: 17px; }
+  .muted { color: var(--muted); }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin: 0 0 6px; }
+  strong { font-weight: 650; }
+
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 650;
+    letter-spacing: 0.02em; padding: 3px 10px; border-radius: 999px;
+    vertical-align: 4px; margin-left: 10px;
+  }
+  .pill.done { background: var(--good-soft); color: var(--good); }
+  .pill.partial { background: var(--warn-soft); color: var(--warn); }
+  .pill.open { background: var(--bad-soft); color: var(--bad); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 26px 28px;
+  }
+  .card + .card { margin-top: 18px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .diagram-card { padding: 20px; }
+  .diagram-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--faint); font-weight: 700; margin: 0 0 10px;
+  }
+  svg.diagram { display: block; width: 100%; height: auto; }
+  svg text {
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    fill: var(--ink);
+  }
+  svg .t-title { font-size: 13px; font-weight: 650; }
+  svg .t-small { font-size: 11px; fill: var(--muted); }
+  svg .t-mono { font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; fill: var(--muted); }
+  svg .box { fill: #fff; stroke: var(--line-strong); stroke-width: 1.4; }
+  svg .box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.6; }
+  svg .box-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.4; }
+  svg .box-bad { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.4; }
+  svg .box-good { fill: var(--good-soft); stroke: var(--good); stroke-width: 1.4; }
+  svg .box-ghost { fill: none; stroke: var(--line-strong); stroke-dasharray: 4 4; }
+  svg .stroke-line { stroke: var(--line-strong); stroke-width: 1.4; fill: none; }
+  svg .stroke-accent { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+  svg .stroke-bad { stroke: var(--bad); stroke-width: 1.4; fill: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--line-strong); }
+  td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: #f0fdfa;
+    padding: 14px 18px;
+    border-radius: 0 10px 10px 0;
+    margin: 18px 0;
+    font-size: 15px;
+  }
+  .callout.warn { border-left-color: var(--warn); background: #fffbeb; }
+  .callout b { display: block; margin-bottom: 4px; }
+
+  .files {
+    font-size: 13px; color: var(--muted);
+    border-top: 1px dashed var(--line-strong);
+    margin-top: 18px; padding-top: 12px;
+  }
+  .files code { color: var(--ink); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 24px; color: var(--muted); font-size: 14px;
+  }
+  @media print {
+    nav.toc { display: none; }
+    section { page-break-inside: avoid; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">Nudge UI · branch <span class="mono">arch/deepening</span></p>
+  <h1>Nine ways the code got easier to change</h1>
+  <p class="lede">
+    This branch takes nine places where the same idea was implemented more than once and gives each
+    idea a single home. Nothing here changes what Nudge UI does. It changes how hard it is to change.
+  </p>
+  <div class="meta">
+    <span>Base <b class="mono">b09e9d79</b></span>
+    <span><b>8</b> commits</span>
+    <span><b>53</b> files</span>
+    <span><b>+807 / −772</b> lines</span>
+    <span>Typecheck <b>green</b></span>
+    <span>Unit tests <b>2,425 → 2,443</b></span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#idea">The one idea</a>
+  <a href="#status">What landed</a>
+  <a href="#manifest">1 · Host manifest</a>
+  <a href="#editors">2 · Property fields</a>
+  <a href="#preview">3 · Preview trust</a>
+  <a href="#grammar">4 · Value grammar</a>
+  <a href="#undo">5 · Session undo</a>
+  <a href="#cycle">6 · Canvas ↔ drafts</a>
+  <a href="#agent">7 · Agent endpoints</a>
+  <a href="#compiler">8 · Component ids</a>
+  <a href="#dead">9 · Dead surface</a>
+  <a href="#open">Still open</a>
+  <a href="#verify">How to check</a>
+</nav>
+
+<main>
+
+<section id="idea">
+  <h2>The one idea</h2>
+  <h3>A small doorway, a big room</h3>
+  <p class="plain">
+    Good code is organised like a building where each room has one clearly marked door. You should be
+    able to walk up to the “preview verification” room, read the sign, and know what happens inside
+    without opening every cupboard. The technical name for this is a <strong>deep module</strong>:
+    a small doorway, a lot of behaviour behind it.
+  </p>
+  <p>
+    The opposite is a room with five unmarked doors and a copy of the same instructions taped inside
+    each one. That is what most of this branch was about. When the same rule is written down four
+    times, the four copies slowly disagree. Nobody notices until a user sees the wrong value, or a
+    test fails for a reason that has nothing to do with the change.
+  </p>
+
+  <svg class="diagram" viewBox="0 0 720 210" role="img" aria-label="Shallow modules versus one deep module">
+    <defs>
+      <marker id="arrow-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+      </marker>
+    </defs>
+    <text x="24" y="22" class="t-title">Before — one rule, four copies</text>
+    <g transform="translate(24,36)">
+      <rect x="0" y="0" width="130" height="46" rx="8" class="box-bad"/>
+      <text x="14" y="20" class="t-mono">rule: “is token?”</text>
+      <text x="14" y="35" class="t-small">copy 1</text>
+      <rect x="0" y="56" width="130" height="46" rx="8" class="box-bad"/>
+      <text x="14" y="76" class="t-mono">rule: “is token?”</text>
+      <text x="14" y="91" class="t-small">copy 2</text>
+      <rect x="0" y="112" width="130" height="46" rx="8" class="box-bad"/>
+      <text x="14" y="132" class="t-mono">rule: “is token?”</text>
+      <text x="14" y="147" class="t-small">copy 3</text>
+      <rect x="0" y="168" width="130" height="30" rx="8" class="box-bad"/>
+      <text x="14" y="188" class="t-small">copy 4 — already differs</text>
+    </g>
+
+    <text x="390" y="22" class="t-title">After — one rule, one door</text>
+    <g transform="translate(390,36)">
+      <rect x="0" y="44" width="150" height="110" rx="12" class="box-good"/>
+      <text x="16" y="70" class="t-title">value grammar</text>
+      <text x="16" y="90" class="t-small">one parser</text>
+      <text x="16" y="106" class="t-small">one set of tests</text>
+      <text x="16" y="126" class="t-small">every caller agrees</text>
+      <line x1="150" y1="99" x2="215" y2="99" class="stroke-line" marker-end="url(#arrow-a)"/>
+      <rect x="225" y="24" width="90" height="40" rx="8" class="box"/>
+      <text x="238" y="48" class="t-small">editors</text>
+      <rect x="225" y="76" width="90" height="40" rx="8" class="box"/>
+      <text x="238" y="100" class="t-small">token catalog</text>
+      <rect x="225" y="128" width="90" height="40" rx="8" class="box"/>
+      <text x="238" y="152" class="t-small">resolver</text>
+    </g>
+  </svg>
+
+  <div class="callout">
+    <b>Why this is worth doing at all</b>
+    Every change on this branch is justified by two things: <em>locality</em> (a fix or a bug lives in
+    one place) and <em>leverage</em> (one implementation serves many callers). Tests come along for
+    the ride: once behaviour sits behind one door, you can test it through that door instead of
+    mounting a whole screen.
+  </div>
+</section>
+
+<section id="status">
+  <h2>What landed</h2>
+  <h3>The honest scorecard</h3>
+  <p>
+    I implemented the high-value core of all nine candidates, but I deliberately stopped short of the
+    riskiest tail of four of them. Those tails are called out below and in “Still open”. Nothing is
+    half-migrated: every commit typechecks and the unit suite is green.
+  </p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Change</th><th>Status</th><th>Commit</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="num">1</td><td>One manifest envelope for every host</td><td><span class="pill partial">Core landed</span></td><td class="mono">94d92af4</td></tr>
+      <tr><td class="num">2</td><td>One derivation of “token / mixed / expression”</td><td><span class="pill partial">Core landed</span></td><td class="mono">e5b1bfca</td></tr>
+      <tr><td class="num">3</td><td>One preview verify-and-publish cycle</td><td><span class="pill partial">Core landed</span></td><td class="mono">9e1695f2</td></tr>
+      <tr><td class="num">4</td><td>One CSS value grammar</td><td><span class="pill partial">Core landed</span></td><td class="mono">84f9dd73</td></tr>
+      <tr><td class="num">5</td><td>Session replay stores data, not closures</td><td><span class="pill partial">Core landed</span></td><td class="mono">0e7d7666</td></tr>
+      <tr><td class="num">6</td><td>Canvas no longer owns draft cleanup</td><td><span class="pill done">Landed</span></td><td class="mono">0e7d7666</td></tr>
+      <tr><td class="num">7</td><td>One list of agent endpoints</td><td><span class="pill done">Endpoints landed</span></td><td class="mono">6d39891e</td></tr>
+      <tr><td class="num">8</td><td>One component-id format</td><td><span class="pill partial">Core landed</span></td><td class="mono">a3b4ef18</td></tr>
+      <tr><td class="num">9</td><td>Dead surface removed</td><td><span class="pill done">Landed</span></td><td class="mono">f9ecfd02</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ 1 -->
+<section id="manifest">
+  <h2>Change 1 · Host manifest</h2>
+  <h3>Four hosts were writing the same letter by hand <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    Nudge UI plugs into four different development servers: Vite, Next.js, Astro, and a plain static
+    file server. Each of them has to hand the browser a small note — a “manifest” — that says where
+    things are. Think of it as four receptionists each typing the same welcome letter. The wording
+    drifted: two wrote the version number by hand, one said “reload the page” and one said “refresh the
+    note”, and two said nothing at all about reloading.
+  </p>
+
+  <div class="grid2">
+    <div class="card diagram-card">
+      <p class="diagram-label">Before</p>
+      <svg class="diagram" viewBox="0 0 340 250" role="img" aria-label="Four hosts with hand-written manifests">
+        <rect x="4" y="6" width="150" height="108" rx="10" class="box-bad"/>
+        <text x="16" y="28" class="t-title">Vite</text>
+        <text x="16" y="46" class="t-mono">version: 1</text>
+        <text x="16" y="62" class="t-small">no reload note</text>
+        <text x="16" y="82" class="t-small">own token fields</text>
+        <text x="16" y="98" class="t-small">own capability flags</text>
+
+        <rect x="168" y="6" width="150" height="108" rx="10" class="box-bad"/>
+        <text x="180" y="28" class="t-title">Next.js</text>
+        <text x="180" y="46" class="t-mono">version: 1</text>
+        <text x="180" y="62" class="t-small">refresh-manifest</text>
+        <text x="180" y="82" class="t-small">own token fields</text>
+        <text x="180" y="98" class="t-small">own capability flags</text>
+
+        <rect x="4" y="126" width="150" height="108" rx="10" class="box-bad"/>
+        <text x="16" y="148" class="t-title">Astro</text>
+        <text x="16" y="166" class="t-mono">version: 1</text>
+        <text x="16" y="182" class="t-small">no reload note</text>
+        <text x="16" y="202" class="t-small">own token fields</text>
+        <text x="16" y="218" class="t-small">own capability flags</text>
+
+        <rect x="168" y="126" width="150" height="108" rx="10" class="box-bad"/>
+        <text x="180" y="148" class="t-title">Static</text>
+        <text x="180" y="166" class="t-mono">version: 1</text>
+        <text x="180" y="182" class="t-small">reload-document</text>
+        <text x="180" y="202" class="t-small">own token fields</text>
+        <text x="180" y="218" class="t-small">own capability flags</text>
+      </svg>
+    </div>
+    <div class="card diagram-card">
+      <p class="diagram-label">After</p>
+      <svg class="diagram" viewBox="0 0 340 250" role="img" aria-label="One manifest builder feeding four hosts">
+        <defs>
+          <marker id="arrow-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/>
+          </marker>
+        </defs>
+        <rect x="86" y="6" width="168" height="70" rx="10" class="box-good"/>
+        <text x="102" y="28" class="t-title">one envelope builder</text>
+        <text x="102" y="46" class="t-mono">version, revision,</text>
+        <text x="102" y="60" class="t-mono">reload, capabilities</text>
+
+        <line x1="170" y1="76" x2="170" y2="104" class="stroke-accent" marker-end="url(#arrow-m)"/>
+        <line x1="170" y1="104" x2="55" y2="120" class="stroke-accent" marker-end="url(#arrow-m)"/>
+        <line x1="170" y1="104" x2="285" y2="120" class="stroke-accent" marker-end="url(#arrow-m)"/>
+        <line x1="170" y1="104" x2="55" y2="196" class="stroke-accent" marker-end="url(#arrow-m)"/>
+        <line x1="170" y1="104" x2="285" y2="196" class="stroke-accent" marker-end="url(#arrow-m)"/>
+
+        <rect x="4" y="128" width="104" height="52" rx="8" class="box"/>
+        <text x="18" y="150" class="t-title">Vite</text>
+        <text x="18" y="167" class="t-small">supplies runtime</text>
+
+        <rect x="232" y="128" width="104" height="52" rx="8" class="box"/>
+        <text x="246" y="150" class="t-title">Next.js</text>
+        <text x="246" y="167" class="t-small">supplies runtime</text>
+
+        <rect x="4" y="198" width="104" height="52" rx="8" class="box"/>
+        <text x="18" y="220" class="t-title">Astro</text>
+        <text x="18" y="237" class="t-small">supplies runtime</text>
+
+        <rect x="232" y="198" width="104" height="52" rx="8" class="box"/>
+        <text x="246" y="220" class="t-title">Static</text>
+        <text x="246" y="237" class="t-small">supplies runtime</text>
+      </svg>
+      <p class="diagram-label" style="margin-top:10px">Each host now adds only what is genuinely its own.</p>
+    </div>
+  </div>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>createNudgeUiClientManifest()</code> owns the envelope: version, revision, and the optional capabilities.</li>
+    <li><code>NUDGE_UI_CLIENT_MANIFEST_VERSION</code> now derives from <code>NUDGE_UI_MANIFEST_VERSION</code>. There is one number, not two that happen to match.</li>
+    <li>Vite and Astro stopped hard-coding <code>version: 1</code>; those were real copies that never imported the constant.</li>
+    <li>A new conformance test checks every host that can build a manifest without a running server: the version parses, capabilities are plain booleans, and a document-reload strategy must announce its events.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The four hosts still have their own request handlers for the <code>/__nudge_ui__/</code> routes.
+    Pulling those into one dispatcher is the largest remaining piece (roughly 5–7 days) and touches all
+    four servers at once, so I left it for a follow-up with its own conformance harness. The envelope —
+    where the drift actually was — is fixed.
+  </div>
+
+  <p class="files">
+    Look at <code>inspector/clientManifest.ts</code>, <code>hosts/manifestConformance.test.ts</code>,
+    and the four <code>hosts/*/manifest.ts</code> files.
+  </p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="editors">
+  <h2>Change 2 · Property fields</h2>
+  <h3>Four editors were each re-deciding what a value means <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    When you select an element and look at, say, spacing or opacity, the inspector has to answer three
+    questions: is this value backed by a design token, is it an expression like
+    <code>calc(...)</code>, and do the selected elements disagree (“Mixed”)? Four different editors
+    answered those questions in their own words. The rules mostly matched — until one of them didn’t.
+  </p>
+
+  <svg class="diagram" viewBox="0 0 720 240" role="img" aria-label="Editors each carrying their own value rules, then sharing one rules module">
+    <text x="24" y="20" class="t-title">Before — each editor carries its own copy of the rules</text>
+    <g transform="translate(24,34)">
+      <rect x="0" y="0" width="150" height="70" rx="10" class="box-bad"/>
+      <text x="14" y="22" class="t-title">Spacing</text>
+      <text x="14" y="40" class="t-mono">raw? composite? alpha?</text>
+      <text x="14" y="56" class="t-mono">calc? mixed?</text>
+      <rect x="166" y="0" width="150" height="70" rx="10" class="box-bad"/>
+      <text x="180" y="22" class="t-title">Typography</text>
+      <text x="180" y="40" class="t-mono">raw? composite? alpha?</text>
+      <text x="180" y="56" class="t-mono">chip or chevron?</text>
+      <rect x="332" y="0" width="150" height="70" rx="10" class="box-bad"/>
+      <text x="346" y="22" class="t-title">Opacity</text>
+      <text x="346" y="40" class="t-mono">token from property</text>
+      <text x="346" y="56" class="t-mono">or from the row?</text>
+      <rect x="498" y="0" width="170" height="70" rx="10" class="box-bad"/>
+      <text x="512" y="22" class="t-title">TokenField</text>
+      <text x="512" y="40" class="t-mono">expression? calc?</text>
+      <text x="512" y="56" class="t-mono">opacity override?</text>
+    </g>
+    <text x="24" y="146" class="t-title">After — one rules module, four callers</text>
+    <g transform="translate(24,160)">
+      <rect x="0" y="0" width="200" height="64" rx="10" class="box-good"/>
+      <text x="16" y="24" class="t-title">fieldValue</text>
+      <text x="16" y="42" class="t-mono">isExpressionRow()</text>
+      <text x="16" y="56" class="t-mono">deriveActiveTokenName()</text>
+      <line x1="200" y1="32" x2="250" y2="32" class="stroke-accent"/>
+      <rect x="258" y="2" width="110" height="26" rx="6" class="box"/>
+      <text x="270" y="19" class="t-small">Spacing</text>
+      <rect x="258" y="34" width="110" height="26" rx="6" class="box"/>
+      <text x="270" y="51" class="t-small">Typography</text>
+      <rect x="384" y="2" width="110" height="26" rx="6" class="box"/>
+      <text x="396" y="19" class="t-small">Opacity</text>
+      <rect x="384" y="34" width="110" height="26" rx="6" class="box"/>
+      <text x="396" y="51" class="t-small">TokenField</text>
+    </g>
+  </svg>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>isExpressionRow()</code> is the single definition of “this row is an expression, not a token”.</li>
+    <li><code>deriveActiveTokenName()</code> handles mixed selections, calc suppression, and the opacity-specific override in one place.</li>
+    <li>The four editors call those two functions instead of restating the rules.</li>
+    <li>New tests cover the rules directly, without mounting an editor.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The deeper version of this candidate — one “property field” module that also owns reading, committing,
+    previewing, and reconciling — would replace roughly forty editor components. I did not attempt that.
+    The duplication that was actually causing drift is the value derivation, and that is now shared.
+  </div>
+
+  <p class="files">
+    Look at <code>inspector/styleEditors/fieldValue.ts</code> and its test.
+  </p>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="preview">
+  <h2>Change 3 · Preview trust</h2>
+  <h3>The same verification loop lived in two places <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    Nudge UI shows you a preview of an edit, then checks whether the browser really applied it. That
+    check needs care: it has to verify the right revision, publish a diagnostic when something didn’t
+    stick, and retry once if a CSS animation was still running. The host page and the Canvas did this
+    with two copies of the same loop. Only one copy handled the animation retry.
+  </p>
+
+  <div class="grid2">
+    <div class="card diagram-card">
+      <p class="diagram-label">Before</p>
+      <svg class="diagram" viewBox="0 0 340 220" role="img" aria-label="Two copies of the verify and publish loop">
+        <rect x="10" y="8" width="320" height="92" rx="10" class="box-bad"/>
+        <text x="24" y="30" class="t-title">host page preview</text>
+        <text x="24" y="50" class="t-mono">for each change → verify → publish</text>
+        <text x="24" y="68" class="t-small">no animation retry</text>
+        <rect x="10" y="112" width="320" height="96" rx="10" class="box-bad"/>
+        <text x="24" y="134" class="t-title">Canvas frame handler</text>
+        <text x="24" y="154" class="t-mono">for each change → verify → publish</text>
+        <text x="24" y="172" class="t-small">animation retry, 300 ms</text>
+        <text x="24" y="190" class="t-small">revision guard inline</text>
+      </svg>
+    </div>
+    <div class="card diagram-card">
+      <p class="diagram-label">After</p>
+      <svg class="diagram" viewBox="0 0 340 220" role="img" aria-label="One verify loop with injected effects">
+        <rect x="10" y="8" width="320" height="122" rx="10" class="box-good"/>
+        <text x="24" y="30" class="t-title">verifyPreviewChanges</text>
+        <text x="24" y="52" class="t-mono">verify(change, target, document)</text>
+        <text x="24" y="70" class="t-mono">publish(attempt, key, result)</text>
+        <text x="24" y="88" class="t-mono">retryAnimation(run)</text>
+        <text x="24" y="106" class="t-small">effects injected → unit-testable</text>
+        <rect x="10" y="142" width="150" height="58" rx="8" class="box"/>
+        <text x="24" y="164" class="t-title">host page</text>
+        <text x="24" y="182" class="t-small">calls it</text>
+        <rect x="180" y="142" width="150" height="58" rx="8" class="box"/>
+        <text x="194" y="164" class="t-title">Canvas</text>
+        <text x="194" y="182" class="t-small">calls it</text>
+      </svg>
+    </div>
+  </div>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>verifyPreviewChanges()</code> owns the loop, including the “is this attempt still current?” guard before a retry.</li>
+    <li>It accepts its two effects as an argument. A test passes fakes and a fake clock; it never needs a real frame.</li>
+    <li>Both callers now get the animation retry, not just Canvas.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The stale-change detector remains a separate module. It answers a different question — “does this
+    selector still exist in any live frame?” — and merging it would mix two concepts. I also left the
+    two projection computers alone.
+  </div>
+
+  <p class="files">
+    Look at <code>inspector/changes/previewVerification.ts</code>, its test, and the two callers.
+  </p>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="grammar">
+  <h2>Change 4 · Value grammar</h2>
+  <h3>“Exactly one <code>var()</code>” was written as five different regexes <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    A CSS value like <code>var(--space-4)</code> means “use the token called <code>--space-4</code>”.
+    The inspector often needs to know whether the whole value is exactly one such reference. Five
+    modules answered with their own pattern, and the patterns disagreed: some accepted a fallback,
+    some didn’t; some ignored case; one would happily accept <code>var(--a, red) extra</code> as a
+    single reference because its wildcard swallowed the trailing text.
+  </p>
+
+  <svg class="diagram" viewBox="0 0 720 230" role="img" aria-label="Five regex copies replaced by one balanced parser">
+    <text x="24" y="20" class="t-title">Before — five patterns, two behaviours</text>
+    <g transform="translate(24,34)">
+      <rect x="0" y="0" width="210" height="34" rx="8" class="box-bad"/>
+      <text x="12" y="22" class="t-mono">propertyPolicy  → atomic</text>
+      <rect x="222" y="0" width="210" height="34" rx="8" class="box-bad"/>
+      <text x="234" y="22" class="t-mono">borderSemantics → var?</text>
+      <rect x="444" y="0" width="230" height="34" rx="8" class="box-bad"/>
+      <text x="456" y="22" class="t-mono">colorSemantics  → opacity?</text>
+      <rect x="0" y="44" width="210" height="34" rx="8" class="box-bad"/>
+      <text x="12" y="66" class="t-mono">structuredValues → expand</text>
+      <rect x="222" y="44" width="210" height="34" rx="8" class="box-bad"/>
+      <text x="234" y="66" class="t-mono">catalog → aliasName</text>
+      <rect x="444" y="44" width="230" height="34" rx="8" class="box-warn"/>
+      <text x="456" y="66" class="t-mono">…and 2 calc() checks</text>
+    </g>
+    <text x="24" y="128" class="t-title">After — one scanner that understands parentheses</text>
+    <g transform="translate(24,142)">
+      <rect x="0" y="0" width="300" height="72" rx="10" class="box-good"/>
+      <text x="16" y="24" class="t-title">parseSingleVarReference</text>
+      <text x="16" y="44" class="t-mono">name + optional fallback</text>
+      <text x="16" y="60" class="t-small">rejects trailing text and multiple refs</text>
+      <line x1="300" y1="36" x2="350" y2="36" class="stroke-accent"/>
+      <rect x="358" y="2" width="150" height="30" rx="6" class="box"/>
+      <text x="370" y="21" class="t-small">5 call sites</text>
+      <rect x="358" y="42" width="150" height="30" rx="6" class="box"/>
+      <text x="370" y="61" class="t-small">isCalcExpression</text>
+    </g>
+  </svg>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>parseSingleVarReference()</code> scans balanced parentheses instead of using a lazy wildcard. Nested fallbacks such as <code>var(--x, calc(1px + 2px))</code> parse correctly.</li>
+    <li>The five modules now call it. The alias rule in the token catalog is expressed as “a reference with no fallback”.</li>
+    <li><code>isCalcExpression()</code> replaces the two local calc checks.</li>
+    <li>A focused test covers the cases the regexes got wrong, including the trailing-text bug.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The token definitions are still produced by three paths (build-time PostCSS, browser CSSOM, and a
+    serialize/reparse round-trip). Unifying those is a different, larger job. The reported
+    <code>@scope</code>/<code>@container</code> wrapper loss is a bug in the CSSOM path, not a
+    duplication, and should be fixed with a contract test before anyone restructures the producers.
+  </div>
+
+  <p class="files">
+    Look at <code>css/value-semantics/cssSyntax.ts</code> and <code>cssSyntax.test.ts</code>.
+  </p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="undo">
+  <h2>Change 5 · Session undo</h2>
+  <h3>Undo entries held a photograph of a function <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    Session undo is one timeline of edits and frame creation. When you undo an edit, the rule is:
+    replay the edit and bring its owning frame back into view. The old code implemented “bring the
+    frame back” by storing a little function inside the history entry, captured at the moment you
+    edited. That works, but it means the history entry can only be understood by running it. You cannot
+    inspect it, serialize it, or test replay without the exact world that existed when it was recorded.
+  </p>
+
+  <svg class="diagram" viewBox="0 0 720 220" role="img" aria-label="Undo entries holding closures versus holding data">
+    <text x="24" y="20" class="t-title">Before — the entry carries a function</text>
+    <g transform="translate(24,34)">
+      <rect x="0" y="0" width="250" height="84" rx="10" class="box-bad"/>
+      <text x="14" y="22" class="t-title">history entry</text>
+      <text x="14" y="42" class="t-mono">activate: () =&gt; { … }</text>
+      <text x="14" y="60" class="t-small">a closure over: draft id,</text>
+      <text x="14" y="74" class="t-small">preferred card, canvas select</text>
+      <line x1="250" y1="42" x2="310" y2="42" class="stroke-line"/>
+      <rect x="318" y="18" width="160" height="48" rx="8" class="box"/>
+      <text x="332" y="40" class="t-title">canvas frame</text>
+      <text x="332" y="56" class="t-small">focus + select</text>
+    </g>
+    <text x="24" y="146" class="t-title">After — the entry carries data, replay is an executor</text>
+    <g transform="translate(24,160)">
+      <rect x="0" y="0" width="250" height="54" rx="10" class="box-good"/>
+      <text x="14" y="22" class="t-title">history entry</text>
+      <text x="14" y="40" class="t-mono">focus: { draftId, cardId }</text>
+      <line x1="250" y1="27" x2="310" y2="27" class="stroke-accent"/>
+      <rect x="318" y="0" width="160" height="54" rx="8" class="box"/>
+      <text x="332" y="22" class="t-title">revealDraft()</text>
+      <text x="332" y="40" class="t-small">owns the focus rule</text>
+    </g>
+  </svg>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>EditHistoryEntry</code> now stores <code>{ draftId, cardId? }</code> instead of an <code>activate</code> closure.</li>
+    <li>Replay asks the drafts seam to reveal that frame, then makes the draft active. The domain rule lives in one place, not in a closure per edit.</li>
+    <li>A test asserts that the recorded frame is replayed.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    Canvas history entries still carry <code>undo</code>/<code>redo</code>/<code>dispose</code>
+    closures. Turning those into replayable data means modelling each canvas operation as a command,
+    which is a larger design. The edit half — where cross-draft focus was actually confusing — is done.
+  </div>
+
+  <p class="files">
+    Look at <code>inspector/workspace/timeline.ts</code> and <code>inspector/drafts/draftStore.ts</code>.
+  </p>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="cycle">
+  <h2>Change 6 · Canvas ↔ drafts</h2>
+  <h3>Two modules were importing each other <span class="pill done">Landed</span></h3>
+
+  <p class="plain">
+    The canvas store knew about drafts, and the drafts store knew about canvas. That is a circular
+    dependency: to understand one file you need the other, and a change in either can ripple both ways.
+    Worse, deleting a frame inside the canvas store also fired an HTTP request to delete an HTML file.
+  </p>
+
+  <div class="grid2">
+    <div class="card diagram-card">
+      <p class="diagram-label">Before</p>
+      <svg class="diagram" viewBox="0 0 340 170" role="img" aria-label="Canvas and drafts importing each other">
+        <rect x="20" y="40" width="110" height="70" rx="10" class="box-bad"/>
+        <text x="42" y="70" class="t-title">canvas</text>
+        <text x="34" y="90" class="t-small">forget draft + delete</text>
+        <rect x="210" y="40" width="110" height="70" rx="10" class="box-bad"/>
+        <text x="232" y="70" class="t-title">drafts</text>
+        <text x="222" y="90" class="t-small">select + focus frame</text>
+        <line x1="130" y1="62" x2="210" y2="62" class="stroke-bad" marker-end="url(#arrow-cyc)"/>
+        <line x1="210" y1="90" x2="130" y2="90" class="stroke-bad" marker-end="url(#arrow-cyc)"/>
+        <defs>
+          <marker id="arrow-cyc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <div class="card diagram-card">
+      <p class="diagram-label">After</p>
+      <svg class="diagram" viewBox="0 0 340 170" role="img" aria-label="One direction with a lifecycle seam">
+        <rect x="20" y="40" width="110" height="70" rx="10" class="box-good"/>
+        <text x="42" y="70" class="t-title">canvas</text>
+        <text x="30" y="90" class="t-small">reports a removal</text>
+        <rect x="210" y="40" width="110" height="70" rx="10" class="box"/>
+        <text x="226" y="66" class="t-title">workspace</text>
+        <text x="222" y="86" class="t-small">wires drafts + artifacts</text>
+        <line x1="130" y1="70" x2="210" y2="70" class="stroke-accent" marker-end="url(#arrow-cyc2)"/>
+        <defs>
+          <marker id="arrow-cyc2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/>
+          </marker>
+        </defs>
+      </svg>
+      <p class="diagram-label" style="margin-top:10px">Drafts still knows canvas; canvas no longer knows drafts.</p>
+    </div>
+  </div>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>A small <code>frameLifecycle</code> seam says “can this frame be removed?” and “release this frame’s resources”.</li>
+    <li>The canvas store calls the seam. It no longer imports drafts, the draft key helper, or the artifact client.</li>
+    <li>The workspace controller supplies the real implementation: forget the draft, skip the delete when another frame still uses the artifact, then delete it.</li>
+  </ul>
+
+  <div class="callout">
+    <b>Why this is safe</b>
+    The controller is always running in production, so behaviour is unchanged there. In tests the seam
+    is a no-op by default, which is exactly what a test that only cares about canvas layout wants.
+  </div>
+
+  <p class="files">
+    Look at <code>inspector/canvas/frameLifecycle.ts</code> and
+    <code>inspector/workspace/controller.ts</code>.
+  </p>
+</section>
+
+<!-- ============================================================ 7 -->
+<section id="agent">
+  <h2>Change 7 · Agent endpoints</h2>
+  <h3>Eight endpoint names existed twice <span class="pill done">Endpoints landed</span></h3>
+
+  <p class="plain">
+    The browser and the local agent companion talk over eight small endpoints:
+    <code>/health</code>, <code>/pair</code>, <code>/events</code>, and so on. The companion defined
+    them in one package; the browser typed them out again as fallback strings. They agreed by
+    convention. If someone renamed one, the browser would get a 404 at runtime, not a compile error.
+  </p>
+
+  <svg class="diagram" viewBox="0 0 720 180" role="img" aria-label="Two hardcoded endpoint lists becoming one shared list">
+    <text x="24" y="20" class="t-title">Before</text>
+    <g transform="translate(24,34)">
+      <rect x="0" y="0" width="250" height="70" rx="10" class="box-bad"/>
+      <text x="14" y="22" class="t-title">MCP bridge</text>
+      <text x="14" y="42" class="t-mono">"/health" "/pair" "/events" …</text>
+      <text x="14" y="58" class="t-small">owner, by convention</text>
+      <rect x="330" y="0" width="250" height="70" rx="10" class="box-bad"/>
+      <text x="344" y="22" class="t-title">browser transport</text>
+      <text x="344" y="42" class="t-mono">"/health" "/pair" "/events" …</text>
+      <text x="344" y="58" class="t-small">typed again, 8 times</text>
+    </g>
+    <text x="24" y="138" class="t-title">After</text>
+    <g transform="translate(24,150)">
+      <rect x="0" y="0" width="250" height="26" rx="8" class="box-good"/>
+      <text x="14" y="18" class="t-mono">agent-protocol · BRIDGE_ENDPOINTS</text>
+      <line x1="250" y1="13" x2="330" y2="13" class="stroke-accent"/>
+      <rect x="338" y="0" width="120" height="26" rx="6" class="box"/>
+      <text x="350" y="18" class="t-small">MCP bridge</text>
+      <rect x="470" y="0" width="140" height="26" rx="6" class="box"/>
+      <text x="482" y="18" class="t-small">browser transport</text>
+    </g>
+  </svg>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>BRIDGE_ENDPOINTS</code> lives in <code>@nudge-ui/agent-protocol</code>, which both sides already depend on.</li>
+    <li>The MCP package re-exports it; the browser transport uses it for all eight fallbacks.</li>
+    <li>The existing bridge tests still pass; a rename would now fail typecheck.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The UI’s twelve connection labels and tones stay in the UI. They are presentation, not protocol,
+    and moving them into the shared package would couple a label change to both packages. State
+    derivation was already shared through <code>deriveConnectionState</code>.
+  </div>
+
+  <p class="files">
+    Look at <code>packages/agent-protocol/src/index.ts</code> and
+    <code>packages/nudge-ui/src/inspector/agent/httpTransport.ts</code>.
+  </p>
+</section>
+
+<!-- ============================================================ 8 -->
+<section id="compiler">
+  <h2>Change 8 · Component ids</h2>
+  <h3>The same identity string was minted three ways <span class="pill partial">Core landed</span></h3>
+
+  <p class="plain">
+    Every component the inspector can describe gets an identity string, roughly
+    <code>src/Button.tsx#Button</code>. Three different builders made that string, each with its own
+    idea of which file extension to strip. They happened to agree. If one had stopped agreeing, the
+    inspector would silently fall back to matching by component name.
+  </p>
+
+  <table>
+    <thead><tr><th>Builder</th><th>Before</th></tr></thead>
+    <tbody>
+      <tr><td>TypeScript contracts</td><td class="mono">file.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "") + "#" + name</td></tr>
+      <tr><td>Package contracts</td><td class="mono">moduleSpecifier + "#" + exportName</td></tr>
+      <tr><td>Host policy resolution</td><td class="mono">stripModuleExtension(source) + "#" + exportName</td></tr>
+    </tbody>
+  </table>
+
+  <h4>What changed</h4>
+  <ul>
+    <li><code>componentIdentity(moduleSource, exportName)</code> in <code>compiler/sourcePaths.ts</code> owns the format.</li>
+    <li>All three builders call it.</li>
+    <li>Existing compiler and identity tests pass unchanged.</li>
+  </ul>
+
+  <div class="callout warn">
+    <b>What is not done</b>
+    The single-parse pass and the duplicate import-binding scanners are untouched. That refactor
+    touches the HMR path and the instrumentation code, and a subtle regression there is much harder to
+    see than a duplicated identity string. It needs its own before/after benchmark.
+  </div>
+
+  <p class="files">
+    Look at <code>compiler/sourcePaths.ts</code> and the three contract builders.
+  </p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section id="dead">
+  <h2>Change 9 · Dead surface</h2>
+  <h3>Code nothing used, defended by tests <span class="pill done">Landed</span></h3>
+
+  <p class="plain">
+    Some exported functions had no production callers. Their own tests kept them “alive”, so the test
+    suite reported green for code that could not run. That is worse than useless: it makes the suite
+    look like it is protecting something. I removed the code and the tests that pinned it.
+  </p>
+
+  <table>
+    <thead><tr><th>Removed</th><th>Why</th><th>Lines</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">computeProjection</td><td>Only tests called it; production uses <code>computeProjectionForCard</code></td><td class="num">−180</td></tr>
+      <tr><td class="mono">TokenDropdown</td><td>Only its own test imported it; its CSS was still bundled</td><td class="num">−390</td></tr>
+      <tr><td class="mono">injectDataCid</td><td>An alias of <code>injectIdentity</code>, tests only</td><td class="num">−110</td></tr>
+      <tr><td class="mono">HydrationResult.changeCount</td><td>Hard-coded <code>0</code> at 16 return sites</td><td class="num">−20</td></tr>
+      <tr><td class="mono">getTokenTable</td><td>Re-exported, never called</td><td class="num">−11</td></tr>
+      <tr><td class="mono">scheduleCanvasSave</td><td>Wrapper with no callers</td><td class="num">−2</td></tr>
+      <tr><td class="mono">duplicate isReservedNudgeUiRoute</td><td>Reimplemented in the static server</td><td class="num">−5</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <b>One deliberate exception</b>
+    <code>restoreCount</code> looked dead in the scan, but <code>boot.ts</code> sets it and the settings
+    dialog clears it. I kept it. This is why every removal was verified before deleting.
+  </div>
+
+  <p class="files">
+    Commit <code class="mono">f9ecfd02</code>: 13 files, 53 insertions, 616 deletions.
+  </p>
+</section>
+
+<!-- ============================================================ OPEN -->
+<section id="open">
+  <h2>Still open</h2>
+  <h3>What I deliberately left for a follow-up</h3>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Piece</th><th>Why it was not done now</th><th>Rough size</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Shared route dispatch for four hosts</b></td>
+          <td>All four servers move at once; needs a boot harness per host to prove the contract.</td>
+          <td class="num">5–7 days</td>
+        </tr>
+        <tr>
+          <td><b>Full property-field module</b></td>
+          <td>Would replace ~40 editor components; the duplication that drifted is already shared.</td>
+          <td class="num">weeks</td>
+        </tr>
+        <tr>
+          <td><b>Token-definition producer unification</b></td>
+          <td>The <code>@scope</code>/<code>@container</code> loss is a bug; fix it with a contract test first.</td>
+          <td class="num">2–4 days</td>
+        </tr>
+        <tr>
+          <td><b>Canvas history as commands</b></td>
+          <td>Edit replay is data-shaped now; canvas replay needs an operation model.</td>
+          <td class="num">3–5 days</td>
+        </tr>
+        <tr>
+          <td><b>Compiler single parse</b></td>
+          <td>Highest regression risk on the HMR path; needs a benchmark proving it matters.</td>
+          <td class="num">8–12 days</td>
+        </tr>
+        <tr>
+          <td><b>UI connection-state kinds</b></td>
+          <td>Labels and tones are presentation; folding them into the protocol would couple both packages.</td>
+          <td class="num">not recommended</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ VERIFY -->
+<section id="verify">
+  <h2>How to check it</h2>
+  <h3>Run these in the worktree</h3>
+  <p>
+    The branch is <code>arch/deepening</code>, based on <code>b09e9d79</code>. Every commit is
+    self-contained, so the easiest review is commit by commit.
+  </p>
+  <div class="card" style="font-size:14px">
+    <p class="mono" style="margin:0 0 8px">pnpm --filter nudge-ui typecheck</p>
+    <p class="mono" style="margin:0 0 8px">pnpm --filter nudge-ui test:unit</p>
+    <p class="mono" style="margin:0 0 8px">pnpm --filter @nudge-ui/mcp test:unit</p>
+    <p class="mono" style="margin:0">pnpm lint</p>
+  </div>
+  <p style="margin-top:18px">
+    The unit suite grew from <b>2,425</b> passing tests to <b>2,443</b>: new tests cover the manifest
+    conformance table, the verification cycle, the value grammar, the field derivation, the frame
+    lifecycle seam, and the replay focus rule. The removals cut 616 lines of dead surface without
+    losing a behavioural test.
+  </p>
+</section>
+
+<footer>
+  <p>
+    Walkthrough generated for branch <span class="mono">arch/deepening</span> in
+    <span class="mono">.claude/worktrees/arch-deepening</span>. Diagrams are inline SVG and the page
+    has no external dependencies, so it reads offline and prints cleanly.
+  </p>
+  <p class="muted">
+    The framing throughout is “one doorway, one room”. If a change made you ask “where does this
+    live?” less often, it earned its keep.
+  </p>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

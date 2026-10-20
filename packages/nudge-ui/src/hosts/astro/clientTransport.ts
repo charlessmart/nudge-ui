@@ -1,5 +1,6 @@
 import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
 import {
+  createNudgeUiClientManifest,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
@@ -117,13 +118,11 @@ async function createManifest(
     })
     : null;
   setBridge(bridge);
-  return {
-    version: 1,
-    revision: 0,
+  return createNudgeUiClientManifest({
     runtime,
     ...(bridge ? { agentBridge: bridge.browser } : {}),
     ...automationManifestFields(),
-  };
+  });
 }
 
 function resolvedRequestOrigin(server: ViteDevServer, request: IncomingMessage): string | null {

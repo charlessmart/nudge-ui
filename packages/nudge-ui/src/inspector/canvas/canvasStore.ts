@@ -1,8 +1,7 @@
 import type { FrameContent } from "./frameContent.ts";
-import { iterationId, contentSourceUrl, contentEditTarget } from "./frameContent.ts";
-import { isDraftLocked, forgetDraft } from "../drafts/store.ts";
+import { iterationId, contentSourceUrl } from "./frameContent.ts";
+import { frameLifecycle } from "./frameLifecycle.ts";
 import { recordCanvasChange, discardCanvasHistory } from "../workspace/timeline.ts";
-import { targetKey } from "../drafts/model.ts";
 import { useSyncExternalStore } from "react";
 import {
   DEFAULT_CAMERA,
@@ -15,7 +14,6 @@ import {
   type CanvasPresentation,
 } from "./viewStore.ts";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
-import { removeHtmlArtifact } from "../iterations/client.ts";
 import {
   applyLayoutShifts,
   boundsOf,
@@ -226,13 +224,10 @@ function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
   if (removedIds.has(focusedCardId ?? "")) focusedCardId = fallbackId;
 }
 
-function releaseUnusedIteration(card: CanvasCard): void {
-  const artifactId = iterationId(card.content);
-  if (!artifactId || cards.some((candidate) => iterationId(candidate.content) === artifactId)) return;
-  forgetDraft(targetKey(contentEditTarget(card.content)));
-  void removeHtmlArtifact(artifactId).catch((error: unknown) => {
-    console.warn("Nudge UI could not remove an unused HTML iteration:", error);
-  });
+/** Reports removed iteration content; the drafts/artifacts owner decides what to release. */
+function releaseUnusedIteration(card: CanvasCard, remaining: readonly CanvasCard[] = cards): void {
+  if (!iterationId(card.content)) return;
+  frameLifecycle().release(card.content, remaining.map((candidate) => candidate.content));
 }
 
 function recordRemoval(before: readonly CanvasCard[], removed: CanvasCard): void {
@@ -258,7 +253,7 @@ function recordRemoval(before: readonly CanvasCard[], removed: CanvasCard): void
 }
 
 export function removeCanvasCard(id: string, { undoable = false }: { undoable?: boolean } = {}): void {
-  if (isDraftLocked()) return;
+  if (!frameLifecycle().canEdit()) return;
   const removed = cards.find((card) => card.id === id);
   if (!removed) return;
   const before = cards;

@@ -11,7 +11,8 @@ test("dev: spacing stays editable through zero and videos omit inherited text co
   await app.locator(".hero h1").click();
   await expect(page.locator('[data-test="spacing-margin"] [data-test="add-value"]')).toBeVisible();
   const padding = page.locator('[data-test="spacing-padding"]');
-  await padding.locator('[data-test="add-value"]').click();
+  // Padding is always shown now, so there is no add button to press.
+  if (await padding.locator('[data-test="add-value"]').count()) await padding.locator('[data-test="add-value"]').click();
   const field = padding.locator('[data-property="padding-horizontal"]');
   const input = field.locator('[data-test="raw-input"]');
   await input.fill("8px");
@@ -75,7 +76,8 @@ for (const end of ["Escape", "blur", "unmount"] as const) {
     const app = await getAppFrame(page);
     await app.locator(".hero h1").click();
     const padding = page.locator('[data-test="spacing-padding"]');
-    await padding.locator('[data-test="add-value"]').click();
+    // Padding is always shown now, so there is no add button to press.
+    if (await padding.locator('[data-test="add-value"]').count()) await padding.locator('[data-test="add-value"]').click();
     const field = padding.locator('[data-property="padding-horizontal"]');
     const input = field.locator('[data-test="raw-input"]');
     await input.fill("8px");

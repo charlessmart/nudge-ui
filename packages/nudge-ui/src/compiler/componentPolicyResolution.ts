@@ -6,7 +6,7 @@ import {
   parseModule,
   type SyntaxNode,
 } from "./ast.ts";
-import { stripModuleExtension } from "./sourcePaths.ts";
+import { componentIdentity, stripModuleExtension } from "./sourcePaths.ts";
 
 /** Whether replacing a JSX element type with the semantic boundary is safe. */
 export interface ComponentProtocol {
@@ -471,7 +471,7 @@ function resolvedProtocol(
     resolved: true,
     protocol: {
       ...protocol,
-      componentId: `${stripModuleExtension(source)}#${exportName}`,
+      componentId: componentIdentity(source, exportName),
     },
   };
 }

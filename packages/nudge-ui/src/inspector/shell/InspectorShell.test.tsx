@@ -105,7 +105,8 @@ describe("InspectorShell", () => {
       });
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
-      expect(host.shadowRoot?.querySelector('[data-test="selection"]')).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="selection-name"]')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).toBeNull();
     } finally {
       setSelectedElement(null);
       selected.remove();
@@ -159,7 +160,8 @@ describe("InspectorShell", () => {
 
       const scope = host.shadowRoot?.querySelector('[data-test="edit-scope"]');
       expect(scope).not.toBeNull();
-      expect(scope?.textContent).toContain("Affects 2 elements.");
+      expect(scope?.textContent).toContain("Linked (2)");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).not.toBeNull();
       expect(host.shadowRoot?.querySelector('[data-test="selection"]')?.className)
         .not.toContain("selection--without-scope-callout");
     } finally {
@@ -194,7 +196,6 @@ describe("InspectorShell", () => {
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
       expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
-      expect(shadow.querySelector('[data-test="spacing-box"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="appearance-section"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="typography"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="border-editor"]')).not.toBeNull();
@@ -381,7 +382,9 @@ describe("InspectorShell", () => {
     act(() => {
       pressKey({ key: "\\", code: "Backslash", metaKey: true });
     });
-    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).toBeNull();
+    // Hiding the inspector panel keeps the floating Canvas toolbar available.
+    expect(shadow.querySelector('[data-test="show-inspector"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).not.toBeNull();
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {

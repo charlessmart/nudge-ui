@@ -1,5 +1,6 @@
-import type { ReactElement, ReactNode } from "react";
+import { Fragment, type ReactElement, type ReactNode } from "react";
 import { Toggle } from "@base-ui/react/toggle";
+import { Tooltip } from "./Tooltip.tsx";
 
 export interface SegmentedControlOption<T extends string> {
   value: T;
@@ -18,6 +19,8 @@ interface SegmentedControlProps<T extends string> {
   "data-property"?: string;
   className?: string;
   disabled?: boolean;
+  /** Shows each option's label in a tooltip; for icon-only segments. */
+  tooltips?: boolean;
   allowDeselect?: boolean;
   /** Restores the value represented by an unselected control. */
   onDeselect?: () => void;
@@ -32,6 +35,7 @@ export function SegmentedControl<T extends string>({
   "data-property": dataProperty,
   className,
   disabled = false,
+  tooltips = false,
   allowDeselect = false,
   onDeselect,
 }: SegmentedControlProps<T>): ReactElement {
@@ -45,9 +49,8 @@ export function SegmentedControl<T extends string>({
     >
       {options.map((option) => {
         const selected = option.value === value;
-        return (
+        const toggle = (
           <Toggle
-            key={option.value}
             type="button"
             className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
             pressed={selected}
@@ -66,6 +69,7 @@ export function SegmentedControl<T extends string>({
             {option.icon ?? <span className="segmented-control__label">{option.label}</span>}
           </Toggle>
         );
+        return <Fragment key={option.value}>{tooltips ? <Tooltip>{toggle}</Tooltip> : toggle}</Fragment>;
       })}
     </div>
   );

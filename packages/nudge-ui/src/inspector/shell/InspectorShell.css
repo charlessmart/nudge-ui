@@ -64,7 +64,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: var(--space-12) var(--space-24);
+  padding-block: var(--space-12);
+  padding-inline: var(--space-16);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -107,8 +108,22 @@
   min-width: 0;
 }
 
-.copy-prompt__main.button {
+.copy-prompt__row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-8);
   width: 100%;
+}
+
+.copy-prompt__clear-changes.icon-button {
+  flex: 0 0 auto;
+  width: var(--control-height-large);
+  height: var(--control-height-large);
+}
+
+.copy-prompt__main.button {
+  flex: 1 1 auto;
+  min-width: 0;
   position: relative;
 }
 
@@ -318,8 +333,7 @@
 
 .panel__body {
   min-height: auto;
-  padding: 0 20px 28px;
-  background: var(--surface-panel);
+  padding: 0 var(--space-16) 28px;
   color: var(--text-secondary);
   overflow: visible;
   flex: 0 0 auto;
@@ -345,12 +359,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: 14px 0 16px;
+  padding: var(--space-8) 0;
   border-bottom: 1px solid var(--border-subtle);
-}
-
-.selection--without-scope-callout {
-  border-bottom: 0;
 }
 
 .style-state {
@@ -376,7 +386,6 @@
 
 .style-editors {
   margin-top: 0;
-  background: var(--surface-panel);
   border-top: 0;
   padding-top: 0;
 }
@@ -389,14 +398,38 @@
   text-transform: uppercase;
 }
 
-/* The State select reads as the last row of the component section above it. */
-.component-props:has(+ .selection) {
-  border-bottom: 0;
+/* One component section: name with link status, props and state share a single border. */
+/* Doubled class: .editor__title-row, declared later, would otherwise win with space-between. */
+.editor__title-row.selection__name {
+  justify-content: flex-start;
+  gap: var(--space-4);
 }
 
-.component-props + .selection {
-  padding-top: var(--space-8);
-  border-bottom: 1px solid var(--border-subtle);
+.selection__linked-icon {
+  flex: 0 0 auto;
+  color: var(--linked);
+}
+
+/* The status text sits beside the title; only the action button stays at the end. */
+.selection__scope,
+.selection__scope .scope__linked,
+.selection__scope .scope__unlinked {
+  display: contents;
+}
+
+.selection__name .icon-button {
+  margin-inline-start: auto;
+}
+
+.selection .selection__scope {
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.selection .component-props {
+  padding: 0;
+  border-bottom: 0;
 }
 
 .component-props__hint {
@@ -434,7 +467,6 @@
 .editor {
   margin: 0;
   padding: var(--space-8) 0;
-  background: var(--surface-panel);
   border: 0;
   border-bottom: 1px solid var(--border-subtle);
   border-radius: 0;
@@ -459,7 +491,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .editor__title-row .editor__title {

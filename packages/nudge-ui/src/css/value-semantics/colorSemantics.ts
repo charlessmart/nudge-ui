@@ -1,5 +1,5 @@
 import type { ColorOpacity, ColorValueFacts, TokenEntry, TokenReference, TokenTable } from "../model/index.ts";
-import { extractVarCalls, splitTopLevel, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
+import { extractVarCalls, isSingleVarReference, splitTopLevel, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
 
 export interface ColorComponentResolution {
   tokenName: string | null;
@@ -358,7 +358,7 @@ export function applyColorOpacity(value: string, opacity: string): ColorEditResu
   const normalized = normalizeOpacityPercent(opacity);
   if (normalized === null) return { ok: false, reason: "invalid-opacity" };
   const trimmed = value.trim();
-  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(trimmed)) {
+  if (isSingleVarReference(trimmed)) {
     return normalized === "100%"
       ? { ok: true, value: trimmed }
       : { ok: true, value: `color-mix(in srgb, ${trimmed} ${normalized}, transparent)` };

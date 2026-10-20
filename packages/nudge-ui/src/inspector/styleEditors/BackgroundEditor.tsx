@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import { IconArrowsDiff, IconDroplet, IconMinus, IconPlus } from "@tabler/icons-react";
 import { replaceColorPreservingOpacity, withColorOpacity } from "../../css/value-semantics/colorSemantics.ts";
 import { interpretTokenValue } from "../../css/value-semantics/tokenInterpretation.ts";
@@ -200,7 +200,9 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
         onPointerDown={(event) => { if (event.target === event.currentTarget && event.button === 0) addStop(percentAt(event.currentTarget, event.clientX)); }}>
         {gradient.stops.map((stop, index) => <button type="button" key={index}
           className="background-editor__stop" aria-label={`Gradient stop ${index + 1}`}
-          disabled={blockedBy !== null} style={{ left: `clamp(8px, ${stop.position}%, calc(100% - 8px))`, backgroundColor: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) }}
+          disabled={blockedBy !== null}
+          // SAFETY: React CSSProperties permits custom properties through index signatures; only --stop-color is added.
+          style={{ left: `clamp(8px, ${stop.position}%, calc(100% - 8px))`, "--stop-color": previewColor(interpretTokenValue(stop.color, { table: tokenTable })) } as CSSProperties}
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.stopPropagation();
@@ -236,7 +238,7 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
           const match = /^([+-]?(?:\d*\.)?\d+)(?:deg)?$/.exec(raw.trim());
           if (match && Number.isFinite(Number(match[1]))) commitGradient({ ...gradient, angle: Number(match[1]) });
         }) : null}
-        <IconButton variant="quiet" label="Reverse gradient" disabled={blockedBy !== null}
+        <IconButton variant="secondary" label="Reverse gradient" disabled={blockedBy !== null}
           onClick={() => commitGradient({ ...gradient, stops: [...gradient.stops].reverse().map((stop) => ({ ...stop, position: 100 - stop.position })) })}>
           <IconArrowsDiff aria-hidden="true" /></IconButton>
         <IconButton variant="quiet" label="Add gradient stop" disabled={blockedBy !== null} onClick={() => addStop()}>

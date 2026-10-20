@@ -15,6 +15,10 @@
   color: var(--text-muted);
 }
 
+.token-field--raw .token-field__trailing {
+  cursor: pointer;
+}
+
 .token-field__leading {
   justify-content: center;
 }
@@ -126,4 +130,14 @@
 
 .token-color-control__input:disabled {
   cursor: not-allowed;
+}
+
+/* Off-screen samples skip layout, so a long list loads only the fonts in view. */
+.system-font-sample {
+  display: inline-block;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1.5em auto 1em;
 }

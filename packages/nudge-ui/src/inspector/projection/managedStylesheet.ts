@@ -4,6 +4,7 @@ import type { StyleRuleContext } from "../changes/editModel.ts";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
+import { withCompetingSpecificity } from "./managedSpecificity.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 export type { StyleRuleContext } from "../changes/editModel.ts";
@@ -190,7 +191,7 @@ export function applyRules(rules: StyleRule[]): void {
   ensureManagedSheet();
   const desired: StyleRule[] = [];
   const desiredIds = new Set<string>();
-  for (const rule of rules) {
+  for (const rule of withCompetingSpecificity(document, rules)) {
     const id = buildRuleText(rule);
     if (!id) continue;
     if (desiredIds.has(id)) continue;

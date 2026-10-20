@@ -76,4 +76,49 @@ describe("spacing projection", () => {
     expect(result.spacing.margin.axes.horizontal.state).toBe("shared");
     expect(result.spacing.margin.axes.vertical.state).toBe("shared");
   });
+
+  it("projects unauthored inset sides as auto rather than the computed offset", () => {
+    const element = document.createElement("div");
+    element.style.left = "0";
+    document.body.appendChild(element);
+    const original = window.getComputedStyle.bind(window);
+    window.getComputedStyle = ((target: Element) => {
+      const base = original(target);
+      return new Proxy(base, {
+        get(object, key: string) {
+          if (key === "getPropertyValue") {
+            return (property: string) => ({ right: "107px", left: "0px", top: "4px" })[property] ?? "";
+          }
+          const value = Reflect.get(object, key);
+          return typeof value === "function" ? value.bind(object) : value;
+        },
+      });
+    }) as typeof getComputedStyle;
+    try {
+      const { inset } = projectInspectorValues(element, []).spacing;
+
+      expect(inset.fields.right.value).toBe("auto");
+      expect(inset.fields.right.authoredValue).toBe("auto");
+      expect(inset.fields.top.value).toBe("auto");
+      expect(inset.fields.left.authoredValue).toBe("0px");
+      expect(inset.fields.left.value).toBe("0px");
+      expect(inset.axes.horizontal.state).toBe("mixed");
+    } finally {
+      window.getComputedStyle = original;
+    }
+  });
+
+  it("keeps authored inset tokens and percentages from rows", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const { inset } = projectInspectorValues(element, [
+      row("top", "var(--space-2)", "8px", { tokenName: "--space-2" }),
+      row("left", "50%", "60px"),
+    ]).spacing;
+
+    expect(inset.fields.top.tokenName).toBe("--space-2");
+    expect(inset.fields.top.authoredValue).toBe("var(--space-2)");
+    expect(inset.fields.left.authoredValue).toBe("50%");
+    expect(inset.fields.bottom.value).toBe("auto");
+  });
 });

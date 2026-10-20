@@ -23,6 +23,19 @@ interface Draft {
 
 interface Anchor { readonly left: number; readonly top: number }
 
+interface Observation {
+  readonly observer: MutationObserver;
+  timer: ReturnType<typeof setTimeout> | null;
+  checking: boolean;
+  /** A source signal arrived mid-check, which that check may not have read. */
+  pending: boolean;
+  interval: number;
+  lastCheckEndedAt: number;
+}
+
+const CHECK_DELAY_MS = 450;
+const MAX_CHECK_DELAY_MS = 8_000;
+
 function sameAnchor(left: Anchor | null | undefined, right: Anchor | null | undefined): boolean {
   return left?.left === right?.left && left?.top === right?.top;
 }
@@ -52,7 +65,7 @@ export function CommentsOverlay(): ReactElement | null {
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const bindings = useRef(new Map<string, { element: HTMLElement; iframe: CanvasFrame }>());
-  const observations = useRef(new Map<Document, { observer: MutationObserver; timer: ReturnType<typeof setTimeout> | null }>());
+  const observations = useRef(new Map<Document, Observation>());
 
   function openDraft(next: Draft): void {
     setDraft(next);
@@ -152,6 +165,33 @@ export function CommentsOverlay(): ReactElement | null {
 
   useEffect(() => {
     if (!comments.some((comment) => comment.handedOff)) return;
+    // A check briefly removes every preview, so checks that resolve nothing back off to avoid flashing on continuously mutating pages.
+    const run = (doc: Document, observation: Observation): void => {
+      observation.timer = null;
+      if (observation.checking) return;
+      observation.checking = true;
+      void reconcileComments(doc).then((removed) => {
+        observation.interval = removed > 0 ? CHECK_DELAY_MS : Math.min(observation.interval * 2, MAX_CHECK_DELAY_MS);
+      }, () => undefined).finally(() => {
+        observation.lastCheckEndedAt = Date.now();
+        setTimeout(() => {
+          observation.checking = false;
+          if (!observation.pending || observations.current.get(doc) !== observation) return;
+          observation.pending = false;
+          schedule(doc, observation);
+        }, 0);
+      });
+    };
+    const schedule = (doc: Document, observation: Observation): void => {
+      if (observation.checking) {
+        observation.pending = true;
+        return;
+      }
+      if (observation.timer !== null) return;
+      // Let the change that triggered this settle, and keep the backoff interval.
+      observation.timer = setTimeout(() => run(doc, observation),
+        Math.max(CHECK_DELAY_MS, observation.lastCheckEndedAt + observation.interval - Date.now()));
+    };
     const refresh = (): void => {
       const documents = new Set([...getRegisteredFrames()].map(([, iframe]) => iframe.contentDocument).filter((doc) => doc !== null));
       for (const [doc, observation] of observations.current) {
@@ -162,7 +202,7 @@ export function CommentsOverlay(): ReactElement | null {
       }
       for (const doc of documents) {
         if (observations.current.has(doc) || !comments.some((item) => item.handedOff && item.route === commentRoute(doc))) continue;
-        const observation = { observer: new MutationObserver((records) => {
+        const observation: Observation = { observer: new MutationObserver((records) => {
           if (isReadingCommentSource(doc)) return;
           const sourceChanged = records.some((record) => {
             const element = record.target.nodeType === 1 ? record.target as Element : record.target.parentElement;
@@ -170,19 +210,29 @@ export function CommentsOverlay(): ReactElement | null {
             if (record.type === "attributes" && (record.attributeName?.startsWith("data-nudge") || record.attributeName?.startsWith("data-projection") || record.attributeName === "data-renderer-id")) return false;
             return true;
           });
-          if (!sourceChanged) return;
-          if (observation.timer) clearTimeout(observation.timer);
-          observation.timer = setTimeout(() => { void reconcileComments(doc).catch(() => undefined); }, 200);
-        }), timer: null as ReturnType<typeof setTimeout> | null };
+          if (sourceChanged) schedule(doc, observation);
+        }), timer: null, checking: false, pending: false, interval: CHECK_DELAY_MS, lastCheckEndedAt: -Infinity };
         observation.observer.observe(doc.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
         observations.current.set(doc, observation);
-        void reconcileComments(doc).catch(() => undefined);
+        run(doc, observation);
+      }
+    };
+    // Returning to the page is when an agent's source edit is most likely to have landed.
+    const returned = (): void => {
+      for (const [doc, observation] of observations.current) {
+        observation.interval = CHECK_DELAY_MS;
+        observation.lastCheckEndedAt = -Infinity;
+        if (observation.timer) clearTimeout(observation.timer);
+        observation.timer = null;
+        schedule(doc, observation);
       }
     };
     refresh();
     const timer = setInterval(refresh, 500);
+    window.addEventListener("focus", returned);
     return () => {
       clearInterval(timer);
+      window.removeEventListener("focus", returned);
       for (const observation of observations.current.values()) {
         observation.observer.disconnect();
         if (observation.timer) clearTimeout(observation.timer);

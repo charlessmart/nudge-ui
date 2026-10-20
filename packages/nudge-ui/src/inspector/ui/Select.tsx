@@ -1,10 +1,11 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
-import type { ButtonHTMLAttributes, ComponentProps, ReactElement } from "react";
+import { useRef, type ButtonHTMLAttributes, type ComponentProps, type ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { portalContainer } from "./portalContainer.ts";
 import { IconButton } from "./IconButton.tsx";
+import { controlAnchor } from "./controlAnchor.ts";
 
 export interface SelectOption {
   value: string;
@@ -65,6 +66,7 @@ function NativeSelect({
   }
 
   const { onValueChange: _onValueChange, ...triggerProps } = props;
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <BaseSelect.Root
@@ -75,6 +77,7 @@ function NativeSelect({
     >
       <BaseSelect.Trigger
         {...triggerProps}
+        ref={triggerRef}
         render={iconOnly ? <IconButton label={props["aria-label"] ?? "Select option"} /> : undefined}
         disabled={disabled}
         className={`select${iconOnly ? " select--icon-only" : ""}${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`}
@@ -89,7 +92,9 @@ function NativeSelect({
       </BaseSelect.Trigger>
       <BaseSelect.Portal container={portalContainer()}>
         <BaseSelect.Positioner className="select__positioner" sideOffset={4} {...popupPosition}
-          alignItemWithTrigger={iconOnly ? false : popupPosition?.alignItemWithTrigger}>
+          anchor={iconOnly ? undefined : controlAnchor(triggerRef)}
+          // Overlapping the trigger would offset the popup from the control's edges.
+          alignItemWithTrigger={iconOnly ? false : popupPosition?.alignItemWithTrigger ?? false}>
           <BaseSelect.Popup className="select__popup">
             <BaseSelect.List className="select__list">
               {options.map((option) => <SelectItem key={option.value} option={option} />)}
@@ -152,6 +157,7 @@ function SearchableSelect({
   }
 
   const { onValueChange: _onValueChange, ...triggerProps } = props;
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const triggerClassName = `select${iconOnly ? " select--icon-only" : ""}${compact ? " select--compact" : ""}${appearance === "embedded" ? " select--embedded" : ""}${className ? ` ${className}` : ""}`;
 
   return (
@@ -165,6 +171,7 @@ function SearchableSelect({
     >
       <BaseCombobox.Trigger
         {...triggerProps}
+        ref={triggerRef}
         render={iconOnly ? <IconButton label={props["aria-label"] ?? "Select option"} /> : undefined}
         data-test={dataTest}
         disabled={disabled}
@@ -181,7 +188,8 @@ function SearchableSelect({
         {children}
       </BaseCombobox.Trigger>
       <BaseCombobox.Portal container={portalContainer()}>
-        <BaseCombobox.Positioner className="select__positioner" sideOffset={4} side={popupPosition?.side} align={popupPosition?.align}>
+        <BaseCombobox.Positioner className="select__positioner" sideOffset={4} side={popupPosition?.side} align={popupPosition?.align}
+          anchor={iconOnly ? undefined : controlAnchor(triggerRef)}>
           <BaseCombobox.Popup className="select__popup select__popup--searchable">
             <BaseCombobox.Input
               className="select__search-input"

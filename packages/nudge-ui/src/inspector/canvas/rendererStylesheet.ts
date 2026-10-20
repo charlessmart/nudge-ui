@@ -37,6 +37,7 @@ import {
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
 import { adoptStylesheet, allowsStyleElements, getAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
+import { boostManagedStylesheet } from "../projection/managedSpecificity.ts";
 import { applyRuntimeIdentityClaims, isRuntimeIdentityClaim } from "../runtime/runtimeIdentityClaims.ts";
 
 const SHEET_ID = "nudge-ui-styles";
@@ -48,7 +49,8 @@ function replaceRendererCss(css: string): void {
     // Structural and text projections resend unchanged CSS; rewriting it would discard cached resolutions.
     const adopted = getAdoptedStylesheet(document, SHEET_ID);
     if (adopted && adoptedCss === css && document.adoptedStyleSheets.includes(adopted)) return;
-    adoptStylesheet(document, SHEET_ID, css);
+    const sheet = adoptStylesheet(document, SHEET_ID, css);
+    if (sheet) boostManagedStylesheet(document, sheet);
     adoptedCss = css;
     notifyBrowserStylesheetChange(document);
     return;
@@ -62,6 +64,7 @@ function replaceRendererCss(css: string): void {
     document.head.appendChild(sheet);
   }
   sheet.textContent = css;
+  if (sheet.sheet) boostManagedStylesheet(document, sheet.sheet);
   notifyBrowserStylesheetChange(document);
 }
 

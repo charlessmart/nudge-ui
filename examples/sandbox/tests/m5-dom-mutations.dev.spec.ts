@@ -1,6 +1,32 @@
-import { clickFrameAction } from "./canvasTransition.ts";
+import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
+
+async function showCanvas(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+}
+
+async function duplicateCanvasCard(page: import("@playwright/test").Page): Promise<void> {
+  await showCanvas(page);
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await waitForCanvasTransition(page);
+}
+
+async function reloadCanvasCard(page: import("@playwright/test").Page): Promise<void> {
+  const iframe = page.locator(".canvas-card__iframe").first();
+  await iframe.evaluate((element) => {
+    const frameWindow = (element as HTMLIFrameElement).contentWindow as (Window & { __beforeReload?: boolean }) | null;
+    if (!frameWindow) throw new Error("Canvas card has no document to reload");
+    frameWindow.__beforeReload = true;
+    frameWindow.location.reload();
+  });
+  await expect.poll(() => iframe.evaluate((element) => (
+    (element as HTMLIFrameElement).contentWindow as (Window & { __beforeReload?: boolean }) | null
+  )?.__beforeReload)).toBeUndefined();
+}
 
 async function dragBefore(
   page: import("@playwright/test").Page,
@@ -110,7 +136,7 @@ test("dev: editing surface drags a tracked element with an insertion guide and r
   await expect.poll(() => source.evaluate((element) => ({
     cursor: getComputedStyle(element).cursor,
     userSelect: getComputedStyle(element).userSelect,
-  }))).toEqual({ cursor: "default", userSelect: "none" });
+  }))).toEqual({ cursor: expect.stringMatching(/^url\("data:image\/svg\+xml,.*"\) 3 4, default$/), userSelect: "none" });
 
   await dragBefore(
     page,
@@ -146,7 +172,7 @@ test("dev: editing surface moves an element across containers, preserves destina
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
   await expect(frame.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
-  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await reloadCanvasCard(page);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
 });
@@ -227,21 +253,19 @@ test("dev: cross-container moves support undo, redo, revert, and clear", async (
 test("dev: a cross-container snapshot reaches every ready Canvas card", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]'));
-  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
-  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await duplicateCanvasCard(page);
 
-  const first = page.frameLocator(".canvas-card__iframe").nth(0);
-  const second = page.frameLocator(".canvas-card__iframe").nth(1);
+  const original = page.frameLocator(".canvas-card__iframe").nth(0);
+  const edited = page.frameLocator(".canvas-card__iframe").nth(1);
   await dragBefore(
     page,
-    first.locator('[data-test="structural-move-target"]'),
-    first.locator('[data-test="structural-anchor"]'),
+    edited.locator('[data-test="structural-move-target"]'),
+    edited.locator('[data-test="structural-anchor"]'),
     page.locator('[data-test="canvas-dom-drop-line"]'),
   );
 
-  await expect(first.locator('[data-test="structural-destination"]')).toContainText("Move this card");
-  await expect(second.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(edited.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(original.locator('[data-test="structural-destination"]')).toContainText("Move this card");
 });
 
 test("dev: an application snap-back reports a cross-container preview override without reapplying it", async ({ page }) => {
@@ -334,7 +358,7 @@ test("dev: Canvas revert and undo/redo are controller-owned and the card reload 
   await page.locator('[data-test="changes-toggle"]').click();
   await page.locator('[data-test="dom-change-revert"]').click();
   await expect(frame.getByText("Repeated 3", { exact: true })).toBeVisible();
-  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await reloadCanvasCard(page);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect(frame.getByText("Repeated 3", { exact: true })).toBeVisible();
 });
@@ -389,13 +413,11 @@ test("dev: the same Canvas edit keeps diagnostics separate per document", async 
   await page.goto("/playground");
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
-  await expect(board.locator(".canvas-card")).toHaveCount(2);
-  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await duplicateCanvasCard(page);
 
   const cards = board.locator(".canvas-card");
-  const sourceFrame = cards.nth(0).locator(".canvas-card__iframe").contentFrame();
-  const replacementFrame = cards.nth(1).locator(".canvas-card__iframe").contentFrame();
+  const sourceFrame = cards.nth(1).locator(".canvas-card__iframe").contentFrame();
+  const replacementFrame = cards.nth(0).locator(".canvas-card__iframe").contentFrame();
 
   const target = sourceFrame.getByText("Repeated 3", { exact: true });
   const identity = await target.evaluate((element) => ({
@@ -584,7 +606,7 @@ test("dev: editing surface deletes one repeated item in Canvas and a reloaded ca
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
 
-  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await reloadCanvasCard(page);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect(frame.locator(".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
@@ -610,17 +632,15 @@ test("dev: deleting a repeated item keeps the unified workspace active", async (
 test("dev: Canvas delete-only projection advances into every already-ready card", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]'));
-  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
-  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await duplicateCanvasCard(page);
 
-  const first = page.frameLocator(".canvas-card__iframe").nth(0);
-  const second = page.frameLocator(".canvas-card__iframe").nth(1);
-  const repeated = first.getByText("Repeated 3", { exact: true });
+  const original = page.frameLocator(".canvas-card__iframe").nth(0);
+  const edited = page.frameLocator(".canvas-card__iframe").nth(1);
+  const repeated = edited.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await repeated.press("Backspace");
 
-  await expect(second.locator(".repeated-item")).toHaveText([
+  await expect(original.locator(".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
 });
@@ -645,7 +665,7 @@ test("dev: a Canvas reload receives the current sibling reorder snapshot", async
   await first.press("ArrowRight");
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 
-  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await reloadCanvasCard(page);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });

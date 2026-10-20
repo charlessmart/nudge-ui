@@ -1,16 +1,16 @@
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import type { Rect } from "./overlayGeometry.ts";
 
-export type PaddingSide = "top" | "right" | "bottom" | "left";
-export type SpacingKind = "padding" | "gap";
+export type BoxSide = "top" | "right" | "bottom" | "left";
+export type SpacingKind = "padding" | "margin" | "gap";
 export type SpacingAxis = "horizontal" | "vertical";
 export type SpacingDragAxis = "x" | "y";
-export type SpacingProperty = `padding-${PaddingSide}` | "row-gap" | "column-gap";
+export type SpacingProperty = `padding-${BoxSide}` | `margin-${BoxSide}` | "row-gap" | "column-gap";
 
 export interface SpacingGuideData {
   kind: SpacingKind;
   property: SpacingProperty;
-  side: PaddingSide | null;
+  side: BoxSide | null;
   axis: SpacingAxis;
   dragAxis: SpacingDragAxis;
   value: number;
@@ -30,7 +30,7 @@ export interface SpacingAffordance extends SpacingGuideData {
 export interface SpacingDescriptor {
   kind: SpacingKind;
   property: SpacingProperty;
-  side: PaddingSide | null;
+  side: BoxSide | null;
 }
 
 interface BoxEdges {
@@ -87,7 +87,9 @@ interface BoxModel {
   outer: BoxEdges;
   inner: BoxEdges;
   content: BoxEdges;
-  padding: Record<PaddingSide, number>;
+  padding: Record<BoxSide, number>;
+  /** Positive margins only: negative margins have no area to drag. */
+  margin: Record<BoxSide, number>;
 }
 
 function boxModel(element: HTMLElement): BoxModel {
@@ -97,7 +99,13 @@ function boxModel(element: HTMLElement): BoxModel {
     right: numberValue(style.paddingRight),
     bottom: numberValue(style.paddingBottom),
     left: numberValue(style.paddingLeft),
- } satisfies Record<PaddingSide, number>;
+ } satisfies Record<BoxSide, number>;
+  const margin = {
+    top: numberValue(style.marginTop),
+    right: numberValue(style.marginRight),
+    bottom: numberValue(style.marginBottom),
+    left: numberValue(style.marginLeft),
+  } satisfies Record<BoxSide, number>;
   const border = {
     top: numberValue(style.borderTopWidth),
     right: numberValue(style.borderRightWidth),
@@ -117,7 +125,7 @@ function boxModel(element: HTMLElement): BoxModel {
     right: inner.right - padding.right,
     bottom: inner.bottom - padding.bottom,
   };
-  return { outer, inner, content, padding };
+  return { outer, inner, content, padding, margin };
 }
 
 function containsPoint(rect: BoxEdges, x: number, y: number): boolean {
@@ -157,11 +165,11 @@ const PADDING_CONFIG = {
   right: { axis: "vertical", dragAxis: "x", direction: 1 },
   bottom: { axis: "horizontal", dragAxis: "y", direction: 1 },
   left: { axis: "vertical", dragAxis: "x", direction: 1 },
-} as const satisfies Record<PaddingSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
+} as const satisfies Record<BoxSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
 
 function paddingAffordanceForSide(
   element: HTMLElement,
-  side: PaddingSide,
+  side: BoxSide,
   model = boxModel(element),
 ): SpacingAffordance | null {
   const { inner, content, padding } = model;
@@ -221,10 +229,99 @@ function paddingAffordanceAtPoint(
 ): SpacingAffordance | null {
   const model = boxModel(element);
   if (!containsPoint(model.outer, x, y)) return null;
-  const sides: PaddingSide[] = ["top", "right", "bottom", "left"];
-  for (const side of sides) {
+  for (const side of SIDES) {
     const affordance = paddingAffordanceForSide(element, side, model);
     if (affordance && containsRectPoint(affordance.hit, x, y)) return affordance;
+  }
+  return null;
+}
+
+const MARGIN_CONFIG = {
+  top: { axis: "horizontal", dragAxis: "y", direction: -1 },
+  right: { axis: "vertical", dragAxis: "x", direction: 1 },
+  bottom: { axis: "horizontal", dragAxis: "y", direction: 1 },
+  left: { axis: "vertical", dragAxis: "x", direction: -1 },
+} as const satisfies Record<BoxSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
+const SIDES: readonly BoxSide[] = ["top", "right", "bottom", "left"];
+/** Children further than this from the pointer are skipped before their styles are read. */
+const MARGIN_SCAN_DISTANCE = 512;
+
+/** The margin band sits outside the border box, so a drag outward (away from the element) grows it. */
+function marginAffordanceForSide(
+  element: HTMLElement,
+  side: BoxSide,
+  model = boxModel(element),
+): SpacingAffordance | null {
+  const { outer, margin } = model;
+  const value = margin[side];
+  if (value <= EPSILON) return null;
+  const config = MARGIN_CONFIG[side];
+  const width = Math.max(0, outer.right - outer.left);
+  const height = Math.max(0, outer.bottom - outer.top);
+  const guide: Rect = config.axis === "horizontal"
+    ? { left: outer.left, top: (side === "top" ? outer.top - value / 2 : outer.bottom + value / 2) - 1, width, height: 2 }
+    : { left: (side === "left" ? outer.left - value / 2 : outer.right + value / 2) - 1, top: outer.top, width: 2, height };
+  const area: Rect = config.axis === "horizontal"
+    ? { left: outer.left, top: side === "top" ? outer.top - value : outer.bottom, width, height: value }
+    : { left: side === "left" ? outer.left - value : outer.right, top: outer.top, width: value, height };
+  return {
+    kind: "margin",
+    property: `margin-${side}`,
+    side,
+    axis: config.axis,
+    dragAxis: config.dragAxis,
+    value,
+    cursor: config.axis === "horizontal" ? "ns-resize" : "ew-resize",
+    guide,
+    affectedGuides: [guide],
+    affectedAreas: [area],
+    hit: guideHit(guide, config.axis),
+    direction: config.direction,
+    element,
+  };
+}
+
+function isTrackedElement(element: Element, constructor: typeof HTMLElement): element is HTMLElement {
+  return element instanceof constructor && element.hasAttribute("data-cid");
+}
+
+function isNearPoint(rect: DOMRect, x: number, y: number): boolean {
+  return x >= rect.left - MARGIN_SCAN_DISTANCE
+    && x <= rightOf(rect) + MARGIN_SCAN_DISTANCE
+    && y >= rect.top - MARGIN_SCAN_DISTANCE
+    && y <= bottomOf(rect) + MARGIN_SCAN_DISTANCE;
+}
+
+/**
+ * A margin lies outside its element, so the pointer over it hits the parent: the
+ * element's own margins and its tracked children's margins are both candidates.
+ */
+function marginAffordanceAtPoint(
+  element: HTMLElement,
+  x: number,
+  y: number,
+  includeChildren: boolean,
+  match: "handle" | "area",
+): SpacingAffordance | null {
+  const HTMLElementConstructor = element.ownerDocument.defaultView?.HTMLElement;
+  if (!HTMLElementConstructor) return null;
+  const owners = [
+    element,
+    ...(includeChildren
+      ? Array.from(element.children).filter((child): child is HTMLElement => isTrackedElement(child, HTMLElementConstructor))
+      : []),
+  ];
+  for (const owner of owners) {
+    if (owner !== element && !isNearPoint(owner.getBoundingClientRect(), x, y)) continue;
+    const model = boxModel(owner);
+    for (const side of SIDES) {
+      const affordance = marginAffordanceForSide(owner, side, model);
+      if (!affordance) continue;
+      const hit = match === "handle"
+        ? containsRectPoint(affordance.hit, x, y)
+        : affordance.affectedAreas.some((area) => containsRectPoint(area, x, y));
+      if (hit) return affordance;
+    }
   }
   return null;
 }
@@ -359,8 +456,7 @@ function paddingAffordanceInAreaAtPoint(
 ): SpacingAffordance | null {
   const model = boxModel(element);
   if (!containsPoint(model.outer, x, y)) return null;
-  const sides: PaddingSide[] = ["top", "right", "bottom", "left"];
-  for (const side of sides) {
+  for (const side of SIDES) {
     const affordance = paddingAffordanceForSide(element, side, model);
     if (affordance
       && affordance.affectedAreas.some((area) => containsRectPoint(area, x, y))) {
@@ -436,6 +532,10 @@ export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number)
     const padding = paddingAffordanceAtPoint(element, x, y);
     if (padding) return padding;
   }
+  for (const [index, element] of candidates.entries()) {
+    const margin = marginAffordanceAtPoint(element, x, y, index === 0, "handle");
+    if (margin) return margin;
+  }
   for (const element of candidates) {
     const gap = gapAffordanceAtPoint(element, x, y);
     if (gap) return gap;
@@ -450,6 +550,10 @@ export function getSpacingHoverAtPoint(doc: Document, x: number, y: number): Spa
     const padding = paddingAffordanceInAreaAtPoint(element, x, y);
     if (padding) return padding;
   }
+  for (const [index, element] of candidates.entries()) {
+    const margin = marginAffordanceAtPoint(element, x, y, index === 0, "area");
+    if (margin) return margin;
+  }
   for (const element of candidates) {
     const gap = gapAffordanceInAreaAtPoint(element, x, y);
     if (gap) return gap;
@@ -462,6 +566,7 @@ function affordanceForElement(
   candidates: readonly HTMLElement[],
   element: HTMLElement,
   padding: (candidate: HTMLElement) => SpacingAffordance | null,
+  margin: (candidate: HTMLElement, includeChildren: boolean) => SpacingAffordance | null,
   gap: (candidate: HTMLElement) => SpacingAffordance | null,
 ): SpacingAffordance | null {
   const index = candidates.indexOf(element);
@@ -470,6 +575,9 @@ function affordanceForElement(
     const match = padding(candidates[candidate]!);
     if (match) return match.element === element ? match : null;
   }
+  // A margin belongs to a child of the hovered element (or to the element itself), so its owner may differ from `element`.
+  const marginMatch = margin(element, candidates[0] === element);
+  if (marginMatch) return marginMatch;
   let gapMatch: SpacingAffordance | null = null;
   for (let candidate = 0; candidate <= index && !gapMatch; candidate++) {
     gapMatch = gap(candidates[candidate]!);
@@ -486,6 +594,7 @@ function elementSpacingHandle(candidates: readonly HTMLElement[], element: HTMLE
     candidates,
     element,
     (candidate) => paddingAffordanceAtPoint(candidate, x, y),
+    (candidate, includeChildren) => marginAffordanceAtPoint(candidate, x, y, includeChildren, "handle"),
     (candidate) => gapAffordanceAtPoint(candidate, x, y),
   );
 }
@@ -507,6 +616,7 @@ export function getElementSpacingAtPoint(
       candidates,
       element,
       (candidate) => paddingAffordanceInAreaAtPoint(candidate, x, y),
+      (candidate, includeChildren) => marginAffordanceAtPoint(candidate, x, y, includeChildren, "area"),
       (candidate) => gapAffordanceInAreaAtPoint(candidate, x, y),
     ),
   };
@@ -520,6 +630,11 @@ export function getSpacingAffordanceForDescriptor(
     const side = descriptor.side;
     if (!side || descriptor.property !== `padding-${side}`) return null;
     return paddingAffordanceForSide(element, side);
+  }
+  if (descriptor.kind === "margin") {
+    const side = descriptor.side;
+    if (!side || descriptor.property !== `margin-${side}`) return null;
+    return marginAffordanceForSide(element, side);
   }
   if (descriptor.property !== "row-gap" && descriptor.property !== "column-gap") return null;
   const segment = gapSegments(element).find((candidate) => candidate.property === descriptor.property);

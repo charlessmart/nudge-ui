@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { computeHierarchy } from "./hierarchy.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import { isPageTarget } from "./pageTarget.ts";
 import type { RuntimeComponentTarget } from "../componentSemantics/types.ts";
 import { clearInlineTextDiagnosticsForSelection } from "../inline-text/inlineTextDiagnostics.ts";
 
@@ -190,6 +191,11 @@ export function setSelectedElements(elements: readonly SelectedElement[]): void 
 /** Adds or removes one target while keeping the toggled target primary. */
 export function toggleSelectedElement(el: SelectedElement): void {
   const selectedElements = getSelectedElements();
+  // Page styles are edited alone; grouping them would offer box and structure editors.
+  if (isPageTarget(el.domElement) || selectedElements.some((selected) => isPageTarget(selected.domElement))) {
+    setSelectedElement(el);
+    return;
+  }
   const existingIndex = selectedElements.findIndex((selected) => selected.domElement === el.domElement);
   if (existingIndex >= 0) {
     const remaining = selectedElements.filter((_, index) => index !== existingIndex);

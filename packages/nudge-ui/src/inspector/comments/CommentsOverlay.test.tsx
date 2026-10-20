@@ -12,6 +12,12 @@ import { connectFrame } from "../canvas/frameConnection.ts";
 import { PROTOCOL_VERSION } from "../canvas/frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame } from "../canvas/projection.ts";
 import { setCanvasMode } from "../canvas/viewStore.ts";
+import { reconcileComments } from "./verification.ts";
+
+vi.mock("./verification.ts", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./verification.ts")>(),
+  reconcileComments: vi.fn(),
+}));
 
 // SAFETY: React's test environment flag is supported by the act API.
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -21,6 +27,7 @@ let root: Root;
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.mocked(reconcileComments).mockReset().mockResolvedValue(0);
   clearComments();
   setCanvasMode("canvas");
   setCommentToolActive(true);
@@ -108,4 +115,34 @@ it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on v
     act(() => pins[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(host.querySelector<HTMLInputElement>('[data-test="comment-input"]')?.value).toBe("Rename Save");
   }
+});
+
+it("checks again after a source change that landed while a check was running", async () => {
+  const iframe = document.createElement("iframe");
+  document.body.append(iframe);
+  iframe.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+  const element = target(iframe);
+  const ref = captureRenderedInstance(element);
+  expect(ref).not.toBeNull();
+  saveComment({
+    id: "sent-note", route: commentRoute(element.ownerDocument), target: ref!,
+    tag: "button", note: "Rename Save", baseline: commentFingerprint(element),
+    viewport: commentViewport(element.ownerDocument), handedOff: true,
+  });
+  let finishFirstCheck!: (removed: number) => void;
+  vi.mocked(reconcileComments).mockReturnValueOnce(new Promise((resolve) => { finishFirstCheck = resolve; }));
+
+  act(() => root.render(<CommentsOverlay />));
+  expect(reconcileComments).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    element.textContent = "Saved";
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  await act(async () => {
+    finishFirstCheck(0);
+    await vi.advanceTimersByTimeAsync(2_000);
+  });
+
+  expect(reconcileComments).toHaveBeenCalledTimes(2);
 });

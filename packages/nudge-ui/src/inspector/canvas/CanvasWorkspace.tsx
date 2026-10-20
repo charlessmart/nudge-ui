@@ -49,10 +49,8 @@ import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/orig
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
 import { recordCanvasTextProjectionReports } from "../projection/textProjection.ts";
-import { isPreviewableChange } from "../changes/types.ts";
-import { changeKey } from "../changes/model.ts";
-import { beginPreviewAttempt, publishPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
-import { verifyManagedStyleProjection } from "../changes/managedStyleProjection.ts";
+import { beginPreviewAttempt } from "../changes/previewDiagnostics.ts";
+import { verifyPreviewChanges } from "../changes/previewVerification.ts";
 import {
   getCanvasPreviewDocument,
   getRegisteredFrames,
@@ -606,20 +604,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             plan.draftRevision,
           );
           if (attempt) {
-            for (const change of draft.contents.changes) {
-              if (!isPreviewableChange(change)) continue;
-              const result = verifyManagedStyleProjection(change, null, frameDocument);
-              if (result) {
-                publishPreviewDiagnostic(attempt, changeKey(change), result);
-                if (result.status === "conflict" && result.reason === "animation") {
-                  window.setTimeout(() => {
-                    if (!isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) return;
-                    const settled = verifyManagedStyleProjection(change, null, frameDocument);
-                    if (settled) publishPreviewDiagnostic(attempt, changeKey(change), settled);
-                  }, 300);
-                }
-              }
-            }
+            verifyPreviewChanges({
+              changes: draft.contents.changes,
+              document: frameDocument,
+              attempt,
+              targetFor: () => null,
+              isCurrent: () => isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision),
+              retryAnimation: (run) => window.setTimeout(run, 300),
+            });
           }
         }
         return;
@@ -911,7 +903,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             {cards.map(renderCard)}
           </div>
           {inspectorOpen && !sketchActive && selectedTool === "debug" ? <AnimationBar /> : null}
-          {inspectorOpen && !sketchActive ? (
+          {!sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}
               sketchEnabled={sketchAvailable}
@@ -920,7 +912,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ) : null}
         </div>
       </div>
-      {inspectorOpen && sketchActive ? (
+      {sketchActive ? (
         <div
           className="canvas-toolbar__portal"
           data-test="canvas-toolbar-portal"

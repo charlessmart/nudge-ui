@@ -27,6 +27,15 @@ describe("computed gradient editing", () => {
     expect(gradient.stops.map((stop) => stop.position)).toEqual([-20, -5, 10, 10, 120]);
   });
 
+  it("treats zero-length stops from computed styles as 0%", () => {
+    const gradient = parseGradient("linear-gradient(rgb(245, 245, 244) 0px, rgb(255, 255, 255) 100%)")!;
+    expect(gradient.angle).toBe(180);
+    expect(gradient.stops).toEqual([
+      { color: "rgb(245, 245, 244)", position: 0 },
+      { color: "rgb(255, 255, 255)", position: 100 },
+    ]);
+  });
+
   it.each([
     "linear-gradient(red, blue), url(image.png)",
     "linear-gradient(red 10px, blue 90px)",

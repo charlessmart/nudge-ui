@@ -8,9 +8,13 @@ import {
   isEditorUrl,
   isNumberArray,
   isRecord,
+  EDITOR_READY_ATTRIBUTE,
+  parseFontListMessage,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
+  systemFontsKey,
   type ExtensionBoot,
+  type FontListResult,
 } from "./protocol.ts";
 import { EDITOR_DOCUMENT_POLICY } from "./editorPolicy.ts";
 
@@ -25,6 +29,22 @@ interface EditorTab {
   ruleIds: number[];
   applicationHref?: string;
 }
+
+/** Script and stylesheet blocking leaves the editor document's raw markup visible until the editor mounts and marks it ready. */
+const EDITOR_COVER_CSS = `
+html:not([${EDITOR_READY_ATTRIBUTE}]) { background: #F5F5F4 !important; }
+html:not([${EDITOR_READY_ATTRIBUTE}]) > body { visibility: hidden !important; }
+html:not([${EDITOR_READY_ATTRIBUTE}])::after {
+  content: "" !important; position: fixed !important; inset: 50% auto auto 50% !important; z-index: 2147483647 !important;
+  width: 24px !important; height: 24px !important; margin: -12px 0 0 -12px !important; box-sizing: border-box !important;
+  border: 2px solid #D6D3D1 !important; border-top-color: #57534E !important; border-radius: 50% !important;
+  animation: nudge-ui-editor-loading 0.8s linear infinite !important;
+}
+@keyframes nudge-ui-editor-loading { to { transform: rotate(360deg); } }
+`;
+/** Lifts the cover if the editor never marks itself ready, so a failed start cannot leave the tab hidden. */
+const EDITOR_COVER_TIMEOUT_MS = 10_000;
+const coveredDocuments = new Set<string>();
 
 const editorTabKey = (tabId: number) => `editor-tab:${tabId}`;
 const tabTasks = new Map<number, Promise<void>>();
@@ -101,6 +121,39 @@ async function addEditorRules(tabId: number, origin: string): Promise<number[]> 
   return [frameRuleId, policyRuleId, editorRuleId];
 }
 
+function readHref(): string {
+  return location.href;
+}
+
+// Runs in the document, so the timer survives a service worker restart.
+function liftCoverAfter(readyAttribute: string, delay: number): void {
+  setTimeout(() => {
+    if (document.documentElement.hasAttribute(readyAttribute)) return;
+    document.documentElement.setAttribute(readyAttribute, "");
+    console.error("[nudge-ui] The editor did not start in time; showing the page.");
+  }, delay);
+}
+
+/** Covers the editor document as soon as it commits; earlier events still report the outgoing page and are skipped. */
+async function coverEditorDocument(tabId: number): Promise<void> {
+  const [current] = await chrome.scripting.executeScript({
+    target: { tabId }, func: readHref, injectImmediately: true,
+  }).catch(() => []);
+  if (!current?.documentId || coveredDocuments.has(current.documentId) || !isEditorUrl(current.result ?? "")) return;
+  coveredDocuments.add(current.documentId);
+  const target = { tabId, documentIds: [current.documentId] };
+  try {
+    await chrome.scripting.insertCSS({ target, css: EDITOR_COVER_CSS, origin: "USER" });
+    await chrome.scripting.executeScript({ target, func: liftCoverAfter, args: [EDITOR_READY_ATTRIBUTE, EDITOR_COVER_TIMEOUT_MS] });
+  } catch {
+    coveredDocuments.delete(current.documentId);
+  }
+}
+
+async function uncoverEditorDocument(tabId: number): Promise<void> {
+  await chrome.scripting.removeCSS({ target: { tabId }, css: EDITOR_COVER_CSS, origin: "USER" }).catch(() => undefined);
+}
+
 async function closeEditor(tabId: number): Promise<void> {
   const state = await readEditorTab(tabId);
   if (!state) return;
@@ -169,8 +222,11 @@ async function injectInspector(
   tabId: number, documentId: string, href: string, surface: ExtensionBoot["surface"], unavailableReason?: string,
 ): Promise<void> {
   const target = { tabId, documentIds: [documentId] };
+  const origin = new URL(href).origin;
+  const fontsKey = systemFontsKey(origin);
   const boot: ExtensionBoot = {
-    storage: await readSiteStorage(new URL(href).origin), surface,
+    storage: await readSiteStorage(origin), surface,
+    systemFontsAllowed: (await chrome.storage.local.get(fontsKey))[fontsKey] === true,
     ...(unavailableReason ? { unavailableReason } : {}),
   };
   try {
@@ -266,6 +322,7 @@ async function resumeEditor(tabId: number): Promise<void> {
   if (leaving) return;
   if (isEditorUrl(href)) {
     if (loaded) return;
+    await coverEditorDocument(tabId);
     // Recorded first: renderer frames can load before the injection resolves.
     await writeEditorTab(tabId, { ...state, phase: "editor" });
     await injectInspector(tabId, result.documentId, href, "editor", unavailableReason);
@@ -299,11 +356,21 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== "complete") return;
+  if (changeInfo.status !== "complete") {
+    // Not queued: the cover must land before the document's first paint. Reloads
+    // of an open editor need it too; title and favicon updates do not.
+    if (changeInfo.status === "loading" || changeInfo.url) {
+      void readEditorTab(tabId).then((state) => {
+        if (state) return coverEditorDocument(tabId);
+      }).catch(() => undefined);
+    }
+    return;
+  }
   void queueTabTask(tabId, async () => {
     try {
       await resumeEditor(tabId);
     } catch (error) {
+      await uncoverEditorDocument(tabId);
       await closeEditor(tabId);
       await reportUnavailable(tabId, error);
     }
@@ -314,9 +381,28 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void queueTabTask(tabId, () => closeEditor(tabId));
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+/** Releases the list on an origin only once the user has asked for it there; `fontId` is the family name CSS matches. */
+async function readFontList(origin: string | undefined, asked: boolean): Promise<FontListResult> {
+  if (!origin) return { error: "The requesting page has no origin." };
+  const key = systemFontsKey(origin);
+  if (asked) await chrome.storage.local.set({ [key]: true });
+  else if ((await chrome.storage.local.get(key))[key] !== true) return { error: "System fonts have not been requested on this site." };
+  try {
+    return { families: (await chrome.fontSettings.getFontList()).map((font) => font.fontId) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const tabId = sender.tab?.id;
   if (tabId === undefined || sender.frameId !== 0) return;
+  const fontList = parseFontListMessage(message);
+  if (fontList) {
+    void readFontList(sender.origin, fontList.asked).then(sendResponse);
+    // Keeps the channel open for the asynchronous reply.
+    return true;
+  }
   if ((message as { type?: unknown } | null)?.type !== INJECT_RENDERERS_MESSAGE) return;
   void readEditorTab(tabId).then((state) => {
     if (state?.phase === "editor") return injectRenderers(tabId);

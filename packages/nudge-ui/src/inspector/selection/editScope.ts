@@ -7,6 +7,7 @@ import {
   resolveRenderedInstance,
 } from "../projection/renderedInstance.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
+import { isPageTarget, PAGE_TARGET_SELECTOR } from "./pageTarget.ts";
 import type { EditScope } from "../editScope.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 
@@ -28,9 +29,7 @@ export function resetSourceSiteMatchCounts(): void {
 }
 
 function querySourceSiteMatches(el: HTMLElement): number {
-  const cid = el.getAttribute("data-cid") ?? "";
-  const src = el.getAttribute("data-src") ?? "";
-  const selector = sourceSiteSelector(cid, src);
+  const selector = selectorForElement(el);
   if (!selector) return 0;
   const doc = el.ownerDocument ?? document;
   try { return doc.querySelectorAll(selector).length; } catch { return 0; }
@@ -163,6 +162,7 @@ export function planBatchEditScopes(
 }
 
 export function selectorForElement(el: HTMLElement): string | null {
+  if (isPageTarget(el)) return PAGE_TARGET_SELECTOR;
   return sourceSiteSelector(el.getAttribute("data-cid") ?? "", el.getAttribute("data-src") ?? "");
 }
 

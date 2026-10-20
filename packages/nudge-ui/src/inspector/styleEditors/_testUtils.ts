@@ -149,3 +149,4 @@ export function publishInspection(el: HTMLElement): void {
   publishInspectionSnapshot(el, session.inspect(el, { state: getActiveStyleState() }));
   session.dispose();
 }
+

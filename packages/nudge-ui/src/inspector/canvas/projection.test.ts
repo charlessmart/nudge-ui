@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  computeProjection,
+  computeProjectionForCard,
   getCanvasPreviewDocument,
   invalidateCanvasPreviewDocument,
   resetProjectionRevision,
@@ -45,7 +45,7 @@ describe("projection", () => {
     document.body.replaceChildren();
   });
 
-  it("computeProjection returns CSS from pending rules", () => {
+  it("computeProjectionForCard returns CSS from pending rules", () => {
     appendChange({
       cid: "Button",
       file: "src/Button.tsx",
@@ -57,12 +57,12 @@ describe("projection", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     });
 
-    const { css, revision } = computeProjection();
+    const { css, revision } = computeProjectionForCard("projection-test-card");
     expect(css).toContain("background: var(--color-b);");
     expect(revision).toBe(1);
   });
 
-  it("computeProjection returns stable revision when CSS is unchanged", () => {
+  it("computeProjectionForCard returns stable revision when CSS is unchanged", () => {
     appendChange({
       cid: "Button",
       file: "src/Button.tsx",
@@ -74,16 +74,16 @@ describe("projection", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     });
 
-    const r1 = computeProjection();
-    const r2 = computeProjection();
-    const r3 = computeProjection();
+    const r1 = computeProjectionForCard("projection-test-card");
+    const r2 = computeProjectionForCard("projection-test-card");
+    const r3 = computeProjectionForCard("projection-test-card");
     expect(r1.revision).toBe(1);
     expect(r2.revision).toBe(1);
     expect(r3.revision).toBe(1);
   });
 
-  it("computeProjection increments revision when CSS changes", () => {
-    const r1 = computeProjection();
+  it("computeProjectionForCard increments revision when CSS changes", () => {
+    const r1 = computeProjectionForCard("projection-test-card");
     expect(r1.revision).toBe(1);
 
     appendChange({
@@ -97,17 +97,17 @@ describe("projection", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     });
 
-    const r2 = computeProjection();
+    const r2 = computeProjectionForCard("projection-test-card");
     expect(r2.revision).toBe(2);
   });
 
-  it("computeProjection returns empty CSS when no changes exist", () => {
-    const { css, revision } = computeProjection();
+  it("computeProjectionForCard returns empty CSS when no changes exist", () => {
+    const { css, revision } = computeProjectionForCard("projection-test-card");
     expect(css).toBe("");
     expect(revision).toBe(1);
   });
 
-  it("computeProjection serializes token changes with media context", () => {
+  it("computeProjectionForCard serializes token changes with media context", () => {
     appendChange({
       kind: "token",
       tokenName: "--color-text",
@@ -123,7 +123,7 @@ describe("projection", () => {
       source: { file: "src/theme.css", line: 6, component: "Global token" },
     });
 
-    const { css } = computeProjection();
+    const { css } = computeProjectionForCard("projection-test-card");
     expect(css).toContain("@media (prefers-color-scheme: dark)");
     expect(css).toContain("--color-text: #eeeeee");
   });
@@ -141,10 +141,10 @@ describe("projection", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     });
 
-    expect(computeProjection().css).not.toBe("");
+    expect(computeProjectionForCard("projection-test-card").css).not.toBe("");
 
     clearActiveDraft();
-    expect(computeProjection().css).toBe("");
+    expect(computeProjectionForCard("projection-test-card").css).toBe("");
   });
 
   it("revision never decreases", () => {
@@ -159,10 +159,10 @@ describe("projection", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     });
 
-    expect(computeProjection().revision).toBe(1);
+    expect(computeProjectionForCard("projection-test-card").revision).toBe(1);
     clearActiveDraft();
-    expect(computeProjection().revision).toBe(2);
-    expect(computeProjection().revision).toBe(2);
+    expect(computeProjectionForCard("projection-test-card").revision).toBe(2);
+    expect(computeProjectionForCard("projection-test-card").revision).toBe(2);
   });
 
   it("increments the shared snapshot revision when structural delete intent changes", () => {
@@ -172,9 +172,9 @@ describe("projection", () => {
     target.textContent = "Repeated 2";
     document.body.append(target);
 
-    const before = computeProjection();
+    const before = computeProjectionForCard("projection-test-card");
     createStructuralDelete(target, "delete-2");
-    const after = computeProjection();
+    const after = computeProjectionForCard("projection-test-card");
 
     expect(before).toMatchObject({ css: "", revision: 1, structuralChanges: [] });
     expect(after.revision).toBe(2);
@@ -207,9 +207,9 @@ describe("projection", () => {
     parent.append(first, second);
     document.body.append(parent);
 
-    const before = computeProjection();
+    const before = computeProjectionForCard("projection-test-card");
     createStructuralMove(second, { parent, before: first }, "move-2");
-    const after = computeProjection();
+    const after = computeProjectionForCard("projection-test-card");
 
     expect(after.revision).toBe(before.revision + 1);
     expect(after.css).toBe("");
@@ -407,7 +407,7 @@ describe("projection", () => {
 
   describe("revision ordering", () => {
     it("revision changes only when CSS changes", () => {
-      const r1 = computeProjection().revision;
+      const r1 = computeProjectionForCard("projection-test-card").revision;
 
       appendChange({
         cid: "Button",
@@ -421,7 +421,7 @@ describe("projection", () => {
         source: { file: "src/Button.tsx", line: 1, component: "Button" },
       });
 
-      const r2 = computeProjection().revision;
+      const r2 = computeProjectionForCard("projection-test-card").revision;
       expect(r2).toBeGreaterThan(r1);
     });
 

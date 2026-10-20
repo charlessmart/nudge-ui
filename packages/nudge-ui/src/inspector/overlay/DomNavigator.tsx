@@ -1,10 +1,11 @@
 import { useState, type ReactElement } from "react";
-import { IconMenu2 } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight, IconMenu2 } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
-import { computeNavigationNodes, type NavigationNode } from "../selection/hierarchy.ts";
+import { computeNavigationParents, computeTrackedChildren, hasTrackedChildren } from "../selection/hierarchy.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { isPageTarget } from "../selection/pageTarget.ts";
 import type { Rect } from "./overlayGeometry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { cx } from "../ui/classNames.ts";
@@ -14,6 +15,8 @@ export interface DomNavigatorProps {
   hierarchy: HTMLElement[];
   anchor: Rect;
   project: (element: HTMLElement) => Rect | null;
+  /** The selection is a component or shares its source with other elements. */
+  linked?: boolean;
 }
 
 export function nodeDescription(node: HTMLElement): string {
@@ -29,45 +32,97 @@ function selectNode(node: HTMLElement): void {
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, project }: DomNavigatorProps): ReactElement | null {
-  const nodes = computeNavigationNodes(selected.domElement, hierarchy);
-  const parents = nodes.filter((node) => node.direction === "up");
-  const children = nodes.filter((node) => node.direction === "down");
+export function DomNavigator({ selected, hierarchy, anchor, project, linked = false }: DomNavigatorProps): ReactElement | null {
+  const children = computeTrackedChildren(selected.domElement);
+  const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
+  // The page is reachable only from here, above the tracked ancestors.
+  const body = selected.domElement.ownerDocument.body;
+  const page = body && !isPageTarget(selected.domElement) && body.contains(selected.domElement) ? body : null;
+  const pageDepth = page ? 1 : 0;
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
-  if (nodes.length === 0) return null;
+  const [opened, setOpened] = useState<ReadonlySet<HTMLElement>>(new Set());
+  if (!page && parents.length === 0 && children.elements.length === 0) return null;
 
   const preview = hovered ? project(hovered) : null;
   const setOpen = (next: boolean): void => {
     setExpanded(next);
-    if (!next) setHovered(null);
+    if (!next) {
+      setHovered(null);
+      setOpened(new Set());
+    }
   };
-  const renderItem = (node: NavigationNode | null, depth: number): ReactElement => {
-    const current = node === null;
-    const element = current ? selected.domElement : node.element;
+  const toggleOpened = (element: HTMLElement): void => {
+    setOpened((current) => {
+      const next = new Set(current);
+      if (!next.delete(element)) next.add(element);
+      return next;
+    });
+  };
+  const renderItem = (key: string, element: HTMLElement | null, depth: number): ReactElement => {
+    const current = element === null;
+    const target = element ?? selected.domElement;
     return (
       <button
-        key={current ? "current" : `${node.direction}-${node.depth}-${element.getAttribute("data-cid") ?? element.localName}`}
+        key={key}
         type="button"
         className={cx("dom-navigator__item", current && "dom-navigator__item--selected")}
         data-test="dom-navigator-item"
         data-current={current ? "true" : undefined}
-        data-direction={node?.direction}
         data-depth={depth}
-        data-cid={element.getAttribute("data-cid") ?? undefined}
+        data-cid={target.getAttribute("data-cid") ?? undefined}
         style={{ paddingLeft: `calc(var(--space-8) + ${depth * 16}px)` }}
         role="menuitem"
         aria-current={current ? "true" : undefined}
-        onMouseEnter={() => setHovered(current ? null : element)}
+        onMouseEnter={() => setHovered(current ? null : target)}
         onClick={() => {
-          if (!current) selectNode(element);
+          if (!current) selectNode(target);
           setOpen(false);
         }}
       >
-        <span>{nodeDescription(element)}</span>
+        <span>{nodeDescription(target)}</span>
       </button>
     );
   };
+  const renderChildren = (list: ReturnType<typeof computeTrackedChildren>, depth: number, path: string): ReactElement[] => [
+    ...list.elements.flatMap((element, index) => {
+      const key = `${path}/${index}`;
+      const nested = opened.has(element) ? computeTrackedChildren(element) : null;
+      const expandable = hasTrackedChildren(element);
+      return [
+        <div key={key} className="dom-navigator__row" data-test="dom-navigator-row">
+          {expandable ? (
+            <button
+              type="button"
+              className="dom-navigator__expander"
+              data-test="dom-navigator-expander"
+              aria-label={`${nested ? "Collapse" : "Expand"} ${nodeDescription(element)}`}
+              aria-expanded={nested !== null}
+              style={{ left: `calc(var(--space-4) + ${(depth - 1) * 16}px)` }}
+              onMouseEnter={() => setHovered(null)}
+              onClick={() => toggleOpened(element)}
+            >
+              {nested ? <IconChevronDown size={12} aria-hidden="true" /> : <IconChevronRight size={12} aria-hidden="true" />}
+            </button>
+          ) : null}
+          {renderItem(key, element, depth)}
+        </div>,
+        ...(nested ? renderChildren(nested, depth + 1, key) : []),
+      ];
+    }),
+    ...(list.hidden > 0
+      ? [(
+        <div
+          key={`${path}/more`}
+          className="dom-navigator__more"
+          data-test="dom-navigator-more"
+          style={{ paddingLeft: `calc(var(--space-8) + ${depth * 16}px)` }}
+        >
+          +{list.hidden} more
+        </div>
+      )]
+      : []),
+  ];
 
   return (
     <>
@@ -75,6 +130,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
       <div
         className="dom-navigator"
         data-test="dom-navigator"
+        data-linked={linked ? "true" : undefined}
         aria-label="DOM navigator"
         style={{ left: Math.max(4, anchor.left), top: Math.max(4, anchor.top - 28) }}
       >
@@ -108,9 +164,10 @@ export function DomNavigator({ selected, hierarchy, anchor, project }: DomNaviga
                 aria-label="DOM navigator"
                 onMouseLeave={() => setHovered(null)}
               >
-                {parents.slice().reverse().map((node) => renderItem(node, parents.length - node.depth))}
-                {renderItem(null, parents.length)}
-                {children.map((node) => renderItem(node, parents.length + node.depth))}
+                {page ? renderItem("page", page, 0) : null}
+                {parents.slice().reverse().map((element, index) => renderItem(`up-${index}`, element, index + pageDepth))}
+                {renderItem("current", null, parents.length + pageDepth)}
+                {renderChildren(children, parents.length + pageDepth + 1, "down")}
               </BasePopover.Popup>
             </BasePopover.Positioner>
           </BasePopover.Portal>

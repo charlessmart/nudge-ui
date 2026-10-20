@@ -29,6 +29,11 @@
   text-align: center;
 }
 
+.copy-prompt__main .copy-prompt__change-count {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-inverse);
+}
+
 .changes__content {
   padding-bottom: 4px;
 }

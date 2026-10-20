@@ -10,6 +10,7 @@ import {
   type StructuralMove,
 } from "../projection/structuralProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
+import { isPageTarget } from "../selection/pageTarget.ts";
 
 export type StructuralNudgeKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 
@@ -179,6 +180,7 @@ function projectInlineHost(node: HTMLElement): void {
 }
 
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {
+  if (isPageTarget(node)) return null;
   if (!getStructuralMoveLegality(node, destination).valid) return null;
   const change = createStructuralMove(node, destination);
   if (change) projectInlineHost(node);
@@ -199,7 +201,7 @@ export function nudgeElement(node: HTMLElement, key: StructuralNudgeKey): Struct
 
 export function deleteElement(selected: SelectedElement): StructuralDelete | null {
   const node = selected.domElement;
-  if (!node.parentElement || !node.isConnected) return null;
+  if (isPageTarget(node) || !node.parentElement || !node.isConnected) return null;
   const change = createStructuralDelete(node);
   if (change) projectInlineHost(node);
   return change;

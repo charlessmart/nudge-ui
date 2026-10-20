@@ -316,7 +316,7 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
   await expect(margin).toHaveAttribute("data-expanded", "true");
 
   await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
-  await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-empty", "true");
+  await expect(page.locator('[data-test="spacing-padding"]')).not.toHaveAttribute("data-empty", "true");
   await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-empty", "true");
   await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toHaveCount(0);
 });

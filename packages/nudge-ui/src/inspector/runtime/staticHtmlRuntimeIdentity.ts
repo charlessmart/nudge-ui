@@ -47,6 +47,7 @@ export function normalizeRuntimeTag(value: string): string {
 }
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+/** Never pointer targets or structural edit targets; see `EXCLUDED_TAG_NAMES` and the page target. */
 const DOCUMENT_STRUCTURE_TAGS = new Set(["HTML", "HEAD", "BODY"]);
 const EXCLUDED_SUBTREE_TAGS = new Set([
   "SCRIPT",

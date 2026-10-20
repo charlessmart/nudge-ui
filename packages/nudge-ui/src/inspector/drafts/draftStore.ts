@@ -61,6 +61,8 @@ export interface DraftStoreSeams {
   readonly timeline: Timeline;
   readonly storage: DraftStorage;
   readonly sketches: DraftSketchSource;
+  /** Brings a draft's owning frame back when history replays an edit. */
+  revealDraft(draftId: string, cardId?: string): void;
   /** Rebuilds the active draft's preview. Called after subscribers see the new snapshot. */
   project(snapshot: DraftChangesSnapshot, event: DraftProjectionEvent): void;
 }
@@ -78,8 +80,8 @@ export interface DraftStore {
   isLocked(id?: string): boolean;
   /** Blocks writes to one draft until the returned release runs. */
   lock(id: string): () => void;
-  /** Makes a draft active; `reveal` brings its frame back when history replays an edit. */
-  activate(id: string, reveal?: () => void): void;
+  /** Makes a draft active; `cardId` is the frame history replay should reveal for it. */
+  activate(id: string, cardId?: string): void;
 
   commitChanges(incoming: readonly ChangeRecord[], verificationTargets?: ReadonlyMap<string, HTMLElement | null>): CommitResult;
   revertChange(change: ChangeRecord): boolean;
@@ -108,7 +110,8 @@ interface DraftState {
   readonly id: string;
   revision: number;
   contents: DraftContents;
-  activate?: () => void;
+  /** The frame that showed this draft when it was last activated. */
+  activateCardId?: string;
 }
 
 interface PersistedDraft {
@@ -285,15 +288,20 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
       const draft = draftState();
       const before = draft.contents;
       replaceContents(draft, next);
-      seams.timeline.recordEdit({ draftId: draft.id, activate: draft.activate, before, after: draft.contents }, sameDraftContents);
+      seams.timeline.recordEdit({
+        draftId: draft.id,
+        focus: { draftId: draft.id, ...(draft.activateCardId ? { cardId: draft.activateCardId } : {}) },
+        before,
+        after: draft.contents,
+      }, sameDraftContents);
       project(event);
       return true;
     });
   }
 
-  function activate(id: string, reveal?: () => void): void {
+  function activate(id: string, cardId?: string): void {
     mutate(() => {
-      draftState(id).activate = reveal;
+      draftState(id).activateCardId = cardId;
       if (activeId() === id) return;
       activeDraftId = id;
       activeChanged();
@@ -306,8 +314,11 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     return mutate(() => {
       const replayed = seams.timeline.replay(direction, (entry, next) => {
         replaceContents(draftState(entry.draftId), next);
-        entry.activate?.();
-        if (!entry.activate) activate(entry.draftId);
+        // Replay always makes the entry's draft active, including when another
+        // draft is active; a known frame is revealed before that switch.
+        if (entry.focus?.cardId) seams.revealDraft(entry.focus.draftId, entry.focus.cardId);
+        else seams.revealDraft(entry.draftId);
+        if (activeId() !== entry.draftId) activate(entry.draftId);
       });
       if (replayed) project({ kind: "edit" });
       return replayed;

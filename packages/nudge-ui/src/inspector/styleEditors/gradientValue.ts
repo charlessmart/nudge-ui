@@ -73,7 +73,9 @@ export function parseGradient(value: string): GradientValue | null {
       const last = words[words.length - 1]!;
       const percent = /^([+-]?(?:\d*\.)?\d+)%$/.exec(last);
       const degrees = type === "conic" ? angleDegrees(last) : null;
-      if (!percent && degrees === null && last !== "0") break;
+      // Computed styles serialize a unitless zero as `0px`; any zero length is 0%.
+      const zero = /^[+-]?(?:0*\.)?0+[a-z]*$/i.test(last);
+      if (!percent && degrees === null && !zero) break;
       positions.unshift(percent ? Number(percent[1]) : degrees !== null ? degrees / 3.6 : 0);
       words.pop();
     }

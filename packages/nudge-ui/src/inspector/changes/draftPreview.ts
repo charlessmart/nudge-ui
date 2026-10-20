@@ -1,13 +1,11 @@
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import { changeKey } from "./model.ts";
-import { verifyManagedStyleProjection } from "./managedStyleProjection.ts";
-import { isPreviewableChange } from "./types.ts";
 import {
   beginPreviewAttempt,
   clearPreviewDiagnostics,
   getHostPreviewDocument,
-  publishPreviewDiagnostic,
 } from "./previewDiagnostics.ts";
+import { verifyPreviewChanges } from "./previewVerification.ts";
 import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { applyHostDraftProjection, compileDraftProjection } from "../projection/draftProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
@@ -40,13 +38,13 @@ export function createDraftPreview(readActive: () => DraftChangesSnapshot): Draf
     const current = readActive();
     const attempt = beginPreviewAttempt(getHostPreviewDocument(), current.revision);
     if (!attempt) return;
-    for (const change of current.changes) {
-      if (!isPreviewableChange(change)) continue;
-      const key = changeKey(change);
-      if (!targets.has(key)) continue;
-      const result = verifyManagedStyleProjection(change, targets.get(key) ?? null);
-      if (result) publishPreviewDiagnostic(attempt, key, result);
-    }
+    const targeted = current.changes.filter((change) => targets.has(changeKey(change)));
+    verifyPreviewChanges({
+      changes: targeted,
+      document,
+      attempt,
+      targetFor: (change) => targets.get(changeKey(change)) ?? null,
+    });
   }
 
   function scheduleVerification(): void {

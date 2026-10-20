@@ -7,6 +7,10 @@
   outline-offset: -1px;
 }
 
+.canvas-element-overlay[data-linked="true"] {
+  outline-color: var(--linked);
+}
+
 .canvas-spacing-guide {
   position: fixed;
   z-index: 1;
@@ -30,6 +34,14 @@
 
 .canvas-spacing-guide[data-kind="gap"] {
   background: #ec4899;
+}
+
+.canvas-spacing-fill[data-kind="margin"] {
+  background: rgb(239 68 68 / 14%);
+}
+
+.canvas-spacing-guide[data-kind="margin"] {
+  background: #ef4444;
 }
 
 .canvas-spacing-value-badge {
@@ -56,6 +68,19 @@
   z-index: 1;
   outline: 1px solid var(--accent);
   outline-offset: -1px;
+}
+
+.canvas-selected-outline[data-linked="true"] {
+  outline-color: var(--linked);
+}
+
+.canvas-linked-outline {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  outline: 1px solid var(--linked);
+  outline-offset: -1px;
+  opacity: 0.6;
 }
 
 .canvas-dom-drop-line {

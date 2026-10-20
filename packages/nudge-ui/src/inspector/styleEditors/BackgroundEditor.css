@@ -10,7 +10,8 @@
 .background-editor__track {
   position: relative;
   height: 28px;
-  margin: var(--space-8) 0 var(--space-12);
+  /* End at the blend button, leaving the trailing icon-button column empty. */
+  margin: var(--space-8) calc(var(--control-height-large) + var(--space-8)) var(--space-12) 0;
   border: 1px solid var(--border-subtle);
   background-clip: padding-box;
   border-radius: var(--radius-4);
@@ -27,6 +28,10 @@
   transform: translateX(-50%);
   border: 2px solid var(--surface-raised-2x);
   border-radius: var(--radius-4);
+  /* A checkerboard shows through translucent stop colors instead of the track. */
+  background:
+    linear-gradient(var(--stop-color), var(--stop-color)),
+    repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
   box-shadow: var(--shadow-outline), 0 2px 4px var(--border-medium);
   outline: none;
   cursor: grab;

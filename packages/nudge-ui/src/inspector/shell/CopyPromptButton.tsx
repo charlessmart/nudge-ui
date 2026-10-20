@@ -1,3 +1,4 @@
+import { PromptActionButton, PromptActionRow } from "./PromptActionButton.tsx";
 import { Menu } from "@base-ui/react/menu";
 import { iterationId } from "../canvas/frameContent.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -6,7 +7,6 @@ import {
   IconArtboard,
   IconBoltFilled,
   IconCheck,
-  IconChevronDown,
   IconCopy,
   IconPencil,
   IconPlugConnected,
@@ -58,6 +58,7 @@ export interface CopyPromptButtonProps {
   readonly settingsSection?: SettingsSection;
   readonly onOpenSettings?: (section: SettingsSection) => void;
   readonly onSettingsOpenChange?: (open: boolean) => void;
+  readonly onClearChanges?: () => void;
 }
 
 export function CopyPromptButton({
@@ -65,6 +66,7 @@ export function CopyPromptButton({
   settingsSection: controlledSettingsSection,
   onOpenSettings,
   onSettingsOpenChange,
+  onClearChanges,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
   const comments = useFrameComments();
@@ -366,30 +368,22 @@ export function CopyPromptButton({
       : "Edits made in the inspector";
 
   const promptButton = (
-    <Button
-      variant="primary"
-      className="copy-prompt__main"
-      data-test="copy-prompt"
-      type="button"
+    <PromptActionButton
       disabled={disabled}
-      data-copied={copied ? "true" : "false"}
-      data-agent-state={agent.state}
-      aria-busy={preparing || working || connecting ? "true" : undefined}
+      copied={copied}
+      agentState={agent.state}
+      busy={preparing || working || connecting}
       onClick={hasMenu ? undefined : onClick}
-    >
-      {icon}
-      {label}
-      {badgeCount > 0 ? (
-        <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
-          {badgeCount}
-        </span>
-      ) : null}
-      {hasMenu ? <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> : null}
-    </Button>
+      icon={icon}
+      label={label}
+      badgeCount={badgeCount}
+      hasMenu={hasMenu}
+    />
   );
 
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
+      <PromptActionRow onClear={onClearChanges} hasChanges={changeCount > 0}>
       {hasMenu ? (
         <Menu.Root key={activeDraftCardId} modal={false}>
           <Menu.Trigger render={promptButton} />
@@ -482,6 +476,7 @@ export function CopyPromptButton({
           </Menu.Portal>
         </Menu.Root>
       ) : promptButton}
+      </PromptActionRow>
       {statusAction || agentStatus.kind === "connected-not-listening" ? (
         <StatusCallout
           className="copy-prompt__agent-status"

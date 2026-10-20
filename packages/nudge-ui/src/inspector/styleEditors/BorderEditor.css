@@ -29,7 +29,7 @@
 .border__expanded {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .border__expanded-header {

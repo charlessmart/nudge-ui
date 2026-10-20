@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nudge UI",
-  "description": "Inspect and adjust any page's live CSS, then copy a structured prompt for your coding agent.",
+  "description": "A design panel for any web page. Click an element, adjust it live, and hand the result to your coding agent as a structured prompt.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -25,7 +25,7 @@
     "service_worker": "service-worker.js",
     "type": "module"
   },
-  "permissions": ["activeTab", "scripting", "storage", "declarativeNetRequestWithHostAccess"],
+  "permissions": ["activeTab", "scripting", "storage", "declarativeNetRequestWithHostAccess", "fontSettings"],
   "web_accessible_resources": [
     { "resources": ["cursors/*.svg"], "matches": ["<all_urls>"], "use_dynamic_url": true }
   ],

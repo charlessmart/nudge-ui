@@ -35,6 +35,20 @@ export const AGENT_PROTOCOL_LIMITS = {
 
 export type AgentProtocolVersion = typeof AGENT_PROTOCOL_VERSION;
 
+/** Stable loopback endpoint names shared by the browser client and the MCP bridge. */
+export const BRIDGE_ENDPOINTS = {
+  health: "/health",
+  pair: "/pair",
+  takeover: "/takeover",
+  events: "/events",
+  prompt: "/prompt",
+  status: "/status",
+  canvasAcknowledgement: "/canvas/ack",
+  disconnect: "/disconnect",
+} as const;
+
+export type BridgeEndpoint = (typeof BRIDGE_ENDPOINTS)[keyof typeof BRIDGE_ENDPOINTS];
+
 /** A project identity is the pairing boundary for one companion process. */
 export interface AgentProjectIdentity {
   readonly projectId: string;

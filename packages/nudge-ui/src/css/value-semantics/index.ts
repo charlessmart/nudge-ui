@@ -1,4 +1,5 @@
 export { interpretValue } from "./structuredValues.ts";
+export { isCalcExpression, isSingleVarReference, parseSingleVarReference } from "./cssSyntax.ts";
 export type { StructuredField as InterpretedValueField, StructuredValuesContext as ValueSemanticsContext } from "./structuredValues.ts";
 export type { Directionality } from "./boxSemantics.ts";
 export type {

@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { IconRobot } from "@tabler/icons-react";
 import { useAgentClient, type AgentClientSnapshot } from "../agent/client.ts";
 import { useAgentConnectionStatus } from "../agent/connectionStatus.ts";
+import { isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -9,6 +10,8 @@ import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 
 export interface AgentStatusButtonProps {
   onOpenSettings: (section: SettingsSection) => void;
+  /** Shows the agent logos and opens the MCP section; hosts without MCP keep a plain Settings button. */
+  mcpEnabled?: boolean;
 }
 
 function ConnectedAgentAvatar({ name }: { name?: string }): ReactElement {
@@ -67,10 +70,11 @@ function CursorAvatar(): ReactElement {
 export function AgentStatusButton({ onOpenSettings }: AgentStatusButtonProps): ReactElement {
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const agent = useAgentClient(runtimeConfig.projectId);
-  return <AgentStatusButtonView agent={agent} onOpenSettings={onOpenSettings} />;
+  const mcpEnabled = isNudgeUiFeatureEnabled(runtimeConfig.features, "mcp");
+  return <AgentStatusButtonView agent={agent} onOpenSettings={onOpenSettings} mcpEnabled={mcpEnabled} />;
 }
 
-export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButtonProps & {
+export function AgentStatusButtonView({ agent, onOpenSettings, mcpEnabled = true }: AgentStatusButtonProps & {
   agent: AgentClientSnapshot;
 }): ReactElement {
   const status = useAgentConnectionStatus(agent);
@@ -78,7 +82,7 @@ export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButt
   const listening = connected && agent.listenerActive;
 
   return (
-    <Tooltip content={connected ? status.label : "Agent & MCP settings"} stableTrigger>
+    <Tooltip content={connected ? status.label : mcpEnabled ? "Agent & MCP settings" : "Settings"} stableTrigger>
       <Button
         variant="quiet"
         className="agent-status-button"
@@ -86,13 +90,13 @@ export function AgentStatusButtonView({ agent, onOpenSettings }: AgentStatusButt
         data-test="settings-button"
         data-mcp-connected={connected ? "true" : "false"}
         data-mcp-listening={listening ? "true" : "false"}
-        onClick={() => onOpenSettings("mcp")}
+        onClick={() => onOpenSettings(mcpEnabled ? "mcp" : "instructions")}
       >
-        {connected ? <ConnectedAgentAvatar name={agent.agentClientName} /> : <span className="agent-status-button__avatars">
+        {connected ? <ConnectedAgentAvatar name={agent.agentClientName} /> : mcpEnabled ? <span className="agent-status-button__avatars">
           <CodexAvatar />
           <ClaudeAvatar />
           <CursorAvatar />
-        </span>}
+        </span> : null}
         <span className="agent-status-button__label">{connected ? "MCP" : "Settings"}</span>
         {connected ? (
           <span

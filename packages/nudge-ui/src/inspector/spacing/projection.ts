@@ -1,6 +1,7 @@
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { readAuthoredStyleValue } from "../styleEditors/layoutValue.ts";
 
 const SIDES = ["top", "right", "bottom", "left"] as const;
 
@@ -54,7 +55,9 @@ function fieldProjection(
   const rowValue = row?.computed || row?.resolvedValue;
   const rowIsCurrent = !liveValue || !row || Boolean(row.sourceProperty) || !rowValue || rowValue === liveValue;
   const effectiveRow = rowIsCurrent ? row : null;
-  const value = liveValue || row?.resolvedValue || "";
+  const computedValue = liveValue || row?.resolvedValue || "";
+  if (isInsetSide(property)) return insetFieldProjection(el, property, effectiveRow, computedValue);
+  const value = computedValue;
   return {
     property,
     authoredValue: effectiveRow?.authored ?? effectiveRow?.declaredValue ?? value,
@@ -62,6 +65,28 @@ function fieldProjection(
     tokenName: effectiveRow?.tokenName ?? null,
     sourceProperty: effectiveRow?.sourceProperty,
     row: effectiveRow,
+  };
+}
+
+function isInsetSide(property: string): property is ProjectionSide {
+  return (SIDES as readonly string[]).includes(property);
+}
+
+/** Inset sides report the browser's used offset even when unauthored, so only authored values are shown. */
+function insetFieldProjection(
+  el: HTMLElement,
+  property: ProjectionSide,
+  row: ResolvedProperty | null,
+  computedValue: string,
+): InspectorFieldProjection {
+  const authoredValue = (row?.authored ?? row?.declaredValue ?? readAuthoredStyleValue(el, property) ?? "").trim() || "auto";
+  return {
+    property,
+    authoredValue,
+    value: authoredValue === "auto" ? "auto" : computedValue || authoredValue,
+    tokenName: row?.tokenName ?? null,
+    sourceProperty: row?.sourceProperty,
+    row,
   };
 }
 
@@ -127,11 +152,31 @@ function selectionField(
   const mixed = selectedProperty?.value.kind === "mixed";
   const value = selectedProperty?.value.kind === "common" ? selectedProperty.value.value : "";
   const row = selectedProperty?.primaryRow ?? null;
+  if (isInsetSide(property)) return selectionInsetField(selection, property, row, selectedProperty?.token.kind === "common" ? selectedProperty.token.name : null);
   return {
     property,
     authoredValue: mixed ? "Mixed" : value,
     value: mixed ? "Mixed" : value,
     tokenName: selectedProperty?.token.kind === "common" ? selectedProperty.token.name : null,
+    sourceProperty: row?.sourceProperty,
+    row,
+  };
+}
+
+function selectionInsetField(
+  selection: StyleSelection,
+  property: ProjectionSide,
+  row: ResolvedProperty | null,
+  tokenName: string | null,
+): InspectorFieldProjection {
+  const authored = selection.domElements.map((el) => readAuthoredStyleValue(el, property) ?? "auto");
+  const mixed = new Set(authored).size > 1;
+  const value = mixed ? "Mixed" : authored[0] ?? "auto";
+  return {
+    property,
+    authoredValue: value,
+    value,
+    tokenName: mixed || value === "auto" ? null : tokenName,
     sourceProperty: row?.sourceProperty,
     row,
   };

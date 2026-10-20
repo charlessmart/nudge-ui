@@ -5,7 +5,7 @@ import {
   type ResolveHostComponentPolicyOptions,
 } from "./componentPolicyResolution.ts";
 import { defaultReactComponentProtocols } from "./reactComponentProtocols.ts";
-import { injectDataCid, injectIdentity } from "./reactIdentity.ts";
+import { injectIdentity } from "./reactIdentity.ts";
 
 async function resolveTestPolicy(
   code: string,
@@ -31,96 +31,6 @@ async function resolveTestPolicy(
     ...options,
   });
 }
-
-describe("injectDataCid", () => {
-  it("injects data-cid from arrow-function component name", () => {
-    const code = `const Button = () => <button>Save</button>;`;
-    const res = injectDataCid(code, "/src/Button.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="Button"');
-  });
-
-  it("injects enclosing component name for nested JSX in a function declaration", () => {
-    const code = `function App() { return <div><Button /></div>; }`;
-    const res = injectDataCid(code, "/src/App.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="App"');
-    expect(res!.code).toContain('data-cid="Button"');
-  });
-
-  it("injects data-cid from class-declaration component name", () => {
-    const code = `class Card extends Base { render() { return <div>card</div>; } }`;
-    const res = injectDataCid(code, "/src/Card.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="Card"');
-  });
-
-  it("falls back to Anonymous for JSX in a non-component scope", () => {
-    const code = `const handleClick = () => <div>hi</div>;`;
-    const res = injectDataCid(code, "/src/x.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="Anonymous"');
-  });
-
-  it("skips files inside node_modules", () => {
-    const code = `const Button = () => <button>Save</button>;`;
-    const res = injectDataCid(code, "/node_modules/foo/src/Button.tsx");
-    expect(res).toBeNull();
-  });
-
-  it("skips .ts files (no JSX transform)", () => {
-    const code = `export const x = 1;`;
-    const res = injectDataCid(code, "/src/utils.ts");
-    expect(res).toBeNull();
-  });
-
-  it("returns null for CSS input", () => {
-    expect(injectDataCid(":root { --a: 1; }", "/src/s.css")).toBeNull();
-  });
-
-  it("returns null for JSON input", () => {
-    expect(injectDataCid('{"a":1}', "/src/s.json")).toBeNull();
-  });
-
-  it("produces a sourcemap covering the edit", () => {
-    const code = `const Button = () => <button>Save</button>;`;
-    const res = injectDataCid(code, "/src/Button.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.map).not.toBeNull();
-    expect(res!.map!.sources).toContain("/src/Button.tsx");
-  });
-
-  it("does not duplicate data-cid on an element that already has it", () => {
-    const code = `function App() { return <div><span data-cid="X">a</span></div>; }`;
-    const res = injectDataCid(code, "/src/App.tsx");
-    expect(res).not.toBeNull();
-    const matches = res!.code.match(/data-cid="X"/g);
-    expect(matches?.length).toBe(1);
-    expect(res!.code).toContain('data-cid="App"');
-  });
-
-  it("returns null when nothing was transformed", () => {
-    const code = `const x = 1;`;
-    const res = injectDataCid(code, "/src/x.tsx");
-    expect(res).toBeNull();
-  });
-
-  it("resolves data-cid for JSXMemberExpression components", () => {
-    const code = `function App() { return <Foo.Bar />; }`;
-    const res = injectDataCid(code, "/src/App.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="Foo.Bar"');
-  });
-
-  it("falls back to enclosing scope for lowercase HTML elements", () => {
-    const code = `function App() { return <div><span>hi</span></div>; }`;
-    const res = injectDataCid(code, "/src/App.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-cid="App"');
-    expect(res!.code).not.toContain('data-cid="div"');
-    expect(res!.code).not.toContain('data-cid="span"');
-  });
-});
 
 describe("injectIdentity — data-src", () => {
   it("annotates the host definition even when a custom invocation cannot forward props", () => {

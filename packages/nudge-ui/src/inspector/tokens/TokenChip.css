@@ -4,7 +4,7 @@
   flex: 1;
   min-width: 0;
   background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-control);
+  box-shadow: var(--shadow-control-outline);
   margin-right: calc((var(--space-8) - var(--control-surface-inset, 2px)) * -1);
   align-self: stretch;
   padding-left: var(--space-8);

@@ -26,6 +26,7 @@ const drafts = createDraftStore({
     remove: (key) => inspectorStorage()?.removeItem(key),
   },
   sketches: { getSnapshot: () => getSketchStoreSnapshot(), subscribe: (listener) => subscribeSketchStore(listener) },
+  revealDraft: (draftId, cardId) => revealDraft(draftId, cardId),
   project: (snapshot, event) => preview.project(snapshot, event),
 });
 
@@ -207,7 +208,7 @@ export function activateDraftForCard(cardId: string): void {
 }
 
 export function activateDraft(draftId: string, preferredCardId?: string): void {
-  drafts.activate(draftId, () => revealDraft(draftId, preferredCardId));
+  drafts.activate(draftId, preferredCardId);
 }
 
 function revealDraft(draftId: string, preferredCardId: string | undefined): void {

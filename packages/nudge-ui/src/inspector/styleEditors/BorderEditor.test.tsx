@@ -681,6 +681,20 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("box-shadow: 5px -6px 3px 0 rgb(0 0 0 / 20%);");
   });
 
+  it("toggles a shadow layer between outer and inset", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
+    const inset = (): HTMLButtonElement => handle.host.querySelector<HTMLButtonElement>('[data-test="shadow-0-inset"]')!;
+    expect(inset().getAttribute("aria-pressed")).toBe("false");
+    act(() => inset().click());
+    expect(sheetText()).toContain("box-shadow: inset 0 2px 3px 0 rgb(0 0 0 / 20%);");
+    expect(inset().getAttribute("aria-pressed")).toBe("true");
+    act(() => inset().click());
+    expect(sheetText()).toContain("box-shadow: 0 2px 3px 0 rgb(0 0 0 / 20%);");
+  });
+
   it.each(["#e60023", "var(--color-red)"])("resolves shadow color tokens for the swatch: %s", (tokenValue) => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());

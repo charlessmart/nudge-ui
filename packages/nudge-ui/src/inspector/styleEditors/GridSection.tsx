@@ -1,16 +1,11 @@
-import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconSettings, IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
+import { IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
 import { GridPicker } from "./GridPicker.tsx";
 import { GapField } from "./GapField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { GridValueField } from "./GridValueField.tsx";
-import { GridChildSection } from "./GridChildSection.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
-import { InspectorPopover } from "../ui/InspectorPopover.tsx";
-import type { TokenEntry } from "../../css/model/index.ts";
-import type { ResolvedProperty } from "../../css/model/index.ts";
+import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 
@@ -26,172 +21,95 @@ const GRID_CONTENT_ALIGNMENT_OPTIONS = [
   "space-evenly",
 ];
 const GRID_ITEM_ALIGNMENT_OPTIONS = ["normal", "stretch", "start", "end", "center", "self-start", "self-end"];
-export interface GridSectionProps {
+const GRID_ALIGNMENT_FIELDS = [
+  { property: "justify-content", options: GRID_CONTENT_ALIGNMENT_OPTIONS },
+  { property: "align-content", options: GRID_CONTENT_ALIGNMENT_OPTIONS },
+  { property: "justify-items", options: GRID_ITEM_ALIGNMENT_OPTIONS },
+  { property: "align-items", options: GRID_ITEM_ALIGNMENT_OPTIONS },
+] as const;
+const GRID_TRACK_PROPERTIES = ["grid-template-columns", "grid-template-rows"] as const;
+const GRID_AUTO_TRACK_PROPERTIES = ["grid-auto-columns", "grid-auto-rows"] as const;
+
+export interface GridControlProps {
   domElement: HTMLElement;
   editTarget?: EditTarget;
   selection?: StyleSelection | null;
-  entries: TokenEntry[];
-  tokenRows: ResolvedProperty[];
-  showContainer: boolean;
-  showChild: boolean;
   revision?: number;
   onAfterEdit?: () => void;
 }
 
-export function GridSection({
-  domElement: el,
+export interface GridContainerControlsProps extends GridControlProps {
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
+}
+
+/** Track templates, flow and content alignment: the grid container settings the cell picker does not cover. */
+export function GridAdvancedFields({
+  domElement,
+  editTarget,
+  selection,
+  revision = 0,
+  onAfterEdit,
+}: GridControlProps): ReactElement {
+  const shared = { domElement, editTarget, selection, revision, onAfterEdit };
+  return (
+    <div className="layout__grid-advanced" data-test="layout-grid-advanced">
+      <div className="editor__title">Advanced grid CSS</div>
+      <div className="layout__grid-fields">
+        {GRID_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
+        <LayoutDropdown property="grid-auto-flow" options={GRID_AUTO_FLOW_OPTIONS} {...shared} />
+        {GRID_AUTO_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
+      </div>
+      <div className="layout__grid-alignment" data-test="layout-grid-alignment">
+        {GRID_ALIGNMENT_FIELDS.map(({ property, options }) => (
+          <LayoutDropdown key={property} property={property} options={[...options]} stacked {...shared} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The cell picker beside the row and column gap fields. */
+export function GridContainerControls({
+  domElement,
   editTarget,
   selection,
   entries,
   tokenRows,
-  showContainer,
-  showChild,
   revision = 0,
   onAfterEdit,
-}: GridSectionProps): ReactElement {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-
+}: GridContainerControlsProps): ReactElement {
+  const gaps = [
+    { property: "row-gap", Icon: IconSpacingVertical },
+    { property: "column-gap", Icon: IconSpacingHorizontal },
+  ] as const;
   return (
-    <>
-      {showContainer ? <div className="layout__group layout__grid" data-test="layout-grid-container">
-        <div className="layout__grid-primary">
-          <div className="layout__grid-picker-column">
-            <div className="layout__grid-heading">
-              <div className="editor__title">Grid</div>
-              <InspectorPopover
-                data-test="layout-grid-settings"
-                side="bottom"
-                align="end"
-                triggerTooltip="Grid settings"
-                triggerElement={(
-                  <IconButton
-                    variant="quiet"
-                    size="default"
-                    label="Grid settings"
-                    data-active={advancedOpen}
-                    data-test="layout-grid-settings"
-                  >
-                    <IconSettings size={16} stroke={1.8} aria-hidden="true" />
-                  </IconButton>
-                )}
-                open={advancedOpen}
-                onOpenChange={setAdvancedOpen}
-              >
-                <div className="layout__grid-advanced" data-test="layout-grid-advanced">
-                  <div className="editor__title">Advanced grid CSS</div>
-                  <div className="layout__grid-fields">
-                    <GridValueField property="grid-template-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-template-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <LayoutDropdown
-                      property="grid-auto-flow"
-                      options={GRID_AUTO_FLOW_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <GridValueField property="grid-auto-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-auto-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
-                  </div>
-                  <div className="layout__grid-alignment" data-test="layout-grid-alignment">
-                    <LayoutDropdown
-                      property="justify-content"
-                      options={GRID_CONTENT_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="align-content"
-                      options={GRID_CONTENT_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="justify-items"
-                      options={GRID_ITEM_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                    <LayoutDropdown
-                      property="align-items"
-                      options={GRID_ITEM_ALIGNMENT_OPTIONS}
-                      domElement={el}
-                      editTarget={editTarget}
-                      selection={selection}
-                      stacked
-                      revision={revision}
-                      onAfterEdit={onAfterEdit}
-                    />
-                  </div>
-                </div>
-              </InspectorPopover>
-            </div>
-            <GridPicker domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
-          </div>
-          <div className="layout__grid-gap" data-test="layout-grid-gap">
-            <div className="layout__grid-heading" data-test="layout-grid-gap-heading" aria-hidden="true">
-              <div className="editor__title" />
-            </div>
-            <div className="layout__grid-gap-fields">
-              <ControlSurface className="layout__spacing-field" data-test="layout-grid-row-gap">
-                <GapField
-                  property="row-gap"
-                  domElement={el}
-                  editTarget={editTarget}
-                  selection={selection}
-                  entries={entries}
-                  tokenRows={tokenRows}
-                  leading={(
-                    <IconSpacingVertical
-                      className="layout__spacing-icon"
-                      size="var(--icon-size-small)"
-                      stroke={1.8}
-                      aria-hidden="true"
-                      data-test="layout-spacing-icon-row-gap"
-                    />
-                  )}
-                  onAfterEdit={onAfterEdit}
+    <div className="layout__grid-primary" data-test="layout-grid-container">
+      <GridPicker domElement={domElement} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
+      <div className="layout__grid-gap-fields" data-test="layout-grid-gap">
+        {gaps.map(({ property, Icon }) => (
+          <ControlSurface key={property} className="layout__spacing-field" data-test={`layout-grid-${property}`}>
+            <GapField
+              property={property}
+              domElement={domElement}
+              editTarget={editTarget}
+              selection={selection}
+              entries={entries}
+              tokenRows={tokenRows}
+              leading={(
+                <Icon
+                  className="layout__spacing-icon"
+                  size="var(--icon-size-small)"
+                  stroke={1.8}
+                  aria-hidden="true"
+                  data-test={`layout-spacing-icon-${property}`}
                 />
-              </ControlSurface>
-              <ControlSurface className="layout__spacing-field" data-test="layout-grid-column-gap">
-                <GapField
-                  property="column-gap"
-                  domElement={el}
-                  editTarget={editTarget}
-                  selection={selection}
-                  entries={entries}
-                  tokenRows={tokenRows}
-                  leading={(
-                    <IconSpacingHorizontal
-                      className="layout__spacing-icon"
-                      size="var(--icon-size-small)"
-                      stroke={1.8}
-                      aria-hidden="true"
-                      data-test="layout-spacing-icon-column-gap"
-                    />
-                  )}
-                  onAfterEdit={onAfterEdit}
-                />
-              </ControlSurface>
-            </div>
-          </div>
-        </div>
-      </div> : null}
-
-      {showChild ? <GridChildSection domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} /> : null}
-    </>
+              )}
+              onAfterEdit={onAfterEdit}
+            />
+          </ControlSurface>
+        ))}
+      </div>
+    </div>
   );
 }

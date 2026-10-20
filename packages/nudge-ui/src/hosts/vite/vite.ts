@@ -44,6 +44,7 @@ import { interpretDialects } from "../../css/dialects/index.ts";
 import type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
 import {
+  createNudgeUiClientManifest,
   detectStylingSystem,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
@@ -578,13 +579,11 @@ export function createVitePlugins(
     await projectBridgeStart;
     await ensurePostTransformCss();
     await ensurePublishedThemeContract();
-    return {
-      version: 1,
-      revision: 0,
+    return createNudgeUiClientManifest({
       runtime: buildRuntimeSnapshot(),
       ...(projectBridge ? { agentBridge: projectBridge.browser } : {}),
       ...automationManifestFields(),
-    };
+    });
   }
 
   function startProjectBridge(server: ViteDevServer): void {

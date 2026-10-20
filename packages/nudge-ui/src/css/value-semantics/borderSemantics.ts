@@ -1,4 +1,4 @@
-import { splitTopLevelWhitespace } from "./cssSyntax.ts";
+import { isSingleVarReference, splitTopLevelWhitespace } from "./cssSyntax.ts";
 import {
   interpretTokenValue,
   type TokenInterpretationContext,
@@ -48,7 +48,7 @@ export function parseBorderComponents(value: string, tokenContext: TokenInterpre
     }
     if (part.includes("/") && !/^var\(/i.test(part)) return null;
 
-    const isVariable = /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(part);
+    const isVariable = isSingleVarReference(part);
     const interpreted = isVariable ? interpret(part).resolvedValue.trim() : part;
     // A custom property can substitute an entire shorthand; unresolved or
     // multi-component results cannot be assigned to one slot.

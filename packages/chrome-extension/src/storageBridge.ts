@@ -1,5 +1,9 @@
 import {
+  FONT_LIST_MESSAGE,
+  FONT_LIST_REQUEST_EVENT,
+  FONT_LIST_RESPONSE_EVENT,
   INJECT_RENDERERS_MESSAGE,
+  parseFontListResult,
   parseSketchRequest,
   parseStorageWrite,
   parseStoredSketchDocument,
@@ -12,6 +16,8 @@ import {
   STORAGE_WRITE_EVENT,
   STORAGE_READ_EVENT,
   STORAGE_READ_RESPONSE_EVENT,
+  type FontListMessage,
+  type FontListResponse,
   type SketchRequest,
   type SketchResponse,
   type StoredSketchRecords,
@@ -19,6 +25,31 @@ import {
 } from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
+/** nudge-ui's mount; its shadow root also holds the inspector's popups. */
+const INSPECTOR_ROOT_ID = "nudge-ui-root";
+/** nudge-ui's "Show system fonts" row. */
+const SYSTEM_FONTS_REQUEST_SELECTOR = '[data-test="system-fonts-request"]';
+const GESTURE_EVENTS = ["pointerdown", "mousedown", "mouseup", "click", "keydown"];
+
+interface InspectorGesture {
+  asksForFonts: boolean;
+}
+
+/** Only the user produces trusted events, so a page script cannot pass for a gesture in Nudge UI. */
+function inspectorGesture(event: Event): InspectorGesture | null {
+  if (!event.isTrusted) return null;
+  const elements = event.composedPath().filter((node) => node instanceof Element);
+  if (!elements.some((element) => element.id === INSPECTOR_ROOT_ID)) return null;
+  if (!(event instanceof KeyboardEvent)) {
+    return { asksForFonts: elements.some((element) => element.matches(SYSTEM_FONTS_REQUEST_SELECTOR)) };
+  }
+  // Enter chooses the highlighted row while focus stays in the field.
+  const root = elements[0]?.getRootNode();
+  const row = root instanceof ShadowRoot || root instanceof Document
+    ? root.querySelector(`${SYSTEM_FONTS_REQUEST_SELECTOR}[data-highlighted]`)
+    : null;
+  return { asksForFonts: event.key === "Enter" && row !== null };
+}
 
 async function handleSketchRequest(prefix: string, request: SketchRequest): Promise<StoredSketchRecords | undefined> {
   const documentKey = (id: string) => `${prefix}doc:${id}`;
@@ -89,6 +120,36 @@ if (!scope[BRIDGE_FLAG]) {
       (records) => respond({ id: request.id, ok: true, ...(records ? { records } : {}) }),
       (error: unknown) => respond({ id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) }),
     );
+  });
+  // The inspector asks for fonts while handling the user's event, including its
+  // effects and microtasks; the gesture lasts until that task ends.
+  let gesture: InspectorGesture | null = null;
+  for (const type of GESTURE_EVENTS) {
+    window.addEventListener(type, (event) => {
+      const next = inspectorGesture(event);
+      if (!next) return;
+      gesture = next;
+      setTimeout(() => {
+        if (gesture === next) gesture = null;
+      });
+    }, true);
+  }
+  document.addEventListener(FONT_LIST_REQUEST_EVENT, (event) => {
+    // SAFETY: the detail stays unknown until the ID check below.
+    const id = (event as CustomEvent<unknown>).detail;
+    if (typeof id !== "number" || !Number.isSafeInteger(id)) return;
+    const respond = (response: FontListResponse): void => {
+      document.dispatchEvent(new CustomEvent(FONT_LIST_RESPONSE_EVENT, { detail: JSON.stringify(response) }));
+    };
+    if (!gesture) {
+      respond({ id, error: "The font list is available only during a click or key press in Nudge UI." });
+      return;
+    }
+    const message: FontListMessage = { type: FONT_LIST_MESSAGE, asked: gesture.asksForFonts };
+    void chrome.runtime.sendMessage(message).then((reply: unknown) => {
+      const result = parseFontListResult(reply);
+      respond(result ? { id, ...result } : { id, error: "The font list could not be read." });
+    }, (error: unknown) => respond({ id, error: error instanceof Error ? error.message : String(error) }));
   });
   document.addEventListener(RENDERER_FRAME_LOAD_EVENT, () => {
     chrome.runtime.sendMessage({ type: INJECT_RENDERERS_MESSAGE }).catch((error: unknown) => {

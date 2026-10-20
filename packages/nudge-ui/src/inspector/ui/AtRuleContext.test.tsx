@@ -42,9 +42,21 @@ describe("AtRuleIndicator", () => {
     );
 
     const indicator = handle.host.querySelector('[data-test="at-rule-indicator"]');
-    expect(indicator?.textContent).toBe("1");
-    expect(indicator?.querySelector(".at-rule-indicator__symbol")).not.toBeNull();
+    const segments = Array.from(indicator?.querySelectorAll(".at-rule-indicator__segment") ?? []);
+    expect(segments.map((segment) => segment.getAttribute("data-active"))).toEqual(["true", "false"]);
     expect(indicator?.getAttribute("aria-label")).toBe("Active 1 media query");
+  });
+
+  it("draws one segment per breakpoint plus the base, ordered from the largest viewport down", () => {
+    handle = mount(createElement(AtRuleIndicator, {
+      atRules: [
+        { kind: "media", params: "(max-width: 600px)", active: false },
+        { kind: "media", params: "(max-width: 900px)", active: true },
+      ],
+    }));
+
+    const segments = Array.from(handle.host.querySelectorAll(".at-rule-indicator__segment"));
+    expect(segments.map((segment) => segment.getAttribute("data-active"))).toEqual(["false", "true", "false"]);
   });
 
   it("does not render when no responsive context applies", () => {

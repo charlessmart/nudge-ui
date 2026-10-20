@@ -33,6 +33,8 @@ export interface NudgeUiRuntimeCapabilities {
 export interface NudgeUiRuntimeFeatures {
   readonly sketch?: boolean;
   readonly canvasIterations?: boolean;
+  /** The MCP settings section; hosts that cannot reach an MCP server turn it off. */
+  readonly mcp?: boolean;
 }
 
 export interface NudgeUiRuntimeConfig {
@@ -254,10 +256,12 @@ function normalizeFeatures(input: unknown): NudgeUiRuntimeFeatures | undefined {
   }
   const sketch = optionalFeatureBoolean(input, "sketch");
   const canvasIterations = optionalFeatureBoolean(input, "canvasIterations");
-  if (sketch === undefined && canvasIterations === undefined) return {};
+  const mcp = optionalFeatureBoolean(input, "mcp");
+  if (sketch === undefined && canvasIterations === undefined && mcp === undefined) return {};
   return {
     ...(sketch === undefined ? {} : { sketch }),
     ...(canvasIterations === undefined ? {} : { canvasIterations }),
+    ...(mcp === undefined ? {} : { mcp }),
   };
 }
 

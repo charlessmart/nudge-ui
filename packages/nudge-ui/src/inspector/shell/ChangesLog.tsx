@@ -1,6 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconArrowBackUp } from "@tabler/icons-react";
+import { IconArrowBackUp, IconRestore } from "@tabler/icons-react";
 import {
   isComponentChange,
   isElementChange,
@@ -106,7 +106,7 @@ function changeTargetLabel(change: ChangeRecord, presentation: ChangePresentatio
   if (isComponentChange(change)) return change.target.componentName;
   if (isTextContentChange(change)) return change.target.sourceSite.cid;
   if (isTokenChange(change)) return change.tokenName;
-  return isElementChange(change) ? change.cid : presentation.groupLabel;
+  return presentation.groupLabel;
 }
 
 function changeActionLabel(change: ChangeRecord, presentation: ChangePresentation): string {
@@ -364,11 +364,12 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
       {onClearSession ? (
         <div className="changes__session-action" data-test="session-actions">
           <Button
-            variant="secondary"
+            variant="quiet"
             type="button"
             data-test="clear-session"
             onClick={onClearSession}
           >
+            <IconRestore size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
             Clear Changes
           </Button>
         </div>

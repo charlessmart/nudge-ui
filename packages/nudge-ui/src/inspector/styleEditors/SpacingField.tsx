@@ -4,7 +4,6 @@ import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
-import type { SelectedElement } from "../selection/selectionStore.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import {
   SideValuesField,
@@ -15,6 +14,8 @@ import {
   type SideValueSlot,
 } from "../ui/SideValuesField.tsx";
 import { setStyles, swapTokens } from "../tokens/editActions.ts";
+import { isCalcExpression } from "../../css/value-semantics/index.ts";
+import { deriveActiveTokenName, isExpressionRow } from "./fieldValue.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import {
@@ -24,73 +25,21 @@ import {
   type InspectorSpacingProjection,
   projectInspectorValuesForSelection,
 } from "../spacing/projection.ts";
-import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { isZeroCssValue } from "./stylePresence.ts";
 import { useFieldVisibility } from "./useFieldVisibility.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 
-export interface SpacingBoxProps {
-  element: SelectedElement;
-  selection?: StyleSelection | null;
-  entries?: TokenEntry[];
-  tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
-}
-
-export function SpacingBox(props: SpacingBoxProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
-  const el = element.domElement;
-  const allEntries = entries ?? [];
-  const projection = selection
+/** Values for one selection, projected from its computed styles or the shared selection model. */
+export function projectSpacing(
+  element: HTMLElement,
+  selection: StyleSelection | null | undefined,
+  tokenRows: ResolvedProperty[],
+): ReturnType<typeof projectInspectorValues>["spacing"] {
+  return (selection
     ? projectInspectorValuesForSelection(selection)
-    : projectInspectorValues(el, tokenRows);
-  const showRelativeInset = selection
-    ? selection.supportsRole("relative-position")
-    : (() => {
-      const value = getStateStyleValue(el, "position", "static").trim().toLowerCase();
-      return value === "relative" || value === "sticky";
-    })();
-  const editTarget: EditTarget = selection?.target ?? el;
-
-  return (
-    <div className="editor" data-test="spacing-box">
-      <div className="editor__title">Spacing</div>
-      <div className="spacing">
-        <SpacingField
-          property="padding"
-          projection={projection.spacing.padding}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        />
-        <SpacingField
-          property="margin"
-          projection={projection.spacing.margin}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        />
-        {showRelativeInset ? <SpacingField
-          property="inset"
-          projection={projection.spacing.inset}
-          domElement={el}
-          editTarget={editTarget}
-          selection={selection}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          onAfterEdit={onAfterEdit}
-        /> : null}
-      </div>
-    </div>
-  );
+    : projectInspectorValues(element, tokenRows)).spacing;
 }
 
 export interface SpacingFieldProps {
@@ -140,7 +89,10 @@ export function SpacingField({
           editTarget={editTarget}
           entries={entries}
           suggestions={suggestions}
-          displayValue={isCalcValue(field.authoredValue) && field.value ? field.value : undefined}
+          initialValue={property === "inset" ? "auto" : undefined}
+          displayValue={property === "inset" && !field.tokenName
+            ? field.authoredValue
+            : isCalcExpression(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
@@ -317,11 +269,10 @@ function PairedTokenField({
   const row = pairTokenRow(displayProperty, axisProjection);
   const groupMixed = axisProjection.fields.some((field) => field.value === "Mixed");
   const valuesMatch = axisProjection.state === "shared" && !groupMixed;
-  const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
-    || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
+  const expression = isExpressionRow(row);
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
-  const isCalcAuthored = isCalcValue(calcAuthored);
-  const activeTokenName = !valuesMatch || expression || isCalcAuthored ? null : row.tokenName;
+  const isCalcAuthored = isCalcExpression(calcAuthored);
+  const activeTokenName = deriveActiveTokenName({ row, mixed: !valuesMatch, authored: calcAuthored });
   // Some browsers report the used pixel size for horizontal auto margins; keep the authored keyword.
   const committedValue = groupMixed
     ? "Mixed"
@@ -383,11 +334,7 @@ function PairedTokenField({
 }
 
 function fieldDisplayValue(field: InspectorFieldProjection): string {
-  return isCalcValue(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
-}
-
-function isCalcValue(value: string): boolean {
-  return /\bcalc\s*\(/i.test(value);
+  return isCalcExpression(field.authoredValue) ? field.value : field.authoredValue.trim() || field.value;
 }
 
 function splitAxisValue(value: string): readonly [string, string] | null {

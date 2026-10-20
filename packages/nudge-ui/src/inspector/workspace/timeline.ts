@@ -6,7 +6,11 @@ export interface EditHistoryEntry {
   readonly group?: symbol;
   readonly before: DraftContents;
   readonly after: DraftContents;
-  readonly activate?: () => void;
+  /** Where replay should take the user: the draft's owning frame, when one was known. */
+  readonly focus?: {
+    readonly draftId: string;
+    readonly cardId?: string;
+  };
 }
 
 export interface CanvasHistoryEntry {

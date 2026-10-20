@@ -1,0 +1,66 @@
+:root { color: #242424; background: #eeefed; font-family: Inter, ui-sans-serif, system-ui, sans-serif; --fixture-accent: #315bce; --fixture-radius: 12px; }
+body { margin: 0; }
+.workbench { max-width: none; padding: 40px; }
+.workbench-header { margin-bottom: 32px; }
+.workbench-eyebrow { color: #6f6f6f; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+.workbench h1 { font-size: 28px; font-weight: 550; letter-spacing: -.04em; margin: 8px 0; }
+.workbench-header > a { color: #315bce; font-size: 12px; }
+.workbench-layout { display: flex; gap: 32px; align-items: flex-start; }
+.workbench-scenarios { display: grid; gap: 4px; flex: 0 0 172px; max-width: 200px; }
+.workbench-stage { display: flex; flex-direction: column; row-gap: 16px; margin-inline: auto; }
+.workbench-scenarios button, .workbench-caption button { border: 0; border-radius: 8px; padding: 10px 12px; color: #555; background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.workbench-scenarios button:hover { background: #e2e4df; }
+.workbench-scenarios button[aria-current] { background: #fff; color: #222; box-shadow: 0 1px 4px #0001; }
+.workbench-caption { min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.workbench-caption h2 { margin: 0; font-size: 13px; }
+.workbench-caption button { flex-shrink: 0; border: 1px solid #d4d6d1; padding: 6px 8px; }
+.workbench-preview { position: relative; inset: auto; display: block; width: 320px; min-height: 700px; z-index: auto; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 40px #0002; }
+.workbench-preview > .panel { position: relative; inset: auto; height: 760px; border-radius: 12px; border: 1px solid #0001; }
+.workbench-preview .panel__restore { position: absolute; }
+.fixture-targets { position: absolute; left: -10000px; top: 0; width: 640px; pointer-events: none; }
+.fixture-text { color: var(--fixture-accent); font: 600 28px/1.3 Georgia, serif; padding: 24px; background: #fff; border: 1px solid #d5d9e5; border-radius: var(--fixture-radius); box-shadow: 0 4px 16px #17254620; }
+.fixture-flex { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; background: #e4edfa; border-radius: 16px; width: 480px; height: 180px; }
+.fixture-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 20px; background: #e6efe6; width: 480px; }
+.fixture-button { padding: 12px 20px; border: 0; border-radius: var(--fixture-radius); background: var(--fixture-accent); color: white; font: 500 14px/1.4 system-ui; }
+.fixture-button:hover { background: #20429b; }
+.fixture-button:focus-visible { outline: 2px solid #152964; }
+.fixture-mixed-a { font: 400 16px/1.5 system-ui; color: #293444; padding: 8px; }
+.fixture-mixed-b { font: 600 24px/1.4 system-ui; color: #315bce; padding: 16px; }
+@media (max-width: 900px) { .workbench { padding: 24px; } .workbench-layout { gap: 20px; } .workbench-scenarios { flex-basis: 150px; } }
+
+.wb-button { border: 1px solid transparent; border-radius: var(--fixture-radius); font: 500 14px/1.4 system-ui; cursor: pointer; }
+.wb-button--small { padding: 6px 12px; }
+.wb-button--large { padding: 12px 20px; }
+@media (max-width: 900px) { .wb-button--large { padding: 10px 16px; } }
+@media (max-width: 600px) { .wb-button--large { padding: 8px 12px; } }
+.wb-button--primary { background: var(--fixture-accent); color: #fff; }
+.wb-button--secondary { background: #fff; color: var(--fixture-accent); border-color: var(--fixture-accent); }
+.wb-button--ghost { background: transparent; color: var(--fixture-accent); }
+.wb-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.wb-badge { display: inline-block; border-radius: 999px; font: 600 12px/1.4 system-ui; }
+.wb-badge--small { padding: 2px 8px; }
+.wb-badge--large { padding: 4px 12px; font-size: 14px; }
+.wb-badge--neutral { background: #e6e8ec; color: #444; }
+.wb-badge--success { background: #dcf3e4; color: #1d6b3d; }
+.wb-badge--warning { background: #fdf0d6; color: #8a5b00; }
+.wb-badge--danger { background: #fbe0e0; color: #a02828; }
+.wb-card { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; border-radius: 16px; background: #fff; }
+.wb-card--elevated { box-shadow: 0 4px 16px #17254620; }
+.wb-card--outlined { border: 1px solid #d5d9e5; }
+.wb-card--flat { background: #f4f5f7; }
+.wb-card--small { padding: 12px; }
+.wb-card--medium { padding: 20px; }
+.wb-card--large { padding: 32px; }
+.workbench-components { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; padding: 24px 0; }
+.workbench-components h2 { flex: 0 0 100%; margin: 0; font-size: 13px; }
+.workbench-margin-demo { width: 240px; background: #fff; border: 1px dashed #cfd3dd; border-radius: 12px; }
+.workbench-margin-box { margin: 24px 32px; padding: 12px 16px; background: #dbe5ff; border-radius: 8px; font: 500 14px/1.4 system-ui; }
+
+/* Responsive fixtures: each property carries a different number of breakpoints, so the strips differ in length. */
+.fixture-responsive-desktop { display: flex; flex-direction: column; background-color: #fff; border-radius: 12px; font-size: 18px; gap: 16px; padding-top: 32px; padding-right: 32px; padding-bottom: 32px; padding-left: 32px; width: 480px; }
+@media (max-width: 1100px) { .fixture-responsive-desktop { padding-top: 24px; padding-right: 24px; padding-bottom: 24px; padding-left: 24px; font-size: 16px; } }
+@media (max-width: 800px) { .fixture-responsive-desktop { padding-top: 16px; padding-right: 16px; padding-bottom: 16px; padding-left: 16px; gap: 12px; width: 360px; } }
+@media (max-width: 500px) { .fixture-responsive-desktop { padding-top: 12px; padding-right: 12px; padding-bottom: 12px; padding-left: 12px; } }
+.fixture-responsive-mobile { display: flex; flex-direction: column; background-color: #fff; border-radius: 12px; font-size: 14px; gap: 8px; padding-top: 12px; padding-right: 12px; padding-bottom: 12px; padding-left: 12px; width: 320px; }
+@media (min-width: 600px) { .fixture-responsive-mobile { padding-top: 20px; padding-right: 20px; padding-bottom: 20px; padding-left: 20px; font-size: 16px; } }
+@media (min-width: 900px) { .fixture-responsive-mobile { padding-top: 32px; padding-right: 32px; padding-bottom: 32px; padding-left: 32px; gap: 16px; width: 480px; } }

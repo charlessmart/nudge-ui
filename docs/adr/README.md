@@ -38,3 +38,5 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0032: Remove the coupled companion and startup-workspace adapter](./0032-remove-legacy-agent-modes.md) (supersedes the legacy modes retained by ADR-0026 and ADR-0028)
 - [ADR-0033: Browser extension editor](./0033-browser-extension-editor.md) (supersedes ADR-0006's renderer restriction for the extension's page-surface fallback)
 - [ADR-0034: Runtime component semantics without wrapping](./0034-runtime-component-semantics-without-wrapping.md) (supersedes ADR-0021's opaque-subtree rule for semantic visibility)
+- [ADR-0035: System fonts in the font family list](./0035-system-fonts-in-the-font-family-list.md) (supersedes ADR-0033's list of extension permissions)
+- [ADR-0036: Managed preview specificity](./0036-managed-preview-specificity.md)

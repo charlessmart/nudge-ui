@@ -23,17 +23,6 @@ export function buildTokenTable(entries: readonly TokenEntry[]): TokenTable {
   return table;
 }
 
-let tableCache: TokenTable | null = null;
-let tableSource: readonly TokenEntry[] | null = null;
-
-export function getTokenTable(): TokenTable {
-  const { tokens } = getNudgeUiRuntimeConfig();
-  if (tableCache !== null && tableSource === tokens) return tableCache;
-  tableCache = buildTokenTable(tokens);
-  tableSource = tokens;
-  return tableCache;
-}
-
 function isCustomPropertyToken(definition: TokenDefinition): boolean {
   return definition.cssName.startsWith("--");
 }

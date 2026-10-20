@@ -22,19 +22,17 @@ test("dev: non-forwarding repeated component defaults to source scope and can ed
   await app.getByText("Repeated 3", { exact: true }).click();
 
   await expect(page.locator('[data-test="edit-scope"]')).toHaveClass(/status-callout--accent/);
-  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Affects 6 elements");
-  await expect(page.locator('[data-test="edit-scope"] .scope__linked')).toHaveCSS("justify-content", "space-between");
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/button--quiet/);
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/button--compact/);
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
+  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Linked (6)");
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/icon-button--quiet/);
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveAccessibleName("Unlink element");
   await page.locator('[data-test="unlink-element"]').hover();
   await setRaw(page, "font-size", "18px");
   await expect.poll(() => app.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");
 
-  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Element unlinked");
-  await expect(page.locator('[data-test="relink-element"]')).toHaveText("Relink");
-  await expect(page.locator('[data-test="edit-scope"] .scope__unlinked')).toHaveCSS("display", "flex");
+  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Unlinked");
+  await expect(page.locator('[data-test="relink-element"]')).toHaveAccessibleName("Relink element");
+  await expect(page.locator('[data-test="edit-scope"] .scope__unlinked')).toHaveCSS("display", "contents");
   expect(await app.locator(".repeated-item[data-instance]").count()).toBe(0);
   await setRaw(page, "font-size", "24px");
   await expect.poll(() => app.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);

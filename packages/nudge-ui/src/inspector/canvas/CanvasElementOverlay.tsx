@@ -34,6 +34,8 @@ import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts"
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
+import { getEditScope, sourceSiteSelector } from "../selection/editScope.ts";
+import { useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { setInspectorOpen, toggleInspector } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
@@ -68,6 +70,8 @@ interface FrameOverlayState {
   spacingGuides: Rect[];
   spacingAreas: Rect[];
   spacingHandleBadge: { point: { x: number; y: number }; value: number } | null;
+  /** The hovered element shares its source site with other rendered elements. */
+  linked: boolean;
 }
 
 interface FrameMeasureState {
@@ -115,6 +119,12 @@ function selectGestureElement(element: HTMLElement): void {
   if (current.length === 1 && current[0]!.domElement === element) return;
   const selected = resolveSelectionFromElement(element);
   if (selected) setSelectedElement(selected);
+}
+
+/** The renderer reports its last clicked element; the DOM navigator may have since selected another one. */
+function singleSelectedRendererElement(element: HTMLElement | null): HTMLElement | null {
+  const current = getSelectedElements();
+  return current.length === 1 && current[0]!.domElement === element ? element : null;
 }
 
 function spacingBadgeForDrag(
@@ -290,6 +300,44 @@ function pushPendingSpacingCommit(
   };
 }
 
+const LINKED_PEER_LIMIT = 200;
+/** Frames the follow loop keeps measuring after outlines stop moving, covering the commit that applies a pan. */
+const OUTLINE_IDLE_FRAMES = 8;
+
+/** Writes the outline boxes straight to the DOM, so a stale React render cannot win; returns whether any moved. */
+function syncOutlinePositions(frame: CanvasFrame, outlines: ReadonlyMap<HTMLElement, HTMLElement>): boolean {
+  const viewport = measureFrameViewport(frame);
+  let moved = false;
+  for (const [element, node] of outlines) {
+    const rect = toViewportRect(viewport, toRect(element.getBoundingClientRect()));
+    const box = `${rect.left}|${rect.top}|${rect.width}|${rect.height}`;
+    if (node.dataset.box !== box) moved = true;
+    node.dataset.box = box;
+    node.style.left = `${rect.left}px`;
+    node.style.top = `${rect.top}px`;
+    node.style.width = `${rect.width}px`;
+    node.style.height = `${rect.height}px`;
+  }
+  return moved;
+}
+
+function isLinkedElement(element: HTMLElement | null): boolean {
+  return element !== null && getEditScope(element) === "source-site" && findLinkedPeers(element).length > 0;
+}
+
+/** Other elements rendered from the selected element's source site. */
+function findLinkedPeers(element: HTMLElement): HTMLElement[] {
+  const selector = sourceSiteSelector(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
+  if (!selector) return [];
+  try {
+    return [...element.ownerDocument.querySelectorAll<HTMLElement>(selector)]
+      .filter((candidate) => candidate !== element)
+      .slice(0, LINKED_PEER_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
@@ -344,6 +392,15 @@ export function CanvasElementOverlay(): ReactElement | null {
     })
     : [];
 
+  const componentProps = useComponentProps(selectedElements.length === 1 ? selected : null);
+  const linkedPeers = selectedInCanvas && selectedElements.length === 1 && selected && getEditScope(selected.domElement) === "source-site"
+    ? findLinkedPeers(selected.domElement)
+    : [];
+  const projectedLinkedPeers = selectedFrameViewport
+    ? linkedPeers.map((peer) => ({ peer, rect: toViewportRect(selectedFrameViewport, toRect(peer.getBoundingClientRect())) }))
+    : [];
+  const selectionIsLinked = componentProps !== null || linkedPeers.length > 0;
+
   // Camera transforms commit before iframe viewport geometry is readable; re-render once so overlays use the new frame rect.
   useLayoutEffect(() => {
     const geometryChanged = previousProjectionGeometryKey.current !== projectionGeometryKey;
@@ -354,11 +411,43 @@ export function CanvasElementOverlay(): ReactElement | null {
     ? readBorderWidths(selected.domElement)
     : null;
 
+  const outlineNodes = useRef(new Map<HTMLElement, HTMLElement>());
+  const outlineRef = (element: HTMLElement) => (node: HTMLElement | null): void => {
+    if (node) outlineNodes.current.set(element, node);
+    else outlineNodes.current.delete(element);
+  };
+
+  // React renders a frame or more after a pan or scroll, so outlines follow the live geometry on their own frame loop.
+  useEffect(() => {
+    if (!selectedFrame) return;
+    const frameDocument = selectedFrame.contentDocument;
+    let raf: number | null = null;
+    let idleFrames = 0;
+    const tick = (): void => {
+      raf = null;
+      idleFrames = syncOutlinePositions(selectedFrame, outlineNodes.current) ? 0 : idleFrames + 1;
+      if (idleFrames < OUTLINE_IDLE_FRAMES) raf = window.requestAnimationFrame(tick);
+    };
+    const follow = (): void => {
+      idleFrames = 0;
+      if (raf === null) raf = window.requestAnimationFrame(tick);
+    };
+    const options = { capture: true, passive: true } as const;
+    window.addEventListener("wheel", follow, options);
+    frameDocument?.addEventListener("scroll", follow, options);
+    return () => {
+      window.removeEventListener("wheel", follow, options);
+      frameDocument?.removeEventListener("scroll", follow, options);
+      if (raf !== null) window.cancelAnimationFrame(raf);
+    };
+  }, [selectedFrame]);
+
   useEffect(() => {
     if (!selectedInCanvas || !selected) return;
-    const stops = selectedElements.map((candidate) => observeSelectedGeometry(candidate.domElement, refreshSelectedGeometry));
+    const stops = [...selectedElements.map((candidate) => candidate.domElement), ...linkedPeers]
+      .map((element) => observeSelectedGeometry(element, refreshSelectedGeometry));
     return () => stops.forEach((stop) => stop());
-  }, [selected, selectedElements, selectedInCanvas]);
+  }, [selected, selectedElements, selectedInCanvas, linkedPeers.length]);
 
   useEffect(() => {
     const broadcastMeasureModifier = (altKey: boolean): void => {
@@ -476,17 +565,22 @@ export function CanvasElementOverlay(): ReactElement | null {
           && spacingDescriptorMatches(handleAffordance, msg.spacing)
           ? { point: hoverPoint, value: handleAffordance.value }
           : null;
-        setHover({
+        // Hover messages arrive every frame; the peer query runs once per element entered, not per message.
+        const hoverRect = msg.rect;
+        setHover((current) => ({
           iframe: frame.iframe,
           identity: { elementId: msg.elementId },
-          rect: msg.rect,
+          rect: hoverRect,
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: frame.cardId,
           spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
           spacingGuides,
           spacingAreas,
           spacingHandleBadge,
-        });
+          linked: current?.iframe === frame.iframe && current.identity.elementId === msg.elementId
+            ? current.linked
+            : isLinkedElement(hoverElement ?? frame.element(msg)),
+        }));
       } else if (data.type === "element-measure-state") {
         const msg = data;
         setMeasureState({
@@ -609,13 +703,11 @@ export function CanvasElementOverlay(): ReactElement | null {
         dragRef.current = null;
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
-        if (getSelectedElements().length !== 1) return;
-        const element = frame.element(data);
+        const element = singleSelectedRendererElement(frame.element(data));
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (data.type === "element-nudge") {
-        if (getSelectedElements().length !== 1) return;
-        const element = frame.element(data);
+        const element = singleSelectedRendererElement(frame.element(data));
         const record = element ? nudgeElement(element, data.key) : null;
         if (element && record) {
           selectGestureElement(element);
@@ -730,7 +822,7 @@ export function CanvasElementOverlay(): ReactElement | null {
             />
           )) : null}
           {showHoverOutline ? (
-            <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+            <div className="canvas-element-overlay" data-linked={hover?.linked ? "true" : undefined} data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
           ) : null}
           {hoverSpacing ? projectedSpacingGuides.map((guide, index) => (
             <div
@@ -747,10 +839,22 @@ export function CanvasElementOverlay(): ReactElement | null {
           )) : null}
         </>
       ) : null}
+      {projectedLinkedPeers.map(({ peer, rect }, index) => (
+        <div
+          key={`${peer.getAttribute("data-cid")}-${index}`}
+          ref={outlineRef(peer)}
+          className="canvas-linked-outline"
+          data-test="canvas-linked-outline"
+          style={overlayStyle(rect)}
+          aria-hidden="true"
+        />
+      ))}
       {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
           key={`${element.cid}-${index}`}
+          ref={outlineRef(element.domElement)}
           className="canvas-selected-outline"
+          data-linked={selectionIsLinked ? "true" : undefined}
           data-test="canvas-selected-outline"
           data-selected-cid={element.cid}
           data-selected-index={index}
@@ -774,6 +878,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
+          linked={selectionIsLinked}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
             : null}
