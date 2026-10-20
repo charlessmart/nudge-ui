@@ -16,7 +16,7 @@ export interface DomNavigatorProps {
   project: (element: HTMLElement) => Rect | null;
 }
 
-function nodeDescription(node: HTMLElement): string {
+export function nodeDescription(node: HTMLElement): string {
   const id = node.id ? `#${node.id}` : "";
   const className = typeof node.className === "string"
     ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((name) => `.${name}`).join("")

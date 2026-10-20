@@ -1,7 +1,7 @@
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
 import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
@@ -67,6 +67,7 @@ import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
 import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
+  isElementClickMessage,
   isProjectionAppliedMessage,
   isKeyboardShortcutMessage,
   isRenderedInstanceProjectionReportMessage,
@@ -92,7 +93,8 @@ import {
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import { DEBUG_VIEW_OFF } from "./debugView.ts";
-import { useDebugViewState } from "./debugViewStore.ts";
+import { useAnimationDebug, useDebugViewState } from "./debugViewStore.ts";
+import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
@@ -101,7 +103,7 @@ import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/i
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
-import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
+import { getSelectedElements, setSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
@@ -167,10 +169,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  // Debug views inspect the running app, so it stays interactive like Select.
-  const appInteractive = interactionTool === "select" || interactionTool === "debug";
+  // View options inspect the running app, so it stays interactive like the play tool.
+  const animationDebug = useAnimationDebug();
+  const animationInspecting = interactionTool === "debug" && animationDebug.enabled;
+  const appInteractive = interactionTool === "select" || (interactionTool === "debug" && !animationInspecting);
   const debugViewState = useDebugViewState();
-  const activeDebugView = selectedTool === "debug" ? debugViewState : DEBUG_VIEW_OFF;
+  const hasSelection = useSelectedElements().length > 0;
+  // Animated elements are labeled only while nothing is selected; a selection takes over with the animation bar.
+  const labelAnimations = animationDebug.enabled && !hasSelection;
+  const activeDebugView = useMemo(
+    () => (selectedTool === "debug" ? { ...debugViewState, animations: labelAnimations } : DEBUG_VIEW_OFF),
+    [debugViewState, labelAnimations, selectedTool],
+  );
   const rendererInteractionsEnabled = !appInteractive && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
@@ -644,6 +654,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
         frame.post({ type: "debug-view-state", state: activeDebugViewRef.current });
       }
+      // Picking an Explode view layer selects it, so hand over from View options to Select.
+      if (selectedTool === "debug" && activeDebugViewRef.current.xray && isElementClickMessage(msg, identity) && msg.cid) handleToolChange("design");
       if (msg.type === "pan-modifier") {
         if (presentation !== "canvas") return;
         spaceHeldRef.current = msg.spaceHeld;
@@ -714,7 +726,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -898,6 +910,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
+          {inspectorOpen && !sketchActive && selectedTool === "debug" ? <AnimationBar /> : null}
           {inspectorOpen && !sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}

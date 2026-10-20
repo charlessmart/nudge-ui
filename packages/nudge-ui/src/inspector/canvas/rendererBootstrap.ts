@@ -26,13 +26,14 @@ import type {
 import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
-import { installRendererElementSelector } from "./rendererElementSelector.ts";
+import { installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
+import { createRendererAnimationMarkers } from "./rendererAnimationMarkers.ts";
 import { createRendererDebugView } from "./rendererDebugView.ts";
 import { isDebugViewState } from "./debugView.ts";
 
@@ -353,8 +354,10 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     sendToParent(message);
   }
 
-  const debugView = createRendererDebugView(document);
+  const debugView = createRendererDebugView(document, selectRendererElement);
   owner.listenerRemovers.push(() => debugView.dispose());
+  const animationMarkers = createRendererAnimationMarkers(document, selectRendererElement);
+  owner.listenerRemovers.push(() => animationMarkers.dispose());
 
   const onMessage = (event: MessageEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
@@ -363,7 +366,10 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     if (!identity || !isRendererMessageFor(event.data, identity)) return;
     if ((event.data as DebugViewStateMessage).type === "debug-view-state") {
       const state = (event.data as DebugViewStateMessage).state;
-      if (isDebugViewState(state)) debugView.apply(state);
+      if (isDebugViewState(state)) {
+        debugView.apply(state);
+        animationMarkers.apply(state.animations);
+      }
       return;
     }
     if ((event.data as PanModifierMessage).type === "pan-modifier") {

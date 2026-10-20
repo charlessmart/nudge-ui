@@ -5,43 +5,32 @@ const OUTLINES_ATTRIBUTE = "data-nudge-ui-debug-outlines";
 const OUTLINES_STYLE_ID = "nudge-ui-debug-outlines";
 
 /** Depth between exploded layers, applied per DOM level. */
-const XRAY_LAYER_GAP = 44;
+const XRAY_LAYER_GAP = 50;
 const XRAY_MAX_DEPTH = 14;
 const XRAY_MAX_ELEMENTS = 600;
 const XRAY_DURATION_MS = 480;
-const XRAY_DWELL_MS = 140;
+const HOVER_OUTLINE_ID = "nudge-ui-debug-xray-hover";
+const HOVER_OUTLINE_COLOR = "rgba(0, 150, 255, 0.9)";
+const XRAY_LAYER_OUTLINE = "1px solid rgba(0, 150, 255, 0.55)";
+const XRAY_LAYER_HOVER_OUTLINE = "2px solid rgba(0, 150, 255, 1)";
 const XRAY_EASING = "cubic-bezier(0.2, 0, 0, 1)";
-const XRAY_ROOT_TRANSFORM = "rotateX(50deg) rotateZ(-30deg) scale(0.85)";
+const XRAY_ROOT_TRANSFORM = "rotateX(20deg) rotateY(20deg)";
 
-const OUTLINE_INK = "#111";
+const OUTLINE_COLOR = "rgba(0, 150, 255, 0.75)";
+/** Text-level elements wrap runs of text rather than forming a box; a class suggests the author gave it a box. */
+const TEXT_LEVEL = "strong, b, em, i, small, code, kbd, mark, abbr, sub, sup, u, s, q, cite, time, span:not([class]), a:not([class]), label:not([class])";
 
+/** Draws a 1px outline on each box, leaving the page's own colors, fills and text as they are. */
 function outlinesCss(): string {
   const scope = `html[${OUTLINES_ATTRIBUTE}] body`;
-  const excluded = `:not(#${NUDGE_UI_MOUNT_ID})`;
-  const elements = `${scope} *${excluded}`;
+  const excluded = `:not(#${NUDGE_UI_MOUNT_ID}):not(#${HOVER_OUTLINE_ID})`;
   return `
-html[${OUTLINES_ATTRIBUTE}], ${scope} { background: #fff !important; }
-${elements}, ${elements}::before, ${elements}::after {
-  background-color: #fff !important;
-  background-image: none !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  color: #fff !important;
-  -webkit-text-stroke: 0.6px ${OUTLINE_INK} !important;
-  caret-color: ${OUTLINE_INK} !important;
-  outline: 1px solid ${OUTLINE_INK} !important;
+${scope} *${excluded} {
+  outline: 1px solid ${OUTLINE_COLOR} !important;
   outline-offset: -1px !important;
-  filter: none !important;
-  backdrop-filter: none !important;
 }
-${scope} svg *${excluded} {
+${scope} :is(${TEXT_LEVEL})${excluded} {
   outline: none !important;
-  fill: #fff !important;
-  stroke: ${OUTLINE_INK} !important;
-}
-${scope} :is(img, video, canvas, picture, iframe, object, embed)${excluded} {
-  filter: grayscale(1) opacity(0.25) !important;
 }
 `;
 }
@@ -68,48 +57,69 @@ function isStyledElement(element: Element): element is StyledElement {
 interface StyleBackup {
   readonly value: string;
   readonly priority: string;
+  applied: string;
 }
 
-/** Inline style overrides that can be put back exactly as the app left them. */
+interface ElementBackup {
+  readonly hadStyleAttribute: boolean;
+  readonly properties: Map<string, StyleBackup>;
+}
+
+/**
+ * Inline style overrides that can be put back exactly as the app left them.
+ * A property the app rewrote meanwhile keeps the app's value.
+ */
 class InlineStyleOverrides {
-  private readonly backups = new Map<StyledElement, Map<string, StyleBackup>>();
+  private readonly backups = new Map<StyledElement, ElementBackup>();
 
   set(element: StyledElement, property: string, value: string): void {
     let saved = this.backups.get(element);
     if (!saved) {
-      saved = new Map();
+      saved = { hadStyleAttribute: element.hasAttribute("style"), properties: new Map() };
       this.backups.set(element, saved);
     }
-    if (!saved.has(property)) {
-      saved.set(property, {
+    let backup = saved.properties.get(property);
+    if (!backup) {
+      backup = {
         value: element.style.getPropertyValue(property),
         priority: element.style.getPropertyPriority(property),
-      });
+        applied: "",
+      };
+      saved.properties.set(property, backup);
     }
     element.style.setProperty(property, value, "important");
+    backup.applied = element.style.getPropertyValue(property);
+  }
+
+  restore(element: StyledElement, property: string): void {
+    const saved = this.backups.get(element);
+    const backup = saved?.properties.get(property);
+    if (!saved || !backup) return;
+    restoreProperty(element, property, backup);
+    saved.properties.delete(property);
   }
 
   /** Restores the named properties now, keeping every other override. */
   restoreProperties(properties: readonly string[]): void {
-    for (const [element, saved] of this.backups) {
-      for (const property of properties) {
-        const backup = saved.get(property);
-        if (!backup) continue;
-        element.style.setProperty(property, backup.value, backup.priority);
-        saved.delete(property);
-      }
+    for (const element of this.backups.keys()) {
+      for (const property of properties) this.restore(element, property);
     }
   }
 
   restoreAll(): void {
     for (const [element, saved] of this.backups) {
-      for (const [property, backup] of saved) {
-        if (backup.value) element.style.setProperty(property, backup.value, backup.priority);
-        else element.style.removeProperty(property);
-      }
+      for (const [property, backup] of saved.properties) restoreProperty(element, property, backup);
+      if (!saved.hadStyleAttribute && element.style.length === 0) element.removeAttribute("style");
     }
     this.backups.clear();
   }
+}
+
+function restoreProperty(element: StyledElement, property: string, backup: StyleBackup): void {
+  const current = element.style.getPropertyValue(property);
+  if (current !== backup.applied || element.style.getPropertyPriority(property) !== "important") return;
+  if (backup.value) element.style.setProperty(property, backup.value, backup.priority);
+  else element.style.removeProperty(property);
 }
 
 function countDescendants(element: Element, limit: number): number {
@@ -162,59 +172,14 @@ export interface RendererDebugView {
   dispose(): void;
 }
 
-/** Applies the Debug tool's views to an application document. */
-export function createRendererDebugView(document: Document = globalThis.document): RendererDebugView {
+/** Applies the View options tool's views to an application document. */
+export function createRendererDebugView(
+  document: Document = globalThis.document,
+  /** Selects the element under a click on an exploded layer; false when nothing there can be selected. */
+  onPick: (target: Element) => boolean = () => false,
+): RendererDebugView {
   const window = document.defaultView;
   let state: DebugViewState = DEBUG_VIEW_OFF;
-
-  // Timing -----------------------------------------------------------------
-  // CSS animations, CSS transitions and Web Animations all surface through
-  // getAnimations(), so a per-frame sweep catches each one as soon as it starts.
-  let baseRates = new WeakMap<Animation, number>();
-  let sweepFrame: number | null = null;
-
-  function animations(): Animation[] {
-    return typeof document.getAnimations === "function" ? document.getAnimations() : [];
-  }
-
-  function isInspectorAnimation(animation: Animation): boolean {
-    const target = (animation.effect as Partial<KeyframeEffect> | null)?.target;
-    return target instanceof Element && isInspectorElement(target, document);
-  }
-
-  function sweepAnimations(): void {
-    const scale = state.timeScale;
-    for (const animation of animations()) {
-      if (isInspectorAnimation(animation)) continue;
-      let base = baseRates.get(animation);
-      if (base === undefined) {
-        base = animation.playbackRate;
-        baseRates.set(animation, base);
-      }
-      const rate = base / scale;
-      if (animation.playbackRate !== rate) animation.playbackRate = rate;
-    }
-    sweepFrame = window?.requestAnimationFrame(sweepAnimations) ?? null;
-  }
-
-  function stopTiming(): void {
-    if (sweepFrame !== null) window?.cancelAnimationFrame(sweepFrame);
-    sweepFrame = null;
-    for (const animation of animations()) {
-      const base = baseRates.get(animation);
-      if (base !== undefined) animation.playbackRate = base;
-    }
-    baseRates = new WeakMap();
-  }
-
-  function applyTiming(): void {
-    if (state.timeScale === 1) {
-      stopTiming();
-      return;
-    }
-    if (sweepFrame !== null) window?.cancelAnimationFrame(sweepFrame);
-    sweepAnimations();
-  }
 
   // Outlines ---------------------------------------------------------------
   function applyOutlines(): void {
@@ -234,19 +199,48 @@ export function createRendererDebugView(document: Document = globalThis.document
     root.setAttribute(OUTLINES_ATTRIBUTE, "");
   }
 
-  // X-ray ------------------------------------------------------------------
+  // Explode view -----------------------------------------------------------
   type XrayPhase = "idle" | "exploded" | "collapsing";
   let phase: XrayPhase = "idle";
   let overrides = new InlineStyleOverrides();
   let explodedRect: DOMRect | null = null;
-  let lastPoint: { x: number; y: number } | null = null;
-  let dwellTimer: ReturnType<typeof setTimeout> | undefined;
+  let explodedRoot: Element | null = null;
+  let hoverOutline: HTMLElement | null = null;
+  let hoverTarget: Element | null = null;
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
+  let hoveredLayer: StyledElement | null = null;
+  let outlinedLayers = new Set<StyledElement>();
+  let pendingExplodePoint: { x: number; y: number } | null = null;
+
+  function hideHoverOutline(): void {
+    hoverOutline?.remove();
+    hoverOutline = null;
+    hoverTarget = null;
+  }
+
+  /** Shows the hovered element's bounds, since the inspector's own hover overlay is off while View options is active. */
+  function showHoverOutline(target: Element): void {
+    if (target === hoverTarget && hoverOutline?.isConnected) return;
+    hoverTarget = target;
+    const rect = target.getBoundingClientRect();
+    if (!hoverOutline) {
+      hoverOutline = document.createElement("div");
+      hoverOutline.id = HOVER_OUTLINE_ID;
+      hoverOutline.style.cssText = `position:fixed;pointer-events:none;z-index:2147483646;box-sizing:border-box;border:1px solid ${HOVER_OUTLINE_COLOR};background:rgba(0, 150, 255, 0.08);`;
+      (document.body ?? document.documentElement).append(hoverOutline);
+    }
+    hoverOutline.style.left = `${rect.left}px`;
+    hoverOutline.style.top = `${rect.top}px`;
+    hoverOutline.style.width = `${rect.width}px`;
+    hoverOutline.style.height = `${rect.height}px`;
+  }
 
   function explode(root: Element): void {
     if (!isStyledElement(root)) return;
+    hideHoverOutline();
     const layers = collectXrayLayers(root);
     explodedRect = root.getBoundingClientRect();
+    explodedRoot = root;
     const transition = `transform ${XRAY_DURATION_MS}ms ${XRAY_EASING}, translate ${XRAY_DURATION_MS}ms ${XRAY_EASING}`;
     for (const { element, depth } of layers) {
       overrides.set(element, "transition", transition);
@@ -261,7 +255,10 @@ export function createRendererDebugView(document: Document = globalThis.document
       overrides.set(element, "isolation", "auto");
       overrides.set(element, "mix-blend-mode", "normal");
       overrides.set(element, "will-change", "auto");
-      if (depth > 0) overrides.set(element, "outline", "1px solid rgba(0, 150, 255, 0.55)");
+      if (depth > 0) {
+        overrides.set(element, "outline", XRAY_LAYER_OUTLINE);
+        outlinedLayers.add(element);
+      }
     }
     if (getComputedStyle(root).position === "static") overrides.set(root, "position", "relative");
     overrides.set(root, "z-index", "2147483000");
@@ -278,18 +275,21 @@ export function createRendererDebugView(document: Document = globalThis.document
   }
 
   function finishCollapse(): void {
+    hoveredLayer = null;
+    outlinedLayers = new Set();
     clearTimeout(collapseTimer);
     collapseTimer = undefined;
     overrides.restoreAll();
     overrides = new InlineStyleOverrides();
     explodedRect = null;
+    explodedRoot = null;
     phase = "idle";
   }
 
   function collapse(animated: boolean): void {
-    clearTimeout(dwellTimer);
     if (phase === "idle") return;
     if (!animated) {
+      pendingExplodePoint = null;
       finishCollapse();
       return;
     }
@@ -299,21 +299,24 @@ export function createRendererDebugView(document: Document = globalThis.document
     overrides.restoreProperties(["transform", "translate"]);
     collapseTimer = setTimeout(() => {
       finishCollapse();
-      scheduleXray();
+      const point = pendingExplodePoint;
+      pendingExplodePoint = null;
+      if (point) explodeAt(point);
     }, XRAY_DURATION_MS);
   }
 
-  function scheduleXray(): void {
-    clearTimeout(dwellTimer);
-    if (!state.xray || phase !== "idle" || !lastPoint) return;
-    dwellTimer = setTimeout(() => {
-      if (!state.xray || phase !== "idle" || !lastPoint) return;
-      const target = document.elementFromPoint(lastPoint.x, lastPoint.y);
-      if (!target || isInspectorElement(target, document)) return;
-      const viewportArea = (window?.innerWidth ?? 0) * (window?.innerHeight ?? 0);
-      const root = chooseXrayRoot(target, viewportArea);
-      if (root) explode(root);
-    }, XRAY_DWELL_MS);
+  function elementAt(point: { x: number; y: number }): Element | null {
+    const target = document.elementFromPoint(point.x, point.y);
+    if (!target || isInspectorElement(target, document) || target.id === HOVER_OUTLINE_ID) return null;
+    return target;
+  }
+
+  function explodeAt(point: { x: number; y: number }): void {
+    const target = elementAt(point);
+    if (!target) return;
+    const viewportArea = (window?.innerWidth ?? 0) * (window?.innerHeight ?? 0);
+    const root = chooseXrayRoot(target, viewportArea);
+    if (root) explode(root);
   }
 
   function insideExplodedRect(point: { x: number; y: number }): boolean {
@@ -323,17 +326,69 @@ export function createRendererDebugView(document: Document = globalThis.document
       && point.y >= explodedRect.top - margin && point.y <= explodedRect.bottom + margin;
   }
 
+  /** Thickens the outline of the exploded layer under the pointer; hit-testing already follows the 3D transform. */
+  function highlightLayer(target: EventTarget | null): void {
+    const next = target instanceof Element && isStyledElement(target) && !isInspectorElement(target, document) ? target : null;
+    if (next === hoveredLayer) return;
+    if (hoveredLayer && outlinedLayers.has(hoveredLayer)) overrides.set(hoveredLayer, "outline", XRAY_LAYER_OUTLINE);
+    else if (hoveredLayer) overrides.restore(hoveredLayer, "outline");
+    hoveredLayer = next;
+    if (next && explodedRoot?.contains(next)) overrides.set(next, "outline", XRAY_LAYER_HOVER_OUTLINE);
+    else hoveredLayer = null;
+  }
+
   function onPointerMove(event: PointerEvent): void {
-    lastPoint = { x: event.clientX, y: event.clientY };
     if (phase === "exploded") {
-      if (!insideExplodedRect(lastPoint)) collapse(true);
+      highlightLayer(event.target);
       return;
     }
-    if (phase === "idle") scheduleXray();
+    if (phase !== "idle") {
+      hideHoverOutline();
+      return;
+    }
+    const target = elementAt({ x: event.clientX, y: event.clientY });
+    if (target) showHoverOutline(target);
+    else hideHoverOutline();
   }
 
   function onPointerLeave(): void {
-    lastPoint = null;
+    hideHoverOutline();
+  }
+
+  /**
+   * A click explodes the hovered subtree. Clicking a layer while exploded selects it and ends the view;
+   * a click outside the subtree, or one during the collapse, explodes the new target once collapsed.
+   */
+  function onClick(event: MouseEvent): void {
+    const point = { x: event.clientX, y: event.clientY };
+    if (phase === "idle") {
+      if (!elementAt(point)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      explodeAt(point);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (phase === "collapsing") {
+      pendingExplodePoint = point;
+      return;
+    }
+    const target = event.target;
+    if (insideExplodedRect(point) && target instanceof Element && explodedRoot?.contains(target) && onPick(target)) {
+      pendingExplodePoint = null;
+      collapse(true);
+      return;
+    }
+    pendingExplodePoint = insideExplodedRect(point) ? null : point;
+    collapse(true);
+  }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    if (event.key !== "Escape" || phase === "idle") return;
+    event.preventDefault();
+    event.stopPropagation();
+    pendingExplodePoint = null;
     collapse(true);
   }
 
@@ -344,25 +399,32 @@ export function createRendererDebugView(document: Document = globalThis.document
     xrayListening = state.xray;
     if (state.xray) {
       document.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
+      document.addEventListener("click", onClick, { capture: true });
+      document.addEventListener("keydown", onKeyDown, { capture: true });
       document.documentElement.addEventListener("pointerleave", onPointerLeave);
       return;
     }
     document.removeEventListener("pointermove", onPointerMove, { capture: true });
+    document.removeEventListener("click", onClick, { capture: true });
+    document.removeEventListener("keydown", onKeyDown, { capture: true });
     document.documentElement.removeEventListener("pointerleave", onPointerLeave);
-    lastPoint = null;
-    collapse(false);
+    hideHoverOutline();
+    pendingExplodePoint = null;
+    collapse(true);
+  }
+
+  function apply(next: DebugViewState): void {
+    const previous = state;
+    state = next;
+    if (next.outlines !== previous.outlines) applyOutlines();
+    if (next.xray !== previous.xray) applyXray();
   }
 
   return {
-    apply(next) {
-      const previous = state;
-      state = next;
-      if (next.timeScale !== previous.timeScale) applyTiming();
-      if (next.outlines !== previous.outlines) applyOutlines();
-      if (next.xray !== previous.xray) applyXray();
-    },
+    apply,
     dispose() {
-      this.apply(DEBUG_VIEW_OFF);
+      apply(DEBUG_VIEW_OFF);
+      collapse(false);
     },
   };
 }

@@ -63,12 +63,6 @@
   outline-offset: -2px;
 }
 
-/* The rectangle shares the pen and eraser's quiet well instead of the accent active style. */
-.canvas-toolbar__tool.sketch-options__rectangle[data-active="true"] {
-  background: var(--surface-well);
-  color: var(--text-primary);
-}
-
 .sketch-options__color {
   position: relative;
   display: flex;

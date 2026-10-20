@@ -9,7 +9,7 @@ import type { RendererCursor } from "../ui/customCursors.ts";
 import type { DebugViewState } from "./debugView.ts";
 
 // Bumped on every message-shape change; the controller and renderer must agree exactly.
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 24;
 
 export interface FrameMessage {
   type: string;
@@ -292,7 +292,7 @@ export interface InspectorInteractionStateMessage extends RendererMessage {
   commentCursor?: string;
 }
 
-/** Applies Debug tool views (slowed animations, outlines, X-ray) inside a renderer. */
+/** Applies View options (outlines, explode view) inside a renderer. */
 export interface DebugViewStateMessage extends RendererMessage {
   type: "debug-view-state";
   state: DebugViewState;

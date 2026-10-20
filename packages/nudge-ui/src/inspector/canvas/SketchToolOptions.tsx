@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
-import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
+import { ToolbarButton } from "./ToolbarButton.tsx";
 import {
   setSketchDrawingTool,
   setSketchStrokeColor,
@@ -289,21 +289,15 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
           <IllustratedToolButton tool="eraser" activeTool={drawing.tool} label="Eraser" hidden={hidden}>
             <EraserIllustration />
           </IllustratedToolButton>
-          <Tooltip content="Rectangle" stableTrigger>
-            <IconButton
-              variant="quiet"
-              size="large"
-              className="canvas-toolbar__tool sketch-options__rectangle"
-              label="Rectangle"
-              aria-pressed={drawing.tool === "rectangle"}
-              data-active={drawing.tool === "rectangle" ? "true" : "false"}
-              data-test="sketch-tool-rectangle"
-              tabIndex={hidden ? -1 : undefined}
-              onClick={() => setSketchDrawingTool("rectangle")}
-            >
-              <RectangleIcon color={drawing.color} />
-            </IconButton>
-          </Tooltip>
+          <ToolbarButton
+            label="Rectangle"
+            active={drawing.tool === "rectangle"}
+            activeStyle="well"
+            hidden={hidden}
+            dataTest="sketch-tool-rectangle"
+            icon={<RectangleIcon color={drawing.color} />}
+            onClick={() => setSketchDrawingTool("rectangle")}
+          />
           <ColorPicker color={drawing.color} hidden={hidden || !settled} />
         </>
       )}

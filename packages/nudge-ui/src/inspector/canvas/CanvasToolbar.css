@@ -44,11 +44,6 @@
   background: var(--border-subtle);
 }
 
-.canvas-toolbar__tool[data-active="true"] {
-  background: var(--accent-surface);
-  color: var(--accent);
-}
-
 /* Tool options slide out beside their tool. The component sets an explicit
    pixel width (0 or the content's natural width) so the toolbar grows smoothly. */
 .tool-options {
@@ -86,85 +81,73 @@
   width: max-content;
 }
 
-.tool-options__popover {
+@media (prefers-reduced-motion: reduce) {
+  .tool-options {
+    transition: none;
+  }
+}
+
+.animation-bar {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + var(--space-16));
+  /* Sits one gap above the canvas toolbar (padding, 40px buttons, padding). */
+  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
+  z-index: calc(var(--z-index) - 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: max-content;
+  max-width: calc(100% - var(--space-32));
   padding: var(--space-4);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
   transform: translateX(-50%);
-  animation: tool-options-popover-in 140ms cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: auto;
 }
 
-.debug-options__timing {
-  position: relative;
-  display: flex;
-}
-
-.debug-options__timing-trigger {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  min-width: var(--control-height-large);
-  height: var(--control-height-large);
-  padding: 0 var(--space-8);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-base);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.debug-options__timing-trigger:hover,
-
-.debug-options__timing-trigger[data-open="true"] {
-  background: var(--surface-well);
-}
-
-.debug-options__timing-value {
-  font-weight: 650;
-}
-
-.debug-options__timing-popover {
-  display: grid;
-  gap: var(--space-8);
-  width: 220px;
-  padding: var(--space-12);
-}
-
-.debug-options__timing-label {
-  display: flex;
-  justify-content: space-between;
+.animation-bar__name {
+  padding-inline: var(--space-8);
+  overflow: hidden;
   color: var(--text-primary);
   font-size: var(--font-size-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.debug-options__timing-readout {
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
+.select.animation-bar__select {
+  flex: none;
+  width: 200px;
 }
 
-.debug-options__timing-slider {
-  display: grid;
-  gap: var(--space-8);
+.animation-bar__status {
+  padding-inline: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  white-space: nowrap;
 }
 
-.debug-options__timing-control {
+/* Four 52px columns, three 2px gaps and the track's padding. */
+.segmented-control.animation-bar__speed {
+  flex: none;
+  width: calc(52px * 4 + 2px * 3 + 4px);
+  min-height: var(--control-height-small);
+}
+
+.animation-bar__scrubber {
+  flex: none;
+  width: 176px;
+  padding-inline: var(--space-8);
+}
+
+.animation-bar__scrubber-control {
   display: flex;
   align-items: center;
-  height: var(--space-16);
+  height: var(--control-height-small);
   touch-action: none;
 }
 
-.debug-options__timing-track {
+.animation-bar__scrubber-track {
   position: relative;
   width: 100%;
   height: 4px;
@@ -172,12 +155,12 @@
   background: var(--surface-well-2x);
 }
 
-.debug-options__timing-indicator {
+.animation-bar__scrubber-indicator {
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--text-primary);
 }
 
-.debug-options__timing-thumb {
+.animation-bar__scrubber-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -186,31 +169,75 @@
   cursor: grab;
 }
 
-.debug-options__timing-thumb:focus-visible {
+.animation-bar__scrubber-thumb:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.debug-options__timing-scale {
-  display: flex;
-  justify-content: space-between;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
+.animation-bar__scrubber[data-disabled] {
+  opacity: 0.4;
 }
 
-@keyframes tool-options-popover-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 4px);
-  }
+.animation-scope__trigger {
+  appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 160px;
+  height: var(--control-height-small);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: var(--accent);
+  color: var(--surface-raised-2x);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-base);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tool-options {
-    transition: none;
-  }
+.animation-scope__trigger svg {
+  flex-shrink: 0;
+}
 
-  .tool-options__popover {
-    animation: none;
-  }
+.animation-scope__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.animation-scope__positioner {
+  z-index: calc(var(--z-index) - 1);
+}
+
+.animation-scope__menu {
+  display: grid;
+  min-width: 160px;
+  padding: var(--space-4);
+  gap: var(--space-4);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+}
+
+.animation-scope__item {
+  appearance: none;
+  width: 100%;
+  min-height: var(--control-height-small);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-base);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.animation-scope__item:hover,
+.animation-scope__item--selected {
+  background: var(--surface-well);
 }

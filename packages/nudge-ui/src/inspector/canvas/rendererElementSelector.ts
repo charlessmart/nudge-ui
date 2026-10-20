@@ -115,6 +115,13 @@ export function buildSelector(el: HTMLElement): string {
 }
 
 let installed = false;
+let sendProgrammaticClick: ((target: Element) => boolean) | null = null;
+
+/** Selects the deepest identified element at `target` as if it were clicked; false when none applies. */
+export function selectRendererElement(target: Element): boolean {
+  return sendProgrammaticClick?.(target) ?? false;
+}
+
 const noopDisposal = (): void => undefined;
 
 export function installRendererElementSelector(
@@ -136,6 +143,37 @@ export function installRendererElementSelector(
     y: number;
     mode: ReturnType<typeof selectionTargetMode>;
   } | null = null;
+
+  function sendElementClick(el: HTMLElement, additive: boolean): boolean {
+    lastSelected = el;
+    const cid = el.getAttribute("data-cid")!;
+    const selector = buildSelector(el);
+    const { file, line, component, src } = getFiberInfo(el);
+    const identity = getRendererIdentity();
+    if (!identity) return false;
+
+    const msg: ElementClickMessage = {
+      type: "element-click",
+      protocolVersion: PROTOCOL_VERSION,
+      cid,
+      selector,
+      src,
+      elementId: cidIndex.elementId(el),
+      file,
+      line,
+      component,
+      additive,
+      ...identity,
+    };
+
+    sendToParent(msg);
+    return true;
+  }
+
+  sendProgrammaticClick = (target) => {
+    const el = resolveSelectionTarget(target, "deep");
+    return el ? sendElementClick(el, false) : false;
+  };
 
   function trackListener<E extends Event>(
     target: Document | Window,
@@ -755,37 +793,15 @@ export function installRendererElementSelector(
         blockApplicationClick(event);
         return;
       }
-      lastSelected = el;
-
       blockApplicationClick(event);
-
-      const cid = el.getAttribute("data-cid")!;
-      const selector = buildSelector(el);
-      const { file, line, component, src } = getFiberInfo(el);
-      const identity = getRendererIdentity();
-      if (!identity) return;
-
-      const msg: ElementClickMessage = {
-        type: "element-click",
-        protocolVersion: PROTOCOL_VERSION,
-        cid,
-        selector,
-        src,
-        elementId: cidIndex.elementId(el),
-        file,
-        line,
-        component,
-        additive: event.shiftKey && !event.ctrlKey && !event.metaKey,
-        ...identity,
-      };
-
-      sendToParent(msg);
+      sendElementClick(el, event.shiftKey && !event.ctrlKey && !event.metaKey);
     },
     true,
   );
 
   return () => {
     if (disposed) return;
+    sendProgrammaticClick = null;
     cancelActiveDrag();
     disposed = true;
     installed = false;

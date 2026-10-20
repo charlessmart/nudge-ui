@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
-import { buildSelector, installRendererElementSelector } from "./rendererElementSelector.ts";
+import { buildSelector, installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
 
@@ -194,6 +194,35 @@ describe("renderer hover scheduling", () => {
       .map(([message]) => message)
       .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
     expect(click).toMatchObject({ type: "element-click", additive: true });
+  });
+
+  it("selects the deepest identified element for a programmatic pick", () => {
+    const outer = trackedElement("outer");
+    const inner = document.createElement("span");
+    inner.dataset.cid = "inner";
+    inner.dataset.src = "src/inner.tsx:1:1";
+    const text = document.createElement("em");
+    inner.append(text);
+    outer.append(inner);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    expect(selectRendererElement(text)).toBe(true);
+    const click = postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
+    expect(click).toMatchObject({ type: "element-click", cid: "inner", additive: false });
+  });
+
+  it("reports a programmatic pick it cannot send", () => {
+    const plain = document.createElement("div");
+    document.body.append(plain);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    expect(selectRendererElement(plain)).toBe(false);
+    const button = trackedElement("after-dispose");
+    disposeRendererElementSelector();
+    expect(selectRendererElement(button)).toBe(false);
+    expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "element-click" }), expect.anything());
   });
 
   it("only enables padding dragging around the guide line and routes that drag through the element protocol", () => {
