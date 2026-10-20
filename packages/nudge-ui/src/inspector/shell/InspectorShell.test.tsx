@@ -382,7 +382,9 @@ describe("InspectorShell", () => {
     act(() => {
       pressKey({ key: "\\", code: "Backslash", metaKey: true });
     });
-    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).toBeNull();
+    // Hiding the inspector panel keeps the floating Canvas toolbar available.
+    expect(shadow.querySelector('[data-test="show-inspector"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="canvas-toolbar"]')).not.toBeNull();
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {

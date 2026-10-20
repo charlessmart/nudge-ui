@@ -875,7 +875,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
-          {inspectorOpen && !sketchActive ? (
+          {!sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}
               sketchEnabled={sketchAvailable}
@@ -884,7 +884,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ) : null}
         </div>
       </div>
-      {inspectorOpen && sketchActive ? (
+      {sketchActive ? (
         <div
           className="canvas-toolbar__portal"
           data-test="canvas-toolbar-portal"
