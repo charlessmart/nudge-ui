@@ -32,7 +32,6 @@ import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector
 import { canEditStyles } from "../tokens/editActions.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
-import { NudgeLogoIcon } from "./NudgeLogoIcon.tsx";
 import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { UI_STYLES } from "../ui/styles.ts";

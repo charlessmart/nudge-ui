@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
+import { NudgeLogoIcon } from "./NudgeLogoIcon.tsx";
 
 export interface InspectorPanelProps {
   readonly isOpen: boolean;
@@ -57,7 +58,7 @@ export function InspectorPanel({ isOpen, collapseDisabled, toggleShortcut, heade
               data-test="show-inspector"
               onClick={() => onOpenChange(true)}
             >
-              <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
+              <NudgeLogoIcon />
             </IconButton>
           </Tooltip>
         </div>
