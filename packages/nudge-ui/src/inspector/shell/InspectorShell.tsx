@@ -300,7 +300,7 @@ export function InspectorShell(): ReactElement {
               identity={selected}
               count={selectedElements.length}
               isComponent={!isMultiSelection && componentProps !== null}
-              name={isMultiSelection ? { title: `${selectedElements.length} elements` } : componentProps ? { title: componentProps.target.meta.componentName } : describeElement(selected.domElement)}
+              name={isMultiSelection ? { title: `${selectedElements.length} elements` } : componentProps ? { ...describeElement(selected.domElement), title: componentProps.target.meta.componentName } : describeElement(selected.domElement)}
               editScope={editScope}
               sourceSiteMatchCount={sourceSiteMatchCount}
               styleState={styleState}

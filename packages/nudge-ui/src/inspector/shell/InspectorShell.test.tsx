@@ -105,7 +105,8 @@ describe("InspectorShell", () => {
       });
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
-      expect(host.shadowRoot?.querySelector('[data-test="selection-name"]')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-name"] .editor__title')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-detail"]')?.textContent).toBe("button");
       expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).toBeNull();
     } finally {
       setSelectedElement(null);

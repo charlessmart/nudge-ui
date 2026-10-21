@@ -79,6 +79,9 @@ export function InspectorSelection({ identity, count, name, isComponent = false,
                 )}
               </StatusCallout>
             ) : null}
+            {name.detail ? (
+              <div className="selection__detail" data-test="selection-detail" title={name.detail}>{name.detail}</div>
+            ) : null}
           </div>
         ) : null}
         {children}
