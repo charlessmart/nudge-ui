@@ -5,10 +5,12 @@
   outline-offset: -2px;
 }
 
+/* Held-Option measurements outrank every other overlay (outlines, spacing
+   guides, badges, comment pins, the panel) so the distances are never hidden. */
 .measurement-overlay {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 20;
   overflow: visible;
   pointer-events: none;
 }
