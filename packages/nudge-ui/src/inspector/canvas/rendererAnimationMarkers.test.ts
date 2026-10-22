@@ -40,15 +40,17 @@ describe("page animation scan", () => {
 });
 
 describe("renderer animation markers", () => {
-  it("labels animated elements, selects one on click without letting the page see it, and removes the labels when off", () => {
+  it("marks animated elements, selects one on click without letting the page see it, and removes the markers when off", () => {
     mountPage();
     const onPick = vi.fn(() => true);
     const markers = createRendererAnimationMarkers(document, onPick);
     markers.apply(true);
 
     const container = document.getElementById("nudge-ui-animation-markers")!;
-    const labels = [...container.children].map((marker) => marker.textContent);
+    const labels = [...container.children].map((marker) => (marker as HTMLElement).title);
     expect(labels).toEqual(["Hover · transform", "spin"]);
+    expect(container.children[0]!.textContent).toBe("");
+    expect(container.children[0]!.querySelector("svg")).not.toBeNull();
 
     const pageClick = vi.fn();
     document.addEventListener("click", pageClick);
@@ -59,6 +61,25 @@ describe("renderer animation markers", () => {
 
     markers.apply(false);
     expect(document.getElementById("nudge-ui-animation-markers")).toBeNull();
+  });
+
+  it("places a marker above its element in page coordinates, so scrolling never pins it to the viewport", () => {
+    mountPage();
+    // The element sits 30px below the viewport top while the page is scrolled 500px.
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 500 });
+    const markers = createRendererAnimationMarkers(document);
+    markers.apply(true);
+    const [card] = [...document.getElementById("nudge-ui-animation-markers")!.children] as HTMLElement[];
+    expect(card!.style.top).toBe("502px");
+
+    // An element at the top of the page keeps the marker inside the page, not above it.
+    document.getElementById("spinner")!.getBoundingClientRect = () => ({ left: 10, top: -490, width: 50, height: 20 } as DOMRect);
+    markers.apply(false);
+    markers.apply(true);
+    const rerendered = [...document.getElementById("nudge-ui-animation-markers")!.children] as HTMLElement[];
+    expect(rerendered[1]!.style.top).toBe("4px");
+    markers.dispose();
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
   });
 
   it("rescans after the page changes", () => {

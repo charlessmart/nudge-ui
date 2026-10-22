@@ -2,7 +2,6 @@ import { startInteractionStatePreview } from "../shell/interactionStatePreview.t
 import { scanAnimations, type AnimationEntry } from "./animationScan.ts";
 
 export const ANIMATION_SPEEDS = [0.1, 0.25, 0.5, 1] as const;
-export const ANIMATION_FRAME_MS = 16;
 /** How long after a trigger new animations are still adopted, for apps that render a frame or two later. */
 const CAPTURE_WINDOW_MS = 500;
 
@@ -14,6 +13,8 @@ export interface AnimationSnapshot {
   readonly label: string;
   /** Position within the longest captured animation, 0 to 1. */
   readonly progress: number;
+  /** Length of the longest captured animation in milliseconds; 0 until one is captured. */
+  readonly duration: number;
   readonly playing: boolean;
   readonly speed: number;
 }
@@ -23,6 +24,7 @@ export const IDLE_ANIMATION_SNAPSHOT: AnimationSnapshot = {
   status: "idle",
   label: "",
   progress: 0,
+  duration: 0,
   playing: false,
   speed: 1,
 };
@@ -87,7 +89,7 @@ export class AnimationSession {
     if (!window) return;
     // A page the pointer is still over is already hovered, so a forced hover would change nothing to capture.
     if (entry.kind === "state" && entry.state === "hover" && this.element.ownerDocument.documentElement.matches(":hover")) {
-      this.publish({ ...this.snapshot, entryId: entry.id, status: "waiting", label: "", progress: 0, playing: false });
+      this.publish({ ...this.snapshot, entryId: entry.id, status: "waiting", label: "", progress: 0, duration: 0, playing: false });
       const wait = (): void => {
         if (this.disposed) return;
         if (this.element.ownerDocument.documentElement.matches(":hover")) {
@@ -106,7 +108,7 @@ export class AnimationSession {
   private capture(entry: AnimationEntry): void {
     const window = this.element.ownerDocument.defaultView;
     if (!window) return;
-    this.publish({ ...this.snapshot, entryId: entry.id, status: "capturing", label: "", progress: 0, playing: false });
+    this.publish({ ...this.snapshot, entryId: entry.id, status: "capturing", label: "", progress: 0, duration: 0, playing: false });
     // Settle transitions still running from before, so the capture starts from the resting state.
     for (const animation of this.subtreeAnimations()) {
       if ("transitionProperty" in animation) animation.cancel();
@@ -170,11 +172,6 @@ export class AnimationSession {
     this.publish({ ...this.snapshot, playing: false });
   }
 
-  step(direction: -1 | 1): void {
-    this.pause();
-    this.seekTime(this.groupTime() + direction * ANIMATION_FRAME_MS);
-  }
-
   seek(progress: number): void {
     this.pause();
     this.seekTime(progress * this.total);
@@ -207,7 +204,7 @@ export class AnimationSession {
     }
     this.captured.push(...fresh);
     this.total = Math.max(...this.captured.map(endTimeOf));
-    this.publish({ ...this.snapshot, status: "ready", label: labelFor(this.captured) });
+    this.publish({ ...this.snapshot, status: "ready", label: labelFor(this.captured), duration: this.total });
     this.startPolling();
   }
 

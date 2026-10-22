@@ -5,38 +5,39 @@ const CONTAINER_ID = "nudge-ui-animation-markers";
 const MARKER_ATTRIBUTE = "data-nudge-ui-animation-marker";
 const MARKER_LIMIT = 150;
 const RESCAN_DELAY_MS = 400;
-// Matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables.
+// Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables.
+// Same 24px square and 4px gap above the element as the DOM navigator trigger, so the navigator covers its marker on selection.
+const MARKER_SIZE = 24;
+const MARKER_GAP = 4;
+const MARKER_INSET = 4;
 const MARKER_STYLE = [
   "position:absolute",
   "z-index:2147483645",
   "box-sizing:border-box",
-  "max-width:160px",
-  "height:24px",
-  "padding:0 8px",
+  `width:${MARKER_SIZE}px`,
+  `height:${MARKER_SIZE}px`,
+  "display:flex",
+  "align-items:center",
+  "justify-content:center",
+  "padding:0",
   "margin:0",
-  "overflow:hidden",
   "border:0",
   "border-radius:4px",
   "background:#0096ff",
   "color:#fff",
-  "font:400 12px/24px Inter Variable,Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif",
-  "text-overflow:ellipsis",
-  "white-space:nowrap",
   "cursor:pointer",
   "pointer-events:auto",
 ].join(";");
+// Tabler "keyframes" outline icon.
+const MARKER_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;pointer-events:none"><path d="M9.225 18.412a1.595 1.595 0 0 1 -1.225 .588c-.468 0 -.914 -.214 -1.225 -.588l-4.361 -5.248a1.844 1.844 0 0 1 0 -2.328l4.361 -5.248a1.595 1.595 0 0 1 1.225 -.588c.468 0 .914 .214 1.225 .588l4.361 5.248a1.844 1.844 0 0 1 0 2.328l-4.361 5.248"/><path d="M17 5l4.586 5.836a1.844 1.844 0 0 1 0 2.328l-4.586 5.836"/><path d="M13 5l4.586 5.836a1.844 1.844 0 0 1 0 2.328l-4.586 5.836"/></svg>';
 
 export interface RendererAnimationMarkers {
   apply(enabled: boolean): void;
   dispose(): void;
 }
 
-function markerLabel(groups: readonly AnimationGroup[]): string {
-  return groups.length > 1 ? `${groups.length} animations` : groups[0]!.label;
-}
-
 /**
- * Pins one label to the topmost element of each animation. Clicking a label selects that element
+ * Pins one keyframes icon to the topmost element of each animation. Clicking an icon selects that element
  * through `onPick`, which sends it down the same path as a normal selection.
  */
 export function createRendererAnimationMarkers(
@@ -79,10 +80,12 @@ export function createRendererAnimationMarkers(
       marker.type = "button";
       marker.setAttribute(MARKER_ATTRIBUTE, "");
       marker.style.cssText = MARKER_STYLE;
-      marker.style.left = `${Math.round(rect.left + window.scrollX)}px`;
-      marker.style.top = `${Math.max(0, Math.round(rect.top + window.scrollY) - 12)}px`;
-      marker.textContent = markerLabel(groups);
+      // Page coordinates, kept inside the page's own top-left corner and never against the current scroll.
+      marker.style.left = `${Math.max(MARKER_INSET, Math.round(rect.left + window.scrollX))}px`;
+      marker.style.top = `${Math.max(MARKER_INSET, Math.round(rect.top + window.scrollY) - MARKER_SIZE - MARKER_GAP)}px`;
+      marker.innerHTML = MARKER_ICON;
       marker.title = groups.map((group) => group.label).join("\n");
+      marker.setAttribute("aria-label", marker.title);
       targets.set(marker, trigger);
       container.append(marker);
       placed += 1;

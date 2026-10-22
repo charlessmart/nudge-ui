@@ -162,7 +162,7 @@ function MotionExamples() {
           <h2 id="motion-fixtures-title">Cards that fan out from behind one.</h2>
         </div>
         <p className="interaction-fixtures__intro">
-          Hover the deck, then open View options and pick the Animation tool to step through the transition, one frame at a time.
+          Hover the deck, then pick the Animation tool to step through the transition.
         </p>
       </div>
       <div className="interaction-fixtures__stage motion-fixtures__stage">

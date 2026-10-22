@@ -2,8 +2,8 @@ import type { ReactElement } from "react";
 import {
   IconMessageCircle,
   IconMessageCircleFilled,
-  IconMicroscope,
-  IconMicroscopeFilled,
+  IconKeyframes,
+  IconKeyframesFilled,
   IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
@@ -16,7 +16,7 @@ import {
 } from "./CanvasToolIcons.tsx";
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 import { SketchToolOptions } from "./SketchToolOptions.tsx";
-import { DebugToolOptions } from "./DebugToolOptions.tsx";
+import { ViewToolButton } from "./ViewToolButton.tsx";
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
@@ -83,15 +83,18 @@ export function CanvasToolbar({
         />
         <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
         <ToolbarButton
-          active={tool === "debug"}
-          label="View options"
-          shortcut="D"
-          icon={<IconMicroscope size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          activeIcon={<IconMicroscopeFilled size={ICON_SIZE} aria-hidden="true" />}
-          dataTest="canvas-tool-debug"
-          onClick={() => onToolChange("debug")}
+          active={tool === "animation"}
+          label="Animation"
+          icon={<IconKeyframes size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<IconKeyframesFilled size={ICON_SIZE} aria-hidden="true" />}
+          dataTest="canvas-tool-animation"
+          onClick={() => onToolChange("animation")}
         />
-        <DebugToolOptions open={tool === "debug"} />
+        <ViewToolButton
+          active={tool === "debug"}
+          onActivate={() => onToolChange("debug")}
+          onToggle={() => onToolChange("debug")}
+        />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">

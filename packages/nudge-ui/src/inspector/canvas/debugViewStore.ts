@@ -1,67 +1,52 @@
 import { useSyncExternalStore } from "react";
-import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
 
-let state: DebugViewState = DEBUG_VIEW_OFF;
-const listeners = new Set<() => void>();
+/** What the view tool shows: element outlines, or the page's layers pulled apart. */
+export type DebugViewMode = "outlines" | "explode";
 
-function publish(next: DebugViewState): void {
-  if (next.outlines === state.outlines && next.xray === state.xray) return;
-  state = next;
-  for (const listener of listeners) listener();
-}
-
-export function getDebugViewState(): DebugViewState {
-  return state;
-}
-
-export function subscribeDebugView(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function useDebugViewState(): DebugViewState {
-  return useSyncExternalStore(subscribeDebugView, getDebugViewState, getDebugViewState);
-}
-
-export function setDebugOutlines(outlines: boolean): void {
-  publish({ ...state, outlines });
-}
-
-/** Explode view and Animation both take over element clicks, so only one is on at a time. */
-export function setDebugXray(xray: boolean): void {
-  if (xray) setAnimationDebug({ enabled: false });
-  publish({ ...state, xray });
-}
-
-/** Controller-only: the Animation tool reads the element selection directly, so renderers never see it. */
-export interface AnimationDebugPrefs {
-  readonly enabled: boolean;
-  readonly speed: number;
-}
-
-let animation: AnimationDebugPrefs = { enabled: false, speed: 1 };
-const animationListeners = new Set<() => void>();
-
-export function getAnimationDebug(): AnimationDebugPrefs {
-  return animation;
-}
-
-export function useAnimationDebug(): AnimationDebugPrefs {
-  return useSyncExternalStore(
-    (listener) => {
-      animationListeners.add(listener);
-      return () => animationListeners.delete(listener);
+function createStore<T>(initial: T): {
+  get: () => T;
+  set: (next: T) => void;
+  use: () => T;
+} {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  const get = (): T => value;
+  return {
+    get,
+    set(next) {
+      if (Object.is(next, value)) return;
+      value = next;
+      for (const listener of listeners) listener();
     },
-    getAnimationDebug,
-    getAnimationDebug,
-  );
+    use: () => useSyncExternalStore(
+      (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      get,
+      get,
+    ),
+  };
 }
 
-export function setAnimationDebug(patch: Partial<AnimationDebugPrefs>): void {
-  const next = { ...animation, ...patch };
-  if (next.enabled === animation.enabled && next.speed === animation.speed) return;
-  const enabledChanged = next.enabled !== animation.enabled;
-  animation = next;
-  if (enabledChanged && next.enabled) publish({ ...state, xray: false });
-  for (const listener of animationListeners) listener();
-}
+// Which view the tool applies. Outline view, Explode view and Animation are separate tools, so only one is ever active;
+// the tool selection lives with the canvas and this is just the view the tool will show when it is.
+const viewMode = createStore<DebugViewMode>("outlines");
+
+export const getDebugViewMode = viewMode.get;
+export const setDebugViewMode = viewMode.set;
+export const useDebugViewMode = viewMode.use;
+
+// Controller-only: the Animation tool reads the element selection directly, so renderers never see the speed.
+const animationSpeed = createStore<number>(1);
+
+export const getAnimationSpeed = animationSpeed.get;
+export const setAnimationSpeed = animationSpeed.set;
+export const useAnimationSpeed = animationSpeed.use;
+
+/** Controller-only: the animation bar is playing or being scrubbed, so the page's markers and element label step aside. */
+const animationBusy = createStore<boolean>(false);
+
+export const getAnimationBusy = animationBusy.get;
+export const setAnimationBusy = animationBusy.set;
+export const useAnimationBusy = animationBusy.use;

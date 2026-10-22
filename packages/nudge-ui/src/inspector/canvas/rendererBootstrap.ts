@@ -26,7 +26,7 @@ import type {
 import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
-import { installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
+import { installRendererElementSelector, selectRendererElement, setRendererSpacingHandlesEnabled } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
@@ -358,6 +358,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   owner.listenerRemovers.push(() => debugView.dispose());
   const animationMarkers = createRendererAnimationMarkers(document, selectRendererElement);
   owner.listenerRemovers.push(() => animationMarkers.dispose());
+  owner.listenerRemovers.push(() => setRendererSpacingHandlesEnabled(true));
 
   const onMessage = (event: MessageEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
@@ -369,6 +370,8 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
       if (isDebugViewState(state)) {
         debugView.apply(state);
         animationMarkers.apply(state.animations);
+        // The Animation tool inspects the app, so spacing handles stay out of the way of selecting.
+        setRendererSpacingHandlesEnabled(!state.animations);
       }
       return;
     }

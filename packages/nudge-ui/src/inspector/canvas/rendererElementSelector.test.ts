@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
-import { buildSelector, installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
+import { buildSelector, installRendererElementSelector, selectRendererElement, setRendererSpacingHandlesEnabled } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
 
@@ -225,6 +225,42 @@ describe("renderer hover scheduling", () => {
     expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "element-click" }), expect.anything());
   });
 
+  it("reports no spacing handle or hover fill, and starts no spacing drag, while spacing handles are disabled", () => {
+    const element = trackedElement("spacing-disabled-target");
+    element.style.paddingTop = "48px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    setRendererSpacingHandlesEnabled(false);
+    try {
+      // The same point that hits the padding-top handle when handles are enabled.
+      element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, clientX: 100, clientY: 34 }));
+      runScheduledFrame();
+
+      expect(hoverMessages(postMessage)[0]).toMatchObject({ spacing: null, hoverSpacing: null });
+      expect(document.documentElement.style.cursor).toBe("");
+
+      postMessage.mockClear();
+      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 100, clientY: 34 }));
+      expect(postMessage.mock.calls.map(([message]) => message)).toEqual(
+        expect.not.arrayContaining([expect.objectContaining({ spacing: expect.objectContaining({ kind: "padding" }) })]),
+      );
+    } finally {
+      setRendererSpacingHandlesEnabled(true);
+    }
+  });
+
   it("only enables padding dragging around the guide line and routes that drag through the element protocol", () => {
     const element = trackedElement("spacing-target");
     element.style.cursor = "crosshair";
@@ -389,6 +425,29 @@ describe("renderer hover scheduling", () => {
       rect: { left: 10, top: 20, width: 200, height: 120 },
       point: { x: 100, y: 60 },
     });
+  });
+
+  it("forwards Escape to the controller even while renderer interactions are suspended, but not other shortcuts", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: { type: "inspector-interaction-state", protocolVersion: PROTOCOL_VERSION, open: false, ...identity },
+    }));
+    postMessage.mockClear();
+
+    for (const [code, key] of [["KeyV", "v"], ["Escape", "Escape"]] as const) {
+      document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, code, key }));
+    }
+
+    const shortcuts = postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => typeof message === "object" && message !== null && "type" in message && message.type === "keyboard-shortcut");
+    expect(shortcuts).toEqual([expect.objectContaining({ phase: "keydown", code: "Escape" })]);
+    // A suspended renderer leaves deselecting to the controller.
+    expect(postMessage.mock.calls.map(([message]) => message)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "element-deselect" })]),
+    );
   });
 
   it("cancels an active spacing drag when renderer interactions are suspended", () => {

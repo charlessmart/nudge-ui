@@ -14,6 +14,10 @@ export interface DomNavigatorProps {
   selected: SelectedElement;
   hierarchy: HTMLElement[];
   anchor: Rect;
+  /** Where the page's own top-left corner is on screen; the chip stays inside it. Defaults to the window's. */
+  origin?: { readonly left: number; readonly top: number };
+  /** The visible frame; the chip is hidden once the element has scrolled fully out of it. */
+  bounds?: Rect;
   project: (element: HTMLElement) => Rect | null;
   /** The selection is a component or shares its source with other elements. */
   linked?: boolean;
@@ -27,12 +31,16 @@ export function nodeDescription(node: HTMLElement): string {
   return `${node.localName}${id}${className}`;
 }
 
+function rectsIntersect(a: Rect, b: Rect): boolean {
+  return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
+}
+
 function selectNode(node: HTMLElement): void {
   const resolved = resolveSelectionFromElement(node);
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, project, linked = false }: DomNavigatorProps): ReactElement | null {
+export function DomNavigator({ selected, hierarchy, anchor, origin = { left: 0, top: 0 }, bounds, project, linked = false }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
   // The page is reachable only from here, above the tracked ancestors.
@@ -43,6 +51,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<HTMLElement>>(new Set());
   if (!page && parents.length === 0 && children.elements.length === 0) return null;
+  if (bounds && !rectsIntersect(anchor, bounds)) return null;
 
   const preview = hovered ? project(hovered) : null;
   const setOpen = (next: boolean): void => {
@@ -132,7 +141,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
         data-test="dom-navigator"
         data-linked={linked ? "true" : undefined}
         aria-label="DOM navigator"
-        style={{ left: Math.max(4, anchor.left), top: Math.max(4, anchor.top - 28) }}
+        style={{ left: Math.max(origin.left + 4, anchor.left), top: Math.max(origin.top + 4, anchor.top - 28) }}
       >
         <BasePopover.Root open={expanded} onOpenChange={setOpen}>
           <BasePopover.Trigger

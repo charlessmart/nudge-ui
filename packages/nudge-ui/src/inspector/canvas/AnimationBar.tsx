@@ -1,27 +1,18 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Slider } from "@base-ui/react/slider";
 import {
+  IconMinus,
   IconPlayerPauseFilled,
   IconPlayerPlayFilled,
-  IconPlayerTrackNext,
-  IconPlayerTrackPrev,
-  IconRefresh,
+  IconPlus,
 } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Select } from "../ui/Select.tsx";
-import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { useSelectedElement } from "../selection/selectionStore.ts";
-import { AnimationScope } from "./AnimationScope.tsx";
 import { ANIMATION_SPEEDS, AnimationSession, IDLE_ANIMATION_SNAPSHOT } from "./animationSession.ts";
-import { setAnimationDebug, useAnimationDebug } from "./debugViewStore.ts";
-
-const SPEED_OPTIONS = ANIMATION_SPEEDS.map((speed) => ({
-  value: String(speed),
-  label: `${speed}×`,
-  testId: `animation-speed-${speed}`,
-}));
+import { AnimationTimeline } from "./AnimationTimeline.tsx";
+import { setAnimationBusy, setAnimationSpeed, useAnimationSpeed } from "./debugViewStore.ts";
 
 const STATUS_LABEL = {
   idle: "",
@@ -34,16 +25,16 @@ const STATUS_LABEL = {
 const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 const getIdleSnapshot = (): typeof IDLE_ANIMATION_SNAPSHOT => IDLE_ANIMATION_SNAPSHOT;
 
-/** Floats above the canvas toolbar while the Animation tool has an element to inspect. */
+/** Floats above the canvas toolbar while the Animation tool is active. */
 export function AnimationBar(): ReactElement | null {
-  const prefs = useAnimationDebug();
+  const speed = useAnimationSpeed();
   const selected = useSelectedElement();
   const element = selected?.domElement ?? null;
   const session = useMemo(() => (element ? new AnimationSession(element) : null), [element]);
 
   useEffect(() => {
     if (!session) return;
-    session.setSpeed(prefs.speed);
+    session.setSpeed(speed);
     // A click runs the app's own handlers, so only a described animation starts by itself.
     const first = session.entries[0];
     if (first && first.kind !== "click") session.run(first);
@@ -57,108 +48,97 @@ export function AnimationBar(): ReactElement | null {
     session?.getSnapshot ?? getIdleSnapshot,
   );
 
-  if (!prefs.enabled) return null;
-  if (!session) {
-    return (
-      <div className="animation-bar" data-test="animation-bar" role="toolbar" aria-label="Animation controls">
-        <span className="animation-bar__name">Select an element to inspect its animations</span>
-      </div>
-    );
-  }
+  // While the animation moves under the pointer, the page's markers and element label would only be in the way.
+  const [scrubbing, setScrubbing] = useState(false);
+  const busy = snapshot.playing || scrubbing;
+  useEffect(() => setAnimationBusy(busy), [busy]);
+  useEffect(() => () => setAnimationBusy(false), []);
 
-  if (session.entries.length === 0) {
-    return (
-      <div className="animation-bar" data-test="animation-bar" role="toolbar" aria-label="Animation controls">
-        <span className="animation-bar__name" data-test="animation-empty">No animations on this element</span>
-      </div>
-    );
-  }
-
-  const ready = snapshot.status === "ready";
-  const current = session.entries.find((entry) => entry.id === snapshot.entryId);
+  // With nothing selected, or nothing to play on the selection, the full toolbar stays up, disabled, under a hint.
+  const entries = session?.entries ?? [];
+  const ready = session !== null && snapshot.status === "ready";
   const status = STATUS_LABEL[snapshot.status];
+  const speedIndex = ANIMATION_SPEEDS.findIndex((candidate) => candidate === speed);
+  const stepSpeed = (direction: -1 | 1): void => {
+    const next = ANIMATION_SPEEDS[speedIndex + direction];
+    if (next === undefined) return;
+    setAnimationSpeed(next);
+    session?.setSpeed(next);
+  };
 
   return (
     <div className="animation-bar" data-test="animation-bar" role="toolbar" aria-label="Animation controls">
-      <AnimationScope selected={session.element} entry={current} />
-      <Select
-        compact
-        className="animation-bar__select"
-        aria-label="Animation"
-        data-test="animation-select"
-        placeholder="Choose animation"
-        value={snapshot.entryId ?? undefined}
-        options={session.entries.map((entry) => ({ value: entry.id, label: entry.label }))}
-        onValueChange={(id) => {
-          const entry = session.entries.find((candidate) => candidate.id === id);
-          if (entry) session.run(entry);
-        }}
-      />
-      {status ? <span className="animation-bar__status" data-test="animation-status">{status}</span> : null}
-      <Tooltip content={snapshot.playing ? "Pause" : "Play"} stableTrigger>
-        <IconButton
-          variant="quiet"
-          size="compact"
-          label={snapshot.playing ? "Pause" : "Play"}
+      {!session ? (
+        <span className="animation-bar__hint" data-test="animation-hint">Select an element to inspect its animations</span>
+      ) : entries.length === 0 ? (
+        <span className="animation-bar__hint" data-test="animation-empty">No animations on this element</span>
+      ) : status ? (
+        <span className="animation-bar__hint" data-test="animation-status">{status}</span>
+      ) : null}
+      <div className="animation-bar__row">
+        <AnimationTimeline
+          progress={snapshot.progress}
+          duration={snapshot.duration}
           disabled={!ready}
-          data-test="animation-play"
-          onClick={() => (snapshot.playing ? session.pause() : session.play())}
-        >
-          {snapshot.playing ? <IconPlayerPauseFilled aria-hidden="true" /> : <IconPlayerPlayFilled aria-hidden="true" />}
-        </IconButton>
-      </Tooltip>
-      <Tooltip content="Back 16ms" stableTrigger>
-        <IconButton variant="quiet" size="compact" label="Back 16ms" disabled={!ready} data-test="animation-back" onClick={() => session.step(-1)}>
-          <IconPlayerTrackPrev aria-hidden="true" />
-        </IconButton>
-      </Tooltip>
-      <Slider.Root
-        className="animation-bar__scrubber"
-        min={0}
-        max={1}
-        step={0.001}
-        value={snapshot.progress}
-        disabled={!ready}
-        aria-label="Animation progress"
-        data-test="animation-scrubber"
-        onValueChange={(value) => session.seek(Array.isArray(value) ? value[0]! : value)}
-      >
-        <Slider.Control className="animation-bar__scrubber-control">
-          <Slider.Track className="animation-bar__scrubber-track">
-            <Slider.Indicator className="animation-bar__scrubber-indicator" />
-            <Slider.Thumb className="animation-bar__scrubber-thumb" />
-          </Slider.Track>
-        </Slider.Control>
-      </Slider.Root>
-      <Tooltip content="Forward 16ms" stableTrigger>
-        <IconButton variant="quiet" size="compact" label="Forward 16ms" disabled={!ready} data-test="animation-forward" onClick={() => session.step(1)}>
-          <IconPlayerTrackNext aria-hidden="true" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip content="Replay" stableTrigger>
-        <IconButton
-          variant="quiet"
-          size="compact"
-          label="Replay"
-          disabled={!current}
-          data-test="animation-replay"
-          onClick={() => current && session.run(current)}
-        >
-          <IconRefresh aria-hidden="true" />
-        </IconButton>
-      </Tooltip>
-      <SegmentedControl
-        aria-label="Playback speed"
-        data-test="animation-speed"
-        className="animation-bar__speed"
-        value={String(prefs.speed)}
-        options={SPEED_OPTIONS}
-        disabled={!ready}
-        onChange={(value) => {
-          setAnimationDebug({ speed: Number(value) });
-          session.setSpeed(Number(value));
-        }}
-      />
+          onSeek={(progress) => session?.seek(progress)}
+          onScrubChange={setScrubbing}
+        />
+      </div>
+      <div className="animation-bar__divider" aria-hidden="true" />
+      <div className="animation-bar__row">
+        <Tooltip content={snapshot.playing ? "Pause" : "Play"} stableTrigger>
+          <IconButton
+            variant="secondary"
+            size="default"
+            label={snapshot.playing ? "Pause" : "Play"}
+            disabled={!ready}
+            data-test="animation-play"
+            onClick={() => (snapshot.playing ? session?.pause() : session?.play())}
+          >
+            {snapshot.playing ? <IconPlayerPauseFilled aria-hidden="true" /> : <IconPlayerPlayFilled aria-hidden="true" />}
+          </IconButton>
+        </Tooltip>
+        <Select
+          className="animation-bar__select"
+          aria-label="Animation"
+          data-test="animation-select"
+          placeholder="Choose animation"
+          disabled={entries.length === 0}
+          value={snapshot.entryId ?? undefined}
+          options={entries.map((entry) => ({ value: entry.id, label: entry.label }))}
+          onValueChange={(id) => {
+            const entry = entries.find((candidate) => candidate.id === id);
+            if (entry) session?.run(entry);
+          }}
+        />
+        <div className="animation-bar__speed" role="group" aria-label="Playback speed" data-test="animation-speed">
+          <Tooltip content="Slower" stableTrigger>
+            <IconButton
+              variant="secondary"
+              size="default"
+              label="Slower"
+              disabled={!ready || speedIndex <= 0}
+              data-test="animation-speed-down"
+              onClick={() => stepSpeed(-1)}
+            >
+              <IconMinus aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
+          <span className="animation-bar__speed-value" data-test="animation-speed-value" aria-live="polite">{speed}×</span>
+          <Tooltip content="Faster" stableTrigger>
+            <IconButton
+              variant="secondary"
+              size="default"
+              label="Faster"
+              disabled={!ready || speedIndex < 0 || speedIndex >= ANIMATION_SPEEDS.length - 1}
+              data-test="animation-speed-up"
+              onClick={() => stepSpeed(1)}
+            >
+              <IconPlus aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
+        </div>
+      </div>
     </div>
   );
 }

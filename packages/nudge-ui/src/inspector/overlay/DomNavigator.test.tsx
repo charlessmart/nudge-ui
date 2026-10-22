@@ -62,6 +62,44 @@ describe("DomNavigator", () => {
     expect(getSelectedElement()?.domElement).toBe(parent);
   });
 
+  it("follows its element out of the frame instead of sticking to the window edge", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    parent.append(selected);
+    document.body.append(parent);
+    const bounds = { left: 100, top: 100, width: 400, height: 300 };
+    const render = (anchor: { left: number; top: number; width: number; height: number }): void => {
+      act(() => {
+        root!.render(createElement(DomNavigator, {
+          selected: resolveSelectionFromElement(selected)!,
+          hierarchy: computeHierarchy(selected),
+          anchor,
+          origin: { left: 100, top: -200 },
+          bounds,
+          project: () => null,
+        }));
+      });
+    };
+    const chip = (): HTMLElement | null => host.querySelector<HTMLElement>('[data-test="dom-navigator"]');
+    root = createRoot(host);
+
+    render({ left: 120, top: 150, width: 50, height: 30 });
+    expect([chip()?.style.left, chip()?.style.top]).toEqual(["120px", "122px"]);
+
+    // Scrolled above the frame: nothing is pinned to the top of the screen.
+    render({ left: 120, top: 20, width: 50, height: 30 });
+    expect(chip()).toBeNull();
+    // Scrolled below it.
+    render({ left: 120, top: 450, width: 50, height: 30 });
+    expect(chip()).toBeNull();
+
+    // Partly visible: the chip keeps to the page's own top-left corner, not the window's.
+    render({ left: 120, top: 90, width: 50, height: 30 });
+    expect(chip()?.style.top).toBe("62px");
+  });
+
   it("keeps the selected element between visible parents and its direct children", () => {
     const grandparent = document.createElement("main");
     grandparent.dataset.cid = "Grandparent";

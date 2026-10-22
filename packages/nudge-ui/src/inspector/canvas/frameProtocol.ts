@@ -222,7 +222,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "Escape" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 export interface KeyboardShortcutMessage extends RendererMessage {
@@ -292,7 +292,7 @@ export interface InspectorInteractionStateMessage extends RendererMessage {
   commentCursor?: string;
 }
 
-/** Applies View options (outlines, explode view) inside a renderer. */
+/** Applies the view tools (outlines, explode view, animation markers) inside a renderer. */
 export interface DebugViewStateMessage extends RendererMessage {
   type: "debug-view-state";
   state: DebugViewState;
@@ -447,6 +447,7 @@ export function isRendererMessageFor(
 
 export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcutCode {
   return value === "Backslash"
+    || value === "Escape"
     || value === "KeyV"
     || value === "KeyC"
     || value === "KeyP"

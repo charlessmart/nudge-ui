@@ -172,7 +172,7 @@ export interface RendererDebugView {
   dispose(): void;
 }
 
-/** Applies the View options tool's views to an application document. */
+/** Applies the view tool's outlines and explode view to an application document. */
 export function createRendererDebugView(
   document: Document = globalThis.document,
   /** Selects the element under a click on an exploded layer; false when nothing there can be selected. */
@@ -218,7 +218,7 @@ export function createRendererDebugView(
     hoverTarget = null;
   }
 
-  /** Shows the hovered element's bounds, since the inspector's own hover overlay is off while View options is active. */
+  /** Shows the hovered element's bounds, since the inspector's own hover overlay is off while the view tool is active. */
   function showHoverOutline(target: Element): void {
     if (target === hoverTarget && hoverOutline?.isConnected) return;
     hoverTarget = target;

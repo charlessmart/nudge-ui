@@ -90,8 +90,8 @@ import {
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
-import { DEBUG_VIEW_OFF } from "./debugView.ts";
-import { useAnimationDebug, useDebugViewState } from "./debugViewStore.ts";
+import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
+import { useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
@@ -101,7 +101,7 @@ import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/i
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
-import { getSelectedElements, setSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
@@ -167,18 +167,17 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  // View options inspect the running app, so it stays interactive like the play tool.
-  const animationDebug = useAnimationDebug();
-  const animationInspecting = interactionTool === "debug" && animationDebug.enabled;
-  const appInteractive = interactionTool === "select" || (interactionTool === "debug" && !animationInspecting);
-  const debugViewState = useDebugViewState();
-  const hasSelection = useSelectedElements().length > 0;
-  // Animated elements are labeled only while nothing is selected; a selection takes over with the animation bar.
-  const labelAnimations = animationDebug.enabled && !hasSelection;
-  const activeDebugView = useMemo(
-    () => (selectedTool === "debug" ? { ...debugViewState, animations: labelAnimations } : DEBUG_VIEW_OFF),
-    [debugViewState, labelAnimations, selectedTool],
-  );
+  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
+  // the Animation tool selects elements instead.
+  const appInteractive = interactionTool === "select" || interactionTool === "debug";
+  const debugViewMode = useDebugViewMode();
+  const animationBusy = useAnimationBusy();
+  const activeDebugView = useMemo<DebugViewState>(() => {
+    if (selectedTool === "debug") return { outlines: debugViewMode === "outlines", xray: debugViewMode === "explode", animations: false };
+    // Markers step aside while the animation moves.
+    if (selectedTool === "animation") return { ...DEBUG_VIEW_OFF, animations: !animationBusy };
+    return DEBUG_VIEW_OFF;
+  }, [animationBusy, debugViewMode, selectedTool]);
   const rendererInteractionsEnabled = !appInteractive && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
   const boardCursor = boardCursorClass === "is-grabbing"
@@ -413,8 +412,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setBoardCursorClass("");
   }, [broadcastPanModifier, endPanning]);
 
+  const leaveViewTool = useCallback(() => {
+    if (selectedTool !== "debug" && selectedTool !== "animation") return;
+    setInteractionTool("design");
+    stopPanMode();
+  }, [selectedTool, stopPanMode]);
+
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
-    if ((nextTool === "select" || nextTool === "debug") && selectedTool === nextTool) {
+    if ((nextTool === "select" || nextTool === "debug" || nextTool === "animation") && selectedTool === nextTool) {
       setInteractionTool("design");
       stopPanMode();
       return;
@@ -478,6 +483,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (mode !== "canvas") return;
     function onKeyDown(event: KeyboardEvent): void {
       if (isEditableEvent(event)) return;
+      // Not consumed: Escape still deselects after the debug tools are put away.
+      if (event.key === "Escape") leaveViewTool();
       const nextTool = canvasToolForEvent(event);
       if (!nextTool || (nextTool === "sketch" && !sketchAvailable)) return;
       event.preventDefault();
@@ -486,7 +493,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleToolChange, mode, sketchAvailable]);
+  }, [handleToolChange, leaveViewTool, mode, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (sketchActive) return;
@@ -578,6 +585,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       if (isKeyboardShortcutMessage(msg, identity)) {
         if (msg.phase === "keydown") {
+          if (msg.code === "Escape") {
+            leaveViewTool();
+            return;
+          }
           const nextTool = canvasToolForCode(msg.code);
           if (nextTool && (nextTool !== "sketch" || sketchAvailable)) handleToolChange(nextTool);
         }
@@ -718,7 +729,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, leaveViewTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -902,7 +913,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
-          {inspectorOpen && !sketchActive && selectedTool === "debug" ? <AnimationBar /> : null}
+          {!sketchActive && selectedTool === "animation" ? <AnimationBar /> : null}
           {!sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}

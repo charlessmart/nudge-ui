@@ -227,7 +227,11 @@ function looksClickable(element: HTMLElement): boolean {
   if (CLICKABLE_TAGS.has(element.tagName) || (element.tagName === "A" && element.hasAttribute("href"))) return true;
   if (CLICKABLE_ROLES.has(element.getAttribute("role") ?? "") || element.hasAttribute("onclick")) return true;
   if (Number(element.getAttribute("tabindex") ?? -1) >= 0) return true;
-  return element.ownerDocument.defaultView?.getComputedStyle(element).cursor === "pointer";
+  // `cursor` inherits, so only the element that starts the pointer counts, not everything inside it.
+  const view = element.ownerDocument.defaultView;
+  if (view?.getComputedStyle(element).cursor !== "pointer") return false;
+  const parent = element.parentElement;
+  return !parent || view.getComputedStyle(parent).cursor !== "pointer";
 }
 
 /** Whether capturing `element` would catch the group: it holds the trigger, or is or contains an animating member. */
@@ -240,7 +244,10 @@ function belongsTo(group: AnimationGroup, element: HTMLElement): boolean {
   return false;
 }
 
-/** The animations to offer for a selected element, plus a click when it looks clickable. */
+/**
+ * The animations to offer for a selected element. A click is added only beside animations the
+ * page declares, because handlers can't be listed and a click on its own usually captures nothing.
+ */
 export function scanAnimations(element: HTMLElement): AnimationEntry[] {
   const doc = element.ownerDocument;
   const entries: AnimationEntry[] = [];
@@ -255,6 +262,6 @@ export function scanAnimations(element: HTMLElement): AnimationEntry[] {
   }
   const scripted = element.getAnimations({ subtree: true }).some((animation) => !("animationName" in animation) && !("transitionProperty" in animation));
   if (scripted) entries.push({ id: "running", kind: "running", label: "Running now" });
-  if (looksClickable(element)) entries.push(CLICK_ENTRY);
+  if (entries.length > 0 && looksClickable(element)) entries.push(CLICK_ENTRY);
   return entries;
 }

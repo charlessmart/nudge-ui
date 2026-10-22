@@ -122,6 +122,13 @@ export function selectRendererElement(target: Element): boolean {
   return sendProgrammaticClick?.(target) ?? false;
 }
 
+let spacingHandlesEnabled = true;
+
+/** Gap, padding and margin handles, their hover fill and their drag cursor; selection is unaffected. */
+export function setRendererSpacingHandlesEnabled(enabled: boolean): void {
+  spacingHandlesEnabled = enabled;
+}
+
 const noopDisposal = (): void => undefined;
 
 export function installRendererElementSelector(
@@ -276,7 +283,7 @@ export function installRendererElementSelector(
     if (!identity) return;
 
     // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
-    const elementSpacing = !commentMode && !clear && pending.point
+    const elementSpacing = !commentMode && spacingHandlesEnabled && !clear && pending.point
       ? getElementSpacingAtPoint(document, pending.element, pending.point.x, pending.point.y)
       : null;
     // A margin belongs to a child of the hovered element; hovering it reports that child.
@@ -512,7 +519,9 @@ export function installRendererElementSelector(
     if (event.button !== 0 || commentMode) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
-    const spacingAffordance = getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY);
+    const spacingAffordance = spacingHandlesEnabled
+      ? getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY)
+      : null;
     const spacing = spacingAffordance ? toSpacingDescriptor(spacingAffordance) : null;
     if (spacing) {
       suppressHoverDuringSpacingDrag = true;
@@ -617,7 +626,8 @@ export function installRendererElementSelector(
     if (!code) return false;
     if (code === "KeyS") {
       if (phase !== "keydown" || !isSendPromptShortcut(event)) return false;
-    } else if (code !== "Backslash" && interactionsSuspended) {
+    } else if (code !== "Backslash" && code !== "Escape" && interactionsSuspended) {
+      // Escape leaves the debug tools, which keep the app interactive and the renderer suspended.
       return false;
     }
     if (phase === "keydown") {

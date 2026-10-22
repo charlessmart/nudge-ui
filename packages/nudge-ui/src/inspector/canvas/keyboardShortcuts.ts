@@ -1,8 +1,9 @@
 /**
  * `select` leaves the application interactive; `design` turns clicks into
- * inspector selection; `debug` keeps the app interactive while debug views apply.
+ * inspector selection; `debug` keeps the app interactive while Outline view or Explode view applies;
+ * `animation` selects elements and steps through their animations. Each is its own tool, so only one is active.
  */
-export type CanvasInteractionTool = "select" | "design" | "comment" | "sketch" | "debug";
+export type CanvasInteractionTool = "select" | "design" | "comment" | "sketch" | "debug" | "animation";
 
 /** Physical key used to temporarily interact with the app in the canvas. */
 export const APP_INTERACTION_KEY = "KeyA";

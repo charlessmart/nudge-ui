@@ -36,6 +36,65 @@
   gap: var(--space-4);
 }
 
+/* The view tool and the button that swaps its view, side by side without overlapping. */
+.canvas-toolbar__split {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A compact button as wide as it gets, stretched to the height of the tool beside it. */
+.icon-button.canvas-toolbar__chevron {
+  height: var(--control-height-xlarge);
+  color: var(--text-muted);
+}
+
+/* The portal layer ignores pointer events, so the menu has to take them back or clicks reach the page behind it. */
+.view-tool-menu__positioner {
+  z-index: var(--z-index);
+  pointer-events: auto;
+}
+
+.view-tool-menu {
+  display: grid;
+  min-width: 168px;
+  padding: var(--space-4);
+  gap: var(--space-4);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+}
+
+.view-tool-menu__item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-base);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.view-tool-menu__label {
+  flex: 1;
+}
+
+.view-tool-menu__item:hover,
+.view-tool-menu__item:focus-visible,
+.view-tool-menu__item--selected {
+  background: var(--surface-well);
+}
+
 .canvas-toolbar__divider {
   flex-shrink: 0;
   width: 1px;
@@ -94,9 +153,9 @@
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
   z-index: calc(var(--z-index) - 2);
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  width: max-content;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 344px;
   max-width: calc(100% - var(--space-32));
   padding: var(--space-4);
   border-radius: var(--radius-12);
@@ -106,138 +165,151 @@
   pointer-events: auto;
 }
 
-.animation-bar__name {
-  padding-inline: var(--space-8);
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.select.animation-bar__select {
-  flex: none;
-  width: 200px;
-}
-
-.animation-bar__status {
-  padding-inline: var(--space-4);
-  color: var(--text-muted);
-  font-size: var(--font-size-base);
-  white-space: nowrap;
-}
-
-/* Four 52px columns, three 2px gaps and the track's padding. */
-.segmented-control.animation-bar__speed {
-  flex: none;
-  width: calc(52px * 4 + 2px * 3 + 4px);
-  min-height: var(--control-height-small);
-}
-
-.animation-bar__scrubber {
-  flex: none;
-  width: 176px;
-  padding-inline: var(--space-8);
-}
-
-.animation-bar__scrubber-control {
+.animation-bar__row {
   display: flex;
   align-items: center;
-  height: var(--control-height-small);
-  touch-action: none;
-}
-
-.animation-bar__scrubber-track {
-  position: relative;
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--surface-well-2x);
-}
-
-.animation-bar__scrubber-indicator {
-  border-radius: inherit;
-  background: var(--text-primary);
-}
-
-.animation-bar__scrubber-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-control), 0 0 0 1px var(--border-subtle);
-  cursor: grab;
-}
-
-.animation-bar__scrubber-thumb:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.animation-bar__scrubber[data-disabled] {
-  opacity: 0.4;
-}
-
-.animation-scope__trigger {
-  appearance: none;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
-  max-width: 160px;
-  height: var(--control-height-small);
-  padding: 0 var(--space-8);
-  border: 0;
-  border-radius: var(--radius-4);
-  background: var(--accent);
-  color: var(--surface-raised-2x);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-base);
-}
-
-.animation-scope__trigger svg {
-  flex-shrink: 0;
-}
-
-.animation-scope__label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.animation-scope__positioner {
-  z-index: calc(var(--z-index) - 1);
+/* Separates the ruler from the controls; the bar's gap spaces it evenly either side. */
+.animation-bar__divider {
+  height: 1px;
+  background: var(--border-subtle);
 }
 
-.animation-scope__menu {
-  display: grid;
-  min-width: 160px;
-  padding: var(--space-4);
-  gap: var(--space-4);
+/* Floats above the bar, which is already one gap above the canvas toolbar. */
+.animation-bar__hint {
+  position: absolute;
+  bottom: calc(100% + var(--space-8));
+  left: 50%;
+  padding: var(--space-4) var(--space-12);
   border-radius: var(--radius-8);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
-.animation-scope__item {
-  appearance: none;
-  width: 100%;
-  min-height: var(--control-height-small);
-  padding: 0 var(--space-8);
-  border: 0;
-  border-radius: var(--radius-4);
+.select.animation-bar__select {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
   background: transparent;
+}
+
+/* Tertiary: no tint until it is pointed at. */
+.select.animation-bar__select:hover:not(:disabled) {
+  background: var(--surface-control-hover);
+}
+
+.animation-bar__speed {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.animation-bar__speed-value {
+  min-width: 44px;
   color: var(--text-primary);
-  cursor: pointer;
-  font: inherit;
   font-size: var(--font-size-base);
-  text-align: left;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.animation-timeline {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--control-height-large);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.animation-timeline:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.animation-timeline[data-disabled] {
+  opacity: 0.4;
+}
+
+/* Runs edge to edge; the playhead and ticks each leave room for their own width instead. */
+.animation-timeline__scale {
+  position: absolute;
+  inset: 0;
+}
+
+.animation-timeline__tick {
+  --tick-base: 4px;
+  --tick-scale: 1;
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--tick-position) * (100% - 1px));
+  width: 1px;
+  /* Never rises into the labels along the top of the track. */
+  height: min(calc(var(--tick-base) * var(--tick-scale)), 22px);
+  background: var(--border-medium);
+  transition: height 80ms ease-out, background-color 80ms ease-out;
+}
+
+.animation-timeline__tick--major {
+  --tick-base: 8px;
+}
+
+/* The marks around the playhead darken and grow: 3x for the closest, then 2x, then 1.5x. */
+.animation-timeline__tick[data-falloff] {
+  background: var(--text-primary);
+}
+
+.animation-timeline__tick[data-falloff="3"] {
+  --tick-scale: 3;
+}
+
+.animation-timeline__tick[data-falloff="2"] {
+  --tick-scale: 2;
+}
+
+.animation-timeline__tick[data-falloff="1.5"] {
+  --tick-scale: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-timeline__tick {
+    transition: none;
+  }
+}
+
+.animation-timeline__label {
+  position: absolute;
+  top: 0;
+  /* Centred over its mark, whose middle is half its 1px width in from its left edge. */
+  left: calc(var(--tick-position) * (100% - 1px) + 0.5px);
+  transform: translateX(-50%);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.animation-scope__item:hover,
-.animation-scope__item--selected {
-  background: var(--surface-well);
+.animation-timeline__label[data-start] {
+  left: 3px;
+  transform: none;
+}
+
+/* The playhead travels to a press frame by frame in script, so it needs no transition of its own. */
+.animation-timeline__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--timeline-progress) * (100% - 2px));
+  width: 2px;
+  /* Half its width, rounding both ends into a pill. */
+  border-radius: 1px;
+  background: var(--accent);
 }
