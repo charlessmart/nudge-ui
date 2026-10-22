@@ -26,7 +26,7 @@ import { getStateStyleValue } from "../shell/stateValue.ts";
 import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip, InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
@@ -85,7 +85,6 @@ export function Typography(props: TypographyProps): ReactElement {
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
-            chipVariant="small"
           />
           <TypographyTokenField
             property="line-height"
@@ -97,7 +96,6 @@ export function Typography(props: TypographyProps): ReactElement {
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
-            chipVariant="small"
           />
           <TypographyTokenField
             property="letter-spacing"
@@ -109,7 +107,6 @@ export function Typography(props: TypographyProps): ReactElement {
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
-            chipVariant="small"
           />
         </div>
 
@@ -158,11 +155,10 @@ interface TypographyTokenFieldProps {
   editTarget: EditTarget;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
-  chipVariant?: "default" | "small";
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries, onAfterEdit, chipVariant } = props;
+  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries, onAfterEdit } = props;
   const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
@@ -184,7 +180,6 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
         leading={icon}
         trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
         label={label}
-        chipVariant={chipVariant}
         onAfterEdit={onAfterEdit}
       />
     </ControlSurface>
@@ -342,21 +337,22 @@ function AlignmentField({ property, label, element, elements, editTarget, defaul
       {isMixed || current === null && elements.length > 1 ? (
         <span className="typography__mixed" data-test={`typography-mixed-${property}`}>Mixed</span>
       ) : null}
-      <SegmentedControl
-        value={current}
-        aria-label={label}
-        data-property={property}
-        disabled={blockedBy !== null}
-        options={options.map((option) => ({
-          value: option.value,
-          label: option.label,
-          icon: option.icon,
-          testId: `typography-align-${property}-${option.value}`,
-        }))}
-        onChange={handleChange}
-      />
+      <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+        <SegmentedControl
+          value={current}
+          aria-label={label}
+          data-property={property}
+          disabled={blockedBy !== null}
+          options={options.map((option) => ({
+            value: option.value,
+            label: option.label,
+            icon: option.icon,
+            testId: `typography-align-${property}-${option.value}`,
+          }))}
+          onChange={handleChange}
+        />
+      </InlineStyleBlockedTooltip>
       <AtRuleIndicator atRules={atRules} />
-      <InlineStyleWarning blockedBy={blockedBy} />
     </div>
   );
 }

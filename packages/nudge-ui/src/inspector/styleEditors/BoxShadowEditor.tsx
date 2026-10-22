@@ -200,7 +200,7 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
                       <TokenValueField property="box-shadow" semanticSlot="length" nudgeProperty={dimension === 2 ? "padding-top" : "margin-left"} domElement={el}
                         committedValue={layer.lengths[dimension]!.replace(/px$/i, "")} activeTokenName={tokenName(layer.lengths[dimension]!)}
                         resolvedValue={resolveToken(layer.lengths[dimension]!, allEntries)} entries={allEntries} blockedBy={blockedBy}
-                        label={label} inputDataTest={`shadow-${index}-${dimension}`} chipVariant="small"
+                        label={label} inputDataTest={`shadow-${index}-${dimension}`}
                         leading={<Icon size={16} stroke={1.8} aria-hidden="true" />}
                         formatRawValue={(raw) => completeCssValue(raw, valuePolicyFor("border-width"))}
                         onCommitRaw={(input) => {

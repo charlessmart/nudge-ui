@@ -96,7 +96,7 @@ async function copyDisabled(page: import("@playwright/test").Page): Promise<bool
 test.describe("clipboard permissions", () => {
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-  test("dev: copy prompt writes structured markdown to the clipboard", async ({ page }) => {
+  test("dev: copy prompt writes a plain-text request to the clipboard", async ({ page }) => {
     const app = await openEditor(page, "/playground");
     await app.getByRole("button", { name: "Save" }).click();
     await waitForRow(page);
@@ -130,7 +130,7 @@ test.describe("clipboard permissions", () => {
       .toBe(true);
 
     const text = await page.evaluate(() => navigator.clipboard.readText());
-    expect(text).toContain("# Requested design changes");
+    expect(text).toContain("Please make these UI changes for me.");
     expect(text).not.toContain("Framework:");
     expect(text).toContain("--color-surface-sunken");
     expect(text).not.toContain("data-cid");
@@ -169,13 +169,14 @@ test.describe("clipboard permissions", () => {
     const app = await openEditor(page, "/playground");
 
     await page.locator('[data-test="settings-button"]').click();
+    await page.locator('[data-test="settings-nav-instructions"]').click();
 
-    const dialog = page.locator('[data-test="prompt-settings-dialog"]');
+    const dialog = page.locator('[data-test="settings-dialog"]');
     await expect(dialog).toBeVisible();
     const instructions = page.locator('[data-test="prompt-custom-instructions"]');
-    await expect(instructions).toHaveValue(/Preserve existing tokens, logical properties/);
+    await expect(instructions).toHaveValue(/existing design tokens and logical properties/);
     await instructions.fill("Use the project's existing component patterns.");
-    await page.locator('[data-test="prompt-settings-done"]').click();
+    await page.locator('[data-test="settings-close"]').click();
     await expect(dialog).toHaveCount(0);
 
     await app.getByRole("button", { name: "Save" }).click();
@@ -188,7 +189,7 @@ test.describe("clipboard permissions", () => {
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5000 })
       .toContain("Use the project's existing component patterns.");
     const prompt = await page.evaluate(() => navigator.clipboard.readText());
-    expect(prompt).not.toContain("Preserve existing tokens, logical properties");
+    expect(prompt).not.toContain("existing design tokens and logical properties");
   });
 
   test("dev: general settings navigates between prompt, MCP, and token sections", async ({ page }) => {
@@ -221,7 +222,7 @@ test.describe("clipboard permissions", () => {
       const root = document.getElementById("nudge-ui-root")?.shadowRoot;
       (root?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null)?.click();
     });
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("## Structural changes");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("- Move it ");
 
     const prompt = await page.evaluate(() => navigator.clipboard.readText());
     expect(prompt.split("\n").filter((line) => line.startsWith("- Move "))).toHaveLength(1);

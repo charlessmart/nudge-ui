@@ -21,6 +21,28 @@ export function inlineStyleWarningContent(blockedBy: string | null): ReactElemen
   );
 }
 
+export interface InlineStyleBlockedTooltipProps {
+  blockedBy: string | null;
+  children: ReactElement;
+}
+
+/**
+ * Explains an inline-style block on the whole control. Used for controls with
+ * no room for an inline warning icon, such as selects and segmented controls.
+ */
+export function InlineStyleBlockedTooltip({ blockedBy, children }: InlineStyleBlockedTooltipProps): ReactElement {
+  return (
+    <Tooltip
+      content={inlineStyleWarningContent(blockedBy)}
+      disabled={blockedBy === null}
+      stableTrigger
+      triggerClassName="inline-style-blocked"
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
 export function InlineStyleWarning({
   blockedBy,
   dataTest = "inline-style-warning",

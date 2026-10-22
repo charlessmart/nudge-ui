@@ -8,7 +8,8 @@
 .select {
   --control-surface-height: var(--control-height-large);
   --control-surface-inset: 2px;
-  --control-surface-padding: var(--control-surface-inset) 8px;
+  --control-surface-padding-inline: 8px;
+  --control-surface-padding: var(--control-surface-inset) var(--control-surface-padding-inline);
   --control-surface-gap: var(--space-8);
   box-sizing: border-box;
   min-width: 0;

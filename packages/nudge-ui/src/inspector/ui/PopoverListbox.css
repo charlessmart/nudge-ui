@@ -23,6 +23,13 @@
   box-shadow: var(--shadow-popup);
 }
 
+/* Sized to the items, but never narrower than the control it opens from. */
+.popover-listbox__popup--fit {
+  width: max-content;
+  min-width: var(--anchor-width, 0px);
+  max-width: min(260px, calc(100vw - 24px));
+}
+
 .popover-listbox__popup--searchable {
   display: flex;
   flex-direction: column;
@@ -88,6 +95,15 @@
 
 .popover-listbox__item[data-highlighted] {
   background: var(--surface-control);
+}
+
+.popover-listbox__item[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popover-listbox__item[data-disabled][data-highlighted] {
+  background: transparent;
 }
 
 .popover-listbox__leading {

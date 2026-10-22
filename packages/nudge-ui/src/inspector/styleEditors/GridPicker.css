@@ -5,7 +5,9 @@
 
 .grid-picker__trigger {
   display: block;
+  box-sizing: border-box;
   width: 100%;
+  height: var(--layout-picker-height, auto);
   padding: 4px;
   appearance: none;
   border: none;
@@ -31,7 +33,8 @@
   grid-template-columns: repeat(var(--grid-picker-columns), minmax(0, 1fr));
   grid-template-rows: repeat(var(--grid-picker-rows), minmax(0, 1fr));
   gap: 3px;
-  min-height: 88px;
+  height: 100%;
+  min-height: 0;
   padding: 1px;
 }
 

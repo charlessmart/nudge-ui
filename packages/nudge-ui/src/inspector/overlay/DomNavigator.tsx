@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { IconChevronDown, IconChevronRight, IconMenu2 } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { SelectedElement } from "../selection/selectionStore.ts";
@@ -6,6 +6,7 @@ import { setSelectedElement } from "../selection/selectionStore.ts";
 import { computeNavigationParents, computeTrackedChildren, hasTrackedChildren } from "../selection/hierarchy.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
+import { describeNode } from "../selection/nodeDescription.ts";
 import type { Rect } from "./overlayGeometry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { cx } from "../ui/classNames.ts";
@@ -14,17 +15,27 @@ export interface DomNavigatorProps {
   selected: SelectedElement;
   hierarchy: HTMLElement[];
   anchor: Rect;
+  /** The selected element's size in its own frame's CSS pixels, so it reads the same at any board zoom. */
+  size?: Pick<Rect, "width" | "height">;
   project: (element: HTMLElement) => Rect | null;
   /** The selection is a component or shares its source with other elements. */
   linked?: boolean;
 }
 
-function nodeDescription(node: HTMLElement): string {
-  const id = node.id ? `#${node.id}` : "";
-  const className = typeof node.className === "string"
-    ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((name) => `.${name}`).join("")
-    : "";
-  return `${node.localName}${id}${className}`;
+/** Space between the selection's bottom edge and the chip, and the closest the chip gets to the viewport edge. */
+const CHIP_GAP = 8;
+const VIEWPORT_MARGIN = 4;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+/** Centers the chip below the selection, as Figma places its size label, and keeps it inside the viewport. */
+function chipPosition(anchor: Rect, chip: { width: number; height: number }): { left: number; top: number } {
+  return {
+    left: Math.round(clamp(anchor.left + anchor.width / 2 - chip.width / 2, VIEWPORT_MARGIN, window.innerWidth - chip.width - VIEWPORT_MARGIN)),
+    top: Math.round(clamp(anchor.top + anchor.height + CHIP_GAP, VIEWPORT_MARGIN, window.innerHeight - chip.height - VIEWPORT_MARGIN)),
+  };
 }
 
 function selectNode(node: HTMLElement): void {
@@ -32,13 +43,24 @@ function selectNode(node: HTMLElement): void {
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, project, linked = false }: DomNavigatorProps): ReactElement | null {
+export function DomNavigator({ selected, hierarchy, anchor, size, project, linked = false }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
   // The page is reachable only from here, above the tracked ancestors.
   const body = selected.domElement.ownerDocument.body;
   const page = body && !isPageTarget(selected.domElement) && body.contains(selected.domElement) ? body : null;
   const pageDepth = page ? 1 : 0;
+  // The chip names only the tag; the menu rows and the inspector title carry the id and classes.
+  const tag = selected.domElement.localName;
+  const sizeText = size ? `${Math.round(size.width)} × ${Math.round(size.height)}` : null;
+  const chipRef = useRef<HTMLDivElement>(null);
+  const [chipSize, setChipSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const chip = chipRef.current;
+    if (!chip) return;
+    const { offsetWidth: width, offsetHeight: height } = chip;
+    setChipSize((current) => (current.width === width && current.height === height ? current : { width, height }));
+  }, [tag, sizeText, linked]);
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<HTMLElement>>(new Set());
@@ -80,7 +102,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
           setOpen(false);
         }}
       >
-        <span>{nodeDescription(target)}</span>
+        <span>{describeNode(target)}</span>
       </button>
     );
   };
@@ -96,7 +118,7 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
               type="button"
               className="dom-navigator__expander"
               data-test="dom-navigator-expander"
-              aria-label={`${nested ? "Collapse" : "Expand"} ${nodeDescription(element)}`}
+              aria-label={`${nested ? "Collapse" : "Expand"} ${describeNode(element)}`}
               aria-expanded={nested !== null}
               style={{ left: `calc(var(--space-4) + ${(depth - 1) * 16}px)` }}
               onMouseEnter={() => setHovered(null)}
@@ -128,11 +150,12 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
     <>
       {preview ? <div className="dom-navigator-preview" data-test="dom-navigator-preview" style={preview} aria-hidden="true" /> : null}
       <div
+        ref={chipRef}
         className="dom-navigator"
         data-test="dom-navigator"
         data-linked={linked ? "true" : undefined}
         aria-label="DOM navigator"
-        style={{ left: Math.max(4, anchor.left), top: Math.max(4, anchor.top - 28) }}
+        style={chipPosition(anchor, chipSize)}
       >
         <BasePopover.Root open={expanded} onOpenChange={setOpen}>
           <BasePopover.Trigger
@@ -150,11 +173,12 @@ export function DomNavigator({ selected, hierarchy, anchor, project, linked = fa
           >
             <IconMenu2 size={14} aria-hidden="true" />
           </BasePopover.Trigger>
-          <span className="dom-navigator__label">{nodeDescription(selected.domElement)}</span>
+          <span className="dom-navigator__label">{tag}</span>
+          {sizeText ? <span className="dom-navigator__size" data-test="dom-navigator-size">{sizeText}</span> : null}
           <BasePopover.Portal container={portalContainer()}>
             <BasePopover.Positioner
               className="dom-navigator__positioner"
-              side="top"
+              side="bottom"
               align="start"
               sideOffset={4}
             >

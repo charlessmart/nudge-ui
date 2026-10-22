@@ -67,7 +67,6 @@ describe("OpacityEditor", () => {
     handle = mount(createElement(OpacityEditor, { element: selected, entries: [token], tokenRows: [row] }));
 
     const chip = handle.host.querySelector('.token-chip') as HTMLElement;
-    expect(chip.classList).toContain("token-chip--small");
     expect(chip.querySelector(".token-chip__label")?.textContent).toBe("0.35");
     expect(handle.host.querySelector('[data-test="opacity-effective"]')?.textContent).toBe("35%");
   });

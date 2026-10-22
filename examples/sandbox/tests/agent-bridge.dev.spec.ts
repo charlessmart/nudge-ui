@@ -166,8 +166,8 @@ test.describe("Nudge MCP browser bridge", () => {
     const request = await activeListener.promise;
     if (!request) throw new Error("The prompt listener ended before dispatch.");
     expect(request.projectId).toBe("sandbox");
-    expect(request.prompt).toContain("# Requested design changes");
-    expect(request.prompt).toContain("## Structural changes");
+    expect(request.prompt).toContain("Please make these UI changes for me.");
+    expect(request.prompt).toContain("- Move it ");
     expect(request.changeRevision).toEqual(expect.any(Number));
     expect(bridge.getStatus().request?.status).toBe("delivered");
     await expect(send).toContainText("Awaiting agent");

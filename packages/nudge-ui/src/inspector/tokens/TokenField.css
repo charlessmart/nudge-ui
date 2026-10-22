@@ -23,6 +23,10 @@
   justify-content: center;
 }
 
+.token-field__leading--activate {
+  cursor: pointer;
+}
+
 .token-field__leading--nudge {
   cursor: var(--nudge-drag-cursor, ew-resize);
   touch-action: none;

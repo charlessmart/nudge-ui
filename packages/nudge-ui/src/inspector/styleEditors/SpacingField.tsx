@@ -1,10 +1,12 @@
 import type { ReactElement, ReactNode } from "react";
-import { IconPlus } from "@tabler/icons-react";
+import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
+import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
 import {
   SideValuesField,
   SIDE_NAMES,
@@ -95,18 +97,32 @@ export function SpacingField({
             : isCalcExpression(field.authoredValue) && field.value ? field.value : undefined}
           editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
           onAfterEdit={onAfterEdit}
-          chipVariant="small"
           leading={icon}
         />
       ),
     };
   });
-  const hasSpacing = SIDE_NAMES.some((side) => {
+  const sideHasValue = (side: (typeof SIDE_NAMES)[number]): boolean => {
     // Zero spacing is visually empty whatever its source; open editors stay open below.
     const value = spacingProjection.fields[side].value.trim();
     return value !== "" && !isZeroCssValue(value) && (property !== "inset" || value !== "auto");
-  });
+  };
+  const hasSpacing = SIDE_NAMES.some(sideHasValue);
   const visibility = useFieldVisibility(selection?.domElements ?? [el], property, hasSpacing);
+  const removeBlockedBy = inlineBlockedBy(selection?.domElements ?? [el], ...SIDE_NAMES.map((side) => sideProperty(property, side)));
+
+  /** Clears every side that has a value, then folds the field back to its empty state. */
+  function removeValues(): void {
+    const declarations = SIDE_NAMES
+      .filter(sideHasValue)
+      .map((side) => ({ property: sideProperty(property, side), value: "0" }));
+    if (declarations.length > 0) {
+      setStyles(editTarget ?? el, declarations);
+      onAfterEdit?.();
+    }
+    visibility.hide();
+  }
+
   const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
     axis,
     icon: null,
@@ -121,7 +137,6 @@ export function SpacingField({
         entries={entries}
         suggestions={suggestions}
         onAfterEdit={onAfterEdit}
-        chipVariant="small"
         leading={<SpacingAxisIndicator property={property} axis={axis} />}
       />
     ),
@@ -147,6 +162,20 @@ export function SpacingField({
         >
           <IconPlus size={16} aria-hidden="true" />
         </IconButton>
+      ) : undefined}
+      headerAction={property === "margin" ? (
+        <Tooltip content={inlineStyleWarningContent(removeBlockedBy)}>
+          <IconButton
+            variant="quiet"
+            size="compact"
+            data-test="remove-value"
+            label={`Remove ${property}`}
+            disabled={removeBlockedBy !== null}
+            onClick={removeValues}
+          >
+            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
+          </IconButton>
+        </Tooltip>
       ) : undefined}
       sides={sideSlots}
     />
@@ -249,7 +278,6 @@ interface PairedTokenFieldProps {
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
   onAfterEdit?: () => void;
-  chipVariant?: "default" | "small";
   leading?: ReactNode;
 }
 
@@ -263,7 +291,6 @@ function PairedTokenField({
   entries,
   suggestions,
   onAfterEdit,
-  chipVariant,
   leading,
 }: PairedTokenFieldProps): ReactElement {
   const row = pairTokenRow(displayProperty, axisProjection);
@@ -312,7 +339,6 @@ function PairedTokenField({
       atRules={row.atRuleCandidates ?? row.atRules}
       entries={entries}
       suggestions={suggestions}
-      chipVariant={chipVariant}
       formatRawValue={(value) => formatAxisValue(value, displayProperty)}
       onCommitRaw={commitAxisValue}
       onSelectToken={(chosen) => {

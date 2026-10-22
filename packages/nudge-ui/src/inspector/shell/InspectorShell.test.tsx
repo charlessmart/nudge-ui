@@ -77,6 +77,8 @@ describe("InspectorShell", () => {
   });
   it("removes the source-site scope section for a uniquely mounted element", () => {
     const selected = document.createElement("button");
+    selected.id = "save";
+    selected.className = "primary";
     selected.dataset.cid = "Selected";
     selected.dataset.src = "fixtures/selected.tsx:1:1";
     document.body.appendChild(selected);
@@ -88,7 +90,8 @@ describe("InspectorShell", () => {
       });
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
-      expect(host.shadowRoot?.querySelector('[data-test="selection-name"]')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-name"] .editor__title')?.textContent).toBe("Button");
+      expect(host.shadowRoot?.querySelector('[data-test="selection-detail"]')?.textContent).toBe("button#save.primary");
       expect(host.shadowRoot?.querySelector('[data-test="selection-linked-icon"]')).toBeNull();
     } finally {
       setSelectedElement(null);
