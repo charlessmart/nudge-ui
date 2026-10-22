@@ -1,11 +1,21 @@
-:host { --panel-width: min(320px, 100vw); }
+/*
+ * Panel placement. Everything laid out beside the panel reads the reserved
+ * space, so an embedder can move the panel by changing these values alone.
+ */
+:host {
+  --panel-width: min(320px, 100vw);
+  /* Gap between the panel and the window edges. */
+  --panel-inset: 0px;
+  /* Space the open panel takes from each side of the window. */
+  --panel-reserve-start: 0px;
+  --panel-reserve-end: calc(var(--panel-width) + var(--panel-inset));
+}
 
 .panel {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset: var(--panel-inset) var(--panel-inset) var(--panel-inset) auto;
   z-index: 2;
-  width: var(--panel-width);
-  height: 100dvh;
+  width: min(var(--panel-width), calc(100vw - 2 * var(--panel-inset)));
   overflow: auto;
   background: var(--surface-panel);
   color: var(--text-primary);

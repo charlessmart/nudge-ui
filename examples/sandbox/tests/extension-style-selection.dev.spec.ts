@@ -31,18 +31,14 @@ async function openFixture(page: Page) {
       <div class="card" id="other">Other card</div>
     </body></html>`,
   }));
-  await page.goto("/extension-style-selection?nudge-ui=editor");
+  await page.goto("/extension-style-selection");
   await page.evaluate(() => {
-    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "editor" } });
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {} } });
   });
   await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });
-  const card = page.locator(".canvas-card").first();
-  await expect(card).toBeVisible();
-  const renderer = page.frames().find((frame) => frame.parentFrame() === page.mainFrame())!;
-  await renderer.addScriptTag({ content: inspectorBundle });
-  await expect(card.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible();
-  return card.locator("iframe").contentFrame();
+  await expect(page.locator('[data-test="canvas-tool-design"]')).toBeVisible();
+  return page.mainFrame();
 }
 
 test("extension multi-selection shows the shared corner radius", async ({ page }) => {

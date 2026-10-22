@@ -48,23 +48,6 @@ describe("InspectorShell", () => {
     host.remove();
   });
 
-  it.each(["its security policy", "its service worker"])("explains why inspection is unavailable due to %s", (reason) => {
-    const previous = getNudgeUiRuntimeConfig();
-    try {
-      act(() => {
-        configureNudgeUiRuntime({ ...previous, capabilities: { ...previous.capabilities, canvas: false }, inspectionUnavailableReason: reason });
-        setSelectedElement(null);
-        mountInspector(host);
-      });
-
-      expect(host.shadowRoot?.querySelector('[data-test="page-inspection-error"]')?.textContent)
-        .toBe(`Can’t load Nudge on this page due to ${reason}.`);
-      expect(host.shadowRoot?.querySelector('[data-test="empty-state"]')).toBeNull();
-    } finally {
-      act(() => configureNudgeUiRuntime(previous));
-    }
-  });
-
   it.each([
     { tag: "video", text: "Video fallback", visible: false },
     { tag: "p", text: "Inherited typography is still useful here", visible: true },

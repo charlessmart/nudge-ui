@@ -107,7 +107,6 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const sketchEnabled = isNudgeUiDev()
-    && !runtimeConfig.inspectionUnavailableReason
     && (!isDemoRuntime() || isNudgeUiFeatureEnabled(runtimeConfig.features, "sketch"));
   const sketchActive = useSketchInteractionActive();
   const selectedCardId = useSelectedCardId();
@@ -163,7 +162,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (sketchActive || runtimeConfig.inspectionUnavailableReason) return;
+    if (sketchActive) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -209,7 +208,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isMultiSelection, selected, sketchActive, runtimeConfig.inspectionUnavailableReason]);
+  }, [isMultiSelection, selected, sketchActive]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(
@@ -290,11 +289,7 @@ export function InspectorShell(): ReactElement {
             <span>{inlineTextFeedback.message}</span>
           </StatusCallout>
         ) : null}
-        {runtimeConfig.inspectionUnavailableReason ? (
-          <StatusCallout tone="danger" data-test="page-inspection-error" role="status">
-            Can’t load Nudge on this page due to {runtimeConfig.inspectionUnavailableReason}.
-          </StatusCallout>
-        ) : selected ? (
+        {selected ? (
           <>
             <InspectorSelection
               identity={selected}

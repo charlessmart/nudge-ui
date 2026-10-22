@@ -2,13 +2,9 @@
 import {
   bootstrapNudgeUi,
   configureNudgeUiRuntime,
-  getNudgeUiRuntimeConfig,
-  isCanvasRenderer,
-  readNudgeUiEditorTarget,
   setInspectorOpen,
   unmountInspector,
 } from "./index.ts";
-import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 import { releaseLease } from "./canvas/workspaceLease.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
@@ -43,18 +39,10 @@ export interface PageInspectorOptions {
   systemFonts?: SystemFontSource;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
-  /** `"editor"` requires the editor URL marker; otherwise the page itself is the only Canvas card. */
-  surface?: "editor" | "page";
-  /** Shows a short error instead of enabling inspection on an unsupported page. */
-  unavailableReason?: string;
-  /** Called whenever an editor renderer frame's document finishes parsing. */
-  onRendererFrameLoad?: () => void;
 }
 
 /** Published on `window` so a second injection toggles the first instance. */
 export interface PageInspectorHandle {
-  readonly surface: "editor" | "page" | "renderer";
-  /** Toggles the page inspector, or leaves the editor. */
   toggle(): void;
   /** Starts the `window.__nudgeUiPerformance` counters for this document. */
   enablePerformanceDiagnostics(): void;
@@ -191,15 +179,15 @@ async function collectDocumentTokens(doc: Document): Promise<DocumentTokens> {
 
 const NO_TOKENS: DocumentTokens = { tokenCatalog: [], tokens: [], tokenDiagnostics: [], tokenGeneration: "" };
 
-function runtimeConfig(tokens: DocumentTokens, unavailableReason?: string): NudgeUiRuntimeConfig {
+/** `canvas` stays on because the page surface reuses the Canvas renderer and overlays; the page is the only card. */
+function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
   return {
     projectId: `page:${location.origin}`,
     host: "static-html",
     framework: "HTML",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas: !unavailableReason, componentSemantics: false, domNavigation: !unavailableReason },
-    features: { canvasIterations: false, mcp: false, ...(unavailableReason ? { sketch: false } : {}) },
-    ...(unavailableReason ? { inspectionUnavailableReason: unavailableReason } : {}),
+    capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
+    features: { canvasIterations: false, mcp: false },
     componentContracts: [],
     ...tokens,
   };
@@ -240,92 +228,6 @@ function mountPageInspector(): () => void {
   };
 }
 
-/** Replaces the page content with the iframe editor; the caller loads the inspector into its renderer frames. */
-function mountEditor(onRendererFrameLoad: (() => void) | undefined): void {
-  // The editor never owns the tab title; it shows the application's own title.
-  const pageTitle = document.title;
-  document.head.replaceChildren();
-  document.body.replaceChildren();
-  for (const element of [document.documentElement, document.body]) {
-    element.removeAttribute("style");
-    element.removeAttribute("hidden");
-    element.removeAttribute("inert");
-  }
-  document.title = pageTitle;
-  const layout = new CSSStyleSheet();
-  layout.replaceSync(`html, body, #${MOUNT_ID} { display: block; width: 100%; height: 100%; margin: 0; overflow: hidden; }`);
-  document.adoptedStyleSheets = [layout];
-  // A parsed meta policy remains active even after the original head is removed.
-  document.addEventListener("securitypolicyviolation", (event) => {
-    if (event.disposition !== "enforce" || event.effectiveDirective !== "frame-src") return;
-    if (getNudgeUiRuntimeConfig().inspectionUnavailableReason) return;
-    configureNudgeUiRuntime(runtimeConfig(NO_TOKENS, "its security policy"));
-  });
-  setNudgeUiHostDevFlag(true);
-  const mount = createMount();
-  bootstrapNudgeUi(mount);
-  setInspectorOpen(true);
-
-  // Storage hydration can delay the controller mount; watch its host now.
-  const root = mount.shadowRoot ?? mount.attachShadow({ mode: "open" });
-  const frames = (): NodeListOf<HTMLIFrameElement> =>
-    root.querySelectorAll<HTMLIFrameElement>(`iframe[${CANVAS_RENDERER_ATTR}]`);
-  const applicationDocument = (frame: HTMLIFrameElement): Document | null => {
-    const frameDocument = frame.contentDocument;
-    return frameDocument && frameDocument.location.href !== "about:blank" ? frameDocument : null;
-  };
-  // A frame's `load` waits for every image, so renderers start once the DOM is ready.
-  const announced = new WeakSet<Document>();
-  const announceReadyDocuments = (): void => {
-    for (const frame of frames()) {
-      const frameDocument = applicationDocument(frame);
-      if (!frameDocument || frameDocument.readyState === "loading" || announced.has(frameDocument)) continue;
-      announced.add(frameDocument);
-      onRendererFrameLoad?.();
-    }
-  };
-  // Mirrors the primary application frame's title, which follows its navigation.
-  const syncApplicationTitle = (): void => {
-    for (const frame of frames()) {
-      const frameTitle = applicationDocument(frame)?.title;
-      if (frameTitle) {
-        if (document.title !== frameTitle) document.title = frameTitle;
-        return;
-      }
-    }
-  };
-  window.setInterval(() => {
-    announceReadyDocuments();
-    syncApplicationTitle();
-  }, 100);
-  // Script-built styles exist only in the application frames, not in this document.
-  const collectFrameTokens = (frame: HTMLIFrameElement): void => {
-    const frameDocument = applicationDocument(frame);
-    if (!frameDocument) return;
-    void collectDocumentTokens(frameDocument).then((tokens) => {
-      if (getNudgeUiRuntimeConfig().inspectionUnavailableReason) return;
-      if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
-        configureNudgeUiRuntime(runtimeConfig(tokens));
-      }
-    });
-  };
-  const watched = new WeakSet<HTMLIFrameElement>();
-  const watch = (): void => {
-    for (const frame of frames()) {
-      if (watched.has(frame)) continue;
-      watched.add(frame);
-      frame.addEventListener("load", () => collectFrameTokens(frame));
-      collectFrameTokens(frame);
-    }
-  };
-  new MutationObserver(watch).observe(root, { childList: true, subtree: true });
-  watch();
-}
-
-function exitEditor(): void {
-  location.replace(readNudgeUiEditorTarget(location.href) ?? location.href);
-}
-
 /** A second bundle copy in the same window toggles the first instance, whose stores own the UI. */
 export async function startPageInspector(options: PageInspectorOptions = {}): Promise<void> {
   const target = window as PageInspectorWindow;
@@ -334,10 +236,8 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
     loaded.toggle();
     return;
   }
-  const editor = options.surface === "editor" && readNudgeUiEditorTarget(location.href) !== null;
-  let toggle: (() => void) | null = editor ? exitEditor : null;
+  let toggle: (() => void) | null = null;
   target[LOADED_FLAG] = {
-    surface: editor ? "editor" : "page",
     toggle: () => toggle?.(),
     enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
   };
@@ -346,43 +246,22 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
   if (options.systemFonts) configureSystemFontSource(options.systemFonts);
   if (options.adoptStylesheets) preferAdoptedStylesheets();
 
-  const tokens = options.unavailableReason ? NO_TOKENS : await collectDocumentTokens(document);
-  configureNudgeUiRuntime(runtimeConfig(tokens, options.unavailableReason));
-  if (editor) {
-    mountEditor(options.onRendererFrameLoad);
-  } else {
-    if (!options.unavailableReason) enablePageSurface();
-    toggle = mountPageInspector();
+  // Tokens can wait on cross-origin stylesheet fetches, so the panel mounts first.
+  configureNudgeUiRuntime(runtimeConfig(NO_TOKENS));
+  enablePageSurface();
+  toggle = mountPageInspector();
+  let tokens: DocumentTokens;
+  try {
+    tokens = await collectDocumentTokens(document);
+  } catch (error) {
+    // The panel is already running; it keeps working without the token list.
+    console.warn("[nudge-ui] Could not read this page's design tokens.", error);
+    return;
   }
+  configureNudgeUiRuntime(runtimeConfig(tokens));
   console.info(
-    `[nudge-ui] Inspector loaded in ${editor ? "editor" : "page"} mode with ${tokens.tokenCatalog.length} tokens`
+    `[nudge-ui] Inspector loaded with ${tokens.tokenCatalog.length} tokens`
       + (tokens.tokenDiagnostics.length > 0 ? ` and ${tokens.tokenDiagnostics.length} stylesheet diagnostics.` : "."),
     tokens.tokenDiagnostics,
   );
-}
-
-/** Only acts inside an editor Canvas frame that has no renderer yet. */
-export function startCanvasRenderer(options: Pick<PageInspectorOptions, "adoptStylesheets"> = {}): void {
-  const target = window as PageInspectorWindow;
-  if (!isCanvasRenderer() || target[LOADED_FLAG]) return;
-  target[LOADED_FLAG] = {
-    surface: "renderer",
-    toggle: () => undefined,
-    enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
-  };
-  if (options.adoptStylesheets) preferAdoptedStylesheets();
-  setNudgeUiHostDevFlag(true);
-  installLazyRuntimeIdentity(document);
-  configureNudgeUiRuntime(runtimeConfig(NO_TOKENS));
-  bootstrapNudgeUi(createMount());
-  // Renderers inspect their own elements, so they need this document's tokens.
-  const collectTokens = (): void => {
-    void collectDocumentTokens(document).then((tokens) => {
-      if (tokens.tokenGeneration !== getNudgeUiRuntimeConfig().tokenGeneration) {
-        configureNudgeUiRuntime(runtimeConfig(tokens));
-      }
-    });
-  };
-  collectTokens();
-  if (document.readyState !== "complete") window.addEventListener("load", collectTokens, { once: true });
 }
