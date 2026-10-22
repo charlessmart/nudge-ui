@@ -69,14 +69,16 @@ describe("sketch tool shortcuts", () => {
     return new KeyboardEvent("keydown", { code, bubbles: true, composed: true, ...init });
   }
 
-  it("picks the eraser, rectangle and text tools from E, R and T", () => {
+  it("picks the pen, eraser, rectangle and text tools from P, E, R and T", () => {
+    expect(sketchToolForEvent(press("KeyP"))).toBe("pen");
     expect(sketchToolForEvent(press("KeyE"))).toBe("eraser");
     expect(sketchToolForEvent(press("KeyR"))).toBe("rectangle");
     expect(sketchToolForEvent(press("KeyT"))).toBe("text");
   });
 
   it("ignores other keys, modifier chords, and held keys", () => {
-    expect(sketchToolForEvent(press("KeyP"))).toBeNull();
+    expect(sketchToolForEvent(press("KeyV"))).toBeNull();
+    expect(sketchToolForEvent(press("KeyP", { shiftKey: true }))).toBeNull();
     expect(sketchToolForEvent(press("KeyR", { metaKey: true }))).toBeNull();
     expect(sketchToolForEvent(press("KeyR", { ctrlKey: true }))).toBeNull();
     expect(sketchToolForEvent(press("KeyT", { altKey: true }))).toBeNull();

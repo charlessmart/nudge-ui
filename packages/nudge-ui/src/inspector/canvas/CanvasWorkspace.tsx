@@ -460,13 +460,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (isEditableEvent(event)) return;
       const nextTool = canvasToolForEvent(event);
       if (!nextTool || (nextTool === "sketch" && !sketchAvailable)) return;
+      // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a
+      // copy that is still being captured.
+      if (nextTool === "sketch" && sketchActive) return;
       event.preventDefault();
       handleToolChange(nextTool);
     }
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleToolChange, mode, sketchAvailable]);
+  }, [handleToolChange, mode, sketchActive, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (sketchActive) return;
@@ -559,7 +562,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (isKeyboardShortcutMessage(msg, identity)) {
         if (msg.phase === "keydown") {
           const nextTool = canvasToolForCode(msg.code);
-          if (nextTool && (nextTool !== "sketch" || sketchAvailable)) handleToolChange(nextTool);
+          if (nextTool && (nextTool !== "sketch" || (sketchAvailable && !sketchActive))) handleToolChange(nextTool);
         }
         return;
       }

@@ -74,7 +74,7 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   // The whole bar slides up 16px as it fades in (it is centred with `translate`, so the slide carries the -50%).
   const slide = await bar.evaluate((element) => {
     const animation = element.getAnimations().find((candidate) => (candidate as CSSAnimation).animationName === "sketch-options-bar-in");
-    const [first] = animation?.effect?.getKeyframes() ?? [];
+    const [first] = (animation?.effect as KeyframeEffect | null | undefined)?.getKeyframes() ?? [];
     return first ? { translate: String(first.translate), opacity: Number(first.opacity) } : null;
   });
   expect(slide).toEqual({ translate: "-50% 16px", opacity: 0 });
@@ -178,10 +178,21 @@ test("typed text becomes a layer that is framed, rotated and scaled like a strok
   await expect(frame).toHaveAttribute("transform", /rotate\(90\)/);
 });
 
-test("E, R and T pick the eraser, rectangle and text tools, except while typing text", async ({ page }) => {
+test("P, E, R and T pick the pen, eraser, rectangle and text tools, except while typing text", async ({ page }) => {
   const middle = await openSketch(page);
   const isActive = (tool: string) => expect(page.locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
 
+  // P goes back to the pen without starting a new sketch, so what is already drawn stays.
+  await drag(page, { x: middle.x - 80, y: middle.y - 60 }, { x: middle.x + 40, y: middle.y + 20 });
+  await expect(page.locator(MARK)).toHaveCount(1);
+  await page.keyboard.press("e");
+  await isActive("eraser");
+  await page.keyboard.press("p");
+  await isActive("pen");
+  await expect(page.locator(MARK)).toHaveCount(1);
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(1);
+  await page.locator('[data-test="sketch-tool-pen"]').hover();
+  await expect(page.locator(".tooltip__popup", { hasText: "Pen" })).toContainText("P");
   await page.keyboard.press("e");
   await isActive("eraser");
   await page.keyboard.press("r");
@@ -378,12 +389,20 @@ test("moving from one saved sketch to the next hands the preview straight over",
   // Watch every frame from the move: the preview may swap, but it must not go away and wait to come back.
   await page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
-    const log = { frames: 0, empty: 0, done: false };
+    const log = { frames: 0, empty: 0, done: false, grew: 0 };
     Object.assign(window, { __previewLog: log });
+    // The first height each open popup is seen at: a handed-over preview must already be its full size and drawn.
+    const firstHeight = new WeakMap<Element, number>();
     const start = performance.now();
     const tick = (): void => {
       log.frames += 1;
       if (!root.querySelector('[data-test="sketch-preview"]')) log.empty += 1;
+      for (const popup of root.querySelectorAll(".sketch-preview-popup[data-open][data-instant]")) {
+        const height = popup.getBoundingClientRect().height;
+        const first = firstHeight.get(popup);
+        if (first === undefined) firstHeight.set(popup, height);
+        else if (Math.abs(height - first) > 1) log.grew += 1;
+      }
       if (performance.now() - start < 600) requestAnimationFrame(tick);
       else log.done = true;
     };
@@ -391,9 +410,10 @@ test("moving from one saved sketch to the next hands the preview straight over",
   });
   await page.mouse.move(behind.x + 6, behind.y + behind.height / 2, { steps: 4 });
   await page.waitForFunction(() => (window as unknown as { __previewLog: { done: boolean } }).__previewLog.done);
-  const log = await page.evaluate(() => (window as unknown as { __previewLog: { frames: number; empty: number } }).__previewLog);
+  const log = await page.evaluate(() => (window as unknown as { __previewLog: { frames: number; empty: number; grew: number } }).__previewLog);
   expect(log.frames).toBeGreaterThan(10);
   expect(log.empty).toBeLessThanOrEqual(1);
+  expect(log.grew).toBe(0);
   await expect(preview).toBeVisible();
 });
 
@@ -440,7 +460,8 @@ test("hovering a saved sketch opens a large preview above it, titled with what a
   const preview = page.locator('[data-test="sketch-preview"]');
   await expect(preview).toBeVisible();
   await expect(preview).toContainText("Click to copy");
-  const image = preview.locator("img");
+  // Painted on a canvas, so a page's image policy cannot block it.
+  const image = preview.locator("canvas.sketch-preview__image");
   await expect(image).toBeVisible();
   const shown = await box(image);
   expect(shown.width).toBeGreaterThan(150);
@@ -482,7 +503,7 @@ test("the three latest copies are kept, newest in front, and they are still ther
 
   // The newest sits next to the copy button; each older copy tucks behind the one in front of it, further left.
   const copy = await box(page.locator('[data-test="sketch-copy"]'));
-  const [front, behind, last] = await Promise.all([0, 1, 2].map((index) => box(recent.nth(index))));
+  const [front, behind, last] = (await Promise.all([0, 1, 2].map((index) => box(recent.nth(index))))) as [Box, Box, Box];
   expect(front.x + front.width).toBeLessThanOrEqual(copy.x);
   expect(behind.x).toBeLessThan(front.x);
   expect(behind.x).toBeGreaterThan(front.x - front.width);
@@ -529,7 +550,7 @@ test("a finished copy pops its thumbnail in beside the copy button, with nothing
         samples.push({
           scale: style.scale === "none" ? 1 : Number(style.scale.split(" ")[0]),
           opacity: Number(style.opacity),
-          animation: item.getAnimations()[0]?.animationName ?? null,
+          animation: (item.getAnimations()[0] as CSSAnimation | undefined)?.animationName ?? null,
         });
       }
       frames += 1;
@@ -603,7 +624,7 @@ test("a copy kept from earlier joins the stagger when the bar opens, instead of 
   const stack = page.locator(".sketch-recents");
   await expect(item).toHaveCount(1);
   await expect(stack).not.toHaveAttribute("data-pop", "true");
-  const animation = await item.evaluate((element) => element.getAnimations()[0]?.animationName ?? null);
+  const animation = await item.evaluate((element) => (element.getAnimations()[0] as CSSAnimation | undefined)?.animationName ?? null);
   expect(animation === null || animation === "sketch-options-item-in").toBe(true);
   await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
   await expect(stack).not.toHaveAttribute("data-pop", "true");

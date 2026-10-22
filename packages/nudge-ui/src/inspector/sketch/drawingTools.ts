@@ -62,10 +62,11 @@ export function restoreDefaultSketchDrawingTools(): void {
   snapshot = DEFAULT_SNAPSHOT;
 }
 
-/** Single-key shortcuts for the tools, shown in their tooltips. The pen has none: P already opens the sketch tool. */
-export const SKETCH_TOOL_SHORTCUTS = { eraser: "E", rectangle: "R", text: "T" } as const;
+/** Single-key shortcuts for the tools, shown in their tooltips. P also opens the sketch tool from the canvas; once it is open, P picks the pen. */
+export const SKETCH_TOOL_SHORTCUTS = { pen: "P", eraser: "E", rectangle: "R", text: "T" } as const;
 
 const SKETCH_TOOL_CODES: Readonly<Record<string, SketchDrawingTool>> = {
+  KeyP: "pen",
   KeyE: "eraser",
   KeyR: "rectangle",
   KeyT: "text",

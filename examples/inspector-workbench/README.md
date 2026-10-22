@@ -42,8 +42,16 @@ uses production `TokenValueField` controls with local values and callbacks.
 DOM elements for computed styles, so `FixtureTargets.tsx` supplies offscreen sample
 content and the workbench resolves it through browser CSS inspection. This is an
 incremental presentation boundary, not a fully JSON-driven replacement for every
-editor. Component-prop, sketch, and agent workflows are outside this first set of
-fixtures. The fixture's agent status is a snapshot and its prompt action displays
+editor. Component-prop and agent workflows are outside this first set of
+fixtures.
+
+The **Canvas toolbar** scenario renders the real floating `CanvasToolbar` with each
+tool active, and the real sketch bar (`SketchToolBar`, the presentational half of
+`SketchToolOptions`) in every state on one page: each drawing tool, other colours,
+the colour palette open, nothing drawn, saving, and one or three saved sketches
+with their hover previews. Each bar holds its own state, so you can change its tool
+or colour, but nothing is drawn, saved or sent. Saved sketches are drawn in the
+browser by `fixtureSketches.ts`. The fixture's agent status is a snapshot and its prompt action displays
 local feedback; neither sends to an agent nor writes to the clipboard.
 
 ## Isolation and styling

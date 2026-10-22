@@ -189,12 +189,14 @@ function IllustratedToolButton({
   activeTool,
   label,
   shortcut,
+  onSelect,
   children,
 }: {
   readonly tool: SketchDrawingTool;
   readonly activeTool: SketchDrawingTool;
   readonly label: string;
   readonly shortcut?: string;
+  readonly onSelect: (tool: SketchDrawingTool) => void;
   readonly children: ReactElement;
 }): ReactElement {
   const active = tool === activeTool;
@@ -207,7 +209,7 @@ function IllustratedToolButton({
         aria-pressed={active}
         data-active={active ? "true" : "false"}
         data-test={`sketch-tool-${tool}`}
-        onClick={() => setSketchDrawingTool(tool)}
+        onClick={() => onSelect(tool)}
       >
         {children}
       </button>
@@ -233,8 +235,13 @@ type PalettePhase = "closed" | "open" | "closing";
 /** Matches the longest swatch collapse in SketchToolOptions.css (duration plus stagger). */
 const PALETTE_CLOSE_MS = 180 + (SKETCH_PEN_COLORS.length - 1) * PALETTE_STAGGER_MS;
 
-function ColorPicker({ color, hidden }: { readonly color: SketchPenColor; readonly hidden: boolean }): ReactElement {
-  const [phase, setPhase] = useState<PalettePhase>("closed");
+function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
+  readonly color: SketchPenColor;
+  readonly hidden: boolean;
+  readonly initiallyOpen: boolean;
+  readonly onColorChange: (color: SketchPenColor) => void;
+}): ReactElement {
+  const [phase, setPhase] = useState<PalettePhase>(initiallyOpen && !hidden ? "open" : "closed");
   const rootRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const open = phase === "open";
@@ -309,7 +316,7 @@ function ColorPicker({ color, hidden }: { readonly color: SketchPenColor; readon
                 zIndex: option === color ? SKETCH_PEN_COLORS.length : Math.max(PALETTE_STACK_ORDER.indexOf(option.id), 0),
               } as CSSProperties}
               onClick={() => {
-                setSketchStrokeColor(option);
+                onColorChange(option);
                 closePalette();
               }}
             />
@@ -378,7 +385,11 @@ function useSketchStack(items: readonly SketchQueueItem[]): readonly StackRow[] 
 }
 
 /** A recently copied sketch, kept in case it was never pasted: click to copy it again. */
-function RecentSketch({ row, enters }: { readonly row: StackRow; readonly enters: boolean }): ReactElement {
+function RecentSketch({ row, enters, onCopy }: {
+  readonly row: StackRow;
+  readonly enters: boolean;
+  readonly onCopy: (item: SketchQueueItem) => void;
+}): ReactElement {
   const { item, slot, leaving } = row;
   // Decided once, on arrival: only a sketch that joins a stack already on show animates in itself.
   const [enter] = useState(enters);
@@ -405,7 +416,7 @@ function RecentSketch({ row, enters }: { readonly row: StackRow; readonly enters
           className="sketch-recent__copy"
           aria-label="Copy recent sketch"
           data-test="sketch-recent-copy"
-          onClick={() => void copySketchImageOnRequest(item.document.annotatedImage)}
+          onClick={() => onCopy(item)}
         >
           <SketchThumbnail item={item} />
           <span className="sketch-recent__copy-icon" aria-hidden="true">
@@ -418,13 +429,22 @@ function RecentSketch({ row, enters }: { readonly row: StackRow; readonly enters
 }
 
 /** The newest few sketches, overlapping like avatars beside the copy button, the newest in front and next to it. */
-function RecentSketches({ items, settled }: { readonly items: readonly SketchQueueItem[]; readonly settled: boolean }): ReactElement | null {
+function RecentSketches({ items, settled, onCopy }: {
+  readonly items: readonly SketchQueueItem[];
+  readonly settled: boolean;
+  readonly onCopy: (item: SketchQueueItem) => void;
+}): ReactElement | null {
   const rows = useSketchStack(items);
-  return rows.length > 0 ? <RecentStack rows={rows} count={items.length} settled={settled} /> : null;
+  return rows.length > 0 ? <RecentStack rows={rows} count={items.length} settled={settled} onCopy={onCopy} /> : null;
 }
 
 /** Mounted only while there is something to show, so what it decides on arrival is decided per stack. */
-function RecentStack({ rows, count, settled }: { readonly rows: readonly StackRow[]; readonly count: number; readonly settled: boolean }): ReactElement {
+function RecentStack({ rows, count, settled, onCopy }: {
+  readonly rows: readonly StackRow[];
+  readonly count: number;
+  readonly settled: boolean;
+  readonly onCopy: (item: SketchQueueItem) => void;
+}): ReactElement {
   // A stack that appears while the bar is already up (a copy just finished) pops in, while one that is there as the
   // bar opens simply joins the stagger.
   const [pops] = useState(settled);
@@ -436,7 +456,7 @@ function RecentStack({ rows, count, settled }: { readonly rows: readonly StackRo
     <div className="sketch-recents" data-pop={pops ? "true" : undefined} style={{ "--count": Math.max(count, 1) } as CSSProperties}>
       {/* Moving from one sketch to the next hands the preview straight over instead of closing and reopening it. */}
       <TooltipGroup delay={200} closeDelay={0} timeout={400}>
-        {rows.map((row) => <RecentSketch key={row.item.document.id} row={row} enters={shown && settled} />)}
+        {rows.map((row) => <RecentSketch key={row.item.document.id} row={row} enters={shown && settled} onCopy={onCopy} />)}
       </TooltipGroup>
     </div>
   );
@@ -447,14 +467,52 @@ function tellNothingToCopy(): void {
   showToast({ tone: "info", title: "Nothing to copy", description: "Sketch, then click done.", timeout: 3000 });
 }
 
-export function SketchToolOptions({ open }: { readonly open: boolean }): ReactElement | null {
-  const drawing = useSketchDrawingTools();
-  const live = useLiveSketchControls();
-  const recents = useSketchStore().items.slice(0, MAX_RECENT_SKETCHES);
-  const [skipIntro, setSkipIntro] = useState(() => open && barWasOpen);
-  const [settled, setSettled] = useState(() => open && barWasOpen);
+export interface SketchToolBarProps {
+  readonly open: boolean;
+  readonly tool: SketchDrawingTool;
+  readonly color: SketchPenColor;
+  /** The saved sketches, newest first. */
+  readonly recents: readonly SketchQueueItem[];
+  /** True while a save is in flight. */
+  readonly saving: boolean;
+  /** Whether there is anything drawn to save. */
+  readonly hasContent: boolean;
+  readonly onToolChange: (tool: SketchDrawingTool) => void;
+  readonly onColorChange: (color: SketchPenColor) => void;
+  readonly onSave: () => void;
+  /** Clicking a saved sketch; by default it copies that sketch's image again. */
+  readonly onCopyRecent?: (item: SketchQueueItem) => void;
+  /** Shows the bar in its settled state at once, with no intro and no keyboard shortcuts, for fixtures that hold one state. */
+  readonly still?: boolean;
+  /** Starts with the colour palette fanned out. */
+  readonly paletteOpen?: boolean;
+}
+
+function copyRecentSketch(item: SketchQueueItem): void {
+  void copySketchImageOnRequest(item.document.annotatedImage);
+}
+
+/** The sketch bar with its state passed in, so a page can show it in any state. The canvas uses `SketchToolOptions`. */
+export function SketchToolBar({
+  open,
+  tool,
+  color,
+  recents: allRecents,
+  saving,
+  hasContent,
+  onToolChange,
+  onColorChange,
+  onSave,
+  onCopyRecent = copyRecentSketch,
+  still = false,
+  paletteOpen = false,
+}: SketchToolBarProps): ReactElement | null {
+  const recents = allRecents.slice(0, MAX_RECENT_SKETCHES);
+  const [skipIntro, setSkipIntro] = useState(() => still || (open && barWasOpen));
+  const [settled, setSettled] = useState(() => still || (open && barWasOpen));
 
   useEffect(() => {
+    if (still) return;
     barWasOpen = open;
     if (!open) {
       // The bar leaves at once; the next time it opens it plays its intro again.
@@ -468,20 +526,8 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
     // `settled` only decides whether the intro timer is needed; it must not restart the effect.
   }, [open]);
 
-  // Only while the sketch tool is open, and never while typing in a text field, so the letters still type.
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent): void {
-      const tool = sketchToolForEvent(event);
-      if (!tool) return;
-      event.preventDefault();
-      setSketchDrawingTool(tool);
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open]);
-
   if (!open) return null;
+  const drawing = { tool, color };
 
   return (
     <div
@@ -494,12 +540,12 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
     >
       <div className="sketch-options__items">
         <BarItem index={0}>
-          <IllustratedToolButton tool="pen" activeTool={drawing.tool} label="Pen">
+          <IllustratedToolButton tool="pen" activeTool={drawing.tool} label="Pen" shortcut={SKETCH_TOOL_SHORTCUTS.pen} onSelect={onToolChange}>
             <PenIllustration color={drawing.color} />
           </IllustratedToolButton>
         </BarItem>
         <BarItem index={1}>
-          <IllustratedToolButton tool="eraser" activeTool={drawing.tool} label="Eraser" shortcut={SKETCH_TOOL_SHORTCUTS.eraser}>
+          <IllustratedToolButton tool="eraser" activeTool={drawing.tool} label="Eraser" shortcut={SKETCH_TOOL_SHORTCUTS.eraser} onSelect={onToolChange}>
             <EraserIllustration />
           </IllustratedToolButton>
         </BarItem>
@@ -513,7 +559,7 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
               aria-pressed={drawing.tool === "rectangle"}
               data-active={drawing.tool === "rectangle" ? "true" : "false"}
               data-test="sketch-tool-rectangle"
-                onClick={() => setSketchDrawingTool("rectangle")}
+                onClick={() => onToolChange("rectangle")}
             >
               <RectangleIcon color={drawing.color} />
             </IconButton>
@@ -529,29 +575,29 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
               aria-pressed={drawing.tool === "text"}
               data-active={drawing.tool === "text" ? "true" : "false"}
               data-test="sketch-tool-text"
-                onClick={() => setSketchDrawingTool("text")}
+                onClick={() => onToolChange("text")}
             >
               <TextIcon />
             </IconButton>
           </Tooltip>
         </BarItem>
         <BarItem index={4}>
-          <ColorPicker color={drawing.color} hidden={!settled} />
+          <ColorPicker color={drawing.color} hidden={!settled} initiallyOpen={paletteOpen} onColorChange={onColorChange} />
         </BarItem>
         <BarItem index={5}>
           {/* The same divider the canvas toolbar uses, setting the copy action apart from the drawing tools. */}
           <div className="canvas-toolbar__divider" aria-hidden="true" data-test="sketch-options-divider" />
           <div className="sketch-options__copy-group" data-test="sketch-copy-group">
-            <RecentSketches items={recents} settled={settled} />
+            <RecentSketches items={recents} settled={settled} onCopy={onCopyRecent} />
             <Tooltip content="Save sketch" stableTrigger>
               <IconButton
                 variant="primary"
-                label={live.saving ? "Saving…" : "Save sketch"}
+                label={saving ? "Saving…" : "Save sketch"}
                 className="sketch-options__copy"
                 data-test="sketch-copy"
-                aria-busy={live.saving ? "true" : undefined}
-                disabled={live.saving}
-                onClick={live.hasContent ? live.copy : tellNothingToCopy}
+                aria-busy={saving ? "true" : undefined}
+                disabled={saving}
+                onClick={hasContent ? onSave : tellNothingToCopy}
               >
                 <IconCheck size={18} aria-hidden="true" />
               </IconButton>
@@ -560,5 +606,39 @@ export function SketchToolOptions({ open }: { readonly open: boolean }): ReactEl
         </BarItem>
       </div>
     </div>
+  );
+}
+
+/** The sketch bar wired to the live sketch: the chosen tool and colour, the saved sketches, and saving. */
+export function SketchToolOptions({ open }: { readonly open: boolean }): ReactElement | null {
+  const drawing = useSketchDrawingTools();
+  const live = useLiveSketchControls();
+  const recents = useSketchStore().items;
+
+  // Only while the sketch tool is open, and never while typing in a text field, so the letters still type.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      const tool = sketchToolForEvent(event);
+      if (!tool) return;
+      event.preventDefault();
+      setSketchDrawingTool(tool);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open]);
+
+  return (
+    <SketchToolBar
+      open={open}
+      tool={drawing.tool}
+      color={drawing.color}
+      recents={recents}
+      saving={live.saving}
+      hasContent={live.hasContent}
+      onToolChange={setSketchDrawingTool}
+      onColorChange={setSketchStrokeColor}
+      onSave={live.copy}
+    />
   );
 }
