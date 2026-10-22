@@ -1,9 +1,9 @@
-export const PROMPT_TITLE = "# Requested design changes";
+export const PROMPT_INTRO = "Please make these UI changes for me.";
 
-/** Keeps the title first when a host adds page or iteration instructions. */
+/** Keeps the opening line first when a host adds page or iteration instructions. */
 export function withPromptContext(context: readonly string[], prompt: string): string {
-  const body = prompt === PROMPT_TITLE || prompt.startsWith(`${PROMPT_TITLE}\n`)
-    ? prompt.slice(PROMPT_TITLE.length).trimStart()
+  const body = prompt === PROMPT_INTRO || prompt.startsWith(`${PROMPT_INTRO}\n`)
+    ? prompt.slice(PROMPT_INTRO.length).trimStart()
     : prompt;
-  return [PROMPT_TITLE, "", ...context, ...(body.trim() ? ["", body] : [])].join("\n");
+  return [PROMPT_INTRO, "", ...context, ...(body.trim() ? ["", body] : [])].join("\n");
 }

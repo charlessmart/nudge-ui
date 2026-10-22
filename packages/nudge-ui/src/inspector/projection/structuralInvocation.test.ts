@@ -88,7 +88,7 @@ describe("structural delete of a shared component's root", () => {
     const change = createStructuralDelete(toolbars()[1]!, "delete-1")!;
 
     expect(generatePrompt([], undefined, [change])).toContain(
-      "- Remove the `<Toolbar>` invocation at src/Bento.tsx:207:7 from the source; keep its other invocations.",
+      "- Remove it from the source by deleting the <Toolbar> at src/Bento.tsx:207:7, but keep the other <Toolbar> usages.",
     );
   });
 

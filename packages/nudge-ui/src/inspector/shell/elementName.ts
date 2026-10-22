@@ -35,5 +35,7 @@ export function describeElement(element: HTMLElement): ElementName {
   const tag = element.localName.toLowerCase();
   const base = /^h[1-6]$/.test(tag) ? `Heading ${tag.slice(1)}` : TAG_LABELS.get(tag) ?? (tag.charAt(0).toUpperCase() + tag.slice(1));
   const accessible = element.getAttribute("aria-label")?.trim();
-  return { title: accessible ? `${base} · ${accessible}` : base, detail: describeNode(element) };
+  const markup = describeNode(element);
+  // A bare tag only repeats the title ("Page" beside "body"), so the markup name earns its line only with an id or class.
+  return { title: accessible ? `${base} · ${accessible}` : base, detail: markup === tag ? undefined : markup };
 }

@@ -107,6 +107,6 @@ test("dev: ordinary CSS inventory reaches browser inspection, managed preview, a
   await expect.poll(() => managedSheetText(page)).toContain("var(--color-surface-sunken)");
   await page.locator('[data-test="copy-prompt"]').click();
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
-  expect(prompt).toContain("`--color-surface-raised` → `--color-surface-sunken`");
+  expect(prompt).toContain("from the --color-surface-raised token to the --color-surface-sunken token");
   expect(prompt).not.toContain("Selectors (fallback)");
 });

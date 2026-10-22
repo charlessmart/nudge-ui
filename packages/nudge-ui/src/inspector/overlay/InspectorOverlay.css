@@ -184,7 +184,6 @@
 
 .dom-navigator__size {
   padding-right: var(--space-8);
-  opacity: 0.8;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText, removeManagedSheet } from "./managedStylesheet.ts";
 import { disposeBrowserCssInspection, getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
@@ -324,6 +324,31 @@ describe("verifyPreview", () => {
     target.style.transitionProperty = "display";
     target.style.transitionDuration = "1s";
     expect(verifyPreview(target, "display", "grid").reason).toBe("transition");
+  });
+
+  it("accepts a minimum of auto that computes to auto on a flex item but to 0px on the probe", () => {
+    const target = document.querySelector("#target") as HTMLElement;
+    const real = window.getComputedStyle.bind(window);
+    const spy = vi.spyOn(window, "getComputedStyle").mockImplementation((element: Element) => {
+      const style = real(element);
+      const isProbe = element.getAttribute("data-nudge-ui") === "value-probe";
+      return new Proxy(style, {
+        get: (source, key) => {
+          if (key === "getPropertyValue") {
+            return (property: string) => property === "min-height" ? (isProbe ? "0px" : "auto") : source.getPropertyValue(property);
+          }
+          const value = Reflect.get(source, key);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+    });
+    try {
+      expect(verifyPreview(target, "min-height", "auto").status).toBe("applied");
+      // Only `auto` gets this allowance; any other mismatch is still a conflict.
+      expect(verifyPreview(target, "min-height", "10px").status).toBe("conflict");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("reports a missing instance target without broadening", () => {

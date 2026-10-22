@@ -5,7 +5,7 @@ import { TextInput } from "../ui/TextInput.tsx";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "../tokens/editActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
-import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip } from "../ui/InlineStyleWarning.tsx";
 import type { StringRecord } from "./stringRecord.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
@@ -84,28 +84,29 @@ export function GridValueField({
       atRules={atRules}
       data-test={`layout-grid-${property}`}
     >
-      <TextInput
-        value={draft}
-        placeholder={mixed ? "Mixed" : undefined}
-        data-test={`layout-grid-input-${property}`}
-        aria-label={property}
-        disabled={blockedBy !== null}
-        onChange={(event) => updateDraft(event.target.value)}
-        onBlur={() => {
-          commit();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            cancel();
-            event.currentTarget.blur();
-          } else if (event.key === "Enter") {
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-        }}
-      />
-      <InlineStyleWarning blockedBy={blockedBy} />
+      <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+        <TextInput
+          value={draft}
+          placeholder={mixed ? "Mixed" : undefined}
+          data-test={`layout-grid-input-${property}`}
+          aria-label={property}
+          disabled={blockedBy !== null}
+          onChange={(event) => updateDraft(event.target.value)}
+          onBlur={() => {
+            commit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+              event.currentTarget.blur();
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      </InlineStyleBlockedTooltip>
     </FieldRow>
   );
 }

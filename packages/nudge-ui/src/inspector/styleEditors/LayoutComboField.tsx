@@ -8,6 +8,7 @@ import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { LayoutBlockedIndicator } from "./LayoutBlockedIndicator.tsx";
 import { Select } from "../ui/Select.tsx";
+import { InlineStyleBlockedTooltip } from "../ui/InlineStyleWarning.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { cx } from "../ui/classNames.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
@@ -197,25 +198,27 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     >
       {inputOnly ? customInput : (
         <>
-          <Select
-            compact={compact}
-            appearance={appearance}
-            data-test={`layout-combo-select-${property}`}
-            value={selectValue}
-            options={[
-              ...presets.map((p) => ({ value: p, label: formatInspectorLabel(p) })),
-              { value: CUSTOM_KEY, label: "Custom…" },
-            ]}
-            onValueChange={handleSelectChange}
-            disabled={blockedBy !== null}
-          />
+          <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+            <Select
+              compact={compact}
+              appearance={appearance}
+              data-test={`layout-combo-select-${property}`}
+              value={selectValue}
+              options={[
+                ...presets.map((p) => ({ value: p, label: formatInspectorLabel(p) })),
+                { value: CUSTOM_KEY, label: "Custom…" },
+              ]}
+              onValueChange={handleSelectChange}
+              disabled={blockedBy !== null}
+            />
+          </InlineStyleBlockedTooltip>
           {showCustom || alwaysShowInput ? (
             <span className="layout-combo__custom">{customInput}</span>
           ) : null}
         </>
       )}
       <AtRuleIndicator atRules={atRules} />
-      <LayoutBlockedIndicator blockedBy={blockedBy} />
+      {inputOnly ? <LayoutBlockedIndicator blockedBy={blockedBy} /> : null}
     </span>
   );
 }

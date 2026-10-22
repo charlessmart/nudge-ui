@@ -59,8 +59,8 @@ export interface AtRuleIndicatorProps {
 }
 
 /**
- * A ruler along the field's left edge: one segment per conditional rule plus the base, with the
- * declaration currently winning the cascade highlighted. Hovering it lists the rules.
+ * A dot on the field's top-left corner marking that conditional rules apply. It is accent while one of
+ * them is the declaration currently winning the cascade. Hovering it lists the rules, base included.
  */
 export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleIndicatorProps): ReactElement | null {
   if (atRules.length === 0) return null;
@@ -101,18 +101,9 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
         type="button"
         className={cx("at-rule-indicator", className)}
         data-test="at-rule-indicator"
+        data-active={activeCount > 0 ? "true" : "false"}
         aria-label={activeCount > 0 ? `Active ${count}` : count}
-      >
-        <span className="at-rule-indicator__track" aria-hidden="true">
-          {segments.map((segment) => (
-            <span
-              className="at-rule-indicator__segment"
-              data-active={segment.active ? "true" : "false"}
-              key={segment.key}
-            />
-          ))}
-        </span>
-      </button>
+      />
     </Tooltip>
   );
 }

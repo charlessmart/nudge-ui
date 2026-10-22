@@ -40,46 +40,41 @@
   gap: var(--space-8);
 }
 
+/* The usual three columns: two fields and the 32px column for an icon button, which every row keeps whether or not it has one. */
 .layout__size-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
-  grid-template-areas:
-    "width height toggle"
-    "min-width min-height ."
-    "max-width max-height ."
-    "aspect-ratio . .";
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
   gap: var(--space-8);
   align-items: end;
-}
-
-.layout__size[data-expanded="false"] .layout__size-grid {
-  grid-template-areas: "width height toggle";
 }
 
 .layout__size-cell {
   min-width: 0;
 }
 
-.layout__size-cell--width { grid-area: width; }
-.layout__size-cell--height { grid-area: height; }
-.layout__size-cell--toggle { grid-area: toggle; position: relative; }
+/* Width settings sit in the left column and height settings in the right, whichever of them are shown. */
+.layout__size-cell--width,
+.layout__size-cell--min-width,
+.layout__size-cell--max-width { grid-column: 1; }
 
-/* Flags a non-default value hidden behind the expander. */
-.layout__size-cell--toggle[data-modified="true"]::after {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  content: "";
+.layout__size-cell--height,
+.layout__size-cell--min-height,
+.layout__size-cell--max-height { grid-column: 2; }
+
+.layout__size-cell--lock { grid-column: 3; }
+
+/* The chevron that adds more size fields needs the room the gaps between a field's parts would take. */
+.layout__size-field .token-field:has(.token-field__trailing) {
+  gap: var(--space-4);
 }
-.layout__size-cell--min-width { grid-area: min-width; }
-.layout__size-cell--min-height { grid-area: min-height; }
-.layout__size-cell--max-width { grid-area: max-width; }
-.layout__size-cell--max-height { grid-area: max-height; }
-.layout__size-cell--aspect-ratio { grid-area: aspect-ratio; }
+
+.layout__size-field .token-field__trailing {
+  gap: 0;
+}
+
+.layout__size-field .token-field__trailing .icon-button {
+  margin-inline-end: calc(var(--space-4) * -1);
+}
 
 .layout__size-grid .field-row {
   display: flex;
@@ -110,6 +105,12 @@
 
 .layout__aspect-ratio-control .text-input {
   min-width: 0;
+}
+
+.layout__grid-primary,
+.layout__flex {
+  /* The pickers span the two stacked gap fields beside them. */
+  --layout-picker-height: calc(var(--control-height-large) * 2 + var(--space-8));
 }
 
 .layout__grid-primary {
@@ -189,7 +190,6 @@
   min-width: 0;
 }
 
-.inspector-popover__popup:has(> .layout__flex-child-settings),
 .inspector-popover__popup:has(> .layout__options) {
   padding: var(--space-16);
 }
@@ -202,11 +202,27 @@
   min-width: 0;
 }
 
-.layout__flex-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--control-height-large);
-  gap: var(--space-8);
+/* Display, its container controls and padding read as one group. */
+.layout__display-group {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-block: var(--space-8);
+}
+
+.layout__mode {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* Matches the Margin label. */
+.layout__label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.25;
 }
 
 .layout__mode-row {
@@ -223,8 +239,16 @@
 .layout__options {
   display: flex;
   flex-direction: column;
-  row-gap: var(--space-16);
+  row-gap: var(--space-8);
   min-width: 240px;
+}
+
+.layout__options-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  row-gap: var(--space-8);
+  padding-top: var(--space-16);
 }
 
 .layout__options-pair {
@@ -233,8 +257,16 @@
   gap: var(--space-8);
 }
 
+.layout__options-triple {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+
 .layout__options-pair .field-row,
-.layout__options-pair .field-row__control {
+.layout__options-pair .field-row__control,
+.layout__options-triple .field-row,
+.layout__options-triple .field-row__control {
   min-width: 0;
 }
 
@@ -255,11 +287,12 @@
 
 .layout__flex .layout__alignment-grid {
   width: 100%;
-  aspect-ratio: 1;
+  height: var(--layout-picker-height);
   grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 
 .layout__flex .layout__alignment-button {
+  height: 100%;
   min-height: 0;
 }
 
@@ -291,78 +324,67 @@
   border-radius: 50%;
 }
 
-.layout__alignment-button[data-active="true"] span {
-  width: 14px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: var(--radius-pill);
-  box-shadow: 0 -4px 0 var(--accent), 0 4px 0 var(--accent);
+/* The selected cell has no fill; the glyph below stands in for its dot. */
+.layout__alignment-grid .layout__alignment-button[data-active="true"] {
+  background: transparent;
+  color: inherit;
 }
 
-.layout__distribution-preview {
+.layout__alignment-grid .layout__alignment-button[data-active="true"]:hover:not(:disabled) {
+  background: var(--surface-well);
+  color: inherit;
+}
+
+.layout__alignment-button[data-active="true"] span,
+.layout__alignment-button[data-covered="true"] span {
+  opacity: 0;
+}
+
+/* Mirrors the button grid (its 5px padding and 2px gaps) so the glyph can sit in a cell or span a row or column. */
+.layout__alignment-glyph-layer {
   position: absolute;
+  inset: 5px;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 2px;
   pointer-events: none;
 }
 
-.layout__distribution-preview span {
-  width: 14px;
-  height: 2px;
+/*
+ * A miniature of the container: the bars lay out in the same direction and align the same way as the
+ * items, so a row shows vertical bars side by side and a column shows horizontal bars stacked.
+ */
+.layout__alignment-glyph {
+  display: flex;
+  gap: 3px;
+  place-self: center;
+}
+
+.layout__alignment-glyph > span {
+  flex: 0 0 auto;
   border-radius: var(--radius-pill);
   background: var(--accent);
 }
 
-/* Match the centers of the 32px controls in the padded 3x3 grid. */
-.layout__alignment-grid[data-direction="row"] .layout__distribution-preview {
-  top: calc((100% - 14px) / 3 + 22px);
-  right: calc((100% - 14px) / 6 - 2px);
-  left: calc((100% - 14px) / 6 - 2px);
+.layout__alignment-glyph[data-axis="row"] > span {
+  width: 2px;
 }
 
-.layout__alignment-grid[data-direction="row"][data-align="flex-start"] .layout__distribution-preview {
-  top: 20px;
+.layout__alignment-glyph[data-axis="column"] > span {
+  height: 2px;
 }
 
-.layout__alignment-grid[data-direction="row"][data-align="flex-end"] .layout__distribution-preview {
-  top: auto;
-  bottom: calc((100% - 14px) / 3 - 12px);
+/* Spread items run the whole main axis, kept clear of the grid's edge. */
+.layout__alignment-glyph[data-distributed="true"][data-axis="row"] {
+  justify-self: stretch;
+  padding-inline: 8px;
 }
 
-.layout__alignment-grid[data-direction="row"][data-justify="space-around"] .layout__distribution-preview {
-  right: 20px;
-  left: 20px;
-}
-
-.layout__alignment-grid[data-direction="column"] .layout__distribution-preview {
-  top: 20px;
-  bottom: calc((100% - 14px) / 3 - 12px);
-  left: calc(50% - 7px);
-  flex-direction: column;
-}
-
-.layout__alignment-grid[data-direction="column"][data-align="flex-start"] .layout__distribution-preview {
-  left: calc((100% - 14px) / 6 - 2px);
-}
-
-.layout__alignment-grid[data-direction="column"][data-align="flex-end"] .layout__distribution-preview {
-  right: calc((100% - 14px) / 6 - 2px);
-  left: auto;
-}
-
-.layout__alignment-grid[data-direction="column"][data-justify="space-around"] .layout__distribution-preview {
-  top: 20px;
-  bottom: 20px;
-}
-
-.layout__alignment-grid[data-justify="space-around"] .layout__distribution-preview {
-  justify-content: space-around;
-}
-
-.layout__alignment-grid[data-justify="space-evenly"] .layout__distribution-preview {
-  justify-content: space-evenly;
+.layout__alignment-glyph[data-distributed="true"][data-axis="column"] {
+  align-self: stretch;
+  padding-block: 8px;
 }
 
 .layout__spacing-field {
@@ -402,72 +424,6 @@
   flex-direction: row;
   min-width: 0;
   width: 100%;
-}
-
-.layout__flex-child-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-8);
-  align-items: start;
-}
-
-.layout__flex-child-fields > .icon-button {
-  align-self: end;
-  justify-self: end;
-}
-
-.layout__flex-child-fields > .field-row {
-  min-width: 0;
-}
-
-.layout__flex-child-fields .field-row,
-.layout__flex-child-field {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-4);
-  min-width: 0;
-  min-height: 0;
-}
-
-.layout__flex-child-fields .field-row__label {
-  color: var(--text-secondary);
-}
-
-.layout__flex-child-fields .field-row__control,
-.layout__flex-child-fields .layout-combo {
-  width: 100%;
-  min-width: 0;
-}
-
-.layout__flex-child-settings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.layout__flex-child-settings-title {
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-base);
-}
-
-.layout__flex-child-settings .field-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-4);
-  min-height: 0;
-}
-
-.layout__flex-child-settings .field-row__label {
-  color: var(--text-secondary);
-}
-
-.layout__flex-child-settings .field-row__control,
-.layout__flex-child-settings .layout-combo {
-  width: 100%;
-  min-width: 0;
 }
 
 .layout__resolved {

@@ -1,8 +1,10 @@
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 
-/** Initial values of the properties tucked behind the size expander. */
-const SIZE_DEFAULTS: Readonly<Record<string, string>> = {
+export type OptionalSizeProperty = "min-width" | "max-width" | "min-height" | "max-height" | "aspect-ratio";
+
+/** Initial values of the size properties whose fields stay hidden until they are set or added. */
+const SIZE_DEFAULTS: Readonly<Record<OptionalSizeProperty, string>> = {
   "min-width": "0",
   "min-height": "0",
   "max-width": "none",
@@ -34,11 +36,15 @@ function normalize(value: string): string {
   return /^0(px|%|em|rem)?$/.test(trimmed) ? "0" : trimmed;
 }
 
-/** True when anything the size expander hides differs from its initial value, so the toggle can flag it. */
-export function hasHiddenSizeOverrides(el: HTMLElement, parent: { flexChild: boolean; gridChild: boolean }): boolean {
-  const sizeChanged = Object.entries(SIZE_DEFAULTS)
-    .some(([property, initial]) => normalize(meaningfulLayoutValue(el, property)) !== initial);
-  if (sizeChanged) return true;
+/** True when the property differs from its initial value, so its field shows without being added. */
+export function hasSizeOverride(el: HTMLElement, property: OptionalSizeProperty): boolean {
+  const value = normalize(meaningfulLayoutValue(el, property));
+  // `auto` is the initial minimum and sets no limit, the same as `0`, so removing a minimum can restore it.
+  return (property.startsWith("min-") && value === "auto" ? "0" : value) !== SIZE_DEFAULTS[property];
+}
+
+/** True when the flex or grid child properties of an item differ from their initial values. */
+export function hasChildPlacementOverrides(el: HTMLElement, parent: { flexChild: boolean; gridChild: boolean }): boolean {
   const childDefaults = parent.flexChild ? FLEX_CHILD_DEFAULTS : parent.gridChild ? GRID_CHILD_DEFAULTS : null;
   return childDefaults !== null && Object.entries(childDefaults)
     .some(([property, initial]) => normalize(getStateStyleValue(el, property, initial)) !== initial);

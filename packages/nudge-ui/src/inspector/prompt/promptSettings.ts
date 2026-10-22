@@ -2,7 +2,7 @@ import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 
 export const DEFAULT_CUSTOM_INSTRUCTIONS =
-  "Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.";
+  "Please keep using the project's existing design tokens and logical properties, and preserve the intent of the existing CSS as you apply these changes.";
 
 function storageKey(projectId: string): string {
   return `nudge-ui:${projectId}:prompt-settings`;

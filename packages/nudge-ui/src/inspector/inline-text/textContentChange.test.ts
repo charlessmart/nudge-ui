@@ -134,9 +134,8 @@ describe("text-content canonical changes", () => {
     }]);
 
     const prompt = generatePrompt(getChangesList());
-    expect(prompt).toContain("## Text: `Original copy`");
-    expect(prompt).toContain("Replace text `Original copy` with `Updated copy`");
-    expect(prompt).toContain("Source: `src/Copy.tsx:8:3`");
+    expect(prompt).toContain('The element in src/Copy.tsx:8:3 that says "Original copy":');
+    expect(prompt).toContain('- Change the text from "Original copy" to "Updated copy".');
     expect(prompt).not.toContain("data-cid");
   });
 
@@ -162,8 +161,7 @@ describe("text-content canonical changes", () => {
       },
     }]);
     const prompt = generatePrompt(getChangesList());
-    expect(prompt).toContain("Apply to this selected item only; keep other instances unchanged.");
-    expect(prompt).toContain("Label.text");
-    expect(prompt).toContain("2 rendered instances");
+    expect(prompt).toContain("Just this element, the one in src/Copy.tsx:8:3 that says \"Original copy\":");
+    expect(prompt).toContain("This text comes from the text prop of Label, set at src/App.tsx:12:5; Label is rendered 2 times.");
   });
 });

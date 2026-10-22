@@ -39,6 +39,28 @@ async function setInput(page: import("@playwright/test").Page, property: string,
   }, { p: property, v: value });
 }
 
+/**
+ * Reveals a size setting from the width or height chevron, unless the element already shows it. Whether
+ * a flex or grid child is recognised can settle after the section first renders, so this waits for
+ * either the field itself or its menu item instead of guessing from the first look.
+ */
+async function showSizeSetting(
+  page: import("@playwright/test").Page,
+  dimension: "width" | "height",
+  setting: string,
+  field = `layout-size-${setting}`,
+): Promise<void> {
+  const target = page.locator(`[data-test="${field}"]`);
+  const item = page.locator(`[data-test="layout-size-add-${setting}"]`);
+  if (!(await target.isVisible())) {
+    await page.locator(`[data-test="layout-size-${dimension}-options"]`).click();
+    await expect(item.or(target)).toBeVisible();
+    // A limit that is already shown stays in the menu, dimmed, so only pick an entry that is still available.
+    if (!(await target.isVisible()) && await item.isEnabled()) await item.click();
+  }
+  await expect(target).toBeVisible();
+}
+
 async function setLayoutInput(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
   const input = page.locator(`[data-test="${testId}"] [data-test="raw-input"], [data-test="${testId}"] [data-test$="-input"]`).first();
   await expect(input).toBeVisible();
@@ -184,38 +206,26 @@ test("dev: layout section shows flex container controls and edits write to manag
     .toBe(true);
 });
 
-test("dev: layout section shows flex child controls when selecting a child of a flex container", async ({ page }) => {
+test("dev: layout options offer flex child fields when selecting a child of a flex container", async ({ page }) => {
   await openEditor(page, "/playground");
 
   await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
   await waitForEditors(page);
-  // Flex child controls sit behind the size expander.
-  await page.locator('[data-test="layout-size-expand"]').click();
-  await expect.poll(async () => shadowQueryExists(page, "layout-flex-child"), { timeout: 5000 }).toBe(true);
 
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
+  // The item fields live in the layout options menu rather than a row of their own.
+  expect(await shadowQueryExists(page, "layout-flex-child")).toBe(false);
 
-  expect(await shadowQueryExists(page, "layout-flex-child")).toBe(true);
-
-  const hasFlexChildSettings = await shadowQueryExists(page, "layout-flex-child-settings");
-  expect(hasFlexChildSettings).toBe(true);
-
-  const hasFlexGrow = await shadowQueryExists(page, "layout-combo-input-flex-grow");
-  expect(hasFlexGrow).toBe(true);
-
-  await page.locator('[data-test="layout-flex-child-settings"]').click();
-  await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
-  await expect(page.locator('[data-test="layout-combo-select-order"]')).toBeVisible();
-
-  await page.keyboard.press("Escape");
-
-  // Position starts static, so it is set from the layout options menu.
   await page.locator('[data-test="layout-options"]').click();
+  await expect(page.locator('[data-test="layout-options-flex-child"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-combo-input-order"]')).toBeVisible();
+
+  // Position starts static, so it is set from the same menu.
   const positionSelect = page.locator('[data-test="layout-select-position"]');
   await positionSelect.focus();
   await positionSelect.press("r");
   await expect(positionSelect).toContainText("Relative");
-  await page.keyboard.press("Escape");
 
   const flexBasisInput = page.locator('[data-test="layout-combo-input-flex-basis"]');
   await expect(flexBasisInput).toBeVisible();
@@ -224,8 +234,6 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   await expect
     .poll(async () => (await sheetText(page)).includes("flex-basis: auto"), { timeout: 5000 })
     .toBe(true);
-
-  await page.mouse.move(0, 0);
 
   const flexGrowInput = page.locator('[data-test="layout-combo-input-flex-grow"]');
   await flexGrowInput.fill("2");
@@ -299,7 +307,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
     .toBe("0px");
 });
 
-test("dev: layout size controls edit dimensions and aspect ratio", async ({ page }) => {
+test("dev: layout size controls edit dimensions and lock the aspect ratio", async ({ page }) => {
   await openEditor(page, "/playground");
   await (await getAppFrame(page)).locator('[data-test="sizing-box"]').click();
   await waitForEditors(page);
@@ -307,19 +315,29 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
   await expect(page.locator('[data-test="layout-size"]')).toBeVisible();
   await setLayoutInput(page, "layout-size-width", "240");
 
-  await page.locator('[data-test="layout-size-expand"]').click();
+  await showSizeSetting(page, "height", "max-height");
   await setLayoutInput(page, "layout-size-max-height", "40vh");
 
-  const ratioInput = page.locator('[data-test="layout-aspect-ratio-input"]');
-  await ratioInput.fill("16 / 9");
-  await ratioInput.blur();
+  // The fixture authors a 4 / 3 ratio, so the lock starts on. The ratio itself has no field of its own.
+  const lock = page.locator('[data-test="layout-size-lock"]');
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-test="layout-size-aspect-ratio"]')).toHaveCount(0);
+
+  // Unlocking writes auto; locking again measures the element's own proportions.
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(async () => computedPropOn(page, "sizing-box", "aspect-ratio"), { timeout: 5000 }).toBe("auto");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: auto");
+
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(async () => computedPropOn(page, "sizing-box", "aspect-ratio"), { timeout: 5000 }).not.toBe("auto");
 
   await expect.poll(async () => computedPropOn(page, "sizing-box", "width"), { timeout: 5000 }).toBe("240px");
   await expect.poll(async () => computedPropOn(page, "sizing-box", "max-height"), { timeout: 5000 }).toMatch(/px$/);
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("max-height: 40vh");
-  await expect.poll(async () => computedPropOn(page, "sizing-box", "aspect-ratio"), { timeout: 5000 }).toContain("16 / 9");
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("width: 240px");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: 16 / 9");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toMatch(/aspect-ratio: \d+ \/ \d+/);
 });
 
 test("dev: absolute position exposes grouped and individual inset values", async ({ page }) => {
@@ -387,7 +405,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await appFrame.locator('[data-test="grid-child-span"]').click();
   await waitForEditors(page);
-  await page.locator('[data-test="layout-size-expand"]').click();
+  await showSizeSetting(page, "height", "child-placement", "layout-grid-child");
   await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
 
   const startInput = page.locator('[data-test="layout-grid-child-column-start"]');

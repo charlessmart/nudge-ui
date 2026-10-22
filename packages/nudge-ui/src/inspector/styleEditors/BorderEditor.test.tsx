@@ -110,7 +110,6 @@ describe("BorderEditor", () => {
     const chip = handle.host.querySelector(
       '[data-test="token-field"][data-property="border-width"] .token-chip',
     ) as HTMLElement;
-    expect(chip.classList).toContain("token-chip--small");
     expect(chip.querySelector(".token-chip__label")?.textContent).toBe("1");
   });
 
@@ -562,7 +561,6 @@ describe("BorderEditor", () => {
     const groupedChip = handle.host.querySelector(
       '[data-test="token-field"][data-property="border-radius"] .token-chip',
     ) as HTMLElement;
-    expect(groupedChip.classList).toContain("token-chip--small");
     expect(groupedChip.querySelector(".token-chip__label")?.textContent).toBe("12");
 
     act(() => {
@@ -572,7 +570,6 @@ describe("BorderEditor", () => {
     const cornerChip = handle.host.querySelector(
       '[data-test="token-field"][data-property="border-top-left-radius"] .token-chip',
     ) as HTMLElement;
-    expect(cornerChip.classList).toContain("token-chip--small");
     expect(cornerChip.querySelector(".token-chip__label")?.textContent).toBe("12");
   });
 

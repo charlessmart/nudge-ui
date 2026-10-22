@@ -1,9 +1,11 @@
 :host { --panel-width: min(320px, 100vw); }
 
+/* Above every page overlay it covers (outlines 1, navigator chip 2, spacing handles 3, comment pins 10-12)
+   and below held-Option measurements (20), which stay visible over the panel on purpose. */
 .panel {
   position: fixed;
   inset: 0 0 0 auto;
-  z-index: 2;
+  z-index: 13;
   width: var(--panel-width);
   height: 100dvh;
   overflow: auto;

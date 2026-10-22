@@ -1,10 +1,7 @@
 import type { HTMLAttributes, ReactElement } from "react";
 import { TokenLabel } from "./TokenLabel.tsx";
 
-export type TokenChipSize = "default" | "small";
-
 export interface TokenChipProps extends HTMLAttributes<HTMLSpanElement> {
-  size?: TokenChipSize;
   "data-test"?: string;
   "data-group"?: string;
 }
@@ -13,11 +10,11 @@ interface TokenChipSlotProps extends HTMLAttributes<HTMLSpanElement> {
   "data-test"?: string;
 }
 
-function TokenChipRoot({ size = "default", className, children, ...props }: TokenChipProps): ReactElement {
+function TokenChipRoot({ className, children, ...props }: TokenChipProps): ReactElement {
   return (
     <span
       {...props}
-      className={`token-chip token-chip--${size}${className ? ` ${className}` : ""}`}
+      className={`token-chip${className ? ` ${className}` : ""}`}
     >
       {children}
     </span>
@@ -48,7 +45,7 @@ function TokenChipAction({ className, children, ...props }: TokenChipSlotProps):
   );
 }
 
-/** Callers compose the slots; the chip owns visuals only. */
+/** Callers compose the slots (a leading icon or swatch, the picker, the detach action); the chip owns visuals only. */
 export const TokenChip = Object.assign(TokenChipRoot, {
   Picker: TokenChipPicker,
   Label: TokenChipLabel,

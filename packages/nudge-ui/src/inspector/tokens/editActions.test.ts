@@ -78,10 +78,10 @@ describe("page target", () => {
     expect(getPendingRules()).toEqual([expect.objectContaining({ selector: "body", declarations: { "font-family": "Georgia, serif" } })]);
 
     const prompt = generatePrompt(getChangeRecords());
-    expect(prompt).toContain("Page (`<body>`)");
-    expect(prompt).toContain("global stylesheet or root layout that styles `body`");
-    expect(prompt).toContain("`font-family`");
-    expect(prompt).not.toContain("Source:");
+    expect(prompt).toContain("The whole page (its body element):");
+    expect(prompt).toContain("global stylesheet or root layout that styles the body");
+    expect(prompt).toContain("- Set font-family to Georgia, serif.");
+    expect(prompt).not.toMatch(/\bin \S+:\d+/);
   });
 });
 
@@ -112,13 +112,11 @@ describe("swapToken", () => {
     expect(change?.sourceEvidence?.ariaLabel).toBe("Save draft action");
     expect(change?.sourceEvidence?.domPath).toBe("button#save.primary");
     const prompt = generatePrompt([change!]);
-    expect(prompt).toContain("## Button (`<button>`)");
-    expect(prompt).toContain("Source: `src/Button.tsx:1:1`");
-    expect(prompt).toContain("Text: `Save this draft`");
-    expect(prompt).toContain("Accessible name: `Save draft action`");
-    expect(prompt).toContain("Props: `variant=\"primary\"`");
-    expect(prompt).toContain("DOM path: `button#save.primary`");
-    expect(prompt).toContain("**Change:** `font-weight`");
+    expect(prompt).toContain('The button in src/Button.tsx:1:1 with the id "save":');
+    expect(prompt).toContain("- Set font-weight to 400.");
+    expect(prompt).not.toContain("Save this draft");
+    expect(prompt).not.toContain("Save draft action");
+    expect(prompt).not.toContain("button#save.primary");
     expect(prompt).not.toContain("data-cid");
     expect(prompt).not.toContain("data-src");
   });
@@ -346,24 +344,22 @@ describe("style edit prompt targets", () => {
     const first = document.querySelector<HTMLElement>("span")!;
     swapToken(first, "color", COLOR_BLUE, COLOR_SUNKEN);
     const prompt = savedPrompt();
-    expect(prompt).toContain("Example text: `Change styles`");
-    expect(prompt).toContain("for all items rendered at this source location.");
-    expect(prompt).not.toContain("DOM path:");
-    expect(prompt).not.toContain("\n- Text:");
-    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+    expect(prompt).toContain('Every span element rendered from src/App.tsx:317:18 (for example, the one that says "Change styles"):');
+    expect(prompt).not.toContain("located at");
+    expect(prompt.match(/^- /gm)).toHaveLength(1);
   });
 
   it("exports a partial selection as selected items without including their sibling", () => {
     const items = [...document.querySelectorAll<HTMLElement>("span")];
     swapToken([items[0]!, items[2]!], "color", COLOR_BLUE, COLOR_SUNKEN);
     const prompt = savedPrompt();
-    expect(prompt).toContain("Selected items:");
-    expect(prompt).toContain("Text: `Change styles`");
-    expect(prompt).toContain("Text: `Hand off`");
-    expect(prompt).toContain("for these selected items.");
+    expect(prompt).toContain("These 2 span elements, both in src/App.tsx:317:18:");
+    expect(prompt).toContain('  - the one that says "Change styles"');
+    expect(prompt).toContain('  - the one that says "Hand off"');
+    expect(prompt).toContain("Make these changes to each of them:");
     expect(prompt).not.toContain("Leave comments");
-    expect(prompt).not.toContain("for all items");
-    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+    expect(prompt).not.toContain("Every ");
+    expect(prompt.match(/^- /gm)).toHaveLength(1);
   });
 
   it("lists separately authored selected items with their own source locations", () => {
@@ -372,13 +368,13 @@ describe("style edit prompt targets", () => {
     items[2]!.dataset.src = "src/Footer.tsx:20:6";
     swapToken([items[0]!, items[2]!], "color", COLOR_BLUE, COLOR_SUNKEN);
     const prompt = savedPrompt();
-    expect(prompt).toContain("Selected items:");
-    expect(prompt).toContain("Source: `src/Toolbar.tsx:10:4`; Text: `Change styles`");
-    expect(prompt).toContain("Source: `src/Footer.tsx:20:6`; Text: `Hand off`");
-    expect(prompt).toContain("for these selected items.");
+    expect(prompt).toContain("These 2 span elements:");
+    expect(prompt).toContain('  - the one in src/Toolbar.tsx:10:4 that says "Change styles"');
+    expect(prompt).toContain('  - the one in src/Footer.tsx:20:6 that says "Hand off"');
+    expect(prompt).toContain("Make these changes to each of them:");
     expect(prompt).not.toContain("Leave comments");
-    expect(prompt).not.toContain("for all items");
-    expect(prompt.match(/\*\*Change:\*\*/g)).toHaveLength(1);
+    expect(prompt).not.toContain("Every ");
+    expect(prompt.match(/^- /gm)).toHaveLength(1);
   });
 
   it("exports an unlinked item with specific identification", () => {
@@ -386,10 +382,9 @@ describe("style edit prompt targets", () => {
     unlinkElement(item);
     swapToken(item, "color", COLOR_BLUE, COLOR_SUNKEN);
     const prompt = savedPrompt();
-    expect(prompt).toContain("Text: `Change styles`");
-    expect(prompt).toContain("DOM path:");
-    expect(prompt).toContain("for this selected item.");
-    expect(prompt).not.toContain("Example text:");
-    expect(prompt).not.toContain("for all items");
+    expect(prompt).toContain('Just this span element, the one in src/App.tsx:317:18 that says "Change styles":');
+    expect(prompt).not.toContain("located at");
+    expect(prompt).not.toContain("for example");
+    expect(prompt).not.toContain("Every ");
   });
 });

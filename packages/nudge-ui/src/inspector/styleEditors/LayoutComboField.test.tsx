@@ -264,7 +264,8 @@ describe("LayoutComboField", () => {
     const select = handle.host.querySelector('[data-test="layout-combo-select-column-gap"]') as HTMLElement;
     expect(select.hasAttribute("disabled")).toBe(true);
 
-    expect(handle.host.querySelector('[data-test="layout-combo-blocked"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-combo-blocked"]')).toBeNull();
+    expect(select.closest(".inline-style-blocked")).not.toBeNull();
   });
 
   it("writes nothing to the managed sheet while blocked by inline styles", () => {

@@ -349,8 +349,8 @@ function App() {
             <h2 id="handoff-title">Make the change.<br /><span className="accent-word">Keep the context.</span></h2>
           </div>
           <div className="prompt-preview">
-            <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
-            <pre>{`# Requested design changes\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary`}</pre>
+            <div className="prompt-bar"><span>prompt</span><span>copied to clipboard</span></div>
+            <pre>{`Please make these UI changes for me.\n\nThe h1 heading in src/Hero.tsx:42:\n- Change font-size from 56px to 64px.\n- Change color from the text.secondary token to the text.primary token.`}</pre>
           </div>
         </section>
 
