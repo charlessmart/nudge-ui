@@ -18,6 +18,8 @@ export interface PopoverListboxItem {
   group?: string;
   /** Runs `onSelect` without closing the list or filling the input. */
   keepOpen?: boolean;
+  /** Stays in the list, dimmed, and cannot be chosen. */
+  disabled?: boolean;
 }
 
 interface ItemSection {
@@ -61,6 +63,8 @@ export interface PopoverListboxProps {
   inputOnKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   disabled?: boolean;
   className?: string;
+  /** `wide` keeps the popup at least 260px for long labels; `fit` sizes it to its items, never narrower than the control. */
+  popupWidth?: "fit" | "wide";
   onQueryChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
   onSelect: (value: string) => void;
@@ -93,6 +97,7 @@ export function PopoverListbox({
   inputOnKeyDown,
   disabled = false,
   className,
+  popupWidth = "wide",
   onQueryChange,
   onOpenChange,
   onSelect,
@@ -103,6 +108,7 @@ export function PopoverListbox({
   const anchor = controlAnchor(wrapperRef, (wrapper) => wrapper.querySelector("input, button") ?? wrapper);
   const itemByValue = new Map(items.map((item) => [item.value, item]));
   const sections = itemSections(items);
+  const popupClassName = cx("popover-listbox__popup", popupWidth === "fit" && "popover-listbox__popup--fit");
   const resolvedTriggerTooltip = triggerTooltip ?? (triggerElement ? triggerAriaLabel : undefined);
   const handleHighlight = onHighlight
     ? (next: string | undefined, details: { reason: string }) => {
@@ -117,6 +123,7 @@ export function PopoverListbox({
         value={item.value}
         className="popover-listbox__item"
         data-test={item["data-test"]}
+        disabled={item.disabled}
       >
         {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
         <span className="popover-listbox__label">{item.label}</span>
@@ -132,6 +139,7 @@ export function PopoverListbox({
         value={item.value}
         className="popover-listbox__item"
         data-test={item["data-test"]}
+        disabled={item.disabled}
         onClick={(event) => {
           if (item.keepOpen) event.preventBaseUIHandler();
           onSelect(item.value);
@@ -194,7 +202,7 @@ export function PopoverListbox({
           </Tooltip>
           <Combobox.Portal container={portalContainer()}>
             <Combobox.Positioner className="popover-listbox__positioner" sideOffset={4} anchor={anchor}>
-              <Combobox.Popup className={cx("popover-listbox__popup", searchable && "popover-listbox__popup--searchable")}>
+              <Combobox.Popup className={cx(popupClassName, searchable && "popover-listbox__popup--searchable")}>
                 {searchable ? (
                   <>
                     <Combobox.Input
@@ -258,7 +266,7 @@ export function PopoverListbox({
           />
           <Autocomplete.Portal container={portalContainer()}>
             <Autocomplete.Positioner className="popover-listbox__positioner" sideOffset={4} anchor={anchor}>
-              <Autocomplete.Popup className="popover-listbox__popup">
+              <Autocomplete.Popup className={popupClassName}>
                 <Autocomplete.List className="popover-listbox__list">
                   {renderSections(renderAutocompleteItem)}
                 </Autocomplete.List>

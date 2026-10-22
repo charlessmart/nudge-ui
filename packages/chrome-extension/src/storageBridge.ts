@@ -2,13 +2,15 @@ import {
   FONT_LIST_MESSAGE,
   FONT_LIST_REQUEST_EVENT,
   FONT_LIST_RESPONSE_EVENT,
-  INJECT_RENDERERS_MESSAGE,
+  INSPECTOR_ROOT_ID,
+  PANEL_SIDE_KEY,
+  PANEL_SIDE_WRITE_EVENT,
+  parsePanelSide,
   parseFontListResult,
   parseSketchRequest,
   parseStorageWrite,
   parseStoredSketchDocument,
   parseStoredSketchHandoff,
-  RENDERER_FRAME_LOAD_EVENT,
   siteKeyPrefix,
   SKETCH_REQUEST_EVENT,
   SKETCH_RESPONSE_EVENT,
@@ -25,8 +27,6 @@ import {
 } from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
-/** nudge-ui's mount; its shadow root also holds the inspector's popups. */
-const INSPECTOR_ROOT_ID = "nudge-ui-root";
 /** nudge-ui's "Show system fonts" row. */
 const SYSTEM_FONTS_REQUEST_SELECTOR = '[data-test="system-fonts-request"]';
 const GESTURE_EVENTS = ["pointerdown", "mousedown", "mouseup", "click", "keydown"];
@@ -109,6 +109,12 @@ if (!scope[BRIDGE_FLAG]) {
       : chrome.storage.local.set({ [key]: write.value });
     done.catch((error: unknown) => console.warn("[nudge-ui] Could not save inspector state.", error));
   });
+  document.addEventListener(PANEL_SIDE_WRITE_EVENT, (event) => {
+    const side = parsePanelSide((event as CustomEvent<unknown>).detail);
+    if (!side) return;
+    chrome.storage.local.set({ [PANEL_SIDE_KEY]: side })
+      .catch((error: unknown) => console.warn("[nudge-ui] Could not save the panel side.", error));
+  });
   const sketchPrefix = sketchKeyPrefix(location.origin);
   document.addEventListener(SKETCH_REQUEST_EVENT, (event) => {
     const request = parseSketchRequest((event as CustomEvent<unknown>).detail);
@@ -150,10 +156,5 @@ if (!scope[BRIDGE_FLAG]) {
       const result = parseFontListResult(reply);
       respond(result ? { id, ...result } : { id, error: "The font list could not be read." });
     }, (error: unknown) => respond({ id, error: error instanceof Error ? error.message : String(error) }));
-  });
-  document.addEventListener(RENDERER_FRAME_LOAD_EVENT, () => {
-    chrome.runtime.sendMessage({ type: INJECT_RENDERERS_MESSAGE }).catch((error: unknown) => {
-      console.warn("[nudge-ui] Could not load the inspector into the preview.", error);
-    });
   });
 }

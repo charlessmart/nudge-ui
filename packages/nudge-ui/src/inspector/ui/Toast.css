@@ -23,8 +23,8 @@
 
 /* Match the canvas toolbar, which centers in the space left of the panel. */
 .toast__viewport[data-inspector-open="true"] {
-  left: calc((100vw - var(--panel-width)) / 2);
-  max-width: calc(100vw - var(--panel-width) - var(--space-24));
+  left: calc(var(--panel-reserve-start) + (100vw - var(--panel-reserve-start) - var(--panel-reserve-end)) / 2);
+  max-width: calc(100vw - var(--panel-reserve-start) - var(--panel-reserve-end) - var(--space-24));
 }
 
 .toast {

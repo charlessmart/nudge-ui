@@ -88,8 +88,8 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   expect(prompt).toContain(`.nudge/artifacts/${artifactId}/document.html`);
   expect(prompt).toContain("Iteration variant");
-  expect(prompt).toContain("Edit only");
-  expect(prompt).toContain("Keep application source files unchanged");
+  expect(prompt).toContain("Please edit only");
+  expect(prompt).toContain("leave the application source files alone");
   await expect(iteration.contentFrame().locator("h1").first()).toContainText("Iteration variant");
 
   await page.reload();

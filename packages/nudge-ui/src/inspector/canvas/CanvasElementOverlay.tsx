@@ -878,6 +878,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
+          size={selectedLocalRect ?? undefined}
           linked={selectionIsLinked}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))

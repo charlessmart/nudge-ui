@@ -14,7 +14,7 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
-import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip, InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import {
   commitGridAxisPlacement,
   commitGridChildAlignment,
@@ -31,6 +31,8 @@ export interface GridChildSectionProps {
   editTarget?: EditTarget;
   revision?: number;
   onAfterEdit?: () => void;
+  /** Drops the group rule and title so the fields can sit inside another panel, such as the layout options menu. */
+  bare?: boolean;
 }
 
 interface AxisState {
@@ -143,21 +145,22 @@ function AlignmentControl({ axis, value, elements, onChange }: AlignmentControlP
       className={`field-row--stacked layout__grid-child-alignment layout__grid-child-alignment--${axis}`}
       data-test={`layout-grid-child-align-${axis}`}
     >
-      <SegmentedControl
-        value={value === "auto" ? null : value}
-        aria-label={horizontal ? "Horizontal alignment" : "Vertical alignment"}
-        data-test={`layout-grid-child-select-${property}`}
-        className="layout__grid-child-alignment-control"
-        disabled={blockedBy !== null}
-        options={options.map((option) => ({
-          ...option,
-          testId: `layout-grid-child-align-${axis}-${option.value}`,
-        }))}
-        onChange={onChange}
-        allowDeselect
-        onDeselect={() => onChange("auto")}
-      />
-      <InlineStyleWarning blockedBy={blockedBy} />
+      <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+        <SegmentedControl
+          value={value === "auto" ? null : value}
+          aria-label={horizontal ? "Horizontal alignment" : "Vertical alignment"}
+          data-test={`layout-grid-child-select-${property}`}
+          className="layout__grid-child-alignment-control"
+          disabled={blockedBy !== null}
+          options={options.map((option) => ({
+            ...option,
+            testId: `layout-grid-child-align-${axis}-${option.value}`,
+          }))}
+          onChange={onChange}
+          allowDeselect
+          onDeselect={() => onChange("auto")}
+        />
+      </InlineStyleBlockedTooltip>
     </FieldRow>
   );
 }
@@ -167,6 +170,7 @@ export function GridChildSection({
   editTarget,
   revision = 0,
   onAfterEdit,
+  bare = false,
 }: GridChildSectionProps): ReactElement {
   const target = editTarget ?? el;
   const elements = targetElements(target);
@@ -195,8 +199,8 @@ export function GridChildSection({
   }
 
   return (
-    <div className="layout__group layout__grid-child" data-test="layout-grid-child">
-      <div className="editor__title">Grid Child</div>
+    <div className={bare ? "layout__grid-child" : "layout__group layout__grid-child"} data-test="layout-grid-child">
+      {bare ? null : <div className="editor__title">Grid Child</div>}
       <div className="layout__grid-child-fields" data-test="layout-grid-child-fields">
         <AxisPlacementRow axis="column" label="Column" state={column} elements={elements} onStart={(start) => handleStart("column", start)} />
         <AxisPlacementRow axis="row" label="Row" state={row} elements={elements} onStart={(start) => handleStart("row", start)} />

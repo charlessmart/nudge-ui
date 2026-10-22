@@ -5,6 +5,7 @@ import type { ElementChangeRecord } from "../changes/types.ts";
 import { activateDraftForCard, appendChanges, getActiveDraftChanges, getChangesList, getDraftContentsForCard, loadDrafts, resetDrafts, undo, redo } from "./store.ts";
 import { recordAgentDispatch, resetAgentVerification, verifyAndReconcileAgentDispatch } from "../agent/verification.ts";
 import { clearClipboardHandoff, getClipboardHandoffSnapshot, recordClipboardHandoff, startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
+import { PROMPT_INTRO } from "../prompt/promptDocument.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { getComments, saveComment, type ElementComment } from "../comments/store.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
@@ -70,8 +71,8 @@ it("copies only the originating page's comments after selecting another frame", 
   saveComment(note);
   saveComment({ ...note, id: "other-comment", route: new URL("/other", window.location.href).href, note: "Keep this for later" });
   const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "" });
-  expect(handoff.prompt.startsWith("# Requested design changes\n\nPage:")).toBe(true);
-  expect(handoff.prompt.match(/^# Requested design changes$/gm)).toHaveLength(1);
+  expect(handoff.prompt.startsWith(`${PROMPT_INTRO}\n\nThe page I'm working on is `)).toBe(true);
+  expect(handoff.prompt.split(PROMPT_INTRO)).toHaveLength(2);
   const iteration = addCanvasIteration(original.id, "33333333-3333-3333-3333-333333333333")!;
   selectCard(iteration.id);
   const writeText = vi.fn().mockResolvedValue(undefined);

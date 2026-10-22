@@ -104,6 +104,8 @@ import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolOptionsStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
+/** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
+const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
 
 interface RectSnapshot {
   readonly left: number;
@@ -233,12 +235,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (!primaryUrl || !board) return;
     if (activatedPrimaryUrlRef.current === primaryUrl && cards.length > 0) return;
     activatedPrimaryUrlRef.current = primaryUrl;
+    // The page is its own only card, so a restored zoomed-out board never applies.
+    if (pageSurface && presentation !== "focus") setCanvasPresentation("focus");
     const viewport = {
       width: board.clientWidth,
       height: board.clientHeight,
     };
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
-      replaceActiveCard: presentation === "focus" && runtimeConfig.demo !== true,
+      replaceActiveCard: (pageSurface || presentation === "focus") && runtimeConfig.demo !== true,
       preserveIterationFocus: true,
     });
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
@@ -286,7 +290,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       focusCard(primaryCard.id);
     }
-  }, [primaryUrl, cards.length, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
+  }, [primaryUrl, cards.length, pageSurface, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
     if (pageSurface) return;
@@ -837,7 +841,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         data-test="canvas-workspace"
         data-presentation={presentation}
         data-surface={pageSurface ? "page" : undefined}
-        style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
+        style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
       >
         <div
           className={`canvas-workspace__board ${boardCursorClass}${layoutTransitioning ? " is-layout-transitioning" : ""}`.trim()}
@@ -888,7 +892,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         <div
           className="canvas-toolbar__portal"
           data-test="canvas-toolbar-portal"
-          style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
+          style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
         >
           <CanvasToolbar
             tool={interactionTool}

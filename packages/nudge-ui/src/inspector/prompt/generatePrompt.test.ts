@@ -8,6 +8,9 @@ import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
+import { PROMPT_INTRO } from "./promptDocument.ts";
+
+const EMPTY_PROMPT = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -70,27 +73,25 @@ describe("generatePrompt", () => {
   it("appends the default custom instructions after the requested changes", () => {
     const out = generatePrompt([makeComponentChange()]);
 
-    expect(out).toContain(`## Custom instructions\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`);
-    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Button component"));
+    expect(out.endsWith(`\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`)).toBe(true);
+    expect(out.indexOf(DEFAULT_CUSTOM_INSTRUCTIONS)).toBeGreaterThan(out.indexOf("Button component"));
   });
 
   it("appends supplied custom instructions and allows them to be cleared", () => {
     const custom = "Use the project's existing component patterns.\nKeep the implementation concise.";
     const out = generatePrompt([makeComponentChange()], undefined, [], custom);
 
-    expect(out).toContain(`## Custom instructions\n\n${custom}`);
+    expect(out.endsWith(`\n\n${custom}`)).toBe(true);
     expect(out).not.toContain(DEFAULT_CUSTOM_INSTRUCTIONS);
-    expect(generatePrompt([makeComponentChange()], undefined, [], "")).not.toContain("## Custom instructions");
+    expect(generatePrompt([makeComponentChange()], undefined, [], "")).not.toContain(DEFAULT_CUSTOM_INSTRUCTIONS);
   });
 
   it("renders semantic component prop intent at the invocation callsite", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);
-    expect(out).not.toContain("## Component prop changes");
-    expect(out).toContain("Source: `src/App.tsx:12:4`");
-    expect(out).toContain("- **Change:** `variant`: `primary` → `secondary`\n");
+    expect(out).toContain("Every Button component rendered from src/App.tsx:12:4:\n");
+    expect(out).toContain('- Change the variant prop from "primary" to "secondary".\n');
     expect(out).not.toContain("replace the invocation prop literal");
-    expect(out).toContain("Source: `src/App.tsx:12:4`");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
     expect(out).not.toContain("component-callsite:");
@@ -110,11 +111,9 @@ describe("generatePrompt", () => {
         mountedCount: 2,
       },
     })]);
-    expect(out).toContain("Apply to all items rendered at this source location.");
-    expect(out).toContain("Rendered instances: 2");
+    expect(out).toContain('Every Button component rendered from src/App.tsx:12:4 (for example, the one that says "Repeated literal"; currently 2 on the page):');
     expect(out).not.toContain("Rendered occurrence");
-    expect(out).toContain('Props: `label:"Repeated literal"`');
-    expect(out).toContain("Before text: `Repeated literal`");
+    expect(out).not.toContain('label:"Repeated literal"');
   });
 
   it.each(["rendered-instance", "source-site"] as const)("preserves %s scope in component and text requests", (scope) => {
@@ -132,12 +131,10 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Label"]', before: "Repeated literal", after: "Updated label", authoredAs: "literal", scope,
       evidence: { callsiteId: "src/App.tsx:12:4", componentName: "Label", property: "text", mountedCount: 2 },
     };
-    const instruction = scope === "rendered-instance"
-      ? "Apply to this selected item only; keep other instances unchanged."
-      : "Apply to all items rendered at this source location.";
+    const opening = scope === "rendered-instance" ? "Just this" : "Every";
 
-    expect(generatePrompt([component])).toContain(instruction);
-    expect(generatePrompt([text])).toContain(instruction);
+    expect(generatePrompt([component])).toContain(`\n${opening} Button component`);
+    expect(generatePrompt([text])).toContain(`\n${opening} element`);
   });
 
   it("keeps primitive children authorship guidance in the semantic prompt", () => {
@@ -149,9 +146,8 @@ describe("generatePrompt", () => {
       target: { componentName: "Badge" },
     });
     const out = generatePrompt([change]);
-    expect(out).toContain("## Badge component");
-    expect(out).toContain("`children`: `Save` → `Publish` — preserve the authored expression and update its source logic");
-    expect(out).toContain("## Badge component");
+    expect(out).toContain("Every Badge component rendered from");
+    expect(out).toContain('- Change the children prop from "Save" to "Publish" (it\'s an expression in the code, so keep it and update its logic).');
   });
 
   it("tells the agent to replace literal child text", () => {
@@ -163,11 +159,11 @@ describe("generatePrompt", () => {
       target: { componentName: "Badge" },
     });
     const out = generatePrompt([change]);
-    expect(out).toContain("`children`: `Save` → `Publish` — replace the literal child text");
-    expect(out).not.toContain("children`: `Save` → `Publish` — replace the invocation prop literal");
+    expect(out).toContain('- Change the children prop from "Save" to "Publish" (it\'s plain text in the code, so just replace it).');
+    expect(out).not.toContain("replace the invocation prop literal");
   });
 
-  it("fences rendered text containing backticks, tildes, and newlines", () => {
+  it("keeps rendered text with quotes, backticks, and newlines on one line", () => {
     const change: TextContentChangeRecord = {
       kind: "text-content",
       id: "text-escape",
@@ -181,13 +177,13 @@ describe("generatePrompt", () => {
       source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
       selector: '[data-cid="Copy"][data-src*="src/Copy.tsx:8:3"]',
       before: "before `tick`\nnext",
-      after: "after ~~~\nnext",
+      after: 'after "quote" ~~~\nnext',
       authoredAs: "literal",
     };
     const out = generatePrompt([change]);
 
-    expect(out).toContain("~~~text\nbefore `tick`\nnext\n~~~");
-    expect(out).toContain("~~~~text\nafter ~~~\nnext\n~~~~");
+    expect(out).toContain('- Change the text from "before `tick`\\nnext" to "after \\"quote\\" ~~~\\nnext".');
+    expect(out).not.toContain("tick`\nnext");
   });
 
   it("renders structural intent as concise source-edit instructions", () => {
@@ -229,9 +225,8 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, structural);
 
-    expect(out).toContain("## Text: `Repeated 3`");
-    expect(out).toContain("- Remove text `Repeated 3` (src/App.tsx:12:5) from the source.");
-    expect(out).toContain("- Move text `Docs` (src/Nav.tsx:8:3) before text `Blog` (src/Nav.tsx:8:3) in Navigation (src/Nav.tsx:4:1).");
+    expect(out).toContain('The element in src/App.tsx:12:5 that says "Repeated 3":\n- Remove it from the source.');
+    expect(out).toContain('The element in src/Nav.tsx:8:3 that says "Docs":\n- Move it before the element in src/Nav.tsx:8:3 that says "Blog", inside Navigation (src/Nav.tsx:4:1).');
     expect(out).not.toContain("rendered occurrence");
     expect(out).not.toContain("Presentation:");
     expect(out).not.toContain("data-cid");
@@ -267,7 +262,7 @@ describe("generatePrompt", () => {
     }];
 
     expect(generatePrompt([], undefined, structural)).toContain(
-      "- Move text `Docs` (src/Nav.tsx:8:3) from Navigation (src/Nav.tsx:4:1) into FooterLinks (src/Footer.tsx:9:3), before text `Blog` (src/Footer.tsx:10:5).",
+      '- Move it from Navigation (src/Nav.tsx:4:1) into FooterLinks (src/Footer.tsx:9:3), before the element in src/Footer.tsx:10:5 that says "Blog".',
     );
   });
 
@@ -327,10 +322,11 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, structural);
 
-    expect(out.split("\n").filter((line) => line.startsWith("- Move text `Column two`"))).toHaveLength(1);
+    expect(out.split("\n").filter((line) => line.startsWith("- Move it "))).toHaveLength(1);
+    expect(out).toContain('The element in src/App.tsx:157:14 that says "Column two":');
     expect(countPromptChanges([], structural)).toBe(1);
     expect(structural).toHaveLength(3);
-    expect(out).toContain("before text `Column one` (src/App.tsx:151:14)");
+    expect(out).toContain('before the element in src/App.tsx:151:14 that says "Column one"');
     expect(out).not.toContain("src/App.tsx:156:14");
     expect(out).not.toContain("src/App.tsx:162:14");
     expect(out).not.toContain("data-cid");
@@ -379,12 +375,10 @@ describe("generatePrompt", () => {
       rawValue: "700",
     })], undefined, structural);
 
-    expect(out).not.toContain("## Structural changes");
     expect(out).not.toContain("src/App.tsx:153:16");
-    expect(out).toContain("- **Change:** `font-weight`: `600` → `700`");
-    expect(generatePrompt([], undefined, structural)).toBe(
-      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
-    );
+    expect(out).toContain("- Change font-weight from 600 to 700.");
+    expect(out).not.toContain("Move it");
+    expect(generatePrompt([], undefined, structural)).toBe(EMPTY_PROMPT);
   });
 
   it("omits a cross-container sequence only when it returns to the initial parent position", () => {
@@ -428,9 +422,7 @@ describe("generatePrompt", () => {
       },
     ];
 
-    expect(generatePrompt([], undefined, structural)).toBe(
-      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
-    );
+    expect(generatePrompt([], undefined, structural)).toBe(EMPTY_PROMPT);
   });
 
   it("keeps authored columns for JSX sources under hosts that declare no policy", () => {
@@ -445,7 +437,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Counter"][data-src="src/components/Counter.tsx:14:9"]',
     })]);
 
-    expect(out).toContain("Source: `src/components/Counter.tsx:14:9`");
+    expect(out).toContain("in src/components/Counter.tsx:14:9");
   });
 
   it("uses exact source coordinates for static HTML changes", () => {
@@ -465,7 +457,7 @@ describe("generatePrompt", () => {
     });
 
     expect(out).not.toContain("Framework:");
-    expect(out).toContain("Source: `index.html:3:17`");
+    expect(out).toContain("in index.html:3:17");
     expect(out).not.toContain("data-cid");
   });
 
@@ -486,7 +478,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("Source: `src/pages/about.astro:12:7`");
+    expect(out).toContain("in src/pages/about.astro:12:7");
     expect(out).not.toContain("data-cid");
 
     // The host-declared policy decides precision, not the document's framework hint.
@@ -494,7 +486,7 @@ describe("generatePrompt", () => {
       framework: "React",
       stylingSystem: "CSS custom properties",
     });
-    expect(otherFrameworkOut).toContain("Source: `src/pages/about.astro:12:7`");
+    expect(otherFrameworkOut).toContain("in src/pages/about.astro:12:7");
   });
 
   it("renders React island JSX elements at line precision inside an Astro document", () => {
@@ -513,8 +505,8 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
-    expect(out).not.toContain("(src/components/Counter.tsx:14:");
+    expect(out).toContain("in src/components/Counter.tsx:14");
+    expect(out).not.toMatch(/Counter\.tsx:14:\d/);
     expect(out).not.toContain("data-cid");
   });
 
@@ -531,7 +523,7 @@ describe("generatePrompt", () => {
       selector: '[data-cid="Hero"][data-src="src/pages/index.astro:8:3"]',
     })], { framework: "Astro", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("Source: `src/pages/index.astro:8:3`");
+    expect(out).toContain("in src/pages/index.astro:8:3");
   });
 
   it("renders text changes on JSX elements at line precision inside an Astro document", () => {
@@ -557,8 +549,8 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("Source: `src/components/Counter.tsx:14`");
-    expect(out).not.toContain("(src/components/Counter.tsx:14:");
+    expect(out).toContain("in src/components/Counter.tsx:14");
+    expect(out).not.toMatch(/Counter\.tsx:14:\d/);
   });
 
   it("identifies unannotated Astro elements by rendered content without fabricating source", () => {
@@ -582,15 +574,14 @@ describe("generatePrompt", () => {
       },
     })], { framework: "Astro", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("## Heading (`<h1>`)\n");
-    expect(out).toContain("Text: `About the studio`");
+    expect(out).toContain('The h1 heading that says "About the studio":\n');
     expect(out).not.toContain("source unknown");
     expect(out).not.toContain("astro:H1");
     expect(out).not.toContain("(:0");
     expect(out).not.toContain("data-cid");
   });
 
-  it("describes runtime-created HTML with bounded rendered evidence", () => {
+  it("describes runtime-created HTML by its two best rendered clues", () => {
     const out = generatePrompt([rec({
       cid: "nudge-ui-runtime-1",
       file: "",
@@ -609,11 +600,8 @@ describe("generatePrompt", () => {
       },
     })], { framework: "HTML", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("## Button (`<button>`)\n");
-    expect(out).toContain("Text: `Save`");
-    expect(out).toContain("Accessible name: `Save action`");
-    expect(out).toContain("DOM path: `main > button.save`");
-    expect(out).toContain("- **Change:** `color`: `red`");
+    expect(out).toContain('The button that says "Save" labeled "Save action":\n- Set color to red.');
+    expect(out).not.toContain("main > button.save");
     expect(out).not.toContain("nudge-ui-runtime-");
     expect(out).not.toContain("nudge-ui:unknown:");
     expect(out).not.toContain("Source: unknown");
@@ -630,8 +618,7 @@ describe("generatePrompt", () => {
       property: "opacity", rawValue: "0.5", state: "hover",
     })]);
 
-    expect(out).toContain("## Element");
-    expect(out).toContain("- **Change:** `opacity` (hover): `0.5`");
+    expect(out).toContain("The element:\n- On hover, set opacity to 0.5.");
     expect(out).not.toContain("nudge-ui-runtime-");
     expect(out).not.toContain("nudge-ui:unknown:");
   });
@@ -657,8 +644,8 @@ describe("generatePrompt", () => {
       baseline: "", viewport: "", handedOff: false,
     }]);
 
-    expect(out).toContain("Replace text `Save` with `Publish`");
-    expect(out).toContain("Remove text `Save` from the source.");
+    expect(out).toContain('- Change the text from "Save" to "Publish".');
+    expect(out).toContain("- Remove it from the source.");
     expect(out).toContain("Make this easier to find");
     expect(out).toContain("Save action");
     expect(out).not.toContain("nudge-ui-runtime-");
@@ -667,7 +654,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("runtime-created DOM");
   });
 
-  it("bounds and fences arbitrary runtime evidence values", () => {
+  it("bounds and flattens arbitrary runtime evidence values", () => {
     const props = "props `with` backticks\n~~~\n" + "p".repeat(140);
     const ariaLabel = "accessible `name`\n" + "a".repeat(140);
     const out = generatePrompt([rec({
@@ -681,20 +668,16 @@ describe("generatePrompt", () => {
       source: { file: "", line: 0, component: "nudge-ui-runtime-2" },
       runtimeEvidence: {
         tagName: "CUSTOM-ELEMENT",
-        text: "  Save\n   now  ",
+        text: null,
         props,
         ariaLabel,
       },
     })], { framework: "HTML", stylingSystem: "CSS custom properties" });
 
-    expect(out).toContain("## Element (`<custom-element>`)");
-    expect(out).toContain("Text: `Save now`");
-    expect(out).toContain("Props: ~~~~text");
-    expect(out).toContain("Accessible name: ~~~text");
-    expect(out).toContain(props.slice(0, 120));
-    expect(out).toContain(ariaLabel.slice(0, 120));
-    expect(out).not.toContain(props.slice(0, 121));
-    expect(out).not.toContain(ariaLabel.slice(0, 121));
+    const flat = (value: string) => value.replace(/\s+/g, " ").trim();
+    expect(out).toContain(`The custom-element element labeled ${JSON.stringify(flat(ariaLabel.slice(0, 120)))} with the props ${flat(props.slice(0, 120))}:\n`);
+    expect(out).not.toContain(flat(props.slice(0, 121)));
+    expect(out).not.toContain(flat(ariaLabel.slice(0, 121)));
   });
 
   it("uses exact structural source coordinates for static HTML", () => {
@@ -713,31 +696,26 @@ describe("generatePrompt", () => {
       structural,
     );
 
-    expect(out).toContain("text `Item` (index.html:12:5)");
+    expect(out).toContain('The element in index.html:12:5 that says "Item":\n- Remove it from the source.');
     expect(out).not.toContain("data-cid");
   });
 
   it("returns the empty sentinel when there are no changes", () => {
     const out = generatePrompt([]);
-    expect(out).toBe(
-      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
-    );
+    expect(out).toBe(EMPTY_PROMPT);
   });
 
-  it("uses authored element details without losing source precision or shared scope", () => {
+  it("shows only the two best clues for an authored element without losing source precision", () => {
     configureAstroHost();
     const out = generatePrompt([rec({
       cid: "astro:H1", file: "src/pages/about.astro", line: 12, column: 7, property: "font-weight", rawValue: "400",
       sourceEvidence: { tagName: "h1", props: null, text: "  About\n  the studio  ", ariaLabel: "Studio heading", domPath: "main > h1.title" },
     })]);
 
-    expect(out).toContain("## Heading (`<h1>`)");
-    expect(out).toContain("Source: `src/pages/about.astro:12:7`");
-    expect(out).toContain("Text: `About the studio`");
-    expect(out).toContain("Accessible name: `Studio heading`");
-    expect(out).toContain("DOM path: `main > h1.title`");
-    expect(out).not.toContain("Apply to all instances rendered from this source location.");
-    expect(out).toContain("**Change:** `font-weight`: `400`");
+    expect(out).toContain('The h1 heading in src/pages/about.astro:12:7 that says "About the studio":\n- Set font-weight to 400.');
+    expect(out).not.toContain("Studio heading");
+    expect(out).not.toContain("main > h1.title");
+    expect(out).not.toContain("Every ");
     expect(out).not.toContain("data-cid");
   });
 
@@ -747,10 +725,9 @@ describe("generatePrompt", () => {
       sourceEvidence: { tagName: "p", props: null },
     })]);
 
-    expect(out).toContain("## Paragraph (`<p>`)");
-    expect(out).toContain("Source: `src/Hero.tsx:8:3`");
-    expect(out).not.toContain("- Text:");
-    expect(out).not.toContain("DOM path:");
+    expect(out).toContain("The paragraph in src/Hero.tsx:8:3:\n- Set color to red.");
+    expect(out).not.toContain("that says");
+    expect(out).not.toContain("located at");
   });
 
   it("groups a runtime heading's style, copy, and note together before the paragraph", () => {
@@ -773,17 +750,14 @@ describe("generatePrompt", () => {
       target: { sourceSite, locator: { kind: "evidence", occurrence: 0, props: null, text: "New title" } },
       baseline: "", viewport: "", handedOff: false,
     }]);
-    const headingBlock = out.slice(out.indexOf("## Heading"), out.indexOf("## Paragraph"));
+    const headingBlock = out.slice(out.indexOf("The h1 heading"), out.indexOf("The paragraph"));
 
-    expect(headingBlock).toContain("Original title");
-    expect(headingBlock).toContain("- **Change:** `font-weight`: `600` → `400`");
-    expect(headingBlock).toContain("Replace text `Original title` with `New title`");
-    expect(headingBlock).toContain("**Note:** `Keep this on one line`");
-    expect(headingBlock).toContain("DOM path: `main > header > h1`");
-    expect(out.match(/^## Heading/gm)).toHaveLength(1);
-    expect(out).toContain("## Paragraph");
-    expect(out).not.toContain("## Rendered text changes");
-    expect(out).not.toContain("## Element comments");
+    expect(headingBlock).toContain('The h1 heading that says "Original title" located at main > header > h1:');
+    expect(headingBlock).toContain("- Change font-weight from 600 to 400.");
+    expect(headingBlock).toContain('- Change the text from "Original title" to "New title".');
+    expect(headingBlock).toContain('- My note on it (page: https://example.com/): "Keep this on one line"');
+    expect(out.match(/^The h1 heading/gm)).toHaveLength(1);
+    expect(out).toContain('The paragraph that says "Intro copy" located at main > header > p:');
     expect(out).not.toContain("nudge-ui-runtime-");
   });
 
@@ -807,21 +781,22 @@ describe("generatePrompt", () => {
       id: "first-note", route: "https://example.com/", tag: "button", note: "Primary action",
       target: { ...first, locator: { ...first.locator, text: "Publish" } }, baseline: "", viewport: "", handedOff: false,
     }]);
-    const blocks = out.split(/^## /m).slice(1);
-    const firstBlock = blocks.find((block) => block.includes("`color`: `red`"))!;
-    const secondBlock = blocks.find((block) => block.includes("`color`: `blue`"))!;
-    const sharedBlock = blocks.find((block) => block.includes("`padding`: `16px`"))!;
+    const blocks = out.split("\n\n").slice(1);
+    const firstBlock = blocks.find((block) => block.includes("Set color to red."))!;
+    const secondBlock = blocks.find((block) => block.includes("Set color to blue."))!;
+    const sharedBlock = blocks.find((block) => block.includes("Set padding to 16px."))!;
 
     expect(blocks).toHaveLength(3);
     expect(firstBlock.match(/src\/Buttons\.tsx:12:5/g)).toHaveLength(1);
-    expect(firstBlock).toContain("Replace text `First` with `Publish`");
-    expect(firstBlock).toContain("**Note:** `Primary action`");
-    expect(firstBlock).toContain("Apply to this selected item only; keep other instances unchanged.");
-    expect(firstBlock).not.toContain("`color`: `blue`");
-    expect(secondBlock).toContain("Text: `Second`");
-    expect(secondBlock).not.toContain("Applies only");
+    expect(firstBlock).toContain("Just this button");
+    expect(firstBlock).toContain('- Change the text from "First" to "Publish".');
+    expect(firstBlock).toContain('"Primary action"');
+    expect(firstBlock).not.toContain("Set color to blue.");
+    expect(secondBlock).toContain('that says "Second"');
+    expect(secondBlock).not.toContain("Every ");
     expect(secondBlock).not.toContain("Publish");
-    expect(sharedBlock).not.toContain("Applies only");
+    expect(sharedBlock).toContain("Every ");
+    expect(sharedBlock).not.toContain("Just this");
     expect(sharedBlock).not.toContain("Publish");
   });
 
@@ -830,10 +805,9 @@ describe("generatePrompt", () => {
     const children = makeComponentChange({ property: "children", before: { kind: "value", value: "Save" }, after: "Publish" });
     const out = generatePrompt([variant, children]);
 
-    expect(out.match(/^## Button component/gm)).toHaveLength(1);
-    expect(out).toContain("`variant`: `primary` → `secondary`");
-    expect(out).toContain("`children`: `Save` → `Publish`");
-    expect(out).not.toContain("apply to all instances rendered from this source location");
+    expect(out.match(/^Every Button component/gm)).toHaveLength(1);
+    expect(out).toContain('- Change the variant prop from "primary" to "secondary".');
+    expect(out).toContain('- Change the children prop from "Save" to "Publish"');
   });
 
   it("keeps base and hover requests explicit inside one element section", () => {
@@ -841,9 +815,9 @@ describe("generatePrompt", () => {
     const hover = { ...base, state: "hover" as const, rawValue: "blue" };
     const out = generatePrompt([base, hover]);
 
-    expect(out.match(/^- Source: `src\/Title.tsx:42`/gm)).toHaveLength(1);
-    expect(out).toContain("- **Change:** `color`: `red`");
-    expect(out).toContain("- **Change:** `color` (hover): `blue`");
+    expect(out.match(/^The element in src\/Title\.tsx:42:$/gm)).toHaveLength(1);
+    expect(out).toContain("- Set color to red.");
+    expect(out).toContain("- On hover, set color to blue.");
   });
 
   it("renders a token swap without runtime selectors", () => {
@@ -855,11 +829,10 @@ describe("generatePrompt", () => {
       newToken: SURFACE_SUNKEN,
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("# Requested design changes");
+    expect(out.startsWith(PROMPT_INTRO)).toBe(true);
     expect(out).not.toContain("Framework:");
-    expect(out).not.toContain("## Changes");
-    expect(out).toContain("Source: `src/Button.tsx:42`");
-    expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
+    expect(out).toContain("in src/Button.tsx:42");
+    expect(out).toContain("- Change background from the --color-surface-raised token to the --color-surface-sunken token.");
     expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("data-cid");
   });
@@ -873,7 +846,7 @@ describe("generatePrompt", () => {
       oldRawValue: "4px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- **Change:** `padding`: `4px` → `16px`");
+    expect(out).toContain("- Change padding from 4px to 16px.");
     expect(out).not.toContain("consider adding");
   });
 
@@ -886,7 +859,7 @@ describe("generatePrompt", () => {
       property: "padding",
       newToken: tw3,
     })]);
-    expect(outV3).toContain("- **Change:** `padding`: `0.75rem`");
+    expect(outV3).toContain("- Set padding to 0.75rem.");
 
     const ve: TokenEntry = {
       name: "theme.color.accent",
@@ -900,7 +873,7 @@ describe("generatePrompt", () => {
       property: "color",
       newToken: ve,
     })]);
-    expect(outVe).toContain("- **Change:** `color`: `var(--color-accent__hash)`");
+    expect(outVe).toContain("- Set color to var(--color-accent__hash).");
     expect(outVe).not.toContain("var(theme.color.accent)");
   });
 
@@ -914,8 +887,8 @@ describe("generatePrompt", () => {
       sourceProperty: "padding-inline",
       sourceAuthoredValue: "var(--space-4)",
     })]);
-    expect(out).toContain("Preserve existing tokens, logical properties, and CSS intent");
-    expect(out).toContain("Source declaration (CSSOM): `padding-inline: var(--space-4)`; preview edit uses physical `padding-left`");
+    expect(out).toContain("logical properties");
+    expect(out).toContain("- Change padding-left from 16px to 24px.\n  In the code this is written as padding-inline: var(--space-4). I previewed it using padding-left.");
   });
 
   it("renders a raw value edit with only the new value when no old value is recorded", () => {
@@ -926,8 +899,8 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- **Change:** `padding`: `16px`");
-    expect(out).not.toContain("→");
+    expect(out).toContain("- Set padding to 16px.");
+    expect(out).not.toContain("Change padding from");
   });
 
   it("renders a promotion of a hardcoded value to a token", () => {
@@ -939,7 +912,7 @@ describe("generatePrompt", () => {
       oldRawValue: "8px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- **Change:** `border-radius`: `8px` → `var(--space-3)`");
+    expect(out).toContain("- Change border-radius from 8px to var(--space-3).");
   });
 
   it("groups multiple changes for the same element + file under one heading", () => {
@@ -957,10 +930,10 @@ describe("generatePrompt", () => {
       rawValue: "12px",
     });
     const out = generatePrompt([a, b]);
-    const headings = out.split("\n").filter((l) => l.startsWith("## Element"));
+    const headings = out.split("\n").filter((l) => l.startsWith("The element in src/Button.tsx:42"));
     expect(headings).toHaveLength(1);
-    expect(out).toContain("- **Change:** `background`: `--color-surface-raised` → `--color-surface-sunken`");
-    expect(out).toContain("- **Change:** `border-radius`: `12px`");
+    expect(out).toContain("- Change background from the --color-surface-raised token to the --color-surface-sunken token.");
+    expect(out).toContain("- Set border-radius to 12px.");
     expect(out).not.toContain("data-cid");
   });
 
@@ -995,10 +968,9 @@ describe("generatePrompt", () => {
     });
 
     const out = generatePrompt([first, second]);
-    expect(out).toContain("Text: `First`");
-    expect(out).toContain("Text: `Second`");
-    expect(out).not.toContain("Applies only");
-    expect(out.split("\n").filter((line) => line.startsWith("## Element"))).toHaveLength(2);
+    expect(out).toContain('that says "First"');
+    expect(out).toContain('that says "Second"');
+    expect(out.split("\n").filter((line) => line.startsWith("Just this element"))).toHaveLength(2);
   });
 
   it("renders multiple headings for changes across multiple elements", () => {
@@ -1018,8 +990,8 @@ describe("generatePrompt", () => {
       newToken: SURFACE_RAISED,
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("Source: `src/Button.tsx:42`");
-    expect(out).toContain("Source: `src/components/Header.tsx:58`");
+    expect(out).toContain("in src/Button.tsx:42");
+    expect(out).toContain("in src/components/Header.tsx:58");
     expect(out).not.toContain("data-cid");
   });
 
@@ -1048,8 +1020,8 @@ describe("generatePrompt", () => {
       oldRawValue: "12px",
     });
     const out = generatePrompt([a, b, c]);
-    expect(out).toContain("- **Change:** `padding`: `4px` → `16px`");
-    expect(out).not.toContain("8px → 12px");
+    expect(out).toContain("- Change padding from 4px to 16px.");
+    expect(out).not.toContain("8px to 12px");
   });
 
   it("deduplicates token swaps by diffing original token vs final token", () => {
@@ -1069,9 +1041,9 @@ describe("generatePrompt", () => {
     });
     const out = generatePrompt([a, b]);
     expect(out).toContain(
-      "- **Change:** `background`: `--color-surface-raised` → `--space-3`",
+      "- Change background from the --color-surface-raised token to the --space-3 token.",
     );
-    expect(out).not.toContain("--color-surface-sunken → --space-3");
+    expect(out).not.toContain("--color-surface-sunken token to");
   });
 
   it("deduplication is scoped per element — different cid properties are not collapsed", () => {
@@ -1088,10 +1060,10 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([a, b]);
-    expect(out).toContain("Source: `src/Button.tsx:42`");
-    expect(out).toContain("Source: `src/components/Header.tsx:42`");
-    expect(out).toContain("`8px`");
-    expect(out).toContain("`16px`");
+    expect(out).toContain("in src/Button.tsx:42");
+    expect(out).toContain("in src/components/Header.tsx:42");
+    expect(out).toContain("Set padding to 8px.");
+    expect(out).toContain("Set padding to 16px.");
   });
 
   it("does not surface framework hints in the prompt", () => {
@@ -1134,11 +1106,100 @@ describe("generatePrompt", () => {
       contextLabel: 'root[data-theme="dark"]',
       source: { file: "src/theme.css", line: 6, component: "Global token" },
     }]);
-    expect(out).toContain("## Global token changes");
-    expect(out).toContain('`--color-text` (root[data-theme="dark"], src/theme.css:6)');
-    expect(out).toContain('`#eeeeee` → `var(--color-neutral-100)`');
+    expect(out).toContain("Site-wide design tokens:");
+    expect(out).toContain('- Change --color-text from #eeeeee to var(--color-neutral-100) (in root[data-theme="dark"], src/theme.css:6).');
     expect(out).not.toContain("Selectors (fallback)");
-    expect(out).not.toContain("### Global token");
+  });
+
+  it("reads as plain text in the user's voice, with no Markdown", () => {
+    const sourceSite = { cid: "Item", src: "src/App.tsx:12:5" };
+    const text: TextContentChangeRecord = {
+      kind: "text-content", id: "plain-text",
+      target: { sourceSite, occurrence: 0, props: null, ariaLabel: null, beforeText: "Save", tagName: "button" },
+      source: { file: "src/App.tsx", line: 12, column: 5, component: "Item" }, selector: '[data-cid="Item"]',
+      before: "Save", after: "Publish", authoredAs: "literal",
+    };
+    const structural: StructuralChange[] = [{
+      id: "plain-delete", kind: "delete",
+      target: { sourceSite: { cid: "Row", src: "src/App.tsx:30:5" }, locator: { kind: "evidence", occurrence: 1, props: null, text: "Extra row" } },
+    }];
+    const out = generatePrompt([
+      rec({ cid: "Button", file: "src/Button.tsx", property: "background", oldToken: SURFACE_RAISED, newToken: SURFACE_SUNKEN }),
+      rec({ cid: "Button", file: "src/Button.tsx", property: "color", oldRawValue: "red", rawValue: "blue", state: "hover" }),
+      makeComponentChange(),
+      text,
+      { kind: "token", tokenName: "--color-text", file: "src/theme.css", line: 6, selector: ":root", property: "--color-text",
+        rawValue: "#111111", oldRawValue: "#eeeeee", important: false, context: {}, contextLabel: ":root",
+        source: { file: "src/theme.css", line: 6, component: "Global token" } },
+    ], undefined, structural, DEFAULT_CUSTOM_INSTRUCTIONS, [{
+      id: "plain-note", route: "https://example.com/", tag: "button", note: "Make this easier to find",
+      target: { sourceSite, locator: { kind: "evidence", occurrence: 0, props: null, text: "Publish", ariaLabel: null } },
+      baseline: "", viewport: "", handedOff: false,
+    }]);
+
+    expect(out.startsWith(`${PROMPT_INTRO}\n\n`)).toBe(true);
+    expect(out.endsWith(`\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`)).toBe(true);
+    expect(out).not.toMatch(/^#{1,6} /m);
+    expect(out).not.toContain("**");
+    expect(out).not.toContain("`");
+    expect(out).not.toContain("~~~");
+    expect(out).not.toContain("<!--");
+  });
+
+  describe("element clues", () => {
+    const evidence = {
+      tagName: "button", props: 'variant="primary"', text: "Get started", ariaLabel: "Start now",
+      domPath: "main > button.cta", elementId: "cta",
+    };
+    const runtimeRec = (runtimeEvidence: NonNullable<ElementChangeRecord["runtimeEvidence"]>) => rec({
+      cid: "nudge-ui-runtime-3", file: "", line: 0, column: 0, property: "color", rawValue: "red",
+      source: { file: "", line: 0, component: "nudge-ui-runtime-3" }, runtimeEvidence,
+    });
+
+    it("points at an authored element with its source location and element ID", () => {
+      const out = generatePrompt([rec({
+        cid: "Button", file: "src/Hero.tsx", line: 14, column: 6, property: "color", rawValue: "red", sourceEvidence: evidence,
+      })]);
+
+      expect(out).toContain('The button in src/Hero.tsx:14:6 with the id "cta":\n');
+      for (const dropped of ["Get started", "Start now", "variant", "main > button.cta"]) expect(out).not.toContain(dropped);
+    });
+
+    it("falls back to the next best clue when an authored element has no ID", () => {
+      const out = generatePrompt([rec({
+        cid: "Button", file: "src/Hero.tsx", line: 14, column: 6, property: "color", rawValue: "red",
+        sourceEvidence: { ...evidence, elementId: null },
+      })]);
+
+      expect(out).toContain('The button in src/Hero.tsx:14:6 that says "Get started":\n');
+      for (const dropped of ["cta", "Start now", "variant"]) expect(out).not.toContain(dropped);
+    });
+
+    it("uses the element ID and text for runtime-created elements, then labels, props, and DOM paths", () => {
+      expect(generatePrompt([runtimeRec(evidence)])).toContain('The button with the id "cta" that says "Get started":\n');
+      expect(generatePrompt([runtimeRec({ ...evidence, elementId: null })]))
+        .toContain('The button that says "Get started" labeled "Start now":\n');
+      expect(generatePrompt([runtimeRec({ ...evidence, elementId: null, text: null, ariaLabel: null })]))
+        .toContain('The button with the props variant="primary" located at main > button.cta:\n');
+    });
+
+    it("does not repeat the element ID as props", () => {
+      const out = generatePrompt([runtimeRec({ ...evidence, text: null, ariaLabel: null, props: "id:cta" })]);
+
+      expect(out).toContain('The button with the id "cta" located at main > button.cta:\n');
+      expect(out).not.toContain("id:cta");
+    });
+
+    it("names only the source and one example when an edit applies to every rendered item", () => {
+      const out = generatePrompt([rec({
+        cid: "Link", file: "src/Nav.tsx", line: 8, column: 3, property: "color", rawValue: "blue",
+        scope: "source-site", sourceInstanceCount: 3, sourceEvidence: { ...evidence, tagName: "a" },
+      })]);
+
+      expect(out).toContain('Every link rendered from src/Nav.tsx:8:3 (for example, the one that says "Get started"):\n');
+      expect(out).not.toContain("cta");
+      expect(out).not.toContain("main > button.cta");
+    });
   });
 });
 

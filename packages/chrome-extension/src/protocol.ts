@@ -1,8 +1,8 @@
 /** Set in the page's main world before the inspector bundle runs. */
 export const BOOT_GLOBAL = "__NUDGE_UI_EXTENSION__";
-/** Set on the editor document's root once the editor has replaced the page markup. */
-export const EDITOR_READY_ATTRIBUTE = "data-nudge-ui-editor";
 export const PAGE_INSPECTOR_GLOBAL = "__NUDGE_UI_PAGE_INSPECTOR__";
+/** nudge-ui's mount; its shadow root holds the panel and the inspector's popups. */
+export const INSPECTOR_ROOT_ID = "nudge-ui-root";
 /** Read by nudge-ui when its bundle evaluates; see `customCursors.ts`. */
 export const CURSOR_IMAGE_BASE_GLOBAL = "__NUDGE_UI_CURSOR_IMAGE_BASE__";
 export const CURSOR_IMAGE_DIRECTORY = "cursors/";
@@ -10,10 +10,6 @@ export const CURSOR_IMAGE_DIRECTORY = "cursors/";
 export const STORAGE_WRITE_EVENT = "nudge-ui:storage-write";
 export const STORAGE_READ_EVENT = "nudge-ui:storage-read";
 export const STORAGE_READ_RESPONSE_EVENT = "nudge-ui:storage-read-response";
-/** Dispatched on `document` by the editor when a renderer frame loads a document. */
-export const RENDERER_FRAME_LOAD_EVENT = "nudge-ui:renderer-frame-load";
-/** Sent from the isolated-world bridge to the service worker. */
-export const INJECT_RENDERERS_MESSAGE = "nudge-ui:inject-renderers";
 /** Dispatched on `document` by the main world; the isolated-world bridge answers each with a response. */
 export const SKETCH_REQUEST_EVENT = "nudge-ui:sketch-request";
 export const SKETCH_RESPONSE_EVENT = "nudge-ui:sketch-response";
@@ -22,15 +18,25 @@ export const FONT_LIST_REQUEST_EVENT = "nudge-ui:font-list-request";
 export const FONT_LIST_RESPONSE_EVENT = "nudge-ui:font-list-response";
 /** Sent from the isolated-world bridge to the service worker, the only context that can call `chrome.fontSettings`. */
 export const FONT_LIST_MESSAGE = "nudge-ui:font-list";
+/** Dispatched on `document` by the main world with the side the panel was dropped on; the isolated-world bridge saves it. */
+export const PANEL_SIDE_WRITE_EVENT = "nudge-ui:panel-side-write";
+/** One preference for every site, so the panel opens where the user last left it. */
+export const PANEL_SIDE_KEY = "panel-side";
 
-/** Published for one injection into the top frame; the bundle consumes it, so later renderer-frame injections cannot restart the controller. */
+export type PanelSide = "left" | "right";
+
+export function parsePanelSide(value: unknown): PanelSide | null {
+  return value === "left" || value === "right" ? value : null;
+}
+
+/** Published for one injection into the top frame; the bundle consumes it, so a later injection only toggles the running inspector. */
 export interface ExtensionBoot {
   /** Inspector storage for this origin, keyed without the site prefix. */
   storage: Record<string, string>;
-  surface: "editor" | "page";
-  unavailableReason?: string;
   /** Whether the user has asked for the system font list on this origin. */
   systemFontsAllowed?: boolean;
+  /** The screen edge the panel docks to; right when never moved. */
+  panelSide?: PanelSide;
 }
 
 export interface StorageWrite {
@@ -133,10 +139,6 @@ export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
-export function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "number");
-}
-
 function isStoredImage(value: unknown): value is StoredImage {
   return isRecord(value) && typeof value.type === "string" && typeof value.base64 === "string";
 }
@@ -232,27 +234,4 @@ export function parseSketchResponse(detail: unknown): SketchResponse | null {
   return parsed.ok === false && typeof parsed.error === "string"
     ? { id: parsed.id, ok: false, error: parsed.error }
     : null;
-}
-
-const EDITOR_QUERY = "nudge-ui=editor";
-
-/** Adds the editor marker without re-encoding the application's own query. */
-export function editorUrl(applicationHref: string): string {
-  const url = new URL(applicationHref);
-  if (isEditorUrl(url.href)) return url.href;
-  url.search = url.search ? `${url.search}&${EDITOR_QUERY}` : `?${EDITOR_QUERY}`;
-  return url.href;
-}
-
-/** Removes editor markers while preserving the application's query encoding. */
-export function applicationUrl(href: string): string {
-  const url = new URL(href);
-  url.search = url.search.slice(1).split("&").filter((segment) => (
-    new URLSearchParams(segment).get("nudge-ui") !== "editor"
-  )).join("&");
-  return url.href;
-}
-
-export function isEditorUrl(href: string): boolean {
-  return new URL(href).searchParams.getAll("nudge-ui").includes("editor");
 }

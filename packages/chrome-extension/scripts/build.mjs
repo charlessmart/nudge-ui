@@ -1,11 +1,33 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDirectory = resolve(packageRoot, "dist");
 const { version } = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
+
+/** Yields every file under `directory` with its modification time. */
+function* files(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) yield* files(path);
+    else yield { path, modified: statSync(path).mtimeMs };
+  }
+}
+
+// The bundle comes from nudge-ui's built output, which this build does not
+// rebuild. Stale output would let extension tests pass against old code.
+const nudgeUiRoot = resolve(packageRoot, "../nudge-ui");
+const sources = [...files(resolve(nudgeUiRoot, "src"))].filter(({ path }) => !/\.test\.tsx?$/.test(path));
+const newestSource = sources.reduce((newest, file) => (file.modified > newest.modified ? file : newest));
+const built = [...files(resolve(nudgeUiRoot, "dist"))].filter(({ path }) => path.endsWith(".js"));
+const oldestBuild = Math.min(...built.map(({ modified }) => modified));
+if (built.length === 0 || newestSource.modified > oldestBuild) {
+  throw new Error(
+    `nudge-ui's build is older than ${relative(nudgeUiRoot, newestSource.path)}. Run \`pnpm --filter nudge-ui build\` before building the extension.`,
+  );
+}
 
 rmSync(outputDirectory, { recursive: true, force: true });
 mkdirSync(outputDirectory, { recursive: true });

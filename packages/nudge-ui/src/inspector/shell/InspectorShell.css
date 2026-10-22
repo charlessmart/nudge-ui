@@ -1,11 +1,23 @@
-:host { --panel-width: min(320px, 100vw); }
+/*
+ * Panel placement. Everything laid out beside the panel reads the reserved
+ * space, so an embedder can move the panel by changing these values alone.
+ */
+:host {
+  --panel-width: min(320px, 100vw);
+  /* Gap between the panel and the window edges. */
+  --panel-inset: 0px;
+  /* Space the open panel takes from each side of the window. */
+  --panel-reserve-start: 0px;
+  --panel-reserve-end: calc(var(--panel-width) + var(--panel-inset));
+}
 
+/* Above every page overlay it covers (outlines 1, navigator chip 2, spacing handles 3, comment pins 10-12)
+   and below held-Option measurements (20), which stay visible over the panel on purpose. */
 .panel {
   position: fixed;
-  inset: 0 0 0 auto;
-  z-index: 2;
-  width: var(--panel-width);
-  height: 100dvh;
+  inset: var(--panel-inset) var(--panel-inset) var(--panel-inset) auto;
+  z-index: 13;
+  width: min(var(--panel-width), calc(100vw - 2 * var(--panel-inset)));
   overflow: auto;
   background: var(--surface-panel);
   color: var(--text-primary);
@@ -367,6 +379,24 @@
   color: var(--linked);
 }
 
+/* The element's markup name takes the rest of the title row, right-aligned, and clips to one line.
+   It follows the status text and precedes the action button. */
+.selection__detail {
+  order: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-inline-start: var(--space-8);
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.25;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* One click selects the whole name, ready to copy even when it is clipped. */
+  user-select: all;
+}
+
 /* The status text sits beside the title; only the action button stays at the end. */
 .selection__scope,
 .selection__scope .scope__linked,
@@ -375,6 +405,7 @@
 }
 
 .selection__name .icon-button {
+  order: 2;
   margin-inline-start: auto;
 }
 

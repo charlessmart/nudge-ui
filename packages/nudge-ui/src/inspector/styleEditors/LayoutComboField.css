@@ -13,7 +13,7 @@
   width: 100%;
 }
 
-.layout-combo--blocked > .select:disabled,
+.layout-combo--blocked .select:disabled,
 .layout-combo--blocked > .text-input:disabled,
 .layout-combo--blocked .layout-combo__custom > .text-input:disabled {
   opacity: 0.55;

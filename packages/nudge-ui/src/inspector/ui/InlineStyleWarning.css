@@ -25,3 +25,16 @@
   display: block;
   line-height: 1;
 }
+
+.inline-style-blocked {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Blocked controls are disabled, so the wrapper receives hover for the tooltip. */
+.inline-style-blocked > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  pointer-events: none;
+}

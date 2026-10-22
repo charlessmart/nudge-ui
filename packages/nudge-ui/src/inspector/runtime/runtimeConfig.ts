@@ -50,8 +50,6 @@ export interface NudgeUiRuntimeConfig {
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
   readonly tokenGeneration: string;
   readonly componentContracts: readonly ComponentContract[];
-  /** Replaces the selection empty state when the page cannot be inspected. */
-  readonly inspectionUnavailableReason?: string;
   readonly demo?: boolean;
   /** Additional same-origin pages seeded into the demo canvas. */
   readonly demoPages?: readonly string[];
@@ -304,9 +302,6 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
       input,
       "componentContracts",
     ) as NudgeUiRuntimeConfig["componentContracts"],
-    ...(input.inspectionUnavailableReason === undefined ? {} : {
-      inspectionUnavailableReason: optionalNonEmptyString(input, "inspectionUnavailableReason"),
-    }),
     ...(demo === true ? { demo: true } : {}),
     ...(demoPages === undefined ? {} : { demoPages }),
     ...(demoCardLabels === undefined ? {} : { demoCardLabels }),

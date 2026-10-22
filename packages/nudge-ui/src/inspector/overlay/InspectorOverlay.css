@@ -5,10 +5,12 @@
   outline-offset: -2px;
 }
 
+/* Held-Option measurements outrank every other overlay (outlines, spacing
+   guides, badges, comment pins, the panel) so the distances are never hidden. */
 .measurement-overlay {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 20;
   overflow: visible;
   pointer-events: none;
 }
@@ -94,6 +96,8 @@
   pointer-events: none;
 }
 
+/* The chip sits just below the element, over its bottom margin band. Only the menu button takes the pointer,
+   so the label and size never block that band's spacing handle in the page underneath. */
 .dom-navigator {
   display: flex;
   align-items: center;
@@ -102,7 +106,7 @@
   background: var(--accent);
   color: var(--surface-raised-2x);
   z-index: 2;
-  pointer-events: auto;
+  pointer-events: none;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
 }
@@ -166,6 +170,7 @@
   justify-content: center;
   width: var(--control-height-small);
   padding: 0;
+  pointer-events: auto;
   border-radius: var(--radius-4);
   background: transparent;
   color: var(--surface-raised-2x);
@@ -174,6 +179,12 @@
 
 .dom-navigator__label {
   padding-right: var(--space-8);
+  white-space: nowrap;
+}
+
+.dom-navigator__size {
+  padding-right: var(--space-8);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

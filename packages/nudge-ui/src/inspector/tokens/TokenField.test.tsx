@@ -543,7 +543,8 @@ describe("TokenField", () => {
 
     const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     expect(chip).not.toBeNull();
-    expect(chip.textContent).toContain("--font-size-base");
+    // A numeric token reads as its value; the name is the tooltip.
+    expect(chip.textContent).toBe("16");
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 
@@ -567,12 +568,10 @@ describe("TokenField", () => {
       },
       domElement: selected.domElement,
       entries: [radiusToken],
-      chipVariant: "small",
     }));
 
     const chip = handle.host.querySelector('.token-chip') as HTMLElement;
     const label = chip.querySelector(".token-chip__label") as HTMLElement;
-    expect(chip.classList).toContain("token-chip--small");
     expect(label.textContent).toBe("12");
     expect(label.getAttribute("title")).toBeNull();
     expect(label.getAttribute("data-base-ui-tooltip-trigger")).toBe("");
@@ -734,7 +733,6 @@ describe("TokenField", () => {
       tokenRow: tokenRow(),
       domElement: selected.domElement,
       entries: [FONT_SIZE],
-      chipVariant: "small",
     }));
 
     act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
@@ -754,9 +752,7 @@ describe("TokenField", () => {
       tokenRow: tokenRow(),
       domElement: selected.domElement,
       entries: [FONT_SIZE],
-      chipVariant: "small",
     }));
-    expect(handle.host.querySelector('[data-test="delink-btn"]')).toBeNull();
 
     act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
     const items = document.querySelectorAll(".popover-listbox__item");
@@ -787,6 +783,67 @@ describe("TokenField", () => {
     expect(delink.classList).toContain("icon-button--compact");
   });
 
+  it("labels a numeric token with its value and any other token with its name", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+    expect(handle.host.querySelector(".token-chip__label")?.textContent).toBe(FONT_SIZE.value.replace("px", ""));
+    handle.unmount();
+
+    handle = mount(createElement(TokenField, {
+      property: "color",
+      tokenRow: {
+        property: "color",
+        tokenName: COLOR_PRIMARY.name,
+        declaredValue: `var(${COLOR_PRIMARY.name})`,
+        resolvedValue: COLOR_PRIMARY.value,
+        capability: "atomic",
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [COLOR_PRIMARY],
+    }));
+    expect(handle.host.querySelector(".token-chip__label")?.textContent).toBe(COLOR_PRIMARY.name);
+  });
+
+  it("puts the field icon inside the chip, outside the picker trigger", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+      leading: createElement("span", { "data-test": "field-icon" }),
+    }));
+
+    const chip = handle.host.querySelector(".token-chip") as HTMLElement;
+    const picker = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
+    const icon = handle.host.querySelector('[data-test="field-icon"]') as HTMLElement;
+    expect(chip.contains(icon)).toBe(true);
+    expect(picker.contains(icon)).toBe(false);
+  });
+
+  it("opens the token picker when the field icon is clicked", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+      leading: createElement("span", { "data-test": "field-icon" }),
+    }));
+    expect(document.querySelector('[data-test="token-chip-search"]')).toBeNull();
+
+    act(() => (handle.host.querySelector('[data-test="field-icon"]') as HTMLElement).click());
+
+    expect(document.querySelector('[data-test="token-chip-search"]')).not.toBeNull();
+  });
+
   it("promotes a matching raw-value suggestion into a token chip", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
@@ -802,7 +859,7 @@ describe("TokenField", () => {
     act(() => suggestion.click());
 
     expect(sheetText()).toContain("font-size: var(--font-size-base);");
-    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--font-size-base");
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toBe("16");
   });
 
   it("always renders a native picker for a raw color and commits its value", () => {

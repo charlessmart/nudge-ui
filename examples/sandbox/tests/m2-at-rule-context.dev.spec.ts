@@ -24,8 +24,10 @@ test("dev: a winning media-query declaration has a compact context indicator", a
   await app.getByRole("button", { name: "Save" }).click();
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator.locator(".at-rule-indicator__segment")).toHaveCount(4);
+  await expect(indicator).toHaveAttribute("data-active", "true");
   await indicator.hover();
+  // The base declaration and the three nested rules.
+  await expect(page.locator('[data-test="at-rule-tooltip"] [data-active]')).toHaveCount(4);
   await expect(page.locator(".at-rule-tooltip-positioner")).toHaveCSS("z-index", "3");
   const activeRule = page.locator('[data-test="at-rule-tooltip"] [data-active="true"]');
   await expect(activeRule).toHaveText(["(min-width: 1px)", "(min-width: 1px)", "(min-width: 1px)"]);
@@ -61,7 +63,8 @@ test("dev: a matching container-query declaration is shown in the context popove
   await app.getByRole("button", { name: "Save" }).click();
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator.locator(".at-rule-indicator__segment")).toHaveCount(2);
+  await expect(indicator).toHaveAttribute("data-active", "true");
   await indicator.hover();
+  await expect(page.locator('[data-test="at-rule-tooltip"] [data-active]')).toHaveCount(2);
   await expect(page.locator('[data-test="at-rule-tooltip"] [data-active="true"]')).toHaveText("(width > 100px)");
 });

@@ -501,23 +501,20 @@ it("exports captured text identification after saving without repeating the sour
   const saved = serializeChange(change)!;
   expect(isSerializableChange(saved)).toBe(true);
   const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
-  expect(prompt).toContain("## Heading (`<h1>`)");
+  expect(prompt).toContain('The h1 heading in src/Playground.tsx:196:14 with the id "hero-title":');
   expect(prompt.match(/src\/Playground\.tsx:196:14/g)).toHaveLength(1);
-  expect(prompt).toContain("Element ID: `hero-title`");
-  expect(prompt).toContain("Accessible name: `Hero title`");
-  expect(prompt).toContain("DOM path: `h1#hero-title`");
-  expect(prompt).toContain("**Change:** Replace text `Inspect the work` with `Updated title`.");
-  expect(prompt).not.toContain("keep other instances unchanged");
+  expect(prompt).toContain('- Change the text from "Inspect the work" to "Updated title".');
+  expect(prompt).not.toContain("Just this");
   expect(prompt).not.toContain("Source site");
-  expect(prompt).not.toContain("Props: `id:hero-title`");
-  expect(prompt).not.toContain("## App");
+  expect(prompt).not.toContain("id:hero-title");
+  expect(prompt).not.toContain("Hero title");
+  expect(prompt).not.toContain("The App");
 });
 
 it("exports older text edits with a readable heading without inventing an element ID", () => {
-  const prompt = generatePrompt([makeChange({ before: "Original copy" })], undefined, [], "", []);
-  expect(prompt).toContain("## Text: `Original copy`");
-  expect(prompt).toContain("Source: `src/Copy.tsx:8:3`");
-  expect(prompt).not.toContain("Element ID:");
+  const prompt = generatePrompt([makeChange({ before: "Original copy", target: { ...makeChange().target, beforeText: "Original copy" } })], undefined, [], "", []);
+  expect(prompt).toContain('The element in src/Copy.tsx:8:3 that says "Original copy":');
+  expect(prompt).not.toContain("with the id");
 });
 
 
@@ -526,12 +523,10 @@ it("exports extension text identification without inventing source or an HTML ID
   const target = captureTextProjectionTarget(document.querySelector("p")!)!;
   const saved = serializeChange(makeChange({ target, before: "Welcome back", after: "Hello again" }))!;
   const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
-  expect(prompt).toContain("## Paragraph (`<p>`)");
-  expect(prompt).toContain("Text: `Welcome back`");
-  expect(prompt).toContain("DOM path: `p`");
-  expect(prompt).toContain("Replace text `Welcome back` with `Hello again`.");
-  expect(prompt).not.toContain("Element ID:");
-  expect(prompt).not.toContain("Source:");
+  expect(prompt).toContain('The paragraph that says "Welcome back" located at p:');
+  expect(prompt).toContain('- Change the text from "Welcome back" to "Hello again".');
+  expect(prompt).not.toContain("with the id");
+  expect(prompt).not.toMatch(/\bin \S+:\d+/);
   expect(prompt).not.toContain("nudge-ui-runtime");
   expect(prompt).not.toContain("nudge-ui:unknown");
 });

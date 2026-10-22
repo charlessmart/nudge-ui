@@ -38,11 +38,9 @@ describe("element comments", () => {
   it("exports a comment-only prompt with the note, page, and target evidence", () => {
     saveComment(comment(target(), "Change Save to Publish"));
     const prompt = generatePrompt([]);
-    expect(prompt).toContain("## Button (`<button>`)");
-    expect(prompt).toContain("Change Save to Publish");
-    expect(prompt).toContain("src/App.tsx:10:3");
-    expect(prompt).toContain("Text: `Save`");
-    expect(prompt).toContain(document.location.href);
+    expect(prompt).toContain('The button in src/App.tsx:10:3 that says "Save":');
+    expect(prompt).toContain('"Change Save to Publish"');
+    expect(prompt).toContain(`(page: ${document.location.href})`);
   });
 
   it("scopes notes to a page or HTML iteration and clears only that target", () => {

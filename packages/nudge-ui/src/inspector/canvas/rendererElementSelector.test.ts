@@ -319,6 +319,44 @@ describe("renderer hover scheduling", () => {
     expect(element.style.cursor).toBe("crosshair");
   });
 
+  it("shows the resize cursor on the element under the pointer when a margin handle lies on its parent", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "margin-parent";
+    parent.dataset.src = "src/margin-parent.tsx:1:1";
+    const child = trackedElement("margin-child");
+    child.style.marginTop = "24px";
+    parent.append(child);
+    document.body.append(parent);
+    vi.spyOn(parent, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 300, height: 200, right: 300, bottom: 200,
+    } as DOMRect);
+    vi.spyOn(child, "getBoundingClientRect").mockReturnValue({
+      left: 20, top: 60, width: 100, height: 40, right: 120, bottom: 100,
+    } as DOMRect);
+    // The child's margin band is y 36-60, so its handle is centred on y 48 and the pointer is over the parent.
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => parent });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    parent.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, clientX: 70, clientY: 48 }));
+    runScheduledFrame();
+
+    expect(hoverMessages(postMessage)[0]).toMatchObject({
+      cid: "margin-child",
+      spacing: { kind: "margin", property: "margin-top", side: "top" },
+    });
+    for (const element of [parent, child]) {
+      expect(element.style.getPropertyValue("cursor")).toBe("ns-resize");
+      expect(element.style.getPropertyPriority("cursor")).toBe("important");
+    }
+
+    parent.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    runScheduledFrame();
+    expect(parent.style.cursor).toBe("");
+    expect(child.style.cursor).toBe("");
+    expect(document.documentElement.style.cursor).toBe("");
+    parent.remove();
+  });
+
   it("clears the hover outline during scrolling and restores it after scrolling settles", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const element = trackedElement("scrolling-target");

@@ -36,6 +36,8 @@ export interface SideValuesFieldProps {
   empty?: boolean;
   onAdd?: () => void;
   emptyAction?: ReactNode;
+  /** Shown at the end of the label row once the field has values, such as a button that removes them. */
+  headerAction?: ReactNode;
   resetKey?: unknown;
   "data-test"?: string;
   "data-property"?: string;
@@ -51,6 +53,7 @@ export function SideValuesField({
   empty = false,
   onAdd,
   emptyAction,
+  headerAction,
   resetKey,
   "data-test": dataTest,
   "data-property": dataProperty,
@@ -106,6 +109,7 @@ export function SideValuesField({
           {showLabel ? (
             <div className="side-values__header">
               <span className="side-values__label">{displayLabel}</span>
+              {headerAction}
             </div>
           ) : null}
           <div className="side-values__value-row">
@@ -144,6 +148,7 @@ export function SideValuesField({
           {showLabel ? (
             <div className="side-values__header">
               <span className="side-values__label">{displayLabel}</span>
+              {headerAction}
             </div>
           ) : null}
           <SideControls label={label} sides={sides} />

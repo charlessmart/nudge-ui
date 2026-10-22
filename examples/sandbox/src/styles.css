@@ -1492,6 +1492,7 @@ h2 {
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
   line-height: 1.7;
+  white-space: pre-wrap;
 }
 
 .conformance-links {
