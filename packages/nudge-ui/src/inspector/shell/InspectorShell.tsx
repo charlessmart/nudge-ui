@@ -254,8 +254,7 @@ export function InspectorShell(): ReactElement {
   }
 
   function clearInspectorSession(): void {
-    // Sketch persistence failures are reported by the sketch store in the panel.
-    void clearSelectedFrameChanges().catch(() => undefined);
+    clearSelectedFrameChanges();
   }
 
   return (

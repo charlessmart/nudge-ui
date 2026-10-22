@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { hydrateCanvasStore, type CanvasCard } from "../canvas/canvasStore.ts";
-import type { SketchDocument } from "../sketch/model.ts";
 import {
   activateDraftForCard,
-  assignSketchToDraft,
   clearSavedIterationDraft,
   draftIdForCard,
   getDraftForCard,
@@ -14,7 +12,6 @@ import {
   loadDrafts,
   persistDrafts,
   resetDrafts,
-  sketchBelongsToCard,
 } from "./store.ts";
 
 const ARTIFACT = "00000000-0000-4000-8000-000000000001";
@@ -40,11 +37,6 @@ function page(id: string, path: string): CanvasCard {
 
 function iteration(id: string, artifactId = ARTIFACT): CanvasCard {
   return { id, content: { kind: "iteration", artifactId, sourceUrl: location.href }, title: null, x: 0, y: 0, width: 100, height: 100 };
-}
-
-function sketch(id: string, path: string): SketchDocument {
-  // SAFETY: draft ownership reads only the sketch ID and capture URL.
-  return { id, capture: { url: new URL(path, location.href).href } } as SketchDocument;
 }
 
 function edit(cardId: string, rawValue: string): void {
@@ -118,14 +110,13 @@ describe("draft persistence", () => {
     expect(localStorage.getItem(key)).toBe("saved development workspace");
   });
 
-  it.each(["invalid-record", "duplicate-target", "invalid-sketch-owner"])("discards malformed draft persistence: %s", (failure) => {
+  it.each(["invalid-record", "duplicate-target"])("discards malformed draft persistence: %s", (failure) => {
     edit("home", "red");
     persistDrafts();
     const key = "nudge-ui-drafts:project:v2";
     const stored = JSON.parse(localStorage.getItem(key)!);
     if (failure === "invalid-record") stored.drafts[0].contents.changes = [{ kind: "component-prop", target: null }];
     if (failure === "duplicate-target") stored.drafts.push(stored.drafts[0]);
-    if (failure === "invalid-sketch-owner") stored.sketchOwners = { sketch: "draft-1" };
     localStorage.setItem(key, JSON.stringify(stored));
 
     loadDrafts("project");
@@ -139,24 +130,4 @@ it("keeps newer intent when a save tries to clear an older draft revision", () =
   replaceActiveDraft([change("blue")], []);
   expect(clearSavedIterationDraft("home", saved.revision)).toBe(false);
   expect(getDraftContentsForCard("home")?.changes).toMatchObject([{ rawValue: "blue" }]);
-});
-
-describe("sketch ownership", () => {
-  it("assigns a sketch without an owner to the page it was captured on", () => {
-    expect(sketchBelongsToCard(sketch("about-sketch", "/about"), "about")).toBe(true);
-    expect(sketchBelongsToCard(sketch("about-sketch", "/about"), "home")).toBe(false);
-  });
-
-  it("assigns a sketch captured on an iteration preview to that iteration", () => {
-    const document = sketch("iteration-sketch", `/__nudge_ui__/artifacts/${ARTIFACT}/preview`);
-    expect(sketchBelongsToCard(document, "iteration")).toBe(true);
-    expect(sketchBelongsToCard(document, "home")).toBe(false);
-  });
-
-  it("keeps an explicitly assigned sketch on one draft", () => {
-    const document = sketch("sketch", "/");
-    assignSketchToDraft(draftIdForCard("iteration")!, document.id);
-    expect(sketchBelongsToCard(document, "iteration")).toBe(true);
-    expect(sketchBelongsToCard(document, "home")).toBe(false);
-  });
 });

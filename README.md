@@ -3,7 +3,7 @@
 A design panel for your codebase. 
 Nudge is a development-only visual inspector that turns browser edits into
 prompts for your coding agent. Inspect a running app, preview design changes,
-add comments and sketches, and copy a structured prompt or send it through MCP.
+add comments, sketch over the page, and copy a structured prompt or send it through MCP.
 
 <img width="1706" height="1181" alt="Nudge" src="https://github.com/user-attachments/assets/aae1df09-a2cc-4a59-a52a-8063418b2891" />
 
@@ -84,7 +84,7 @@ Fully restart your agent host, start the app, and ask the agent
 to **listen to Nudge in this workspace**. Keep that turn active while sending
 changes.
 
-The agent can receive edits, comments, and sketches, report progress, and
+The agent can receive edits and comments, report progress, and
 present same-origin routes as Canvas comparison groups. Copied prompts work
 without MCP. The MCP integration is early alpha; see the
 [coding-agent guide](docs/agent-integration.md) for setup details, session scope,

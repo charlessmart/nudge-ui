@@ -4,8 +4,7 @@ import { activateIframeWorkspace, addCanvasIteration, hydrateCanvasStore } from 
 import { computeProjectionForCard, resetProjectionRevision, registerCardFrame, unregisterCardFrame, sendProjectionToCard, projectDraftToDocument, projectToAllReadyCards, recordCanvasProjectionApplied, getCanonicalFrameProjection } from "../canvas/projection.ts";
 import type { TextContentChangeRecord } from "../changes/types.ts";
 import { getTextContentChangeDiagnostics, recordCanvasTextProjectionReports, resetTextProjectionState } from "../projection/textProjection.ts";
-import { loadDrafts, activateDraftForCard, appendChanges, getDraftForCard, assignSketchToDraft, sketchBelongsToCard, resetDrafts } from "./store.ts";
-import type { SketchDocument } from "../sketch/model.ts";
+import { loadDrafts, activateDraftForCard, appendChanges, getDraftForCard, resetDrafts } from "./store.ts";
 
 const artifactId = "550e8400-e29b-41d4-a716-446655440000";
 function text(id: string): TextContentChangeRecord {
@@ -61,15 +60,10 @@ it("keeps draft revisions and cached plans stable when changing selection", () =
   expect(computeProjectionForCard(live.id)).toBe(plan);
 });
 
-it("starts a captured iteration without the source's sketches or pending edits", () => {
+it("starts a captured iteration without the source's pending edits", () => {
   const { live } = frames();
-  // SAFETY: draft ownership reads only the sketch ID and capture URL.
-  const note = { id: "captured-note", capture: { url: window.location.href } } as SketchDocument;
-  assignSketchToDraft(getDraftForCard(live.id)!.id, note.id);
   const iteration = addCanvasIteration(live.id, "660e8400-e29b-41d4-a716-446655440000")!;
   expect(getDraftForCard(iteration.id)?.contents.changes).toEqual([]);
-  expect(sketchBelongsToCard(note, live.id)).toBe(true);
-  expect(sketchBelongsToCard(note, iteration.id)).toBe(false);
   expect(getDraftForCard(live.id)?.target).toMatchObject({ kind: "application", route: window.location.origin + "/" });
   expect(getDraftForCard(iteration.id)?.target.kind).toBe("html");
 });

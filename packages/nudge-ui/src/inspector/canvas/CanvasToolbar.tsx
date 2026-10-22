@@ -113,7 +113,6 @@ export function CanvasToolbar({
           activeIcon={<SketchThickIcon size={ICON_SIZE} aria-hidden="true" />}
           onToolChange={onToolChange}
         />
-        <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
@@ -127,6 +126,7 @@ export function CanvasToolbar({
           onToolChange={onToolChange}
         />
       </div>
+      <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
     </div>
   );
 }

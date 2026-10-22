@@ -5,8 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
-import { readSketchPersistence, resetSketchMemory } from "../sketch/persistence.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { resetSketchMemory } from "../sketch/persistence.ts";
 import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import {
   createStructuralDelete,
@@ -106,7 +105,7 @@ describe("ChangesLog", () => {
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--quiet");
   });
 
-  it("shows sketches as normal change rows with a note and one undo button that removes the sketch", async () => {
+  it("does not list a kept sketch, which is a copy rather than a change", async () => {
     resetSketchStore();
     resetSketchMemory();
     const image = new Blob(["png"], { type: "image/png" });
@@ -127,17 +126,11 @@ describe("ChangesLog", () => {
         root = createRoot(container);
         root.render(<ChangesLog />);
       });
-      const row = container.querySelector('[data-test="sketch-row"]')!;
-      expect(row.querySelector(".changes__target")?.textContent).toBe("Sketch");
-      expect(row.querySelector(".changes__action")?.textContent).toBe("Align the button with the heading");
-      expect(row.querySelectorAll("button")).toHaveLength(1);
-      expect(container.textContent).not.toContain("Sketch annotations");
-      expect(container.querySelector("img")).toBeNull();
-      const remove = row.querySelector<HTMLButtonElement>('button[aria-label="Remove sketch"]')!;
-      await act(async () => { remove.click(); });
-      expect(getSketches()).toEqual([]);
+
+      expect(getSketches()).toHaveLength(1);
       expect(container.querySelector('[data-test="sketch-row"]')).toBeNull();
-      expect((await readSketchPersistence(getNudgeUiRuntimeConfig().projectId)).documents).toEqual([]);
+      expect(container.querySelector('[data-test="changes-log"]')).toBeNull();
+      expect(container.textContent).toBe("");
     } finally {
       resetSketchStore();
       resetSketchMemory();

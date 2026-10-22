@@ -3,6 +3,7 @@ import { projectLiveStrokes } from "./SketchWorkspace.tsx";
 import type { SketchLiveDraft } from "./SketchOverlay.tsx";
 import type { CapturedSketch } from "./capture.ts";
 import type { SketchStroke } from "./model.ts";
+import { createTextStroke } from "./text.ts";
 
 const stroke: SketchStroke = {
   id: "stroke-1",
@@ -57,5 +58,21 @@ describe("projectLiveStrokes", () => {
       ...stroke,
       points: [{ x: 40, y: 40 }],
     }]);
+  });
+
+  it("scales type with the capture and keeps a fully visible text layer whole", () => {
+    const layer = createTextStroke({ id: "text-1", corner: { x: 10, y: 10 }, text: "Hi", fontSize: 20, color: "#0096ff" });
+    const [projected] = projectLiveStrokes({ ...draft, strokes: [layer] }, { ...captured, imageWidth: 200, imageHeight: 200 });
+
+    expect(projected!.points).toHaveLength(layer.points.length);
+    expect(projected!.fontSize).toBe(40);
+    expect(projected!.text).toBe("Hi");
+    expect(projected!.points[0]).toEqual({ x: 20, y: 20 });
+  });
+
+  it("drops a text layer the capture would only half show instead of cropping its words", () => {
+    const layer = createTextStroke({ id: "text-1", corner: { x: 90, y: 10 }, text: "Overflowing words", fontSize: 20, color: "#0096ff" });
+
+    expect(projectLiveStrokes({ ...draft, strokes: [layer] }, captured)).toEqual([]);
   });
 });

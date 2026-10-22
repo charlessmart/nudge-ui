@@ -788,7 +788,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
       if (sketchActive) {
-        if (e.composedPath().some((node) => node instanceof Element && node.closest(".sketch__prompt-panel, .sketch__annotation-editor, .panel"))) return;
+        if (e.composedPath().some((node) => node instanceof Element && node.closest(".panel"))) return;
         e.preventDefault();
         e.stopPropagation();
         return;

@@ -476,7 +476,7 @@ describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("removes persisted sketches when clearing changes so they do not return after reload", async () => {
+  it("keeps the last copied sketch when clearing changes, since it is not a change", async () => {
     resetSketchStore();
     resetSketchMemory();
     const projectId = getNudgeUiRuntimeConfig().projectId;
@@ -493,11 +493,11 @@ describe("sessionStore clear session", () => {
     });
     expect((await readSketchPersistence(projectId)).documents).toHaveLength(1);
     try {
-      await clearSelectedFrameChanges();
-      expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+      clearSelectedFrameChanges();
+      expect((await readSketchPersistence(projectId)).documents).toHaveLength(1);
       resetSketchStore();
       await initializeSketchStore(projectId);
-      expect(getSketches()).toEqual([]);
+      expect(getSketches()).toHaveLength(1);
     } finally {
       resetSketchStore();
       resetSketchMemory();

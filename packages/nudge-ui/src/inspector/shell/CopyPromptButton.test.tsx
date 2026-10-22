@@ -17,9 +17,8 @@ import type { ElementChangeRecord } from "../changes/types.ts";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
-import { getSketches, initializeSketchStore, markSketchesDispatching, markSketchesHandingOff, resetSketchStore, saveSketch } from "../sketch/store.ts";
+import { initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
 import { resetSketchMemory } from "../sketch/persistence.ts";
-import { toAgentSketchMetadata } from "../sketch/model.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
@@ -211,7 +210,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
-  it("counts pending sketches in the clipboard prompt badge", async () => {
+  it("leaves a kept sketch out of the prompt: no count, no menu, no reason to enable the button", async () => {
     await initializeSketchStore("handoff-project");
     const image = new Blob(["png"], { type: "image/png" });
     await saveSketch({
@@ -229,10 +228,16 @@ describe("CopyPromptButton agent handoff", () => {
     act(() => root.render(<CopyPromptButton />));
     await flush();
 
-    expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Copy prompt");
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    expect(button.textContent).toContain("Copy prompt");
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
+    expect(button.disabled).toBe(false);
+    await act(async () => { button.click(); });
+    expect(button.textContent).toContain("Nothing to copy");
+    expect(button.querySelector("svg")).toBeNull();
+    expect(container.querySelector('[data-test="copy-prompt-menu"]')).toBeNull();
     act(() => replaceActiveDraft([change()]));
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("2");
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
   });
 
   it("shows the connected status without a setup action when the agent is not listening", async () => {
@@ -265,7 +270,10 @@ describe("CopyPromptButton agent handoff", () => {
 
     await act(async () => { button.click(); });
     expect(button.textContent).toContain("Send prompt");
-    expect(button.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
+    await act(async () => { button.click(); });
+    expect(button.textContent).toContain("Nothing to copy");
+    expect(transport.dispatches).toHaveLength(0);
 
     act(() => replaceActiveDraft([change()]));
     expect(button.disabled).toBe(false);
@@ -331,48 +339,6 @@ describe("CopyPromptButton agent handoff", () => {
     expect(event.defaultPrevented).toBe(false);
     expect(transport.dispatches).toHaveLength(0);
     input.remove();
-  });
-
-  it("removes a submitted sketch when the agent event stream reports completion", async () => {
-    await initializeSketchStore("handoff-project");
-    const image = new Blob(["png"], { type: "image/png" });
-    const sketch = await saveSketch({
-      description: "Align the heading",
-      capture: {
-        url: window.location.href, title: "Fixture", timestamp: 1,
-        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
-        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
-      },
-      strokes: [], imageWidth: 1, imageHeight: 1, originalImage: image, annotatedImage: image,
-    });
-    await markSketchesDispatching([sketch], 42, "sketch-batch");
-    await markSketchesHandingOff([sketch], 42, "sketch-batch", "sketch-request");
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
-    const connect = document.querySelector<HTMLElement>('[data-test="copy-style-edit-prompt"]')!;
-    await act(async () => { connect.click(); });
-    expect(transport.eventHandlers).not.toBeNull();
-
-    await act(async () => {
-      transport.eventHandlers?.onEvent({
-        type: "status",
-        status: listeningStatus({
-          connection: "paired", paired: true,
-          request: {
-            requestId: "sketch-request", projectId: "handoff-project", prompt: "Align the heading",
-            changeRevision: 42, clientDispatchId: "sketch-batch",
-            sketches: [toAgentSketchMetadata(sketch)], status: "completed",
-          },
-        }),
-      });
-    });
-
-    expect(getSketches()).toEqual([]);
-    expect(button.disabled).toBe(true);
   });
 
   it("distinguishes verified agent completion from the still-pending preview", async () => {

@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
+import { isEditableEvent } from "../shell/shortcuts.ts";
 import { SKETCH_PEN_COLORS, SKETCH_STROKE_COLOR, type SketchPenColor } from "./model.ts";
 
-export type SketchDrawingTool = "pen" | "eraser" | "rectangle";
+export type SketchDrawingTool = "pen" | "eraser" | "rectangle" | "text";
 
 export interface SketchDrawingToolsSnapshot {
   readonly tool: SketchDrawingTool;
@@ -59,4 +60,19 @@ export function resetSketchDrawingTool(): void {
 
 export function restoreDefaultSketchDrawingTools(): void {
   snapshot = DEFAULT_SNAPSHOT;
+}
+
+/** Single-key shortcuts for the tools, shown in their tooltips. The pen has none: P already opens the sketch tool. */
+export const SKETCH_TOOL_SHORTCUTS = { eraser: "E", rectangle: "R", text: "T" } as const;
+
+const SKETCH_TOOL_CODES: Readonly<Record<string, SketchDrawingTool>> = {
+  KeyE: "eraser",
+  KeyR: "rectangle",
+  KeyT: "text",
+};
+
+/** The tool a plain key press picks, unless the press is a modifier chord or is meant for a text field. */
+export function sketchToolForEvent(event: KeyboardEvent): SketchDrawingTool | null {
+  if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableEvent(event)) return null;
+  return SKETCH_TOOL_CODES[event.code] ?? null;
 }

@@ -4,6 +4,7 @@ import {
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
+import { pointInStrokeBox } from "./selectionFrame.ts";
 
 export interface SketchBounds {
   readonly width: number;
@@ -74,13 +75,10 @@ export function findSketchElementAt(
   for (let index = strokes.length - 1; index >= 0; index -= 1) {
     const stroke = strokes[index]!;
     const tolerance = Math.max(10, stroke.width / 2 + 6);
-    const bounds = pointBounds(stroke.points);
-    const insideRectangle = stroke.kind === "rectangle"
-      && point.x >= bounds.minX - tolerance
-      && point.x <= bounds.maxX + tolerance
-      && point.y >= bounds.minY - tolerance
-      && point.y <= bounds.maxY + tolerance;
-    if (insideRectangle || distanceToStroke(point, stroke) <= tolerance) {
+    // Rectangles and text are hit anywhere in their (possibly rotated) box, not only along its outline.
+    const solid = stroke.kind === "rectangle" || stroke.kind === "text";
+    if ((solid && pointInStrokeBox(stroke, point, tolerance))
+      || (stroke.kind !== "text" && distanceToStroke(point, stroke) <= tolerance)) {
       return { kind: "stroke", id: stroke.id };
     }
   }
@@ -129,7 +127,7 @@ export function translateSketchAnnotation(
   };
 }
 
-/** Rectangles are hit on their outline only, so erasing inside a box leaves it in place. */
+/** Rectangles are hit on their outline only, so erasing inside a box leaves it in place; text is hit anywhere in its box. */
 export function findErasedSketchStrokeIds(
   start: SketchPoint,
   end: SketchPoint,
@@ -145,7 +143,9 @@ export function findErasedSketchStrokeIds(
   return strokes
     .filter((stroke) => {
       const tolerance = radius + stroke.width / 2;
-      return samples.some((sample) => distanceToStroke(sample, stroke) <= tolerance);
+      return samples.some((sample) => stroke.kind === "text"
+        ? pointInStrokeBox(stroke, sample, radius)
+        : distanceToStroke(sample, stroke) <= tolerance);
     })
     .map((stroke) => stroke.id);
 }

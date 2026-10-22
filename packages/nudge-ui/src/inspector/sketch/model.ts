@@ -1,7 +1,4 @@
-import type {
-  AgentSketchCaptureMetadata,
-  AgentSketchMetadata,
-} from "../agent/protocol.ts";
+import type { AgentSketchCaptureMetadata } from "../agent/protocol.ts";
 
 export const SKETCH_SCHEMA_VERSION = 1 as const;
 export const SKETCH_DATABASE_NAME = "nudge-ui-sketches";
@@ -10,7 +7,8 @@ export const SKETCH_DOCUMENTS_STORE = "documents";
 export const SKETCH_HANDOFFS_STORE = "handoffs";
 
 export const SKETCH_LIMITS = {
-  completedSketches: 4,
+  /** Sketches are kept only so a recent copy can be copied again, so this is deliberately small. */
+  keptSketches: 3,
   imageEdge: 2_048,
   imageBytes: 2 * 1024 * 1024,
   projectBytes: 20 * 1024 * 1024,
@@ -18,6 +16,7 @@ export const SKETCH_LIMITS = {
   points: 20_000,
   annotations: 50,
   description: 2_000,
+  text: 500,
   url: 2_048,
   title: 512,
 } as const;
@@ -25,6 +24,15 @@ export const SKETCH_LIMITS = {
 export const SKETCH_STROKE_WIDTH = 6;
 export const SKETCH_RECTANGLE_STROKE_WIDTH = 4;
 export const SKETCH_RECTANGLE_FILL_OPACITY = 0.1;
+/** Text layers have no line; this only sets the gap their selection frame keeps from the glyphs. */
+export const SKETCH_TEXT_STROKE_WIDTH = 2;
+export const SKETCH_TEXT_FONT_SIZE = 24;
+export const SKETCH_TEXT_FONT_FAMILY = "system-ui, -apple-system, sans-serif";
+export const SKETCH_TEXT_FONT_WEIGHT = 500;
+/** Line height as a multiple of the font size. */
+export const SKETCH_TEXT_LINE_HEIGHT = 1.25;
+export const SKETCH_TEXT_MIN_FONT_SIZE = 8;
+export const SKETCH_TEXT_MAX_FONT_SIZE = 512;
 export const SKETCH_STROKE_COLOR = "#0096ff";
 /** Annotation markers and the notes panel; independent of the chosen pen color. */
 export const SKETCH_ACCENT_COLOR = "#0096ff";
@@ -59,7 +67,7 @@ export type SketchStrokeColor =
   | typeof LEGACY_SKETCH_STROKE_COLOR;
 type SketchStrokeOutline = typeof SKETCH_STROKE_OUTLINE | typeof LEGACY_SKETCH_STROKE_OUTLINE;
 
-export type SketchStrokeKind = "freehand" | "rectangle";
+export type SketchStrokeKind = "freehand" | "rectangle" | "text";
 
 export interface SketchStroke {
   readonly id: string;
@@ -69,6 +77,14 @@ export interface SketchStroke {
   readonly color: SketchStrokeColor;
   readonly outlineColor: SketchStrokeOutline;
   readonly points: readonly SketchPoint[];
+  /**
+   * Orientation of the selection frame in radians. `points` already include the
+   * rotation, so this only keeps the frame hugging a rotated stroke.
+   */
+  readonly rotation?: number;
+  /** Text layers only. `points` are the corners of the text box, closed like a rectangle. */
+  readonly text?: string;
+  readonly fontSize?: number;
 }
 
 export interface SketchAnnotation {
@@ -163,6 +179,9 @@ interface CandidateStroke {
   readonly color?: unknown;
   readonly outlineColor?: unknown;
   readonly points?: unknown;
+  readonly rotation?: unknown;
+  readonly text?: unknown;
+  readonly fontSize?: unknown;
 }
 
 interface CandidateDocument {
@@ -332,9 +351,9 @@ export function isSketchStroke(
   if (!isPlainObject(value)) return false;
   // SAFETY: the object check above makes reading optional candidate fields safe.
   const stroke = value as CandidateStroke;
-  return Object.keys(stroke).every((key) => ["id", "kind", "width", "color", "outlineColor", "points"].includes(key))
+  return Object.keys(stroke).every((key) => ["id", "kind", "width", "color", "outlineColor", "points", "rotation", "text", "fontSize"].includes(key))
     && boundedString(stroke.id, 256)
-    && (stroke.kind === undefined || stroke.kind === "freehand" || stroke.kind === "rectangle")
+    && (stroke.kind === undefined || stroke.kind === "freehand" || stroke.kind === "rectangle" || stroke.kind === "text")
     && isFiniteNumber(stroke.width)
     && stroke.width > 0
     && stroke.width <= 128
@@ -344,7 +363,15 @@ export function isSketchStroke(
     && Array.isArray(stroke.points)
     && stroke.points.length > 0
     && stroke.points.length <= SKETCH_LIMITS.points
-    && stroke.points.every(isSketchPoint);
+    && stroke.points.every(isSketchPoint)
+    && (stroke.rotation === undefined
+      || (isFiniteNumber(stroke.rotation) && Math.abs(stroke.rotation) <= Math.PI * 2))
+    && (stroke.kind === "text"
+      ? boundedString(stroke.text, SKETCH_LIMITS.text)
+        && isFiniteNumber(stroke.fontSize)
+        && stroke.fontSize >= SKETCH_TEXT_MIN_FONT_SIZE
+        && stroke.fontSize <= SKETCH_TEXT_MAX_FONT_SIZE
+      : stroke.text === undefined && stroke.fontSize === undefined);
 }
 
 function isSketchStrokeList(
@@ -489,35 +516,4 @@ export function sameSketchContent(
 ): boolean {
   return sketchContentFingerprint(document.description, document.strokes, document.annotations ?? [])
     === sketchContentFingerprint(description, strokes, annotations);
-}
-
-export function toAgentSketchMetadata(document: SketchDocument): AgentSketchMetadata {
-  const annotations = document.annotations?.map((annotation) => ({
-    number: annotation.number,
-    description: annotation.description,
-  }));
-
-  return {
-    id: document.id,
-    revision: document.revision,
-    filename: document.filename,
-    mimeType: "image/png",
-    width: document.imageWidth,
-    height: document.imageHeight,
-    byteSize: document.annotatedByteSize,
-    capture: {
-      url: document.capture.url,
-      title: document.capture.title,
-      timestamp: document.capture.timestamp,
-      viewportWidth: document.capture.viewportWidth,
-      viewportHeight: document.capture.viewportHeight,
-      scrollX: document.capture.scrollX,
-      scrollY: document.capture.scrollY,
-      devicePixelRatio: document.capture.devicePixelRatio,
-      host: document.capture.host,
-      framework: document.capture.framework,
-    },
-    ...(document.description ? { description: document.description } : {}),
-    ...(annotations?.length ? { annotations } : {}),
-  };
 }

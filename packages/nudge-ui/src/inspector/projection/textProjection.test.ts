@@ -500,7 +500,7 @@ it("exports captured text identification after saving without repeating the sour
   });
   const saved = serializeChange(change)!;
   expect(isSerializableChange(saved)).toBe(true);
-  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
   expect(prompt).toContain("## Heading (`<h1>`)");
   expect(prompt.match(/src\/Playground\.tsx:196:14/g)).toHaveLength(1);
   expect(prompt).toContain("Element ID: `hero-title`");
@@ -514,7 +514,7 @@ it("exports captured text identification after saving without repeating the sour
 });
 
 it("exports older text edits with a readable heading without inventing an element ID", () => {
-  const prompt = generatePrompt([makeChange({ before: "Original copy" })], undefined, [], "", [], []);
+  const prompt = generatePrompt([makeChange({ before: "Original copy" })], undefined, [], "", []);
   expect(prompt).toContain("## Text: `Original copy`");
   expect(prompt).toContain("Source: `src/Copy.tsx:8:3`");
   expect(prompt).not.toContain("Element ID:");
@@ -525,7 +525,7 @@ it("exports extension text identification without inventing source or an HTML ID
   document.body.innerHTML = '<p data-cid="nudge-ui-runtime-7" data-src="nudge-ui:unknown:7">Welcome back</p>';
   const target = captureTextProjectionTarget(document.querySelector("p")!)!;
   const saved = serializeChange(makeChange({ target, before: "Welcome back", after: "Hello again" }))!;
-  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
   expect(prompt).toContain("## Paragraph (`<p>`)");
   expect(prompt).toContain("Text: `Welcome back`");
   expect(prompt).toContain("DOM path: `p`");

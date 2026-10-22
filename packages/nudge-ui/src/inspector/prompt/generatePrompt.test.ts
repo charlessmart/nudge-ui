@@ -6,7 +6,6 @@ import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/ty
 import type { TokenEntry } from "../../css/model/index.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
-import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
@@ -240,46 +239,6 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("elementId");
   });
 
-  it("keeps sketch details out of the text prompt", () => {
-    const sketch: AgentSketchMetadata = {
-      id: "sketch-checkout",
-      revision: 3,
-      filename: "sketch-sketch-checkout-r3.png",
-      mimeType: "image/png",
-      width: 1200,
-      height: 800,
-      byteSize: 1024,
-      capture: {
-        url: "http://localhost:5173/checkout?step=2#payment",
-        title: "Checkout",
-        timestamp: Date.UTC(2026, 0, 2, 3, 4, 5),
-        viewportWidth: 1200,
-        viewportHeight: 800,
-        scrollX: 0,
-        scrollY: 240,
-        devicePixelRatio: 2,
-        host: "vite-react",
-        framework: "React",
-      },
-      description: "Give the payment card more breathing room.",
-      annotations: [{ number: 1, description: "Make the Done button more prominent." }],
-    };
-
-    const out = generatePrompt([], undefined, [], "Keep the implementation concise.", [sketch]);
-
-    expect(out).not.toContain("Sketch");
-    expect(out).not.toContain("Checkout");
-    expect(out).not.toContain("Annotation 1: `Make the Done button more prominent.`");
-    expect(out).not.toContain("Description: `Give the payment card more breathing room.`");
-    expect(out).toContain("## Custom instructions\n\nKeep the implementation concise.");
-    expect(out).not.toContain("sketch-sketch-checkout-r3.png");
-    expect(out).not.toContain("Sketch ID");
-    expect(out).not.toContain("Captured route");
-    expect(out).not.toContain("Viewport");
-    expect(out).not.toContain("Runtime");
-    expect(out).not.toContain("No changes to export");
-  });
-
   it("describes a cross-container move with source and destination sites", () => {
     const structural: StructuralChange[] = [{
       id: "move-cross",
@@ -370,7 +329,6 @@ describe("generatePrompt", () => {
 
     expect(out.split("\n").filter((line) => line.startsWith("- Move text `Column two`"))).toHaveLength(1);
     expect(countPromptChanges([], structural)).toBe(1);
-    expect(countPromptChanges([], structural, 2)).toBe(3);
     expect(structural).toHaveLength(3);
     expect(out).toContain("before text `Column one` (src/App.tsx:151:14)");
     expect(out).not.toContain("src/App.tsx:156:14");
@@ -694,7 +652,7 @@ describe("generatePrompt", () => {
       after: "Publish",
       authoredAs: "unknown",
     };
-    const out = generatePrompt([change], undefined, [{ id: "remove-runtime", kind: "delete", target }], "", [], [{
+    const out = generatePrompt([change], undefined, [{ id: "remove-runtime", kind: "delete", target }], "", [{
       id: "comment-runtime", route: "https://example.com/", target, tag: "button", note: "Make this easier to find",
       baseline: "", viewport: "", handedOff: false,
     }]);
@@ -810,7 +768,7 @@ describe("generatePrompt", () => {
       source: { file: "", line: 0, column: 0, component: sourceSite.cid }, selector: headingStyle.selector,
       before: "Original title", after: "New title", authoredAs: "unknown",
     };
-    const out = generatePrompt([headingStyle, paragraphStyle, copy], undefined, [], "", [], [{
+    const out = generatePrompt([headingStyle, paragraphStyle, copy], undefined, [], "", [{
       id: "heading-note", route: "https://example.com/", tag: "h1", note: "Keep this on one line",
       target: { sourceSite, locator: { kind: "evidence", occurrence: 0, props: null, text: "New title" } },
       baseline: "", viewport: "", handedOff: false,
@@ -845,7 +803,7 @@ describe("generatePrompt", () => {
       source: { file: "src/Buttons.tsx", line: 12, column: 5, component: "Button" }, selector: firstStyle.selector,
       before: "First", after: "Publish", authoredAs: "expression", scope: "rendered-instance",
     };
-    const out = generatePrompt([firstStyle, secondStyle, sharedStyle, copy], undefined, [], "", [], [{
+    const out = generatePrompt([firstStyle, secondStyle, sharedStyle, copy], undefined, [], "", [{
       id: "first-note", route: "https://example.com/", tag: "button", note: "Primary action",
       target: { ...first, locator: { ...first.locator, text: "Publish" } }, baseline: "", viewport: "", handedOff: false,
     }]);

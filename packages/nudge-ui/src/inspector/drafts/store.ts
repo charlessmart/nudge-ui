@@ -9,8 +9,6 @@ import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
 import type { StyleRule } from "../projection/managedStylesheet.ts";
-import { getSketchStoreSnapshot, subscribeSketchStore } from "../sketch/store.ts";
-import type { SketchDocument } from "../sketch/model.ts";
 import { sessionTimeline } from "../workspace/timeline.ts";
 import { createDraftStore, type CommitResult, type DraftChangesSnapshot } from "./draftStore.ts";
 import { targetFromKey, targetKey, type Draft, type DraftContents, type DraftSnapshot } from "./model.ts";
@@ -25,7 +23,6 @@ const drafts = createDraftStore({
     write: (key, value) => inspectorStorage()?.setItem(key, value),
     remove: (key) => inspectorStorage()?.removeItem(key),
   },
-  sketches: { getSnapshot: () => getSketchStoreSnapshot(), subscribe: (listener) => subscribeSketchStore(listener) },
   revealDraft: (draftId, cardId) => revealDraft(draftId, cardId),
   project: (snapshot, event) => preview.project(snapshot, event),
 });
@@ -237,18 +234,4 @@ export function clearSavedIterationDraft(cardId: string, expectedRevision?: numb
 export function getEditableCardId(...preferredCardIds: readonly (string | null | undefined)[]): string | null {
   const cards = getCanvasCards();
   return preferredCardIds.find((id): id is string => !!id && cards.some((card) => card.id === id)) ?? cards[0]?.id ?? null;
-}
-
-export function sketchOwner(document: SketchDocument): string | null {
-  return drafts.sketchOwner(document);
-}
-
-export function assignSketchToDraft(draftId: string, sketchId: string): void {
-  drafts.assignSketch(draftId, sketchId);
-}
-
-export function sketchBelongsToCard(document: SketchDocument, cardId: string | null): boolean {
-  if (!drafts.getSnapshot().projectId || !cardId) return true;
-  const draftId = draftIdForCard(cardId);
-  return !!draftId && drafts.sketchOwner(document) === draftId;
 }

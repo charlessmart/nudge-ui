@@ -97,17 +97,6 @@
   color: var(--text-secondary);
 }
 
-.changes__row--sketch .changes__target {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.changes__row--sketch .changes__action {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .changes__metadata {
   position: absolute;
   width: 1px;

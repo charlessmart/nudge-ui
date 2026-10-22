@@ -3,20 +3,18 @@ import { htmlIterationImplementationPrompt, htmlIterationPrompt } from "./prompt
 
 describe("HTML iteration handoff", () => {
   it("targets the artifact even when change evidence names original application source", () => {
-    const prompt = htmlIterationPrompt("iteration-id", "Change color in src/Card.tsx", false, true);
+    const prompt = htmlIterationPrompt("iteration-id", "Change color in src/Card.tsx", false);
     expect(prompt.startsWith("# Requested design changes\n")).toBe(true);
     expect(prompt).toContain("Edit only `.nudge/artifacts/iteration-id/document.html`");
     expect(prompt).toContain("Keep application source files unchanged");
-    expect(prompt).toContain("Implement the attached sketch notes");
     expect(prompt).toContain("Change color");
   });
 
-  it("exports a sketch-only iteration without an empty changes warning and keeps custom instructions", () => {
-    const prompt = htmlIterationPrompt("iteration-id", "<!-- No changes to export -->", true, true, "Use accessible contrast.");
+  it("exports an iteration with no inspector changes without an empty changes warning and keeps custom instructions", () => {
+    const prompt = htmlIterationPrompt("iteration-id", "<!-- No changes to export -->", true, "Use accessible contrast.");
     expect(prompt.startsWith("# Requested design changes\n")).toBe(true);
     expect(prompt).not.toContain("No changes to export");
     expect(prompt).toContain("Use accessible contrast.");
-    expect(prompt).toContain("Implement the attached sketch notes");
   });
 });
 

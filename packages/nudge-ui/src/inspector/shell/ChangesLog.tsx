@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconArrowBackUp, IconRestore } from "@tabler/icons-react";
 import {
@@ -35,9 +35,6 @@ import {
   getTextProjectionDiagnosticRevision,
   subscribeTextProjectionDiagnostics,
 } from "../projection/textProjection.ts";
-import { removeSketch, useSketchStore } from "../sketch/store.ts";
-import type { SketchQueueItem } from "../sketch/model.ts";
-import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { useFrameComments } from "../comments/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
 
@@ -151,46 +148,9 @@ function RevertButton({
   );
 }
 
-function SketchChangeRow({ item }: { readonly item: SketchQueueItem }): ReactElement {
-  const [error, setError] = useState<string | null>(null);
-  const note = item.document.description.trim()
-    || item.document.annotations?.map((annotation) => annotation.description).join("; ");
-  const busy = item.status === "dispatching" || item.status === "handing-off";
-
-  async function remove(): Promise<void> {
-    setError(null);
-    try {
-      if (!await removeSketch(item.document.id)) setError("The sketch could not be removed yet.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The sketch could not be removed.");
-    }
-  }
-
-  return (
-    <div className="changes__group">
-      <div className="changes__row changes__row--sketch" data-test="sketch-row" data-sketch-id={item.document.id}>
-        <div className="changes__summary">
-          <span className="changes__target">Sketch</span>
-          {note ? <span className="changes__action" title={note}>{note}</span> : null}
-        </div>
-        <RevertButton
-          dataTest="sketch-revert"
-          label="Remove sketch"
-          tooltip="Remove sketch"
-          disabled={busy}
-          onClick={() => void remove()}
-        />
-      </div>
-      {error ? <StatusCallout tone="warning" role="status">{error}</StatusCallout> : null}
-    </div>
-  );
-}
-
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
   const changes = useChanges();
   const comments = useFrameComments();
-  const sketchStore = useSketchStore();
-  const sketches = sketchStore.items;
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -213,9 +173,9 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
     getTextProjectionDiagnosticRevision,
   );
   const groups = useMemo(() => groupChanges(changes), [changes]);
-  const total = countPromptChanges(changes, structuralChanges, sketches.length);
+  const total = countPromptChanges(changes, structuralChanges);
 
-  const hasLoggedChanges = total > 0 || sketchStore.error !== null;
+  const hasLoggedChanges = total > 0;
   if (!hasLoggedChanges && comments.length === 0) return null;
 
   return (
@@ -228,7 +188,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
         badge={total > 0 ? <span className="changes__count">{total}</span> : null}
         panelClassName="changes__content"
       >
-          {groups.length === 0 && structuralChanges.length === 0 && sketches.length === 0 && sketchStore.error === null ? (
+          {groups.length === 0 && structuralChanges.length === 0 ? (
             <div className="changes__empty" data-test="changes-empty">
               No changes yet
             </div>
@@ -356,8 +316,6 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                   </div>
                 </div>
               ))}
-              {sketches.map((item) => <SketchChangeRow item={item} key={`${item.document.id}:${item.document.revision}`} />)}
-              {sketchStore.error ? <StatusCallout tone="warning" data-test="sketch-storage-error">{sketchStore.error}</StatusCallout> : null}
             </>
           )}
       </Disclosure> : null}

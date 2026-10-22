@@ -26,8 +26,6 @@ import { portalContainer } from "../ui/portalContainer.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../sketch/interaction.ts";
-import { closeSketchNote } from "../sketch/sketchNote.ts";
-import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
 import { clearSketchesForProject } from "../sketch/store.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
@@ -102,8 +100,6 @@ export function SettingsDialog({
   function resetCanvas(): void {
     if (!hasWriteLease()) return;
     cancelSketchInteraction();
-    closeSketchNote();
-    clearSketchClipboardHandoff();
     clearSession();
     clearRestoreCount();
     void clearSketchesForProject(projectId).catch(() => undefined);

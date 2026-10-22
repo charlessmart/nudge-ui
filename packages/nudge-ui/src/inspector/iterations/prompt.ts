@@ -1,6 +1,6 @@
 import { withPromptContext } from "../prompt/promptDocument.ts";
 
-export function htmlIterationPrompt(id: string, changes: string, noInspectorChanges: boolean, hasSketches: boolean, customInstructions = ""): string {
+export function htmlIterationPrompt(id: string, changes: string, noInspectorChanges: boolean, customInstructions = ""): string {
   const directory = `.nudge/artifacts/${id}`;
   return withPromptContext([
     "## Edit this HTML iteration",
@@ -8,7 +8,6 @@ export function htmlIterationPrompt(id: string, changes: string, noInspectorChan
     `Edit only \`${directory}/document.html\`. This is the standalone HTML and CSS shown in the selected Nudge iteration frame.`,
     "Preserve its responsive CSS and existing design edits. Keep application source files unchanged. Any original source locations below identify captured elements; they are not files to edit.",
     `Keep \`${directory}/baseline.html\`, \`${directory}/preview.html\`, and metadata unchanged. Nudge will reload the iteration from your updated document.`,
-    ...(hasSketches ? ["Implement the attached sketch notes in this iteration's HTML and CSS. Match numbered notes to their marks in the image."] : []),
     "",
   ], noInspectorChanges
     ? ["Use the current iteration as the editing base. Existing visual edits are already saved in its markup and styles.", ...(customInstructions.trim() ? ["", "## Custom instructions", "", customInstructions.trim()] : [])].join("\n")

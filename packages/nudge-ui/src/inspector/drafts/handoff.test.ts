@@ -69,7 +69,7 @@ it("copies only the originating page's comments after selecting another frame", 
   };
   saveComment(note);
   saveComment({ ...note, id: "other-comment", route: new URL("/other", window.location.href).href, note: "Keep this for later" });
-  const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "", pendingSketches: [] });
+  const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "" });
   expect(handoff.prompt.startsWith("# Requested design changes\n\nPage:")).toBe(true);
   expect(handoff.prompt.match(/^# Requested design changes$/gm)).toHaveLength(1);
   const iteration = addCanvasIteration(original.id, "33333333-3333-3333-3333-333333333333")!;
