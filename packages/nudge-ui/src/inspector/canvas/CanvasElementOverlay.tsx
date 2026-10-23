@@ -31,6 +31,7 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
+import { useAnimationBusy, useDebugExploded } from "./debugViewStore.ts";
 import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
@@ -349,6 +350,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   const hierarchy = useHierarchy();
   const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
   const inlineTextSession = useInlineTextSession();
+  const animationBusy = useAnimationBusy();
+  const debugExploded = useDebugExploded();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
   const presentationTransitioning = useCanvasPresentationTransitioning();
@@ -882,12 +885,13 @@ export function CanvasElementOverlay(): ReactElement | null {
           {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
-      {domNavigationEnabled && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
+      {domNavigationEnabled && !animationBusy && !debugExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
         <DomNavigator
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
           size={selectedLocalRect ?? undefined}
+          bounds={selectedFrameViewport}
           linked={selectionIsLinked}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))

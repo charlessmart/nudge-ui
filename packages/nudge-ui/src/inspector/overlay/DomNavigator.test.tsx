@@ -62,6 +62,45 @@ describe("DomNavigator", () => {
     expect(getSelectedElement()?.domElement).toBe(parent);
   });
 
+  it("keeps the chip inside the frame and hides it once the element scrolls out of it", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    parent.append(selected);
+    document.body.append(parent);
+    const bounds = { left: 100, top: 100, width: 400, height: 300 };
+    const render = (anchor: { left: number; top: number; width: number; height: number }): void => {
+      act(() => {
+        root!.render(createElement(DomNavigator, {
+          selected: resolveSelectionFromElement(selected)!,
+          hierarchy: computeHierarchy(selected),
+          anchor,
+          bounds,
+          project: () => null,
+        }));
+      });
+    };
+    const chip = (): HTMLElement | null => host.querySelector<HTMLElement>('[data-test="dom-navigator"]');
+    root = createRoot(host);
+
+    // Below the element, inside the frame rather than the window. jsdom measures the chip as 0 x 0,
+    // so centring leaves the left edge where the element's middle is.
+    render({ left: 120, top: 150, width: 50, height: 30 });
+    expect([chip()?.style.left, chip()?.style.top]).toEqual(["145px", "188px"]);
+
+    // Scrolled above the frame: nothing is pinned to the top of the screen.
+    render({ left: 120, top: 20, width: 50, height: 30 });
+    expect(chip()).toBeNull();
+    // Scrolled below it.
+    render({ left: 120, top: 450, width: 50, height: 30 });
+    expect(chip()).toBeNull();
+
+    // An element against the frame's bottom edge keeps its chip inside the frame.
+    render({ left: 120, top: 380, width: 50, height: 30 });
+    expect(chip()?.style.top).toBe("396px");
+  });
+
   it("keeps the selected element between visible parents and its direct children", () => {
     const grandparent = document.createElement("main");
     grandparent.dataset.cid = "Grandparent";

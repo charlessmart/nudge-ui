@@ -151,6 +151,39 @@ function InteractionStateExamples() {
   );
 }
 
+const motionDeckCards = ["Spacing", "Color", "Type", "Borders"];
+
+function MotionExamples() {
+  return (
+    <section className="interaction-fixtures motion-fixtures" aria-labelledby="motion-fixtures-title">
+      <div className="interaction-fixtures__header">
+        <div>
+          <p className="eyebrow">Motion worth slowing down</p>
+          <h2 id="motion-fixtures-title">Cards that fan out from behind one.</h2>
+        </div>
+        <p className="interaction-fixtures__intro">
+          Hover the deck, then pick the Animation tool to step through the transition.
+        </p>
+      </div>
+      <div className="interaction-fixtures__stage motion-fixtures__stage">
+        <div className="motion-deck" tabIndex={0} {...(import.meta.env.DEV ? { "data-test": "motion-deck" } : {})}>
+          {motionDeckCards.map((label, index) => (
+            <div className="motion-deck__card" style={{ "--index": index } as React.CSSProperties} key={label}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              {label}
+            </div>
+          ))}
+          <div className="motion-deck__front">
+            <strong>Hover me</strong>
+            <span>:hover · :focus-visible</span>
+          </div>
+        </div>
+        <code>transition: transform 600ms</code>
+      </div>
+    </section>
+  );
+}
+
 /** Keeps the internal name `App`: the injected dev identity on its root must still read data-cid="App" (asserted by m1-foundation.dev.spec.ts). */
 function App() {
   const [clicks, setClicks] = useState(0);
@@ -237,6 +270,7 @@ function App() {
         </section>
 
         <InteractionStateExamples />
+        <MotionExamples />
 
         <section className="feature-section" id="features" aria-labelledby="features-title">
           <div className="section-heading">

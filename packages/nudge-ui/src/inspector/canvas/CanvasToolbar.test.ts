@@ -21,6 +21,7 @@ describe("canvas toolbar keyboard shortcuts", () => {
     ["KeyV", "design"],
     ["KeyC", "comment"],
     ["KeyP", "sketch"],
+    ["KeyD", "debug"],
   ])("maps %s to the corresponding tool", (code, tool) => {
     expect(canvasToolForCode(code)).toBe(tool);
   });

@@ -48,12 +48,22 @@ function previewSelector(selector: string): string {
   return transformed + scope;
 }
 
-/** Previews interaction states without dispatching events or changing application state. */
-export function startInteractionStatePreview(element: HTMLElement, state: InteractionState): () => void {
+/**
+ * Previews interaction states without dispatching events or changing application state.
+ * `withAncestors` mirrors a real pointer, where hovering an element also hovers everything that contains it.
+ */
+export function startInteractionStatePreview(
+  element: HTMLElement,
+  state: InteractionState,
+  { withAncestors = false }: { readonly withAncestors?: boolean } = {},
+): () => void {
   if (state === "base") return () => undefined;
   const doc = element.ownerDocument;
-  const previousMarker = element.getAttribute(MARKER);
-  element.setAttribute(MARKER, state);
+  const marked: Array<{ readonly target: HTMLElement; readonly previous: string | null }> = [];
+  for (let target: HTMLElement | null = element; target; target = withAncestors ? target.parentElement : null) {
+    marked.push({ target, previous: target.getAttribute(MARKER) });
+    target.setAttribute(MARKER, state);
+  }
   const style = allowsStyleElements(doc) ? doc.createElement("style") : null;
   if (style) {
     style.id = STATE_PREVIEW_SHEET_ID;
@@ -86,8 +96,10 @@ export function startInteractionStatePreview(element: HTMLElement, state: Intera
     unsubscribe();
     style?.remove();
     releaseAdoptedStylesheet(doc, STATE_PREVIEW_SHEET_ID);
-    if (previousMarker === null) element.removeAttribute(MARKER);
-    else element.setAttribute(MARKER, previousMarker);
+    for (const { target, previous } of marked) {
+      if (previous === null) target.removeAttribute(MARKER);
+      else target.setAttribute(MARKER, previous);
+    }
     invalidateStyleResolutionCache(doc);
   };
 }

@@ -17,25 +17,42 @@ export interface DomNavigatorProps {
   anchor: Rect;
   /** The selected element's size in its own frame's CSS pixels, so it reads the same at any board zoom. */
   size?: Pick<Rect, "width" | "height">;
+  /** The visible frame; the chip keeps inside it, and is hidden once the element has scrolled fully out. */
+  bounds?: Rect;
   project: (element: HTMLElement) => Rect | null;
   /** The selection is a component or shares its source with other elements. */
   linked?: boolean;
 }
 
-/** Space between the selection's bottom edge and the chip, and the closest the chip gets to the viewport edge. */
+/** Space between the selection's bottom edge and the chip, and the closest the chip gets to the edge it sits in. */
 const CHIP_GAP = 8;
-const VIEWPORT_MARGIN = 4;
+const EDGE_MARGIN = 4;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
-/** Centers the chip below the selection, as Figma places its size label, and keeps it inside the viewport. */
-function chipPosition(anchor: Rect, chip: { width: number; height: number }): { left: number; top: number } {
+/**
+ * Centers the chip below the selection, as Figma places its size label, and keeps it inside the visible
+ * frame so it never drifts over the rest of the board; without a frame it keeps to the window.
+ */
+function chipPosition(
+  anchor: Rect,
+  chip: { width: number; height: number },
+  bounds?: Rect,
+): { left: number; top: number } {
+  const left = bounds?.left ?? 0;
+  const top = bounds?.top ?? 0;
+  const width = bounds?.width ?? window.innerWidth;
+  const height = bounds?.height ?? window.innerHeight;
   return {
-    left: Math.round(clamp(anchor.left + anchor.width / 2 - chip.width / 2, VIEWPORT_MARGIN, window.innerWidth - chip.width - VIEWPORT_MARGIN)),
-    top: Math.round(clamp(anchor.top + anchor.height + CHIP_GAP, VIEWPORT_MARGIN, window.innerHeight - chip.height - VIEWPORT_MARGIN)),
+    left: Math.round(clamp(anchor.left + anchor.width / 2 - chip.width / 2, left + EDGE_MARGIN, left + width - chip.width - EDGE_MARGIN)),
+    top: Math.round(clamp(anchor.top + anchor.height + CHIP_GAP, top + EDGE_MARGIN, top + height - chip.height - EDGE_MARGIN)),
   };
+}
+
+function rectsIntersect(a: Rect, b: Rect): boolean {
+  return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
 }
 
 function selectNode(node: HTMLElement): void {
@@ -43,7 +60,7 @@ function selectNode(node: HTMLElement): void {
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, size, project, linked = false }: DomNavigatorProps): ReactElement | null {
+export function DomNavigator({ selected, hierarchy, anchor, size, bounds, project, linked = false }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
   // The page is reachable only from here, above the tracked ancestors.
@@ -65,6 +82,7 @@ export function DomNavigator({ selected, hierarchy, anchor, size, project, linke
   const [hovered, setHovered] = useState<HTMLElement | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<HTMLElement>>(new Set());
   if (!page && parents.length === 0 && children.elements.length === 0) return null;
+  if (bounds && !rectsIntersect(anchor, bounds)) return null;
 
   const preview = hovered ? project(hovered) : null;
   const setOpen = (next: boolean): void => {
@@ -155,7 +173,7 @@ export function DomNavigator({ selected, hierarchy, anchor, size, project, linke
         data-test="dom-navigator"
         data-linked={linked ? "true" : undefined}
         aria-label="DOM navigator"
-        style={chipPosition(anchor, chipSize)}
+        style={chipPosition(anchor, chipSize, bounds)}
       >
         <BasePopover.Root open={expanded} onOpenChange={setOpen}>
           <BasePopover.Trigger

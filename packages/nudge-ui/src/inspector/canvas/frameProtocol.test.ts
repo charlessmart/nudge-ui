@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
+  isDebugViewPhaseMessage,
   isElementClickMessage,
   isInlineTextIntentMessage,
   isKeyboardShortcutMessage,
@@ -70,6 +71,29 @@ describe("keyboard shortcut schema", () => {
     { cardId: "card-b" },
   ])("rejects malformed or wrong-card shortcuts: %o", (override) => {
     expect(isKeyboardShortcutMessage({ ...message, ...override }, identity)).toBe(false);
+  });
+});
+
+describe("debug view phase schema", () => {
+  const message = {
+    type: "debug-view-phase",
+    protocolVersion: PROTOCOL_VERSION,
+    exploded: true,
+    ...identity,
+  };
+
+  it("accepts a boolean phase for the matching card", () => {
+    expect(isDebugViewPhaseMessage(message, identity)).toBe(true);
+    expect(isDebugViewPhaseMessage({ ...message, exploded: false }, identity)).toBe(true);
+  });
+
+  it.each([
+    { exploded: "true" },
+    { exploded: undefined },
+    { localId: "forbidden" },
+    { cardId: "card-b" },
+  ])("rejects malformed or wrong-card phases: %o", (override) => {
+    expect(isDebugViewPhaseMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });
 

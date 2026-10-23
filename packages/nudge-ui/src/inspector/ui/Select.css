@@ -141,7 +141,7 @@
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--control-height-large);
   padding: var(--space-8) 9px;
   border-radius: var(--radius-4);
   color: var(--text-primary);

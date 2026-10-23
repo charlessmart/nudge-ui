@@ -7,6 +7,8 @@ import {
   setRendererIdentity,
   type ParentReadyMessage,
   type BoardGestureStateMessage,
+  type DebugViewPhaseMessage,
+  type DebugViewStateMessage,
 } from "./frameProtocol.ts";
 import type {
   FrameMetadataMessage,
@@ -25,13 +27,16 @@ import type {
 import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
-import { installRendererElementSelector } from "./rendererElementSelector.ts";
+import { installRendererElementSelector, selectRendererElement, setRendererSpacingHandlesEnabled } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
+import { createRendererAnimationMarkers } from "./rendererAnimationMarkers.ts";
+import { createRendererDebugView } from "./rendererDebugView.ts";
+import { isDebugViewState } from "./debugView.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -350,11 +355,39 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     sendToParent(message);
   }
 
+  function reportExploded(exploded: boolean): void {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const message: DebugViewPhaseMessage = {
+      type: "debug-view-phase",
+      protocolVersion: PROTOCOL_VERSION,
+      exploded,
+      ...identity,
+    };
+    sendToParent(message);
+  }
+
+  const debugView = createRendererDebugView(document, selectRendererElement, reportExploded);
+  owner.listenerRemovers.push(() => debugView.dispose());
+  const animationMarkers = createRendererAnimationMarkers(document, selectRendererElement);
+  owner.listenerRemovers.push(() => animationMarkers.dispose());
+  owner.listenerRemovers.push(() => setRendererSpacingHandlesEnabled(true));
+
   const onMessage = (event: MessageEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const identity = getRendererIdentity();
     if (!identity || !isRendererMessageFor(event.data, identity)) return;
+    if ((event.data as DebugViewStateMessage).type === "debug-view-state") {
+      const state = (event.data as DebugViewStateMessage).state;
+      if (isDebugViewState(state)) {
+        debugView.apply(state);
+        animationMarkers.apply(state.animations);
+        // The Animation tool inspects the app, so spacing handles stay out of the way of selecting.
+        setRendererSpacingHandlesEnabled(!state.animations);
+      }
+      return;
+    }
     if ((event.data as PanModifierMessage).type === "pan-modifier") {
       spaceHeld = (event.data as PanModifierMessage).spaceHeld;
     }

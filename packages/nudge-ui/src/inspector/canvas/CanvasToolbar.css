@@ -36,6 +36,70 @@
   gap: var(--space-4);
 }
 
+/* The view tool and the button that swaps its view, side by side without overlapping. */
+.canvas-toolbar__split {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A large icon button, narrowed so it reads as part of the tool beside it. */
+.icon-button.canvas-toolbar__chevron {
+  width: 16px;
+  color: var(--text-muted);
+}
+
+.icon-button.canvas-toolbar__chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The portal layer ignores pointer events, so the menu has to take them back or clicks reach the page behind it. */
+.view-tool-menu__positioner {
+  z-index: var(--z-index);
+  pointer-events: auto;
+}
+
+.view-tool-menu {
+  display: grid;
+  min-width: 168px;
+  padding: var(--space-4);
+  gap: var(--space-4);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+}
+
+.view-tool-menu__item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-base);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.view-tool-menu__label {
+  flex: 1;
+}
+
+/* Hover and focus only: the check beside the current view marks it, without a second tint. */
+.view-tool-menu__item:hover,
+.view-tool-menu__item:focus-visible {
+  background: var(--surface-well);
+}
+
 .canvas-toolbar__divider {
   flex-shrink: 0;
   width: 1px;
@@ -47,4 +111,141 @@
 .canvas-toolbar__tool[data-active="true"] {
   background: var(--accent-surface);
   color: var(--accent);
+}
+
+.animation-bar {
+  position: absolute;
+  left: 50%;
+  /* Sits one gap above the canvas toolbar (padding, 40px buttons, padding). */
+  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
+  z-index: calc(var(--z-index) - 2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 344px;
+  max-width: calc(100% - var(--space-32));
+  padding: var(--space-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.animation-bar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Floats above the bar, which is already one gap above the canvas toolbar. */
+.animation-bar__hint {
+  position: absolute;
+  bottom: calc(100% + var(--space-8));
+  left: 50%;
+  padding: var(--space-4) var(--space-12);
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Half the bar, pushed to the right of the play button. */
+.segmented-control.animation-bar__speed {
+  flex: none;
+  width: 50%;
+}
+
+.segmented-control.animation-bar__speed .button.segmented-control__button {
+  padding-inline: 0;
+}
+
+.animation-timeline {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--control-height-large);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.animation-timeline:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.animation-timeline[data-disabled] {
+  opacity: 0.4;
+}
+
+/* Runs edge to edge; the playhead and ticks each leave room for their own width instead. */
+.animation-timeline__scale {
+  position: absolute;
+  inset: 0;
+}
+
+.animation-timeline__tick {
+  --tick-base: 4px;
+  /* Never rises into the labels along the top of the track (32px track, 10px label). */
+  --tick-max-height: 16px;
+  /* Set inline for the marks near the playhead: 1 at the playhead, falling off exponentially. */
+  --tick-proximity: 0;
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--tick-position) * (100% - 1px));
+  width: 1px;
+  height: calc(var(--tick-base) + (var(--tick-max-height) - var(--tick-base)) * var(--tick-proximity));
+  background: var(--text-primary);
+  /* Rising has no transition, so a mark grows the instant the playhead nears it. */
+  opacity: calc(0.2 + 0.8 * var(--tick-proximity));
+}
+
+.animation-timeline__tick--major {
+  --tick-base: 8px;
+}
+
+/* Marks the playhead is leaving ease back down, trailing it briefly. */
+.animation-timeline__tick[data-falling] {
+  transition: height 160ms ease-out, opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-timeline__tick[data-falling] {
+    transition: none;
+  }
+}
+
+.animation-timeline__label {
+  position: absolute;
+  top: 0;
+  /* Centred over its mark, whose middle is half its 1px width in from its left edge. */
+  left: calc(var(--tick-position) * (100% - 1px) + 0.5px);
+  transform: translateX(-50%);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.animation-timeline__label[data-start] {
+  left: 3px;
+  transform: none;
+}
+
+/* The playhead travels to a press frame by frame in script, so it needs no transition of its own. */
+.animation-timeline__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--timeline-progress) * (100% - 2px));
+  width: 2px;
+  /* Half its width, rounding both ends into a pill. */
+  border-radius: 1px;
+  background: var(--accent);
 }
