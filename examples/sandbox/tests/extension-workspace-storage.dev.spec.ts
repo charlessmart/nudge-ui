@@ -24,7 +24,7 @@ async function openInspector(page: Page): Promise<void> {
   }));
   await page.goto("/extension-workspace-storage");
   await page.evaluate(() => {
-    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {} } });
   });
   await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });

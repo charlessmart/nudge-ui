@@ -107,7 +107,7 @@
 }
 
 .box-shadow-editor__dimensions > .control-surface {
-  --control-surface-padding: 2px 4px;
+  --control-surface-padding-inline: 4px;
 }
 
 .box-shadow-editor__dimensions .token-field {

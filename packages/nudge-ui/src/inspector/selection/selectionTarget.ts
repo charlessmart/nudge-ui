@@ -28,14 +28,23 @@ export function selectionTargetMode(event: ClickModifiers): SelectionTargetMode 
   return isDeepSelectionClick(event) ? "deep" : "primary";
 }
 
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+
+function isElementNode(target: EventTarget | null): target is Element {
+  // SAFETY: only `nodeType` is read, and optional chaining covers targets that are not nodes.
+  return (target as Node | null)?.nodeType === 1;
+}
+
+/** Node-type checks rather than `instanceof`, so elements of a Canvas frame's document qualify too. */
 export function trackedElementStack(target: EventTarget | null): HTMLElement[] {
-  if (!(target instanceof Element)) return [];
+  if (!isElementNode(target)) return [];
 
   const stack: HTMLElement[] = [];
   let element: Element | null = target;
   while (element) {
-    if (element instanceof HTMLElement && element.hasAttribute("data-cid")) {
-      stack.push(element);
+    if (element.namespaceURI === HTML_NAMESPACE && element.hasAttribute("data-cid")) {
+      // SAFETY: an element in the XHTML namespace is an HTMLElement of its own document's realm.
+      stack.push(element as HTMLElement);
     }
     element = element.parentElement;
   }

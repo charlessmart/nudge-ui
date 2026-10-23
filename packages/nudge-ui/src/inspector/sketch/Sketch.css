@@ -23,22 +23,22 @@
 
 .sketch__editor-backdrop {
   background: transparent;
-  inset: 0 var(--panel-width) 0 0;
+  inset: 0 var(--panel-reserve-end) 0 var(--panel-reserve-start);
 }
 
 .sketch__live-backdrop {
   background: transparent;
-  inset: 0 var(--panel-width) 0 0;
+  inset: 0 var(--panel-reserve-end) 0 var(--panel-reserve-start);
   pointer-events: none;
 }
 
 .sketch__live-backdrop[data-inspector-open="false"] {
-  right: 0;
+  inset: 0;
 }
 
 .sketch__popup {
   position: fixed;
-  inset: 0 var(--panel-width) 0 0;
+  inset: 0 var(--panel-reserve-end) 0 var(--panel-reserve-start);
   z-index: 21;
   width: auto;
   height: 100dvh;
@@ -96,7 +96,7 @@
   position: relative;
   display: block;
   box-sizing: border-box;
-  width: min(400px, calc(100vw - var(--panel-width) - 32px));
+  width: min(400px, calc(100vw - var(--panel-reserve-start) - var(--panel-reserve-end) - 32px));
   padding: var(--space-8);
   border: 0;
   border-radius: var(--radius-12);
@@ -109,9 +109,9 @@
 .sketch__live-note-panel {
   /* Outside the active frame's scaled and clipped coordinate system. */
   position: fixed;
-  left: calc((100vw - var(--panel-width)) / 2);
+  left: calc(var(--panel-reserve-start) + (100vw - var(--panel-reserve-start) - var(--panel-reserve-end)) / 2);
   bottom: calc(var(--control-height-xlarge) + var(--space-20) + var(--space-8) + var(--space-8));
-  width: min(400px, calc(100vw - var(--panel-width) - var(--space-32)));
+  width: min(400px, calc(100vw - var(--panel-reserve-start) - var(--panel-reserve-end) - var(--space-32)));
   z-index: calc(var(--z-index) - 1);
   transform: translateX(-50%);
 }
@@ -123,7 +123,7 @@
 
 .sketch__saved-note-panel {
   position: fixed;
-  right: calc(var(--panel-width) + 24px);
+  right: calc(var(--panel-reserve-end) + 24px);
   bottom: 24px;
   z-index: calc(var(--z-index) - 1);
 }

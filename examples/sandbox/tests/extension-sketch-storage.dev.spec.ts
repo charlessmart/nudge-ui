@@ -19,7 +19,7 @@ test.beforeAll(async () => {
 
 async function injectExtension(page: Page): Promise<void> {
   await page.evaluate(() => {
-    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {} } });
   });
   await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });

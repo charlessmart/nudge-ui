@@ -32,7 +32,7 @@
 .button.segmented-control__button--selected:hover:not(:disabled) {
   background: var(--surface-raised-2x);
   color: var(--text-primary);
-  box-shadow: var(--shadow-control-outline);
+  box-shadow: 0 0 0 0.5px var(--border-subtle);
 }
 
 .button.segmented-control__button:not(.segmented-control__button--selected):hover:not(:disabled) {

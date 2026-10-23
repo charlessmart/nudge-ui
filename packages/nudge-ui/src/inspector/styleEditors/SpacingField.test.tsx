@@ -164,6 +164,55 @@ describe("SpacingField", () => {
     expect(rawInput("margin-left").value).toBe("16px");
   });
 
+  it("removes margin values with the minus button and returns to the empty state", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "8px",
+      "margin-right": "0px",
+      "margin-bottom": "24px",
+      "margin-left": "0px",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeFalsy();
+
+    act(() => {
+      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="remove-value"]') as HTMLButtonElement).click();
+    });
+
+    expect(sheetText()).toContain("margin-top: 0;");
+    expect(sheetText()).toContain("margin-bottom: 0;");
+    expect(sheetText()).not.toContain("margin-left");
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeTruthy();
+  });
+
+  it("removes a just-added margin field without writing anything", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+    act(() => {
+      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="remove-value"]') as HTMLButtonElement).click();
+    });
+
+    expect(sheetText()).not.toContain("margin-");
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeTruthy();
+  });
+
   it("does not reuse a shorthand margin row for every side", () => {
     const { selected } = makeSelected();
     mockComputedStyle({

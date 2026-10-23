@@ -240,6 +240,10 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   const expectedValue = getElementComputedStyle(probe).getPropertyValue(property).trim() || requestedValue.trim();
   probe.remove();
   if (computedValue === expectedValue) return { requestedValue, computedValue, status: "applied" };
+  // A minimum of `auto` computes to `auto` on a flex or grid item and to `0px` everywhere else; the out-of-flow probe only ever shows the latter.
+  if ((property === "min-width" || property === "min-height") && requestedValue.trim() === "auto" && computedValue === "auto") {
+    return { requestedValue, computedValue, status: "applied" };
+  }
 
   let reason: PreviewConflictReason = "higher-specificity";
   if (el.style.getPropertyPriority(property) === "important" || hasImportantAuthorRule(el, property)) reason = "important";

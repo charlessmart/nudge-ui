@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -42,6 +42,7 @@ import {
 import type { CapturedSketch } from "./capture.ts";
 import { DRAG_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
+import { BlobImage } from "./BlobImage.tsx";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
 
@@ -74,11 +75,6 @@ export interface SketchEditorProps {
     readonly originalImage: Blob;
     readonly annotatedImage: Blob;
   }) => Promise<void>;
-}
-
-function objectUrl(blob: Blob | null): string | null {
-  if (!blob || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return null;
-  return URL.createObjectURL(blob);
 }
 
 function clamp(value: number, maximum: number): number {
@@ -132,7 +128,6 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
   const [draftPoints, setDraftPoints] = useState<readonly { x: number; y: number }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const imageUrl = useMemo(() => objectUrl(image), [image]);
   const svgRef = useRef<SVGSVGElement>(null);
   const annotationInputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -167,12 +162,6 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
   useEffect(() => {
     if (open) svgRef.current?.focus();
   }, [open]);
-
-  useEffect(() => {
-    return () => {
-      if (imageUrl && typeof URL !== "undefined") URL.revokeObjectURL(imageUrl);
-    };
-  }, [imageUrl]);
 
   function openAnnotation(annotation: SketchAnnotation): void {
     setActiveAnnotationId(annotation.id);
@@ -492,7 +481,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
           </Dialog.Description>
           <div className="sketch__canvas-frame">
             <div className="sketch__image-wrap">
-              {imageUrl ? <img className="sketch__image" src={imageUrl} alt="Captured viewport" draggable={false} /> : null}
+              {image ? <BlobImage className="sketch__image" blob={image} label="Captured viewport" /> : null}
               <svg
                 ref={svgRef}
                 className={`sketch__canvas sketch__canvas--${tool}`}

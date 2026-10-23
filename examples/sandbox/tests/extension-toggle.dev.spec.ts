@@ -30,7 +30,7 @@ test("the extension previews selected states with adopted stylesheets and releas
   }));
   await page.goto("/extension-state-fixture");
   await page.evaluate(() => {
-    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {} } });
   });
   await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });
@@ -66,7 +66,7 @@ test("the extension toggle disables page interception and can restart the inspec
   await page.goto("/extension-toggle-fixture");
   await page.evaluate(() => {
     // The service worker publishes this before each top-frame injection.
-    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {}, surface: "page" } });
+    Object.assign(window, { __NUDGE_UI_EXTENSION__: { storage: {} } });
   });
   await page.addScriptTag({ content: storageBridge });
   await page.addScriptTag({ content: inspectorBundle });

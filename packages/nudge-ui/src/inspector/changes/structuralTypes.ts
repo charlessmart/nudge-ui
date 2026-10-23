@@ -1,4 +1,4 @@
-import type { RenderedInstanceRef } from "./editModel.ts";
+import type { InvocationRef, RenderedInstanceRef } from "./editModel.ts";
 
 export interface StructuralDelete {
   id: string;
@@ -16,10 +16,13 @@ export interface StructuralMove {
   target: RenderedInstanceRef;
   source: {
     parent: RenderedInstanceRef;
+    /** Present when the parent renders this invocation's children, which are authored at its callsite. */
+    childrenOf?: InvocationRef;
   };
   destination: {
     parent: RenderedInstanceRef;
     before: RenderedInstanceRef | null;
+    childrenOf?: InvocationRef;
   };
   presentation: {
     sourceParentTag: string;

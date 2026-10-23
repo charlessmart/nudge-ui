@@ -2,13 +2,8 @@ import {
   BOOT_GLOBAL,
   CURSOR_IMAGE_BASE_GLOBAL,
   CURSOR_IMAGE_DIRECTORY,
-  editorUrl,
-  applicationUrl,
-  INJECT_RENDERERS_MESSAGE,
-  isEditorUrl,
-  isNumberArray,
-  isRecord,
-  EDITOR_READY_ATTRIBUTE,
+  PANEL_SIDE_KEY,
+  parsePanelSide,
   parseFontListMessage,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
@@ -16,41 +11,113 @@ import {
   type ExtensionBoot,
   type FontListResult,
 } from "./protocol.ts";
-import { EDITOR_DOCUMENT_POLICY } from "./editorPolicy.ts";
 
 const INSPECTOR_BUNDLE = "nudge-ui.js";
 const STORAGE_BRIDGE = "storage-bridge.js";
-/** Marks the document a toggle navigates away from, so its late load events are ignored. */
-const LEAVING_GLOBAL = "__NUDGE_UI_LEAVING__";
 
-/** `"opening"` while the tab reloads into the editor, `"editor"` once the inspector runs there; session storage survives worker restarts. */
-interface EditorTab {
-  phase: "opening" | "editor";
-  ruleIds: number[];
-  applicationHref?: string;
+interface InspectorProbe {
+  href: string;
+  /** Whether an inspector was already running, in which case the probe toggled it. */
+  hadInspector: boolean;
 }
 
-/** Script and stylesheet blocking leaves the editor document's raw markup visible until the editor mounts and marks it ready. */
-const EDITOR_COVER_CSS = `
-html:not([${EDITOR_READY_ATTRIBUTE}]) { background: #F5F5F4 !important; }
-html:not([${EDITOR_READY_ATTRIBUTE}]) > body { visibility: hidden !important; }
-html:not([${EDITOR_READY_ATTRIBUTE}])::after {
-  content: "" !important; position: fixed !important; inset: 50% auto auto 50% !important; z-index: 2147483647 !important;
-  width: 24px !important; height: 24px !important; margin: -12px 0 0 -12px !important; box-sizing: border-box !important;
-  border: 2px solid #D6D3D1 !important; border-top-color: #57534E !important; border-radius: 50% !important;
-  animation: nudge-ui-editor-loading 0.8s linear infinite !important;
+// `executeScript` serializes these functions into the page's main world, so
+// they cannot close over module values; names arrive as arguments.
+function toggleLoadedInspector(handleName: string): InspectorProbe {
+  const handle = (window as unknown as Record<string, { toggle(): void } | undefined>)[handleName];
+  handle?.toggle();
+  return { href: location.href, hadInspector: handle !== undefined };
 }
-@keyframes nudge-ui-editor-loading { to { transform: rotate(360deg); } }
-`;
-/** Lifts the cover if the editor never marks itself ready, so a failed start cannot leave the tab hidden. */
-const EDITOR_COVER_TIMEOUT_MS = 10_000;
-const coveredDocuments = new Set<string>();
 
-const editorTabKey = (tabId: number) => `editor-tab:${tabId}`;
+function publishGlobals(globals: Record<string, unknown>): void {
+  Object.assign(window, globals);
+}
+
+// `getURL` returns the per-session `use_dynamic_url` ID only for paths that
+// match a web-accessible entry, so resolve a file rather than the directory.
+function cursorImageBase(): string {
+  const file = "design-select.svg";
+  return chrome.runtime.getURL(`${CURSOR_IMAGE_DIRECTORY}${file}`).slice(0, -file.length);
+}
+
+/** Reads the origin's inspector state, font consent, and panel side in one storage round trip after listing keys. */
+async function readBoot(origin: string): Promise<ExtensionBoot> {
+  const prefix = siteKeyPrefix(origin);
+  const fontsKey = systemFontsKey(origin);
+  const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith(prefix));
+  const stored = await chrome.storage.local.get([...keys, fontsKey, PANEL_SIDE_KEY]);
+  const storage: Record<string, string> = {};
+  for (const key of keys) {
+    const value = stored[key];
+    if (typeof value === "string") storage[key.slice(prefix.length)] = value;
+  }
+  return { storage, systemFontsAllowed: stored[fontsKey] === true, panelSide: parsePanelSide(stored[PANEL_SIDE_KEY]) ?? "right" };
+}
+
+async function injectInspector(target: chrome.scripting.InjectionTarget, boot: ExtensionBoot): Promise<void> {
+  const globals = { [BOOT_GLOBAL]: boot, [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
+  // The bridge must listen before the bundle writes; the two worlds load independently.
+  await Promise.all([
+    chrome.scripting.executeScript({ target, files: [STORAGE_BRIDGE] }),
+    chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] }),
+  ]);
+  await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
+}
+
+function noop(): void {}
+
+async function currentDocumentId(tabId: number): Promise<string | undefined> {
+  const [current] = await chrome.scripting.executeScript({ target: { tabId }, func: noop, injectImmediately: true }).catch(() => []);
+  return current?.documentId;
+}
+
+function originOf(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  try {
+    return new URL(href).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Runs the inspector inside the page itself, so opening it never reloads the tab or loses page state. */
+async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<void> {
+  // `activeTab` exposes the URL with the click, so storage is read while the page is probed.
+  const tabOrigin = originOf(tab.url);
+  const prefetched = tabOrigin ? readBoot(tabOrigin) : undefined;
+  prefetched?.catch(() => undefined);
+  const [probe] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id }, world: "MAIN", func: toggleLoadedInspector, args: [PAGE_INSPECTOR_GLOBAL],
+  });
+  if (!probe?.result) throw new Error("the page cannot be scripted");
+  if (probe.result.hadInspector) return;
+  const origin = originOf(probe.result.href);
+  if (!origin) throw new Error("the page URL is unavailable");
+  const boot = await (origin === tabOrigin && prefetched ? prefetched : readBoot(origin));
+  try {
+    await injectInspector({ tabId: tab.id, documentIds: [probe.documentId] }, boot);
+  } catch (error) {
+    // The tab navigated after the probe; the new page has no inspector to report on.
+    if (await currentDocumentId(tab.id) !== probe.documentId) return;
+    throw error;
+  }
+}
+
+async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
+  const reason = error instanceof Error ? error.message : String(error);
+  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#d93025" });
+  await chrome.action.setBadgeText({ tabId, text: "!" });
+  await chrome.action.setTitle({ tabId, title: `Nudge UI cannot run on this page: ${reason}` });
+}
+
+async function clearUnavailable(tabId: number): Promise<void> {
+  await chrome.action.setBadgeText({ tabId, text: "" });
+  await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title ?? "Nudge UI" });
+}
+
 const tabTasks = new Map<number, Promise<void>>();
-let ruleUpdates: Promise<unknown> = Promise.resolve();
 
-/** Serializes lifecycle events for one tab without delaying other tabs. */
+/** Serializes clicks on one tab, so a quick second click toggles the instance the first one injected. */
 function queueTabTask(tabId: number, task: () => Promise<void>): Promise<void> {
   const pending = (tabTasks.get(tabId) ?? Promise.resolve()).catch(() => undefined).then(task);
   tabTasks.set(tabId, pending);
@@ -61,324 +128,26 @@ function queueTabTask(tabId: number, task: () => Promise<void>): Promise<void> {
   return pending;
 }
 
-/** Session storage survives worker restarts, so stored state is parsed before use. */
-function parseEditorTab(value: unknown): EditorTab | undefined {
-  if (!isRecord(value)) return undefined;
-  const { phase, ruleIds, applicationHref } = value;
-  if ((phase !== "opening" && phase !== "editor") || !isNumberArray(ruleIds)
-    || (applicationHref !== undefined && typeof applicationHref !== "string")) return undefined;
-  return { phase, ruleIds, applicationHref };
-}
-
-async function readEditorTab(tabId: number): Promise<EditorTab | undefined> {
-  const key = editorTabKey(tabId);
-  return parseEditorTab((await chrome.storage.session.get(key))[key]);
-}
-
-async function writeEditorTab(tabId: number, state: EditorTab): Promise<void> {
-  await chrome.storage.session.set({ [editorTabKey(tabId)]: state });
-}
-
-/** Lets the tab frame its own origin and stops the application's scripts in the editor document; header rules apply only where `activeTab` covers the origin. */
-async function installEditorRules(tabId: number, origin: string): Promise<number[]> {
-  const pending = ruleUpdates.then(() => addEditorRules(tabId, origin));
-  ruleUpdates = pending.catch(() => undefined);
-  return pending;
-}
-
-async function addEditorRules(tabId: number, origin: string): Promise<number[]> {
-  const existing = await chrome.declarativeNetRequest.getSessionRules();
-  const firstId = Math.max(0, ...existing.map((rule) => rule.id)) + 1;
-  const [frameRuleId, policyRuleId, editorRuleId] = [firstId, firstId + 1, firstId + 2];
-  const frameCondition = { tabIds: [tabId], resourceTypes: ["sub_frame" as const], urlFilter: `|${origin}/` };
-  await chrome.declarativeNetRequest.updateSessionRules({
-    addRules: [
-      {
-        id: frameRuleId,
-        condition: frameCondition,
-        action: { type: "modifyHeaders", responseHeaders: [{ header: "x-frame-options", operation: "remove" }] },
-      },
-      {
-        // Rules cannot edit one directive, so a policy is dropped only when it
-        // restricts framing; any other policy still applies in the frame.
-        id: policyRuleId,
-        condition: {
-          ...frameCondition,
-          responseHeaders: [{ header: "content-security-policy", values: ["*frame-ancestors*"] }],
-        },
-        action: { type: "modifyHeaders", responseHeaders: [{ header: "content-security-policy", operation: "remove" }] },
-      },
-      {
-        id: editorRuleId,
-        condition: { tabIds: [tabId], resourceTypes: ["main_frame"], urlFilter: "nudge-ui=editor" },
-        action: {
-          type: "modifyHeaders",
-          responseHeaders: [{ header: "content-security-policy", operation: "set", value: EDITOR_DOCUMENT_POLICY }],
-        },
-      },
-    ],
-  });
-  return [frameRuleId, policyRuleId, editorRuleId];
-}
-
-function readHref(): string {
-  return location.href;
-}
-
-// Runs in the document, so the timer survives a service worker restart.
-function liftCoverAfter(readyAttribute: string, delay: number): void {
-  setTimeout(() => {
-    if (document.documentElement.hasAttribute(readyAttribute)) return;
-    document.documentElement.setAttribute(readyAttribute, "");
-    console.error("[nudge-ui] The editor did not start in time; showing the page.");
-  }, delay);
-}
-
-/** Covers the editor document as soon as it commits; earlier events still report the outgoing page and are skipped. */
-async function coverEditorDocument(tabId: number): Promise<void> {
-  const [current] = await chrome.scripting.executeScript({
-    target: { tabId }, func: readHref, injectImmediately: true,
-  }).catch(() => []);
-  if (!current?.documentId || coveredDocuments.has(current.documentId) || !isEditorUrl(current.result ?? "")) return;
-  coveredDocuments.add(current.documentId);
-  const target = { tabId, documentIds: [current.documentId] };
-  try {
-    await chrome.scripting.insertCSS({ target, css: EDITOR_COVER_CSS, origin: "USER" });
-    await chrome.scripting.executeScript({ target, func: liftCoverAfter, args: [EDITOR_READY_ATTRIBUTE, EDITOR_COVER_TIMEOUT_MS] });
-  } catch {
-    coveredDocuments.delete(current.documentId);
-  }
-}
-
-async function uncoverEditorDocument(tabId: number): Promise<void> {
-  await chrome.scripting.removeCSS({ target: { tabId }, css: EDITOR_COVER_CSS, origin: "USER" }).catch(() => undefined);
-}
-
-async function closeEditor(tabId: number): Promise<void> {
-  const state = await readEditorTab(tabId);
-  if (!state) return;
-  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: state.ruleIds });
-  await chrome.storage.session.remove(editorTabKey(tabId));
-}
-
-// `executeScript` serializes these functions into the page's main world, so
-// they cannot close over module values; names arrive as arguments.
-function toggleLoadedInspector(handleName: string, leavingName: string): string | null {
-  const handle = (window as unknown as Record<string, { surface: string; toggle(): void } | undefined>)[handleName];
-  if (!handle) {
-    // The caller now reloads this tab into the editor.
-    Object.assign(window, { [leavingName]: true });
-    return null;
-  }
-  handle.toggle();
-  return handle.surface;
-}
-
-function publishGlobals(globals: Record<string, unknown>): void {
-  Object.assign(window, globals);
-}
-
-function readDocument(handleName: string, leavingName: string): {
-  href: string; loaded: boolean; leaving: boolean; unavailableReason?: string;
-} {
-  const blocksFrames = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[http-equiv="Content-Security-Policy" i]')).some((meta) => {
-    const directives = meta.content.split(";").map((directive) => directive.trim().split(/\s+/));
-    const frameSources = directives.find(([name]) => name?.toLowerCase() === "frame-src")
-      ?? directives.find(([name]) => name?.toLowerCase() === "child-src")
-      ?? directives.find(([name]) => name?.toLowerCase() === "default-src");
-    return frameSources?.length === 2 && frameSources[1] === "'none'";
-  });
-  // Navigation responses generated by site workers bypass the header rules.
-  // Leave these pages running normally and show the limitation in the panel.
-  const unavailableReason = navigator.serviceWorker?.controller
-    ? "its service worker"
-    : blocksFrames ? "its security policy" : undefined;
-  return {
-    href: location.href, loaded: handleName in window, leaving: leavingName in window,
-    ...(unavailableReason ? { unavailableReason } : {}),
-  };
-}
-
-// `getURL` returns the per-session `use_dynamic_url` ID only for paths that
-// match a web-accessible entry, so resolve a file rather than the directory.
-function cursorImageBase(): string {
-  const file = "design-select.svg";
-  return chrome.runtime.getURL(`${CURSOR_IMAGE_DIRECTORY}${file}`).slice(0, -file.length);
-}
-
-async function readSiteStorage(origin: string): Promise<Record<string, string>> {
-  const prefix = siteKeyPrefix(origin);
-  const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith(prefix));
-  if (keys.length === 0) return {};
-  const stored = await chrome.storage.local.get(keys);
-  const values: Record<string, string> = {};
-  for (const [key, value] of Object.entries(stored)) {
-    if (typeof value === "string") values[key.slice(prefix.length)] = value;
-  }
-  return values;
-}
-
-async function injectInspector(
-  tabId: number, documentId: string, href: string, surface: ExtensionBoot["surface"], unavailableReason?: string,
-): Promise<void> {
-  const target = { tabId, documentIds: [documentId] };
-  const origin = new URL(href).origin;
-  const fontsKey = systemFontsKey(origin);
-  const boot: ExtensionBoot = {
-    storage: await readSiteStorage(origin), surface,
-    systemFontsAllowed: (await chrome.storage.local.get(fontsKey))[fontsKey] === true,
-    ...(unavailableReason ? { unavailableReason } : {}),
-  };
-  try {
-    await chrome.scripting.executeScript({ target, files: [STORAGE_BRIDGE] });
-    const globals = { [BOOT_GLOBAL]: boot, [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
-    await chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] });
-    await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
-  } catch (error) {
-    const [current] = await chrome.scripting.executeScript({
-      target: { tabId }, world: "MAIN", func: readDocument,
-      args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL], injectImmediately: true,
-    }).catch(() => []);
-    // A navigation invalidates this injection; its own completion resumes the editor.
-    if (current?.documentId !== documentId) return;
-    throw error;
-  }
-}
-
-function needsRenderer(handleName: string): boolean {
-  return window !== window.top && !(handleName in window);
-}
-
-/** The bundle starts a renderer only in Canvas frames and ignores every other frame. */
-async function injectRenderers(tabId: number): Promise<void> {
-  const probes = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true }, world: "MAIN", func: needsRenderer, args: [PAGE_INSPECTOR_GLOBAL],
-  });
-  const frameIds = probes.filter((probe) => probe.result === true).map((probe) => probe.frameId);
-  if (frameIds.length === 0) return;
-  const target = { tabId, frameIds };
-  const globals = { [CURSOR_IMAGE_BASE_GLOBAL]: cursorImageBase() };
-  await chrome.scripting.executeScript({ target, world: "MAIN", func: publishGlobals, args: [globals] });
-  await chrome.scripting.executeScript({ target, world: "MAIN", files: [INSPECTOR_BUNDLE] });
-}
-
-async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<void> {
-  const tabId = tab.id;
-  const state = await readEditorTab(tabId);
-  if (state?.phase === "opening") {
-    const href = state.applicationHref ?? (tab.url ? applicationUrl(tab.url) : undefined);
-    if (!href) throw new Error("the page URL is unavailable");
-    await closeEditor(tabId);
-    await chrome.tabs.update(tabId, { url: href });
-    return;
-  }
-  const [document] = await chrome.scripting.executeScript({
-    target: { tabId }, world: "MAIN", func: readDocument,
-    args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL], injectImmediately: true,
-  });
-  if (!document?.result) throw new Error("the page cannot be scripted");
-  const { href, loaded, unavailableReason } = document.result;
-  if (state && !loaded) {
-    await closeEditor(tabId);
-    await chrome.tabs.update(tabId, { url: applicationUrl(href) });
-    return;
-  }
-  if (!loaded && unavailableReason) {
-    await injectInspector(tabId, document.documentId, href, "page", unavailableReason);
-    return;
-  }
-  const [toggled] = await chrome.scripting.executeScript({
-    target: { tabId, documentIds: [document.documentId] }, world: "MAIN", func: toggleLoadedInspector,
-    args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL],
-  });
-  const surface = toggled?.result;
-  if (surface === "editor") {
-    await closeEditor(tabId);
-  } else if (!surface) {
-    await closeEditor(tabId);
-    const ruleIds = await installEditorRules(tabId, new URL(href).origin);
-    await writeEditorTab(tabId, { phase: "opening", ruleIds, applicationHref: applicationUrl(href) });
-    await chrome.tabs.update(tabId, { url: editorUrl(href) });
-  }
-}
-
-/** Starts the editor once its document loads, covering reloads; renderer frame loads also complete the tab. */
-async function resumeEditor(tabId: number): Promise<void> {
-  const state = await readEditorTab(tabId);
-  if (!state) return;
-  const [result] = await chrome.scripting.executeScript({
-    target: { tabId }, world: "MAIN", func: readDocument, args: [PAGE_INSPECTOR_GLOBAL, LEAVING_GLOBAL],
-    injectImmediately: true,
-  }).catch((error: unknown) => {
-    // A queued completion can belong to the document being replaced. Its
-    // replacement's completion will resume the editor with the rules intact.
-    if (error instanceof Error && error.message === "Frame with ID 0 was removed.") return [];
-    throw error;
-  });
-  if (!result?.result) return;
-  const { href, loaded, leaving, unavailableReason } = result.result;
-  // A page still loading when toggled can complete after the editor state is
-  // recorded; only the next document's load decides the outcome.
-  if (leaving) return;
-  if (isEditorUrl(href)) {
-    if (loaded) return;
-    await coverEditorDocument(tabId);
-    // Recorded first: renderer frames can load before the injection resolves.
-    await writeEditorTab(tabId, { ...state, phase: "editor" });
-    await injectInspector(tabId, result.documentId, href, "editor", unavailableReason);
-    return;
-  }
-  await closeEditor(tabId);
-  // A redirect dropped the marker and the page ran normally; inspect it in place.
-  if (state.phase === "opening") await injectInspector(tabId, result.documentId, href, "page", unavailableReason);
-}
-
-async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
-  const reason = error instanceof Error ? error.message : String(error);
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#d93025" });
-  await chrome.action.setBadgeText({ tabId, text: "!" });
-  await chrome.action.setTitle({ tabId, title: `Nudge UI cannot run on this page: ${reason}` });
-}
-
 chrome.action.onClicked.addListener((tab) => {
   const tabId = tab.id;
   if (tabId === undefined) return;
   void queueTabTask(tabId, async () => {
     try {
       await toggleInspector({ ...tab, id: tabId });
-      await chrome.action.setBadgeText({ tabId, text: "" });
       // Clear any failure left by an earlier attempt on this tab.
-      await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title ?? "Nudge UI" });
+      await clearUnavailable(tabId);
     } catch (error) {
       await reportUnavailable(tabId, error);
     }
   });
 });
 
+// A failure describes the page it happened on, so it is cleared when the tab navigates.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== "complete") {
-    // Not queued: the cover must land before the document's first paint. Reloads
-    // of an open editor need it too; title and favicon updates do not.
-    if (changeInfo.status === "loading" || changeInfo.url) {
-      void readEditorTab(tabId).then((state) => {
-        if (state) return coverEditorDocument(tabId);
-      }).catch(() => undefined);
-    }
-    return;
-  }
-  void queueTabTask(tabId, async () => {
-    try {
-      await resumeEditor(tabId);
-    } catch (error) {
-      await uncoverEditorDocument(tabId);
-      await closeEditor(tabId);
-      await reportUnavailable(tabId, error);
-    }
-  });
-});
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  void queueTabTask(tabId, () => closeEditor(tabId));
+  if (changeInfo.status !== "loading") return;
+  void chrome.action.getBadgeText({ tabId }).then((text) => {
+    if (text) return clearUnavailable(tabId);
+  }).catch(() => undefined);
 });
 
 /** Releases the list on an origin only once the user has asked for it there; `fontId` is the family name CSS matches. */
@@ -395,16 +164,10 @@ async function readFontList(origin: string | undefined, asked: boolean): Promise
 }
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  const tabId = sender.tab?.id;
-  if (tabId === undefined || sender.frameId !== 0) return;
+  if (sender.tab?.id === undefined || sender.frameId !== 0) return;
   const fontList = parseFontListMessage(message);
-  if (fontList) {
-    void readFontList(sender.origin, fontList.asked).then(sendResponse);
-    // Keeps the channel open for the asynchronous reply.
-    return true;
-  }
-  if ((message as { type?: unknown } | null)?.type !== INJECT_RENDERERS_MESSAGE) return;
-  void readEditorTab(tabId).then((state) => {
-    if (state?.phase === "editor") return injectRenderers(tabId);
-  }).catch((error: unknown) => console.warn("[nudge-ui] Could not load the inspector into the preview.", error));
+  if (!fontList) return;
+  void readFontList(sender.origin, fontList.asked).then(sendResponse);
+  // Keeps the channel open for the asynchronous reply.
+  return true;
 });

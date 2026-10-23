@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconChevronDown, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
+import { IconArrowBack, IconCheck, IconChevronDown, IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
 import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
-import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { GapField } from "./GapField.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { IconButton } from "../ui/IconButton.tsx";
-import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
-import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -19,10 +16,19 @@ import { inlineStyleWarningContent } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 
-const ALIGN_SELF_OPTIONS = ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"];
-const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
+export const ALIGN_SELF_OPTIONS = ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"];
+export const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
 const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
 const FLEX_DISTRIBUTION_OPTIONS = ["space-between", "space-around", "space-evenly"];
+const ALIGNMENT_ROW_NAMES = ["top", "center", "bottom"];
+const ALIGNMENT_COLUMN_NAMES = ["left", "center", "right"];
+/** Bar lengths in px along the cross axis: shortest first, the longest in the middle, a medium one last. */
+const ALIGNMENT_GLYPH_BARS = [8, 16, 12];
+
+/** The tooltip for a cell of the physical 3x3 grid, e.g. "Align top left" or just "Align center". */
+function alignmentLabel(row: number, column: number): string {
+  return row === 1 && column === 1 ? "Align center" : `Align ${ALIGNMENT_ROW_NAMES[row]} ${ALIGNMENT_COLUMN_NAMES[column]}`;
+}
 
 export interface FlexControlProps {
   domElement: HTMLElement;
@@ -41,7 +47,7 @@ export interface LayoutValueFieldProps extends FlexControlProps {
 
 export function LayoutValueField({ label, property, presets, inputOnly = false, domElement, editTarget, selection, revision = 0, onAfterEdit }: LayoutValueFieldProps): ReactElement {
   return (
-    <FieldRow label={label} className="layout__flex-child-field">
+    <FieldRow label={label} className="field-row--stacked">
       <LayoutComboField
         property={property}
         presets={presets}
@@ -53,55 +59,6 @@ export function LayoutValueField({ label, property, presets, inputOnly = false, 
         onAfterEdit={onAfterEdit}
       />
     </FieldRow>
-  );
-}
-
-export function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <InspectorPopover
-      data-test="layout-flex-child-settings"
-      side="left"
-      align="start"
-      triggerTooltip="Flex child settings"
-      triggerElement={(
-        <IconButton
-          variant="quiet"
-          size="default"
-          label="Flex child settings"
-          data-test="layout-flex-child-settings"
-        >
-          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
-        </IconButton>
-      )}
-      open={open}
-      onOpenChange={setOpen}
-    >
-      <div className="layout__flex-child-settings" data-test="layout-flex-child-settings-content">
-        <div className="layout__flex-child-settings-title">Flex Child Settings</div>
-        <LayoutDropdown
-          property="align-self"
-          options={ALIGN_SELF_OPTIONS}
-          domElement={domElement}
-          editTarget={editTarget}
-          selection={selection}
-          stacked
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-        <LayoutValueField
-          label="Order"
-          property="order"
-          presets={ORDER_PRESETS}
-          domElement={domElement}
-          editTarget={editTarget}
-          selection={selection}
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-      </div>
-    </InspectorPopover>
   );
 }
 
@@ -163,7 +120,7 @@ export function FlexWrapToggle({ domElement, editTarget, selection, revision = 0
         disabled={blockedBy !== null}
         onClick={toggleWrap}
       >
-        <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
+        <IconArrowBack size={16} stroke={1.8} aria-hidden="true" />
       </IconButton>
     </Tooltip>
   );
@@ -313,6 +270,15 @@ export function FlexAlignmentGrid({ domElement, editTarget, selection, revision 
     onAfterEdit?.();
   }
 
+  // The glyph sits in the active cell, or runs the whole main axis when items are spread, at the cross-axis alignment.
+  const crossValues = isColumn ? columnValues : rowValues;
+  const crossIndex = crossValues.indexOf(align);
+  const activeRow = rowValues.indexOf(isColumn ? justify : align);
+  const activeColumn = columnValues.indexOf(isColumn ? align : justify);
+  const glyphPlacement = distributed
+    ? crossIndex < 0 ? null : isColumn ? { row: "1 / -1", column: crossIndex + 1 } : { row: crossIndex + 1, column: "1 / -1" }
+    : activeRow < 0 || activeColumn < 0 ? null : { row: activeRow + 1, column: activeColumn + 1 };
+
   const grid = (
     <div
       className="layout__alignment-grid"
@@ -323,17 +289,13 @@ export function FlexAlignmentGrid({ domElement, editTarget, selection, revision 
       data-align={align}
       data-distributed={distributed}
     >
-      {distributed ? (
-        <span className="layout__distribution-preview" aria-hidden="true">
-          <span /><span /><span />
-        </span>
-      ) : null}
-      {rowValues.flatMap((rowValue) =>
-        columnValues.map((columnValue) => {
+      {rowValues.flatMap((rowValue, rowIndex) =>
+        columnValues.map((columnValue, columnIndex) => {
           const justifyValue = isColumn ? rowValue : columnValue;
           const alignValue = isColumn ? columnValue : rowValue;
           const active = justify === justifyValue && align === alignValue;
-          const label = formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`);
+          // The glyph replaces the dots it covers.
+          const covered = glyphPlacement !== null && distributed && (isColumn ? columnIndex : rowIndex) === crossIndex;
           return (
             <Tooltip key={`${alignValue}-${justifyValue}`}>
               <IconButton
@@ -341,8 +303,9 @@ export function FlexAlignmentGrid({ domElement, editTarget, selection, revision 
                 variant="quiet"
                 className="layout__alignment-button"
                 data-active={active}
+                data-covered={covered ? "true" : undefined}
                 data-test={`layout-align-${alignValue}-${justifyValue}`}
-                label={label}
+                label={alignmentLabel(rowIndex, columnIndex)}
                 aria-pressed={active}
                 disabled={blockedBy !== null}
                 onClick={() => selectAlignment(justifyValue, alignValue)}
@@ -353,6 +316,25 @@ export function FlexAlignmentGrid({ domElement, editTarget, selection, revision 
           );
         }),
       )}
+      {glyphPlacement ? (
+        <span className="layout__alignment-glyph-layer" aria-hidden="true">
+          <span
+            className="layout__alignment-glyph"
+            data-test="layout-alignment-glyph"
+            data-axis={isColumn ? "column" : "row"}
+            data-distributed={distributed}
+            style={{
+              gridRow: glyphPlacement.row,
+              gridColumn: glyphPlacement.column,
+              flexDirection: direction as "row" | "row-reverse" | "column" | "column-reverse",
+              alignItems: align,
+              justifyContent: distributed ? justify : undefined,
+            }}
+          >
+            {ALIGNMENT_GLYPH_BARS.map((length) => <span key={length} style={isColumn ? { width: length } : { height: length }} />)}
+          </span>
+        </span>
+      ) : null}
     </div>
   );
   return <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>{grid}</Tooltip>;
