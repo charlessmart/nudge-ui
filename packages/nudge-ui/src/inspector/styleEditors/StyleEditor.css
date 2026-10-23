@@ -24,7 +24,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--field-label-gap);
 }
 
 .appearance__field-header {
@@ -54,6 +54,8 @@
 
 .border-radius-editor--embedded > .border-radius-editor__main {
   grid-column: 2;
+  /* Embedded, the heading is a field label rather than a section title. */
+  gap: var(--field-label-gap);
 }
 
 .border-radius-editor--embedded > .border-radius-editor__toggle {

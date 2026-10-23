@@ -5,6 +5,7 @@ import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import {
+  addFromLayoutOptions,
   makeSelected,
   mount,
   setInputValue,
@@ -39,12 +40,7 @@ describe("SpacingField", () => {
   }
 
   function showIndividualSides(property: "padding" | "margin"): void {
-    const field = handle.host.querySelector(`[data-test="spacing-${property}"]`) as HTMLElement;
-    if (field.getAttribute("data-empty") === "true") {
-      act(() => {
-        (field.querySelector('[data-test="add-value"]') as HTMLButtonElement).click();
-      });
-    }
+    if (!handle.host.querySelector(`[data-test="spacing-${property}"]`)) addFromLayoutOptions("margin");
     act(() => {
       (handle.host.querySelector(`[data-test="spacing-${property}"] [data-test="individual-sides"]`) as HTMLButtonElement).click();
     });
@@ -109,7 +105,7 @@ describe("SpacingField", () => {
     expect(rawInput("padding-left").value).toBe("8px");
   });
 
-  it("shows an add state for zero margin values", () => {
+  it("leaves zero margin out of the layout section until it is added", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "0px",
@@ -122,12 +118,10 @@ describe("SpacingField", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
-    const margin = handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]') as HTMLElement;
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeFalsy();
+    addFromLayoutOptions("margin");
+    const margin = handle.host.querySelector('[data-test="spacing-margin"]') as HTMLElement;
     expect(margin).toBeTruthy();
-    expect(margin.querySelector('[data-test="add-value"]')).toBeTruthy();
-    act(() => {
-      (margin.querySelector('[data-test="add-value"]') as HTMLButtonElement).click();
-    });
     expect(margin.getAttribute("data-expanded")).toBe("false");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-horizontal"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-vertical"]')).toBeTruthy();
@@ -164,7 +158,7 @@ describe("SpacingField", () => {
     expect(rawInput("margin-left").value).toBe("16px");
   });
 
-  it("removes margin values with the minus button and returns to the empty state", () => {
+  it("removes margin values with the minus button and drops the whole group", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "0px",
@@ -177,7 +171,7 @@ describe("SpacingField", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeTruthy();
 
     act(() => {
       (handle.host.querySelector('[data-test="spacing-margin"] [data-test="remove-value"]') as HTMLButtonElement).click();
@@ -186,7 +180,7 @@ describe("SpacingField", () => {
     expect(sheetText()).toContain("margin-top: 0;");
     expect(sheetText()).toContain("margin-bottom: 0;");
     expect(sheetText()).not.toContain("margin-left");
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeFalsy();
   });
 
   it("removes a just-added margin field without writing anything", () => {
@@ -202,15 +196,17 @@ describe("SpacingField", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
-    act(() => {
-      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]') as HTMLButtonElement).click();
-    });
+    addFromLayoutOptions("margin");
     act(() => {
       (handle.host.querySelector('[data-test="spacing-margin"] [data-test="remove-value"]') as HTMLButtonElement).click();
     });
 
     expect(sheetText()).not.toContain("margin-");
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeFalsy();
+    if (!document.body.querySelector('[data-test="add-margin"]')) {
+      act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    }
+    expect((document.body.querySelector('[data-test="add-margin"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("does not reuse a shorthand margin row for every side", () => {

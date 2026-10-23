@@ -21,7 +21,6 @@
   --text-muted: #777777;
   --text-muted-subtle: #a1a1a1;
   --text-inverse: #fff;
-  --text-inverse-secondary: rgba(255, 255, 255, 0.7);
 
   --accent: #0096ff;
   --linked: #8b5cf6;
@@ -33,9 +32,6 @@
   --danger-text: #bd3636;
   --danger-surface: rgba(223, 75, 75, 0.2);
   --success: #2e7d52;
-  /* Status tints for icons on inverse surfaces, where the regular ones are too dark to read. */
-  --success-inverse: #5ccf92;
-  --danger-inverse: #ff7b7b;
 
   --space-0: 0;
   --space-4: 4px;
@@ -77,6 +73,8 @@
   --control-height-large: 32px;
   --control-height-xlarge: 40px;
   --label-column: 104px;
+  /* Space between a field label and its control, whether the label sits beside or above it. */
+  --field-label-gap: var(--space-4);
 
   --icon-size-small: 16px;
   --icon-size-large: 20px;

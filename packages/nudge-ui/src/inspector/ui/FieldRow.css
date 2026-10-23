@@ -1,7 +1,7 @@
 .field-row {
   display: grid;
   grid-template-columns: var(--label-column) minmax(0, 1fr);
-  gap: var(--space-8);
+  gap: var(--field-label-gap);
   align-items: center;
   min-height: var(--control-height-large);
 }
@@ -47,7 +47,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-8);
+  gap: var(--field-label-gap);
   min-height: 0;
 }
 
