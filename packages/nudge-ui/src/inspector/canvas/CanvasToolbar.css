@@ -43,10 +43,15 @@
   gap: 2px;
 }
 
-/* A compact button as wide as it gets, stretched to the height of the tool beside it. */
+/* A large icon button, narrowed so it reads as part of the tool beside it. */
 .icon-button.canvas-toolbar__chevron {
-  height: var(--control-height-xlarge);
+  width: 16px;
   color: var(--text-muted);
+}
+
+.icon-button.canvas-toolbar__chevron svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* The portal layer ignores pointer events, so the menu has to take them back or clicks reach the page behind it. */
@@ -89,9 +94,9 @@
   flex: 1;
 }
 
+/* Hover and focus only: the check beside the current view marks it, without a second tint. */
 .view-tool-menu__item:hover,
-.view-tool-menu__item:focus-visible,
-.view-tool-menu__item--selected {
+.view-tool-menu__item:focus-visible {
   background: var(--surface-well);
 }
 
@@ -173,12 +178,6 @@
   min-width: 0;
 }
 
-/* Separates the ruler from the controls; the bar's gap spaces it evenly either side. */
-.animation-bar__divider {
-  height: 1px;
-  background: var(--border-subtle);
-}
-
 /* Floats above the bar, which is already one gap above the canvas toolbar. */
 .animation-bar__hint {
   position: absolute;
@@ -194,30 +193,14 @@
   transform: translateX(-50%);
 }
 
-.select.animation-bar__select {
-  flex: 1 1 0;
-  width: auto;
-  min-width: 0;
-  background: transparent;
-}
-
-/* Tertiary: no tint until it is pointed at. */
-.select.animation-bar__select:hover:not(:disabled) {
-  background: var(--surface-control-hover);
-}
-
-.animation-bar__speed {
-  display: flex;
+/* Half the bar, pushed to the right of the play button. */
+.segmented-control.animation-bar__speed {
   flex: none;
-  align-items: center;
+  width: 50%;
 }
 
-.animation-bar__speed-value {
-  min-width: 44px;
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.segmented-control.animation-bar__speed .button.segmented-control__button {
+  padding-inline: 0;
 }
 
 .animation-timeline {
@@ -247,40 +230,31 @@
 
 .animation-timeline__tick {
   --tick-base: 4px;
-  --tick-scale: 1;
+  /* Never rises into the labels along the top of the track (32px track, 10px label). */
+  --tick-max-height: 16px;
+  /* Set inline for the marks near the playhead: 1 at the playhead, falling off exponentially. */
+  --tick-proximity: 0;
   position: absolute;
   bottom: 0;
   left: calc(var(--tick-position) * (100% - 1px));
   width: 1px;
-  /* Never rises into the labels along the top of the track. */
-  height: min(calc(var(--tick-base) * var(--tick-scale)), 22px);
-  background: var(--border-medium);
-  transition: height 80ms ease-out, background-color 80ms ease-out;
+  height: calc(var(--tick-base) + (var(--tick-max-height) - var(--tick-base)) * var(--tick-proximity));
+  background: var(--text-primary);
+  /* Rising has no transition, so a mark grows the instant the playhead nears it. */
+  opacity: calc(0.2 + 0.8 * var(--tick-proximity));
 }
 
 .animation-timeline__tick--major {
   --tick-base: 8px;
 }
 
-/* The marks around the playhead darken and grow: 3x for the closest, then 2x, then 1.5x. */
-.animation-timeline__tick[data-falloff] {
-  background: var(--text-primary);
-}
-
-.animation-timeline__tick[data-falloff="3"] {
-  --tick-scale: 3;
-}
-
-.animation-timeline__tick[data-falloff="2"] {
-  --tick-scale: 2;
-}
-
-.animation-timeline__tick[data-falloff="1.5"] {
-  --tick-scale: 1.5;
+/* Marks the playhead is leaving ease back down, trailing it briefly. */
+.animation-timeline__tick[data-falling] {
+  transition: height 160ms ease-out, opacity 160ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animation-timeline__tick {
+  .animation-timeline__tick[data-falling] {
     transition: none;
   }
 }

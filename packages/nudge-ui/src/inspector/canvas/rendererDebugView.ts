@@ -3,6 +3,7 @@ import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
 
 const OUTLINES_ATTRIBUTE = "data-nudge-ui-debug-outlines";
 const OUTLINES_STYLE_ID = "nudge-ui-debug-outlines";
+const XRAY_CURSOR_STYLE_ID = "nudge-ui-debug-xray-cursor";
 
 /** Depth between exploded layers, applied per DOM level. */
 const XRAY_LAYER_GAP = 50;
@@ -177,6 +178,8 @@ export function createRendererDebugView(
   document: Document = globalThis.document,
   /** Selects the element under a click on an exploded layer; false when nothing there can be selected. */
   onPick: (target: Element) => boolean = () => false,
+  /** Called when the page starts or stops being pulled apart, so the controller can step its own chrome aside. */
+  onExplodedChange: (exploded: boolean) => void = () => undefined,
 ): RendererDebugView {
   const window = document.defaultView;
   let state: DebugViewState = DEBUG_VIEW_OFF;
@@ -202,6 +205,13 @@ export function createRendererDebugView(
   // Explode view -----------------------------------------------------------
   type XrayPhase = "idle" | "exploded" | "collapsing";
   let phase: XrayPhase = "idle";
+
+  /** Records the phase and tells the controller once the page is pulled apart or put back. */
+  function setPhase(next: XrayPhase): void {
+    const wasExploded = phase !== "idle";
+    phase = next;
+    if ((next !== "idle") !== wasExploded) onExplodedChange(next !== "idle");
+  }
   let overrides = new InlineStyleOverrides();
   let explodedRect: DOMRect | null = null;
   let explodedRoot: Element | null = null;
@@ -210,7 +220,6 @@ export function createRendererDebugView(
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
   let hoveredLayer: StyledElement | null = null;
   let outlinedLayers = new Set<StyledElement>();
-  let pendingExplodePoint: { x: number; y: number } | null = null;
 
   function hideHoverOutline(): void {
     hoverOutline?.remove();
@@ -271,7 +280,7 @@ export function createRendererDebugView(
     for (const { element, depth } of layers) {
       if (depth > 0) overrides.set(element, "translate", `0 0 ${XRAY_LAYER_GAP}px`);
     }
-    phase = "exploded";
+    setPhase("exploded");
   }
 
   function finishCollapse(): void {
@@ -283,26 +292,20 @@ export function createRendererDebugView(
     overrides = new InlineStyleOverrides();
     explodedRect = null;
     explodedRoot = null;
-    phase = "idle";
+    setPhase("idle");
   }
 
   function collapse(animated: boolean): void {
     if (phase === "idle") return;
     if (!animated) {
-      pendingExplodePoint = null;
       finishCollapse();
       return;
     }
     if (phase === "collapsing") return;
-    phase = "collapsing";
+    setPhase("collapsing");
     // Animate back to the app's own transforms, then drop the remaining overrides.
     overrides.restoreProperties(["transform", "translate"]);
-    collapseTimer = setTimeout(() => {
-      finishCollapse();
-      const point = pendingExplodePoint;
-      pendingExplodePoint = null;
-      if (point) explodeAt(point);
-    }, XRAY_DURATION_MS);
+    collapseTimer = setTimeout(finishCollapse, XRAY_DURATION_MS);
   }
 
   function elementAt(point: { x: number; y: number }): Element | null {
@@ -356,8 +359,9 @@ export function createRendererDebugView(
   }
 
   /**
-   * A click explodes the hovered subtree. Clicking a layer while exploded selects it and ends the view;
-   * a click outside the subtree, or one during the collapse, explodes the new target once collapsed.
+   * A click explodes the hovered subtree. Clicking a layer while exploded selects it and collapses back, staying in Explode view for the next click;
+   * any other click while exploded just collapses it. Clicks during the collapse do nothing, so a click that
+   * dismisses a group can't explode whatever sits under it.
    */
   function onClick(event: MouseEvent): void {
     const point = { x: event.clientX, y: event.clientY };
@@ -370,17 +374,9 @@ export function createRendererDebugView(
     }
     event.preventDefault();
     event.stopPropagation();
-    if (phase === "collapsing") {
-      pendingExplodePoint = point;
-      return;
-    }
+    if (phase === "collapsing") return;
     const target = event.target;
-    if (insideExplodedRect(point) && target instanceof Element && explodedRoot?.contains(target) && onPick(target)) {
-      pendingExplodePoint = null;
-      collapse(true);
-      return;
-    }
-    pendingExplodePoint = insideExplodedRect(point) ? null : point;
+    if (insideExplodedRect(point) && target instanceof Element && explodedRoot?.contains(target)) onPick(target);
     collapse(true);
   }
 
@@ -388,15 +384,29 @@ export function createRendererDebugView(
     if (event.key !== "Escape" || phase === "idle") return;
     event.preventDefault();
     event.stopPropagation();
-    pendingExplodePoint = null;
     collapse(true);
   }
 
   let xrayListening = false;
 
+  /** Clicks inspect rather than edit or follow, so no element should show a text or pointer cursor. */
+  function setXrayCursor(on: boolean): void {
+    const existing = document.getElementById(XRAY_CURSOR_STYLE_ID);
+    if (!on) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+    const style = document.createElement("style");
+    style.id = XRAY_CURSOR_STYLE_ID;
+    style.textContent = `html, html * { cursor: default !important; }`;
+    (document.head ?? document.documentElement).append(style);
+  }
+
   function applyXray(): void {
     if (state.xray === xrayListening) return;
     xrayListening = state.xray;
+    setXrayCursor(state.xray);
     if (state.xray) {
       document.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
       document.addEventListener("click", onClick, { capture: true });
@@ -409,7 +419,6 @@ export function createRendererDebugView(
     document.removeEventListener("keydown", onKeyDown, { capture: true });
     document.documentElement.removeEventListener("pointerleave", onPointerLeave);
     hideHoverOutline();
-    pendingExplodePoint = null;
     collapse(true);
   }
 

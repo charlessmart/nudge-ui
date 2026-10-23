@@ -65,7 +65,7 @@ import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
 import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
-  isElementClickMessage,
+  isDebugViewPhaseMessage,
   isProjectionAppliedMessage,
   isKeyboardShortcutMessage,
   isRenderedInstanceProjectionReportMessage,
@@ -91,7 +91,7 @@ import {
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
-import { useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
+import { setDebugExploded, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
@@ -346,6 +346,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState]);
 
   useEffect(() => {
+    // A view change starts from the page as it was; a renderer still holding a subtree apart reports again.
+    setDebugExploded(false);
     for (const [cardId, iframe] of getRegisteredFrames()) {
       connectFrame(cardId, iframe).post({ type: "debug-view-state", state: activeDebugView });
     }
@@ -594,6 +596,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         }
         return;
       }
+      if (isDebugViewPhaseMessage(msg, identity)) {
+        // Only a renderer in Explode view can report this, and only that view hides the controller's chrome.
+        setDebugExploded(msg.exploded && activeDebugViewRef.current.xray);
+        return;
+      }
       const syncActiveFrameUrl = (url: string): void => {
         if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
@@ -655,10 +662,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         );
         sendBoardGestureState(frame, presentation === "canvas");
         frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
+        // A reloaded document is whole again, whatever the document it replaced was showing.
+        setDebugExploded(false);
         frame.post({ type: "debug-view-state", state: activeDebugViewRef.current });
       }
-      // Picking an Explode view layer selects it, so hand over from View options to Select.
-      if (selectedTool === "debug" && activeDebugViewRef.current.xray && isElementClickMessage(msg, identity) && msg.cid) handleToolChange("design");
       if (msg.type === "pan-modifier") {
         if (presentation !== "canvas") return;
         spaceHeldRef.current = msg.spaceHeld;

@@ -9,7 +9,7 @@ import type { RendererCursor } from "../ui/customCursors.ts";
 import type { DebugViewState } from "./debugView.ts";
 
 // Bumped on every message-shape change; the controller and renderer must agree exactly.
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 export interface FrameMessage {
   type: string;
@@ -298,6 +298,16 @@ export interface DebugViewStateMessage extends RendererMessage {
   state: DebugViewState;
 }
 
+/**
+ * The view tool pulled a subtree apart in this renderer. The controller hides its own element
+ * chrome meanwhile, since a flat overlay cannot follow the exploded layers.
+ */
+export interface DebugViewPhaseMessage extends RendererMessage {
+  type: "debug-view-phase";
+  /** True from the moment a subtree explodes until it has finished collapsing. */
+  exploded: boolean;
+}
+
 export type RendererToControllerMessage =
   | RendererHelloMessage
   | FrameReadyMessage
@@ -329,7 +339,8 @@ export type RendererToControllerMessage =
   | PanModifierMessage
   | ZoomMessage
   | WheelPanMessage
-  | AppInteractionModifierMessage;
+  | AppInteractionModifierMessage
+  | DebugViewPhaseMessage;
 
 export type ControllerToRendererMessage =
   | ParentReadyMessage
@@ -373,6 +384,7 @@ const RENDERER_MESSAGE_TYPES = {
   "zoom": true,
   "wheel-pan": true,
   "app-interaction-modifier": true,
+  "debug-view-phase": true,
 } satisfies Record<RendererToControllerMessage["type"], true>;
 
 export function isRendererMessageType(type: unknown): type is RendererToControllerMessage["type"] {
@@ -417,6 +429,7 @@ export type FrameProtocolMessage =
   | WheelPanMessage
   | AppInteractionModifierMessage
   | InspectorInteractionStateMessage
+  | DebugViewPhaseMessage
   | DebugViewStateMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
@@ -466,6 +479,18 @@ export function isKeyboardShortcutMessage(
   return ownValue(value, "type") === "keyboard-shortcut"
     && (ownValue(value, "phase") === "keydown" || ownValue(value, "phase") === "keyup")
     && isKeyboardShortcutCode(ownValue(value, "code"));
+}
+
+export function isDebugViewPhaseMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is DebugViewPhaseMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "exploded",
+  ])) return false;
+  return ownValue(value, "type") === "debug-view-phase"
+    && typeof ownValue(value, "exploded") === "boolean";
 }
 
 export function isElementClickMessage(
@@ -605,6 +630,7 @@ interface ProtocolObject {
   readonly cardId?: unknown;
   readonly cid?: unknown;
   readonly callsiteId?: unknown;
+  readonly exploded?: unknown;
   readonly framework?: unknown;
   readonly elementId?: unknown;
   readonly file?: unknown;
@@ -640,6 +666,7 @@ function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
   switch (key) {
     case "additive": return value.additive;
     case "emptyProjectionId": return value.emptyProjectionId;
+    case "exploded": return value.exploded;
     case "cardId": return value.cardId;
     case "cid": return value.cid;
     case "callsiteId": return value.callsiteId;

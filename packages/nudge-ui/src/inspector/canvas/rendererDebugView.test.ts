@@ -116,6 +116,32 @@ describe("renderer debug view", () => {
       view.dispose();
     });
 
+    it("explodes the next clicked element after a layer is selected", () => {
+      vi.useFakeTimers();
+      const { card, title, outside } = mountCard();
+      const view = createRendererDebugView(document, () => true);
+      view.apply(XRAY_ON);
+      pointAt(title);
+      click(title);
+      click(title);
+      vi.runAllTimers();
+
+      pointAt(outside.querySelector("span")!);
+      click(outside);
+      expect(outside.style.getPropertyValue("transform")).toContain("rotateX");
+      expect(card.getAttribute("style")).toBe("color: red;");
+      view.dispose();
+    });
+
+    it("forces the default cursor only while Explode view is on", () => {
+      const view = createRendererDebugView(document);
+      view.apply(XRAY_ON);
+      expect(document.getElementById("nudge-ui-debug-xray-cursor")?.textContent).toContain("cursor: default !important");
+      view.apply(DEBUG_VIEW_OFF);
+      expect(document.getElementById("nudge-ui-debug-xray-cursor")).toBeNull();
+      view.dispose();
+    });
+
     it("animates back when Explode view is turned off while exploded, and dispose finishes it at once", () => {
       vi.useFakeTimers();
       const { card, title } = mountCard();
@@ -137,7 +163,7 @@ describe("renderer debug view", () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it("animates back when a layer cannot be selected and explodes what is clicked during the collapse", () => {
+    it("animates back when a layer cannot be selected and ignores clicks during the collapse", () => {
       vi.useFakeTimers();
       const { card, title, outside } = mountCard();
       const onPick = vi.fn(() => false);
@@ -158,9 +184,44 @@ describe("renderer debug view", () => {
 
       vi.runAllTimers();
       expect(card.getAttribute("style")).toBe("color: red;");
-      expect(outside.style.getPropertyValue("transform")).toContain("rotateX");
-      view.dispose();
       expect(outside.hasAttribute("style")).toBe(false);
+      view.dispose();
+    });
+
+    it("collapses on a click outside the exploded group without exploding what was clicked", () => {
+      vi.useFakeTimers();
+      const { card, title, outside } = mountCard();
+      const onPick = vi.fn(() => true);
+      const view = createRendererDebugView(document, onPick);
+      view.apply(XRAY_ON);
+      pointAt(title);
+      click(title);
+
+      pointAt(outside.querySelector("span")!);
+      click(outside);
+      expect(onPick).not.toHaveBeenCalled();
+      vi.runAllTimers();
+      expect(card.getAttribute("style")).toBe("color: red;");
+      expect(outside.hasAttribute("style")).toBe(false);
+      view.dispose();
+    });
+
+    it("reports each time a subtree is pulled apart and put back", () => {
+      vi.useFakeTimers();
+      const { title } = mountCard();
+      const phases: boolean[] = [];
+      const view = createRendererDebugView(document, () => false, (exploded) => phases.push(exploded));
+      view.apply(XRAY_ON);
+      pointAt(title);
+      click(title);
+      expect(phases).toEqual([true]);
+
+      // Collapsing still counts as apart, so the controller keeps its chrome hidden until it is back.
+      click(title);
+      expect(phases).toEqual([true]);
+      vi.runAllTimers();
+      expect(phases).toEqual([true, false]);
+      view.dispose();
     });
 
     it("collapses on Escape without letting the app see the key", () => {

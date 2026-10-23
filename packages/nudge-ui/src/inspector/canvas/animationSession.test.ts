@@ -129,7 +129,33 @@ describe("AnimationSession", () => {
     session.dispose();
   });
 
-  it("groups one animation under its trigger, merging hover with focus, and offers a click only beside other animations on elements that look clickable", () => {
+  it("scans on demand rather than in the constructor, so render stays cheap", () => {
+    const session = new AnimationSession(button);
+    expect(session.getSnapshot().entries).toBeNull();
+
+    session.scan();
+    expect(session.getSnapshot().entries).toEqual([]);
+    session.dispose();
+  });
+
+  it("stops asking for frames once nothing is moving", () => {
+    const session = new AnimationSession(button);
+    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
+    session.run(CLICK_ENTRY);
+    // Let the capture window finish, so only playback frames are counted.
+    vi.advanceTimersByTime(700);
+
+    const requestFrame = vi.spyOn(document.defaultView!, "requestAnimationFrame");
+    session.play();
+    session.pause();
+    const parked = requestFrame.mock.calls.length;
+
+    vi.advanceTimersByTime(1000);
+    expect(requestFrame.mock.calls.length).toBe(parked);
+    session.dispose();
+  });
+
+  it("gives each state its own movement and offers a click only beside other animations on elements that look clickable", async () => {
     document.head.innerHTML = `<style>
       .deck { position: relative; }
       .card { transition-property: transform, opacity; transition-duration: 200ms; }
@@ -140,15 +166,21 @@ describe("AnimationSession", () => {
     </style>`;
     document.body.innerHTML = `<div class="deck" id="deck"><div class="card" id="one"></div><div class="card" id="two"><i class="spinner" id="spin"></i></div></div><span class="plain" id="plain"></span>`;
     for (const element of document.querySelectorAll<HTMLElement>("*")) element.getAnimations = () => [];
+    // The stylesheet walk caches per revision, which a MutationObserver bumps a microtask after a write.
+    await Promise.resolve();
     const byId = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
 
     const deck = scanAnimations(byId("deck"));
-    expect(deck.map((entry) => entry.label)).toEqual(["spin", "Hover · transform +1"]);
-    const group = deck.find((entry) => entry.kind === "state")!;
-    expect("group" in group && group.group.trigger).toBe(byId("deck"));
-    expect("group" in group && [...group.group.members.keys()].map((member) => member.id)).toEqual(["one", "two"]);
+    // One entry per movement: forcing hover must not claim the opacity that only focus sets off.
+    expect(deck.map((entry) => entry.label)).toEqual(["spin", "Hover · transform", "Focus · opacity"]);
+    const states = deck.filter((entry) => entry.kind === "state");
+    expect(states.map((entry) => "group" in entry && entry.state)).toEqual(["hover", "focus-visible"]);
+    for (const entry of states) {
+      expect("group" in entry && entry.group.trigger).toBe(byId("deck"));
+      expect("group" in entry && [...entry.group.members.keys()].map((member) => member.id)).toEqual(["one", "two"]);
+    }
 
-    expect(scanAnimations(byId("one")).map((entry) => entry.label)).toEqual(["Hover · transform +1"]);
+    expect(scanAnimations(byId("one")).map((entry) => entry.label)).toEqual(["Hover · transform", "Focus · opacity"]);
     expect(scanAnimations(byId("spin")).map((entry) => entry.label)).toEqual(["spin"]);
     expect(scanAnimations(byId("plain"))).toEqual([]);
 
@@ -156,6 +188,7 @@ describe("AnimationSession", () => {
     document.body.innerHTML = `<button id="go" class="spinner">Go</button><div id="tab" role="tab" class="spinner"></div><div id="inert" class="spinner"></div>`
       + `<button id="bare">Bare</button><div id="card" class="pointer spinner"><i id="icon" class="spinner"></i></div>`;
     for (const element of document.querySelectorAll<HTMLElement>("*")) element.getAnimations = () => [];
+    await Promise.resolve();
     const clickable = (id: string): boolean => scanAnimations(byId(id)).some((entry) => entry.kind === "click");
     // A clickable element with nothing animating gets no click on its own; a pointer cursor only counts where it starts.
     expect(["go", "tab", "inert", "bare", "card", "icon"].map(clickable)).toEqual([true, true, false, false, true, false]);

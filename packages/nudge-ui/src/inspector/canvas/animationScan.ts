@@ -6,7 +6,8 @@ export type PreviewState = Exclude<InteractionState, "base" | "disabled">;
 
 /**
  * One animation as a person sees it: the element whose state or keyframes set it off, and every
- * element that moves because of it. Hover and focus count as the same trigger, so they merge.
+ * element that moves because of it. Each state is its own group, so running one animates exactly
+ * the movement it names; a state that only restates another's movement collapses into it.
  */
 export interface AnimationGroup {
   readonly id: string;
@@ -16,7 +17,7 @@ export interface AnimationGroup {
   readonly trigger: HTMLElement;
   /** Elements that animate, each with the properties (or keyframes name) that change. */
   readonly members: ReadonlyMap<HTMLElement, ReadonlySet<string>>;
-  /** What to force when running it: hover covers focus, so this is hover unless only focus or active applies. */
+  /** What to force when running it; null for a keyframes group, which has no state. */
   readonly state: PreviewState | null;
   readonly name: string;
 }
@@ -37,10 +38,16 @@ function isPreviewState(name: string): name is PreviewState {
   return name === "hover" || name === "focus-visible" || name === "focus" || name === "active";
 }
 
-/** Hover, focus and focus-visible are one trigger as far as the animation goes; press is its own. */
-function triggerClass(state: PreviewState): "pointer" | "press" {
-  return state === "active" ? "press" : "pointer";
-}
+const STATE_LABEL = { hover: "Hover", "focus-visible": "Focus", focus: "Focus", active: "Active" } satisfies Record<PreviewState, string>;
+
+/** The state a person is likeliest to try first, used to name a movement several states restate. */
+const STATE_PRECEDENCE = { hover: 0, "focus-visible": 1, focus: 2, active: 3 } satisfies Record<PreviewState, number>;
+
+/** Declarations that mean an element may transition or run keyframes. */
+const MOTION_PROPERTIES = new Set([
+  "transition", "transition-property", "transition-duration", "transition-delay",
+  "animation", "animation-name", "animation-duration", "animation-delay",
+]);
 
 function list(value: string): string[] {
   return value.split(",").map((part) => part.trim()).filter(Boolean);
@@ -122,7 +129,7 @@ interface MutableGroup {
   readonly kind: "keyframes" | "state";
   readonly trigger: HTMLElement;
   readonly members: Map<HTMLElement, Set<string>>;
-  readonly states: Set<PreviewState>;
+  readonly state: PreviewState | null;
   readonly key: string;
   readonly name: string;
 }
@@ -130,25 +137,84 @@ interface MutableGroup {
 function buildGroup(group: MutableGroup): AnimationGroup {
   const properties = new Set<string>();
   for (const names of group.members.values()) for (const name of names) properties.add(name);
-  let state: PreviewState | null = null;
-  let label: string;
-  if (group.kind === "keyframes") {
-    label = group.name;
-  } else {
-    state = group.states.has("hover") ? "hover" : group.states.has("focus-visible") ? "focus-visible" : group.states.has("focus") ? "focus" : "active";
-    label = `${state === "active" ? "Active" : "Hover"} · ${summary([...properties])}`;
-  }
-  return { id: group.key, kind: group.kind, label, trigger: group.trigger, members: group.members, state, name: group.name };
+  const label = group.kind === "keyframes"
+    ? group.name
+    : `${STATE_LABEL[group.state ?? "hover"]} · ${summary([...properties])}`;
+  return { id: group.key, kind: group.kind, label, trigger: group.trigger, members: group.members, state: group.state, name: group.name };
 }
 
-/** Finds each animation on `elements`: keyframes they run, and the transitions their states set off, grouped by trigger. */
+function sameMovement(
+  left: ReadonlyMap<HTMLElement, ReadonlySet<string>>,
+  right: ReadonlyMap<HTMLElement, ReadonlySet<string>>,
+): boolean {
+  if (left.size !== right.size) return false;
+  for (const [element, names] of left) {
+    const other = right.get(element);
+    if (!other || other.size !== names.size) return false;
+    for (const name of names) if (!other.has(name)) return false;
+  }
+  return true;
+}
+
+/** Keyframes first, then the states a person tries in order. */
+function stateRank(group: AnimationGroup): number {
+  return group.state === null ? -1 : STATE_PRECEDENCE[group.state];
+}
+
+/**
+ * Keeps one entry per movement: a trigger that restates the same elements and properties under
+ * another state is named for the state tried first, while a state that moves something else stays
+ * separate and stays runnable.
+ */
+function collapseRestatedStates(groups: readonly AnimationGroup[]): AnimationGroup[] {
+  // The sort is stable, so entries for unrelated triggers keep the order they were found in.
+  const ranked = [...groups].sort((left, right) => stateRank(left) - stateRank(right));
+  const kept: AnimationGroup[] = [];
+  for (const group of ranked) {
+    const restated = group.kind === "state"
+      && kept.some((candidate) => candidate.kind === "state" && candidate.trigger === group.trigger && sameMovement(candidate.members, group.members));
+    if (!restated) kept.push(group);
+  }
+  return kept;
+}
+
+/**
+ * Elements that may transition or run keyframes, found from the rules and their own inline style
+ * rather than by reading every element's computed style: only a handful animate on a large page.
+ */
+function motionCandidates(doc: Document, allowed: ReadonlySet<HTMLElement>): Set<HTMLElement> {
+  const found = new Set<HTMLElement>();
+  const add = (selector: string): void => {
+    let matched: NodeListOf<Element>;
+    try {
+      matched = doc.querySelectorAll(selector);
+    } catch {
+      return;
+    }
+    for (const element of matched) if (allowed.has(element as HTMLElement)) found.add(element as HTMLElement);
+  };
+  for (const rule of collectRules(doc).rules) {
+    if (!rule.declarations.some(({ property }) => MOTION_PROPERTIES.has(property))) continue;
+    for (const branch of splitSelectorAtTopLevel(rule.selectorText, ",")) add(branch.trim());
+  }
+  // The element's own style is not in the CSSOM.
+  for (const element of doc.querySelectorAll<HTMLElement>("[style]")) {
+    if (allowed.has(element) && (element.style.transition !== "" || element.style.animation !== "")) found.add(element);
+  }
+  return found;
+}
+
+/** Finds each animation on `elements`: keyframes they run, and the transitions their states set off, grouped by trigger and state. */
 function findGroups(doc: Document, elements: readonly HTMLElement[]): AnimationGroup[] {
   const view = doc.defaultView;
   if (!view) return [];
   const groups = new Map<string, MutableGroup>();
   const transitioning = new Map<HTMLElement, Set<string>>();
+  const candidates = motionCandidates(doc, new Set(elements));
 
   for (const element of elements) {
+    // Elements that declare no transition or keyframes cannot animate, whatever their computed style says.
+    if (!candidates.has(element)) continue;
     const style = view.getComputedStyle(element);
     const names = list(style.animationName);
     if (names.length > 0 && names[0] !== "none") {
@@ -157,7 +223,7 @@ function findGroups(doc: Document, elements: readonly HTMLElement[]): AnimationG
         const duration = parseFloat(durations[index % Math.max(1, durations.length)] ?? "0");
         if (name === "none" || duration <= 0) return;
         const key = `keyframes:${triggerId(element)}:${name}`;
-        groups.set(key, { kind: "keyframes", trigger: element, members: new Map([[element, new Set([name])]]), states: new Set(), key, name });
+        groups.set(key, { kind: "keyframes", trigger: element, members: new Map([[element, new Set([name])]]), state: null, key, name });
       });
     }
     const properties = transitionedProperties(style);
@@ -165,7 +231,11 @@ function findGroups(doc: Document, elements: readonly HTMLElement[]): AnimationG
   }
 
   if (transitioning.size > 0) {
+    const moving = new Set<string>();
+    for (const properties of transitioning.values()) for (const property of properties) moving.add(property);
     for (const rule of collectRules(doc).rules) {
+      // A rule that touches nothing the page transitions can match all it likes.
+      if (!rule.declarations.some(({ property }) => moving.has(property) || moving.has("all"))) continue;
       for (const branch of splitSelectorAtTopLevel(rule.selectorText, ",")) {
         const parsed = parseStates(branch.trim());
         if (!parsed) continue;
@@ -187,13 +257,12 @@ function findGroups(doc: Document, elements: readonly HTMLElement[]): AnimationG
             } catch {
               trigger = candidate as HTMLElement;
             }
-            const key = `state:${triggerId(trigger)}:${triggerClass(state)}`;
+            const key = `state:${triggerId(trigger)}:${state}`;
             let group = groups.get(key);
             if (!group) {
-              group = { kind: "state", trigger, members: new Map(), states: new Set(), key, name: "" };
+              group = { kind: "state", trigger, members: new Map(), state, key, name: "" };
               groups.set(key, group);
             }
-            group.states.add(state);
             const member = group.members.get(candidate as HTMLElement) ?? new Set<string>();
             for (const property of changed) member.add(property);
             group.members.set(candidate as HTMLElement, member);
@@ -202,7 +271,7 @@ function findGroups(doc: Document, elements: readonly HTMLElement[]): AnimationG
       }
     }
   }
-  return [...groups.values()].map(buildGroup);
+  return collapseRestatedStates([...groups.values()].map(buildGroup));
 }
 
 /** Every animation on the page, in document order of its trigger. */

@@ -1,7 +1,7 @@
 import { startInteractionStatePreview } from "../shell/interactionStatePreview.ts";
 import { scanAnimations, type AnimationEntry } from "./animationScan.ts";
 
-export const ANIMATION_SPEEDS = [0.1, 0.25, 0.5, 1] as const;
+export const ANIMATION_SPEEDS = [0.1, 0.3, 0.5, 1] as const;
 /** How long after a trigger new animations are still adopted, for apps that render a frame or two later. */
 const CAPTURE_WINDOW_MS = 500;
 
@@ -17,6 +17,8 @@ export interface AnimationSnapshot {
   readonly duration: number;
   readonly playing: boolean;
   readonly speed: number;
+  /** What the session offers to run; null until it has scanned the element. */
+  readonly entries: readonly AnimationEntry[] | null;
 }
 
 export const IDLE_ANIMATION_SNAPSHOT: AnimationSnapshot = {
@@ -27,6 +29,7 @@ export const IDLE_ANIMATION_SNAPSHOT: AnimationSnapshot = {
   duration: 0,
   playing: false,
   speed: 1,
+  entries: null,
 };
 
 function list(value: string): string[] {
@@ -68,10 +71,15 @@ export class AnimationSession {
   private pollFrame: number | null = null;
   private disposed = false;
 
-  readonly entries: readonly AnimationEntry[];
+  constructor(readonly element: HTMLElement) {}
 
-  constructor(readonly element: HTMLElement) {
-    this.entries = scanAnimations(element);
+  /**
+   * Reads the element's animations. Kept out of the constructor, which React calls during render,
+   * because scanning walks the stylesheets and the computed style of every element it can match.
+   */
+  scan(): void {
+    if (this.disposed || this.snapshot.entries !== null) return;
+    this.publish({ ...this.snapshot, entries: scanAnimations(this.element) });
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -165,6 +173,7 @@ export class AnimationSession {
       animation.play();
     }
     this.publish({ ...this.snapshot, playing: true });
+    this.startPolling();
   }
 
   pause(): void {
@@ -225,13 +234,24 @@ export class AnimationSession {
     this.publish({ ...this.snapshot, progress, playing });
   }
 
+  /** True while at least one captured animation is running, which is the only time frames are needed. */
+  private isMoving(): boolean {
+    return this.captured.some((animation) => animation.playState === "running");
+  }
+
+  /**
+   * Follows playback frame by frame until nothing moves. Seeking publishes its own progress, so a
+   * paused or finished group leaves the page with no animation frame loop at all.
+   */
   private startPolling(): void {
     if (this.pollFrame !== null) return;
     const window = this.element.ownerDocument.defaultView;
     if (!window) return;
     const poll = (): void => {
-      this.pollFrame = window.requestAnimationFrame(poll);
+      this.pollFrame = null;
       this.publishProgress();
+      if (this.disposed || !this.isMoving()) return;
+      this.pollFrame = window.requestAnimationFrame(poll);
     };
     this.pollFrame = window.requestAnimationFrame(poll);
   }

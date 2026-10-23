@@ -7,11 +7,11 @@ import { AnimationTimeline, timelineTicks } from "./AnimationTimeline.tsx";
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("timelineTicks", () => {
-  it("labels whole seconds for a multi-second animation with ten minor marks between", () => {
+  it("labels whole seconds for a multi-second animation with twenty minor marks between", () => {
     const ticks = timelineTicks(3000);
     expect(ticks.filter((tick) => tick.label).map((tick) => tick.label)).toEqual(["0", "1s", "2s"]);
     expect(ticks.filter((tick) => tick.major).map((tick) => tick.ms)).toEqual([0, 1000, 2000, 3000]);
-    expect(ticks).toHaveLength(31);
+    expect(ticks).toHaveLength(61);
   });
 
   it("labels bare milliseconds for short animations and gives the final mark no label", () => {
@@ -89,18 +89,41 @@ describe("AnimationTimeline", () => {
   it("grows the marks around the playhead, the closest the most", () => {
     const falloff = (progress: number) => {
       render({ onSeek: vi.fn(), progress, duration: 1000 });
-      const levels: Record<number, string> = {};
+      const levels: Record<number, number> = {};
       host.querySelectorAll<HTMLElement>(".animation-timeline__tick").forEach((tick, index) => {
-        if (tick.dataset.falloff) levels[index] = tick.dataset.falloff;
+        const proximity = tick.style.getPropertyValue("--tick-proximity");
+        if (proximity) levels[index] = Number(proximity);
       });
       return levels;
     };
-    // 1000ms is marked every 200ms with a minor mark every 20ms, so 500ms is mark 25.
-    expect(falloff(0.5)).toEqual({ 23: "1.5", 24: "2", 25: "3", 26: "2", 27: "1.5" });
-    expect(falloff(0)).toEqual({ 0: "3", 1: "2", 2: "1.5" });
-    expect(falloff(1)).toEqual({ 48: "1.5", 49: "2", 50: "3" });
-    // Between two marks both are the closest.
-    expect(falloff(0.51)).toMatchObject({ 25: "3", 26: "3" });
+    // 1000ms is marked every 200ms with a minor mark every 10ms, so 500ms is mark 50.
+    // The rise decays exponentially: e^-1 two marks out, and nothing past five.
+    expect(falloff(0.5)).toEqual({
+      45: 0.08, 46: 0.14, 47: 0.22, 48: 0.37, 49: 0.61, 50: 1, 51: 0.61, 52: 0.37, 53: 0.22, 54: 0.14, 55: 0.08,
+    });
+    expect(falloff(0)).toEqual({ 0: 1, 1: 0.61, 2: 0.37, 3: 0.22, 4: 0.14, 5: 0.08 });
+    expect(falloff(1)).toEqual({ 95: 0.08, 96: 0.14, 97: 0.22, 98: 0.37, 99: 0.61, 100: 1 });
+    // Between two marks both are equally near.
+    expect(falloff(0.505)).toMatchObject({ 50: 0.78, 51: 0.78 });
+  });
+
+  it("flags only the marks the playhead is leaving as falling, until they rise again", () => {
+    const falling = () => [...host.querySelectorAll<HTMLElement>(".animation-timeline__tick")]
+      .flatMap((tick, index) => (tick.hasAttribute("data-falling") ? [index] : []));
+    render({ onSeek: vi.fn(), progress: 0, duration: 1000 });
+    expect(falling()).toEqual([]);
+
+    // Moving to mark 50 raises the marks there; none of them are falling, and the old ones are.
+    render({ onSeek: vi.fn(), progress: 0.5, duration: 1000 });
+    expect(falling()).toEqual([0, 1, 2, 3, 4, 5]);
+
+    // They stay flagged while nothing changes, so a settling ease isn't cut short.
+    render({ onSeek: vi.fn(), progress: 0.5, duration: 1000 });
+    expect(falling()).toEqual([0, 1, 2, 3, 4, 5]);
+
+    // Back at the start they rise again, instantly.
+    render({ onSeek: vi.fn(), progress: 0, duration: 1000 });
+    expect(falling()).toEqual([45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55]);
   });
 
   it("leaves the marks to the playhead alone while the pointer merely hovers", () => {
@@ -110,21 +133,22 @@ describe("AnimationTimeline", () => {
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
     timeline.hasPointerCapture = vi.fn(() => false);
     const levels = () => {
-      const found: Record<number, string> = {};
+      const found: Record<number, number> = {};
       host.querySelectorAll<HTMLElement>(".animation-timeline__tick").forEach((tick, index) => {
-        if (tick.dataset.falloff) found[index] = tick.dataset.falloff;
+        const proximity = tick.style.getPropertyValue("--tick-proximity");
+        if (proximity) found[index] = Number(proximity);
       });
       return found;
     };
     // Only the playhead's marks at the start.
-    expect(levels()).toEqual({ 0: "3", 1: "2", 2: "1.5" });
+    expect(levels()).toEqual({ 0: 1, 1: 0.61, 2: 0.37, 3: 0.22, 4: 0.14, 5: 0.08 });
 
     // 201 is the middle of the 200px of travel and 301 its far end; neither raises a mark.
     act(() => {
       timeline.dispatchEvent(pointerEvent("pointermove", { clientX: 201 }));
       timeline.dispatchEvent(pointerEvent("pointermove", { clientX: 301 }));
     });
-    expect(levels()).toEqual({ 0: "3", 1: "2", 2: "1.5" });
+    expect(levels()).toEqual({ 0: 1, 1: 0.61, 2: 0.37, 3: 0.22, 4: 0.14, 5: 0.08 });
     expect(onSeek).not.toHaveBeenCalled();
   });
 
@@ -143,9 +167,10 @@ describe("AnimationTimeline", () => {
       scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
       timeline.setPointerCapture = vi.fn();
       const levels = () => {
-        const found: Record<number, string> = {};
+        const found: Record<number, number> = {};
         host.querySelectorAll<HTMLElement>(".animation-timeline__tick").forEach((tick, index) => {
-          if (tick.dataset.falloff) found[index] = tick.dataset.falloff;
+          const proximity = tick.style.getPropertyValue("--tick-proximity");
+        if (proximity) found[index] = Number(proximity);
         });
         return found;
       };
@@ -159,20 +184,20 @@ describe("AnimationTimeline", () => {
 
       // Until the travel starts the marks stay around the old spot, not the target.
       expect(timeline.hasAttribute("data-gliding")).toBe(true);
-      expect(levels()).toEqual({ 0: "3", 1: "2", 2: "1.5" });
+      expect(levels()).toEqual({ 0: 1, 1: 0.61, 2: 0.37, 3: 0.22, 4: 0.14, 5: 0.08 });
 
       // Halfway through the glide they have risen around the travelled playhead, not either end.
       act(() => {
         frames[0]!(1_000);
         frames[1]!(1_075);
       });
-      expect(levels()).toEqual({ 35: "1.5", 36: "2", 37: "3", 38: "3", 39: "2", 40: "1.5" });
+      expect(levels()).toEqual({ 70: 0.08, 71: 0.14, 72: 0.22, 73: 0.37, 74: 0.61, 75: 1, 76: 0.61, 77: 0.37, 78: 0.22, 79: 0.14, 80: 0.08 });
 
       // The last frame lands them on the target.
       act(() => {
         frames[2]!(1_150);
       });
-      expect(levels()).toEqual({ 48: "1.5", 49: "2", 50: "3" });
+      expect(levels()).toEqual({ 95: 0.08, 96: 0.14, 97: 0.22, 98: 0.37, 99: 0.61, 100: 1 });
       expect(timeline.hasAttribute("data-gliding")).toBe(false);
     } finally {
       vi.restoreAllMocks();

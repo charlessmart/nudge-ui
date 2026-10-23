@@ -7,6 +7,7 @@ import {
   setRendererIdentity,
   type ParentReadyMessage,
   type BoardGestureStateMessage,
+  type DebugViewPhaseMessage,
   type DebugViewStateMessage,
 } from "./frameProtocol.ts";
 import type {
@@ -354,7 +355,19 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     sendToParent(message);
   }
 
-  const debugView = createRendererDebugView(document, selectRendererElement);
+  function reportExploded(exploded: boolean): void {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const message: DebugViewPhaseMessage = {
+      type: "debug-view-phase",
+      protocolVersion: PROTOCOL_VERSION,
+      exploded,
+      ...identity,
+    };
+    sendToParent(message);
+  }
+
+  const debugView = createRendererDebugView(document, selectRendererElement, reportExploded);
   owner.listenerRemovers.push(() => debugView.dispose());
   const animationMarkers = createRendererAnimationMarkers(document, selectRendererElement);
   owner.listenerRemovers.push(() => animationMarkers.dispose());

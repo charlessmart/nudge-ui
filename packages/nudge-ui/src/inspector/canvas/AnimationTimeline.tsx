@@ -4,7 +4,7 @@ import type { CSSProperties, KeyboardEvent, PointerEvent, ReactElement } from "r
 const MAJOR_STEPS_MS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
 /** Aims for about this many labelled marks across the track. */
 const TARGET_MAJOR_MARKS = 5;
-const MINOR_PER_MAJOR = 10;
+const MINOR_PER_MAJOR = 20;
 /** Marks past this fraction of the track are left unlabelled. */
 const LAST_LABEL_FRACTION = 0.8;
 /** How long the playhead takes to travel to where the track was pressed. */
@@ -25,17 +25,16 @@ export function minorStepMs(ticks: readonly TimelineTick[]): number {
   return ticks.length > 1 ? ticks[1]!.ms - ticks[0]!.ms : 0;
 }
 
-/** How much taller a mark is drawn the closer it sits to the playhead; null beyond the third step. */
-export type TickFalloff = "3" | "2" | "1.5";
+/** The distance, in marks, over which a mark's rise has fallen to 1/e of the playhead's own. */
+const PROXIMITY_DECAY_MARKS = 2;
+/** Marks whose rise falls below this are drawn at rest. */
+const MIN_PROXIMITY = 0.05;
 
-export function tickFalloff(distanceMs: number, minorMs: number): TickFalloff | null {
+/** How much a mark rises toward the playhead's height and darkness, 1 at the playhead and falling off exponentially; null once negligible. */
+export function tickProximity(distanceMs: number, minorMs: number): number | null {
   if (!(minorMs > 0)) return null;
-  const steps = Math.abs(distanceMs) / minorMs;
-  // A small allowance keeps a mark that is exactly one step away from rounding into the next band.
-  if (steps < 1 - 1e-6) return "3";
-  if (steps < 2 - 1e-6) return "2";
-  if (steps < 3 - 1e-6) return "1.5";
-  return null;
+  const proximity = Math.exp(-(Math.abs(distanceMs) / minorMs) / PROXIMITY_DECAY_MARKS);
+  return proximity < MIN_PROXIMITY ? null : Math.round(proximity * 100) / 100;
 }
 
 function formatMarkLabel(ms: number, stepMs: number): string {
@@ -95,6 +94,20 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   glideTarget.current = progress;
   const drawnProgress = glideProgress ?? progress;
   const playheadMs = drawnProgress * duration;
+
+  // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as
+  // falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
+  const proximities = ticks.map((tick) => tickProximity(tick.ms - playheadMs, minorMs));
+  const drawn = useRef<{ proximities: readonly (number | null)[]; falling: readonly boolean[] }>({ proximities: [], falling: [] });
+  const falling = proximities.map((proximity, index) => {
+    const before = drawn.current.proximities[index] ?? null;
+    if ((proximity ?? 0) < (before ?? 0)) return true;
+    if ((proximity ?? 0) > (before ?? 0)) return false;
+    return drawn.current.falling[index] ?? false;
+  });
+  useEffect(() => {
+    drawn.current = { proximities, falling };
+  });
 
   useEffect(() => () => {
     clearTimeout(glideTimer.current);
@@ -189,15 +202,21 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
       style={{ "--timeline-progress": drawnProgress } as CSSProperties}
     >
       <div className="animation-timeline__scale" ref={scaleRef}>
-        {ticks.map((tick) => (
-          <span
-            key={tick.ms}
-            className={tick.major ? "animation-timeline__tick animation-timeline__tick--major" : "animation-timeline__tick"}
-            data-falloff={tickFalloff(tick.ms - playheadMs, minorMs) ?? undefined}
-            style={{ "--tick-position": tick.ms / duration } as CSSProperties}
-            aria-hidden="true"
-          />
-        ))}
+        {ticks.map((tick, index) => {
+          const proximity = proximities[index]!;
+          return (
+            <span
+              key={tick.ms}
+              className={tick.major ? "animation-timeline__tick animation-timeline__tick--major" : "animation-timeline__tick"}
+              data-falling={falling[index] ? "" : undefined}
+              style={{
+                "--tick-position": tick.ms / duration,
+                ...(proximity === null ? {} : { "--tick-proximity": proximity }),
+              } as CSSProperties}
+              aria-hidden="true"
+            />
+          );
+        })}
         {/* Separate from the ticks, so they stay at the top whatever height a tick grows to. */}
         {ticks.map((tick) => tick.label ? (
           <span

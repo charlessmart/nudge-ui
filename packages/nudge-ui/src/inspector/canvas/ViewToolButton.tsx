@@ -5,7 +5,6 @@ import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
-import { cx } from "../ui/classNames.ts";
 import { ToolbarButton } from "./ToolbarButton.tsx";
 import { setDebugViewMode, useDebugViewMode, type DebugViewMode } from "./debugViewStore.ts";
 
@@ -50,7 +49,7 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
             render={
               <IconButton
                 variant="quiet"
-                size="compact"
+                size="large"
                 className="canvas-toolbar__chevron"
                 label="Switch view"
                 aria-haspopup="menu"
@@ -71,7 +70,7 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
                   type="button"
                   role="menuitemradio"
                   aria-checked={option === mode}
-                  className={cx("view-tool-menu__item", option === mode && "view-tool-menu__item--selected")}
+                  className="view-tool-menu__item"
                   data-test={`debug-view-${option}`}
                   onClick={() => {
                     setDebugViewMode(option);
