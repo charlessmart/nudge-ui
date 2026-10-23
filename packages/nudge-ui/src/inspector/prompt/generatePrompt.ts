@@ -6,7 +6,7 @@ import type {
   TokenChangeRecord,
   TextContentChangeRecord,
 } from "../changes/types.ts";
-import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
+import type { InvocationRef, RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
 import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
 import {
@@ -357,8 +357,12 @@ function refDescription(ref: RenderedInstanceRef): string {
   return `the ${[nounFor(ref.locator.tagName), ...targetDetails(refFacts(ref), ref.locator.occurrence)].join(" ")}`;
 }
 
-/** Names a parent by its component when the source is known, since its rendered copy is rarely a useful pointer. */
-function containerDescription(ref: RenderedInstanceRef): string {
+/**
+ * Names a parent by its component when the source is known, since its rendered copy is rarely a useful pointer.
+ * A parent that renders an invocation's children is edited at that callsite, not where its own JSX is defined.
+ */
+function containerDescription(ref: RenderedInstanceRef, childrenOf?: InvocationRef): string {
+  if (childrenOf) return `the children of the <${childrenOf.componentName}> at ${childrenOf.callsiteId}`;
   return isAuthoredSource(ref.sourceSite.src) ? `${ref.sourceSite.cid} (${ref.sourceSite.src})` : refDescription(ref);
 }
 
@@ -383,9 +387,9 @@ function structuralChangeLine(change: StructuralChange): string {
       : "- Remove it from the source.";
   }
   const before = change.destination.before;
-  const destinationParent = containerDescription(change.destination.parent);
+  const destinationParent = containerDescription(change.destination.parent, change.destination.childrenOf);
   if (structuralParentIdentityKey(change.source.parent) !== structuralParentIdentityKey(change.destination.parent)) {
-    const sourceParent = containerDescription(change.source.parent);
+    const sourceParent = containerDescription(change.source.parent, change.source.childrenOf);
     return before
       ? `- Move it from ${sourceParent} into ${destinationParent}, before ${refDescription(before)}.`
       : `- Move it from ${sourceParent} into ${destinationParent}, at the end.`;

@@ -307,6 +307,36 @@ describe("generatePrompt", () => {
     );
   });
 
+  it("describes a move into a component's children at its invocation, not its definition", () => {
+    const structural: StructuralChange[] = [{
+      id: "move-into-stack",
+      kind: "move",
+      target: {
+        sourceSite: { cid: "Page", src: "src/Page.tsx:30:5" },
+        locator: { kind: "evidence", occurrence: 0, props: null, text: "Note" },
+      },
+      source: {
+        parent: {
+          sourceSite: { cid: "Page", src: "src/Page.tsx:28:3" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "Note" },
+        },
+      },
+      destination: {
+        parent: {
+          sourceSite: { cid: "Stack", src: "src/ui/Stack.tsx:8:10" },
+          locator: { kind: "evidence", occurrence: 1, props: null, text: "Title" },
+        },
+        before: null,
+        childrenOf: { callsiteId: "src/Page.tsx:12:5", componentName: "Stack" },
+      },
+      presentation: { sourceParentTag: "section", destinationParentTag: "div", fromIndex: 2, toIndex: 1 },
+    }];
+
+    expect(generatePrompt([], undefined, structural)).toContain(
+      "- Move it from Page (src/Page.tsx:28:3) into the children of the <Stack> at src/Page.tsx:12:5, at the end.",
+    );
+  });
+
   it("exports only the final destination for each moved element", () => {
     const target = {
       sourceSite: { cid: "App", src: "src/App.tsx:157:14" },

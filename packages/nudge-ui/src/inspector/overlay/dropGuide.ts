@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { DropLocation } from "./structuralGestures.ts";
+import { dropTargetRect, type DropLocation } from "./structuralGestures.ts";
 
 export type DropGuideOwner = "inspect" | "canvas";
 
@@ -43,7 +43,7 @@ function sameRect(left: DropGuideRect, right: DropGuideRect): boolean {
 }
 
 export function showDropGuide(owner: DropGuideOwner, document: Document, drop: DropLocation): void {
-  const target = drop.parent.getBoundingClientRect();
+  const target = dropTargetRect(drop.parent);
   const nextGuide: DropGuide = {
     owner,
     document,
