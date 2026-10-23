@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { IconMinus, IconPlus } from "@tabler/icons-react";
+import { IconMinus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
@@ -44,8 +44,42 @@ export function projectSpacing(
     : projectInspectorValues(element, tokenRows)).spacing;
 }
 
+type SpacingProperty = "padding" | "margin" | "inset";
+
+/** Whether an optional spacing group is on screen; shared so the layout options menu can add it. */
+export interface SpacingVisibility {
+  visible: boolean;
+  show(): void;
+  hide(): void;
+}
+
+/** Zero spacing is visually empty whatever its source, so it does not open the group on its own. */
+function sideHasValue(property: SpacingProperty, rawValue: string): boolean {
+  const value = rawValue.trim();
+  return value !== "" && !isZeroCssValue(value) && (property !== "inset" || value !== "auto");
+}
+
+/** Removing resets whatever is authored, including an inset of zero that the group hides until it is added. */
+function sideIsRemovable(property: SpacingProperty, rawValue: string): boolean {
+  const value = rawValue.trim();
+  return property === "inset" ? value !== "" && value !== "auto" : sideHasValue(property, value);
+}
+
+export function spacingHasValue(property: SpacingProperty, projection: InspectorSpacingProjection): boolean {
+  return SIDE_NAMES.some((side) => sideHasValue(property, projection.fields[side].value));
+}
+
+/** Keeps a margin or inset group mounted once opened, even while its values are still empty. */
+export function useSpacingVisibility(
+  property: SpacingProperty,
+  projection: InspectorSpacingProjection,
+  elements: readonly HTMLElement[],
+): SpacingVisibility {
+  return useFieldVisibility(elements, property, spacingHasValue(property, projection));
+}
+
 export interface SpacingFieldProps {
-  property: "padding" | "margin" | "inset";
+  property: SpacingProperty;
   projection: InspectorSpacingProjection;
   domElement: HTMLElement;
   editTarget?: EditTarget;
@@ -54,7 +88,8 @@ export interface SpacingFieldProps {
   tokenRows: ResolvedProperty[];
   onAfterEdit?: () => void;
   showLabel?: boolean;
-  showEmptyState?: boolean;
+  /** Margin and inset render only while visible; pass the state to let another control add them. */
+  visibility?: SpacingVisibility;
   suggestions?: ReadonlyArray<string>;
 }
 
@@ -68,9 +103,9 @@ export function SpacingField({
   tokenRows,
   onAfterEdit,
   showLabel = true,
-  showEmptyState = true,
+  visibility: sharedVisibility,
   suggestions,
-}: SpacingFieldProps): ReactElement {
+}: SpacingFieldProps): ReactElement | null {
   const pairDefinitions = [
     { axis: "horizontal", sideProperties: [sideProperty(property, "right"), sideProperty(property, "left")] as const },
     { axis: "vertical", sideProperties: [sideProperty(property, "top"), sideProperty(property, "bottom")] as const },
@@ -102,20 +137,16 @@ export function SpacingField({
       ),
     };
   });
-  const sideHasValue = (side: (typeof SIDE_NAMES)[number]): boolean => {
-    // Zero spacing is visually empty whatever its source; open editors stay open below.
-    const value = spacingProjection.fields[side].value.trim();
-    return value !== "" && !isZeroCssValue(value) && (property !== "inset" || value !== "auto");
-  };
-  const hasSpacing = SIDE_NAMES.some(sideHasValue);
-  const visibility = useFieldVisibility(selection?.domElements ?? [el], property, hasSpacing);
+  const ownVisibility = useSpacingVisibility(property, spacingProjection, selection?.domElements ?? [el]);
+  const visibility = sharedVisibility ?? ownVisibility;
+  const removable = property !== "padding";
   const removeBlockedBy = inlineBlockedBy(selection?.domElements ?? [el], ...SIDE_NAMES.map((side) => sideProperty(property, side)));
 
-  /** Clears every side that has a value, then folds the field back to its empty state. */
+  /** Resets every side that has a value, then drops the whole group. */
   function removeValues(): void {
     const declarations = SIDE_NAMES
-      .filter(sideHasValue)
-      .map((side) => ({ property: sideProperty(property, side), value: "0" }));
+      .filter((side) => sideIsRemovable(property, spacingProjection.fields[side].value))
+      .map((side) => ({ property: sideProperty(property, side), value: property === "inset" ? "auto" : "0" }));
     if (declarations.length > 0) {
       setStyles(editTarget ?? el, declarations);
       onAfterEdit?.();
@@ -142,6 +173,8 @@ export function SpacingField({
     ),
   }));
 
+  if (removable && !visibility.visible) return null;
+
   return (
     <SideValuesField
       label={property}
@@ -150,20 +183,7 @@ export function SpacingField({
       resetKey={el}
       pairedControls={pairSlots}
       showLabel={showLabel}
-      empty={showEmptyState && !visibility.visible}
-      onAdd={visibility.show}
-      emptyAction={property === "inset" ? (
-        <IconButton
-          variant="quiet"
-          size="default"
-          data-test="add-inset"
-          label="Add Inset Values"
-          onClick={visibility.show}
-        >
-          <IconPlus size={16} aria-hidden="true" />
-        </IconButton>
-      ) : undefined}
-      headerAction={property === "margin" ? (
+      headerAction={removable ? (
         <Tooltip content={inlineStyleWarningContent(removeBlockedBy)}>
           <IconButton
             variant="quiet"
@@ -226,7 +246,7 @@ function SpacingAxisIndicator({
   property,
   axis,
 }: {
-  property: "padding" | "margin" | "inset";
+  property: SpacingProperty;
   axis: SideValueAxis;
 }): ReactElement {
   if (property === "padding" && axis === "horizontal") {

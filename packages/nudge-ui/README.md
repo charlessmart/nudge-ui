@@ -35,7 +35,7 @@ optional, so you only need the tools your app uses.
   duplicates to compare the same design at different viewport sizes.
 - **Explore alternatives:** Create independent HTML iterations from a frame,
   refine them, and ask an agent to implement your chosen design in the live app.
-- **Explain changes:** Add comments and sketches alongside visual edits.
+- **Explain changes:** Add comments alongside visual edits, or sketch over the page and copy the image to paste into your agent.
 - **Hand off to an agent:** Copy a prompt with source context, or send it through
   the optional MCP integration and see the agent's status in the editor.
 
@@ -45,7 +45,7 @@ optional, so you only need the tools your app uses.
 | --- | --- | --- |
 | Select | `V` | Select elements to inspect and edit. |
 | Comment | `C` | Attach a note to an element. |
-| Pencil | `P` | Draw on the page and add sketch notes. |
+| Pencil | `P` | Draw, add shapes and text on the page, then copy the sketch. |
 | Use app normally | Hold `A` in Canvas | Interact with the app. You can also select this tool in the toolbar. |
 
 Hold `Space` to pan the canvas. Use undo and redo to revisit edits and frame

@@ -256,13 +256,16 @@ test("dev: layout section shows inset controls for a positioned element", async 
 
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
 
-  expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
-  expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
-  expect(await page.locator('[data-test="layout-section"] [data-test="layout-inset"]').count()).toBe(1);
-
-  // Empty relative insets stay compact until explicitly added.
-  await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
+  // Empty insets stay out of the section until they are added from the layout options.
+  expect(await shadowQueryExists(page, "layout-inset")).toBe(false);
+  await page.locator('[data-test="layout-options"]').click();
+  await expect(page.locator('[data-test="add-inset"]')).toBeEnabled();
   await page.locator('[data-test="add-inset"]').click();
+  await expect(page.locator('[data-test="layout-options-content"]')).toHaveCount(0);
+  await page.locator('[data-test="layout-options"]').click();
+  await expect(page.locator('[data-test="add-inset"]')).toBeDisabled();
+  await page.locator('[data-test="layout-options"]').click();
+  expect(await page.locator('[data-test="layout-section"] [data-test="layout-inset"]').count()).toBe(1);
 
   await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-horizontal"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-vertical"]')).toBeVisible();
@@ -289,6 +292,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await (await getAppFrame(page)).locator('[data-test="positioned-box"]').click();
   await waitForEditors(page);
 
+  await page.locator('[data-test="layout-options"]').click();
   await page.locator('[data-test="add-inset"]').click();
   await page.locator('[data-test="layout-inset"] [data-test="individual-sides"]').click();
   await setInput(page, "left", "50%");

@@ -2,7 +2,7 @@
 
 Send design changes from Nudge UI directly to your coding agent.
 `@nudge-ui/mcp` connects the browser editor to an MCP-capable agent so it can
-receive your edits, comments, and sketches, implement them, and report progress
+receive your edits and comments, implement them, and report progress
 back to the editor.
 
 It also lets the agent present app routes as labeled comparison groups in
@@ -36,7 +36,7 @@ Then:
 1. Fully restart your coding-agent host to load the MCP configuration.
 2. Start your app's development server and open Nudge in the browser.
 3. Ask the agent to **listen to Nudge in this workspace**.
-4. Make visual edits, add comments or sketches, and send the request from Nudge.
+4. Make visual edits, add comments, and send the request from Nudge.
 
 The agent receives the request, applies it using its normal permissions and
 approval flow, verifies the result, reports status, and listens for the next

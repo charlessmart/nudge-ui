@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getSketchDrawingTools,
@@ -5,6 +6,7 @@ import {
   restoreDefaultSketchDrawingTools,
   setSketchDrawingTool,
   setSketchStrokeColor,
+  sketchToolForEvent,
   subscribeSketchDrawingTools,
 } from "./drawingTools.ts";
 import { SKETCH_PEN_COLORS, SKETCH_STROKE_COLOR } from "./model.ts";
@@ -59,5 +61,38 @@ describe("sketch drawing tools", () => {
 
     unsubscribeFailing();
     unsubscribe();
+  });
+});
+
+describe("sketch tool shortcuts", () => {
+  function press(code: string, init: KeyboardEventInit = {}): KeyboardEvent {
+    return new KeyboardEvent("keydown", { code, bubbles: true, composed: true, ...init });
+  }
+
+  it("picks the pen, eraser, rectangle and text tools from P, E, R and T", () => {
+    expect(sketchToolForEvent(press("KeyP"))).toBe("pen");
+    expect(sketchToolForEvent(press("KeyE"))).toBe("eraser");
+    expect(sketchToolForEvent(press("KeyR"))).toBe("rectangle");
+    expect(sketchToolForEvent(press("KeyT"))).toBe("text");
+  });
+
+  it("ignores other keys, modifier chords, and held keys", () => {
+    expect(sketchToolForEvent(press("KeyV"))).toBeNull();
+    expect(sketchToolForEvent(press("KeyP", { shiftKey: true }))).toBeNull();
+    expect(sketchToolForEvent(press("KeyR", { metaKey: true }))).toBeNull();
+    expect(sketchToolForEvent(press("KeyR", { ctrlKey: true }))).toBeNull();
+    expect(sketchToolForEvent(press("KeyT", { altKey: true }))).toBeNull();
+    expect(sketchToolForEvent(press("KeyT", { shiftKey: true }))).toBeNull();
+    expect(sketchToolForEvent(press("KeyE", { repeat: true }))).toBeNull();
+  });
+
+  it("leaves the letters to a text field being typed in", () => {
+    const input = document.createElement("input");
+    document.body.append(input);
+    let picked: unknown = "unset";
+    window.addEventListener("keydown", (event) => { picked = sketchToolForEvent(event); }, { once: true });
+    input.dispatchEvent(press("KeyT"));
+    expect(picked).toBeNull();
+    input.remove();
   });
 });

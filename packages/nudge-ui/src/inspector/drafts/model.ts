@@ -26,7 +26,6 @@ export interface Draft {
   readonly target: DraftTarget;
   readonly revision: number;
   readonly contents: DraftContents;
-  readonly sketchIds: readonly string[];
 }
 
 export interface DraftSnapshot {

@@ -15,6 +15,12 @@
   pointer-events: none;
 }
 
+/* While sketching, the sketch bar (a control row plus padding, and its gap to the toolbar) fills that space, so toasts
+   rise above it instead of hiding behind it. */
+.toast__viewport[data-sketching="true"] {
+  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
+}
+
 /* Match the canvas toolbar, which centers in the space left of the panel. */
 .toast__viewport[data-inspector-open="true"] {
   left: calc(var(--panel-reserve-start) + (100vw - var(--panel-reserve-start) - var(--panel-reserve-end)) / 2);
@@ -54,7 +60,8 @@
   color: var(--success);
 }
 
-.toast[data-tone="error"] {
+.toast[data-tone="error"],
+.toast[data-tone="info"] {
   border-radius: var(--radius-12);
 }
 

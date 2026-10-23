@@ -46,10 +46,6 @@ function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams[
       write: (key, value) => { storage.set(key, value); },
       remove: (key) => { storage.delete(key); },
     },
-    sketches: {
-      getSnapshot: () => ({ ready: true, documents: [] }),
-      subscribe: () => () => undefined,
-    },
     revealDraft: (draftId, cardId) => { reveals.push([draftId, cardId]); },
     project: (snapshot, event) => {
       projections.push(event.kind);

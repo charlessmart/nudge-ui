@@ -1,4 +1,175 @@
-/* Pen, eraser, color and rectangle options shown in the canvas toolbar drawer. */
+/* The sketch bar sits above the canvas toolbar while the pencil is active: pen, eraser, rectangle, text, color,
+   then the copy button and the last copy. The bar slides up 16px as it fades in on the toolbar's surface, then each
+   control rises 16px and grows from 90% in turn. */
+
+.sketch-options {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--space-8));
+  translate: -50% 0;
+  /* Sized by its controls, not by the little room beside the toolbar's left edge that an absolute box would otherwise
+     squeeze it into; without this the last control can hang outside the bar's background. */
+  width: max-content;
+  padding: var(--space-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+  animation: sketch-options-bar-in 240ms cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+.sketch-options__items {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* While the controls rise in, nothing may show below the bar: the pen and eraser artwork runs to the bar's bottom edge,
+   so a control still on its way up would hang out underneath. The clip sits on this wrapper because the items move, and
+   not on the bar because that would cut its shadow. It reaches the bar's bottom edge (through its padding) and is
+   open everywhere else, then goes away once settled so the color palette can fan out past the bar. */
+.sketch-options[data-settled="false"] .sketch-options__items {
+  clip-path: inset(-200px -200px calc(var(--space-4) * -1) -200px);
+}
+
+.sketch-options[data-intro="false"] {
+  animation: none;
+}
+
+.sketch-options__item {
+  display: flex;
+  align-items: center;
+  /* Matches the bar's own gap, so a divider inside an item is spaced like the divider in the canvas toolbar. */
+  gap: var(--space-4);
+  flex-shrink: 0;
+  animation: sketch-options-item-in 200ms cubic-bezier(0.2, 0, 0, 1) calc(40ms + var(--item-index, 0) * 25ms) backwards;
+}
+
+.sketch-options[data-intro="false"] .sketch-options__item {
+  animation: none;
+}
+
+/* Once the intro is over, anything that arrives later (the thumbnail after a copy) rises in at once rather than waiting its turn. */
+.sketch-options[data-settled="true"] .sketch-options__item {
+  animation-delay: 0s;
+}
+
+/* The saved sketches and the tick form one group, with a little room either side of it. */
+.sketch-options__copy-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-inline: var(--space-4);
+}
+
+/* A copy that has just finished scales up from small and settles with a little overshoot. */
+@keyframes sketch-options-pop {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+/* The recent sketches sit beside the copy button and overlap like avatars, 22px apart, the newest in front and nearest
+   the button. Each sits at its slot along the stack, so when a copy joins at the front the others slide left by
+   transition, and the one pushed out slides on and fades. */
+.sketch-recents {
+  --sketch-recent-step: 22px;
+  position: relative;
+  /* The thumbnails' stacking order stays inside the stack, so the color palette fans out above all of them. */
+  isolation: isolate;
+  width: calc(var(--control-height-xlarge) + (var(--count) - 1) * var(--sketch-recent-step));
+  height: var(--control-height-xlarge);
+  transition: width 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* A recent sketch: a thumbnail the same height as the other controls, and a copy icon on hover. */
+.sketch-recent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: calc(10 - var(--slot));
+  width: var(--control-height-xlarge);
+  height: var(--control-height-xlarge);
+  translate: calc(var(--slot) * var(--sketch-recent-step) * -1) 0;
+  transition: translate 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+}
+
+/* A stack that appears while the bar is already up scales in as a whole, in place of the stagger's rise. */
+.sketch-recents[data-pop="true"] {
+  transform-origin: center;
+  animation: sketch-options-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.sketch-recent[data-enter="true"] {
+  transform-origin: center;
+  animation: sketch-options-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.sketch-recent[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sketch-recent__copy {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.sketch-recent .sketch-thumbnail {
+  width: 32px;
+  height: 32px;
+  /* A ring in the bar's own color cuts the thumbnail out of whichever one it overlaps. */
+  box-shadow: 0 0 0 2px var(--surface-raised-2x);
+}
+
+/* Sits over the thumbnail, with no tint behind it. */
+.sketch-recent__copy-icon {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.sketch-recent__copy:hover .sketch-recent__copy-icon,
+.sketch-recent__copy:focus-visible .sketch-recent__copy-icon {
+  opacity: 1;
+}
+
+.sketch-recent__copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@keyframes sketch-options-bar-in {
+  from {
+    opacity: 0;
+    /* The bar is centered with this property, so the slide has to carry the centering along. */
+    translate: -50% 16px;
+  }
+}
+
+@keyframes sketch-options-item-in {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+    scale: 0.9;
+  }
+}
 
 .sketch-options__illustrated {
   appearance: none;
@@ -26,7 +197,7 @@
   transition: opacity 180ms ease;
 }
 
-.tool-options[data-settled="true"] .sketch-options__illustrated[data-active="true"]::before {
+.sketch-options[data-settled="true"] .sketch-options__illustrated[data-active="true"]::before {
   opacity: 1;
 }
 
@@ -54,13 +225,19 @@
   transform: translate(-50%, calc(var(--space-4) * -1));
 }
 
-.tool-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
+.sketch-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
   transform: translate(-50%, 0);
 }
 
 .sketch-options__illustrated:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Rectangle and text share the pen and eraser's quiet well instead of the accent active style. */
+.canvas-toolbar__tool.sketch-options__plain-tool[data-active="true"] {
+  background: var(--surface-well);
+  color: var(--text-primary);
 }
 
 .sketch-options__color {
@@ -177,12 +354,25 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sketch-options,
+  .sketch-options .sketch-options__item {
+    animation: none;
+    transition: none;
+  }
+
   .sketch-options__illustrated::before,
   .sketch-options__illustration {
     transition: none;
   }
 
   .sketch-options__palette-option {
+    animation: none;
+    transition: none;
+  }
+
+  .sketch-recents,
+  .sketch-recents[data-pop="true"],
+  .sketch-recent {
     animation: none;
     transition: none;
   }

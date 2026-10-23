@@ -109,7 +109,7 @@ export function SideValuesField({
           {showLabel ? (
             <div className="side-values__header">
               <span className="side-values__label">{displayLabel}</span>
-              {headerAction}
+              {headerAction ? <span className="side-values__header-action">{headerAction}</span> : null}
             </div>
           ) : null}
           <div className="side-values__value-row">
@@ -148,7 +148,7 @@ export function SideValuesField({
           {showLabel ? (
             <div className="side-values__header">
               <span className="side-values__label">{displayLabel}</span>
-              {headerAction}
+              {headerAction ? <span className="side-values__header-action">{headerAction}</span> : null}
             </div>
           ) : null}
           <SideControls label={label} sides={sides} />

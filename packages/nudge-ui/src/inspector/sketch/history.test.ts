@@ -4,6 +4,7 @@ import {
   addSketchStroke,
   eraseSketchStrokes,
   redoSketchEdit,
+  transformSketchStroke,
   undoSketchEdit,
   type SketchHistory,
 } from "./history.ts";
@@ -88,5 +89,64 @@ describe("sketch history", () => {
   it("does nothing when there is nothing to undo or redo", () => {
     expect(undoSketchEdit(EMPTY_SKETCH_HISTORY)).toBe(EMPTY_SKETCH_HISTORY);
     expect(redoSketchEdit(EMPTY_SKETCH_HISTORY)).toBe(EMPTY_SKETCH_HISTORY);
+  });
+
+  describe("transforms", () => {
+    function shifted(history: SketchHistory, id: string, dx: number): SketchStroke {
+      const base = history.strokes.find((item) => item.id === id)!;
+      return { ...base, points: base.points.map((point) => ({ x: point.x + dx, y: point.y })) };
+    }
+
+    function xOf(history: SketchHistory, id: string): number {
+      return history.strokes.find((item) => item.id === id)!.points[0]!.x;
+    }
+
+    it("undoes and redoes a transform without touching other strokes", () => {
+      const start = drawn("a", "b");
+      const moved = transformSketchStroke(start, shifted(start, "a", 40), 1);
+
+      expect(xOf(moved, "a")).toBe(40);
+      expect(xOf(moved, "b")).toBe(0);
+      expect(xOf(undoSketchEdit(moved), "a")).toBe(0);
+      expect(xOf(redoSketchEdit(undoSketchEdit(moved)), "a")).toBe(40);
+      expect(ids(moved)).toEqual(["a", "b"]);
+    });
+
+    it("collapses one drag into a single undo step", () => {
+      let history = drawn("a");
+      history = transformSketchStroke(history, shifted(history, "a", 10), 7);
+      history = transformSketchStroke(history, shifted(history, "a", 10), 7);
+      history = transformSketchStroke(history, shifted(history, "a", 10), 7);
+
+      expect(xOf(history, "a")).toBe(30);
+      expect(history.undo).toHaveLength(2);
+      expect(xOf(undoSketchEdit(history), "a")).toBe(0);
+      expect(ids(undoSketchEdit(undoSketchEdit(history)))).toEqual([]);
+    });
+
+    it("keeps separate drags as separate undo steps", () => {
+      let history = drawn("a");
+      history = transformSketchStroke(history, shifted(history, "a", 10), 1);
+      history = transformSketchStroke(history, shifted(history, "a", 10), 2);
+
+      expect(xOf(undoSketchEdit(history), "a")).toBe(10);
+    });
+
+    it("clears redo and ignores strokes that no longer exist", () => {
+      const start = drawn("a", "b");
+      const undone = undoSketchEdit(start);
+      const moved = transformSketchStroke(undone, shifted(undone, "a", 5), 1);
+
+      expect(moved.redo).toEqual([]);
+      expect(transformSketchStroke(start, { ...stroke("missing") }, 1)).toBe(start);
+    });
+
+    it("restores an erased stroke in the position it was erased from", () => {
+      let history = drawn("a");
+      history = transformSketchStroke(history, shifted(history, "a", 25), 1);
+      history = eraseSketchStrokes(history, ["a"], 2);
+
+      expect(xOf(undoSketchEdit(history), "a")).toBe(25);
+    });
   });
 });

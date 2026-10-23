@@ -6,7 +6,6 @@ import {
   deleteSketchPersistence,
   readSketchPersistence,
   SketchStorageError,
-  writeSketchHandoffs,
   writeSketchPersistence,
 } from "./persistence.ts";
 import {
@@ -16,15 +15,12 @@ import {
   isSketchDocument,
   isSketchHandoffRecord,
   sameSketchContent,
-  toAgentSketchMetadata,
   type SketchCaptureMetadata,
   type SketchAnnotation,
   type SketchDocument,
   type SketchHandoffRecord,
   type SketchQueueItem,
-  type SketchStatus,
   type SketchStroke,
-  type SketchTransport,
 } from "./model.ts";
 
 export interface SaveSketchInput {
@@ -194,42 +190,6 @@ function currentDocument(sketchId: string): SketchDocument | null {
   return snapshot.documents.find((document) => document.id === sketchId) ?? null;
 }
 
-function updateHandoff(
-  handoff: SketchHandoffRecord,
-  patch: {
-    readonly state: SketchStatus;
-    readonly transport?: SketchTransport;
-    readonly localBatchId?: string;
-    readonly batchRevision?: number;
-    readonly agentRequestId?: string;
-    readonly clearDelivery?: boolean;
-  },
-): SketchHandoffRecord {
-  type MutableHandoffRecord = { -readonly [key in keyof SketchHandoffRecord]: SketchHandoffRecord[key] };
-  const next = {
-    ...handoff,
-    state: patch.state,
-    timestamp: Date.now(),
-    ...(patch.transport === undefined ? {} : { transport: patch.transport }),
-    ...(patch.localBatchId === undefined ? {} : { localBatchId: patch.localBatchId }),
-  } as MutableHandoffRecord;
-  if (patch.clearDelivery) {
-    delete next.batchRevision;
-    delete next.agentRequestId;
-  }
-  if (patch.batchRevision !== undefined) next.batchRevision = patch.batchRevision;
-  if (patch.agentRequestId !== undefined) next.agentRequestId = patch.agentRequestId;
-  return next;
-}
-
-function matchingCurrentHandoffs(
-  entries: readonly { readonly id: string; readonly revision: number }[],
-): SketchHandoffRecord[] {
-  const expected = new Map(entries.map((entry) => [entry.id, entry.revision]));
-  return snapshot.handoffs.filter((handoff) => expected.get(handoff.sketchId) === handoff.sketchRevision
-    && currentDocument(handoff.sketchId)?.revision === handoff.sketchRevision);
-}
-
 export function getSketchStoreSnapshot(): SketchStoreSnapshot {
   return snapshot;
 }
@@ -243,16 +203,8 @@ export function useSketchStore(): SketchStoreSnapshot {
   return useSyncExternalStore(subscribeSketchStore, getSketchStoreSnapshot, getSketchStoreSnapshot);
 }
 
-export function useSketches(): readonly SketchQueueItem[] {
-  return useSketchStore().items;
-}
-
 export function getSketches(): readonly SketchQueueItem[] {
   return snapshot.items;
-}
-
-export function getPendingSketches(): readonly SketchQueueItem[] {
-  return snapshot.items.filter((item) => item.status === "pending");
 }
 
 export function getSketch(sketchId: string): SketchQueueItem | null {
@@ -335,11 +287,11 @@ export function saveSketch(input: SaveSketchInput): Promise<SketchDocument> {
       originalImage: input.originalImage,
       annotatedImage: input.annotatedImage,
     };
-    const nextDocuments = documents.filter((candidate) => candidate.id !== document.id);
-    nextDocuments.push(document);
-    if (nextDocuments.length > SKETCH_LIMITS.completedSketches) {
-      throw new SketchStorageError(`You can keep up to ${SKETCH_LIMITS.completedSketches} sketches at a time.`);
-    }
+    // Only the most recent sketches are kept; saving another pushes the oldest out instead of failing. The one being
+    // saved is the latest by definition, whatever the clock says, so it always stays.
+    const others = sortDocuments(documents.filter((candidate) => candidate.id !== document.id));
+    const nextDocuments = [document, ...others].slice(0, SKETCH_LIMITS.keptSketches);
+    const evicted = others.filter((candidate) => !nextDocuments.includes(candidate));
     if (projectBytes(nextDocuments) > SKETCH_LIMITS.projectBytes) {
       throw new SketchStorageError("The saved sketches use more than the project storage limit.");
     }
@@ -354,129 +306,20 @@ export function saveSketch(input: SaveSketchInput): Promise<SketchDocument> {
       state: "pending",
     };
     await writeSketchPersistence(projectId, document, handoff);
+    // The new sketch is safely stored before the ones it replaces are deleted.
+    for (const old of evicted) await deleteSketchPersistence(projectId, old.id);
     assertWritable(projectId, expectedGeneration);
-    const nextHandoffs = snapshot.handoffs.filter((candidate) => candidate.sketchId !== document.id
-      || candidate.sketchRevision !== document.revision);
+    const evictedIds = new Set(evicted.map((old) => old.id));
+    const nextHandoffs = snapshot.handoffs.filter((candidate) => !evictedIds.has(candidate.sketchId)
+      && (candidate.sketchId !== document.id || candidate.sketchRevision !== document.revision));
     nextHandoffs.push(handoff);
     publish(projectId, nextDocuments, nextHandoffs, null);
     return document;
   });
 }
 
-export function markSketchesDispatching(
-  entries: readonly { readonly id: string; readonly revision: number }[],
-  batchRevision: number,
-  localBatchId: string,
-): Promise<boolean> {
-  return updateMatchingHandoffs(entries, (handoff) => updateHandoff(handoff, {
-    state: "dispatching",
-    transport: "direct",
-    batchRevision,
-    localBatchId,
-    clearDelivery: true,
-  }));
-}
-
-export function markSketchesHandingOff(
-  entries: readonly { readonly id: string; readonly revision: number }[],
-  batchRevision: number,
-  localBatchId: string,
-  agentRequestId?: string,
-): Promise<boolean> {
-  const matching = matchingCurrentHandoffs(entries)
-    .filter((handoff) => handoff.state === "dispatching" || handoff.state === "handing-off");
-  return updateHandoffs(matching, (handoff) => updateHandoff(handoff, {
-    state: "handing-off",
-    transport: "direct",
-    batchRevision,
-    localBatchId,
-    ...(agentRequestId ? { agentRequestId } : {}),
-  }));
-}
-
-export function settleSketchDispatch(
-  batchRevision: number | undefined,
-  state: "delivered" | "working" | "completed" | "failed" | "interrupted",
-  agentRequestId?: string,
-  localBatchId?: string,
-): Promise<boolean> {
-  const projectId = activeProjectId;
-  const expectedGeneration = generation;
-  const hydration = initialization;
-  if (batchRevision === undefined || !projectId) return Promise.resolve(false);
-  return enqueue(async () => {
-    if (hydration) await hydration;
-    assertWritable(projectId, expectedGeneration);
-    // Resolved inside the write queue so an older completion event cannot
-    // remove a pending save or requeue.
-    const changes = snapshot.items.flatMap(({ document, handoff }) => {
-      if (!handoff || handoff.sketchRevision !== document.revision
-        || handoff.transport !== "direct" || handoff.batchRevision !== batchRevision) return [];
-      // The client batch ID stays stable when the server assigns a request ID.
-      const matchesRequest = localBatchId !== undefined
-        ? handoff.localBatchId === localBatchId
-        : agentRequestId === undefined || handoff.agentRequestId === agentRequestId;
-      if (!matchesRequest) return [];
-      return handoff.state === "dispatching" || handoff.state === "handing-off" || handoff.state === "unknown"
-        || (state === "completed" && handoff.state === "needs-review") ? [handoff] : [];
-    });
-    if (changes.length === 0) return false;
-    if (state === "completed") {
-      for (const handoff of changes) {
-        await deleteSketchPersistence(projectId, handoff.sketchId);
-        assertWritable(projectId, expectedGeneration);
-        publish(
-          projectId,
-          snapshot.documents.filter((document) => document.id !== handoff.sketchId),
-          snapshot.handoffs.filter((candidate) => candidate.sketchId !== handoff.sketchId),
-          null,
-        );
-      }
-      return true;
-    }
-    const nextHandoffs = changes.map((handoff) => updateHandoff(handoff, (state === "delivered" || state === "working") ? {
-      state: "handing-off",
-      transport: "direct",
-      ...(agentRequestId ? { agentRequestId } : {}),
-    } : {
-      state: "pending",
-      transport: "direct",
-      clearDelivery: true,
-    }));
-    await writeSketchHandoffs(projectId, nextHandoffs);
-    assertWritable(projectId, expectedGeneration);
-    const changedIds = new Set(nextHandoffs.map((handoff) => handoff.id));
-    publish(projectId, snapshot.documents,
-      [...snapshot.handoffs.filter((handoff) => !changedIds.has(handoff.id)), ...nextHandoffs], null);
-    return true;
-  });
-}
-
-export function markSketchesHandedOff(
-  entries: readonly { readonly id: string; readonly revision: number }[],
-  localBatchId?: string,
-): Promise<boolean> {
-  return updateMatchingHandoffs(entries, (handoff) => updateHandoff(handoff, {
-    state: "needs-review",
-    transport: "clipboard",
-    ...(localBatchId ? { localBatchId } : {}),
-  }));
-}
-
-export function requeueSketch(sketchId: string): Promise<boolean> {
-  const item = getSketch(sketchId);
-  if (!item) return Promise.resolve(false);
-  return updateMatchingHandoffs([{ id: sketchId, revision: item.document.revision }], (handoff) => updateHandoff(handoff, {
-    state: "pending",
-    transport: "local",
-    clearDelivery: true,
-    localBatchId: randomId("batch"),
-  }));
-}
-
 export function removeSketch(sketchId: string): Promise<boolean> {
-  const item = getSketch(sketchId);
-  if (!item || item.status === "dispatching" || item.status === "handing-off") return Promise.resolve(false);
+  if (!getSketch(sketchId)) return Promise.resolve(false);
   const projectId = activeProjectId;
   const expectedGeneration = generation;
   if (!projectId) return Promise.resolve(false);
@@ -511,46 +354,6 @@ export function clearSketchesForProject(projectId = activeProjectId ?? getNudgeU
     });
   }
   return enqueue(() => clearSketchPersistence(projectId));
-}
-
-function updateMatchingHandoffs(
-  entries: readonly { readonly id: string; readonly revision: number }[],
-  update: (handoff: SketchHandoffRecord) => SketchHandoffRecord,
-): Promise<boolean> {
-  const matching = matchingCurrentHandoffs(entries);
-  if (matching.length === 0) return Promise.resolve(false);
-  return updateHandoffs(matching, update);
-}
-
-function updateHandoffs(
-  handoffs: readonly SketchHandoffRecord[],
-  update: (handoff: SketchHandoffRecord) => SketchHandoffRecord,
-): Promise<boolean> {
-  const projectId = activeProjectId;
-  const expectedGeneration = generation;
-  if (!projectId) return Promise.resolve(false);
-  return enqueue(async () => {
-    assertWritable(projectId, expectedGeneration);
-    // Completion may delete a sketch before its dispatch response is handled.
-    const nextHandoffs = handoffs
-      .filter((handoff) => currentDocument(handoff.sketchId)?.revision === handoff.sketchRevision)
-      .map(update);
-    if (nextHandoffs.length === 0) return false;
-    await writeSketchHandoffs(projectId, nextHandoffs);
-    assertWritable(projectId, expectedGeneration);
-    const changedIds = new Set(nextHandoffs.map((handoff) => handoff.id));
-    publish(
-      projectId,
-      snapshot.documents,
-      [...snapshot.handoffs.filter((handoff) => !changedIds.has(handoff.id)), ...nextHandoffs],
-      null,
-    );
-    return true;
-  });
-}
-
-export function sketchMetadataFor(items: readonly SketchQueueItem[]): ReturnType<typeof toAgentSketchMetadata>[] {
-  return items.map((item) => toAgentSketchMetadata(item.document));
 }
 
 export function resetSketchStore(): void {

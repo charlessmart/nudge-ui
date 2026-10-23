@@ -8,11 +8,9 @@ import { changeKey, mergeChange, sameEffectiveChanges, selectorForChange } from 
 import { isElementChange, type ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { isStructuralChange } from "../projection/structuralProjectionBoundary.ts";
-import type { SketchDocument } from "../sketch/model.ts";
 import type { Timeline } from "../workspace/timeline.ts";
 import {
   applicationTarget,
-  documentTarget,
   isDraftTarget,
   targetFromKey,
   targetKey,
@@ -50,17 +48,11 @@ export interface DraftStorage {
   remove(key: string): void;
 }
 
-export interface DraftSketchSource {
-  getSnapshot(): { readonly ready: boolean; readonly documents: readonly SketchDocument[] };
-  subscribe(listener: () => void): () => void;
-}
-
 export interface DraftStoreSeams {
   /** Whether this tab holds the workspace write lease. */
   canWrite(): boolean;
   readonly timeline: Timeline;
   readonly storage: DraftStorage;
-  readonly sketches: DraftSketchSource;
   /** Brings a draft's owning frame back when history replays an edit. */
   revealDraft(draftId: string, cardId?: string): void;
   /** Rebuilds the active draft's preview. Called after subscribers see the new snapshot. */
@@ -96,9 +88,6 @@ export interface DraftStore {
   clearActive(): boolean;
   forget(id: string): void;
 
-  sketchOwner(document: SketchDocument): string | null;
-  assignSketch(draftId: string, sketchId: string): void;
-
   /** Replaces every in-memory draft with the stored drafts, so a tab that takes over never writes stale edits. */
   load(projectId: string, options?: { persistent?: boolean }): void;
   persist(): void;
@@ -124,7 +113,6 @@ interface PersistedDrafts {
   readonly schemaVersion: 2;
   readonly projectId: string;
   readonly drafts: readonly PersistedDraft[];
-  readonly sketchOwners: Readonly<Record<string, string>>;
 }
 
 const EMPTY: DraftContents = { changes: [], structuralChanges: [] };
@@ -182,15 +170,13 @@ function isPersistedDrafts(value: unknown, projectId: string): value is Persiste
     if (new Set(textIds).size !== textIds.length) return false;
     targets.add(targetKey(draft.target));
   }
-  return !!candidate.sketchOwners && typeof candidate.sketchOwners === "object" && !Array.isArray(candidate.sketchOwners)
-    && Object.values(candidate.sketchOwners).every((id) => typeof id === "string" && targetFromKey(id) !== null);
+  // Drafts saved back when sketches belonged to drafts also hold a map of sketch owners; it is ignored.
+  return true;
 }
 
 export function createDraftStore(seams: DraftStoreSeams): DraftStore {
   const drafts = new Map<string, DraftState>();
   const locked = new Set<string>();
-  /** Overrides the capture-URL owner for sketches drawn while another draft was active. */
-  const sketchOwners = new Map<string, string>();
   const activeListeners = new Set<() => void>();
   const draftListeners = new Set<() => void>();
   /** Until a frame is activated, edits belong to the current page's draft. */
@@ -246,12 +232,6 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
   function activeChanged(): void {
     activeSnapshot = null;
     activePending = true;
-    if (depth === 0) flush();
-  }
-
-  function draftsChanged(): void {
-    draftsSnapshot = null;
-    draftsPending = true;
     if (depth === 0) flush();
   }
 
@@ -355,12 +335,6 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     return activeSnapshot;
   }
 
-  function sketchOwner(document: SketchDocument): string | null {
-    const owner = sketchOwners.get(document.id);
-    if (owner) return owner;
-    try { return targetKey(documentTarget(document.capture.url)); } catch { return null; }
-  }
-
   function getDraft(id: string): Draft | null {
     const target = targetFromKey(id);
     if (!target) return null;
@@ -370,13 +344,10 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
       target,
       revision,
       contents: { changes, structuralChanges },
-      sketchIds: seams.sketches.getSnapshot().documents.filter((document) => sketchOwner(document) === id).map((document) => document.id),
     };
   }
 
   function persisted(): PersistedDrafts {
-    const sketches = seams.sketches.getSnapshot();
-    const liveSketches = new Set(sketches.documents.map((document) => document.id));
     return {
       schemaVersion: 2,
       projectId,
@@ -395,7 +366,6 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
           },
         }];
       }),
-      sketchOwners: Object.fromEntries([...sketchOwners].filter(([id]) => !sketches.ready || liveSketches.has(id))),
     };
   }
 
@@ -411,11 +381,9 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
       });
       state.revision = draft.revision;
     }
-    for (const [sketchId, draftId] of Object.entries(stored.sketchOwners)) sketchOwners.set(sketchId, draftId);
   }
 
   seams.timeline.subscribe(activeChanged);
-  seams.sketches.subscribe(draftsChanged);
 
   return {
     getActive,
@@ -428,11 +396,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     getDraft,
     getSnapshot() {
       if (!draftsSnapshot) {
-        const ids = new Set([
-          ...drafts.keys(),
-          ...seams.sketches.getSnapshot().documents.flatMap((document) => sketchOwner(document) ?? []),
-        ]);
-        draftsSnapshot = { projectId, drafts: [...ids].flatMap((id) => getDraft(id) ?? []) };
+        draftsSnapshot = { projectId, drafts: [...drafts.keys()].flatMap((id) => getDraft(id) ?? []) };
       }
       return draftsSnapshot;
     },
@@ -511,25 +475,16 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
       });
     },
 
-    sketchOwner,
-    assignSketch(draftId, sketchId) {
-      if (sketchOwners.get(sketchId) === draftId || !targetFromKey(draftId)) return;
-      sketchOwners.set(sketchId, draftId);
-      draftsChanged();
-    },
-
     load(nextProjectId, options = {}) {
       mutate(() => {
         projectId = nextProjectId;
         persistent = options.persistent ?? true;
-        sketchOwners.clear();
         resetContents();
         try {
           restore();
         } catch {
           resetContents();
-          sketchOwners.clear();
-        }
+          }
         contentsChanged();
         project({ kind: "switch" });
       });
@@ -547,7 +502,6 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
         try { seams.storage.remove(storageKey()); } catch { return; }
       }
       mutate(() => {
-        sketchOwners.clear();
         resetContents();
         contentsChanged();
         project({ kind: "reset" });
@@ -557,7 +511,6 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
       mutate(() => {
         projectId = "";
         persistent = true;
-        sketchOwners.clear();
         resetContents();
         contentsChanged();
       });

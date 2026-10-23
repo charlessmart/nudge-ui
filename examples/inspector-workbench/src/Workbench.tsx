@@ -25,6 +25,7 @@ import { findTokenRow } from "@inspector/styleEditors/rowLookup.ts";
 import type { InteractionState } from "@inspector/shell/styleState.ts";
 import { ComponentExamples, FixtureTargets } from "./FixtureTargets.tsx";
 import { ControlledFields } from "./ControlledFields.tsx";
+import { ToolbarGallery } from "./ToolbarGallery.tsx";
 import { agentFixture, scenarios, type Scenario } from "./scenarios.ts";
 
 function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
@@ -104,7 +105,9 @@ export function Workbench(): ReactElement {
       </nav>
       <section className="workbench-stage" aria-label="Inspector fixture">
         <div className="workbench-caption"><h2 title={scenario.description}>{scenario.title}</h2><button type="button" onClick={() => setRevision((value) => value + 1)}>Reset fixture</button></div>
-        <div className="workbench-preview" key={`${scenario.id}-${revision}`}><FixturePanel scenario={scenario} /></div>
+        {scenario.target === "toolbar"
+          ? <div className="workbench-preview workbench-preview--wide" key={`${scenario.id}-${revision}`}><ToolbarGallery /></div>
+          : <div className="workbench-preview" key={`${scenario.id}-${revision}`}><FixturePanel scenario={scenario} /></div>}
       </section>
     </div>
     <ComponentExamples />

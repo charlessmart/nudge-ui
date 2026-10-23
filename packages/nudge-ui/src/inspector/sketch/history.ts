@@ -8,7 +8,8 @@ interface ErasedStroke {
 
 type SketchHistoryEntry =
   | { readonly kind: "add"; readonly stroke: SketchStroke }
-  | { readonly kind: "erase"; readonly gesture: number; readonly erased: readonly ErasedStroke[] };
+  | { readonly kind: "erase"; readonly gesture: number; readonly erased: readonly ErasedStroke[] }
+  | { readonly kind: "transform"; readonly gesture: number; readonly before: SketchStroke; readonly after: SketchStroke };
 
 export interface SketchHistory {
   readonly strokes: readonly SketchStroke[];
@@ -56,6 +57,25 @@ export function eraseSketchStrokes(
   return { strokes, undo, redo: [] };
 }
 
+function replaceStroke(strokes: readonly SketchStroke[], stroke: SketchStroke): SketchStroke[] {
+  return strokes.map((existing) => existing.id === stroke.id ? stroke : existing);
+}
+
+/** Moving, resizing or rotating a stroke; updates from the same `gesture` collapse into one undo step. */
+export function transformSketchStroke(
+  history: SketchHistory,
+  next: SketchStroke,
+  gesture: number,
+): SketchHistory {
+  const before = history.strokes.find((stroke) => stroke.id === next.id);
+  if (!before || before === next) return history;
+  const last = history.undo.at(-1);
+  const undo = last?.kind === "transform" && last.gesture === gesture && last.after.id === next.id
+    ? [...history.undo.slice(0, -1), { ...last, after: next }]
+    : [...history.undo, { kind: "transform" as const, gesture, before, after: next }];
+  return { strokes: replaceStroke(history.strokes, next), undo, redo: [] };
+}
+
 function restoreErased(strokes: readonly SketchStroke[], erased: readonly ErasedStroke[]): SketchStroke[] {
   const restored = [...strokes];
   // Reinsert in reverse removal order so each recorded index is valid again.
@@ -68,7 +88,9 @@ export function undoSketchEdit(history: SketchHistory): SketchHistory {
   if (!entry) return history;
   const strokes = entry.kind === "add"
     ? history.strokes.filter((stroke) => stroke.id !== entry.stroke.id)
-    : restoreErased(history.strokes, entry.erased);
+    : entry.kind === "erase"
+      ? restoreErased(history.strokes, entry.erased)
+      : replaceStroke(history.strokes, entry.before);
   return { strokes, undo: history.undo.slice(0, -1), redo: [...history.redo, entry] };
 }
 
@@ -77,6 +99,8 @@ export function redoSketchEdit(history: SketchHistory): SketchHistory {
   if (!entry) return history;
   const strokes = entry.kind === "add"
     ? [...history.strokes, entry.stroke]
-    : removeStrokes(history.strokes, new Set(entry.erased.map(({ stroke }) => stroke.id))).strokes;
+    : entry.kind === "erase"
+      ? removeStrokes(history.strokes, new Set(entry.erased.map(({ stroke }) => stroke.id))).strokes
+      : replaceStroke(history.strokes, entry.after);
   return { strokes, undo: [...history.undo, entry], redo: history.redo.slice(0, -1) };
 }

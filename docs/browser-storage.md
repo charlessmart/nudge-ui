@@ -13,9 +13,16 @@ or untrusted scripts.
 | `nudge-ui-agent-session:<encoded-project-id>` | The project ID, origin, and bearer session token used to restore an MCP pairing. | Until disconnect, token invalidation, or site-data clearing. There is no browser-side expiry. |
 | `nudge-ui-agent-auto-connect-disabled:<encoded-project-id>` | Whether the user explicitly disconnected a project-managed bridge. | Until an explicit connection or site-data clearing. Prevents automatic pairing after reload. |
 | `nudge-ui:<project-id>:v17` | Current Canvas and inspector state, including cards, camera state, canvas mode and presentation, agent frame groups, the focused frame, and clipboard handoff fingerprints. It contains no change records; pending edits live in the draft store (`nudge-ui-drafts:<project-id>:v2`). Only this schema is read; older versioned keys are not migrated. | Until the session is cleared or site data is removed. |
-| `nudge-ui-drafts:<project-id>:v2` | Pending draft edits — ordinary and structural changes, each draft's revision, and sketch ownership — for drafts with pending changes only. Only this schema is read; older versioned keys are not migrated. | Until the session is cleared or site data is removed. |
+| `nudge-ui-drafts:<project-id>:v2` | Pending draft edits — ordinary and structural changes, and each draft's revision — for drafts with pending changes only. Only this schema is read; older versioned keys are not migrated. | Until the session is cleared or site data is removed. |
 | `nudge-ui:<project-id>:lease` | The current workspace owner ID and heartbeat timestamps. | The lease expires after 15 seconds without a heartbeat and is removed when released. |
 | `nudge-ui:<project-id>:prompt-settings` | Custom instructions used when generating prompts. | Until overwritten or site data is removed. |
+
+Sketches are stored separately from `localStorage`. The tick button in the sketch bar copies the
+sketch image to the clipboard and keeps the three most recent ones, so a copy can be
+copied again if it was never pasted. Those sketches (their page images and marks) live in
+IndexedDB under `nudge-ui-sketches`, in extension storage when running as the
+browser extension, and in memory only in demo builds. A fourth copy replaces the
+oldest.
 
 The **Open app** action also sets `nudge-ui:direct-tab` in `sessionStorage`.
 This tab-scoped flag keeps application navigation and reloads outside the editor

@@ -5,11 +5,11 @@ import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { SizeSection } from "./SizeSection.tsx";
-import { LayoutModeRow } from "./LayoutModeRow.tsx";
+import { LayoutModeRow, type LayoutAddAction } from "./LayoutModeRow.tsx";
 import { GridContainerControls } from "./GridSection.tsx";
 import { GridChildSection } from "./GridChildSection.tsx";
-import { PositionControls, showsPositionControls } from "./PositionControls.tsx";
-import { SpacingField, projectSpacing } from "./SpacingField.tsx";
+import { OFFSET_PRESETS, PositionControls, insetKindFor, showsPositionControls } from "./PositionControls.tsx";
+import { SpacingField, projectSpacing, useSpacingVisibility } from "./SpacingField.tsx";
 import {
   FlexAlignmentGrid,
   FlexGapField,
@@ -38,6 +38,15 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const spacing = projectSpacing(el, selection, tokenRows);
   const spacingProps = { domElement: el, editTarget, selection, entries: allEntries, tokenRows, onAfterEdit: notifyAfterEdit };
   const showPosition = showsPositionControls(el, position);
+  // Margin and inset stay out of the section until they hold a value or are added from the options menu.
+  const elements = selection?.domElements ?? [el];
+  const marginVisibility = useSpacingVisibility("margin", spacing.margin, elements);
+  const insetVisibility = useSpacingVisibility("inset", spacing.inset, elements);
+  const insetKind = insetKindFor(selection, position);
+  const addActions: LayoutAddAction[] = [
+    { key: "margin", label: "Add margin", disabled: marginVisibility.visible, onAdd: marginVisibility.show },
+    ...(insetKind ? [{ key: "inset", label: "Add inset", disabled: insetVisibility.visible, onAdd: insetVisibility.show }] : []),
+  ];
   // A flex item's fields live in the layout options menu; a grid item's also show here once one is set.
   const childPlacement = isGridChild
     ? { kind: "grid" as const, controls: <GridChildSection {...common} /> }
@@ -63,20 +72,28 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             isGridContainer={isGridContainer}
             isFlexChild={isFlexChild}
             isGridChild={isGridChild}
-            positionExtras={!showPosition && position === "relative" ? <SpacingField property="inset" projection={spacing.inset} {...spacingProps} /> : null}
+            addActions={addActions}
           />
           {isFlexContainer ? <FlexContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
           {isGridContainer ? <GridContainerControls {...common} entries={allEntries} tokenRows={tokenRows} /> : null}
           <SpacingField
             property="padding"
             showLabel={false}
-            showEmptyState={false}
             projection={spacing.padding}
             {...spacingProps}
           />
         </div>
-        <SpacingField property="margin" projection={spacing.margin} {...spacingProps} />
-        {showPosition ? <PositionControls {...spacingProps} position={position} revision={revision} /> : null}
+        <SpacingField property="margin" projection={spacing.margin} visibility={marginVisibility} {...spacingProps} />
+        {showPosition ? <PositionControls {...common} /> : null}
+        {insetKind ? (
+          <SpacingField
+            property="inset"
+            projection={spacing.inset}
+            visibility={insetVisibility}
+            suggestions={insetKind === "anchored" ? OFFSET_PRESETS : undefined}
+            {...spacingProps}
+          />
+        ) : null}
       </div>
     </div>
   );

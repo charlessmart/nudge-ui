@@ -16,7 +16,6 @@ import {
   normalizeRuntimeText,
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
-import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 import { PROMPT_INTRO } from "./promptDocument.ts";
 
@@ -464,8 +463,8 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
 }
 
 /** Counts the exported intents, not the raw gesture history. */
-export function countPromptChanges(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = [], sketchCount = 0): number {
-  return canonicalizeChanges([...changes]).length + canonicalizeStructuralChanges(structuralChanges).length + sketchCount;
+export function countPromptChanges(changes: readonly ChangeRecord[], structuralChanges: readonly StructuralChange[] = []): number {
+  return canonicalizeChanges([...changes]).length + canonicalizeStructuralChanges(structuralChanges).length;
 }
 
 export function generatePrompt(
@@ -473,12 +472,11 @@ export function generatePrompt(
   frameworkHints?: FrameworkHints,
   structuralChanges: readonly StructuralChange[] = [],
   customInstructions: string = DEFAULT_CUSTOM_INSTRUCTIONS,
-  sketches: readonly AgentSketchMetadata[] = [],
   comments: readonly ElementComment[] = getCommentsForTarget(documentTarget(window.location.href)),
 ): string {
   const deduplicated = canonicalizeChanges(changes);
   const structuralIntent = canonicalizeStructuralChanges(structuralChanges);
-  if (deduplicated.length === 0 && structuralIntent.length === 0 && sketches.length === 0 && comments.length === 0) return EMPTY_SENTINEL;
+  if (deduplicated.length === 0 && structuralIntent.length === 0 && comments.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);

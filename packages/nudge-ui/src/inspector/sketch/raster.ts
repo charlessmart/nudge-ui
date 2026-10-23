@@ -1,5 +1,8 @@
+import { strokeFrame } from "./selectionFrame.ts";
+import { sketchTextFont, sketchTextLines } from "./text.ts";
 import {
   SKETCH_ANNOTATION_RADIUS,
+  SKETCH_TEXT_FONT_SIZE,
   SKETCH_LIMITS,
   SKETCH_ACCENT_COLOR,
   SKETCH_RECTANGLE_FILL_OPACITY,
@@ -74,15 +77,38 @@ function drawPointPath(ctx: CanvasRenderingContext2D, points: readonly SketchPoi
   }
 }
 
+function drawSketchText(
+  ctx: CanvasRenderingContext2D,
+  stroke: Pick<SketchStroke, "points" | "width"> & Partial<Pick<SketchStroke, "color" | "text" | "fontSize" | "rotation">>,
+  scaleX: number,
+  scaleY: number,
+): void {
+  const frame = strokeFrame(stroke);
+  const lines = sketchTextLines(stroke.text ?? "");
+  const lineHeight = frame.height / lines.length;
+  ctx.translate(frame.center.x * scaleX, frame.center.y * scaleY);
+  ctx.rotate(frame.rotation);
+  ctx.font = sketchTextFont((stroke.fontSize ?? SKETCH_TEXT_FONT_SIZE) * Math.max(scaleX, scaleY));
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = stroke.color || SKETCH_STROKE_COLOR;
+  lines.forEach((line, index) => {
+    ctx.fillText(line, (-frame.width / 2) * scaleX, (-frame.height / 2 + (index + 0.5) * lineHeight) * scaleY);
+  });
+}
+
 export function drawSketchStroke(
   ctx: CanvasRenderingContext2D,
-  stroke: Pick<SketchStroke, "points" | "width"> & Partial<Pick<SketchStroke, "kind" | "color">>,
+  stroke: Pick<SketchStroke, "points" | "width">
+    & Partial<Pick<SketchStroke, "kind" | "color" | "text" | "fontSize" | "rotation">>,
   scaleX = 1,
   scaleY = scaleX,
 ): void {
   if (stroke.points.length === 0) return;
   ctx.save();
-  if (stroke.kind === "rectangle") {
+  if (stroke.kind === "text") {
+    drawSketchText(ctx, stroke, scaleX, scaleY);
+  } else if (stroke.kind === "rectangle") {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     const color = stroke.color || SKETCH_STROKE_COLOR;
@@ -309,17 +335,6 @@ export async function renderAnnotatedPng(
   } finally {
     image.close();
   }
-}
-
-export async function blobToBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
-  }
-  if (typeof btoa !== "function") throw new Error("This browser cannot prepare sketch attachments.");
-  return btoa(binary);
 }
 
 /** The promise form lets callers start the write inside the user gesture (required by Safari). */

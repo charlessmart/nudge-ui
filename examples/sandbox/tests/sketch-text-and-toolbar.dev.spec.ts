@@ -1,0 +1,631 @@
+import { expect, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
+import { waitForCanvasTransition } from "./canvasTransition.ts";
+
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+const MARK = '.sketch__live-canvas [data-test="sketch-svg-layer"] path';
+const TEXT = '.sketch__live-canvas [data-test="sketch-text-layer"]';
+const FRAME = '[data-test="sketch-selection-frame"]';
+const EDITOR = '[data-test="sketch-text-editor"]';
+
+/** Opens the sketch tool without waiting for the toolbar's intro, so animations can be inspected. */
+async function startSketch(page: Page): Promise<Point> {
+  await openEditor(page, "/playground?nudge-ui=on");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  const canvas = await box(page.locator(".sketch__live-canvas"));
+  return { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 };
+}
+
+async function openSketch(page: Page): Promise<Point> {
+  const middle = await startSketch(page);
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
+  return middle;
+}
+
+interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Geometry only: Playwright's own bounding box adds an SVG shape's stroke width. */
+function box(locator: Locator): Promise<Box> {
+  return locator.evaluate((element) => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { x, y, width, height };
+  });
+}
+
+async function center(locator: Locator): Promise<Point> {
+  const bounds = await box(locator);
+  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+}
+
+async function drag(page: Page, from: Point, to: Point): Promise<void> {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+}
+
+async function typeText(page: Page, at: Point, text: string): Promise<void> {
+  await page.locator('[data-test="sketch-tool-text"]').click();
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator(EDITOR)).toBeFocused();
+  await page.keyboard.type(text);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(EDITOR)).toHaveCount(0);
+}
+
+test("the sketch tools sit in a bar above the toolbar with the copy button after the color", async ({ page }) => {
+  await startSketch(page);
+  const bar = page.locator('[data-test="sketch-tool-options"]');
+  await expect(bar).toBeVisible();
+
+  // The whole bar slides up 16px as it fades in (it is centred with `translate`, so the slide carries the -50%).
+  const slide = await bar.evaluate((element) => {
+    const animation = element.getAnimations().find((candidate) => (candidate as CSSAnimation).animationName === "sketch-options-bar-in");
+    const [first] = (animation?.effect as KeyframeEffect | null | undefined)?.getKeyframes() ?? [];
+    return first ? { translate: String(first.translate), opacity: Number(first.opacity) } : null;
+  });
+  expect(slide).toEqual({ translate: "-50% 16px", opacity: 0 });
+
+  // Each control rises in turn: one intro animation per item, delayed one step after the last.
+  const delays = await page.locator(".sketch__live-popup, .sketch-options__item").evaluateAll((elements) =>
+    elements
+      .filter((element) => element.classList.contains("sketch-options__item"))
+      .map((element) => element.getAnimations().map((animation) => {
+        const timing = animation.effect?.getTiming();
+        return { name: (animation as CSSAnimation).animationName, delay: Number(timing?.delay) };
+      })[0]));
+  expect(delays).toHaveLength(6);
+  expect(delays.every((item) => item?.name === "sketch-options-item-in")).toBe(true);
+  const steps = delays.map((item) => item!.delay);
+  expect(steps).toEqual([...steps].sort((first, second) => first - second));
+  expect(new Set(steps).size).toBe(steps.length);
+
+  // While the controls rise in, they are clipped to the bar so the pen and eraser artwork never hangs below it; the
+  // clip is dropped afterwards so the color palette can fan out past the bar.
+  const items = page.locator(".sketch-options__items");
+  await expect(bar).toHaveAttribute("data-settled", "false");
+  await expect(items).toHaveCSS("clip-path", /^inset\(/);
+  await expect(bar).toHaveAttribute("data-settled", "true");
+  await expect(items).toHaveCSS("clip-path", "none");
+  const toolbar = await box(page.locator('[data-test="canvas-toolbar"]'));
+  const sketchBar = await box(bar);
+  expect(sketchBar.y + sketchBar.height).toBeLessThanOrEqual(toolbar.y);
+  expect(sketchBar.y + sketchBar.height).toBeGreaterThan(toolbar.y - 24);
+
+  const order = ["pen", "eraser", "rectangle", "text", "color"].map((tool) => `[data-test="sketch-tool-${tool}"]`);
+  order.push('[data-test="sketch-copy"]');
+  const lefts = await Promise.all(order.map(async (selector) => (await box(page.locator(selector))).x));
+  expect(lefts).toEqual([...lefts].sort((first, second) => first - second));
+
+  await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
+  // With nothing drawn, the button stays as it is and a plain toast (no icon) says what to do instead.
+  await page.locator('[data-test="sketch-copy"]').click();
+  const toast = page.locator('[data-test="toast"]');
+  await expect(toast).toContainText("Nothing to copy");
+  await expect(toast).toContainText("Sketch, then click done.");
+  await expect(toast.locator(".toast__icon")).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-live-prompt-input"]')).toHaveCount(0);
+
+  // A divider, like the one in the canvas toolbar, sits between the color picker and the copy button.
+  const divider = page.locator('[data-test="sketch-options-divider"]');
+  await expect(divider).toHaveCount(1);
+  const dividerBox = await box(divider);
+  const colorBox = await box(page.locator('[data-test="sketch-tool-color"]'));
+  const copyBox = await box(page.locator('[data-test="sketch-copy"]'));
+  expect(dividerBox.x).toBeGreaterThan(colorBox.x + colorBox.width);
+  expect(dividerBox.x + dividerBox.width).toBeLessThan(copyBox.x);
+  expect(dividerBox.width).toBe(1);
+  expect(dividerBox.height).toBe(24);
+  expect(dividerBox.y + dividerBox.height / 2).toBeCloseTo(copyBox.y + copyBox.height / 2, 0);
+  const toolbarDivider = await box(page.locator('[data-test="canvas-toolbar"] > .canvas-toolbar__divider'));
+  expect(dividerBox.height).toBe(toolbarDivider.height);
+  expect(await divider.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe(await page.locator('[data-test="canvas-toolbar"] > .canvas-toolbar__divider').evaluate((element) => getComputedStyle(element).backgroundColor));
+
+  // The copy button is a standard-size tick, and there is no clear button beside it.
+  const copyButton = page.locator('[data-test="sketch-copy"]');
+  await expect(copyButton).toHaveAttribute("aria-label", "Save sketch");
+  // The pointer is still on it from the click, so move away first for the tooltip to open on the way back.
+  await page.mouse.move(0, 0);
+  await copyButton.hover();
+  await expect(page.locator(".tooltip__popup", { hasText: "Save sketch" })).toBeVisible();
+  await expect(copyButton.locator("svg")).toHaveCount(1);
+  const copy = await box(copyButton);
+  expect(copy.height).toBe(32);
+  expect(copy.width).toBe(32);
+  await expect(page.locator('[data-test="sketch-clear"]')).toHaveCount(0);
+});
+
+test("typed text becomes a layer that is framed, rotated and scaled like a stroke", async ({ page }) => {
+  const middle = await openSketch(page);
+  await typeText(page, { x: middle.x - 100, y: middle.y }, "Tighten spacing");
+
+  const layer = page.locator(TEXT);
+  await expect(layer).toHaveText("Tighten spacing");
+  const frame = page.locator(FRAME);
+  await expect(frame).toHaveCount(1);
+  await expect(frame.locator('[data-test="sketch-selection-corner"]')).toHaveCount(4);
+  await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
+
+  const before = Number(await layer.getAttribute("font-size"));
+  const typed = await box(layer);
+  const grip = await center(frame.locator('[data-test="sketch-selection-corner"]').nth(3));
+  await drag(page, grip, { x: grip.x + 60, y: grip.y + 30 });
+  const grown = Number(await layer.getAttribute("font-size"));
+  expect(grown).toBeGreaterThan(before);
+  expect((await box(layer)).width).toBeGreaterThan(typed.width);
+  expect((await box(layer)).x).toBeCloseTo(typed.x, 0);
+
+  const pivot = await center(layer);
+  const rotate = await center(frame.locator('[data-test="sketch-selection-rotate"]'));
+  await page.keyboard.down("Shift");
+  await drag(page, rotate, { x: pivot.x + 150, y: pivot.y });
+  await page.keyboard.up("Shift");
+  await expect(layer).toHaveAttribute("transform", /rotate\(90\.00\)/);
+  await expect(frame).toHaveAttribute("transform", /rotate\(90\)/);
+});
+
+test("P, E, R and T pick the pen, eraser, rectangle and text tools, except while typing text", async ({ page }) => {
+  const middle = await openSketch(page);
+  const isActive = (tool: string) => expect(page.locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
+
+  // P goes back to the pen without starting a new sketch, so what is already drawn stays.
+  await drag(page, { x: middle.x - 80, y: middle.y - 60 }, { x: middle.x + 40, y: middle.y + 20 });
+  await expect(page.locator(MARK)).toHaveCount(1);
+  await page.keyboard.press("e");
+  await isActive("eraser");
+  await page.keyboard.press("p");
+  await isActive("pen");
+  await expect(page.locator(MARK)).toHaveCount(1);
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(1);
+  await page.locator('[data-test="sketch-tool-pen"]').hover();
+  await expect(page.locator(".tooltip__popup", { hasText: "Pen" })).toContainText("P");
+  await page.keyboard.press("e");
+  await isActive("eraser");
+  await page.keyboard.press("r");
+  await isActive("rectangle");
+  await page.keyboard.press("t");
+  await isActive("text");
+
+  // The tooltips name the keys.
+  await page.locator('[data-test="sketch-tool-eraser"]').hover();
+  await expect(page.locator(".tooltip__popup", { hasText: "Eraser" })).toContainText("E");
+
+  // While a text layer is being typed, the same letters are just letters.
+  await page.mouse.click(middle.x, middle.y);
+  await expect(page.locator(EDITOR)).toBeFocused();
+  await page.keyboard.type("rer");
+  await isActive("text");
+  await expect(page.locator(EDITOR)).toHaveValue("rer");
+  await page.keyboard.press("Escape");
+
+  // Modifier chords are not shortcuts, and nothing listens once the sketch tool is closed.
+  await page.keyboard.press("ControlOrMeta+e");
+  await isActive("text");
+  await page.locator('[data-test="canvas-tool-design"]').click();
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(0);
+  await page.keyboard.press("e");
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(0);
+});
+
+test("Escape abandons the text being typed without closing the sketch", async ({ page }) => {
+  const middle = await openSketch(page);
+  await page.locator('[data-test="sketch-tool-text"]').click();
+  await page.mouse.click(middle.x, middle.y);
+  await expect(page.locator(EDITOR)).toBeFocused();
+  await page.keyboard.type("Never mind");
+  await page.keyboard.press("Escape");
+
+  await expect(page.locator(EDITOR)).toHaveCount(0);
+  await expect(page.locator(TEXT)).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
+});
+
+test("choosing another tool while typing keeps the text", async ({ page }) => {
+  const middle = await openSketch(page);
+  await page.locator('[data-test="sketch-tool-text"]').click();
+  await page.mouse.click(middle.x - 100, middle.y);
+  await expect(page.locator(EDITOR)).toBeFocused();
+  await page.keyboard.type("Keep me");
+
+  await page.locator('[data-test="sketch-tool-pen"]').click();
+  await expect(page.locator(EDITOR)).toHaveCount(0);
+  await expect(page.locator(TEXT)).toHaveText("Keep me");
+  await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
+});
+
+test("double-clicking a text layer edits it and undo restores the old words", async ({ page }) => {
+  const middle = await openSketch(page);
+  await typeText(page, { x: middle.x - 100, y: middle.y }, "First");
+  const layer = page.locator(TEXT);
+  await expect(layer).toHaveText("First");
+
+  await page.locator('[data-test="sketch-tool-pen"]').click();
+  const target = await center(layer);
+  await page.mouse.dblclick(target.x, target.y);
+  const editor = page.locator(EDITOR);
+  await expect(editor).toHaveValue("First");
+  await page.keyboard.type(" and second");
+  await page.keyboard.press("Enter");
+
+  await expect(layer).toHaveText("First and second");
+  await expect(page.locator(TEXT)).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(layer).toHaveText("First");
+});
+
+async function grantClipboard(page: Page): Promise<void> {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  await page.bringToFront();
+}
+
+/** The MIME types on the first clipboard item, or `[]` when it holds only text. */
+function clipboardTypes(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const [item] = await navigator.clipboard.read();
+    return item ? [...item.types] : [];
+  });
+}
+
+function storedSketchIds(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("nudge-ui-sketches");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const documents = await new Promise<{ id: string }[]>((resolve, reject) => {
+      const request = database.transaction("documents").objectStore("documents").getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    return documents.map((document) => document.id);
+  });
+}
+
+async function copyTextSketch(page: Page, at: Point, text: string): Promise<void> {
+  await typeText(page, at, text);
+  await page.locator('[data-test="sketch-copy"]').click();
+  await expect(page.locator(TEXT)).toHaveCount(0, { timeout: 10_000 });
+}
+
+test("copy sketch clears the canvas, keeps the tool open, and leaves the copy out of the prompt", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await typeText(page, { x: middle.x - 100, y: middle.y }, "Nudge this");
+  await page.locator('[data-test="sketch-copy"]').click();
+
+  const recent = page.locator('[data-test="sketch-recent"]');
+  await expect(recent).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(TEXT)).toHaveCount(0);
+  await expect(page.locator(MARK)).toHaveCount(0);
+  await expect(page.locator(FRAME)).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
+  expect(await clipboardTypes(page)).toContain("image/png");
+
+  // A copied sketch is not a change: nothing is drawn on the page, listed in Changes, or added to the prompt.
+  await expect(page.locator('[data-test="canvas-sketch-overlay"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-row"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="copy-prompt-change-count"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="copy-prompt-menu"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
+
+  // The thumbnail sits straight before the copy button, after the divider, and is not tilted.
+  const copy = await box(page.locator('[data-test="sketch-copy"]'));
+  const divider = await box(page.locator('[data-test="sketch-options-divider"]'));
+  const thumbnail = await box(recent);
+  expect(thumbnail.x + thumbnail.width).toBeLessThanOrEqual(copy.x);
+  expect(copy.x - (thumbnail.x + thumbnail.width)).toBeLessThan(24);
+  expect(thumbnail.x).toBeGreaterThan(divider.x + divider.width);
+  const flat = await recent.evaluate((element) => ({
+    image: getComputedStyle(element.querySelector(".sketch-thumbnail")!).transform,
+    icon: getComputedStyle(element.querySelector(".sketch-recent__copy-icon")!).transform,
+  }));
+  expect(flat).toEqual({ image: "none", icon: "none" });
+});
+
+test("the copied sketch shows a copy icon on hover, and copies again on click", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Forgot to paste");
+  const recent = page.locator('[data-test="sketch-recent"]');
+  await expect(recent).toBeVisible();
+
+  // The copy icon appears only while the thumbnail is hovered.
+  const icon = recent.locator(".sketch-recent__copy-icon");
+  await page.mouse.move(middle.x, middle.y - 150);
+  await expect(icon).toHaveCSS("opacity", "0");
+  await recent.locator('[data-test="sketch-recent-copy"]').hover();
+  await expect(icon).toHaveCSS("opacity", "1");
+  await expect(icon.locator("svg")).toHaveCount(1);
+
+  // Clicking it puts the image back on the clipboard after something else replaced it.
+  await page.evaluate(() => navigator.clipboard.writeText("something else"));
+  expect(await clipboardTypes(page)).not.toContain("image/png");
+  await recent.locator('[data-test="sketch-recent-copy"]').click();
+  await expect.poll(() => clipboardTypes(page)).toContain("image/png");
+
+  // The copy icon has no tint behind it, and there is no remove button: a sketch only leaves when newer ones push it out.
+  expect(await icon.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  await expect(recent.locator("button")).toHaveCount(1);
+  expect(await storedSketchIds(page)).toHaveLength(1);
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
+});
+
+test("moving from one saved sketch to the next hands the preview straight over", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 40 }, "First");
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(1);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y + 40 }, "Second");
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(2);
+  await expect(page.locator(".sketch-recent[data-enter]")).toHaveCount(1);
+  await page.waitForTimeout(500);
+
+  const thumbnails = page.locator('[data-test="sketch-recent-copy"]');
+  const front = await box(thumbnails.nth(0));
+  const behind = await box(thumbnails.nth(1));
+  // Hover the visible left strip of the older sketch, clear of the one in front.
+  await page.mouse.move(front.x + front.width / 2, front.y + front.height / 2);
+  const preview = page.locator('[data-test="sketch-preview"]');
+  await expect(preview).toBeVisible();
+
+  // Watch every frame from the move: the preview may swap, but it must not go away and wait to come back.
+  await page.evaluate(() => {
+    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
+    const log = { frames: 0, empty: 0, done: false, grew: 0 };
+    Object.assign(window, { __previewLog: log });
+    // The first height each open popup is seen at: a handed-over preview must already be its full size and drawn.
+    const firstHeight = new WeakMap<Element, number>();
+    const start = performance.now();
+    const tick = (): void => {
+      log.frames += 1;
+      if (!root.querySelector('[data-test="sketch-preview"]')) log.empty += 1;
+      for (const popup of root.querySelectorAll(".sketch-preview-popup[data-open][data-instant]")) {
+        const height = popup.getBoundingClientRect().height;
+        const first = firstHeight.get(popup);
+        if (first === undefined) firstHeight.set(popup, height);
+        else if (Math.abs(height - first) > 1) log.grew += 1;
+      }
+      if (performance.now() - start < 600) requestAnimationFrame(tick);
+      else log.done = true;
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.mouse.move(behind.x + 6, behind.y + behind.height / 2, { steps: 4 });
+  await page.waitForFunction(() => (window as unknown as { __previewLog: { done: boolean } }).__previewLog.done);
+  const log = await page.evaluate(() => (window as unknown as { __previewLog: { frames: number; empty: number; grew: number } }).__previewLog);
+  expect(log.frames).toBeGreaterThan(10);
+  expect(log.empty).toBeLessThanOrEqual(1);
+  expect(log.grew).toBe(0);
+  await expect(preview).toBeVisible();
+});
+
+test("the color palette fans out above the saved sketches", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Palette over me");
+  await expect(page.locator('[data-test="sketch-recent"]')).toBeVisible();
+
+  await page.locator('[data-test="sketch-tool-color"]').click();
+  await expect(page.locator(".sketch-options__palette-option")).toHaveCount(6);
+  await page.waitForFunction(() => {
+    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
+    return [...root.querySelectorAll(".sketch-options__palette-option")].every((option) => option.getAnimations().length === 0);
+  });
+
+  // Sample the ring of every swatch: none of it may sit under a saved sketch.
+  const covered = await page.evaluate(() => {
+    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
+    const hidden: string[] = [];
+    for (const option of root.querySelectorAll(".sketch-options__palette-option")) {
+      const bounds = option.getBoundingClientRect();
+      for (let step = 0; step < 16; step += 1) {
+        const angle = (step * Math.PI) / 8;
+        const x = bounds.x + bounds.width / 2 + Math.cos(angle) * bounds.width * 0.45;
+        const y = bounds.y + bounds.height / 2 + Math.sin(angle) * bounds.height * 0.45;
+        if (root.elementFromPoint(x, y)?.closest(".sketch-recents")) hidden.push(`${option.getAttribute("data-test")}@${step}`);
+      }
+    }
+    return hidden;
+  });
+  expect(covered).toEqual([]);
+});
+
+test("hovering a saved sketch opens a large preview above it, titled with what a click does", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Show me bigger");
+  const copyThumbnail = page.locator('[data-test="sketch-recent-copy"]');
+  await expect(copyThumbnail).toBeVisible();
+  await expect(page.locator('[data-test="sketch-preview"]')).toHaveCount(0);
+
+  await copyThumbnail.hover();
+  const preview = page.locator('[data-test="sketch-preview"]');
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("Click to copy");
+  // Painted on a canvas, so a page's image policy cannot block it.
+  const image = preview.locator("canvas.sketch-preview__image");
+  await expect(image).toBeVisible();
+  const shown = await box(image);
+  expect(shown.width).toBeGreaterThan(150);
+  expect(shown.width).toBeLessThanOrEqual(200);
+  const thumb = await box(copyThumbnail);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(thumb.y);
+
+  // Clicking still copies, and moving away closes the preview.
+  await page.evaluate(() => navigator.clipboard.writeText("something else"));
+  await copyThumbnail.click();
+  await expect.poll(() => clipboardTypes(page)).toContain("image/png");
+  await page.mouse.move(middle.x, middle.y - 150);
+  await expect(preview).toHaveCount(0);
+});
+
+test("the three latest copies are kept, newest in front, and they are still there after a reload", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  const recent = page.locator('[data-test="sketch-recent"]');
+  const recentIds = () => recent.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-sketch-id")));
+
+  // Newest first, as the bar lists them.
+  const copies: string[] = [];
+  for (const [index, words] of ["First copy", "Second copy", "Third copy", "Fourth copy"].entries()) {
+    await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 80 + index * 40 }, words);
+    await expect.poll(async () => (await recentIds())[0]).not.toBe(copies[0] ?? null);
+    copies.unshift((await recentIds())[0]!);
+  }
+
+  const kept = copies.slice(0, 3);
+  await expect(recent).toHaveCount(3);
+  expect(await recentIds()).toEqual(kept);
+  expect([...await storedSketchIds(page)].sort()).toEqual([...kept].sort());
+
+  // The fourth copy slid the others to the left rather than replacing the front one, and the oldest fully left.
+  const slid = page.locator(`[data-test="sketch-recent"][data-sketch-id="${kept[1]}"]`);
+  await expect.poll(async () => (await box(recent.first())).x - (await box(slid)).x).toBeCloseTo(22, 0);
+  await expect(page.locator('[data-test="sketch-recent-leaving"]')).toHaveCount(0);
+
+  // The newest sits next to the copy button; each older copy tucks behind the one in front of it, further left.
+  const copy = await box(page.locator('[data-test="sketch-copy"]'));
+  const [front, behind, last] = (await Promise.all([0, 1, 2].map((index) => box(recent.nth(index))))) as [Box, Box, Box];
+  expect(front.x + front.width).toBeLessThanOrEqual(copy.x);
+  expect(behind.x).toBeLessThan(front.x);
+  expect(behind.x).toBeGreaterThan(front.x - front.width);
+  expect(last.x).toBeLessThan(behind.x);
+  expect(last.x).toBeGreaterThan(behind.x - behind.width);
+
+  await page.reload();
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  await expect(recent).toHaveCount(3);
+  expect(await recentIds()).toEqual(kept);
+});
+
+/** What the thumbnail's entrance looked like, frame by frame, from the moment it appeared. */
+interface PopSample {
+  readonly scale: number;
+  readonly opacity: number;
+  readonly animation: string | null;
+}
+
+test("a finished copy pops its thumbnail in beside the copy button, with nothing flying across the page", async ({ page }) => {
+  const middle = await openSketch(page);
+  await typeText(page, { x: middle.x - 100, y: middle.y }, "Pop");
+
+  // Watch for the thumbnail and for any picture appearing outside the sketch bar, from before the copy.
+  await page.evaluate(() => {
+    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
+    const samples: unknown[] = [];
+    const strays: string[] = [];
+    Object.assign(window, { __popSamples: samples, __strayImages: strays, __popDone: false });
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          const images = node instanceof HTMLImageElement ? [node] : [...node.querySelectorAll("img")];
+          for (const image of images) if (!image.closest(".sketch-options")) strays.push(image.className || "img");
+        }
+      }
+    }).observe(root, { childList: true, subtree: true });
+    let frames = 0;
+    const tick = (): void => {
+      const item = root.querySelector<HTMLElement>('.sketch-recents[data-pop="true"]');
+      if (item) {
+        const style = getComputedStyle(item);
+        samples.push({
+          scale: style.scale === "none" ? 1 : Number(style.scale.split(" ")[0]),
+          opacity: Number(style.opacity),
+          animation: (item.getAnimations()[0] as CSSAnimation | undefined)?.animationName ?? null,
+        });
+      }
+      frames += 1;
+      if (samples.length > 0 && !item?.getAnimations().length) {
+        Object.assign(window, { __popDone: true });
+        return;
+      }
+      if (frames < 600) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.locator('[data-test="sketch-copy"]').click();
+  await page.waitForFunction(() => (window as unknown as { __popDone: boolean }).__popDone, undefined, { timeout: 10_000 });
+  const { samples, strays } = await page.evaluate(() => ({
+    samples: (window as unknown as { __popSamples: PopSample[] }).__popSamples,
+    strays: (window as unknown as { __strayImages: string[] }).__strayImages,
+  }));
+
+  // The thumbnail scales up from small while fading in, overshoots a touch, and settles at full size...
+  const animated = samples.filter((sample) => sample.animation === "sketch-options-pop");
+  expect(animated.length).toBeGreaterThan(5);
+  expect(animated[0]!.scale).toBeLessThan(0.7);
+  expect(animated[0]!.opacity).toBeLessThan(0.5);
+  expect(Math.max(...animated.map((sample) => sample.scale))).toBeGreaterThan(1);
+  expect(animated.at(-1)!.scale).toBeCloseTo(1, 1);
+  // ...in place of the stagger's rise, and no screenshot flies anywhere.
+  expect(samples.every((sample) => sample.animation === null || sample.animation === "sketch-options-pop")).toBe(true);
+  expect(strays).toEqual([]);
+  await expect(page.locator('[data-test="sketch-flight"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-recent"]')).toBeVisible();
+});
+
+test("copying announces itself with a white toast that sits above the sketch bar", async ({ page }) => {
+  const middle = await openSketch(page);
+  await grantClipboard(page);
+  await typeText(page, { x: middle.x - 100, y: middle.y }, "Announce me");
+  await page.locator('[data-test="sketch-copy"]').click();
+
+  const toast = page.locator('[data-test="toast"]');
+  await expect(toast).toContainText("Copied to clipboard");
+  // Hovering waits for the toast to be the topmost thing under the pointer, so this fails if the sketch bar covers it.
+  await toast.hover({ timeout: 1_500 });
+  const bar = await box(page.locator('[data-test="sketch-tool-options"]'));
+  const shown = await box(toast);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(bar.y);
+  const colors = await toast.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    text: getComputedStyle(element).color,
+  }));
+  expect(colors).toEqual({ background: "rgb(255, 255, 255)", text: "rgb(36, 36, 36)" });
+
+  // It is the only sign the clipboard changed, so it outlasts the usual two seconds. (A toast waits while it is hovered.)
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(2_600);
+  await expect(toast).toBeVisible();
+  await expect(toast).toHaveCount(0, { timeout: 8_000 });
+});
+
+test("a copy kept from earlier joins the stagger when the bar opens, instead of popping", async ({ page }) => {
+  const middle = await openSketch(page);
+  await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Already kept");
+  const recent = page.locator('[data-test="sketch-recent"]');
+  await expect(recent).toBeVisible({ timeout: 10_000 });
+
+  await page.locator('[data-test="canvas-tool-design"]').click();
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(0);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+
+  // The stack comes in with the copy button's item, in the stagger, and does not scale in on its own.
+  const item = page.locator('.sketch-options__item:has([data-test="sketch-recent"])');
+  const stack = page.locator(".sketch-recents");
+  await expect(item).toHaveCount(1);
+  await expect(stack).not.toHaveAttribute("data-pop", "true");
+  const animation = await item.evaluate((element) => (element.getAnimations()[0] as CSSAnimation | undefined)?.animationName ?? null);
+  expect(animation === null || animation === "sketch-options-item-in").toBe(true);
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
+  await expect(stack).not.toHaveAttribute("data-pop", "true");
+});

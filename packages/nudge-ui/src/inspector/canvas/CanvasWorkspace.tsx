@@ -493,13 +493,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (event.key === "Escape") leaveViewTool();
       const nextTool = canvasToolForEvent(event);
       if (!nextTool || (nextTool === "sketch" && !sketchAvailable)) return;
+      // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a
+      // copy that is still being captured.
+      if (nextTool === "sketch" && sketchActive) return;
       event.preventDefault();
       handleToolChange(nextTool);
     }
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleToolChange, leaveViewTool, mode, sketchAvailable]);
+  }, [handleToolChange, leaveViewTool, mode, sketchActive, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (sketchActive) return;
@@ -596,7 +599,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             return;
           }
           const nextTool = canvasToolForCode(msg.code);
-          if (nextTool && (nextTool !== "sketch" || sketchAvailable)) handleToolChange(nextTool);
+          if (nextTool && (nextTool !== "sketch" || (sketchAvailable && !sketchActive))) handleToolChange(nextTool);
         }
         return;
       }
@@ -837,7 +840,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
       if (sketchActive) {
-        if (e.composedPath().some((node) => node instanceof Element && node.closest(".sketch__prompt-panel, .sketch__annotation-editor, .panel"))) return;
+        if (e.composedPath().some((node) => node instanceof Element && node.closest(".panel"))) return;
         e.preventDefault();
         e.stopPropagation();
         return;

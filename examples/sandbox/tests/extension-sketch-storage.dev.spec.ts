@@ -44,8 +44,8 @@ test("extension sketches round-trip through extension storage and never touch th
   await page.mouse.down();
   await page.mouse.move(bounds.x + 160, bounds.y + 140, { steps: 4 });
   await page.mouse.up();
-  await page.locator('[data-test="sketch-live-prompt-done"]').click();
-  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0, { timeout: 10_000 });
+  await page.locator('[data-test="sketch-copy"]').click();
+  await expect(page.locator('[data-test="sketch-recent"]')).toBeVisible({ timeout: 10_000 });
 
   const origin = new URL(page.url()).origin;
   await expect.poll(() => [...stored.keys()].filter((key) => key.startsWith(`sketch:${origin}|doc:`)).length).toBe(1);
@@ -53,7 +53,7 @@ test("extension sketches round-trip through extension storage and never touch th
 
   await page.reload();
   await injectExtension(page);
-  await page.locator('[data-test="changes-toggle"]').click();
-  await expect(page.locator('[data-test="sketch-row"]')).toHaveCount(1);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(1);
   expect(await page.evaluate(async () => (await indexedDB.databases()).map((database) => database.name))).toEqual([]);
 });

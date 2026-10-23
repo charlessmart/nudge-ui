@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowNarrowDown, IconArrowNarrowRight, IconDots, IconLayoutGrid, IconSquare } from "@tabler/icons-react";
+import { IconArrowNarrowDown, IconArrowNarrowRight, IconDots, IconLayoutGrid, IconPlus, IconSquare } from "@tabler/icons-react";
 import { GridAdvancedFields } from "./GridSection.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { FlexChildOptions } from "./ChildPlacement.tsx";
@@ -10,6 +10,7 @@ import { layoutModeEdits, layoutModeOf, type LayoutMode } from "./layoutMode.ts"
 import { LayoutValueField, useComputedLayoutValue } from "./FlexControls.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyles } from "../tokens/editActions.ts";
+import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
@@ -44,8 +45,15 @@ export interface LayoutModeRowProps {
   isGridChild?: boolean;
   revision?: number;
   onAfterEdit?: () => void;
-  /** Position fields that are not shown inline in the section, such as a bare relative element's insets. */
-  positionExtras?: ReactElement | null;
+  /** Optional groups the section only shows once added, such as margin and inset; listed at the foot of the options menu. */
+  addActions?: ReadonlyArray<LayoutAddAction>;
+}
+
+export interface LayoutAddAction {
+  key: string;
+  label: string;
+  disabled: boolean;
+  onAdd(): void;
 }
 
 /** One row picks how the element lays out its children; the rest of the display options sit behind the menu. */
@@ -108,7 +116,7 @@ function LayoutOptionsMenu({
   isGridChild = false,
   revision = 0,
   onAfterEdit,
-  positionExtras,
+  addActions = [],
 }: LayoutModeRowProps): ReactElement {
   const [open, setOpen] = useState(false);
   const shared = { domElement, editTarget, selection, revision, onAfterEdit, stacked: true };
@@ -137,7 +145,16 @@ function LayoutOptionsMenu({
           <LayoutDropdown property="position" options={POSITION_OPTIONS} {...shared} />
           <LayoutValueField label="Z-index" property="z-index" presets={Z_INDEX_PRESETS} inputOnly domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
         </div>
-        {positionExtras}
+        {addActions.length > 0 ? (
+          <div className="layout__options-actions" data-test="layout-options-add">
+            {addActions.map(({ key, label, disabled, onAdd }) => (
+              <Button key={key} variant="secondary" size="default" data-test={`add-${key}`} disabled={disabled} onClick={() => { onAdd(); setOpen(false); }}>
+                <IconPlus size={16} aria-hidden="true" />
+                {label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         {isFlexContainer ? (
           <>
             <div className="layout__options-pair">
@@ -154,7 +171,7 @@ function LayoutOptionsMenu({
         {isFlexChild ? <FlexChildOptions domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} /> : null}
         {isGridChild ? (
           <div className="layout__options-group" data-test="layout-options-grid-child">
-            <span className="layout__label">Grid child</span>
+            <span className="layout__subheading">Grid child</span>
             <GridChildSection bare domElement={domElement} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
         ) : null}

@@ -20,7 +20,7 @@ export interface FlexChildOptionsProps {
 export function FlexChildOptions(props: FlexChildOptionsProps): ReactElement {
   return (
     <div className="layout__options-group" data-test="layout-options-flex-child">
-      <span className="layout__label">Flex child</span>
+      <span className="layout__subheading">Flex child</span>
       <div className="layout__options-triple">
         <LayoutValueField label="Grow" property="flex-grow" presets={FLEX_GROW_PRESETS} inputOnly {...props} />
         <LayoutValueField label="Shrink" property="flex-shrink" presets={FLEX_SHRINK_PRESETS} inputOnly {...props} />

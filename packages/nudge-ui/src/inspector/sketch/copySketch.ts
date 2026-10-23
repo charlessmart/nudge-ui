@@ -1,6 +1,9 @@
 import { showToast } from "../ui/Toast.tsx";
 import { copyImageToClipboard } from "./raster.ts";
 
+/** Three times the usual two seconds: the toast is the only sign the clipboard changed. */
+const COPIED_TOAST_MS = 6000;
+
 function reportCopyFailure(title: string, error: unknown): void {
   showToast({
     tone: "error",
@@ -12,20 +15,18 @@ function reportCopyFailure(title: string, error: unknown): void {
 /** The toast is the only sign the clipboard changed, so success is announced too. */
 function reportAutoCopy(copied: Promise<void>): void {
   void copied.then(
-    () => showToast({ title: "Copied to clipboard" }),
+    () => showToast({ title: "Copied to clipboard", timeout: COPIED_TOAST_MS }),
     (error: unknown) => reportCopyFailure("Sketch saved, but not copied", error),
   );
 }
 
-export function copySketchImage(image: Blob): Promise<void> {
-  const copied = copyImageToClipboard(image);
-  reportAutoCopy(copied);
-  return copied.catch(() => undefined);
-}
-
+/** Copies a kept sketch again. The user asked for it, so success is confirmed as well as failure. */
 export function copySketchImageOnRequest(image: Blob): Promise<void> {
   const copied = copyImageToClipboard(image);
-  void copied.catch((error: unknown) => reportCopyFailure("Sketch not copied", error));
+  void copied.then(
+    () => showToast({ title: "Copied to clipboard", timeout: COPIED_TOAST_MS }),
+    (error: unknown) => reportCopyFailure("Sketch not copied", error),
+  );
   return copied.catch(() => undefined);
 }
 
