@@ -66,7 +66,7 @@ export async function prepareHandoff(request: HandoffRequest): Promise<PreparedH
   const generated = generatePrompt([...changes], hints, structuralChanges, request.customInstructions, sketchMetadata, comments);
   const prompt = target.kind === "html"
     ? htmlIterationPrompt(target.artifactId, generated, changes.length + structuralChanges.length + comments.length === 0, sketchMetadata.length > 0, request.customInstructions)
-    : withPromptContext([`Page: ${target.route}`, "Apply the requested changes to this page."], generated);
+    : withPromptContext([`The page I'm working on is ${target.route}.`], generated);
   return { ...handoff, prompt };
 }
 
@@ -80,7 +80,7 @@ export async function prepareIterationImplementationPrompt(request: HandoffReque
   const instructions = request.customInstructions.trim();
   const generated = changes.length + structuralChanges.length + sketchMetadata.length + comments.length > 0
     ? generatePrompt([...changes], request.hints, structuralChanges, instructions, sketchMetadata, comments)
-    : instructions ? `## Custom instructions\n\n${instructions}` : "";
+    : instructions;
   return htmlIterationImplementationPrompt(card.content.artifactId, label, page, generated);
 }
 

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconDots, IconLayoutColumns, IconLayoutGrid, IconLayoutRows, IconSquare } from "@tabler/icons-react";
+import { IconArrowNarrowDown, IconArrowNarrowRight, IconDots, IconLayoutGrid, IconSquare } from "@tabler/icons-react";
 import { GridAdvancedFields } from "./GridSection.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
+import { FlexChildOptions } from "./ChildPlacement.tsx";
+import { GridChildSection } from "./GridChildSection.tsx";
 import { POSITION_OPTIONS, Z_INDEX_PRESETS } from "./PositionControls.tsx";
 import { layoutModeEdits, layoutModeOf, type LayoutMode } from "./layoutMode.ts";
 import { LayoutValueField, useComputedLayoutValue } from "./FlexControls.tsx";
@@ -26,8 +28,8 @@ const ALIGN_CONTENT_OPTIONS = ["normal", "stretch", "flex-start", "flex-end", "c
 const ICON_PROPS = { size: 16, stroke: 1.8, "aria-hidden": true } as const;
 const MODE_OPTIONS = [
   { value: "block", label: "Block", icon: <IconSquare {...ICON_PROPS} />, testId: "layout-mode-block" },
-  { value: "row", label: "Flex row", icon: <IconLayoutColumns {...ICON_PROPS} />, testId: "layout-mode-row" },
-  { value: "column", label: "Flex column", icon: <IconLayoutRows {...ICON_PROPS} />, testId: "layout-mode-column" },
+  { value: "row", label: "Flex row", icon: <IconArrowNarrowRight {...ICON_PROPS} />, testId: "layout-mode-row" },
+  { value: "column", label: "Flex column", icon: <IconArrowNarrowDown {...ICON_PROPS} />, testId: "layout-mode-column" },
   { value: "grid", label: "Grid", icon: <IconLayoutGrid {...ICON_PROPS} />, testId: "layout-mode-grid" },
 ] as const satisfies ReadonlyArray<{ value: LayoutMode; label: string; icon: ReactElement; testId: string }>;
 
@@ -37,6 +39,9 @@ export interface LayoutModeRowProps {
   selection?: StyleSelection | null;
   isFlexContainer: boolean;
   isGridContainer: boolean;
+  /** Whether the parent lays the element out as a flex or grid item; each adds its item fields to the options menu. */
+  isFlexChild?: boolean;
+  isGridChild?: boolean;
   revision?: number;
   onAfterEdit?: () => void;
   /** Position fields that are not shown inline in the section, such as a bare relative element's insets. */
@@ -46,9 +51,12 @@ export interface LayoutModeRowProps {
 /** One row picks how the element lays out its children; the rest of the display options sit behind the menu. */
 export function LayoutModeRow(props: LayoutModeRowProps): ReactElement {
   return (
-    <div className="layout__mode-row" data-test="layout-mode">
-      <LayoutModeControl {...props} />
-      <LayoutOptionsMenu {...props} />
+    <div className="layout__mode">
+      <span className="layout__label">Display</span>
+      <div className="layout__mode-row" data-test="layout-mode">
+        <LayoutModeControl {...props} />
+        <LayoutOptionsMenu {...props} />
+      </div>
     </div>
   );
 }
@@ -78,7 +86,7 @@ function LayoutModeControl({ domElement, editTarget, selection, revision = 0, on
     <Tooltip content={inlineStyleWarningContent(blockedBy)} disabled={blockedBy === null}>
       <SegmentedControl
         value={mode}
-        aria-label="Layout mode"
+        aria-label="Display"
         data-test="layout-mode-control"
         className="layout__mode-control"
         disabled={blockedBy !== null}
@@ -96,6 +104,8 @@ function LayoutOptionsMenu({
   selection,
   isFlexContainer,
   isGridContainer,
+  isFlexChild = false,
+  isGridChild = false,
   revision = 0,
   onAfterEdit,
   positionExtras,
@@ -141,6 +151,13 @@ function LayoutOptionsMenu({
           </>
         ) : null}
         {isGridContainer ? <GridAdvancedFields domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} /> : null}
+        {isFlexChild ? <FlexChildOptions domElement={domElement} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} /> : null}
+        {isGridChild ? (
+          <div className="layout__options-group" data-test="layout-options-grid-child">
+            <span className="layout__label">Grid child</span>
+            <GridChildSection bare domElement={domElement} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
+          </div>
+        ) : null}
       </div>
     </InspectorPopover>
   );

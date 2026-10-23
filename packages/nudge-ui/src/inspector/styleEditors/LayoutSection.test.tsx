@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import {
   makeSelected,
@@ -15,6 +16,31 @@ import {
   sheetText,
   type MountHandle,
 } from "./_testUtils.ts";
+
+/** Opens a width or height chevron and picks one of its "Add ..." items. */
+function addSizeSetting(host: HTMLElement, dimension: "width" | "height", setting: string): void {
+  act(() => (host.querySelector(`[data-test="layout-size-${dimension}-options"]`) as HTMLButtonElement).click());
+  act(() => (document.body.querySelector(`[data-test="layout-size-add-${setting}"]`) as HTMLElement).click());
+}
+
+/** The open size menu as "label" or "label (disabled)". */
+function sizeMenuItems(): string[] {
+  return [...document.body.querySelectorAll('[data-test^="layout-size-add-"]')]
+    .map((item) => `${item.textContent}${item.hasAttribute("data-disabled") ? " (disabled)" : ""}`);
+}
+
+/** A selection of two elements, which the size controls keep separate from the primary element's own values. */
+function makeMultiSelection(primary: SelectedElement, other: SelectedElement): StyleSelection {
+  return {
+    primary,
+    elements: [primary, other],
+    domElements: [primary.domElement, other.domElement],
+    target: [primary.domElement, other.domElement],
+    primaryRows: [],
+    getProperty: () => null,
+    supportsRole: () => false,
+  };
+}
 
 describe("LayoutSection", () => {
   let handle: MountHandle;
@@ -109,6 +135,82 @@ describe("LayoutSection", () => {
     expect(sheetText()).toContain("align-items: center;");
   });
 
+  it("names each alignment cell by where it sits in the grid", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "justify-content": "flex-start", "align-items": "flex-start" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const label = (align: string, justify: string): string | null => handle.host
+      .querySelector(`[data-test="layout-align-${align}-${justify}"]`)?.getAttribute("aria-label") ?? null;
+    expect(label("flex-start", "flex-start")).toBe("Align top left");
+    expect(label("flex-start", "center")).toBe("Align top center");
+    expect(label("flex-start", "flex-end")).toBe("Align top right");
+    expect(label("center", "flex-start")).toBe("Align center left");
+    expect(label("center", "center")).toBe("Align center");
+    expect(label("center", "flex-end")).toBe("Align center right");
+    expect(label("flex-end", "flex-start")).toBe("Align bottom left");
+    expect(label("flex-end", "center")).toBe("Align bottom center");
+    expect(label("flex-end", "flex-end")).toBe("Align bottom right");
+  });
+
+  it("draws vertical bars of differing length in the selected cell for a row, aligned like the items", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row", "justify-content": "flex-end", "align-items": "center" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const glyph = handle.host.querySelector('[data-test="layout-alignment-glyph"]') as HTMLElement;
+    expect(glyph.dataset.axis).toBe("row");
+    expect(glyph.style.flexDirection).toBe("row");
+    expect(glyph.style.alignItems).toBe("center");
+    // Middle row, right column.
+    expect(glyph.style.gridRow).toBe("2");
+    expect(glyph.style.gridColumn).toBe("3");
+    expect([...glyph.children].map((bar) => (bar as HTMLElement).style.height)).toEqual(["8px", "16px", "12px"]);
+    expect(handle.host.querySelector('[data-test="layout-align-center-flex-end"]')?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("stacks horizontal bars for a column and follows a reversed direction", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "flex-direction": "column-reverse", "justify-content": "flex-start", "align-items": "flex-end" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const glyph = handle.host.querySelector('[data-test="layout-alignment-glyph"]') as HTMLElement;
+    expect(glyph.dataset.axis).toBe("column");
+    expect(glyph.style.flexDirection).toBe("column-reverse");
+    expect(glyph.style.alignItems).toBe("flex-end");
+    // Reversed, the start of the main axis is the bottom; the end of the cross axis is the right.
+    expect(glyph.style.gridRow).toBe("3");
+    expect(glyph.style.gridColumn).toBe("3");
+    expect([...glyph.children].map((bar) => (bar as HTMLElement).style.width)).toEqual(["8px", "16px", "12px"]);
+  });
+
+  it("spreads the bars along the whole main axis when items are distributed", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row", "justify-content": "space-between", "align-items": "flex-end" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const glyph = handle.host.querySelector('[data-test="layout-alignment-glyph"]') as HTMLElement;
+    expect(glyph.dataset.distributed).toBe("true");
+    expect(glyph.style.justifyContent).toBe("space-between");
+    expect(glyph.style.gridRow).toBe("3");
+    expect(glyph.style.gridColumn).toBe("1 / -1");
+    const covered = [...handle.host.querySelectorAll('.layout__alignment-button[data-covered="true"]')];
+    expect(covered.map((button) => button.getAttribute("data-test"))).toEqual([
+      "layout-align-flex-end-flex-start",
+      "layout-align-flex-end-center",
+      "layout-align-flex-end-flex-end",
+    ]);
+    expect(handle.host.querySelector('.layout__alignment-button[aria-pressed="true"]')).toBeNull();
+  });
+
+  it("shows no glyph while items stretch", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "justify-content": "flex-start", "align-items": "stretch" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-alignment-glyph"]')).toBeNull();
+  });
+
   it("hides flex container properties when display is block", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "static" });
@@ -125,32 +227,195 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
   });
 
-  it("renders size controls for every selected element", () => {
+  it("starts with only width and height and adds each size field from the chevrons", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "static", width: "240px", height: "120px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+    for (const property of ["width", "height"]) {
+      expect(handle.host.querySelector(`[data-test="layout-size-${property}"]`)).toBeTruthy();
+    }
+    for (const property of ["min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
+      expect(handle.host.querySelector(`[data-test="layout-size-${property}"]`)).toBeFalsy();
+    }
 
+    act(() => (handle.host.querySelector('[data-test="layout-size-width-options"]') as HTMLButtonElement).click());
+    expect(sizeMenuItems()).toEqual(["Add min width", "Add max width"]);
+    act(() => (document.body.querySelector('[data-test="layout-size-add-min-width"]') as HTMLElement).click());
+    expect(handle.host.querySelector('[data-test="layout-size-min-width"]')).toBeTruthy();
+
+    // The limits stay in the menu, dimmed once shown.
+    const widthChevron = handle.host.querySelector('[data-test="layout-size-width-options"]') as HTMLButtonElement;
+    act(() => widthChevron.click());
+    expect(sizeMenuItems()).toEqual(["Add min width (disabled)", "Add max width"]);
+    act(() => widthChevron.click());
+    const heightChevron = handle.host.querySelector('[data-test="layout-size-height-options"]') as HTMLButtonElement;
+    act(() => heightChevron.click());
+    expect(sizeMenuItems()).toEqual(["Add min height", "Add max height"]);
+    act(() => heightChevron.click());
+
+    addSizeSetting(handle.host, "width", "max-width");
+    addSizeSetting(handle.host, "height", "min-height");
+    addSizeSetting(handle.host, "height", "max-height");
     for (const property of ["width", "height", "min-width", "min-height", "max-width", "max-height"]) {
       expect(handle.host.querySelector(`[data-test="layout-size-${property}"]`)).toBeTruthy();
     }
-    expect(handle.host.querySelector('[data-test="layout-size-aspect-ratio"]')).toBeTruthy();
+    // The chevrons always stay, with every limit dimmed once it is shown.
+    act(() => widthChevron.click());
+    expect(sizeMenuItems()).toEqual(["Add min width (disabled)", "Add max width (disabled)"]);
+    act(() => widthChevron.click());
+    act(() => (handle.host.querySelector('[data-test="layout-size-height-options"]') as HTMLButtonElement).click());
+    expect(sizeMenuItems()).toEqual(["Add min height (disabled)", "Add max height (disabled)"]);
   });
 
-  it("shows the used size beside auto but not beside a fixed pixel size", () => {
+  it("removes a min or max with its minus button, writing the initial value only when one was set", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({ display: "block", position: "static", width: "812px", height: "436px" });
+    mockComputedStyle({ display: "block", position: "static" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="layout-resolved-width"]')?.textContent).toBe("812");
-    expect(handle.host.querySelector('[data-test="layout-resolved-height"]')?.textContent).toBe("436");
+    addSizeSetting(handle.host, "width", "min-width");
+    addSizeSetting(handle.host, "height", "max-height");
+    setInputValue(handle.host.querySelector('[data-test="layout-size-min-width"] [data-test="raw-input"]') as HTMLInputElement, "120px");
+    expect(sheetText()).toContain("min-width: 120px;");
 
-    selected.domElement.style.width = "240px";
+    act(() => (handle.host.querySelector('[data-test="layout-size-remove-min-width"]') as HTMLButtonElement).click());
+    expect(sheetText()).toContain("min-width: auto;");
+    expect(handle.host.querySelector('[data-test="layout-size-min-width"]')).toBeFalsy();
+    act(() => (handle.host.querySelector('[data-test="layout-size-width-options"]') as HTMLButtonElement).click());
+    expect(sizeMenuItems()).toEqual(["Add min width", "Add max width"]);
+    act(() => (document.body.querySelector('[data-test="layout-size-add-max-width"]') as HTMLElement).click());
+
+    // A field that was added but never set has nothing to undo, so nothing is written.
+    act(() => (handle.host.querySelector('[data-test="layout-size-remove-max-height"]') as HTMLButtonElement).click());
+    expect(sheetText()).not.toContain("max-height");
+    expect(handle.host.querySelector('[data-test="layout-size-max-height"]')).toBeFalsy();
+  });
+
+  it("removes a max that the stylesheet sets back to none", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+    addSizeSetting(handle.host, "height", "max-height");
+    setInputValue(handle.host.querySelector('[data-test="layout-size-max-height"] [data-test="raw-input"]') as HTMLInputElement, "40vh");
+    expect(sheetText()).toContain("max-height: 40vh;");
+
+    act(() => (handle.host.querySelector('[data-test="layout-size-remove-max-height"]') as HTMLButtonElement).click());
+
+    expect(sheetText()).toContain("max-height: none;");
+    expect(handle.host.querySelector('[data-test="layout-size-max-height"]')).toBeFalsy();
+  });
+
+  it("cannot remove a limit that is set as inline style", () => {
+    const { selected, el } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    el.style.maxWidth = "640px";
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const remove = handle.host.querySelector('[data-test="layout-size-remove-max-width"]') as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
+    expect(handle.host.querySelector('[data-test="layout-size-max-width"]')).toBeTruthy();
+  });
+
+  it("leads each min and max field with its own icon drawn on the shared stroke width", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    addSizeSetting(handle.host, "width", "min-width");
+    addSizeSetting(handle.host, "width", "max-width");
+    addSizeSetting(handle.host, "height", "min-height");
+    addSizeSetting(handle.host, "height", "max-height");
+
+    const icons = ["min-width", "max-width", "min-height", "max-height"].map((property) => {
+      const svg = handle.host.querySelector(`[data-test="layout-size-${property}"] .token-field__leading svg`);
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute("stroke")).toBe("currentColor");
+      expect(svg?.getAttribute("stroke-width")).toBe("var(--icon-stroke-width)");
+      return [...svg!.querySelectorAll("path")].map((path) => path.getAttribute("d")).join("|");
+    });
+    // Every icon is different.
+    expect(new Set(icons).size).toBe(4);
+  });
+
+  it("shows a min or max field that already has a value and keeps it while it is cleared", () => {
+    const { selected, el } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    el.style.minHeight = "45px";
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-size-min-height"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-size-min-width"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-size-max-width"]')).toBeFalsy();
+    // What is already shown stays in the menu, dimmed.
+    act(() => (handle.host.querySelector('[data-test="layout-size-height-options"]') as HTMLButtonElement).click());
+    expect(sizeMenuItems()).toEqual(["Add min height (disabled)", "Add max height"]);
+
+    el.style.minHeight = "";
     act(() => handle.root.render(createElement(LayoutSection, { element: selected })));
+    expect(handle.host.querySelector('[data-test="layout-size-min-height"]')).toBeTruthy();
+  });
 
-    expect(handle.host.querySelector('[data-test="layout-resolved-width"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="layout-resolved-height"]')?.textContent).toBe("436");
+  it("shows a max width and lights the lock when an aspect ratio is set on the element", () => {
+    const { selected, el } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    el.style.maxWidth = "640px";
+    el.style.aspectRatio = "16 / 9";
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-size-max-width"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-size-min-width"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-size-lock"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(handle.host.querySelector('[data-test="layout-size-aspect-ratio"]')).toBeFalsy();
+  });
+
+  it("locks the element's measured ratio and unlocks it again from the button beside width and height", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static", width: "1920px", height: "1080px" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const lock = (): HTMLButtonElement => handle.host.querySelector('[data-test="layout-size-lock"]') as HTMLButtonElement;
+    expect(lock().getAttribute("aria-pressed")).toBe("false");
+
+    act(() => lock().click());
+
+    expect(sheetText()).toContain("aspect-ratio: 16 / 9;");
+    expect(lock().getAttribute("aria-pressed")).toBe("true");
+
+    act(() => lock().click());
+
+    expect(sheetText()).toContain("aspect-ratio: auto;");
+    expect(lock().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("disables the aspect ratio lock for a multi-selection", () => {
+    const { selected } = makeSelected();
+    const other = makeSelected("Chip", "src/Chip.tsx:1:1");
+    mockComputedStyle({ display: "block", position: "static", width: "240px", height: "120px" });
+    handle = mount(createElement(LayoutSection, {
+      element: selected,
+      selection: makeMultiSelection(selected, other.selected),
+    }));
+
+    expect((handle.host.querySelector('[data-test="layout-size-lock"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("disables the aspect ratio lock when the ratio is set as inline style", () => {
+    const { selected, el } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static", width: "240px", height: "120px" });
+    el.style.aspectRatio = "16 / 9";
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    const lock = handle.host.querySelector('[data-test="layout-size-lock"]') as HTMLButtonElement;
+    expect(lock.disabled).toBe(true);
+    expect(lock.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("disables the aspect ratio lock when the element has no measurable size", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect((handle.host.querySelector('[data-test="layout-size-lock"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("shows meaningful defaults instead of used pixel dimensions", () => {
@@ -161,7 +426,8 @@ describe("LayoutSection", () => {
     expect((handle.host.querySelector('[data-test="layout-size-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
     expect((handle.host.querySelector('[data-test="layout-size-height"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
 
-    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+    addSizeSetting(handle.host, "width", "min-width");
+    addSizeSetting(handle.host, "width", "max-width");
 
     expect((handle.host.querySelector('[data-test="layout-size-min-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("0");
     expect((handle.host.querySelector('[data-test="layout-size-max-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("none");
@@ -558,7 +824,6 @@ describe("LayoutSection", () => {
     }) as typeof getComputedStyle;
 
     handle = mount(createElement(LayoutSection, { element: selected }));
-    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
 
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeTruthy();
     expect((handle.host.querySelector('[data-test="layout-grid-child-column-start"]') as HTMLInputElement)?.value).toBe("2");
@@ -571,12 +836,12 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')?.textContent).not.toContain("Computed preview");
   });
 
-  it("shows flex child properties when parent is flex", () => {
+  it("shows flex child properties in the layout options when parent is flex", () => {
     const { selected, el } = makeSelected();
     const parent = document.createElement("div");
     parent.appendChild(el);
     document.body.appendChild(parent);
-    mockComputedStyle({ display: "block", position: "static" });
+    mockComputedStyle({ display: "block", position: "static", "flex-grow": "2", "flex-shrink": "1", "flex-basis": "auto", "align-self": "auto", order: "0" });
 
     const orig = window.getComputedStyle;
     (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
@@ -590,24 +855,18 @@ describe("LayoutSection", () => {
     }) as typeof getComputedStyle;
 
     handle = mount(createElement(LayoutSection, { element: selected }));
-    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+    // The fields live in the options menu, even once a value is set.
+    expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]')).toBeFalsy();
 
-    expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-flex-child-settings"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-align-self"]')).toBeFalsy();
-    expect(handle.host.querySelectorAll('[data-test="layout-flex-child"] .field-row__label')).toHaveLength(3);
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-shrink"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-basis"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]')).toBeFalsy();
-    act(() => {
-      (handle.host.querySelector('[data-test="layout-flex-child-settings"]') as HTMLButtonElement).click();
-    });
-    expect(document.body.querySelector('[data-test="layout-flex-child-settings-content"]')).toBeTruthy();
-    expect(document.body.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
-    expect(document.body.querySelector('[data-test="layout-combo-select-order"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-flex-child"]')?.textContent)
-      .not.toContain("Grow shares spare room");
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    const options = document.body.querySelector('[data-test="layout-options-flex-child"]');
+    expect(options).toBeTruthy();
+    expect((options?.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement).value).toBe("2");
+    expect(options?.querySelector('[data-test="layout-combo-input-flex-shrink"]')).toBeTruthy();
+    expect(options?.querySelector('[data-test="layout-combo-input-flex-basis"]')).toBeTruthy();
+    expect(options?.querySelector('[data-test="layout-combo-input-order"]')).toBeTruthy();
+    expect(options?.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
   });
 
   it("hides flex child properties when parent is not flex", () => {
@@ -673,7 +932,7 @@ describe("LayoutSection", () => {
     expect(sideInput("left")).toBe("0px");
   });
 
-  it("shows flex child controls for a flex container inside a flex parent", () => {
+  it("offers flex child fields in the layout options for a flex container inside a flex parent", () => {
     const { selected, el } = makeSelected();
     const parent = document.createElement("div");
     parent.appendChild(el);
@@ -699,9 +958,9 @@ describe("LayoutSection", () => {
     }) as typeof getComputedStyle;
 
     handle = mount(createElement(LayoutSection, { element: selected }));
-    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
 
-    expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-options-flex-child"]')).toBeTruthy();
   });
 
   it("writes an absolute position offset to managed stylesheet", () => {
@@ -719,32 +978,52 @@ describe("LayoutSection", () => {
     expect(sheetText()).toContain("top: 50%;");
   });
 
-  it("marks the size expander when a hidden size limit is set and clears the mark when it is not", () => {
-    const { selected, el } = makeSelected();
-    mockComputedStyle({ display: "block", position: "static" });
-    handle = mount(createElement(LayoutSection, { element: selected }));
-    const toggle = () => handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLElement;
-    expect(toggle().getAttribute("data-modified")).toBeNull();
-
-    el.style.maxWidth = "640px";
-    act(() => handle.root.render(createElement(LayoutSection, { element: selected })));
-    expect(toggle().getAttribute("data-modified")).toBe("true");
-  });
-
-  it("marks the size expander for a non-default flex child and lists it only once expanded", () => {
+  it("offers the flex child fields from the layout options, not the height options", () => {
     const { selected, el } = makeSelected();
     const parent = document.createElement("div");
     parent.appendChild(el);
     document.body.appendChild(parent);
-    mockComputedStyle({ display: "block", position: "static", "flex-grow": "2", "flex-shrink": "1", "flex-basis": "auto", "align-self": "auto", order: "0" });
+    mockComputedStyle({ display: "block", position: "static" });
     const original = window.getComputedStyle;
     (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => target === parent
       ? ({ display: "flex", getPropertyValue: () => "" } as unknown as CSSStyleDeclaration)
       : original(target)) as typeof getComputedStyle;
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="layout-size-expand"]')?.getAttribute("data-modified")).toBe("true");
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeFalsy();
+    act(() => (handle.host.querySelector('[data-test="layout-size-height-options"]') as HTMLButtonElement).click());
+    expect([...document.body.querySelectorAll('[data-test^="layout-size-add-"]')].map((item) => item.textContent))
+      .toEqual(["Add min height", "Add max height"]);
+    act(() => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    const options = document.body.querySelector('[data-test="layout-options-flex-child"]');
+    expect(options).toBeTruthy();
+    for (const property of ["flex-grow", "flex-shrink", "flex-basis", "order"]) {
+      expect(options?.querySelector(`[data-test="layout-combo-input-${property}"]`)).toBeTruthy();
+    }
+    expect(options?.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
+  });
+
+  it("offers grid child fields from the layout options when the parent is a grid", () => {
+    const { selected, el } = makeSelected();
+    const parent = document.createElement("div");
+    parent.appendChild(el);
+    document.body.appendChild(parent);
+    mockComputedStyle({ display: "block", position: "static" });
+    const original = window.getComputedStyle;
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => target === parent
+      ? ({ display: "grid", getPropertyValue: () => "" } as unknown as CSSStyleDeclaration)
+      : original(target)) as typeof getComputedStyle;
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeFalsy();
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    const options = document.body.querySelector('[data-test="layout-options-grid-child"]');
+    expect(options).toBeTruthy();
+    expect(options?.querySelector('[data-test="layout-grid-child-column-start"]')).toBeTruthy();
+    expect(options?.querySelector('[data-test="layout-grid-child-row-start"]')).toBeTruthy();
+    expect(options?.querySelector('.editor__title')).toBeFalsy();
   });
 
   it("sets position and z-index from the layout options and reveals them as a row once positioned", () => {

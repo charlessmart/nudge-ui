@@ -1,4 +1,4 @@
-import { isRenderedInstanceRef } from "../changes/editModel.ts";
+import { isInvocationRef, isRenderedInstanceRef } from "../changes/editModel.ts";
 import type {
   StructuralChange,
   StructuralDelete,
@@ -55,11 +55,13 @@ export function isStructuralMove(value: unknown): value is StructuralMove {
   const source = candidate.source as Record<string, unknown>;
   const destination = candidate.destination as Record<string, unknown>;
   const presentation = candidate.presentation as Record<string, unknown>;
-  return hasOnlyKeys(source, ["parent"])
+  return hasOnlyKeys(source, ["parent", "childrenOf"])
     && isRenderedInstanceRef(source.parent)
-    && hasOnlyKeys(destination, ["parent", "before"])
+    && (source.childrenOf === undefined || isInvocationRef(source.childrenOf))
+    && hasOnlyKeys(destination, ["parent", "before", "childrenOf"])
     && isRenderedInstanceRef(destination.parent)
     && (destination.before === null || isRenderedInstanceRef(destination.before))
+    && (destination.childrenOf === undefined || isInvocationRef(destination.childrenOf))
     && hasOnlyKeys(presentation, ["sourceParentTag", "destinationParentTag", "fromIndex", "toIndex"])
     && typeof presentation.sourceParentTag === "string"
     && typeof presentation.destinationParentTag === "string"

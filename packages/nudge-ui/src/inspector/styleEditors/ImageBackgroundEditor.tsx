@@ -7,7 +7,7 @@ import type { StyleDeclaration } from "../tokens/editActions.ts";
 import { getActiveDraftChanges } from "../drafts/store.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { Button } from "../ui/Button.tsx";
-import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip } from "../ui/InlineStyleWarning.tsx";
 import { Select } from "../ui/Select.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
@@ -119,27 +119,32 @@ export function ImageBackgroundEditor({ element, elements, value, mixed, sizingV
         if (file) void upload(file);
       }} />
     {src ? <div className="image-background__grid">
-      <Button variant="quiet" className="image-background__tile" aria-label="Replace background image"
-        disabled={uploadBlocked !== null || pending} onClick={() => input.current?.click()}>
-        <img className="image-background__thumb" src={src} alt="Background image thumbnail"
-          onLoad={() => setImage((previous) => previous?.src === src ? previous : { src, name: imageName(src, element.ownerDocument.baseURI) })}
-          onError={() => setError("The background image could not be loaded.")} />
-        <span className="image-background__title" title={title ?? undefined}>{title}</span>
+      <InlineStyleBlockedTooltip blockedBy={uploadBlocked}>
+        <Button variant="quiet" className="image-background__tile" aria-label="Replace background image"
+          disabled={uploadBlocked !== null || pending} onClick={() => input.current?.click()}>
+          <img className="image-background__thumb" src={src} alt="Background image thumbnail"
+            onLoad={() => setImage((previous) => previous?.src === src ? previous : { src, name: imageName(src, element.ownerDocument.baseURI) })}
+            onError={() => setError("The background image could not be loaded.")} />
+          <span className="image-background__title" title={title ?? undefined}>{title}</span>
+        </Button>
+      </InlineStyleBlockedTooltip>
+      <InlineStyleBlockedTooltip blockedBy={sizingBlocked}>
+        <Select aria-label="Background image sizing" value={sizing}
+          options={SIZING.some((option) => option.value === sizing) ? SIZING : [...SIZING, { value: sizing, label: `Custom (${sizing})` }]}
+          disabled={sizingBlocked !== null} onValueChange={changeSizing} />
+      </InlineStyleBlockedTooltip>
+    </div> : <InlineStyleBlockedTooltip blockedBy={uploadBlocked}>
+      <Button variant="secondary" disabled={uploadBlocked !== null || pending} onClick={() => input.current?.click()}>
+        {pending ? <IconPhoto size={16} aria-hidden="true" /> : <IconUpload size={16} aria-hidden="true" />}
+        {pending ? "Loading image…" : mixed ? "Upload image to replace backgrounds" : "Upload image"}
       </Button>
-      <Select aria-label="Background image sizing" value={sizing}
-        options={SIZING.some((option) => option.value === sizing) ? SIZING : [...SIZING, { value: sizing, label: `Custom (${sizing})` }]}
-        disabled={sizingBlocked !== null} onValueChange={changeSizing} />
-    </div> : <Button variant="secondary" disabled={uploadBlocked !== null || pending} onClick={() => input.current?.click()}>
-      {pending ? <IconPhoto size={16} aria-hidden="true" /> : <IconUpload size={16} aria-hidden="true" />}
-      {pending ? "Loading image…" : mixed ? "Upload image to replace backgrounds" : "Upload image"}
-    </Button>}
+    </InlineStyleBlockedTooltip>}
     {!src && !mixed && value !== "none" ? <ControlSurface>
       <TokenValueField property="background-image" domElement={element} entries={[]} committedValue={value}
         label="Background image CSS" blockedBy={inlineBlockedBy(elements, "background-image")}
         onCommitRaw={(raw) => { if (typeof CSS === "undefined" || CSS.supports("background-image", raw)) onCss(raw); }}
         onSelectToken={() => false} onUnlink={onCss} />
     </ControlSurface> : null}
-    <InlineStyleWarning blockedBy={uploadBlocked ?? sizingBlocked} />
     {error ? <StatusCallout tone="warning" role="alert">{error}</StatusCallout> : null}
   </div>;
 }

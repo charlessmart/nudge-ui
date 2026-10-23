@@ -11,9 +11,10 @@
   outline-color: var(--linked);
 }
 
+/* Spacing handles and their value badge draw above the DOM navigator chip, which can sit over a margin band. */
 .canvas-spacing-guide {
   position: fixed;
-  z-index: 1;
+  z-index: 3;
   border-radius: 999px;
   background: var(--accent);
   outline: none;
@@ -46,7 +47,7 @@
 
 .canvas-spacing-value-badge {
   position: fixed;
-  z-index: 2;
+  z-index: 3;
   transform: translate(-50%, calc(-100% - var(--space-8)));
   padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-8);
@@ -115,6 +116,19 @@
 
 .canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
 .canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
+
+.canvas-dom-drop-label {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #ffffff;
+  font: 500 11px/1 system-ui, sans-serif;
+  white-space: nowrap;
+}
 
 .canvas-dom-drop-target {
   z-index: 2147483646;

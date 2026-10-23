@@ -1,48 +1,24 @@
+/*
+ * An avatar-style dot on the control's top-left corner. Its ring is the panel colour, so it reads as
+ * cut out of the field. Accent means a conditional rule is the one currently winning; grey means
+ * rules exist but the base declaration wins.
+ */
 .at-rule-indicator {
   position: absolute;
   z-index: 2;
-  inset-block: 0;
-  inset-inline-end: 0;
-  /* 3px of margin either side of the 4px bars; the whole column is the hover target. */
-  width: calc(var(--space-4) * 3);
+  inset-block-start: -4px;
+  inset-inline-start: -4px;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
   padding: 0;
-  border: 0;
-  background: transparent;
+  border: 2px solid var(--surface-panel);
+  border-radius: 50%;
+  background: var(--border-strong);
   cursor: default;
 }
 
-/* The bars stack in the vertical centre, 3px in from the control's right edge. */
-.at-rule-indicator__track {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 3px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
-  width: var(--space-4);
-}
-
-/* Together the bars read as one rounded rectangle with dividing lines. */
-.at-rule-indicator__segment {
-  flex: 0 0 var(--space-4);
-  width: var(--space-4);
-  height: var(--space-4);
-  /* A mid-emphasis border tone: quiet beside the accent bar, but still readable on the control surface. */
-  background: var(--border-medium);
-}
-
-.at-rule-indicator__segment:first-child {
-  border-start-start-radius: 2px;
-  border-start-end-radius: 2px;
-}
-
-.at-rule-indicator__segment:last-child {
-  border-end-start-radius: 2px;
-  border-end-end-radius: 2px;
-}
-
-.at-rule-indicator__segment[data-active="true"] {
+.at-rule-indicator[data-active="true"] {
   background: var(--accent);
 }
 

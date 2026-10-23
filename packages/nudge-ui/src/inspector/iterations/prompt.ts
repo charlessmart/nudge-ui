@@ -3,26 +3,21 @@ import { withPromptContext } from "../prompt/promptDocument.ts";
 export function htmlIterationPrompt(id: string, changes: string, noInspectorChanges: boolean, hasSketches: boolean, customInstructions = ""): string {
   const directory = `.nudge/artifacts/${id}`;
   return withPromptContext([
-    "## Edit this HTML iteration",
-    "",
-    `Edit only \`${directory}/document.html\`. This is the standalone HTML and CSS shown in the selected Nudge iteration frame.`,
-    "Preserve its responsive CSS and existing design edits. Keep application source files unchanged. Any original source locations below identify captured elements; they are not files to edit.",
-    `Keep \`${directory}/baseline.html\`, \`${directory}/preview.html\`, and metadata unchanged. Nudge will reload the iteration from your updated document.`,
-    ...(hasSketches ? ["Implement the attached sketch notes in this iteration's HTML and CSS. Match numbered notes to their marks in the image."] : []),
-    "",
+    `Please edit only ${directory}/document.html. It's the standalone HTML and CSS shown in the Nudge iteration I have selected.`,
+    "Keep its responsive CSS and the design edits I've already made, and leave the application source files alone. Any original source locations below just identify the captured elements; they aren't files to edit.",
+    `Please also leave ${directory}/baseline.html, ${directory}/preview.html, and the metadata as they are. Nudge will reload the iteration from your updated document.`,
+    ...(hasSketches ? ["I've attached sketch notes. Please implement them in this iteration's HTML and CSS, matching each numbered note to its mark in the image."] : []),
   ], noInspectorChanges
-    ? ["Use the current iteration as the editing base. Existing visual edits are already saved in its markup and styles.", ...(customInstructions.trim() ? ["", "## Custom instructions", "", customInstructions.trim()] : [])].join("\n")
+    ? ["Use the current iteration as your starting point. The visual edits I've made are already saved in its markup and styles.", ...(customInstructions.trim() ? ["", customInstructions.trim()] : [])].join("\n")
     : changes);
 }
 
 export function htmlIterationImplementationPrompt(id: string, label: string, page: string, changes: string): string {
   const directory = `.nudge/artifacts/${id}`;
   return withPromptContext([
-    `## Implement ${label} in the live app`,
-    "",
-    `Page: ${page}`,
-    `Use \`${directory}/document.html\` as the design reference, including all saved visual edits.`,
-    "Update application source for this page to match it. Reuse existing components and styles, and preserve app behavior and data.",
-    "Keep iteration files unchanged; captured source locations below are hints for finding app code.",
+    `Please implement ${label} in the live app. The page is ${page}.`,
+    `Use ${directory}/document.html as the design reference, including all my saved visual edits.`,
+    "Update the application source for this page to match it. Reuse existing components and styles, and preserve the app's behavior and data.",
+    "Please leave the iteration files alone; the captured source locations below are only hints for finding the app code.",
   ], changes);
 }

@@ -13,21 +13,13 @@ interface InstalledExtension {
   context: BrowserContext;
   origin: string;
   toggle(page: Page): Promise<void>;
-  ruleIds(): Promise<number[]>;
   savedState(): Promise<Record<string, unknown>>;
-  holdEditorResponse(): { requested: Promise<void>; release(): void };
 }
 
 const test = base.extend<{ extension: InstalledExtension }>({
   extension: async ({}, use, testInfo) => {
-    let editorGate: Promise<void> | undefined;
-    let editorRequested: (() => void) | undefined;
-    const server = createServer(async (request, response) => {
+    const server = createServer((request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      if (url.searchParams.has("nudge-ui") && editorGate) {
-        editorRequested?.();
-        await editorGate;
-      }
       if (url.pathname === "/worker.js") {
         response.setHeader("Content-Type", "application/javascript");
         response.end(`
@@ -44,18 +36,16 @@ const test = base.extend<{ extension: InstalledExtension }>({
       }
       response.setHeader("Content-Type", "text/html");
       response.setHeader("X-Frame-Options", "DENY");
-      response.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline'; frame-ancestors 'none'");
+      // Sketch capture rasterizes through a `data:` image; the sketch fixture still refuses `blob:` images.
+      const imageSources = url.pathname === "/sketch" ? "; img-src 'self' data:" : "";
+      response.setHeader("Content-Security-Policy", `default-src 'self' 'unsafe-inline'; frame-ancestors 'none'${imageSources}`);
       const meta = url.pathname === "/meta"
         ? '<meta http-equiv="Content-Security-Policy" content="frame-src &#39;none&#39;">'
         : url.pathname === "/meta-external"
           ? '<meta http-equiv="Content-Security-Policy" content="frame-src https://example.invalid">'
           : "";
-      const hidden = url.pathname === "/hidden" ? ' style="display:none" hidden inert' : "";
       response.end(`<!doctype html><html><head>${meta}<style>body{margin:40px}</style></head>
-        <body${hidden}><h1 id="heading">Extension fixture</h1><script>
-          document.body.removeAttribute('hidden'); document.body.removeAttribute('inert');
-          document.body.style.display='block'; window.applicationRan=true;
-        </script></body></html>`);
+        <body><h1 id="heading">Extension fixture</h1><input id="draft"></body></html>`);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
@@ -95,30 +85,28 @@ const test = base.extend<{ extension: InstalledExtension }>({
           const target = targetInfos.find((item) => item.url === page.url());
           if (!target) throw new Error("Fixture tab was not found.");
           await cdp.send("Target.activateTarget", { targetId: target.targetId });
-          await cdp.send("Extensions.triggerAction", { id: extension.id, targetId: target.targetId });
-        },
-        async ruleIds() {
-          return worker.evaluate<number[]>("chrome.declarativeNetRequest.getSessionRules().then(rules => rules.map(rule => rule.id))");
+          // Tab URLs are hidden from the extension without a grant, so the fronted tab identifies the fixture.
+          const tabId = await worker.evaluate<number>("chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => tab.id)");
+          // The click handler always ends by setting the action title, so a sentinel marks completion.
+          const actionTitle = () => worker.evaluate<string>(`chrome.action.getTitle({ tabId: ${tabId} })`);
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            await worker.evaluate(`chrome.action.setTitle({ tabId: ${tabId}, title: "pending" })`);
+            await cdp.send("Extensions.triggerAction", { id: extension.id, targetId: target.targetId });
+            await expect.poll(actionTitle).not.toBe("pending");
+            // A CDP-triggered click sometimes misses the `activeTab` grant; the failed attempt injected nothing.
+            if (!(await actionTitle()).includes("Cannot access contents of the page")) return;
+          }
+          throw new Error(`The toolbar click was refused: ${await actionTitle()}`);
         },
         async savedState() {
           return worker.evaluate<Record<string, unknown>>("chrome.storage.local.get(null)");
         },
-        holdEditorResponse() {
-          let release!: () => void;
-          editorGate = new Promise<void>((resolve) => { release = resolve; });
-          const requested = new Promise<void>((resolve) => { editorRequested = resolve; });
-          return { requested, release };
-        },
       });
       if (testInfo.status !== testInfo.expectedStatus) {
-        const pages = await Promise.all(context.pages().map(async (page) => ({
-          url: page.url(),
-          frames: await page.evaluate(() => Array.from(document.querySelector("#nudge-ui-root")?.shadowRoot?.querySelectorAll("iframe") ?? [],
-            (frame) => ({ src: frame.src, document: frame.contentDocument?.URL }))).catch(() => []),
-        })));
+        const pages = context.pages().map((page) => page.url());
         const diagnostics = testInfo.outputPath("extension-diagnostics.json");
         const actionTitles = await worker.evaluate("chrome.tabs.query({}).then(tabs => Promise.all(tabs.map(async tab => ({ url: tab.url, title: await chrome.action.getTitle({tabId: tab.id}) }))))");
-        await writeFile(diagnostics, JSON.stringify({ logs, pages, actionTitles, session: await worker.evaluate("chrome.storage.session.get(null)") }));
+        await writeFile(diagnostics, JSON.stringify({ logs, pages, actionTitles }));
         await testInfo.attach("extension-diagnostics", { contentType: "application/json", path: diagnostics });
       }
     } finally {
@@ -135,67 +123,92 @@ test.beforeAll(async () => {
   await promisify(execFile)(process.execPath, [script]);
 });
 
-async function openEditor(extension: InstalledExtension, page: Page, path: string): Promise<void> {
+async function openInspector(extension: InstalledExtension, page: Page, path: string): Promise<void> {
   await page.goto(extension.origin + path);
   await extension.toggle(page);
-  await expect(page).toHaveURL(/nudge-ui=editor/);
   await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
-  await expect(page.frameLocator(".canvas-card__iframe").first().locator("#heading")).toBeVisible();
 }
 
-test("resets hidden page bodies and resumes the editor after reload", async ({ extension }) => {
+test("opens in the page without reloading it, and a second click closes it", async ({ extension }) => {
   const page = await extension.context.newPage();
-  await openEditor(extension, page, "/hidden");
-  expect(await page.evaluate(() => (window as Window & { applicationRan?: boolean }).applicationRan)).toBeUndefined();
-  await page.reload();
+  await page.goto(extension.origin + "/state?value=keep");
+  await page.locator("#draft").fill("unsaved page state");
+  await page.evaluate(() => Object.assign(window, { pageSession: "kept" }));
+  await extension.toggle(page);
   await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
-  await expect(page.frameLocator(".canvas-card__iframe").first().locator("#heading")).toBeVisible();
-  await expect(page).toHaveURL(/nudge-ui=editor/);
-});
+  await expect(page).toHaveURL(extension.origin + "/state?value=keep");
+  await expect(page.locator("#draft")).toHaveValue("unsaved page state");
+  expect(await page.evaluate(() => (window as Window & { pageSession?: string }).pageSession)).toBe("kept");
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(0);
 
-test("a second toolbar click cancels an editor that is still opening", async ({ extension }) => {
-  const page = await extension.context.newPage();
-  await page.goto(extension.origin + "/pending?value=keep%20this");
-  const pending = extension.holdEditorResponse();
   await extension.toggle(page);
-  await pending.requested;
-  await extension.toggle(page);
-  await expect(page).toHaveURL(extension.origin + "/pending?value=keep%20this");
-  await expect.poll(() => extension.ruleIds()).toEqual([]);
-  pending.release();
-  await expect(page.locator("#heading")).toBeVisible();
   await expect(page.locator("#nudge-ui-root")).toHaveCount(0);
+  await extension.toggle(page);
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
 });
 
-test("separate tabs keep their own editor rules", async ({ extension }) => {
-  const first = await extension.context.newPage();
-  await openEditor(extension, first, "/first");
-  const second = await extension.context.newPage();
-  await second.goto(extension.origin + "/second");
-  await extension.toggle(second);
-  await expect.poll(() => extension.ruleIds()).toHaveLength(6);
-  await expect(first).toHaveURL(/nudge-ui=editor/);
-  await expect(second).toHaveURL(/nudge-ui=editor/);
-  await expect(first.locator("#nudge-ui-root")).toBeAttached();
-  await expect(second.locator("#nudge-ui-root")).toBeAttached();
-  const ids = await extension.ruleIds();
-  expect(new Set(ids).size).toBe(6);
-  await extension.toggle(first);
-  await expect(first).toHaveURL(extension.origin + "/first");
-  await expect.poll(() => extension.ruleIds()).toHaveLength(3);
-  await expect(second.locator("#nudge-ui-root")).toBeAttached();
+test("drags the panel to the other edge and remembers the side", async ({ extension }) => {
+  const page = await extension.context.newPage();
+  await openInspector(extension, page, "/dock");
+  const panel = page.locator(".panel");
+  const header = page.locator(".panel__header-row");
+  const start = await header.boundingBox();
+  if (!start) throw new Error("The panel header is not visible.");
+  const viewport = page.viewportSize()!;
+  expect((await panel.boundingBox())!.x).toBeGreaterThan(viewport.width / 2);
+
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(viewport.width / 4, start.y + 40, { steps: 8 });
+  await expect(page.locator(".nudge-dock-target[data-side='left'][data-visible]")).toHaveCount(1);
+  await page.mouse.up();
+
+  await expect(page.locator(".nudge-dock-target")).toHaveCount(0);
+  await expect.poll(async () => (await panel.boundingBox())!.x).toBe(8);
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCount(0);
+  await expect.poll(async () => (await extension.savedState())["panel-side"]).toBe("left");
+
+  await page.reload();
+  await extension.toggle(page);
+  await expect.poll(async () => (await panel.boundingBox())?.x).toBe(8);
+});
+
+test("sketches render under a page policy that blocks blob images", async ({ extension }) => {
+  const page = await extension.context.newPage();
+  await page.goto(extension.origin + "/sketch");
+  // The fixture's `img-src 'self' data:` refuses `<img src="blob:…">`.
+  await page.evaluate(() => {
+    const violations: string[] = [];
+    document.addEventListener("securitypolicyviolation", (event) => violations.push(event.effectiveDirective));
+    Object.assign(window, { violations });
+  });
+  await extension.toggle(page);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  const bounds = await page.locator(".sketch__live-canvas").boundingBox();
+  if (!bounds) throw new Error("The sketch canvas is missing.");
+  await page.mouse.move(bounds.x + 100, bounds.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 160, bounds.y + 140, { steps: 4 });
+  await page.mouse.up();
+  await page.locator('[data-test="sketch-live-prompt-done"]').click();
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0, { timeout: 10_000 });
+
+  await page.locator('[data-test="copy-prompt"]').click();
+  const thumbnail = page.locator('[data-test="copy-sketch"] canvas.sketch-thumbnail');
+  await expect.poll(() => thumbnail.evaluate((canvas: HTMLCanvasElement) => canvas.width)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as Window & { violations?: string[] }).violations)).not.toContain("img-src");
 });
 
 test("takeover preserves notes saved after the locked tab opened", async ({ extension }) => {
   const first = await extension.context.newPage();
-  await openEditor(extension, first, "/first");
+  await openInspector(extension, first, "/first");
   const second = await extension.context.newPage();
   await second.goto(extension.origin + "/second");
   await extension.toggle(second);
   await expect(second.locator('[data-test="takeover-here"]')).toBeVisible();
 
   await first.locator('[data-test="canvas-tool-comment"]').click();
-  await first.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await first.locator("#heading").click();
   await first.locator('[data-test="comment-input"]').fill("First tab note");
   await first.locator('[data-test="comment-confirm"]').click();
   await expect.poll(async () => JSON.stringify(await extension.savedState())).toContain("First tab note");
@@ -203,24 +216,24 @@ test("takeover preserves notes saved after the locked tab opened", async ({ exte
   await second.locator('[data-test="takeover-here"]').click();
   await expect(second.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
   await second.locator('[data-test="canvas-tool-comment"]').click();
-  await second.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await second.locator("#heading").click();
   await second.locator('[data-test="comment-input"]').fill("Second tab note");
   await second.locator('[data-test="comment-confirm"]').click();
   await expect.poll(async () => JSON.stringify(await extension.savedState())).toContain("Second tab note");
   expect(JSON.stringify(await extension.savedState())).toContain("First tab note");
 });
 
+// Framing restrictions no longer matter, because nothing is framed.
 for (const path of ["/meta", "/meta-external"]) {
-  test(`explains a blocked preview on ${path}`, async ({ extension }) => {
+  test(`inspects a page whose policy blocks frames on ${path}`, async ({ extension }) => {
     const page = await extension.context.newPage();
-    await page.goto(extension.origin + path);
-    await extension.toggle(page);
-    await expect(page.locator('[data-test="page-inspection-error"]')).toHaveText("Can’t load Nudge on this page due to its security policy.");
-    await expect(page.locator('[data-test="empty-state"]')).toHaveCount(0);
+    await openInspector(extension, page, path);
+    await page.locator("#heading").click();
+    await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCount(1);
   });
 }
 
-test("explains unsupported service-worker pages without reloading them", async ({ extension }) => {
+test("inspects a service-worker page without reloading it", async ({ extension }) => {
   const page = await extension.context.newPage();
   await page.goto(extension.origin + "/worker");
   await page.evaluate(async () => {
@@ -231,10 +244,10 @@ test("explains unsupported service-worker pages without reloading them", async (
     }
   });
   await extension.toggle(page);
-  await expect(page.locator('[data-test="page-inspection-error"]')).toHaveText("Can’t load Nudge on this page due to its service worker.");
+  await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
   await expect(page).toHaveURL(extension.origin + "/worker");
-  await expect(page.locator("#heading")).toHaveText("Extension fixture");
-  await expect.poll(() => extension.ruleIds()).toEqual([]);
+  await page.locator("#heading").click();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCount(1);
 });
 
 /** Asks the bridge for the font list from a page script, which has no trusted gesture to offer. */
@@ -254,12 +267,12 @@ function requestFontsFromPage(page: Page): Promise<string> {
 
 test("lists system fonts once the user asks, and keeps them from page scripts", async ({ extension }) => {
   const page = await extension.context.newPage();
-  await openEditor(extension, page, "/fonts");
+  await openInspector(extension, page, "/fonts");
   const fontFamily = page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]');
   const families = page.locator('[data-test="system-font-item"]');
   const consent = async () => (await extension.savedState())[`system-fonts:${extension.origin}`];
 
-  await page.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await page.locator("#heading").click();
   await fontFamily.click();
   await expect(page.locator('[data-test="system-fonts-request"]')).toBeVisible();
   expect(await requestFontsFromPage(page)).toContain("only during a click or key press in Nudge UI");
@@ -271,13 +284,9 @@ test("lists system fonts once the user asks, and keeps them from page scripts", 
   expect(await requestFontsFromPage(page)).toContain("only during a click or key press in Nudge UI");
 
   await page.reload();
+  await extension.toggle(page);
   await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
-  const heading = page.frameLocator(".canvas-card__iframe").first().locator("#heading");
-  // The renderer frame starts after the editor, so early clicks select nothing.
-  await expect(async () => {
-    await heading.click();
-    await expect(fontFamily).toBeVisible({ timeout: 1000 });
-  }).toPass();
+  await page.locator("#heading").click();
   await fontFamily.click();
   await expect(families.first()).toBeVisible();
   await expect(page.locator('[data-test="system-fonts-request"]')).toHaveCount(0);
@@ -285,10 +294,10 @@ test("lists system fonts once the user asks, and keeps them from page scripts", 
 
 test("asks for system fonts from the keyboard", async ({ extension }) => {
   const page = await extension.context.newPage();
-  await openEditor(extension, page, "/fonts");
+  await openInspector(extension, page, "/fonts");
   const fontFamily = page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]');
 
-  await page.frameLocator(".canvas-card__iframe").first().locator("#heading").click();
+  await page.locator("#heading").click();
   await fontFamily.click();
   await expect(page.locator('[data-test="system-fonts-request"]')).toBeVisible();
   await fontFamily.press("ArrowDown");

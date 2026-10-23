@@ -62,7 +62,7 @@ describe("DomNavigator", () => {
     expect(getSelectedElement()?.domElement).toBe(parent);
   });
 
-  it("follows its element out of the frame instead of sticking to the window edge", () => {
+  it("keeps the chip inside the frame and hides it once the element scrolls out of it", () => {
     const parent = document.createElement("div");
     parent.dataset.cid = "Parent";
     const selected = document.createElement("button");
@@ -76,7 +76,6 @@ describe("DomNavigator", () => {
           selected: resolveSelectionFromElement(selected)!,
           hierarchy: computeHierarchy(selected),
           anchor,
-          origin: { left: 100, top: -200 },
           bounds,
           project: () => null,
         }));
@@ -85,8 +84,10 @@ describe("DomNavigator", () => {
     const chip = (): HTMLElement | null => host.querySelector<HTMLElement>('[data-test="dom-navigator"]');
     root = createRoot(host);
 
+    // Below the element, inside the frame rather than the window. jsdom measures the chip as 0 x 0,
+    // so centring leaves the left edge where the element's middle is.
     render({ left: 120, top: 150, width: 50, height: 30 });
-    expect([chip()?.style.left, chip()?.style.top]).toEqual(["120px", "122px"]);
+    expect([chip()?.style.left, chip()?.style.top]).toEqual(["145px", "188px"]);
 
     // Scrolled above the frame: nothing is pinned to the top of the screen.
     render({ left: 120, top: 20, width: 50, height: 30 });
@@ -95,9 +96,9 @@ describe("DomNavigator", () => {
     render({ left: 120, top: 450, width: 50, height: 30 });
     expect(chip()).toBeNull();
 
-    // Partly visible: the chip keeps to the page's own top-left corner, not the window's.
-    render({ left: 120, top: 90, width: 50, height: 30 });
-    expect(chip()?.style.top).toBe("62px");
+    // An element against the frame's bottom edge keeps its chip inside the frame.
+    render({ left: 120, top: 380, width: 50, height: 30 });
+    expect(chip()?.style.top).toBe("396px");
   });
 
   it("keeps the selected element between visible parents and its direct children", () => {
@@ -170,6 +171,69 @@ describe("DomNavigator", () => {
     expect(items).toHaveLength(NAVIGATOR_CHILD_LIMIT + 1);
     expect(document.body.querySelector('[data-test="dom-navigator-more"]')?.textContent).toBe("+3 more");
     expect(document.body.querySelector('[data-test="dom-navigator-expander"]')).toBeNull();
+  });
+
+  it("names only the tag, followed by the selected element's rounded size", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.id = "save";
+    selected.className = "primary-action large";
+    parent.append(selected);
+    host.append(parent);
+
+    const render = (size?: { width: number; height: number }): void => {
+      act(() => {
+        root!.render(createElement(DomNavigator, {
+          selected: resolveSelectionFromElement(selected)!,
+          hierarchy: computeHierarchy(selected),
+          anchor: { left: 10, top: 20, width: 30, height: 30 },
+          size,
+          project: () => null,
+        }));
+      });
+    };
+    root = createRoot(host);
+    render({ width: 63.6, height: 32.2 });
+
+    expect(host.querySelector(".dom-navigator__label")?.textContent).toBe("button");
+    expect(host.querySelector('[data-test="dom-navigator-size"]')?.textContent).toBe("64 × 32");
+
+    // The menu rows still carry the id and classes for telling similar elements apart.
+    act(() => host.querySelector<HTMLButtonElement>('[data-test="dom-navigator-trigger"]')!.click());
+    expect(document.body.querySelector('[data-test="dom-navigator-item"][data-current="true"]')?.textContent).toBe("button#save.primary-action.large");
+
+    render();
+    expect(host.querySelector('[data-test="dom-navigator-size"]')).toBeNull();
+  });
+
+  it("sits centered below the selection and stays inside the viewport", () => {
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    parent.append(selected);
+    host.append(parent);
+
+    const positionFor = (anchor: { left: number; top: number; width: number; height: number }): { left: string; top: string } => {
+      act(() => {
+        root!.render(createElement(DomNavigator, {
+          selected: resolveSelectionFromElement(selected)!,
+          hierarchy: computeHierarchy(selected),
+          anchor,
+          project: () => null,
+        }));
+      });
+      const chip = host.querySelector<HTMLElement>('[data-test="dom-navigator"]')!;
+      return { left: chip.style.left, top: chip.style.top };
+    };
+    root = createRoot(host);
+
+    // jsdom has no layout, so the chip measures zero and sits on the selection's horizontal center.
+    expect(positionFor({ left: 100, top: 50, width: 200, height: 40 })).toEqual({ left: "200px", top: "98px" });
+    expect(positionFor({ left: -100, top: 50, width: 50, height: 40 }).left).toBe("4px");
+    expect(positionFor({ left: 100, top: window.innerHeight, width: 200, height: 40 }).top).toBe(`${window.innerHeight - 4}px`);
   });
 
   it("opens only on icon click and stays open when the pointer leaves", () => {

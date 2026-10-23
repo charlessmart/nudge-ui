@@ -32,7 +32,7 @@ export interface InvocationRef {
   componentName: string;
 }
 
-function isInvocationRef(value: unknown): value is InvocationRef {
+export function isInvocationRef(value: unknown): value is InvocationRef {
   return isRecord(value)
     && hasOnlyKeys(value, ["callsiteId", "componentName"])
     && typeof value.callsiteId === "string" && value.callsiteId.length > 0 && value.callsiteId.length <= 1024

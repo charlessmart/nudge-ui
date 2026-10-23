@@ -19,7 +19,8 @@ import {
   type Rect,
 } from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
-import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { deleteElement, getDropAttemptAtPoint, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { showToast } from "../ui/Toast.tsx";
 import { changeKey } from "../changes/model.ts";
 import { getActiveDraftChanges, redo, subscribeActiveDraftChanges, undo } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
@@ -174,6 +175,7 @@ function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null
       height: guide.orientation === "vertical",
     }),
     target: toViewportRect(viewport, guide.target),
+    label: guide.label,
   };
 }
 
@@ -620,7 +622,10 @@ export function CanvasElementOverlay(): ReactElement | null {
         clearDropGuide("canvas");
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
-        if (getSelectedElements().length > 1) return;
+        if (getSelectedElements().length > 1) {
+          showToast({ tone: "error", title: "Select a single element to drag it" });
+          return;
+        }
         const msg = data;
         const element = frame.element(msg);
         if (!element) return;
@@ -699,8 +704,12 @@ export function CanvasElementOverlay(): ReactElement | null {
         const current = dragRef.current;
         const frameDocument = frame.document();
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
-          const drop = getDropLocationAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
-          if (drop) moveElement(current.element, drop);
+          const { drop, rejection } = getDropAttemptAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
+          if (drop && !moveElement(current.element, drop)) {
+            showToast({ tone: "error", title: "Couldn't record this move" });
+          } else if (rejection) {
+            showToast({ tone: "error", title: rejection.message });
+          }
           selectGestureElement(current.element);
         }
         dragRef.current = null;
@@ -881,10 +890,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           selected={selected}
           hierarchy={hierarchy}
           anchor={selectedRect}
-          origin={{
-            left: selectedFrameViewport.left - (selected.domElement.ownerDocument.defaultView?.scrollX ?? 0) * selectedFrameViewport.scale,
-            top: selectedFrameViewport.top - (selected.domElement.ownerDocument.defaultView?.scrollY ?? 0) * selectedFrameViewport.scale,
-          }}
+          size={selectedLocalRect ?? undefined}
           bounds={selectedFrameViewport}
           linked={selectionIsLinked}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
@@ -898,6 +904,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         lineTestId="canvas-dom-drop-line"
         targetClassName="canvas-dom-drop-target"
         targetTestId="canvas-dom-drop-target"
+        labelClassName="canvas-dom-drop-label"
+        labelTestId="canvas-dom-drop-label"
       />
     </>
   );

@@ -6,7 +6,7 @@ import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
-import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
@@ -60,14 +60,15 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
       className={stacked ? "field-row--stacked" : undefined}
       data-test="layout-dropdown"
     >
-      <Select
-        data-test={`layout-select-${property}`}
-        value={mixed ? "mixed" : value}
-        options={allOptions.map((opt) => ({ value: opt, label: formatInspectorLabel(opt) }))}
-        onValueChange={handleChange}
-        disabled={blockedBy !== null}
-      />
-      <InlineStyleWarning blockedBy={blockedBy} />
+      <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+        <Select
+          data-test={`layout-select-${property}`}
+          value={mixed ? "mixed" : value}
+          options={allOptions.map((opt) => ({ value: opt, label: formatInspectorLabel(opt) }))}
+          onValueChange={handleChange}
+          disabled={blockedBy !== null}
+        />
+      </InlineStyleBlockedTooltip>
     </FieldRow>
   );
 }

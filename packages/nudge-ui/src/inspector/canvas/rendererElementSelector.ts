@@ -207,9 +207,7 @@ export function installRendererElementSelector(
   let appliedInteractionCursor = rendererCursorValue("design");
   let appliedRootCursor: string | null = null;
   let spacingCursor: {
-    element: HTMLElement;
-    previousValue: string;
-    previousPriority: string;
+    targets: Array<{ element: HTMLElement; previousValue: string; previousPriority: string }>;
     appliedValue: string;
   } | null = null;
 
@@ -236,13 +234,13 @@ export function installRendererElementSelector(
   function clearSpacingCursor(): void {
     const active = spacingCursor;
     spacingCursor = null;
-    if (active
-      && active.element.style.getPropertyValue("cursor") === active.appliedValue
-      && active.element.style.getPropertyPriority("cursor") === "important") {
-      if (active.previousValue) {
-        active.element.style.setProperty("cursor", active.previousValue, active.previousPriority);
+    for (const target of active?.targets ?? []) {
+      if (target.element.style.getPropertyValue("cursor") !== active!.appliedValue
+        || target.element.style.getPropertyPriority("cursor") !== "important") continue;
+      if (target.previousValue) {
+        target.element.style.setProperty("cursor", target.previousValue, target.previousPriority);
       } else {
-        active.element.style.removeProperty("cursor");
+        target.element.style.removeProperty("cursor");
       }
     }
     if (appliedRootCursor !== null
@@ -256,19 +254,24 @@ export function installRendererElementSelector(
     appliedRootCursor = null;
   }
 
-  function setSpacingCursor(element: HTMLElement, cursor: "ew-resize" | "ns-resize"): void {
-    if (spacingCursor?.element !== element) {
+  function setSpacingCursor(elements: readonly HTMLElement[], cursor: "ew-resize" | "ns-resize"): void {
+    const unchanged = spacingCursor !== null
+      && spacingCursor.targets.length === elements.length
+      && spacingCursor.targets.every((target, index) => target.element === elements[index]);
+    if (!unchanged) {
       clearSpacingCursor();
       spacingCursor = {
-        element,
-        previousValue: element.style.getPropertyValue("cursor"),
-        previousPriority: element.style.getPropertyPriority("cursor"),
+        targets: elements.map((element) => ({
+          element,
+          previousValue: element.style.getPropertyValue("cursor"),
+          previousPriority: element.style.getPropertyPriority("cursor"),
+        })),
         appliedValue: cursor,
       };
     } else {
-      spacingCursor.appliedValue = cursor;
+      spacingCursor!.appliedValue = cursor;
     }
-    element.style.setProperty("cursor", cursor, "important");
+    for (const element of elements) element.style.setProperty("cursor", cursor, "important");
     document.documentElement.style.setProperty("cursor", cursor, "important");
     appliedRootCursor = cursor;
   }
@@ -295,7 +298,13 @@ export function installRendererElementSelector(
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
     if (spacing) {
-      setSpacingCursor(spacing.element, spacing.cursor);
+      // A margin lies on its parent, so the pointer is over that element, not the margin's owner. Tracked
+      // elements each carry their own cursor rule, so the element under the pointer needs the resize cursor too.
+      const underPointer = pending.point ? document.elementFromPoint?.(pending.point.x, pending.point.y) : null;
+      setSpacingCursor(
+        underPointer instanceof HTMLElement && underPointer !== spacing.element ? [spacing.element, underPointer] : [spacing.element],
+        spacing.cursor,
+      );
     } else {
       clearSpacingCursor();
     }

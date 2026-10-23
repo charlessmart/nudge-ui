@@ -73,7 +73,6 @@ export interface TokenValueFieldProps {
   color?: ColorValueFacts;
   onCommitOpacity?(value: string): boolean | void;
   atRules?: readonly AtRuleContext[];
-  chipVariant?: "default" | "small";
   blockedBy?: string | null;
   inlineWarningDataTest?: string;
   inlineWarningTooltipDataTest?: string;
@@ -99,7 +98,6 @@ export interface TokenFieldProps {
   trailing?: ReactNode;
   className?: string;
   label?: string;
-  chipVariant?: "default" | "small";
   formatRawValue?: (value: string) => string;
   disabled?: boolean;
   /** Shows a mixed value without accidentally committing the placeholder. */
@@ -154,6 +152,13 @@ function parsePixels(value: string): number | null {
 
 function formatNumber(value: number): string {
   return String(Number(value.toFixed(12)));
+}
+
+const NUMERIC_VALUE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)?$/i;
+
+/** A token that is a plain number or length reads best as its value; others, such as colors and fonts, read as their name. */
+function isNumericTokenValue(value: string): boolean {
+  return NUMERIC_VALUE.test(value.trim());
 }
 
 function stripCssUnit(value: string): string {
@@ -313,7 +318,6 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     color,
     onCommitOpacity,
     atRules,
-    chipVariant = "default",
     blockedBy = null,
     inlineWarningDataTest,
     inlineWarningTooltipDataTest,
@@ -341,6 +345,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const cancelOnBlur = useRef(false);
   const isNavigatingSuggestions = useRef(false);
   const dragNudgeRef = useRef<DragNudgeState | null>(null);
+  /** A drag that changed the value ends in a click on the handle, which must not also open the token picker. */
+  const dragNudgedRef = useRef(false);
   const [isDraggingNudge, setIsDraggingNudge] = useState(false);
   const listsSystemFonts = property === "font-family";
   const systemFonts = useSystemFonts(listsSystemFonts && (isFocused || isTokenPickerOpen));
@@ -533,6 +539,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (!canNudgeCssValueByDrag(nudgeProperty, rawValue)) return;
 
     stopDragNudge();
+    dragNudgedRef.current = false;
     const handle = event.currentTarget;
     const drag: DragNudgeState = {
       commit: createChangeHistoryGroup(),
@@ -593,6 +600,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     }
     event.preventDefault();
     event.stopPropagation();
+    dragNudgedRef.current = true;
     setRawValue(next);
     setActiveTokenName(null);
     drag.commit(() => onCommitRaw(next));
@@ -603,12 +611,20 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     stopDragNudge();
   }
 
-  function renderLeading(): ReactElement | null {
+  /** `onActivate` makes the icon a larger target for whatever the field's main control opens. */
+  function renderLeading(onActivate?: () => void): ReactElement | null {
     if (!leading) return null;
     const canDrag = !fieldDisabled
       && supportsDragNudge(nudgeProperty)
       && canNudgeCssValueByDrag(nudgeProperty, rawValue);
-    if (!canDrag) return <span className="token-field__leading">{leading}</span>;
+    const activate = onActivate && !fieldDisabled ? onActivate : undefined;
+    if (!canDrag) {
+      return (
+        <span className={cx("token-field__leading", activate && "token-field__leading--activate")} onClick={activate}>
+          {leading}
+        </span>
+      );
+    }
     return (
       <span
         className="token-field__leading token-field__leading--nudge"
@@ -619,6 +635,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         onPointerUp={handleDragNudgePointerEnd}
         onPointerCancel={handleDragNudgePointerEnd}
         onBlur={stopDragNudge}
+        onClick={activate && (() => {
+          if (dragNudgedRef.current) {
+            dragNudgedRef.current = false;
+            return;
+          }
+          activate();
+        })}
       >
         {leading}
       </span>
@@ -689,14 +712,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     : undefined;
 
   if (activeToken) {
-    const chipValue = chipVariant === "small" ? stripCssUnit(activeToken.value) : activeToken.name;
-    const embedColorSwatch = isColor && chipVariant !== "small";
+    const numericToken = isNumericTokenValue(activeToken.value);
+    const chipValue = numericToken ? stripCssUnit(activeToken.value) : activeToken.name;
     return (
       <span
         className={cx(
           "token-field",
           isColor && "token-field--color",
-          embedColorSwatch && "token-field--color-chip",
+          isColor && "token-field--color-chip",
           blockedBy !== null && "token-field--blocked",
           className,
         )}
@@ -705,17 +728,16 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         aria-disabled={fieldDisabled || undefined}
         aria-label={label}
       >
-        {renderLeading()}
-        {embedColorSwatch ? null : colorControlEl}
-        <TokenChip size={chipVariant} data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
+        <TokenChip data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
+          {renderLeading(() => setTokenPickerOpen(true))}
           <PopoverListbox
             query=""
             value={activeToken.name}
             open={isTokenPickerOpen}
             trigger={(
               <TokenChip.Picker>
-                {embedColorSwatch ? colorControlEl : null}
-                <TokenChip.Label title={chipVariant === "small" ? activeToken.name : undefined}>
+                {colorControlEl}
+                <TokenChip.Label title={numericToken ? activeToken.name : undefined}>
                   {chipValue}
                 </TokenChip.Label>
               </TokenChip.Picker>
@@ -747,23 +769,21 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             }}
             onHighlight={handleHighlight}
           />
-          {chipVariant === "small" ? null : (
-            <TokenChip.Action>
-              <Tooltip stableTrigger>
-                <IconButton
-                  variant="quiet"
-                  size="compact"
-                  style={{ borderRadius: "var(--radius-4)" }}
-                  label="Detach token"
-                  data-test="delink-btn"
-                  disabled={fieldDisabled}
-                  onClick={handleDelink}
-                >
-                  <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />
-                </IconButton>
-              </Tooltip>
-            </TokenChip.Action>
-          )}
+          <TokenChip.Action>
+            <Tooltip stableTrigger>
+              <IconButton
+                variant="quiet"
+                size="compact"
+                style={{ borderRadius: "var(--radius-4)" }}
+                label="Detach token"
+                data-test="delink-btn"
+                disabled={fieldDisabled}
+                onClick={handleDelink}
+              >
+                <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />
+              </IconButton>
+            </Tooltip>
+          </TokenChip.Action>
         </TokenChip>
         {opacityControl}
         <AtRuleIndicator atRules={fieldAtRules} />
@@ -875,7 +895,6 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     trailing,
     className,
     label,
-    chipVariant,
     formatRawValue: formatRawValueProp,
     disabled = false,
     mixed = false,
@@ -1003,7 +1022,6 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       trailing={trailing}
       className={className}
       label={label}
-      chipVariant={chipVariant}
       inlineWarningDataTest={inlineWarningDataTest}
       inlineWarningTooltipDataTest={inlineWarningTooltipDataTest}
     />

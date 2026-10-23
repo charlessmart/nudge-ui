@@ -14,6 +14,7 @@ import {
 } from "./renderedInstance.ts";
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
+import { childrenSlotInvocation, sourceSlotInvocation } from "./childrenSlot.ts";
 import type {
   StructuralChange,
   StructuralDelete,
@@ -57,13 +58,6 @@ function isPhrasingElement(element: HTMLElement): boolean {
   return PHRASING_CHILD_TAGS.has(element.tagName.toLowerCase());
 }
 
-function isUnsupportedWrappedFlexRow(element: HTMLElement): boolean {
-  const style = element.ownerDocument.defaultView?.getComputedStyle(element);
-  return (style?.display === "flex" || style?.display === "inline-flex")
-    && (style.flexDirection || "row").startsWith("row")
-    && Boolean(style.flexWrap && style.flexWrap !== "nowrap");
-}
-
 export function canContainElement(parent: HTMLElement, child: HTMLElement): boolean {
   const parentTag = parent.tagName.toLowerCase();
   if (VOID_PARENT_TAGS.has(parentTag)
@@ -105,9 +99,7 @@ export function getStructuralMoveLegality(
     return { valid: false, reason: "illegal-destination" };
   }
   const display = destination.parent.ownerDocument.defaultView?.getComputedStyle(destination.parent).display;
-  if (display === "inline" || display === "contents"
-    || isUnsupportedWrappedFlexRow(destination.parent)
-    || !canContainElement(destination.parent, element)) {
+  if (display === "inline" || !canContainElement(destination.parent, element)) {
     return { valid: false, reason: "illegal-destination" };
   }
   if (before === element) return { valid: false, reason: "anchor" };
@@ -295,6 +287,14 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   return change;
 }
 
+/** Children ordered by distance from `index`, so slot inference prefers the neighbours of a position. */
+function nearestFirst(children: readonly Element[], index: number): Element[] {
+  return children
+    .map((child, position) => ({ child, distance: Math.abs(position - index) }))
+    .sort((left, right) => left.distance - right.distance)
+    .map(({ child }) => child);
+}
+
 /** Local DOM positions are never a fallback: a missed preview beats moving the wrong item. */
 export function createStructuralMove(
   element: HTMLElement,
@@ -316,12 +316,17 @@ export function createStructuralMove(
   const beforeIndex = beforeElement ? destinationChildren.indexOf(beforeElement) : destinationChildren.length;
   if (fromIndex < 0 || beforeIndex < 0) return null;
   const sameParent = sourceParentElement === destinationParent;
+  const sourceChildrenOf = sourceSlotInvocation(sourceParentElement, element);
+  const destinationChildrenOf = childrenSlotInvocation(
+    destinationParent,
+    nearestFirst(destinationChildren, beforeIndex).filter((child) => child !== element),
+  );
   const change: StructuralMove = {
     id,
     kind: "move",
     target,
-    source: { parent: sourceParent },
-    destination: { parent, before },
+    source: { parent: sourceParent, ...(sourceChildrenOf ? { childrenOf: sourceChildrenOf } : {}) },
+    destination: { parent, before, ...(destinationChildrenOf ? { childrenOf: destinationChildrenOf } : {}) },
     presentation: {
       sourceParentTag: sourceParentElement.tagName.toLowerCase(),
       destinationParentTag: destinationParent.tagName.toLowerCase(),

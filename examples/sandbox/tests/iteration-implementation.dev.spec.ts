@@ -37,14 +37,14 @@ test("iteration implementation copies the saved design and requested edits for t
   await expect(button).toHaveAttribute("data-copied", "true");
   await expect(button).toContainText("Copied!");
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
-  expect(prompt).toContain("# Implement /playground · Iteration 1 in the live app");
-  expect(prompt).toContain(`Page: ${new URL("/playground", page.url()).href}`);
+  expect(prompt).toContain("Please implement /playground · Iteration 1 in the live app.");
+  expect(prompt).toContain(`The page is ${new URL("/playground", page.url()).href}.`);
   expect(prompt).toContain(`.nudge/artifacts/${artifactId}/document.html`);
-  expect(prompt).toContain("including all saved visual edits");
+  expect(prompt).toContain("including all my saved visual edits");
   expect(prompt).toContain("Live app implementation heading");
-  expect(prompt).toContain("Update application source");
-  expect(prompt).not.toContain("Keep application source files unchanged");
-  expect(prompt).not.toContain("Edit only");
+  expect(prompt).toContain("Update the application source");
+  expect(prompt).not.toContain("leave the application source files alone");
+  expect(prompt).not.toContain("Please edit only");
   const saved = await page.request.get(`/__nudge_ui__/artifacts/${artifactId}/preview`);
   expect(await saved.text()).toContain("Live app implementation heading");
   await expect(page.locator('[data-test="copy-prompt-change-count"]')).not.toBeAttached();
@@ -69,8 +69,8 @@ test("iteration implementation copies the saved design and requested edits for t
   await expect(page.getByRole("menu")).not.toBeAttached();
   await expect(button).toHaveAttribute("data-copied", "true");
   const iterationPrompt = await page.evaluate(() => navigator.clipboard.readText());
-  expect(iterationPrompt).toContain(`Edit only \`.nudge/artifacts/${artifactId}/document.html\``);
-  expect(iterationPrompt).toContain("Keep application source files unchanged");
+  expect(iterationPrompt).toContain(`Please edit only .nudge/artifacts/${artifactId}/document.html.`);
+  expect(iterationPrompt).toContain("leave the application source files alone");
   expect((await page.request.delete(`/__nudge_ui__/artifacts/${artifactId}`)).status()).toBe(204);
 });
 

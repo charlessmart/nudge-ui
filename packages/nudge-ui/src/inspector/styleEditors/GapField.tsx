@@ -59,7 +59,6 @@ export function GapField({
         interceptRaw={interceptRaw}
         inputDataTest={`layout-combo-input-${property}`}
         label={formatInspectorLabel(property)}
-        chipVariant="small"
         inlineWarningDataTest="layout-combo-blocked"
         inlineWarningTooltipDataTest="layout-combo-blocked-tooltip"
         onAfterEdit={onAfterEdit}

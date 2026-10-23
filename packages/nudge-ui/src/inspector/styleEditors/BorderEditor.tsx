@@ -156,7 +156,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           editTarget={editTarget}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
-          chipVariant="small"
         />
       </ControlSurface>
     ),
@@ -245,7 +244,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         editTarget={editTarget}
                         entries={allEntries}
                         onAfterEdit={onAfterEdit}
-                        chipVariant="small"
                       />
                     </ControlSurface>
                   </div>
