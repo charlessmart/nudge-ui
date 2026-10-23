@@ -64,8 +64,7 @@ function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
   const existing = seen.get(source);
   if (existing) return existing as T;
 
-  // Frozen subtrees are reused by reference so repeated configuration with the
-  // same frozen payload keeps array identity for identity-keyed caches.
+  // Frozen subtrees are reused by reference so repeated configuration with the same frozen payload keeps array identity for identity-keyed caches.
   if (Object.isFrozen(value)) {
     seen.set(source, value);
     return value;

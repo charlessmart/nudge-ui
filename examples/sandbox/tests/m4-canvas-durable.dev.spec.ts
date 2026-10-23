@@ -143,8 +143,6 @@ test.describe("Canvas durable session", () => {
     const clearVisible = await clearBtn.isVisible().catch(() => false);
     if (clearVisible) {
       await clearBtn.click();
-    } else {
-      // If no stored session, just verify state is clean
     }
 
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");

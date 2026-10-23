@@ -356,10 +356,7 @@ function refDescription(ref: RenderedInstanceRef): string {
   return `the ${[nounFor(ref.locator.tagName), ...targetDetails(refFacts(ref), ref.locator.occurrence)].join(" ")}`;
 }
 
-/**
- * Names a parent by its component when the source is known, since its rendered copy is rarely a useful pointer.
- * A parent that renders an invocation's children is edited at that callsite, not where its own JSX is defined.
- */
+/** Names a parent by its component when the source is known, since its rendered copy is rarely a useful pointer. A parent that renders an invocation's children is edited at that callsite, not where its own JSX is defined. */
 function containerDescription(ref: RenderedInstanceRef, childrenOf?: InvocationRef): string {
   if (childrenOf) return `the children of the <${childrenOf.componentName}> at ${childrenOf.callsiteId}`;
   return isAuthoredSource(ref.sourceSite.src) ? `${ref.sourceSite.cid} (${ref.sourceSite.src})` : refDescription(ref);

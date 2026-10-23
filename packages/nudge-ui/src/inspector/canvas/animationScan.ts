@@ -4,11 +4,7 @@ import type { InteractionState } from "../shell/styleState.ts";
 
 export type PreviewState = Exclude<InteractionState, "base" | "disabled">;
 
-/**
- * One animation as a person sees it: the element whose state or keyframes set it off, and every
- * element that moves because of it. Each state is its own group, so running one animates exactly
- * the movement it names; a state that only restates another's movement collapses into it.
- */
+/** One animation: the trigger plus every element that moves; states with identical movement collapse. */
 export interface AnimationGroup {
   readonly id: string;
   readonly kind: "keyframes" | "state";
@@ -161,11 +157,7 @@ function stateRank(group: AnimationGroup): number {
   return group.state === null ? -1 : STATE_PRECEDENCE[group.state];
 }
 
-/**
- * Keeps one entry per movement: a trigger that restates the same elements and properties under
- * another state is named for the state tried first, while a state that moves something else stays
- * separate and stays runnable.
- */
+/** Keeps one entry per movement: a trigger that restates the same elements and properties under another state is named for the state tried first, while a state that moves something else stays separate and stays runnable. */
 function collapseRestatedStates(groups: readonly AnimationGroup[]): AnimationGroup[] {
   // The sort is stable, so entries for unrelated triggers keep the order they were found in.
   const ranked = [...groups].sort((left, right) => stateRank(left) - stateRank(right));
@@ -178,10 +170,7 @@ function collapseRestatedStates(groups: readonly AnimationGroup[]): AnimationGro
   return kept;
 }
 
-/**
- * Elements that may transition or run keyframes, found from the rules and their own inline style
- * rather than by reading every element's computed style: only a handful animate on a large page.
- */
+/** Elements that may transition or run keyframes, found from the rules and their own inline style rather than by reading every element's computed style: only a handful animate on a large page. */
 function motionCandidates(doc: Document, allowed: ReadonlySet<HTMLElement>): Set<HTMLElement> {
   const found = new Set<HTMLElement>();
   const add = (selector: string): void => {
@@ -313,10 +302,7 @@ function belongsTo(group: AnimationGroup, element: HTMLElement): boolean {
   return false;
 }
 
-/**
- * The animations to offer for a selected element. A click is added only beside animations the
- * page declares, because handlers can't be listed and a click on its own usually captures nothing.
- */
+/** The animations to offer for a selected element. A click is added only beside animations the page declares, because handlers can't be listed and a click on its own usually captures nothing. */
 export function scanAnimations(element: HTMLElement): AnimationEntry[] {
   const doc = element.ownerDocument;
   const entries: AnimationEntry[] = [];

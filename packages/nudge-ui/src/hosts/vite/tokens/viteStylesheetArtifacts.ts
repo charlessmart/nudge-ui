@@ -53,8 +53,7 @@ export function isHostApplicationSource(
   const sourceRoot = roots.find((candidate) => isInsideRoot(absoluteFile, candidate));
   if (!sourceRoot) return false;
 
-  // A declared source root keeps a name-based guard against nested generated directories;
-  // the primary root does not, since a directory named `build` may be authored source there.
+  // A declared source root keeps a name-based guard against nested generated directories; the primary root does not, since a directory named `build` may be authored source there.
   if (sourceRoot !== primaryRoot) {
     const pathSegments = relative(sourceRoot, absoluteFile).split(sep).filter(Boolean);
     if (pathSegments.some((segment) => GENERATED_DIRECTORY_NAMES.has(segment))) {

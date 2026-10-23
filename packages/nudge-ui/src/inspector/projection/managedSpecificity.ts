@@ -79,11 +79,7 @@ function boostFor(own: Specificity, competitor: Specificity): string {
   return ID_BOOST.repeat(ids) + CLASS_BOOST.repeat(classes);
 }
 
-/**
- * Raises one selector branch just enough to tie the strongest author rule that sets the same
- * properties on its targets; the managed sheet cascades last, so a tie wins. Layered rules
- * already lose to the unlayered managed sheet, and `!important` rules stay a reported conflict.
- */
+/** Raises a selector branch to tie the strongest author rule for the same properties; the managed sheet cascades last. */
 function boostBranch(doc: Document, branch: string, properties: readonly string[], rules: MatchedRule[]): string {
   if (branch.includes("::")) return branch;
   const state = stateOf(branch);

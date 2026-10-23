@@ -50,8 +50,7 @@ export function parseBorderComponents(value: string, tokenContext: TokenInterpre
 
     const isVariable = isSingleVarReference(part);
     const interpreted = isVariable ? interpret(part).resolvedValue.trim() : part;
-    // A custom property can substitute an entire shorthand; unresolved or
-    // multi-component results cannot be assigned to one slot.
+    // A custom property can substitute an entire shorthand; unresolved or multi-component results cannot be assigned to one slot.
     if (isVariable && (/^var\(/i.test(interpreted) || splitTopLevelWhitespace(interpreted).length !== 1)) return null;
     const candidate = interpreted.toLowerCase();
     const isWidth = BORDER_WIDTHS.has(candidate)

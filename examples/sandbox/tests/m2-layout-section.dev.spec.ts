@@ -39,11 +39,7 @@ async function setInput(page: import("@playwright/test").Page, property: string,
   }, { p: property, v: value });
 }
 
-/**
- * Reveals a size setting from the width or height chevron, unless the element already shows it. Whether
- * a flex or grid child is recognised can settle after the section first renders, so this waits for
- * either the field itself or its menu item instead of guessing from the first look.
- */
+/** Waits for a size field or its menu item, since flex/grid recognition can settle after the first render. */
 async function showSizeSetting(
   page: import("@playwright/test").Page,
   dimension: "width" | "height",
@@ -190,7 +186,6 @@ test("dev: layout section shows flex container controls and edits write to manag
     .toBe("center");
   await page.keyboard.press("Escape");
 
-  // Managed stylesheet should have the rule
   await expect
     .poll(async () => {
       const s = await sheetText(page);

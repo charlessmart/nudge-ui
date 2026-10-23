@@ -19,8 +19,7 @@ const MOUNT_IMPORT =
   `import { createElement as __NudgeUiCreateElement } from "react";\n`
   + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME} } from "nudge-ui/internal/next/mount";\n`;
 
-// Rendered through createElement rather than as a JSX element: a bare `{Component}` is not
-// a valid React child, and a `<Cmp />` element would be visible to later identity passes.
+// Rendered through createElement rather than as a JSX element: a bare `{Component}` is not a valid React child, and a `<Cmp />` element would be visible to later identity passes.
 const MOUNT_JSX = `\n    {__NudgeUiCreateElement(${MOUNT_LOCAL_NAME})}\n  `;
 
 export interface NextModuleTransformOptions {
@@ -46,8 +45,7 @@ export function transformNextModuleSource(
   moduleId: string,
   options: NextModuleTransformOptions = {},
 ): NextModuleTransformResult | null {
-  // Defense-in-depth beneath the wrapper: Next sets NEXT_PHASE per invocation, so even a
-  // misconfigured production build refuses every transform here; absent phases still transform.
+  // Defense-in-depth beneath the wrapper: Next sets NEXT_PHASE per invocation, so even a misconfigured production build refuses every transform here; absent phases still transform.
   if (process.env.NEXT_PHASE === "phase-production-build") return null;
 
   const normalized = moduleId.split("\\").join("/");
@@ -68,8 +66,7 @@ export function transformNextModuleSource(
   let layoutInstrumented = false;
 
   if (identity && clientComponent) {
-    // The shared module prepends the runtime import, which SWC rejects ahead of a
-    // `"use client"` directive; relocate it past the directive prologue.
+    // The shared module prepends the runtime import, which SWC rejects ahead of a `"use client"` directive; relocate it past the directive prologue.
     code = relocatePrependedRuntimePrelude(code, identity.prelude);
   }
 
@@ -84,8 +81,7 @@ export function transformNextModuleSource(
 
   if (!identity && !layoutInstrumented) return null;
 
-  // When both passes ran, the layout map is composed against the identity pass's output
-  // rather than the original source; the identity map prompts rely on stays against original bytes.
+  // When both passes ran, the layout map is composed against the identity pass's output rather than the original source; the identity map prompts rely on stays against original bytes.
   return { code, map, clientComponent, layoutInstrumented };
 }
 

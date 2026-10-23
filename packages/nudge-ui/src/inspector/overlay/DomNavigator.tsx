@@ -32,10 +32,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
-/**
- * Centers the chip below the selection, as Figma places its size label, and keeps it inside the visible
- * frame so it never drifts over the rest of the board; without a frame it keeps to the window.
- */
+/** Centers the chip below the selection, as Figma places its size label, and keeps it inside the visible frame so it never drifts over the rest of the board; without a frame it keeps to the window. */
 function chipPosition(
   anchor: Rect,
   chip: { width: number; height: number },

@@ -33,7 +33,6 @@ export function readProjectManifest(projectRoot: string): ProjectManifest {
   }
 
   return {
-    type: stringProperty(parsed, "type"),
     packageManager: stringProperty(parsed, "packageManager"),
     dependencies: new Set([
       ...dependencyNames(parsed, "dependencies"),
@@ -104,7 +103,6 @@ function hasAnyFile(projectRoot: string, names: readonly string[]): boolean {
 const ignoredStaticDirectories = new Set(["node_modules", "dist", "build", "coverage", "test-results"]);
 
 interface JsonObject {
-  readonly type?: unknown;
   readonly packageManager?: unknown;
   readonly dependencies?: unknown;
   readonly devDependencies?: unknown;
@@ -112,8 +110,8 @@ interface JsonObject {
   readonly optionalDependencies?: unknown;
 }
 
-function stringProperty(value: JsonObject, key: "type" | "packageManager"): string | undefined {
-  const property = key === "type" ? value.type : value.packageManager;
+function stringProperty(value: JsonObject, key: "packageManager"): string | undefined {
+  const property = value[key];
   return typeof property === "string" ? property : undefined;
 }
 

@@ -334,8 +334,7 @@ const ITEM_STAGGER_MS = 25;
 const ITEM_DURATION_MS = 200;
 const INTRO_SETTLE_MS = ITEM_BASE_DELAY_MS + ITEM_DURATION_MS + (ITEM_COUNT - 1) * ITEM_STAGGER_MS;
 
-// The toolbar remounts when sketching moves it into a root-level portal. Remember whether the bar was showing so the
-// new copy does not replay the intro.
+// The toolbar remounts when sketching moves it into a root-level portal. Remember whether the bar was showing so the new copy does not replay the intro.
 let barWasOpen = false;
 
 function BarItem({ index, children }: {
@@ -361,11 +360,7 @@ interface StackRow {
   readonly leaving: boolean;
 }
 
-/**
- * Lays the recent sketches out by slot. A sketch keeps its element as the stack changes, so a new copy sliding in at
- * the front moves the others along by changing their slot, and CSS animates the difference. A sketch that has left the
- * stack stays one slot further along while it fades, then goes.
- */
+/** Lays recents out by slot so CSS animates copies joining and leaving the stack. */
 function useSketchStack(items: readonly SketchQueueItem[]): readonly StackRow[] {
   const key = items.map((item) => item.document.id).join("|");
   const [previous, setPrevious] = useState<{ readonly key: string; readonly items: readonly SketchQueueItem[]; readonly leaving: readonly StackRow[] }>(
@@ -445,8 +440,7 @@ function RecentStack({ rows, count, settled, onCopy }: {
   readonly settled: boolean;
   readonly onCopy: (item: SketchQueueItem) => void;
 }): ReactElement {
-  // A stack that appears while the bar is already up (a copy just finished) pops in, while one that is there as the
-  // bar opens simply joins the stagger.
+  // A stack that appears while the bar is already up (a copy just finished) pops in, while one that is there as the bar opens simply joins the stagger.
   const [pops] = useState(settled);
   // Sketches that join a stack already on show animate in themselves.
   const [shown, setShown] = useState(false);

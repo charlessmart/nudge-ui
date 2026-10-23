@@ -37,9 +37,7 @@
   cursor: grabbing;
 }
 
-/* Canvas gestures take precedence over every card interaction while Space is
-   held. This also closes the short postMessage gap before an iframe receives
-   its mirrored modifier state. */
+/* Canvas gestures take precedence over every card interaction while Space is held. This also closes the short postMessage gap before an iframe receives its mirrored modifier state. */
 .canvas-workspace__board.is-grabbable .canvas-card,
 .canvas-workspace__board.is-grabbing .canvas-card {
   pointer-events: none;
@@ -49,16 +47,11 @@
   position: absolute;
   width: 100%;
   height: 100%;
-  /*
-   * Leave `will-change` unset so the browser can re-rasterize this subtree at
-   * the current camera scale. A permanent `will-change: transform` promotes
-   * it to a fixed bitmap, which makes iframe content look soft when zoomed.
-   */
+  /* Leave `will-change` unset so the browser can re-rasterize this subtree at the current camera scale. A permanent `will-change: transform` promotes it to a fixed bitmap, which makes iframe content look soft when zoomed. */
 }
 
 .canvas-workspace__board.is-grabbing .canvas-workspace__board-content {
-  /* Panning benefits from a cached composited layer; zoom restores the crisp
-   * default path as soon as the gesture ends. */
+  /* Panning benefits from a cached composited layer; zoom restores the crisp default path as soon as the gesture ends. */
   will-change: transform;
 }
 
@@ -87,8 +80,7 @@
   pointer-events: none;
 }
 
-/* The page surface edits the live page under the workspace, so only the
-   toolbar takes pointer input. */
+/* The page surface edits the live page under the workspace, so only the toolbar takes pointer input. */
 .canvas-workspace[data-surface="page"],
 .canvas-workspace[data-surface="page"] .canvas-workspace__board {
   background: transparent;

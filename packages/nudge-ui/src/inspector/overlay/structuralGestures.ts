@@ -194,10 +194,7 @@ function flexLineNearest(lines: readonly FlexLine[], y: number): FlexLine | null
   return nearest;
 }
 
-/**
- * `centre` places the guide along the parent's axis, such as the middle of a gap; `span` limits a vertical guide to
- * one line of a wrapped row instead of the whole container.
- */
+/** `centre` places the guide along the parent's axis, such as the middle of a gap; `span` limits a vertical guide to one line of a wrapped row instead of the whole container. */
 function lineFor(
   parent: HTMLElement,
   before: Node | null,
@@ -259,11 +256,7 @@ function attemptAt(
   return { drop: { parent, before: anchor, ...lineFor(parent, anchor, centre, span) }, rejection: null };
 }
 
-/**
- * Inserts among `container`'s children at the pointer: between the two laid-out neighbours either side of it on the
- * container's axis, or at its start or end. Children of a display: contents child belong to that wrapper, so the drop
- * parent is the neighbour's own parent.
- */
+/** Inserts among the container's children at the pointer; display: contents wrappers own their children. */
 function slotAtPoint(container: HTMLElement, dragged: HTMLElement, x: number, y: number): DropAttempt {
   const { axis, reverse, wrapped } = flowOf(container);
   const line = wrapped ? flexLineNearest(flexLines(container), y) : null;
@@ -326,12 +319,7 @@ function htmlElementAtPoint(doc: Document, x: number, y: number): HTMLElement | 
   return element;
 }
 
-/**
- * Anchors on the element hover would select. Near its edges, along its parent's axis, the drop goes beside it in its
- * nearest legal parent; anywhere else in a container, including a gap between its children, the drop goes among those
- * children at the pointer. Each container's own axis decides before and after, so an ancestor's layout never
- * redirects a drop away from the element under the pointer.
- */
+/** Anchors on the element hover would select: beside it at a container edge, otherwise among the container's children at the pointer. */
 export function getDropAttemptAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropAttempt {
   const underPointer = htmlElementAtPoint(doc, x, y);
   // Checked before promotion, which could lift the hovered element out of the dragged one.

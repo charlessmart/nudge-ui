@@ -48,10 +48,7 @@ function previewSelector(selector: string): string {
   return transformed + scope;
 }
 
-/**
- * Previews interaction states without dispatching events or changing application state.
- * `withAncestors` mirrors a real pointer, where hovering an element also hovers everything that contains it.
- */
+/** Previews interaction states without dispatching events or changing application state. `withAncestors` mirrors a real pointer, where hovering an element also hovers everything that contains it. */
 export function startInteractionStatePreview(
   element: HTMLElement,
   state: InteractionState,

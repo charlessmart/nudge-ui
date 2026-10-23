@@ -3,16 +3,13 @@ import { chromium } from "@playwright/test";
 
 const BASE_URL = process.env.SMOKE_BASE_URL ?? "http://localhost:4322";
 
-const results = [];
-
-function record(name, ok, detail = "") {
-  results.push({ name, ok });
-  console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
+function record(name, detail = "") {
+  console.log(`PASS ${name}${detail ? ` — ${detail}` : ""}`);
 }
 
 function assert(condition, name, detail) {
   if (!condition) throw new Error(`${name} ${detail}`.trim());
-  record(name, true, detail);
+  record(name, detail);
 }
 
 const browser = await chromium.launch();

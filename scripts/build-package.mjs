@@ -1,5 +1,4 @@
-// TypeScript owns the module and declaration emit; Vite-only `?inline` CSS imports are
-// replaced with the stylesheet text after emit, since release output has no Vite transform.
+// TypeScript owns the module and declaration emit; Vite-only `?inline` CSS imports are replaced with the stylesheet text after emit, since release output has no Vite transform.
 import {
   copyFileSync,
   mkdirSync,
@@ -9,7 +8,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const packageRoot = resolve(process.argv[2] ?? process.cwd());
@@ -23,8 +22,7 @@ if (!statSync(sourceRoot, { throwIfNoEntry: false })?.isDirectory()) {
   throw new Error(`Package source directory does not exist: ${sourceRoot}`);
 }
 
-// A clean release build prevents ignored output from a previous source tree
-// from surviving into a tarball.
+// A clean release build prevents ignored output from a previous source tree from surviving into a tarball.
 rmSync(outputRoot, { recursive: true, force: true });
 mkdirSync(outputRoot, { recursive: true });
 
@@ -86,8 +84,7 @@ function inlineCssImports(directory, sourceDirectory) {
   }
 }
 
-// TypeScript does not copy declaration-only inputs to the output directory;
-// preserve ambient contracts like `virtual-design-tokens.d.ts` in the packed artifact.
+// TypeScript does not copy declaration-only inputs to the output directory; preserve ambient contracts like `virtual-design-tokens.d.ts` in the packed artifact.
 function copyDeclarationFiles(sourceDirectory, outputDirectory) {
   for (const entry of readdirSync(sourceDirectory, { withFileTypes: true })) {
     const sourcePath = resolve(sourceDirectory, entry.name);
@@ -124,8 +121,7 @@ function copyStaticAssets(sourceDirectory, outputDirectory) {
   }
 }
 
-// `rewriteRelativeImportExtensions` leaves declaration references unchanged; a consumer
-// resolving them must still reach the executable sibling in dist.
+// `rewriteRelativeImportExtensions` leaves declaration references unchanged; a consumer resolving them must still reach the executable sibling in dist.
 function rewriteDeclarationExtensions(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const absolutePath = resolve(directory, entry.name);

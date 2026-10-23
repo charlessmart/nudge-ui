@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cssImportSpecifiers, discoverCssImportGraph } from "./activeStylesheets.ts";
-import type { FileMap } from "./fileMap.ts";
+type FileMap = Record<string, string>;
 
 describe("cssImportSpecifiers", () => {
   it("recognises quoted and url imports but ignores commented-out stylesheets", () => {

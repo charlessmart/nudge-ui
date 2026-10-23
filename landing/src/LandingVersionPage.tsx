@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-/** Historical hero snapshots shown in the public Canvas demo. */
 export type LandingVersion = "1" | "2";
 
 function InstallCommand({ children }: { children: ReactNode }): ReactNode {

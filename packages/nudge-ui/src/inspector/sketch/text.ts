@@ -73,10 +73,7 @@ export interface SketchTextInput {
   readonly color: SketchStrokeColor;
 }
 
-/**
- * A text layer is a closed box of points like a rectangle, so the frame, move,
- * resize and rotate all work on it unchanged. `points[0]` stays the box's top-left corner.
- */
+/** A text layer is a closed box of points like a rectangle, so the frame, move, resize and rotate all work on it unchanged. `points[0]` stays the box's top-left corner. */
 export function createTextStroke({
   id,
   corner,
@@ -121,10 +118,7 @@ export function retypeTextStroke(stroke: SketchStroke, text: string): SketchStro
   });
 }
 
-/**
- * Slides a text layer back inside `region`, shrinking its type first if it is too big to fit.
- * Returns `null` when even the smallest type would not fit, so nothing hangs off the edge to be cropped later.
- */
+/** Slides a text layer back inside `region`, shrinking its type first if it is too big to fit. Returns `null` when even the smallest type would not fit, so nothing hangs off the edge to be cropped later. */
 export function fitTextStroke(stroke: SketchStroke, region: SketchRegion): SketchStroke | null {
   let fitted = stroke;
   for (let attempt = 0; attempt < 3; attempt += 1) {

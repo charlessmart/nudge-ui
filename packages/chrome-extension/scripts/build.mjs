@@ -16,8 +16,7 @@ function* files(directory) {
   }
 }
 
-// The bundle comes from nudge-ui's built output, which this build does not
-// rebuild. Stale output would let extension tests pass against old code.
+// The bundle comes from nudge-ui's built output, which this build does not rebuild. Stale output would let extension tests pass against old code.
 const nudgeUiRoot = resolve(packageRoot, "../nudge-ui");
 const sources = [...files(resolve(nudgeUiRoot, "src"))].filter(({ path }) => !/\.test\.tsx?$/.test(path));
 const newestSource = sources.reduce((newest, file) => (file.modified > newest.modified ? file : newest));
@@ -34,8 +33,7 @@ mkdirSync(outputDirectory, { recursive: true });
 
 const shared = { bundle: true, platform: "browser", target: "es2022", logLevel: "warning" };
 
-// Bundles nudge-ui's built output through its package export, so `pnpm build`
-// must build nudge-ui first; the workspace dependency orders that.
+// Bundles nudge-ui's built output through its package export, so `pnpm build` must build nudge-ui first; the workspace dependency orders that.
 await build({
   ...shared,
   entryPoints: [resolve(packageRoot, "src/inspector.ts")],

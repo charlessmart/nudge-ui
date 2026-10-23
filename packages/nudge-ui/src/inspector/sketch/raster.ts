@@ -340,7 +340,7 @@ export async function renderAnnotatedPng(
 /** The promise form lets callers start the write inside the user gesture (required by Safari). */
 export async function copyImageToClipboard(blob: Blob | Promise<Blob>): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Image clipboard access is unavailable. Use Download image instead.");
+    throw new Error("Image clipboard access is unavailable.");
   }
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
@@ -355,14 +355,4 @@ export async function copyImageAndTextToClipboard(blob: Blob, text: string): Pro
       "text/plain": new Blob([text], { type: "text/plain" }),
     }),
   ]);
-}
-
-export function downloadImage(blob: Blob, filename: string): void {
-  if (typeof document === "undefined" || typeof URL === "undefined") return;
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

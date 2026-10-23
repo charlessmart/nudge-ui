@@ -176,8 +176,7 @@ type ResolvedInlineTextEditIntent =
 
 function ownerHTMLElement(element: Element): HTMLElement | null {
   const OwnerHTMLElement = element.ownerDocument.defaultView?.HTMLElement;
-  // SAFETY: The owning realm's HTMLElement constructor proves that this DOM
-  // element satisfies the HTMLElement interface, including iframe elements.
+  // SAFETY: The owning realm's HTMLElement constructor proves that this DOM element satisfies the HTMLElement interface, including iframe elements.
   return OwnerHTMLElement && element instanceof OwnerHTMLElement
     ? element as HTMLElement
     : null;
@@ -925,14 +924,12 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   function patchRouteHistory(): void {
     if (!history || !originalPushState || !originalReplaceState) return;
     try {
-      // SAFETY: the wrapper has the same History.pushState parameter/return contract;
-      // assignment is guarded by the captured native method and restored on finish.
+      // SAFETY: the wrapper has the same History.pushState parameter/return contract; assignment is guarded by the captured native method and restored on finish.
       patchedPushState = function(this: History, ...args: Parameters<History["pushState"]>) {
         if (!finished) endLifecycle("route-disposed");
         return originalPushState.apply(this, args);
       } as History["pushState"];
-      // SAFETY: the wrapper has the same History.replaceState parameter/return contract;
-      // assignment is guarded by the captured native method and restored on finish.
+      // SAFETY: the wrapper has the same History.replaceState parameter/return contract; assignment is guarded by the captured native method and restored on finish.
       patchedReplaceState = function(this: History, ...args: Parameters<History["replaceState"]>) {
         if (!finished) endLifecycle("route-disposed");
         return originalReplaceState.apply(this, args);

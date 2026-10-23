@@ -17,8 +17,7 @@ export function setNudgeUiHostDevFlag(value: boolean | undefined): void {
 
 export function isNudgeUiDev(): boolean {
   try {
-    // Statically replaced under Vite; where nothing defines it (Next.js/SWC)
-    // this read throws and the catch fails closed.
+    // Statically replaced under Vite; where nothing defines it (Next.js/SWC) this read throws and the catch fails closed.
     return resolveNudgeUiDev(import.meta.env.DEV === true, hostDevFlag);
   } catch {
     return resolveNudgeUiDev(undefined, hostDevFlag);

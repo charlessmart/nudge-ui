@@ -41,10 +41,6 @@ export function getDraftChanges(id: string): DraftChangesSnapshot {
   return drafts.get(id);
 }
 
-export function listDraftIds(): readonly string[] {
-  return drafts.ids();
-}
-
 export function getDraft(id: string): Draft | null {
   return drafts.getDraft(id);
 }
@@ -74,8 +70,7 @@ export function lockDraft(id: string): () => void {
 }
 
 function activeChanges(): ChangeRecord[] {
-  // SAFETY: The public change model is the concrete record union stored by
-  // the workspace snapshot; React consumers keep the mutable array type.
+  // SAFETY: The public change model is the concrete record union stored by the workspace snapshot; React consumers keep the mutable array type.
   return drafts.getActive().changes as ChangeRecord[];
 }
 
@@ -106,10 +101,6 @@ export function appendChange(change: ChangeRecord): CommitResult {
 
 export function revertChange(change: ChangeRecord): void {
   drafts.revertChange(change);
-}
-
-export function discardChangesForSelector(selector: string): void {
-  drafts.discardChanges({ kind: "selector", selector });
 }
 
 export function discardChangesForInstanceOverride(overrideId: string): void {
@@ -149,8 +140,7 @@ export function reconcileDraftChanges(
 /** Clears the active draft and its edit steps, preserving other session history. */
 export function clearActiveDraft(): void {
   if (!drafts.canEdit()) return;
-  // A pending blur/composition timer must not be able to append a draft after
-  // the canonical set has been cleared.
+  // A pending blur/composition timer must not be able to append a draft after the canonical set has been cleared.
   cancelInlineTextForClear();
   drafts.clearActive();
 }

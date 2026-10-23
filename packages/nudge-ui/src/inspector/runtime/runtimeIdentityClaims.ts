@@ -54,8 +54,7 @@ function claimFromEvidence(cid: string, src: string | null, evidence: RuntimeEle
 
 export function collectRuntimeIdentityClaims({ changes, structuralChanges }: DraftContents): RuntimeIdentityClaim[] {
   const claims = new Map<string, RuntimeIdentityClaim>();
-  // The page still renders the text from before an inline text edit, so a text
-  // edit's original text wins over evidence captured after the preview.
+  // The page still renders the text from before an inline text edit, so a text edit's original text wins over evidence captured after the preview.
   const originalText = new Map<string, string | null>();
   for (const change of changes) {
     if (change.kind === "text-content") {
@@ -150,8 +149,7 @@ function observe(doc: Document, state: ClaimState): void {
   if (state.observer || state.claims.size === 0) return;
   const Observer = doc.defaultView?.MutationObserver;
   if (!Observer || !doc.documentElement) return;
-  // Attaching only writes to an element that lacks the identity, so hydration and route
-  // changes cannot feed the observer its own writes.
+  // Attaching only writes to an element that lacks the identity, so hydration and route changes cannot feed the observer its own writes.
   state.observer = new Observer(() => {
     if (state.queued) return;
     state.queued = true;

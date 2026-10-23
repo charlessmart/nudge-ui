@@ -96,8 +96,7 @@ describe("AnimationTimeline", () => {
       });
       return levels;
     };
-    // 1000ms is marked every 200ms with a minor mark every 10ms, so 500ms is mark 50.
-    // The rise decays exponentially: e^-1 two marks out, and nothing past five.
+    // 1000ms is marked every 200ms with a minor mark every 10ms, so 500ms is mark 50. The rise decays exponentially: e^-1 two marks out, and nothing past five.
     expect(falloff(0.5)).toEqual({
       45: 0.08, 46: 0.14, 47: 0.22, 48: 0.37, 49: 0.61, 50: 1, 51: 0.61, 52: 0.37, 53: 0.22, 54: 0.14, 55: 0.08,
     });

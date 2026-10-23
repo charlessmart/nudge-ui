@@ -63,10 +63,7 @@ export function isFontSize(value: string): boolean {
     || /^(?:[+-]?(?:\d*\.)?\d+(?:[a-z]+|%)|(?:var|calc|min|max|clamp|env)\()/i.test(value);
 }
 
-/**
- * Omitted optional components project as their shorthand reset value; dropping
- * those rows would let earlier declarations survive the cascade.
- */
+/** Omitted optional components project as their shorthand reset value; dropping those rows would let earlier declarations survive the cascade. */
 export function parseFontShorthand(value: string): FontShorthandParts | null {
   const source = value.trim();
   if (!source || FONT_SYSTEM_KEYWORDS.has(source.toLowerCase())) return null;
@@ -74,8 +71,7 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
   const sizeIndex = parts.findIndex(isFontSize);
   if (sizeIndex < 0) return null;
   const fontSize = parts[sizeIndex]!;
-  // A leading percentage may be font-stretch, not the required size; keep this
-  // uncommon form raw rather than choose arbitrarily.
+  // A leading percentage may be font-stretch, not the required size; keep this uncommon form raw rather than choose arbitrarily.
   if (/^[+-]?(?:\d*\.)?\d+%$/.test(fontSize) && sizeIndex > 0) return null;
 
   let cursor = sizeIndex + 1;
@@ -100,8 +96,7 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
       weight = part;
       continue;
     }
-    // Components outside this supported projection keep the whole shorthand
-    // conservative instead of dropping their meaning.
+    // Components outside this supported projection keep the whole shorthand conservative instead of dropping their meaning.
     return null;
   }
   return {

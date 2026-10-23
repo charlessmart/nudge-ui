@@ -77,10 +77,7 @@ export interface SketchStroke {
   readonly color: SketchStrokeColor;
   readonly outlineColor: SketchStrokeOutline;
   readonly points: readonly SketchPoint[];
-  /**
-   * Orientation of the selection frame in radians. `points` already include the
-   * rotation, so this only keeps the frame hugging a rotated stroke.
-   */
+  /** Orientation of the selection frame in radians. `points` already include the rotation, so this only keeps the frame hugging a rotated stroke. */
   readonly rotation?: number;
   /** Text layers only. `points` are the corners of the text box, closed like a rectangle. */
   readonly text?: string;
@@ -475,29 +472,6 @@ export function isSketchHandoffRecord(
       || handoff.state === "handing-off"
       || handoff.state === "needs-review"
       || handoff.state === "unknown");
-}
-
-export function cloneSketchDocument(document: SketchDocument): SketchDocument {
-  return {
-    ...document,
-    capture: { ...document.capture },
-    strokes: document.strokes.map((stroke) => ({
-      ...stroke,
-      points: stroke.points.map((point) => ({ ...point })),
-    })),
-    ...(document.annotations
-      ? {
-          annotations: document.annotations.map((annotation) => ({
-            ...annotation,
-            point: { ...annotation.point },
-          })),
-        }
-      : {}),
-  };
-}
-
-export function cloneSketchHandoff(handoff: SketchHandoffRecord): SketchHandoffRecord {
-  return { ...handoff };
 }
 
 export function sketchContentFingerprint(

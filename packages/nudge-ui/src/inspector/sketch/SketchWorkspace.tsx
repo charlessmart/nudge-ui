@@ -61,8 +61,7 @@ export function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSke
 export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps): ReactElement | null {
   const interaction = useSketchInteraction();
 
-  // Deliberately independent of the localStorage session schema; a failed
-  // hydration leaves the inspector usable.
+  // Deliberately independent of the localStorage session schema; a failed hydration leaves the inspector usable.
   useEffect(() => {
     void initializeSketchStore(projectId).catch(() => undefined);
   }, [projectId]);
@@ -90,10 +89,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
     return saveAndCopySketch(() => copyLiveSketchImage(draft));
   }
 
-  /**
-   * Captures the page, draws the marks on it, and returns the image for the clipboard. The image is also kept so the
-   * last copy can be copied again, but keeping it is best effort: a storage failure never stops the copy.
-   */
+  /** Captures the page, draws the marks on it, and returns the image for the clipboard. The image is also kept so the last copy can be copied again, but keeping it is best effort: a storage failure never stops the copy. */
   async function copyLiveSketchImage(draft: SketchLiveDraft): Promise<Blob> {
     if (!hostElement) throw new Error("The inspector is no longer available.");
     const captured = await completeSketchCapture(hostElement);

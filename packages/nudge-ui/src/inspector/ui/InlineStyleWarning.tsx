@@ -26,10 +26,7 @@ export interface InlineStyleBlockedTooltipProps {
   children: ReactElement;
 }
 
-/**
- * Explains an inline-style block on the whole control. Used for controls with
- * no room for an inline warning icon, such as selects and segmented controls.
- */
+/** Explains an inline-style block on the whole control. Used for controls with no room for an inline warning icon, such as selects and segmented controls. */
 export function InlineStyleBlockedTooltip({ blockedBy, children }: InlineStyleBlockedTooltipProps): ReactElement {
   return (
     <Tooltip

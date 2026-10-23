@@ -130,7 +130,7 @@ const showcaseControls: ShowcaseControls = {
   visibilityThreshold: 1,
 };
 
-function useShowcaseWidth(controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; opacity: number; isFullWidth: boolean } {
+function useShowcaseWidth(controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; isFullWidth: boolean } {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(`${controls.initialWidth}px`);
   const [isFullWidth, setIsFullWidth] = useState(false);
@@ -183,7 +183,7 @@ function useShowcaseWidth(controls: ShowcaseControls): { ref: RefObject<HTMLDivE
     };
   }, [controls.initialWidth, controls.scrollSpeed, controls.startViewport]);
 
-  return { ref, width, opacity: 1, isFullWidth };
+  return { ref, width, isFullWidth };
 }
 
 function useShowcaseInView(
@@ -222,7 +222,7 @@ function ShowcaseVideo({
   controls: ShowcaseControls;
   video: typeof showcaseVideo;
 }): ReactNode {
-  const { ref, width, opacity, isFullWidth } = useShowcaseWidth(controls);
+  const { ref, width, isFullWidth } = useShowcaseWidth(controls);
   const isInView = useShowcaseInView(ref, controls.visibilityThreshold);
   const shouldLoadVideo = useShowcaseInView(ref, controls.visibilityThreshold, "320px 0px");
   const [videoReady, setVideoReady] = useState(false);
@@ -275,7 +275,7 @@ function ShowcaseVideo({
       className="landing-showcase-video"
       ref={ref}
       // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
-      style={{ "--landing-showcase-video-width": width, opacity } as CSSProperties}
+      style={{ "--landing-showcase-video-width": width } as CSSProperties}
     >
       <div className="landing-showcase-browser-bar" aria-hidden="true">
         <div className="landing-showcase-browser-controls">
@@ -458,7 +458,7 @@ export function App(): ReactNode {
       <div className="landing" id="top">
         <main>
           <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
-            <HeroDemoGrid variant="hero" />
+            <HeroDemoGrid />
             <div className="landing-hero-content landing-content-column">
               <h1 className="landing-content-column" id="landing-hero-title">Nudge, a design panel for your codebase.</h1>
               <div className="landing-hero-side landing-content-column">

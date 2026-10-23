@@ -503,8 +503,7 @@ function walkSheet(rules: CSSRuleList, doc: Document): Pick<SheetWalk, "events" 
         }
         continue;
       }
-      // Serializing a style rule's declaration block is costly, so only other
-      // rule kinds are serialized to recognise their at-rule.
+      // Serializing a style rule's declaration block is costly, so only other rule kinds are serialized to recognise their at-rule.
       const serializedRule = rule.cssText ?? "";
       const layerStatement = /^\s*@layer\s+([^;{]+)\s*;/i.exec(serializedRule);
       if (layerStatement && !("cssRules" in rule)) {
@@ -610,8 +609,7 @@ export function collectRules(doc: Document) {
   const stylesheetNodes = Array.from(doc.querySelectorAll<HTMLElement>('style, link[rel~="stylesheet"]'));
   for (const [index, sheet] of Array.from(doc.styleSheets).entries()) {
     try {
-      // jsdom does not currently expose CSSStyleSheet.ownerNode; the document
-      // stylesheet list and stylesheet element list retain the same order.
+      // jsdom does not currently expose CSSStyleSheet.ownerNode; the document stylesheet list and stylesheet element list retain the same order.
       const owner = (sheet.ownerNode as HTMLElement | null) ?? stylesheetNodes[index] ?? null;
       if (owner?.id === STATE_PREVIEW_SHEET_ID || owner?.id === VALUE_PREVIEW_SHEET_ID) continue;
       const source = owner?.dataset?.viteDevId
@@ -623,8 +621,7 @@ export function collectRules(doc: Document) {
       inaccessible = true;
     }
   }
-  // Adopted sheets cascade after document stylesheets. Under a strict
-  // style-src policy they also hold the inspector's own managed rules.
+  // Adopted sheets cascade after document stylesheets. Under a strict style-src policy they also hold the inspector's own managed rules.
   for (const [index, sheet] of Array.from(doc.adoptedStyleSheets ?? []).entries()) {
     const key = adoptedStylesheetKey(doc, sheet);
     if (key === STATE_PREVIEW_SHEET_ID || key === VALUE_PREVIEW_SHEET_ID) continue;

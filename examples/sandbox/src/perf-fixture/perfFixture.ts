@@ -1,17 +1,16 @@
 export interface PerfNode {
   id: number;
-  depth: number;
   children: PerfNode[];
 }
 
 const NODE_COUNT = 600;
 const MAX_DEPTH = 12;
 
-export const BG_CLASSES = 2000;
-export const FG_CLASSES = 2000;
-export const PAD_CLASSES = 1000;
-export const FONT_CLASSES = 500;
-export const BORDER_CLASSES = 500;
+const BG_CLASSES = 2000;
+const FG_CLASSES = 2000;
+const PAD_CLASSES = 1000;
+const FONT_CLASSES = 500;
+const BORDER_CLASSES = 500;
 
 function depthFor(id: number): number {
   return id === 0 ? 0 : (id % MAX_DEPTH) + 1;
@@ -27,7 +26,7 @@ function parentFor(id: number): number {
 function buildTree(): PerfNode[] {
   const nodes: PerfNode[] = [];
   for (let id = 0; id < NODE_COUNT; id += 1) {
-    nodes.push({ id, depth: depthFor(id), children: [] });
+    nodes.push({ id, children: [] });
   }
   for (let id = 1; id < NODE_COUNT; id += 1) {
     nodes[parentFor(id)]!.children.push(nodes[id]!);
@@ -35,7 +34,7 @@ function buildTree(): PerfNode[] {
   return nodes;
 }
 
-export const NODES: PerfNode[] = buildTree();
+const NODES: PerfNode[] = buildTree();
 export const ROOT: PerfNode = NODES[0]!;
 export const LEAF_IDS: number[] = NODES.filter((node) => node.children.length === 0).map((node) => node.id);
 
@@ -57,23 +56,23 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-export function bgColor(index: number): string {
+function bgColor(index: number): string {
   return hslToHex(index * 137.508, 0.55, 0.45);
 }
 
-export function fgColor(index: number): string {
+function fgColor(index: number): string {
   return hslToHex(index * 137.508 + 40, 0.5, 0.62);
 }
 
-export function padValue(index: number): number {
+function padValue(index: number): number {
   return 2 + (index % 40);
 }
 
-export function fontSizeValue(index: number): number {
+function fontSizeValue(index: number): number {
   return 10 + (index % 30);
 }
 
-export const BORDER_COLOR = "#c9c9c9";
+const BORDER_COLOR = "#c9c9c9";
 
 export function classesFor(id: number): string {
   return [
@@ -97,7 +96,7 @@ export function expectedStyleFor(id: number) {
   };
 }
 
-export interface CssChunk {
+interface CssChunk {
   id: string;
   css: string;
 }
@@ -173,7 +172,3 @@ export const CSS_CHUNKS: CssChunk[] = [
   chunk("perf-layout", [...padRules(), ...fontRules(), ...borderRules()]),
   { id: "perf-context", css: MEDIA_CHUNKS.join("\n\n") },
 ];
-
-export function cssRuleCount(): number {
-  return CSS_CHUNKS.reduce((total, chunk) => total + chunk.css.split("\n").filter((line) => line.trim() !== "").length, 0);
-}

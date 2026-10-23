@@ -93,8 +93,7 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   expect(steps).toEqual([...steps].sort((first, second) => first - second));
   expect(new Set(steps).size).toBe(steps.length);
 
-  // While the controls rise in, they are clipped to the bar so the pen and eraser artwork never hangs below it; the
-  // clip is dropped afterwards so the color palette can fan out past the bar.
+  // While the controls rise in, they are clipped to the bar so the pen and eraser artwork never hangs below it; the clip is dropped afterwards so the color palette can fan out past the bar.
   const items = page.locator(".sketch-options__items");
   await expect(bar).toHaveAttribute("data-settled", "false");
   await expect(items).toHaveCSS("clip-path", /^inset\(/);

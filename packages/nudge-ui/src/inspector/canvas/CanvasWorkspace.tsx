@@ -44,7 +44,7 @@ import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./viewStore.ts";
-import { getActiveDraftChanges, getChangesList, subscribeActiveDraftChanges } from "../drafts/store.ts";
+import { subscribeActiveDraftChanges } from "../drafts/store.ts";
 import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -169,8 +169,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
-  // the Animation tool selects elements instead.
+  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool; the Animation tool selects elements instead.
   const appInteractive = interactionTool === "select" || interactionTool === "debug";
   const debugViewMode = useDebugViewMode();
   const animationBusy = useAnimationBusy();
@@ -493,8 +492,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (event.key === "Escape") leaveViewTool();
       const nextTool = canvasToolForEvent(event);
       if (!nextTool || (nextTool === "sketch" && !sketchAvailable)) return;
-      // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a
-      // copy that is still being captured.
+      // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a copy that is still being captured.
       if (nextTool === "sketch" && sketchActive) return;
       event.preventDefault();
       handleToolChange(nextTool);

@@ -1,12 +1,4 @@
-.hover-outline,
-.selected-outline {
-  position: fixed;
-  pointer-events: none;
-  outline-offset: -2px;
-}
-
-/* Held-Option measurements outrank every other overlay (outlines, spacing
-   guides, badges, comment pins, the panel) so the distances are never hidden. */
+/* Held-Option measurements outrank every other overlay so distances are never hidden. */
 .measurement-overlay {
   position: fixed;
   inset: 0;
@@ -46,58 +38,13 @@
   fill: #ef4444;
 }
 
-.dom-drop-line {
-  z-index: 4;
-  height: 3px;
-  margin-top: -1px;
-  border-radius: 999px;
-  background: #3b82f6;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 80%);
-}
-
-.dom-drop-target {
-  z-index: 3;
-  box-sizing: border-box;
-  border: 1px solid rgb(59 130 246 / 72%);
-  border-radius: 4px;
-  background: rgb(59 130 246 / 5%);
-}
-
-.hover-outline {
-  outline: 2px solid var(--accent);
-}
-
-.selected-outline {
-  outline: 2px solid var(--accent);
-}
-
-.hover-margin-fill {
-  background: rgb(59 130 246 / 14%);
-}
-
-.hover-margin {
-  border-color: rgb(59 130 246 / 52%);
-  border-style: dotted;
-  border-width: 0;
-  opacity: 0.72;
-}
-
-.hover-margin[data-axis="horizontal"] {
-  border-top-width: 1px;
-}
-
-.hover-margin[data-axis="vertical"] {
-  border-left-width: 1px;
-}
-
 .dom-navigator,
 .dom-navigator-preview {
   position: fixed;
   pointer-events: none;
 }
 
-/* The chip sits just below the element, over its bottom margin band. Only the menu button takes the pointer,
-   so the label and size never block that band's spacing handle in the page underneath. */
+/* The chip sits just below the element, over its bottom margin band. Only the menu button takes the pointer, so the label and size never block that band's spacing handle in the page underneath. */
 .dom-navigator {
   display: flex;
   align-items: center;

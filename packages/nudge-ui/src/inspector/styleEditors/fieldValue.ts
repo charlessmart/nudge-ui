@@ -2,11 +2,7 @@ import type { ResolvedProperty } from "../../css/model/index.ts";
 import type { SelectionProperty } from "../inspection/selectionProperty.ts";
 import { isCalcExpression } from "../../css/value-semantics/index.ts";
 
-/**
- * True when a row reports a value the inspector must treat as an expression,
- * not as a token: raw CSS, a composite shorthand, an alpha modifier, or an
- * authored color expression such as color-mix().
- */
+/** True when a row reports a value the inspector must treat as an expression, not as a token: raw CSS, a composite shorthand, an alpha modifier, or an authored color expression such as color-mix(). */
 export function isExpressionRow(row: ResolvedProperty | null): boolean {
   return Boolean(row && (row.capability === "raw"
     || row.capability === "composite"

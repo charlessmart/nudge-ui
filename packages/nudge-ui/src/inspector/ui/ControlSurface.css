@@ -1,8 +1,4 @@
-/*
- * A single visual boundary for a field. Standalone text inputs and selects
- * share these defaults; composed fields use ControlSurface and make their
- * content embedded so only this element paints control chrome.
- */
+/* A single visual boundary for a field. Standalone text inputs and selects share these defaults; composed fields use ControlSurface and make their content embedded so only this element paints control chrome. */
 .control-surface,
 .text-input,
 .select {

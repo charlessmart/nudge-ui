@@ -1,5 +1,4 @@
-/* Plain custom properties — the token vocabulary Nudge UI inventories
- * (Tailwind-ready: a future @theme block would layer on top of these). */
+/* Plain custom properties — the token vocabulary Nudge UI inventories (Tailwind-ready: a future @theme block would layer on top of these). */
 :root {
   --accent: #4f46e5;
   --surface: #f8fafc;

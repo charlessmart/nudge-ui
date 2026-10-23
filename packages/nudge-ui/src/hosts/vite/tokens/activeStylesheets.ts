@@ -68,8 +68,7 @@ export async function discoverCssImportGraph(
         unresolved.push({ importer: fileId, specifier });
         continue;
       }
-      // A processor-owned import such as Tailwind's package entry may resolve to JavaScript
-      // and emit CSS during transform; it is outside this graph, not an unresolved failure.
+      // A processor-owned import such as Tailwind's package entry may resolve to JavaScript and emit CSS during transform; it is outside this graph, not an unresolved failure.
       if (!isCssStylesheet(resolved)) continue;
       await visit(resolved);
     }

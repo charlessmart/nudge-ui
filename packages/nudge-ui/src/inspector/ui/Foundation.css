@@ -44,14 +44,12 @@
   --space-40: 40px;
   --space-48: 48px;
 
-  /* Radius */
   --radius-0: 0;
   --radius-4: 4px;
   --radius-6: 6px;
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
-  --radius-20: 20px;
   --radius-24: 24px;
   --radius-pill: 999px;
 
@@ -68,7 +66,6 @@
   --font-weight-base: 400;
   --font-weight-label: 500;
 
-  /* Control semantic sizes */
   --control-height-small: 24px;
   --control-height-large: 32px;
   --control-height-xlarge: 40px;

@@ -6,13 +6,7 @@ const SELECTOR = `[${MARKER}]:is(#${VALUE_PREVIEW_SHEET_ID}, *)`;
 
 let stopActive: (() => void) | null = null;
 
-/**
- * Paints one declaration on the elements until it is stopped, for a value the
- * user is considering. Inline styles stay untouched, and inspection ignores
- * both the marker attribute and the sheet, so fields keep their authored values.
- * Starting a preview stops the previous one; only the returned function, and
- * only while its preview is active, stops a preview.
- */
+/** Paints a declaration until stopped; inspection ignores the marker and sheet so fields keep authored values. */
 export function startValuePreview(elements: readonly HTMLElement[], property: string, value: string): () => void {
   stopActive?.();
   const cleanups = Array.from(new Set(elements.map((element) => element.ownerDocument)), (doc) => paint(doc, property, value));

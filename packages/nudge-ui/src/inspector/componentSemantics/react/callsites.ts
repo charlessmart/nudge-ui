@@ -47,10 +47,7 @@ export function invocationProps(fiber: Fiber): FiberProps {
   return props;
 }
 
-/**
- * A DOM node can point into React's alternate tree; fibers from it are swapped
- * for their current counterparts.
- */
+/** A DOM node can point into React's alternate tree; fibers from it are swapped for their current counterparts. */
 interface TreePosition {
   root: FiberRoot | null;
   onCurrentTree: boolean;
@@ -71,11 +68,7 @@ function displayedFiber(fiber: Fiber, onCurrentTree: boolean): Fiber {
   return onCurrentTree ? fiber : fiber.alternate ?? fiber;
 }
 
-/**
- * Nearest invocation first. One callsite can span several fibers (memo/forwardRef
- * layers, or a component spreading props onward): with no host output between
- * them they are one invocation owned by the outermost layer; a repeat above is recursive.
- */
+/** Nearest invocation first; fibers with no host output between them are one invocation owned by the outermost. */
 export function taggedInvocationsAbove(host: Fiber): TaggedInvocation[] {
   if (callsites.size === 0) return [];
   const { root, onCurrentTree } = resolveRoot(host);
@@ -119,8 +112,7 @@ export function taggedRootInvocations(host: Fiber): Array<ComponentRootInvocatio
   return invocations;
 }
 
-// A mounted tree only changes at a commit, so one walk per root serves every inspection
-// until the next commit; without an observer there is no signal, so nothing is cached.
+// A mounted tree only changes at a commit, so one walk per root serves every inspection until the next commit; without an observer there is no signal, so nothing is cached.
 let registrations = 0;
 const walkedRoots = new WeakMap<FiberRoot, { version: string; invocations: Map<string, Fiber[]> }>();
 
@@ -189,11 +181,7 @@ interface AuthoredValue {
   applied: unknown;
 }
 
-/**
- * The authored value a prop had before its override. A rendered value that is not
- * the last applied override came from a parent render and replaces the record;
- * both fibers of an invocation share the record because React alternates between them.
- */
+/** Authored value before override; a rendered value that is not the last override came from a parent render. */
 const authoredValues = new WeakMap<Fiber, Map<string, AuthoredValue>>();
 
 function authoredFor(fiber: Fiber): Map<string, AuthoredValue> {
@@ -266,8 +254,7 @@ export function replaceTaggedOverrides(next: ReadonlyMap<string, FiberProps>): v
   applyOverrides(restoring);
 }
 
-// Overrides are reapplied after every commit because a parent render hands an
-// invocation its authored props again; skipping unchanged values ends the cycle.
+// Overrides are reapplied after every commit because a parent render hands an invocation its authored props again; skipping unchanged values ends the cycle.
 let reapplyQueued = false;
 let stopObserving: (() => void) | null = null;
 function observeCommits(): void {

@@ -75,8 +75,7 @@ export function installMarkdownIdentity(
   const processor = markdown.processor;
   if (!processor) return { rehypePlugins: [createMarkdownIdentityPlugin(projectRoot)] };
   if (processor.name !== "unified" && processor.name !== "satteri") return undefined;
-  // SAFETY: Astro's supported processors expose mutable plugin arrays. This
-  // adapter only appends plugins and does not inspect existing entries.
+  // SAFETY: Astro's supported processors expose mutable plugin arrays. This adapter only appends plugins and does not inspect existing entries.
   const options = processor.options as { rehypePlugins?: unknown[]; hastPlugins?: unknown[] };
   if (processor.name === "unified") {
     (options.rehypePlugins ??= []).push(createMarkdownIdentityPlugin(projectRoot));

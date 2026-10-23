@@ -33,8 +33,7 @@ describe("planConfiguration", () => {
       "vite.config.js": "export default { plugins: [] };\n",
       "vite.config.ts": "export default { plugins: [] };\n",
     }, (root) => {
-      // Vite's DEFAULT_CONFIG_FILES order puts .js first, so editing .ts would
-      // silently no-op against the configuration Vite actually loads.
+      // Vite's DEFAULT_CONFIG_FILES order puts .js first, so editing .ts would silently no-op against the configuration Vite actually loads.
       expect(planConfiguration(root, "vite-react")?.path).toBe(join(root, "vite.config.js"));
     });
   });

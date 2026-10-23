@@ -193,16 +193,6 @@
   font-size: 12px;
 }
 .flex-row-gap { display: flex; }
-.util-tag {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #27272a;
-  color: #a1a1aa;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
 .layout-specimen {
   display: flex;
   align-items: center;
@@ -266,17 +256,6 @@
   font-size: 11px;
   line-height: 1.5;
 }
-.layout-overflow-box {
-  max-height: 72px;
-  overflow: auto;
-  padding: 8px;
-  border: 1px dashed #52525b;
-  border-radius: 6px;
-  background: #3f3f4620;
-  color: #71717a;
-  font-size: 10px;
-  line-height: 1.6;
-}
 .layout-aspect-box {
   display: flex;
   align-items: center;
@@ -288,7 +267,6 @@
   color: #a1a1aa;
   font-size: 11px;
 }
-.examples-section-spacer { height: 8px; }
 
 @media (max-width: 700px) {
   .examples-hero,

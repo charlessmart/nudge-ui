@@ -25,8 +25,7 @@
   --color-info: #3b6e8f;
   --color-info-subtle: #e6f0f6;
   --color-neutral-subtle: #e8e8e5;
-  /* Deliberately omit the old --color-* prefix: compatibility is determined
-     from the resolved CSS value, not a design-system-specific taxonomy. */
+  /* Deliberately omit the old --color-* prefix: compatibility is determined from the resolved CSS value, not a design-system-specific taxonomy. */
   --content-primary: #20211f;
   --content-secondary: #6d6e69;
   --space-1: 4px;
@@ -60,13 +59,11 @@ body {
   margin: 0;
   min-width: 320px;
   background: var(--color-surface-canvas);
-  /* color: var(--color-text-primary); */
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scope to the App shell so unlayered `a { color: inherit }` does not beat
-   Tailwind `@layer utilities` color classes on other routes (e.g. /tailwind). */
+/* Scope to the App shell so unlayered `a { color: inherit }` does not beat Tailwind `@layer utilities` color classes on other routes (e.g. /tailwind). */
 .site-shell a {
   color: inherit;
   text-decoration: none;
@@ -587,7 +584,6 @@ a {
 
 h2 {
   margin: 15px 0 0;
-  /* color: var(--color-text-primary); */
   font-size: clamp(38px, 4.5vw, 62px);
   font-weight: 700;
   letter-spacing: -0.07em;
@@ -1829,8 +1825,7 @@ h2 {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
-/* Internal design-system semantic-prop fixture. Class composition mirrors the
- * generated output shape of a Vanilla Extract Sprinkles package. */
+/* Internal design-system semantic-prop fixture. Class composition mirrors the generated output shape of a Vanilla Extract Sprinkles package. */
 .component-props-page {
   max-width: 720px;
   min-height: 100vh;
@@ -1885,11 +1880,6 @@ h2 {
   opacity: 0.45;
 }
 
-/* ------------------------------------------------------------------
-   Semantic Badge
-   Prop contract: variant (neutral|success|warning|danger|info),
-                   size (sm|md|lg)
-   ------------------------------------------------------------------ */
 .semantic-badge {
   display: inline-flex;
   align-items: center;
@@ -1934,11 +1924,6 @@ h2 {
   color: var(--color-info);
 }
 
-/* ------------------------------------------------------------------
-   Semantic Card
-   Prop contract: variant (elevated|outlined|flat),
-                   padding (sm|md|lg), bordered (boolean)
-   ------------------------------------------------------------------ */
 .semantic-card {
   border-radius: var(--radius-md);
   transition: box-shadow 180ms ease, border-color 180ms ease;
@@ -1967,11 +1952,6 @@ h2 {
   border: 1px solid var(--color-border-strong);
 }
 
-/* ------------------------------------------------------------------
-   Semantic Toggle
-   Prop contract: variant (accent|success|danger),
-                   size (sm|md|lg), disabled (boolean)
-   ------------------------------------------------------------------ */
 .semantic-toggle {
   position: relative;
   display: inline-flex;
@@ -2043,11 +2023,6 @@ h2 {
   transform: translateX(26px);
 }
 
-/* ------------------------------------------------------------------
-   Semantic Alert
-   Prop contract: variant (info|success|warning|danger),
-                   dismissible (boolean)
-   ------------------------------------------------------------------ */
 .semantic-alert {
   display: flex;
   align-items: flex-start;
@@ -2095,11 +2070,6 @@ h2 {
   opacity: 1;
 }
 
-/* ------------------------------------------------------------------
-   Semantic Chip
-   Prop contract: variant (default|primary|success|warning|danger),
-                   size (sm|md), closable (boolean)
-   ------------------------------------------------------------------ */
 .semantic-chip {
   display: inline-flex;
   align-items: center;
@@ -2163,11 +2133,6 @@ h2 {
   background: rgba(0,0,0,0.08);
 }
 
-/* ------------------------------------------------------------------
-   Semantic Avatar
-   Prop contract: variant (initials|icon|image),
-                   size (sm|md|lg|xl), shape (circle|square)
-   ------------------------------------------------------------------ */
 .semantic-avatar {
   display: inline-flex;
   align-items: center;
@@ -2216,9 +2181,6 @@ h2 {
   overflow: hidden;
 }
 
-/* ------------------------------------------------------------------
-   Section layout for component props page fixture
-   ------------------------------------------------------------------ */
 .semantic-section {
   padding: 40px 0;
   border-top: 1px solid var(--color-border-subtle);
@@ -2265,14 +2227,6 @@ h2 {
   gap: 20px;
 }
 
-/* ==================================================================
-   Landing page — Penpot board "Landing V6 — Mono"
-   Monochrome design mapped onto sandbox tokens:
-   ink → --color-text-primary, secondary → --color-text-secondary,
-   muted → --color-text-tertiary, line → --color-border-subtle,
-   soft fill → --color-surface-sunken, faint fill → --color-surface-canvas,
-   black surfaces → --color-surface-inverse.
-   ================================================================== */
 .landing {
   --landing-display: "Test Söhne", "Test Sohne", "Söhne", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --landing-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -2295,7 +2249,6 @@ h2 {
   margin-inline: auto;
 }
 
-/* --- Nav --------------------------------------------------------- */
 .landing-nav {
   display: flex;
   align-items: center;
@@ -2368,7 +2321,6 @@ h2 {
   color: var(--color-text-primary);
 }
 
-/* --- Hero -------------------------------------------------------- */
 .landing-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -2439,7 +2391,6 @@ h2 {
   opacity: 0.7;
 }
 
-/* --- App-window mockup ------------------------------------------- */
 .landing-window-wrap {
   padding-bottom: 96px;
 }
@@ -2612,7 +2563,6 @@ h2 {
   font-size: 10px;
 }
 
-/* --- Inspector mockup --------------------------------------------- */
 .lw-inspector {
   display: flex;
   flex-direction: column;
@@ -2725,7 +2675,6 @@ h2 {
   opacity: 0.85;
 }
 
-/* --- Features ----------------------------------------------------- */
 .landing-features {
   padding-bottom: 120px;
 }
@@ -2777,7 +2726,6 @@ h2 {
   line-height: 1.6;
 }
 
-/* --- Footer ------------------------------------------------------- */
 .landing-footer {
   margin-top: auto;
   border-top: 1px solid var(--color-border-subtle);
