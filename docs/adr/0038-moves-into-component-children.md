@@ -45,10 +45,15 @@ renders an invocation's children when a child authored in it comes from a
 different file than the parent's own JSX. The slot belongs to the nearest
 enclosing invocation whose callsite is in the child's file and precedes the
 child. That covers components that render children into their root and those
-that render them deeper inside their own markup. Children are tried nearest
-the moved element (for the source) or the insertion point (for the
-destination) first; a child that is itself a component root, or the
-component's own internal markup, names no invocation, so the next is tried.
+that render them deeper inside their own markup. A child that is a component's
+root is tagged at that component's definition, so it is placed by the
+callsites of the invocations it is the root of.
+
+The source slot is decided by the moved element alone: it says where its own
+JSX is written, and its siblings cannot overrule that. For the destination,
+children are tried nearest the insertion point first, and a child whose
+placement is unknown or that is the parent's own markup passes the question
+on to the next.
 
 When no child is authored at a callsite, a parent that is the root of exactly
 one invocation is assumed to render that invocation's children, unless its

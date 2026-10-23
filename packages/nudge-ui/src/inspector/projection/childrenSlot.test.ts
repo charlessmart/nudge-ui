@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { childrenSlotInvocation } from "./childrenSlot.ts";
+import { childrenSlotInvocation, sourceSlotInvocation } from "./childrenSlot.ts";
 import { instrumentReactComponent, reactComponentRuntimeAdapter, resetReactComponentRuntime } from "../componentSemantics/react/runtime.tsx";
 import { inspectRootInvocations, registerComponentRuntimeAdapter } from "../componentSemantics/adapterRegistry.ts";
 import type { ComponentRootInvocation, RuntimeComponentTarget } from "../componentSemantics/types.ts";
@@ -35,13 +35,16 @@ function invocation(callsiteId: string, componentName: string): RuntimeComponent
 
 let unregister: (() => void) | null = null;
 
-/** Every element answers with the same ancestry, nearest first. */
-function runtime(targets: RuntimeComponentTarget[], roots: ComponentRootInvocation[] = []): void {
+/** Every element answers with the same ancestry, nearest first; root invocations may differ per element. */
+function runtime(
+  targets: RuntimeComponentTarget[],
+  roots: ComponentRootInvocation[] | ((element: HTMLElement) => ComponentRootInvocation[]) = [],
+): void {
   unregister = registerComponentRuntimeAdapter({
     framework: "react",
     inspect: () => targets,
     replaceOverrides: () => undefined,
-    rootInvocations: () => roots,
+    rootInvocations: (element) => typeof roots === "function" ? roots(element) : roots,
   });
 }
 
@@ -97,6 +100,32 @@ describe("childrenSlotInvocation", () => {
     const paragraph = tagged("Page", "src/Page.tsx:14:7");
 
     expect(childrenSlotInvocation(root, [card, paragraph])).toEqual({ callsiteId: "src/Page.tsx:12:5", componentName: "Stack" });
+  });
+
+  it("lets only the moved element decide the slot it leaves", () => {
+    runtime([invocation("src/Page.tsx:12:5", "Stack")]);
+    const stack = tagged("Stack", "src/ui/Stack.tsx:8:10");
+    const footer = tagged("Footer", "src/ui/Stack.tsx:20:1");
+    const pageChild = tagged("Page", "src/Page.tsx:13:7");
+    stack.append(footer, pageChild);
+
+    expect(sourceSlotInvocation(stack, footer)).toBeNull();
+    expect(sourceSlotInvocation(stack, pageChild)).toEqual({ callsiteId: "src/Page.tsx:12:5", componentName: "Stack" });
+  });
+
+  it("places a component instance by its callsite rather than its definition", () => {
+    const stack = tagged("Stack", "src/ui/Stack.tsx:8:10");
+    const footer = tagged("Footer", "src/ui/Footer.tsx:2:3");
+    const card = tagged("Card", "src/ui/Card.tsx:4:3");
+    const callsites = new Map<HTMLElement, ComponentRootInvocation[]>([
+      [footer, [{ callsiteId: "src/ui/Stack.tsx:20:1", componentName: "Footer" }]],
+      [card, [{ callsiteId: "src/Page.tsx:13:7", componentName: "Card" }]],
+    ]);
+    runtime([invocation("src/Page.tsx:12:5", "Stack")], (element) => callsites.get(element) ?? []);
+
+    expect(sourceSlotInvocation(stack, footer)).toBeNull();
+    expect(childrenSlotInvocation(stack, [footer])).toBeNull();
+    expect(sourceSlotInvocation(stack, card)).toEqual({ callsiteId: "src/Page.tsx:12:5", componentName: "Stack" });
   });
 });
 

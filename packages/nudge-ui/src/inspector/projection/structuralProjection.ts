@@ -14,7 +14,7 @@ import {
 } from "./renderedInstance.ts";
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
-import { childrenSlotInvocation } from "./childrenSlot.ts";
+import { childrenSlotInvocation, sourceSlotInvocation } from "./childrenSlot.ts";
 import type {
   StructuralChange,
   StructuralDelete,
@@ -316,7 +316,7 @@ export function createStructuralMove(
   const beforeIndex = beforeElement ? destinationChildren.indexOf(beforeElement) : destinationChildren.length;
   if (fromIndex < 0 || beforeIndex < 0) return null;
   const sameParent = sourceParentElement === destinationParent;
-  const sourceChildrenOf = childrenSlotInvocation(sourceParentElement, nearestFirst(sourceChildren, fromIndex));
+  const sourceChildrenOf = sourceSlotInvocation(sourceParentElement, element);
   const destinationChildrenOf = childrenSlotInvocation(
     destinationParent,
     nearestFirst(destinationChildren, beforeIndex).filter((child) => child !== element),
