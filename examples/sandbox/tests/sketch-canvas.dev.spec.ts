@@ -77,11 +77,16 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
   await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect(marks).toHaveCount(1);
 
-  // The note keeps its native text undo.
-  const note = page.locator('[data-test="sketch-live-prompt-input"]');
-  await note.click();
+  // Text being typed keeps its native undo instead of undoing a stroke.
+  await page.locator('[data-test="sketch-tool-text"]').click();
+  await page.mouse.click(centerX - 120, centerY + 140);
+  const typing = page.locator('[data-test="sketch-text-editor"]');
+  await expect(typing).toBeFocused();
   await page.keyboard.type("Tighten");
+  await expect(typing).toHaveValue("Tighten");
   await page.keyboard.press("ControlOrMeta+z");
+  // The browser undoes typing in chunks, so only the direction matters.
+  await expect(typing).not.toHaveValue("Tighten");
   await expect(marks).toHaveCount(1);
 });
 
@@ -109,32 +114,30 @@ test("the first stroke targets another frame without selecting an application el
   await page.mouse.up();
   await expect(page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path')).toHaveCount(1);
   await expect(page.locator('[data-test="selection"]')).toHaveCount(0);
-  await page.locator('[data-test="sketch-live-prompt-done"]').click();
-  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0, { timeout: 10_000 });
-  const cards = page.locator(".canvas-card");
-  await expect(cards.nth(0).locator('[data-test="canvas-sketch-overlay"]')).toHaveCount(0);
-  const overlay = cards.nth(1).locator('[data-test="canvas-sketch-overlay"]');
-  await expect(overlay.locator("path")).toHaveCount(1);
-  const markBounds = await overlay.locator("path").evaluate((element: SVGGraphicsElement) => {
-    const bounds = element.getBBox();
-    const width = element.ownerSVGElement!.viewBox.baseVal.width;
-    return { left: bounds.x / width, right: (bounds.x + bounds.width) / width };
-  });
-  expect(markBounds.left).toBeGreaterThan(0.45);
-  expect(markBounds.right).toBeLessThan(0.8);
-  const beforePan = await second.boundingBox();
-  await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", { deltaX: 40, deltaY: 20, bubbles: true, composed: true });
-  await expect.poll(async () => (await second.boundingBox())!.x).toBeCloseTo(beforePan!.x - 40, 1);
-  const afterPan = await second.boundingBox();
-  const overlayBounds = await overlay.boundingBox();
-  expect(overlayBounds!.x).toBeCloseTo(afterPan!.x, 1);
-  expect(overlayBounds!.y).toBeCloseTo(afterPan!.y, 1);
-  await page.locator('[data-test="changes-toggle"]').click();
-  const sketch = page.locator('[data-test="sketch-row"]');
-  await expect(sketch.locator(".changes__target")).toHaveText("Sketch");
-  await expect(sketch.locator("button")).toHaveCount(1);
-  await page.screenshot({ path: test.info().outputPath("sketch-history.png") });
-  await sketch.getByRole("button", { name: "Remove sketch" }).click();
-  await expect(sketch).toHaveCount(0);
-  await expect(overlay).toHaveCount(0);
+  await page.locator('[data-test="sketch-copy"]').click();
+  // The copy was taken from the frame that was drawn on, not from the first one.
+  const recent = page.locator('[data-test="sketch-recent"]');
+  await expect(recent).toBeVisible({ timeout: 10_000 });
+  const id = await recent.getAttribute("data-sketch-id");
+  const capturedPath = await page.evaluate(async (sketchId) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("nudge-ui-sketches");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const saved = await new Promise<{ capture: { url: string } }>((resolve, reject) => {
+      const request = database.transaction("documents").objectStore("documents").get(sketchId!);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    return new URL(saved.capture.url).pathname;
+  }, id);
+  expect(capturedPath).toBe("/conformance");
+
+  // Nothing is left drawn on either frame, and the copied sketch is not listed as a change.
+  await expect(page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path')).toHaveCount(0);
+  await expect(page.locator('[data-test="canvas-sketch-overlay"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-row"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
 });

@@ -56,6 +56,44 @@ test("inspects the real panel source and exports the edit using Nudge", async ({
   expect(errors).toEqual([]);
 });
 
+test("shows the real canvas toolbar and the sketch bar in every state on one page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/?nudge-ui=off&scenario=toolbar");
+  const gallery = page.locator('[data-test="toolbar-gallery"]');
+  await expect(gallery.locator('[data-test^="canvas-toolbar-"]')).toHaveCount(4);
+  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(10);
+
+  // Each interaction tool is active in its own toolbar, and only the Pencil opens the sketch bar.
+  for (const tool of ["design", "comment", "sketch", "select"]) {
+    await expect(gallery.locator(`[data-test="canvas-toolbar-${tool}"] [data-test="canvas-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
+  }
+  await expect(gallery.locator('[data-test="canvas-toolbar-design"] [data-test="sketch-tool-options"]')).toHaveCount(0);
+  await expect(gallery.locator('[data-test="canvas-toolbar-sketch"] [data-test="sketch-tool-options"]')).toHaveCount(1);
+
+  // Each sketch bar holds its own state.
+  const bar = (id: string) => gallery.locator(`[data-test="sketch-bar-${id}"]`);
+  for (const tool of ["eraser", "rectangle", "text"]) {
+    await expect(bar(tool).locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
+  }
+  await expect(bar("palette").locator('[data-test="sketch-color-palette"]')).toHaveCount(1);
+  await expect(bar("palette").locator('[data-test="sketch-color-red"]')).toBeVisible();
+  await expect(bar("saving").locator('[data-test="sketch-copy"]')).toBeDisabled();
+  await expect(bar("empty").locator('[data-test="sketch-copy"]')).toBeEnabled();
+  await expect(bar("one-saved").locator('[data-test="sketch-recent"]')).toHaveCount(1);
+  await expect(bar("three-saved").locator('[data-test="sketch-recent"]')).toHaveCount(3);
+
+  // The bars are live: choosing a tool changes only that bar.
+  await bar("pen").locator('[data-test="sketch-tool-text"]').click();
+  await expect(bar("pen").locator('[data-test="sketch-tool-text"]')).toHaveAttribute("data-active", "true");
+  await expect(bar("eraser").locator('[data-test="sketch-tool-eraser"]')).toHaveAttribute("data-active", "true");
+
+  // A saved sketch opens its larger preview.
+  await bar("three-saved").locator('[data-test="sketch-recent-copy"]').first().hover();
+  await expect(page.locator('[data-test="sketch-preview"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("seeds and clears fixture changes without persistence", async ({ page }) => {
   await page.goto("/?nudge-ui=off&scenario=changes");
   const fixture = page.locator(".workbench-preview");

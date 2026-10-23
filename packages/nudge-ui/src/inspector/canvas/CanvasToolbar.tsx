@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { IconMessageCircle, IconMessageCircleFilled, IconPointer2, IconSketching } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -34,6 +34,8 @@ export interface CanvasToolbarProps {
   readonly tool: CanvasInteractionTool;
   readonly sketchEnabled: boolean;
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
+  /** The sketch bar shown above the toolbar. Defaults to the one wired to the live sketch; a page can pass its own. */
+  readonly sketchOptions?: ReactNode;
 }
 
 const ICON_SIZE = "var(--icon-size-large)";
@@ -81,6 +83,7 @@ export function CanvasToolbar({
   tool,
   sketchEnabled,
   onToolChange,
+  sketchOptions,
 }: CanvasToolbarProps): ReactElement {
   return (
     <div className="canvas-toolbar" data-test="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
@@ -113,7 +116,6 @@ export function CanvasToolbar({
           activeIcon={<SketchThickIcon size={ICON_SIZE} aria-hidden="true" />}
           onToolChange={onToolChange}
         />
-        <SketchToolOptions open={tool === "sketch" && sketchEnabled} />
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
@@ -127,6 +129,7 @@ export function CanvasToolbar({
           onToolChange={onToolChange}
         />
       </div>
+      {sketchOptions ?? <SketchToolOptions open={tool === "sketch" && sketchEnabled} />}
     </div>
   );
 }

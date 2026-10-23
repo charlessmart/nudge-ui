@@ -16,7 +16,6 @@ import { clearComments, getComments, saveComment } from "../comments/store.ts";
 import { beginInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
 import { resetSketchMemory } from "../sketch/persistence.ts";
-import { createSketchHandoffSnapshot, getSketchClipboardHandoffSnapshot, recordSketchClipboardHandoff, resetSketchClipboardHandoff } from "../sketch/handoff.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -279,7 +278,7 @@ describe("InspectorShell", () => {
     expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
   });
 
-  it("clears sketches and their clipboard handoff when sketches are the only pending changes", async () => {
+  it("treats a kept sketch as no change at all: no Changes row and nothing to clear", async () => {
     resetSketchStore();
     resetSketchMemory();
     const image = new Blob(["png"], { type: "image/png" });
@@ -293,22 +292,16 @@ describe("InspectorShell", () => {
       description: "Move this button", strokes: [], imageWidth: 1, imageHeight: 1,
       originalImage: image, annotatedImage: image,
     });
-    recordSketchClipboardHandoff(createSketchHandoffSnapshot(getSketches()));
     try {
       act(() => mountInspector(host));
-      expect(host.shadowRoot?.querySelector('[data-test="sketch-row"]')).not.toBeNull();
-      const clear = host.shadowRoot?.querySelector<HTMLButtonElement>('[data-test="clear-session"]');
-      expect(clear).not.toBeNull();
-      await act(async () => { clear!.click(); });
 
-      expect(getSketches()).toEqual([]);
-      expect(getSketchClipboardHandoffSnapshot()).toBeNull();
+      expect(getSketches()).toHaveLength(1);
       expect(host.shadowRoot?.querySelector('[data-test="sketch-row"]')).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
       expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
     } finally {
       resetSketchStore();
       resetSketchMemory();
-      resetSketchClipboardHandoff();
     }
   });
 

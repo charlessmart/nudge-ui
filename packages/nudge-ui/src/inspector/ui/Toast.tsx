@@ -3,8 +3,10 @@ import type { ReactElement } from "react";
 import { IconAlertTriangleFilled, IconCircleCheckFilled } from "@tabler/icons-react";
 import { portalContainer } from "./portalContainer.ts";
 import { useInspectorOpen } from "../shell/openStore.ts";
+import { useSketchInteractionActive } from "../sketch/interaction.ts";
 
-export type ToastTone = "success" | "error";
+/** `info` is a plain note with no icon, for things that are neither done nor wrong. */
+export type ToastTone = "success" | "error" | "info";
 
 export interface ShowToastOptions {
   readonly title: string;
@@ -34,7 +36,9 @@ function ToastList(): ReactElement {
         <BaseToast.Root key={toast.id} toast={toast} className="toast" data-test="toast" data-tone={toast.type}>
           {toast.type === "error"
             ? <IconAlertTriangleFilled className="toast__icon" size="var(--icon-size-small)" aria-hidden="true" />
-            : <IconCircleCheckFilled className="toast__icon" size="var(--icon-size-small)" aria-hidden="true" />}
+            : toast.type === "info"
+              ? null
+              : <IconCircleCheckFilled className="toast__icon" size="var(--icon-size-small)" aria-hidden="true" />}
           <BaseToast.Content className="toast__content">
             <BaseToast.Title className="toast__title" />
             {toast.description ? <BaseToast.Description className="toast__description" /> : null}
@@ -47,12 +51,14 @@ function ToastList(): ReactElement {
 
 export function ToastRegion(): ReactElement {
   const inspectorOpen = useInspectorOpen();
+  const sketching = useSketchInteractionActive();
   return (
     <BaseToast.Provider toastManager={toastManager} limit={3}>
       <BaseToast.Portal container={portalContainer()}>
         <BaseToast.Viewport
           className="toast__viewport"
           data-inspector-open={inspectorOpen ? "true" : "false"}
+          data-sketching={sketching ? "true" : "false"}
           data-test="toast-viewport"
         >
           <ToastList />

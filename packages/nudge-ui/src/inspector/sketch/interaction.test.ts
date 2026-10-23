@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   beginSketchCapture,
-  closeSketchEditor,
+  cancelSketchInteraction,
   completeSketchCapture,
   getSketchInteractionSnapshot,
   resetSketchInteraction,
@@ -38,7 +38,7 @@ describe("sketch interaction", () => {
     capture.mockResolvedValue(captured);
   });
 
-  it("waits for Done before capturing a newly started sketch", async () => {
+  it("waits for the copy before capturing a newly started sketch", async () => {
     const hostElement = document.createElement("div");
     beginSketchCapture();
 
@@ -50,14 +50,13 @@ describe("sketch interaction", () => {
 
     expect(capture).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
 
-    closeSketchEditor();
+    // Copying hands the tool back to a fresh canvas without keeping the capture in memory.
+    beginSketchCapture();
 
-    expect(getSketchInteractionSnapshot()).toEqual({
-      captureState: "idle",
-      captured: null,
-      editingId: null,
-      error: null,
-      draftId: null,
-    });
+    expect(getSketchInteractionSnapshot()).toEqual({ captureState: "sketching", captured: null, error: null });
+
+    cancelSketchInteraction();
+
+    expect(getSketchInteractionSnapshot()).toEqual({ captureState: "idle", captured: null, error: null });
   });
 });

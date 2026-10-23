@@ -283,10 +283,14 @@ export function CommentsOverlay(): ReactElement | null {
     <InspectorStyle css={styles} />
     {comments.flatMap((comment) => [...anchors].filter(([key]) => key.startsWith(`${comment.id}:`)).map(([key, anchor]) => (
       <button key={key} type="button" className="comment-pin" data-test="comment-pin" aria-label={`Comment: ${comment.note}`}
-        title={comment.note} style={anchor} onClick={() => {
+        style={anchor} onClick={() => {
           const bound = bindings.current.get(key);
           if (bound) openDraft({ ...bound, existing: comment });
-        }} />
+        }}>
+        <span className="comment-pin__reveal" aria-hidden="true">
+          <span className="comment-pin__clip"><span className="comment-pin__note">{comment.note}</span></span>
+        </span>
+      </button>
     )))}
     {draft && draftAnchor ? <div className="comment-editor-backdrop" aria-hidden="true" onClick={() => setDraft(null)} /> : null}
     {draft && draftAnchor ? <form className="comment-editor" data-test="comment-editor" role="dialog" aria-label="Element comment"

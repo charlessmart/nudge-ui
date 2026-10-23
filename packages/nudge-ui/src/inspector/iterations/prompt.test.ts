@@ -4,20 +4,18 @@ import { htmlIterationImplementationPrompt, htmlIterationPrompt } from "./prompt
 
 describe("HTML iteration handoff", () => {
   it("targets the artifact even when change evidence names original application source", () => {
-    const prompt = htmlIterationPrompt("iteration-id", "Change color in src/Card.tsx", false, true);
+    const prompt = htmlIterationPrompt("iteration-id", "Change color in src/Card.tsx", false);
     expect(prompt.startsWith(`${PROMPT_INTRO}\n`)).toBe(true);
     expect(prompt).toContain("Please edit only .nudge/artifacts/iteration-id/document.html.");
     expect(prompt).toContain("leave the application source files alone");
-    expect(prompt).toContain("Please implement them in this iteration's HTML and CSS");
     expect(prompt).toContain("Change color");
   });
 
-  it("exports a sketch-only iteration without an empty changes warning and keeps custom instructions", () => {
-    const prompt = htmlIterationPrompt("iteration-id", "<!-- No changes to export -->", true, true, "Use accessible contrast.");
+  it("exports an iteration with no inspector changes without an empty changes warning and keeps custom instructions", () => {
+    const prompt = htmlIterationPrompt("iteration-id", "<!-- No changes to export -->", true, "Use accessible contrast.");
     expect(prompt.startsWith(`${PROMPT_INTRO}\n`)).toBe(true);
     expect(prompt).not.toContain("No changes to export");
     expect(prompt.endsWith("\n\nUse accessible contrast.")).toBe(true);
-    expect(prompt).toContain("Please implement them in this iteration's HTML and CSS");
   });
 });
 

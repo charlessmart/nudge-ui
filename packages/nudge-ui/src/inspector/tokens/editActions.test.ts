@@ -337,7 +337,7 @@ describe("style edit prompt targets", () => {
   afterEach(() => { resetPendingRules(); resetRenderedInstanceState(); document.body.innerHTML = ""; });
 
   function savedPrompt(): string {
-    return generatePrompt(getChangeRecords().map((change) => deserializeChange(serializeChange(change)!)), undefined, [], "", [], []);
+    return generatePrompt(getChangeRecords().map((change) => deserializeChange(serializeChange(change)!)), undefined, [], "", []);
   }
 
   it("exports a linked edit as a change to every item, with example evidence", () => {

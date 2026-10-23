@@ -112,6 +112,7 @@ it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on v
   const pins = host.querySelectorAll('[data-test="comment-pin"]');
   expect(pins).toHaveLength(surface === "hidden iframe" ? 0 : 1);
   if (surface !== "hidden iframe") {
+    expect(pins[0]?.querySelector(".comment-pin__note")?.textContent).toBe("Rename Save");
     act(() => pins[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(host.querySelector<HTMLInputElement>('[data-test="comment-input"]')?.value).toBe("Rename Save");
   }

@@ -1,5 +1,15 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
+
+/** Marks the page so there is something to copy; the video itself is captured separately. */
+async function drawMark(page: Page): Promise<void> {
+  const bounds = await page.locator(".sketch__live-canvas").boundingBox();
+  if (!bounds) throw new Error("The sketch canvas is missing");
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 60, bounds.y + bounds.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
+}
 
 test("saves a sketch when the page has a deferred video without a loaded frame", async ({ page }) => {
   const app = await openEditor(page, "/playground?nudge-ui=on");
@@ -13,13 +23,11 @@ test("saves a sketch when the page has a deferred video without a loaded frame",
   });
 
   await page.locator('[data-test="canvas-tool-sketch"]').click();
-  await page.locator('[data-test="sketch-live-prompt-input"]').fill("Keep this video layout");
-  await page.locator('[data-test="sketch-live-prompt-done"]').click();
+  await drawMark(page);
+  await page.locator('[data-test="sketch-copy"]').click();
 
   await expect(page.locator('[data-test="toast"]')).toBeVisible({ timeout: 8_000 });
-  await page.locator('[data-test="copy-prompt"]').click();
-  await expect(page.locator('[data-test="copy-sketch"]')).toHaveCount(1);
-  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(1);
   await expect(app.locator("#deferred-sketch-video")).toHaveAttribute("preload", "none");
   await expect(app.locator("[data-nudge-ui-video-frame]")).toHaveCount(0);
 });
@@ -49,11 +57,10 @@ test("captures a playing video's current frame without interrupting playback", a
     return { x: rect.left + 20, y: rect.top + 20, viewportWidth: window.innerWidth };
   });
   await page.locator('[data-test="canvas-tool-sketch"]').click();
-  await page.locator('[data-test="sketch-live-prompt-input"]').fill("Keep the playing video frame");
-  await page.locator('[data-test="sketch-live-prompt-done"]').click();
+  await drawMark(page);
+  await page.locator('[data-test="sketch-copy"]').click();
   await expect(page.locator('[data-test="toast"]')).toBeVisible({ timeout: 8_000 });
-  await page.locator('[data-test="copy-prompt"]').click();
-  const layer = page.locator('[data-test="copy-sketch"]');
+  const layer = page.locator('[data-test="sketch-recent"]');
   await expect(layer).toBeVisible();
   const id = await layer.getAttribute("data-sketch-id");
   const pixel = await page.evaluate(async ({ id, point }) => {

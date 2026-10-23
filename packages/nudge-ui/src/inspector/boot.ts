@@ -43,7 +43,6 @@ import {
   InspectorSessionProvider,
   type InspectorSession,
 } from "./session/index.ts";
-import { clearSketchClipboardHandoff } from "./sketch/handoff.ts";
 import { cancelSketchInteraction, isSketchInteractionActive } from "./sketch/interaction.ts";
 import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
 import { initializeSketchStore } from "./sketch/store.ts";
@@ -231,7 +230,6 @@ function mountLockedNotice(host: HTMLElement, storageError = false): void {
     setInspectorOpen(false);
     cancelInlineTextEdit();
     cancelSketchInteraction();
-    clearSketchClipboardHandoff();
     setSelectedElement(null);
     removeManagedSheet();
     disposeRuntimeIdentityClaims(document);
@@ -313,7 +311,6 @@ export function unmountInspector(): void {
     disposeRuntimeIdentityClaims(document);
     releaseDocumentProjection(document);
     clearClipboardHandoff();
-    clearSketchClipboardHandoff();
     removeManagedSheet();
     removeInspectionBridge?.();
     removeInspectionBridge = null;

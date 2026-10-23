@@ -4,10 +4,15 @@ import {
   SKETCH_ACCENT_COLOR,
   SKETCH_RECTANGLE_FILL_OPACITY,
   SKETCH_STROKE_COLOR,
+  SKETCH_TEXT_FONT_FAMILY,
+  SKETCH_TEXT_FONT_SIZE,
+  SKETCH_TEXT_FONT_WEIGHT,
   type SketchAnnotation,
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
+import { strokeFrame } from "./selectionFrame.ts";
+import { sketchTextLines } from "./text.ts";
 
 export type Vec2 = readonly [number, number];
 
@@ -53,7 +58,7 @@ export function sketchStrokeOutline(
   scaleX = 1,
   scaleY = scaleX,
 ): readonly Vec2[] {
-  if (stroke.points.length === 0 || stroke.kind === "rectangle") return [];
+  if (stroke.points.length === 0 || stroke.kind === "rectangle" || stroke.kind === "text") return [];
   const size = stroke.width * Math.max(scaleX, scaleY);
   return getStroke(
     stroke.points.map((point) => [point.x * scaleX, point.y * scaleY]),
@@ -62,9 +67,35 @@ export function sketchStrokeOutline(
 }
 
 export function sketchStrokePath(stroke: Pick<SketchStroke, "kind" | "points" | "width">, scaleX = 1, scaleY = scaleX): string {
-  if (stroke.points.length === 0) return "";
+  if (stroke.points.length === 0 || stroke.kind === "text") return "";
   if (stroke.kind === "rectangle") return linePath(stroke.points, scaleX, scaleY);
   return getSvgPathFromStroke(sketchStrokeOutline(stroke, scaleX, scaleY));
+}
+
+/** Lines are spaced to fill the layer's box, so a resized or projected box keeps its text inside it. */
+function SketchTextElement({ stroke }: { readonly stroke: SketchStroke }): ReactElement {
+  const frame = strokeFrame(stroke);
+  const lines = sketchTextLines(stroke.text ?? "");
+  const lineHeight = frame.height / lines.length;
+  return (
+    <text
+      transform={`translate(${number(frame.center.x)} ${number(frame.center.y)}) rotate(${number((frame.rotation * 180) / Math.PI)})`}
+      fill={stroke.color || SKETCH_STROKE_COLOR}
+      fontFamily={SKETCH_TEXT_FONT_FAMILY}
+      fontSize={stroke.fontSize ?? SKETCH_TEXT_FONT_SIZE}
+      fontWeight={SKETCH_TEXT_FONT_WEIGHT}
+      dominantBaseline="central"
+      style={{ whiteSpace: "pre" }}
+      pointerEvents="none"
+      data-test="sketch-text-layer"
+    >
+      {lines.map((line, index) => (
+        <tspan key={index} x={number(-frame.width / 2)} y={number(-frame.height / 2 + (index + 0.5) * lineHeight)}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
 }
 
 export interface SketchSvgLayerProps {
@@ -81,6 +112,7 @@ export function SketchSvgLayer({
   return (
     <g data-test="sketch-svg-layer">
       {strokes.map((stroke) => {
+        if (stroke.kind === "text") return <SketchTextElement key={stroke.id} stroke={stroke} />;
         const path = sketchStrokePath(stroke);
         if (!path) return null;
         const rectangle = stroke.kind === "rectangle";

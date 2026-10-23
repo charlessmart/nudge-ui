@@ -39,7 +39,6 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeCo
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
-import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
 import { installFrameScrollbarStyles } from "./frameScrollbarStyles.ts";
 import {
   getCanvasResizeEdges,
@@ -600,7 +599,6 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           data-test={`canvas-card-iframe-${card.id}`}
         />
         <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
-        <SketchFrameOverlay cardId={card.id} iframe={iframeRef.current} cardUrl={contentSourceUrl(card.content)} artifactId={iterationId(card.content)} ready={loadState === "ready"} />
       </div>
       {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
         <div

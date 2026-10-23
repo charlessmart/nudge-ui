@@ -194,14 +194,6 @@
   display: block;
 }
 
-.canvas-card__sketch-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: block;
-  pointer-events: none;
-}
-
 .canvas-card__loading {
   display: flex;
   align-items: center;

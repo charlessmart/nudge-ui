@@ -11,7 +11,6 @@ import {
   IconPencil,
   IconPlugConnected,
   IconSend,
-  IconX,
 } from "@tabler/icons-react";
 import { useChanges } from "../drafts/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
@@ -37,15 +36,9 @@ import {
   getLastClipboardReconciledCount,
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
-import { removeSketch, useSketches, settleSketchDispatch } from "../sketch/store.ts";
-import { SketchThumbnail } from "../sketch/SketchThumbnail.tsx";
-import { copySketchImageOnRequest } from "../sketch/copySketch.ts";
-import { closeSketchNote } from "../sketch/sketchNote.ts";
-import { IconButton } from "../ui/IconButton.tsx";
-import { showToast } from "../ui/Toast.tsx";
 import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 import { getFocusedCardId, getSelectedCardId, useCanvasCards, useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
-import { getEditableCardId, sketchBelongsToCard, useDrafts } from "../drafts/store.ts";
+import { getEditableCardId, useDrafts } from "../drafts/store.ts";
 import { copyHandoff, deliverHandoff, prepareHandoff, prepareIterationImplementationPrompt, type PreparedHandoff } from "../workspace/handoff.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 
@@ -71,15 +64,12 @@ export function CopyPromptButton({
   const changes = useChanges();
   const comments = useFrameComments();
   useDrafts();
-  const sketches = useSketches();
   const selectedDraftCardId = useSelectedCardId();
   const focusedDraftCardId = useFocusedCardId();
   const activeDraftCardId = getEditableCardId(selectedDraftCardId, focusedDraftCardId);
   const canvasCards = useCanvasCards();
   const activeContent = canvasCards.find((card) => card.id === activeDraftCardId)?.content;
   const activeArtifactId = iterationId(activeContent);
-  const visibleSketches = sketches.filter((item) => sketchBelongsToCard(item.document, activeDraftCardId));
-  const pendingSketches = visibleSketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -92,11 +82,11 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [flashNothing, setFlashNothing] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const handoffBusy = useRef(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [agentOutcome, setAgentOutcome] = useState<{ readonly removed: number; readonly dispatch: HandoffSnapshot | null } | null>(null);
-  const [sketchFallback, setSketchFallback] = useState<{ readonly handoff: PreparedHandoff; readonly error: string } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
   const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
@@ -112,13 +102,19 @@ export function CopyPromptButton({
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const agentRef = useRef(agent);
   agentRef.current = agent;
-  const hasChanges = Boolean(activeArtifactId) || countPromptChanges(changes, structuralChanges, pendingSketches.length) + comments.length > 0;
+  const hasChanges = Boolean(activeArtifactId) || countPromptChanges(changes, structuralChanges) + comments.length > 0;
 
   useEffect(() => {
     if (!copied) return;
     const timer = window.setTimeout(() => setCopied(false), 1500);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  useEffect(() => {
+    if (!flashNothing) return;
+    const timer = window.setTimeout(() => setFlashNothing(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [flashNothing]);
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -165,17 +161,6 @@ export function CopyPromptButton({
     };
   }, [agent.request?.changeRevision, agent.state]);
 
-  useEffect(() => {
-    const request = agent.request;
-    if (!request?.sketches || request.sketches.length === 0) return;
-    void settleSketchDispatch(
-      request.changeRevision,
-      request.status,
-      request.requestId,
-      request.clientDispatchId,
-    ).catch(() => undefined);
-  }, [agent.request?.changeRevision, agent.request?.requestId, agent.request?.clientDispatchId, agent.request?.sketches, agent.request?.status]);
-
   const connecting = agent.state === "pairing";
   const delivered = agent.state === "delivered" || agent.request?.status === "delivered";
   const working = agent.state === "working" || agent.request?.status === "working";
@@ -186,14 +171,18 @@ export function CopyPromptButton({
     && !working
     && !delivered;
   const canSend = agent.paired && agent.listenerActive && !working && !delivered;
-  const changeCount = countPromptChanges(changes, structuralChanges, canSend ? pendingSketches.length : 0) + comments.length;
-  // The badge counts every pending sketch, including ones copied separately from the menu.
-  const badgeCount = countPromptChanges(changes, structuralChanges, pendingSketches.length) + comments.length;
-  const disabled = preparing || connecting || working || delivered || (!canConnect && !hasChanges);
+  const changeCount = countPromptChanges(changes, structuralChanges) + comments.length;
+  const badgeCount = changeCount;
+  const disabled = preparing || connecting || working || delivered;
+  const nothingToCopy = !canConnect && !hasChanges;
   const agentStatus = useAgentConnectionStatus(agent);
   const statusAction = agentStatus.action;
 
-  const label = preparing
+  const showingNothing = flashNothing && nothingToCopy;
+
+  const label = showingNothing
+    ? "Nothing to copy"
+    : preparing
     ? "Saving iteration…"
     : copied
     ? "Copied!"
@@ -209,7 +198,9 @@ export function CopyPromptButton({
               ? "Send prompt"
               : "Copy prompt";
 
-  const icon = copied
+  const icon = showingNothing
+    ? null
+    : copied
     ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
     : !activeArtifactId && (canConnect || connecting)
       ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
@@ -219,6 +210,10 @@ export function CopyPromptButton({
 
   async function onClick(): Promise<void> {
     if (disabled || handoffBusy.current) return;
+    if (nothingToCopy) {
+      setFlashNothing(true);
+      return;
+    }
     handoffBusy.current = true;
     setPreparing(Boolean(activeArtifactId) && !canConnect);
     try { await handoff(); }
@@ -235,7 +230,6 @@ export function CopyPromptButton({
         cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
         hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
         customInstructions,
-        pendingSketches,
       };
       if (target === "application") {
         const prompt = await prepareIterationImplementationPrompt(request);
@@ -268,7 +262,6 @@ export function CopyPromptButton({
         cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
         hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
         customInstructions,
-        pendingSketches,
       });
       setSaveMessage(null);
     } catch (error) {
@@ -276,12 +269,7 @@ export function CopyPromptButton({
       return;
     }
     setAgentOutcome(null);
-    setSketchFallback(null);
     const outcome = await deliverHandoff(prepared, runtimeConfig.projectId, canSend ? agentClient : null);
-    if (outcome.kind === "sketch-failed") {
-      setSketchFallback({ handoff: outcome.handoff, error: outcome.error });
-      return;
-    }
     if (outcome.kind === "sent") return;
     setCopied(true);
   }
@@ -347,19 +335,7 @@ export function CopyPromptButton({
     openMcpConnection();
   }
 
-  async function deleteSketch(sketchId: string): Promise<void> {
-    try {
-      if (!await removeSketch(sketchId)) {
-        showToast({ tone: "error", title: "Sketch not deleted", description: "This sketch is being sent and cannot be deleted yet." });
-        return;
-      }
-      closeSketchNote();
-    } catch (error) {
-      showToast({ tone: "error", title: "Sketch not deleted", description: error instanceof Error ? error.message : "The sketch could not be deleted." });
-    }
-  }
-
-  const hasMenu = Boolean(activeArtifactId) || visibleSketches.length > 0;
+  const hasMenu = Boolean(activeArtifactId);
   const styleEditLabel = canConnect ? "Connect agent" : canSend ? "Send style edit prompt" : "Copy style edit prompt";
   const styleEditDescription = canConnect
     ? "Pair an agent first"
@@ -422,7 +398,6 @@ export function CopyPromptButton({
                     className="copy-prompt__menu-item"
                     data-test="copy-style-edit-prompt"
                     label={styleEditLabel}
-                    disabled={!canConnect && changeCount === 0}
                     onClick={() => void onClick()}
                   >
                     {canConnect
@@ -436,41 +411,6 @@ export function CopyPromptButton({
                     </span>
                   </Menu.Item>
                 )}
-                {visibleSketches.length > 0 ? <Menu.Separator className="copy-prompt__menu-separator" /> : null}
-                {visibleSketches.map((item, index) => {
-                  const busy = item.status === "dispatching" || item.status === "handing-off";
-                  return (
-                    <div key={item.document.id} className="copy-prompt__menu-row">
-                      <Menu.Item
-                        className="copy-prompt__menu-item copy-prompt__menu-item--sketch"
-                        data-test="copy-sketch"
-                        data-sketch-id={item.document.id}
-                        label={`Copy Sketch ${index + 1}`}
-                        disabled={busy}
-                        onClick={() => void copySketchImageOnRequest(item.document.annotatedImage)}
-                      >
-                        <SketchThumbnail item={item} />
-                        <span className="copy-prompt__menu-content">
-                          <span className="copy-prompt__menu-title">Copy Sketch {index + 1}</span>
-                          {item.document.description ? (
-                            <span className="copy-prompt__menu-description copy-prompt__menu-description--truncate">{item.document.description}</span>
-                          ) : null}
-                        </span>
-                      </Menu.Item>
-                      <IconButton
-                        className="copy-prompt__menu-delete"
-                        variant="quiet"
-                        size="compact"
-                        label={`Delete Sketch ${index + 1}`}
-                        data-test="copy-sketch-delete"
-                        disabled={busy}
-                        onClick={() => void deleteSketch(item.document.id)}
-                      >
-                        <IconX size="var(--icon-size-small)" aria-hidden="true" />
-                      </IconButton>
-                    </div>
-                  );
-                })}
               </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>
@@ -517,24 +457,6 @@ export function CopyPromptButton({
         <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="iteration-save-hint" role="status">
           {saveMessage}
         </p>
-      ) : null}
-      {sketchFallback ? (
-        <StatusCallout className="copy-prompt__sketch-fallback" tone="warning" data-test="sketch-dispatch-error">
-          <span>{sketchFallback.error}</span>
-          <Button
-            size="compact"
-            variant="secondary"
-            type="button"
-            data-test="sketch-copy-fallback"
-            onClick={() => {
-              void copyHandoff(sketchFallback.handoff).then(() => {
-                setSketchFallback(null);
-              }).catch(() => undefined);
-            }}
-          >
-            Copy prompt
-          </Button>
-        </StatusCallout>
       ) : null}
       <SettingsDialog
         open={settingsOpen}

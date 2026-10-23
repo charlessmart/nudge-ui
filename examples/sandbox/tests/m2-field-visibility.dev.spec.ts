@@ -9,7 +9,8 @@ test("dev: spacing stays editable through zero and videos omit inherited text co
   const app = await getAppFrame(page);
   await app.addStyleTag({ content: ":root { --visibility-zero: 0px; } .hero h1 { margin: var(--visibility-zero); }" });
   await app.locator(".hero h1").click();
-  await expect(page.locator('[data-test="spacing-margin"] [data-test="add-value"]')).toBeVisible();
+  // Zero margin stays out of the Layout section until it is added from the layout options.
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveCount(0);
   const padding = page.locator('[data-test="spacing-padding"]');
   // Padding is always shown now, so there is no add button to press.
   if (await padding.locator('[data-test="add-value"]').count()) await padding.locator('[data-test="add-value"]').click();

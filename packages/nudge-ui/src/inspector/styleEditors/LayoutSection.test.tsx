@@ -6,6 +6,8 @@ import { resetPendingRules } from "../tokens/editActions.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import {
+  addFromLayoutOptions,
+  openLayoutOptions,
   makeSelected,
   mount,
   setInputValue,
@@ -717,7 +719,7 @@ describe("LayoutSection", () => {
     expect(sheetText()).toContain("display: flex;");
   });
 
-  it("keeps a bare relative position in the layout options with its insets", () => {
+  it("keeps a bare relative position in the layout options and adds its insets from there", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "relative", "z-index": "auto" });
     handle = mount(createElement(LayoutSection, { element: selected }));
@@ -725,7 +727,12 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-position"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
     act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
-    expect(document.body.querySelector('[data-test="layout-options-content"] [data-test="layout-inset"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-options-content"] [data-test="layout-inset"]')).toBeFalsy();
+    addFromLayoutOptions("inset");
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-options-content"]')).toBeNull();
+    openLayoutOptions();
+    expect((document.body.querySelector('[data-test="add-inset"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("shows a relative position inline once it has an inset", () => {
@@ -756,9 +763,25 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "block", position: "static" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="spacing-padding"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-position"]')).toBeFalsy();
+
+    addFromLayoutOptions("margin");
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-options-content"]')).toBeNull();
+    openLayoutOptions();
+    expect((document.body.querySelector('[data-test="add-margin"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("offers inset in the layout options only while position makes it meaningful", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+    act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+
+    expect(document.body.querySelector('[data-test="add-margin"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="add-inset"]')).toBeFalsy();
   });
 
   it("refreshes the inset controls after a position edit", () => {
@@ -792,7 +815,10 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
 
     act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
+    expect(document.body.querySelector('[data-test="add-inset"]')).toBeFalsy();
     setSelectValue(document.body.querySelector('[data-test="layout-select-position"]') as HTMLElement, "absolute");
+    expect(document.body.querySelector('[data-test="add-inset"]')).toBeTruthy();
+    addFromLayoutOptions("inset");
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
   });
 
@@ -893,6 +919,8 @@ describe("LayoutSection", () => {
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
+    addFromLayoutOptions("inset");
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-inset"][data-expanded="false"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-inset"] [data-test="pair-value-horizontal"]')).toBeTruthy();
@@ -920,6 +948,7 @@ describe("LayoutSection", () => {
       left: "0px",
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
+    addFromLayoutOptions("inset");
     act(() => {
       (handle.host.querySelector('[data-test="layout-inset"] [data-test="individual-sides"]') as HTMLButtonElement).click();
     });
@@ -968,6 +997,7 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
+    addFromLayoutOptions("inset");
     act(() => {
       (handle.host.querySelector('[data-test="layout-inset"] [data-test="individual-sides"]') as HTMLButtonElement).click();
     });

@@ -70,7 +70,7 @@ it("copies only the originating page's comments after selecting another frame", 
   };
   saveComment(note);
   saveComment({ ...note, id: "other-comment", route: new URL("/other", window.location.href).href, note: "Keep this for later" });
-  const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "", pendingSketches: [] });
+  const handoff = await prepareHandoff({ cardId: original.id, hints: {}, customInstructions: "" });
   expect(handoff.prompt.startsWith(`${PROMPT_INTRO}\n\nThe page I'm working on is `)).toBe(true);
   expect(handoff.prompt.split(PROMPT_INTRO)).toHaveLength(2);
   const iteration = addCanvasIteration(original.id, "33333333-3333-3333-3333-333333333333")!;

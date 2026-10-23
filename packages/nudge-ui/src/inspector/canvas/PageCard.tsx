@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef } from "react";
 import type { CanvasCard } from "./canvasStore.ts";
 import { connectFrame } from "./frameConnection.ts";
-import { contentSourceUrl } from "./frameContent.ts";
 import { getPageFrame } from "./pageSurface.ts";
 import { registerCardFrame, registerCardFrameSource, sendProjectionToCard, unregisterCardFrame } from "./projection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
@@ -11,17 +10,16 @@ import { releaseDocumentProjection } from "../projection/structuralProjection.ts
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
-import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
 
 interface PageCardProps {
   card: CanvasCard;
   documentOwner?: InspectorSession;
 }
 
-export function PageCard({ card, documentOwner }: PageCardProps): ReactElement {
+/** Connects the live page to the canvas as a card; it renders nothing of its own. */
+export function PageCard({ card, documentOwner }: PageCardProps): null {
   const cardRef = useRef(card);
   cardRef.current = card;
-  const [ready, setReady] = useState(false);
   const frame = getPageFrame();
 
   useEffect(() => {
@@ -42,7 +40,6 @@ export function PageCard({ card, documentOwner }: PageCardProps): ReactElement {
       if (message.type === "frame-ready") {
         registerCardFrame(card.id, frame);
         sendProjectionToCard(cardRef.current, frame);
-        setReady(true);
       }
     });
     announce();
@@ -50,11 +47,8 @@ export function PageCard({ card, documentOwner }: PageCardProps): ReactElement {
       unsubscribe();
       session?.dispose();
       unregisterCardFrame(card.id);
-      setReady(false);
     };
   }, [card.id, documentOwner, frame]);
 
-  return (
-    <SketchFrameOverlay cardId={card.id} iframe={frame} cardUrl={contentSourceUrl(card.content)} ready={ready} />
-  );
+  return null;
 }

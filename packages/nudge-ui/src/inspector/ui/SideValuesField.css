@@ -2,7 +2,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--field-label-gap);
 }
 
 .side-values__header {
@@ -10,6 +10,20 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-8);
+}
+
+/* A compact action may be taller than the label; let it overhang so the label-to-control gap stays the token. */
+.side-values__header:has(> .icon-button--compact) {
+  block-size: calc(var(--font-size-base) * 1.25);
+}
+
+/* As wide as the expand-sides toggle below, so a smaller action centres over it. */
+.side-values__header-action {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-height-large);
 }
 
 .side-values__label {

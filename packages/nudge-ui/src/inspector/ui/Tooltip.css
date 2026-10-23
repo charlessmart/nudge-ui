@@ -7,7 +7,8 @@
 }
 
 .tooltip__positioner {
-  z-index: 35;
+  /* Above the canvas toolbar, which sits at the root layer while sketching, so its tooltips are not cut off by it. */
+  z-index: calc(var(--z-index) + 1);
   pointer-events: auto;
 }
 

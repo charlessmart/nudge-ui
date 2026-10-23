@@ -65,8 +65,8 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await page.mouse.down();
   await page.mouse.move(sketchBounds.x + sketchBounds.width / 2 + 40, sketchBounds.y + sketchBounds.height / 2 + 30, { steps: 5 });
   await page.mouse.up();
-  await inspectorHost.locator('[data-test="sketch-live-prompt-done"]').click();
-  await expect(inspectorHost.locator('[data-test="canvas-sketch-overlay"] path')).toHaveCount(1);
+  await inspectorHost.locator('[data-test="sketch-copy"]').click();
+  await expect(inspectorHost.locator('[data-test="sketch-recent"]')).toBeVisible();
 
   // The public demo must leave nothing behind in visitors' browsers, including
   // anything flushed when the page unloads.

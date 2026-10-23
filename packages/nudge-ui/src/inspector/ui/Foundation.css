@@ -73,6 +73,8 @@
   --control-height-large: 32px;
   --control-height-xlarge: 40px;
   --label-column: 104px;
+  /* Space between a field label and its control, whether the label sits beside or above it. */
+  --field-label-gap: var(--space-4);
 
   --icon-size-small: 16px;
   --icon-size-large: 20px;

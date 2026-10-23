@@ -11,7 +11,7 @@ import type { SelectedElement } from "../selection/selectionStore.ts";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { setActiveStyleState } from "../shell/styleState.ts";
 import { resetPendingRules } from "../tokens/editActions.ts";
-import { makeSelected, mount, setInputValue, sheetText, type MountHandle } from "./_testUtils.ts";
+import { addFromLayoutOptions, makeSelected, mount, setInputValue, sheetText, type MountHandle } from "./_testUtils.ts";
 
 let handle: MountHandle | undefined;
 const styles: HTMLStyleElement[] = [];
@@ -41,7 +41,7 @@ describe("inspector field visibility", () => {
     addCss("* { margin: 0; }");
     const render = () => createElement(LayoutSection, { element: selected });
     handle = mount(render());
-    act(() => handle!.host.querySelector<HTMLButtonElement>('[data-test="spacing-margin"] [data-test="add-value"]')!.click());
+    addFromLayoutOptions("margin");
     const input = handle.host.querySelector<HTMLInputElement>('[data-property="margin-horizontal"] [data-test="raw-input"]')!;
     setInputValue(input, "8px");
     act(() => handle!.root.render(render()));
@@ -50,7 +50,7 @@ describe("inspector field visibility", () => {
     expect(handle.host.querySelector('[data-property="margin-horizontal"] [data-test="raw-input"]')).toBe(input);
     expect(input.value).toBe("0px");
     act(() => handle!.root.render(createElement(LayoutSection, { element: other })));
-    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeNull();
   });
 
   it("compacts zero spacing on reselection without discarding the pending edit", () => {
@@ -64,7 +64,7 @@ describe("inspector field visibility", () => {
       element: selected,
       tokenRows: [...getBrowserCssInspection().inspect(selected.domElement).properties],
     })));
-    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeNull();
     expect(sheetText()).toContain("margin-left: 0px;");
   });
 
@@ -78,19 +78,19 @@ describe("inspector field visibility", () => {
       element: second,
       selection: createStyleSelection([first, second], snapshots, second),
     }));
-    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeNull();
     act(() => handle!.root.render(createElement(LayoutSection, {
       element: second, tokenRows: [...snapshots[1]!.properties],
     })));
-    expect(handle.host.querySelector('[data-test="spacing-margin"] [data-test="add-value"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeNull();
   });
 
   it("keeps zero insets compact until opened", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { position: sticky; top: 0px; }');
     handle = mount(createElement(LayoutSection, { element: selected }));
-    expect(handle.host.querySelector('[data-test="add-inset"]')).not.toBeNull();
-    act(() => handle!.host.querySelector<HTMLButtonElement>('[data-test="add-inset"]')!.click());
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeNull();
+    addFromLayoutOptions("inset");
     expect(handle.host.querySelector('[data-property="inset-vertical"] [data-test="raw-input"]')).not.toBeNull();
   });
 

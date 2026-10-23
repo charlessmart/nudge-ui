@@ -500,7 +500,7 @@ it("exports captured text identification after saving without repeating the sour
   });
   const saved = serializeChange(change)!;
   expect(isSerializableChange(saved)).toBe(true);
-  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
   expect(prompt).toContain('The h1 heading in src/Playground.tsx:196:14 with the id "hero-title":');
   expect(prompt.match(/src\/Playground\.tsx:196:14/g)).toHaveLength(1);
   expect(prompt).toContain('- Change the text from "Inspect the work" to "Updated title".');
@@ -512,7 +512,7 @@ it("exports captured text identification after saving without repeating the sour
 });
 
 it("exports older text edits with a readable heading without inventing an element ID", () => {
-  const prompt = generatePrompt([makeChange({ before: "Original copy", target: { ...makeChange().target, beforeText: "Original copy" } })], undefined, [], "", [], []);
+  const prompt = generatePrompt([makeChange({ before: "Original copy", target: { ...makeChange().target, beforeText: "Original copy" } })], undefined, [], "", []);
   expect(prompt).toContain('The element in src/Copy.tsx:8:3 that says "Original copy":');
   expect(prompt).not.toContain("with the id");
 });
@@ -522,7 +522,7 @@ it("exports extension text identification without inventing source or an HTML ID
   document.body.innerHTML = '<p data-cid="nudge-ui-runtime-7" data-src="nudge-ui:unknown:7">Welcome back</p>';
   const target = captureTextProjectionTarget(document.querySelector("p")!)!;
   const saved = serializeChange(makeChange({ target, before: "Welcome back", after: "Hello again" }))!;
-  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", [], []);
+  const prompt = generatePrompt([deserializeChange(saved)], undefined, [], "", []);
   expect(prompt).toContain('The paragraph that says "Welcome back" located at p:');
   expect(prompt).toContain('- Change the text from "Welcome back" to "Hello again".');
   expect(prompt).not.toContain("with the id");

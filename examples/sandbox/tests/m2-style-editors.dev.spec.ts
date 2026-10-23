@@ -247,8 +247,10 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(0);
 
   const margin = page.locator('[data-test="spacing-margin"]');
-  await expect(margin).toHaveAttribute("data-empty", "true");
-  await margin.locator('[data-test="add-value"]').click();
+  await expect(margin).toHaveCount(0);
+  await page.locator('[data-test="layout-options"]').click();
+  await page.locator('[data-test="add-margin"]').click();
+  await expect(margin).toBeVisible();
 
   await setInput(page, "padding-horizontal", "20px");
   await expect.poll(() => computedProp(page, "padding-left"), { timeout: 5000 }).toBe("20px");
@@ -317,8 +319,7 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
 
   await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
   await expect(page.locator('[data-test="spacing-padding"]')).not.toHaveAttribute("data-empty", "true");
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-empty", "true");
-  await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveCount(0);
 });
 
 function hexToRgbString(raw: string): string | null {

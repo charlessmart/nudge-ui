@@ -150,3 +150,14 @@ export function publishInspection(el: HTMLElement): void {
   session.dispose();
 }
 
+
+export function openLayoutOptions(): void {
+  if (document.body.querySelector('[data-test="layout-options-content"]')) return;
+  act(() => document.querySelector<HTMLButtonElement>('[data-test="layout-options"]')!.click());
+}
+
+/** Adds an optional Layout group (margin or inset) the way a person does: from the layout options menu, which closes. */
+export function addFromLayoutOptions(key: "margin" | "inset"): void {
+  openLayoutOptions();
+  act(() => document.body.querySelector<HTMLButtonElement>(`[data-test="add-${key}"]`)!.click());
+}
