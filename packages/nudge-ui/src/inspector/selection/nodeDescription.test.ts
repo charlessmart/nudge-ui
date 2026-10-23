@@ -14,9 +14,9 @@ describe("describeNode", () => {
     expect(describeNode(document.createElement("section"))).toBe("section");
   });
 
-  it("skips classes on SVG elements, whose className is not a string", () => {
+  it("reads classes from an SVG element's animated class name", () => {
     const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    icon.setAttribute("class", "icon");
-    expect(describeNode(icon as unknown as HTMLElement)).toBe("svg");
+    icon.setAttribute("class", "icon icon-cursor");
+    expect(describeNode(icon as unknown as HTMLElement)).toBe("svg.icon.icon-cursor");
   });
 });

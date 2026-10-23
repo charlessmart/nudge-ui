@@ -90,7 +90,12 @@ export function findRendererElement(doc: Document | null, ref: RendererElementRe
     || candidate.getAttribute("data-cid") !== ref.cid
     || (candidate.getAttribute("data-src") ?? "") !== ref.src) return null;
   const frameWindow = doc.defaultView;
-  return frameWindow && candidate instanceof frameWindow.HTMLElement ? candidate : null;
+  if (!frameWindow) return null;
+  const SVGElementConstructor = frameWindow.SVGElement;
+  const supported = candidate instanceof frameWindow.HTMLElement
+    || (SVGElementConstructor !== undefined && candidate instanceof SVGElementConstructor);
+  // SAFETY: SVG roots share the selection surface's element APIs.
+  return supported ? candidate as HTMLElement : null;
 }
 
 export function connectFrame(cardId: string, iframe: CanvasFrame): FrameConnection {

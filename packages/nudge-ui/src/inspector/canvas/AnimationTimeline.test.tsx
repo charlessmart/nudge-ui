@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AnimationTimeline, timelineTicks } from "./AnimationTimeline.tsx";
+import { AnimationTimeline, scrollProgressTicks, timelineTicks } from "./AnimationTimeline.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +23,14 @@ describe("timelineTicks", () => {
 
   it("has no marks before an animation is captured", () => {
     expect(timelineTicks(0)).toEqual([]);
+  });
+});
+
+describe("scrollProgressTicks", () => {
+  it("labels scroll progress in percentages and leaves the end of the track unlabelled", () => {
+    const ticks = scrollProgressTicks();
+    expect(ticks.filter((tick) => tick.label).map((tick) => tick.label)).toEqual(["0%", "25%", "50%", "75%"]);
+    expect(ticks.filter((tick) => tick.major).map((tick) => tick.ms)).toEqual([0, 0.25, 0.5, 0.75, 1]);
   });
 });
 
@@ -53,8 +61,13 @@ describe("AnimationTimeline", () => {
     return host.querySelector<HTMLElement>('[data-test="animation-scrubber"]')!;
   }
 
-  it("seeks to where the pointer presses and keeps following it while dragged", () => {
-    const onSeek = vi.fn();
+  it("labels a scroll timeline as progress percentages", () => {
+    const timeline = render({ onSeek: vi.fn(), mode: "scroll", duration: 0 });
+    expect(timeline.getAttribute("aria-label")).toBe("Scroll progress");
+    expect([...host.querySelectorAll(".animation-timeline__label")].map((label) => label.textContent)).toEqual(["0%", "25%", "50%", "75%"]);
+  });
+
+  it("seeks to where the pointer presses and keeps following it while dragged", () => {    const onSeek = vi.fn();
     const timeline = render({ onSeek });
     const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 40, right: 302, bottom: 40, x: 100, y: 0 } as DOMRect);

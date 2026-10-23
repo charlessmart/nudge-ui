@@ -4,7 +4,7 @@ import { AnimationSession } from "./animationSession.ts";
 import { CLICK_ENTRY, scanAnimations, type AnimationEntry } from "./animationScan.ts";
 
 function hoverEntryFor(trigger: HTMLElement): AnimationEntry {
-  const group = { id: "state:1:pointer", kind: "state", label: "Hover", trigger, members: new Map([[trigger, new Set(["transform"])]]), state: "hover", name: "" } as const;
+  const group = { id: "state:1:pointer", kind: "state", label: "Hover", trigger, members: new Map([[trigger, new Set(["transform"])]]), state: "hover", conditions: [{ kind: "pseudo", state: "hover" }], timeline: "document", name: "" } as const;
   return { id: group.id, kind: "state", label: group.label, state: "hover", group };
 }
 
@@ -13,6 +13,17 @@ interface FakeAnimation {
   currentTime: number;
   playbackRate: number;
   playState: "paused" | "running" | "finished";
+  effect: { getComputedTiming(): { endTime: number } };
+  pause: ReturnType<typeof vi.fn>;
+  play: ReturnType<typeof vi.fn>;
+  cancel: ReturnType<typeof vi.fn>;
+}
+
+interface FakeScrollAnimation {
+  currentTime: { value: number; unit: "percent" };
+  playbackRate: number;
+  playState: "paused" | "running" | "finished";
+  timeline: { constructor: { name: string } };
   effect: { getComputedTiming(): { endTime: number } };
   pause: ReturnType<typeof vi.fn>;
   play: ReturnType<typeof vi.fn>;
@@ -192,5 +203,103 @@ describe("AnimationSession", () => {
     const clickable = (id: string): boolean => scanAnimations(byId(id)).some((entry) => entry.kind === "click");
     // A clickable element with nothing animating gets no click on its own; a pointer cursor only counts where it starts.
     expect(["go", "tab", "inert", "bare", "card", "icon"].map(clickable)).toEqual([true, true, false, false, true, false]);
+  });
+
+  it("replays an attribute-gated state even when it is already applied", async () => {
+    document.head.innerHTML = `<style>
+      .bento .card { transition-property: opacity; transition-duration: 200ms; }
+      .bento[data-visible="true"] .card { opacity: 1; }
+    </style>`;
+    document.body.innerHTML = `<div class="bento" id="bento" data-visible="true"><div class="card" id="card"></div></div>`;
+    const bento = document.getElementById("bento")!;
+    bento.getAnimations = () => [];
+    await Promise.resolve();
+    const session = new AnimationSession(bento);
+    session.scan();
+    const entry = session.getSnapshot().entries?.find((candidate) => candidate.kind === "state" && candidate.label.startsWith("Visible"));
+    expect(entry).toBeDefined();
+
+    const order: string[] = [];
+    const removeAttribute = bento.removeAttribute.bind(bento);
+    const setAttribute = bento.setAttribute.bind(bento);
+    vi.spyOn(bento, "removeAttribute").mockImplementation((name) => {
+      if (name === "data-visible") order.push("remove");
+      removeAttribute(name);
+    });
+    vi.spyOn(bento, "setAttribute").mockImplementation((name, value) => {
+      if (name === "data-visible") order.push(`set:${value}`);
+      setAttribute(name, value);
+    });
+
+    session.run(entry!);
+
+    expect(order).toEqual(["remove", "set:true"]);
+    expect(bento.getAttribute("data-visible")).toBe("true");
+    session.dispose();
+    expect(bento.getAttribute("data-visible")).toBe("true");
+  });
+
+  it("scrubs a scroll-driven animation by percentage and leaves play to the page's scroll", () => {
+    const target = button;
+    const scroll: FakeScrollAnimation = {
+      currentTime: { value: 0, unit: "percent" },
+      playbackRate: 1,
+      playState: "running",
+      timeline: { constructor: { name: "ViewTimeline" } },
+      effect: { getComputedTiming: () => ({ endTime: 0 }) },
+      pause: vi.fn(() => { scroll.playState = "paused"; }),
+      play: vi.fn(),
+      cancel: vi.fn(),
+    };
+    const css = { percent: (value: number) => ({ value, unit: "percent" as const }) };
+    Object.defineProperty(document.defaultView!, "CSS", { configurable: true, value: css });
+    const session = new AnimationSession(target);
+    target.addEventListener("click", () => live.push(scroll as unknown as FakeAnimation));
+
+    session.run(CLICK_ENTRY);
+
+    expect(session.getSnapshot()).toMatchObject({ status: "ready", timeline: "scroll", duration: 0, progress: 0 });
+    session.seek(0.5);
+    expect(scroll.currentTime).toEqual({ value: 50, unit: "percent" });
+    expect(session.getSnapshot().progress).toBe(0.5);
+    session.play();
+    expect(scroll.play).not.toHaveBeenCalled();
+    expect(session.getSnapshot().playing).toBe(false);
+    session.dispose();
+    Reflect.deleteProperty(document.defaultView!, "CSS");
+  });
+
+  it("captures a sibling that the selection triggers from the document scope", () => {
+    const trigger = button;
+    const member = document.createElement("div");
+    document.body.append(member);
+    const group = {
+      id: "state:1:opened",
+      kind: "state",
+      label: "Opened · opacity",
+      trigger,
+      members: new Map([[member, new Set(["opacity"])]]),
+      state: null,
+      conditions: [{ kind: "attribute", name: "data-open", value: "true" }],
+      timeline: "document",
+      name: "",
+    } as const;
+    const entry: AnimationEntry = { id: group.id, kind: "state", label: group.label, state: null, group };
+    const documentAnimations: Animation[] = [];
+    const descriptor = Object.getOwnPropertyDescriptor(document, "getAnimations");
+    Object.defineProperty(document, "getAnimations", { configurable: true, value: () => documentAnimations });
+    const setAttribute = trigger.setAttribute.bind(trigger);
+    vi.spyOn(trigger, "setAttribute").mockImplementation((name, value) => {
+      setAttribute(name, value);
+      if (name === "data-open" && value === "true") documentAnimations.push(fakeAnimation("opacity", 200) as unknown as Animation);
+    });
+    const session = new AnimationSession(trigger);
+
+    session.run(entry);
+
+    expect(session.getSnapshot()).toMatchObject({ status: "ready", label: "opacity" });
+    session.dispose();
+    if (descriptor) Object.defineProperty(document, "getAnimations", descriptor);
+    else Reflect.deleteProperty(document, "getAnimations");
   });
 });

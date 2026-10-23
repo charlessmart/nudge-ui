@@ -76,7 +76,7 @@ describe("static HTML runtime identity", () => {
       "<template><button id='template-child'>Template</button></template>",
       "<noscript><button id='noscript-child'>No script</button></noscript>",
       "<div id='nudge-ui-root'><button id='mount-child'>Mount</button></div>",
-      "<svg><foreignObject><div id='svg-child'>SVG</div></foreignObject></svg>",
+      "<svg id='icon'><path id='icon-path'></path><foreignObject><div id='svg-child'>SVG</div></foreignObject></svg>",
       "<article><button id='eligible'>Eligible</button></article>",
     ].join("");
 
@@ -87,6 +87,8 @@ describe("static HTML runtime identity", () => {
     expect(document.querySelector("#noscript-child")?.hasAttribute("data-cid") ?? false).toBe(false);
     expect(document.querySelector("#mount-child")?.hasAttribute("data-cid") ?? false).toBe(false);
     expect(document.querySelector("#svg-child")?.hasAttribute("data-cid") ?? false).toBe(false);
+    expect(document.querySelector("#icon")?.hasAttribute("data-cid") ?? false).toBe(true);
+    expect(document.querySelector("#icon-path")?.hasAttribute("data-cid") ?? false).toBe(false);
     expect(document.querySelector("#eligible")?.hasAttribute("data-cid") ?? false).toBe(true);
   });
 
@@ -123,6 +125,16 @@ describe("lazy runtime identity", () => {
     expect(["main", "section", "#target", "nav", "p", "span"].every(tagged)).toBe(true);
     expect(tagged("em")).toBe(false);
     expect(tagged("aside")).toBe(false);
+  });
+
+  it("tags an SVG root when the pointer lands on one of its paths", () => {
+    document.body.innerHTML = "<main><svg id=\"icon\"><path id=\"path\"></path></svg></main>";
+    dispose = installLazyRuntimeIdentity();
+
+    document.getElementById("path")!.dispatchEvent(new Event("pointerover", { bubbles: true }));
+
+    expect(document.getElementById("icon")!.hasAttribute("data-cid")).toBe(true);
+    expect(document.getElementById("path")!.hasAttribute("data-cid")).toBe(false);
   });
 });
 
