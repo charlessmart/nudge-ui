@@ -11,6 +11,7 @@ import {
 } from "../projection/structuralProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
+import { resolveSelectionTarget } from "../selection/selectionTarget.ts";
 
 export type StructuralNudgeKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 
@@ -129,26 +130,46 @@ export function dropTargetRect(parent: HTMLElement): Box {
   return { left, top, width: right - left, height: bottom - top, right, bottom };
 }
 
-function isFlexRow(parent: HTMLElement): boolean {
+type Axis = "x" | "y";
+
+/** The direction a container lays out its children, read from its nearest boxed ancestor. */
+interface Flow {
+  axis: Axis;
+  reverse: boolean;
+  wrapped: boolean;
+}
+
+function flowOf(parent: HTMLElement): Flow {
   const style = parent.ownerDocument.defaultView?.getComputedStyle(layoutParent(parent));
-  return (style?.display === "flex" || style?.display === "inline-flex")
-    && (style.flexDirection || "row").startsWith("row");
+  const flex = style?.display === "flex" || style?.display === "inline-flex";
+  const direction = style?.flexDirection || "row";
+  if (flex && direction.startsWith("row")) {
+    return { axis: "x", reverse: direction === "row-reverse", wrapped: Boolean(style?.flexWrap && style.flexWrap !== "nowrap") };
+  }
+  return { axis: "y", reverse: flex && direction === "column-reverse", wrapped: false };
 }
 
-function isFlexRowReverse(parent: HTMLElement): boolean {
-  return parent.ownerDocument.defaultView?.getComputedStyle(layoutParent(parent)).flexDirection === "row-reverse";
+function isFlexRow(parent: HTMLElement): boolean {
+  return flowOf(parent).axis === "x";
 }
 
-function isWrappedFlexRow(parent: HTMLElement): boolean {
-  const flexWrap = parent.ownerDocument.defaultView?.getComputedStyle(layoutParent(parent)).flexWrap;
-  return isFlexRow(parent) && Boolean(flexWrap && flexWrap !== "nowrap");
+function startOf(rect: Box, axis: Axis): number {
+  return axis === "x" ? rect.left : rect.top;
+}
+
+function endOf(rect: Box, axis: Axis): number {
+  return axis === "x" ? rightOf(rect) : bottomOf(rect);
+}
+
+function hasBox(rect: Box): boolean {
+  return rect.width > 0 || rect.height > 0;
 }
 
 /** Visual lines of a wrapped flex row, grouped by vertical overlap so `order` and `wrap-reverse` need no special case. */
 function flexLines(parent: HTMLElement): FlexLine[] {
   const lines: FlexLine[] = [];
   for (const { element: child, rect } of layoutItems(layoutParent(parent))) {
-    if (rect.width === 0 && rect.height === 0) continue;
+    if (!hasBox(rect)) continue;
     const bottom = bottomOf(rect);
     const line = lines.find((candidate) => rect.top < candidate.bottom && bottom > candidate.top);
     if (line) {
@@ -175,15 +196,19 @@ function flexLineNearest(lines: readonly FlexLine[], y: number): FlexLine | null
   return nearest;
 }
 
-/** `span` limits a vertical guide to one line of a wrapped row instead of the whole container. */
+/**
+ * `centre` places the guide along the parent's axis, such as the middle of a gap; `span` limits a vertical guide to
+ * one line of a wrapped row instead of the whole container.
+ */
 function lineFor(
   parent: HTMLElement,
   before: Node | null,
-  flexGapCentre?: number,
+  centre?: number,
   span?: Pick<FlexLine, "top" | "bottom">,
 ): Pick<DropLocation, "orientation" | "left" | "top" | "width" | "height"> {
+  const { axis, reverse } = flowOf(parent);
   // A flex row's guide sits in the row's own box, which a display: contents parent shares with its siblings.
-  const parentRect = isFlexRow(parent) ? layoutParent(parent).getBoundingClientRect() : dropTargetRect(parent);
+  const parentRect = axis === "x" ? layoutParent(parent).getBoundingClientRect() : dropTargetRect(parent);
   // SAFETY: before.nodeType === 1 was checked above, so it is an HTMLElement.
   const beforeElement = before?.nodeType === 1 ? before as HTMLElement : null;
   const reference = beforeElement ?? parent.lastElementChild;
@@ -192,9 +217,8 @@ function lineFor(
   const parentBottom = bottomOf(parentRect);
   const horizontalInset = Math.min(8, Math.max(2, parentRect.width / 12));
 
-  if (isFlexRow(parent)) {
-    const reverse = isFlexRowReverse(parent);
-    const intendedLeft = flexGapCentre ?? (beforeElement
+  if (axis === "x") {
+    const intendedLeft = centre ?? (beforeElement
       ? (reverse ? rightOf(referenceRect ?? parentRect) : referenceRect?.left ?? parentRect.left)
       : (reverse ? referenceRect?.left ?? parentRect.left : rightOf(referenceRect ?? parentRect)));
     const top = span?.top ?? parentRect.top;
@@ -209,9 +233,9 @@ function lineFor(
     };
   }
 
-  const intendedTop = beforeElement
-    ? referenceRect?.top ?? parentRect.top
-    : referenceRect ? bottomOf(referenceRect) : parentRect.top + 8;
+  const intendedTop = centre ?? (beforeElement
+    ? (reverse ? bottomOf(referenceRect ?? parentRect) : referenceRect?.top ?? parentRect.top)
+    : referenceRect ? (reverse ? referenceRect.top : bottomOf(referenceRect)) : parentRect.top + 8);
   return {
     orientation: "horizontal",
     left: parentRect.left + horizontalInset,
@@ -221,60 +245,80 @@ function lineFor(
   };
 }
 
-/** Items may belong to a display: contents child of `parent`, so the drop parent is the anchor item's own parent. */
-function flexRowGapAtPoint(parent: HTMLElement, dragged: HTMLElement, x: number, y: number): DropLocation | null {
-  const parentRect = parent.getBoundingClientRect();
-  if (y < parentRect.top || y > bottomOf(parentRect)) return null;
-  const wrapped = isWrappedFlexRow(parent);
-  const line = wrapped ? flexLineNearest(flexLines(parent), y) : null;
-  if (wrapped && !line) return null;
-  let left: FlexItem | null = null;
-  let right: FlexItem | null = null;
-  for (const item of line?.items ?? layoutItems(parent)) {
-    if (rightOf(item.rect) <= x && (!left || rightOf(item.rect) > rightOf(left.rect))) left = item;
-    if (item.rect.left >= x && (!right || item.rect.left < right.rect.left)) right = item;
-  }
-  const reverse = isFlexRowReverse(parent);
-  let anchor: HTMLElement;
-  let afterAnchor: boolean;
-  let centre: number;
-  if (left && right) {
-    const gapStart = rightOf(left.rect);
-    const gapEnd = right.rect.left;
-    if (gapEnd - gapStart < 4) return null;
-    anchor = reverse ? left.element : right.element;
-    afterAnchor = false;
-    centre = (gapStart + gapEnd) / 2;
-  } else if (line && left) {
-    // Past the end of a wrapped line: after its last item, which may be the next line's first in DOM order.
-    anchor = left.element;
-    afterAnchor = !reverse;
-    centre = rightOf(left.rect);
-  } else if (line && right) {
-    anchor = right.element;
-    afterAnchor = reverse;
-    centre = right.rect.left;
-  } else {
-    return null;
-  }
-  const dropParent = anchor.parentElement;
-  const before = afterAnchor ? anchor.nextElementSibling : anchor;
-  if (!dropParent || !checkDrop(dragged, dropParent, before).ok) return null;
-  return { parent: dropParent, before, ...lineFor(dropParent, before, centre, line ?? undefined) };
-}
-
-function flexRowChildAtTarget(dragged: HTMLElement, target: HTMLElement): HTMLElement | null {
-  let child: HTMLElement | null = target;
-  while (child?.parentElement) {
-    const parent: HTMLElement = child.parentElement;
-    if (isFlexRow(parent) && canContainElement(parent, dragged)
-      && child !== dragged && !dragged.contains(child)) return child;
-    child = parent;
-  }
-  return null;
-}
-
 const NO_DROP: DropAttempt = { drop: null, rejection: null };
+
+function attemptAt(
+  dragged: HTMLElement,
+  parent: HTMLElement,
+  before: Node | null,
+  centre?: number,
+  span?: Pick<FlexLine, "top" | "bottom">,
+): DropAttempt {
+  // The dragged element still occupies its slot, so an insertion before it means the slot after it.
+  const anchor = before === dragged ? dragged.nextElementSibling : before;
+  const check = checkDrop(dragged, parent, anchor);
+  if (!check.ok) return { drop: null, rejection: check.rejection };
+  return { drop: { parent, before: anchor, ...lineFor(parent, anchor, centre, span) }, rejection: null };
+}
+
+/**
+ * Inserts among `container`'s children at the pointer: between the two laid-out neighbours either side of it on the
+ * container's axis, or at its start or end. Children of a display: contents child belong to that wrapper, so the drop
+ * parent is the neighbour's own parent.
+ */
+function slotAtPoint(container: HTMLElement, dragged: HTMLElement, x: number, y: number): DropAttempt {
+  const { axis, reverse, wrapped } = flowOf(container);
+  const line = wrapped ? flexLineNearest(flexLines(container), y) : null;
+  const items = (line?.items ?? layoutItems(container))
+    .filter((item) => item.element !== dragged && hasBox(item.rect))
+    .sort((left, right) => startOf(left.rect, axis) - startOf(right.rect, axis));
+  if (items.length === 0) return attemptAt(dragged, container, null);
+  const position = axis === "x" ? x : y;
+  const nextIndex = items.findIndex((item) => (startOf(item.rect, axis) + endOf(item.rect, axis)) / 2 > position);
+  const previous = nextIndex === -1 ? items.at(-1) : items[nextIndex - 1];
+  const next = nextIndex === -1 ? undefined : items[nextIndex];
+  const centre = previous && next
+    ? (endOf(previous.rect, axis) + startOf(next.rect, axis)) / 2
+    : next ? startOf(next.rect, axis) : endOf(previous!.rect, axis);
+  // Visual order runs against DOM order in a reversed flow, so the DOM anchor is the visually earlier neighbour.
+  const [anchor, afterAnchor] = reverse
+    ? previous ? [previous.element, false] : [next!.element, true]
+    : next ? [next.element, false] : [previous!.element, true];
+  const parent = anchor.parentElement;
+  if (!parent) return NO_DROP;
+  return attemptAt(dragged, parent, afterAnchor ? anchor.nextElementSibling : anchor, centre, line ?? undefined);
+}
+
+/** Beside `element` in its nearest parent that may hold the dragged element, on the side of the pointer along that parent's axis. */
+function besideAtPoint(element: HTMLElement, dragged: HTMLElement, x: number, y: number): DropAttempt {
+  let candidate: HTMLElement | null = element;
+  while (candidate) {
+    const parent: HTMLElement | null = candidate.parentElement;
+    if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
+      const { axis, reverse, wrapped } = flowOf(parent);
+      const rect = candidate.getBoundingClientRect();
+      const position = axis === "x" ? x : y;
+      const beforeCandidate = (position < (startOf(rect, axis) + endOf(rect, axis)) / 2) !== reverse;
+      const before = beforeCandidate ? candidate : candidate.nextElementSibling;
+      if (!wrapped) return attemptAt(dragged, parent, before);
+      // The DOM neighbour after a line's last item sits on the next line, so draw the guide beside the hovered item.
+      const line = flexLines(parent).find((entry) => entry.items.some((item) => item.element === candidate));
+      return attemptAt(dragged, parent, before, beforeCandidate !== reverse ? rect.left : rightOf(rect), line);
+    }
+    candidate = parent;
+  }
+  return NO_DROP;
+}
+
+/** The pointer is near `element`'s leading or trailing edge along its parent's axis, where a drop goes beside it. */
+function inEdgeBand(element: HTMLElement, x: number, y: number): boolean {
+  const axis = element.parentElement ? flowOf(element.parentElement).axis : "y";
+  const rect = element.getBoundingClientRect();
+  const size = axis === "x" ? rect.width : rect.height;
+  const position = axis === "x" ? x : y;
+  const band = Math.min(24, Math.max(8, size * 0.3));
+  return position - startOf(rect, axis) <= band || endOf(rect, axis) - position <= band;
+}
 
 function dropAttemptForElement(
   dragged: HTMLElement,
@@ -291,10 +335,7 @@ function dropAttemptForElement(
   while (candidate) {
     const parent: HTMLElement | null = candidate.parentElement;
     if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
-      const before = beforeTarget ? candidate : candidate.nextElementSibling;
-      const check = checkDrop(dragged, parent, before);
-      if (check.ok) return { drop: { parent, before, ...lineFor(parent, before) }, rejection: null };
-      return { drop: null, rejection: check.rejection };
+      return attemptAt(dragged, parent, beforeTarget ? candidate : candidate.nextElementSibling);
     }
     candidate = parent;
   }
@@ -318,30 +359,22 @@ function htmlElementAtPoint(doc: Document, x: number, y: number): HTMLElement | 
   return element;
 }
 
+/**
+ * Anchors on the element hover would select. Near its edges, along its parent's axis, the drop goes beside it in its
+ * nearest legal parent; anywhere else in a container, including a gap between its children, the drop goes among those
+ * children at the pointer. Each container's own axis decides before and after, so an ancestor's layout never
+ * redirects a drop away from the element under the pointer.
+ */
 export function getDropAttemptAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropAttempt {
-  const target = htmlElementAtPoint(doc, x, y);
-  if (!target) return NO_DROP;
-  if (isFlexRow(target)) {
-    const gapDrop = flexRowGapAtPoint(target, dragged, x, y);
-    if (gapDrop) return { drop: gapDrop, rejection: null };
+  const underPointer = htmlElementAtPoint(doc, x, y);
+  if (!underPointer) return NO_DROP;
+  const hovered = resolveSelectionTarget(underPointer) ?? underPointer;
+  if (hovered === dragged || dragged.contains(hovered)) return NO_DROP;
+  if (!inEdgeBand(hovered, x, y) && canContainElement(hovered, dragged)) {
+    const slot = slotAtPoint(hovered, dragged, x, y);
+    if (slot.drop) return slot;
   }
-  const flexRowChild = flexRowChildAtTarget(dragged, target);
-  if (flexRowChild) {
-    const parent = flexRowChild.parentElement!;
-    const rect = flexRowChild.getBoundingClientRect();
-    const reverse = isFlexRowReverse(parent);
-    const beforeChild = reverse ? x > rect.left + rect.width / 2 : x < rect.left + rect.width / 2;
-    const attempt = dropAttemptForElement(dragged, flexRowChild, beforeChild, false);
-    if (!attempt.drop || !isWrappedFlexRow(parent)) return attempt;
-    // The DOM neighbour after a line's last item sits on the next line, so draw the guide beside the hovered item.
-    const line = flexLines(parent).find((candidate) => candidate.items.some((item) => item.element === flexRowChild));
-    const edge = beforeChild !== reverse ? rect.left : rightOf(rect);
-    return { drop: { ...attempt.drop, ...lineFor(parent, attempt.drop.before, edge, line) }, rejection: null };
-  }
-  const rect = target.getBoundingClientRect();
-  const edgeBand = Math.min(24, Math.max(8, rect.height * 0.3));
-  const inContainerInterior = y - rect.top > edgeBand && y - rect.top < rect.height - edgeBand;
-  return dropAttemptForElement(dragged, target, y < rect.top + rect.height / 2, inContainerInterior);
+  return besideAtPoint(hovered, dragged, x, y);
 }
 
 export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropLocation | null {

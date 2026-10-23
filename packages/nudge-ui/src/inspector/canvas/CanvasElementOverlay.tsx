@@ -174,6 +174,7 @@ function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null
       height: guide.orientation === "vertical",
     }),
     target: toViewportRect(viewport, guide.target),
+    label: guide.label,
   };
 }
 
@@ -902,6 +903,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         lineTestId="canvas-dom-drop-line"
         targetClassName="canvas-dom-drop-target"
         targetTestId="canvas-dom-drop-target"
+        labelClassName="canvas-dom-drop-label"
+        labelTestId="canvas-dom-drop-label"
       />
     </>
   );

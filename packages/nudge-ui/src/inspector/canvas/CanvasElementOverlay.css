@@ -117,6 +117,19 @@
 .canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
 .canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
 
+.canvas-dom-drop-label {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #ffffff;
+  font: 500 11px/1 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
 .canvas-dom-drop-target {
   z-index: 2147483646;
   box-sizing: border-box;

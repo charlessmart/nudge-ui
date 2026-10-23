@@ -228,8 +228,15 @@ describe("structuralGestures", () => {
 
     it("draws the guide beside a hovered line-end item rather than at the next line's start", () => {
       const { root, dragged, b, c } = wrappedFixture();
-      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 180, 25))).toMatchObject({
+      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 195, 25))).toMatchObject({
         parent: root, before: c, left: 210, top: 0, height: 50,
+      });
+    });
+
+    it("drops into a hovered item when the pointer is away from its edges", () => {
+      const { dragged, b } = wrappedFixture();
+      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 160, 25))).toMatchObject({
+        parent: b, before: null,
       });
     });
 
@@ -238,6 +245,129 @@ describe("structuralGestures", () => {
       expect(nudgeElement(a, "ArrowRight")).not.toBeNull();
       expect(root.firstElementChild).toBe(b);
     });
+  });
+
+  describe("a column stack inside a flex-row shell", () => {
+    // The voice library modal: a row of sidebar and main pane, and in the pane a 5x Stack holding a back button,
+    // a 3x Stack of form fields, and the previews. Stacks are column flex boxes with a row gap.
+    function voiceModalFixture() {
+      const boxed = (cid: string, [left, top, width, height]: readonly [number, number, number, number], style = "", tag = "div") => {
+        const element = document.createElement(tag);
+        element.dataset.cid = cid;
+        element.dataset.src = `src/CreateVoicePage.tsx:${cid}`;
+        element.setAttribute("style", style);
+        Object.defineProperty(element, "getBoundingClientRect", {
+          value: () => ({ left, top, width, height, right: left + width, bottom: top + height }) as DOMRect,
+        });
+        return element;
+      };
+      const column = "display: flex; flex-direction: column; flex-wrap: nowrap";
+      const shell = boxed("Box", [0, 0, 900, 600], "display: flex");
+      const sidebar = boxed("Stack", [0, 0, 220, 600], column);
+      const pane = boxed("Box", [220, 0, 680, 600], column);
+      const scroll = boxed("Box", [220, 0, 680, 600]);
+      const cap = boxed("Box", [236, 16, 480, 320]);
+      const outer = boxed("Stack", [236, 16, 480, 320], column);
+      const backBox = boxed("Box", [236, 16, 480, 40]);
+      const back = boxed("IconButton", [236, 16, 40, 40], "", "button");
+      const form = boxed("Stack", [236, 76, 480, 200], column);
+      const name = boxed("TextField", [236, 76, 480, 60]);
+      const description = boxed("TextArea", [236, 148, 480, 60]);
+      const create = boxed("Box", [236, 252, 480, 24]);
+      const previews = boxed("Box", [236, 296, 480, 40]);
+      backBox.append(back);
+      form.append(name, description, create);
+      outer.append(backBox, form, previews);
+      cap.append(outer);
+      scroll.append(cap);
+      pane.append(scroll);
+      shell.append(sidebar, pane);
+      document.body.append(shell);
+      return { shell, outer, backBox, back, form, name, description, create, previews };
+    }
+
+    it("inserts into the Stack between children when the pointer is over its row gap", () => {
+      const { outer, form, create } = voiceModalFixture();
+      expect(withElementFromPoint(outer, () => getDropLocationAtPoint(document, create, 400, 66))).toMatchObject({
+        parent: outer, before: form, orientation: "horizontal", top: 66,
+      });
+    });
+
+    it("drops beside a hovered Stack child instead of beside the shell's main pane", () => {
+      const { outer, previews, create } = voiceModalFixture();
+      expect(withElementFromPoint(previews, () => getDropLocationAtPoint(document, create, 400, 300))).toMatchObject({
+        parent: outer, before: previews, orientation: "horizontal", top: 296,
+      });
+    });
+
+    it("reorders within the hovered field's own Stack", () => {
+      const { form, name, create } = voiceModalFixture();
+      expect(withElementFromPoint(name, () => getDropLocationAtPoint(document, create, 400, 80))).toMatchObject({
+        parent: form, before: name,
+      });
+    });
+
+    it("drops beside a button in its own wrapper rather than inside it", () => {
+      const { backBox, back, create } = voiceModalFixture();
+      expect(withElementFromPoint(back, () => getDropLocationAtPoint(document, create, 250, 20))).toMatchObject({
+        parent: backBox, before: back,
+      });
+    });
+
+    it("never redirects a drop inside the pane to the shell row", () => {
+      const fixtureElements = voiceModalFixture();
+      const { shell, outer, form, previews, name, description, create } = fixtureElements;
+      const probes: [HTMLElement, number, number][] = [
+        [outer, 400, 66], [outer, 400, 286], [form, 400, 142], [previews, 400, 316], [name, 400, 130], [description, 400, 150],
+      ];
+      for (const [element, x, y] of probes) {
+        expect(withElementFromPoint(element, () => getDropLocationAtPoint(document, create, x, y))?.parent).not.toBe(shell);
+      }
+    });
+  });
+
+  it("places a column-reverse insertion by visual position", () => {
+    const { root, first, second } = fixture();
+    Object.assign(root.style, { display: "flex", flexDirection: "column-reverse" });
+    Object.defineProperty(root, "getBoundingClientRect", { value: () => ({ left: 0, top: 0, width: 200, height: 190, right: 200, bottom: 190 }) as DOMRect });
+    // DOM order first, second renders second above first, inside 30px of padding.
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 30, width: 200, height: 60, right: 200, bottom: 90 }) as DOMRect });
+    Object.defineProperty(first, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 60, right: 200, bottom: 160 }) as DOMRect });
+    const holder = document.createElement("div");
+    holder.dataset.cid = "Holder";
+    holder.dataset.src = "src/App.tsx:8:1";
+    const dragged = document.createElement("div");
+    dragged.dataset.cid = "Dragged";
+    dragged.dataset.src = "src/App.tsx:9:1";
+    holder.append(dragged);
+    document.body.append(holder);
+
+    // Above `second`, the visual top, is the end of the DOM order.
+    expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 100, 27))).toMatchObject({ parent: root, before: null });
+    // In the gap, between them visually, is between them in the DOM.
+    expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 100, 95))).toMatchObject({
+      parent: root, before: second, top: 95,
+    });
+  });
+
+  it("drops beside a hovered container near its edge rather than among its children", () => {
+    const { root, first, second } = fixture();
+    const field = document.createElement("div");
+    field.dataset.cid = "TextField";
+    field.dataset.src = "src/App.tsx:5:1";
+    const input = document.createElement("input");
+    input.dataset.cid = "TextField";
+    input.dataset.src = "src/App.tsx:6:1";
+    field.append(input);
+    root.insertBefore(field, second);
+    Object.defineProperty(field, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 60, right: 200, bottom: 160 }) as DOMRect });
+    Object.defineProperty(input, "getBoundingClientRect", { value: () => ({ left: 8, top: 120, width: 184, height: 30, right: 192, bottom: 150 }) as DOMRect });
+
+    // The field's top padding is inside its box but within its edge band.
+    expect(withElementFromPoint(field, () => getDropLocationAtPoint(document, second, 100, 104))).toMatchObject({
+      parent: root, before: field,
+    });
+    expect(first.nextElementSibling).toBe(field);
   });
 
   it("does not explain releasing an element back into its current slot", () => {

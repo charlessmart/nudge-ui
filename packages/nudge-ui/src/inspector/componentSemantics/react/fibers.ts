@@ -47,3 +47,45 @@ export function hostOutputCount(fiber: Fiber): number {
   visit(fiber);
   return count;
 }
+
+/** Only the naming fields of a component type; any of them may be missing or hold a non-string value. */
+interface NamedComponentType {
+  displayName?: string;
+  name?: string;
+  render?: NamedComponentType;
+  type?: NamedComponentType;
+}
+
+function readName(value: string | undefined): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+/** forwardRef keeps its render function under `render` and memo its component under `type`. */
+function componentTypeName(fiber: Fiber): { name: string; explicit: boolean } | null {
+  const { type } = fiber;
+  if (!type || (typeof type !== "function" && typeof type !== "object")) return null;
+  // SAFETY: component types are functions or forwardRef/memo objects, and readName checks each field's type.
+  const named = type as NamedComponentType;
+  const explicit = readName(named.displayName) ?? readName(named.render?.displayName) ?? readName(named.type?.displayName);
+  if (explicit) return { name: explicit, explicit: true };
+  const inferred = readName(named.name) ?? readName(named.render?.name) ?? readName(named.type?.name);
+  // Lowercase names are minified or anonymous, so they would not help anyone recognise the component.
+  return inferred && /^[A-Z]/.test(inferred) ? { name: inferred, explicit: false } : null;
+}
+
+/**
+ * Names the component whose root renders `element`: the outermost layer with an explicit `displayName`, as design
+ * systems set (`Stack` over the `Box` it renders), or else the nearest capitalised function name.
+ */
+export function hostComponentName(element: Element): string | null {
+  const host = findFiber(element);
+  let nearest: string | null = null;
+  let outermostExplicit: string | null = null;
+  for (let fiber = host?.return ?? null; fiber && !isHostOutput(fiber) && fiber.tag !== HOST_ROOT_TAG; fiber = fiber.return ?? null) {
+    const component = componentTypeName(fiber);
+    if (!component) continue;
+    nearest ??= component.name;
+    if (component.explicit) outermostExplicit = component.name;
+  }
+  return outermostExplicit ?? nearest;
+}
