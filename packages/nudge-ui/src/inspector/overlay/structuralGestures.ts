@@ -39,7 +39,7 @@ export interface DropAttempt {
 
 type DropCheck = { ok: true } | { ok: false; rejection: DropRejection | null };
 
-/** Canonical moves address elements by source site, so every participant needs one. */
+/** Canonical moves address elements by their identity tags, so every participant needs them. */
 function untrackedParticipant(elements: readonly (HTMLElement | null)[]): HTMLElement | null {
   return elements.find((element) => element && !element.getAttribute("data-cid")) ?? null;
 }
@@ -55,14 +55,12 @@ function checkDrop(dragged: HTMLElement, parent: HTMLElement, before: Node | nul
   if (!legality.valid) return { ok: false, rejection: describeIllegalDrop(parent) };
   const untracked = untrackedParticipant([dragged, legality.sourceParent, parent, legality.before]);
   if (!untracked) return { ok: true };
-  return {
-    ok: false,
-    rejection: {
-      message: untracked === parent || untracked === legality.before
-        ? "Can't drop here: this element isn't traced to your source"
-        : "Can't move this element: its parent isn't traced to your source",
-    },
-  };
+  const message = untracked === dragged
+    ? "Can't move this element: it isn't traced to your source"
+    : untracked === legality.sourceParent
+      ? "Can't move this element: its parent isn't traced to your source"
+      : "Can't drop here: this element isn't traced to your source";
+  return { ok: false, rejection: { message } };
 }
 
 /** Delegates to the guard shared with canonical capture and document replay. */
@@ -296,7 +294,7 @@ function besideAtPoint(element: HTMLElement, dragged: HTMLElement, x: number, y:
     const parent: HTMLElement | null = candidate.parentElement;
     if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
       const { axis, reverse, wrapped } = flowOf(parent);
-      const rect = candidate.getBoundingClientRect();
+      const rect = dropTargetRect(candidate);
       const position = axis === "x" ? x : y;
       const beforeCandidate = (position < (startOf(rect, axis) + endOf(rect, axis)) / 2) !== reverse;
       const before = beforeCandidate ? candidate : candidate.nextElementSibling;
@@ -313,42 +311,11 @@ function besideAtPoint(element: HTMLElement, dragged: HTMLElement, x: number, y:
 /** The pointer is near `element`'s leading or trailing edge along its parent's axis, where a drop goes beside it. */
 function inEdgeBand(element: HTMLElement, x: number, y: number): boolean {
   const axis = element.parentElement ? flowOf(element.parentElement).axis : "y";
-  const rect = element.getBoundingClientRect();
+  const rect = dropTargetRect(element);
   const size = axis === "x" ? rect.width : rect.height;
   const position = axis === "x" ? x : y;
   const band = Math.min(24, Math.max(8, size * 0.3));
   return position - startOf(rect, axis) <= band || endOf(rect, axis) - position <= band;
-}
-
-function dropAttemptForElement(
-  dragged: HTMLElement,
-  target: HTMLElement,
-  beforeTarget: boolean,
-  preferContainer: boolean,
-): DropAttempt {
-  if (target === dragged || dragged.contains(target)) return NO_DROP;
-  if (preferContainer && !Array.from(target.children).some((child) => child.contains(dragged))
-    && checkDrop(dragged, target, null).ok) {
-    return { drop: { parent: target, before: null, ...lineFor(target, null) }, rejection: null };
-  }
-  let candidate: HTMLElement | null = target;
-  while (candidate) {
-    const parent: HTMLElement | null = candidate.parentElement;
-    if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
-      return attemptAt(dragged, parent, beforeTarget ? candidate : candidate.nextElementSibling);
-    }
-    candidate = parent;
-  }
-  return NO_DROP;
-}
-
-export function getDropLocationForElement(
-  dragged: HTMLElement,
-  target: HTMLElement,
-  beforeTarget: boolean,
-  preferContainer = true,
-): DropLocation | null {
-  return dropAttemptForElement(dragged, target, beforeTarget, preferContainer).drop;
 }
 
 /** SVG and MathML descendants are not HTML containers, so they drop relative to their nearest HTML ancestor. */
@@ -367,14 +334,20 @@ function htmlElementAtPoint(doc: Document, x: number, y: number): HTMLElement | 
  */
 export function getDropAttemptAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropAttempt {
   const underPointer = htmlElementAtPoint(doc, x, y);
-  if (!underPointer) return NO_DROP;
+  // Checked before promotion, which could lift the hovered element out of the dragged one.
+  if (!underPointer || dragged.contains(underPointer)) return NO_DROP;
   const hovered = resolveSelectionTarget(underPointer) ?? underPointer;
-  if (hovered === dragged || dragged.contains(hovered)) return NO_DROP;
-  if (!inEdgeBand(hovered, x, y) && canContainElement(hovered, dragged)) {
-    const slot = slotAtPoint(hovered, dragged, x, y);
+  const nearest = resolveSelectionTarget(underPointer, "deep") ?? underPointer;
+  let rejection: DropRejection | null = null;
+  // Hover promotes to an interactive ancestor, but a container inside one, such as a clickable card's body, still takes drops.
+  for (const container of new Set([hovered, nearest])) {
+    if (inEdgeBand(container, x, y) || !canContainElement(container, dragged)) continue;
+    const slot = slotAtPoint(container, dragged, x, y);
     if (slot.drop) return slot;
+    rejection ??= slot.rejection;
   }
-  return besideAtPoint(hovered, dragged, x, y);
+  const beside = besideAtPoint(hovered, dragged, x, y);
+  return beside.drop || beside.rejection ? beside : { drop: null, rejection };
 }
 
 export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropLocation | null {

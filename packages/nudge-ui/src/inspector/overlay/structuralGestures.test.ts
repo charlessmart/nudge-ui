@@ -6,9 +6,9 @@ import {
   dropTargetRect,
   getDropAttemptAtPoint,
   getDropLocationAtPoint,
-  getDropLocationForElement,
   moveElement,
   nudgeElement,
+  type DropLocation,
 } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { clearActiveDraft } from "../drafts/store.ts";
@@ -27,6 +27,11 @@ function fixture() {
     first: root.querySelector('[data-test="first"]') as HTMLDivElement,
     second: root.querySelector('[data-test="second"]') as HTMLDivElement,
   };
+}
+
+/** A drop at an explicit position; recording a move ignores the guide's geometry. */
+function dropAt(parent: HTMLElement, before: Element | null): DropLocation {
+  return { parent, before, orientation: "horizontal", left: 0, top: 0, width: 0, height: 0 };
 }
 
 function withElementFromPoint<T>(element: Element, run: () => T): T {
@@ -56,8 +61,7 @@ describe("structuralGestures", () => {
 
   it("captures a sibling move as canonical intent and projects the host", () => {
     const { root, first, second } = fixture();
-    const drop = getDropLocationForElement(second, first, true, false);
-    const change = moveElement(second, drop!);
+    const change = moveElement(second, dropAt(root, first));
     expect(change).toMatchObject({ kind: "move", target: { sourceSite: { cid: "Item" } } });
     expect(getStructuralChanges()).toEqual([change]);
     expect(root.firstElementChild).toBe(second);
@@ -69,8 +73,9 @@ describe("structuralGestures", () => {
     destination.dataset.cid = "EmptyDestination";
     destination.dataset.src = "src/App.tsx:10:1";
     document.body.append(destination);
+    Object.defineProperty(destination, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
 
-    const drop = getDropLocationForElement(first, destination, true, true);
+    const drop = withElementFromPoint(destination, () => getDropLocationAtPoint(document, first, 100, 150));
     expect(drop).toMatchObject({ parent: destination, before: null });
     const change = moveElement(first, drop!);
 
@@ -84,7 +89,8 @@ describe("structuralGestures", () => {
 
   it("accepts a drop after an element when whitespace follows it", () => {
     const { root, first, second } = fixture();
-    const drop = getDropLocationForElement(first, second, false, false);
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
+    const drop = withElementFromPoint(second, () => getDropLocationAtPoint(document, first, 100, 195));
 
     expect(drop).toMatchObject({ parent: root, before: null });
     expect(moveElement(first, drop!)).not.toBeNull();
@@ -390,6 +396,28 @@ describe("structuralGestures", () => {
     });
   });
 
+  it("offers no drop while the pointer is over the dragged element inside a button", () => {
+    const { root } = fixture();
+    root.insertAdjacentHTML("beforeend", `
+      <button data-cid="Button" data-src="src/App.tsx:5:1"><span data-cid="Label" data-src="src/App.tsx:6:1">Go</span></button>`);
+    const label = root.querySelector<HTMLElement>('[data-cid="Label"]')!;
+
+    expect(withElementFromPoint(label, () => getDropAttemptAtPoint(document, label, 10, 10))).toEqual({ drop: null, rejection: null });
+  });
+
+  it("drops into a container inside a link rather than beside the link", () => {
+    const { root, first } = fixture();
+    root.insertAdjacentHTML("beforeend", `
+      <a data-cid="Card" data-src="src/App.tsx:5:1"><div data-cid="CardBody" data-src="src/App.tsx:6:1"></div></a>`);
+    const card = root.querySelector<HTMLElement>('[data-cid="Card"]')!;
+    const body = root.querySelector<HTMLElement>('[data-cid="CardBody"]')!;
+    for (const element of [card, body]) {
+      Object.defineProperty(element, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
+    }
+
+    expect(withElementFromPoint(body, () => getDropLocationAtPoint(document, first, 100, 150))).toMatchObject({ parent: body, before: null });
+  });
+
   it("drops relative to the nearest HTML ancestor of an SVG target", () => {
     const { first, root, second } = fixture();
     const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -413,11 +441,11 @@ describe("structuralGestures", () => {
   });
 
   it("never moves or deletes the page target", () => {
-    const { first, second } = fixture();
+    const { root, first } = fixture();
     const page = resolveSelectionFromElement(document.body)!;
     expect(deleteElement(page)).toBeNull();
     expect(nudgeElement(document.body, "ArrowUp")).toBeNull();
-    expect(moveElement(document.body, getDropLocationForElement(second, first, true, false)!)).toBeNull();
+    expect(moveElement(document.body, dropAt(root, first))).toBeNull();
     expect(getStructuralChanges()).toEqual([]);
   });
 

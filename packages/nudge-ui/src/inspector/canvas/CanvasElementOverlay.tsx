@@ -22,7 +22,7 @@ import overlayStyles from "./CanvasElementOverlay.css?inline";
 import { deleteElement, getDropAttemptAtPoint, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { showToast } from "../ui/Toast.tsx";
 import { changeKey } from "../changes/model.ts";
-import { getActiveDraftChanges, isDraftLocked, redo, subscribeActiveDraftChanges, undo } from "../drafts/store.ts";
+import { getActiveDraftChanges, redo, subscribeActiveDraftChanges, undo } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
@@ -703,10 +703,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
           const { drop, rejection } = getDropAttemptAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
           if (drop && !moveElement(current.element, drop)) {
-            showToast({
-              tone: "error",
-              title: isDraftLocked() ? "Can't move elements while this iteration saves" : "Couldn't record this move",
-            });
+            showToast({ tone: "error", title: "Couldn't record this move" });
           } else if (rejection) {
             showToast({ tone: "error", title: rejection.message });
           }

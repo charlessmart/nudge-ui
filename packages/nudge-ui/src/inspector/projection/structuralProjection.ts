@@ -287,6 +287,14 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   return change;
 }
 
+/** Children ordered by distance from `index`, so slot inference prefers the neighbours of a position. */
+function nearestFirst(children: readonly Element[], index: number): Element[] {
+  return children
+    .map((child, position) => ({ child, distance: Math.abs(position - index) }))
+    .sort((left, right) => left.distance - right.distance)
+    .map(({ child }) => child);
+}
+
 /** Local DOM positions are never a fallback: a missed preview beats moving the wrong item. */
 export function createStructuralMove(
   element: HTMLElement,
@@ -308,11 +316,11 @@ export function createStructuralMove(
   const beforeIndex = beforeElement ? destinationChildren.indexOf(beforeElement) : destinationChildren.length;
   if (fromIndex < 0 || beforeIndex < 0) return null;
   const sameParent = sourceParentElement === destinationParent;
-  const sourceChildrenOf = childrenSlotInvocation(sourceParentElement, element);
-  const destinationSibling = beforeElement
-    ?? [...destinationChildren].reverse().find((child): child is HTMLElement => child !== element && child.hasAttribute("data-src"))
-    ?? null;
-  const destinationChildrenOf = childrenSlotInvocation(destinationParent, destinationSibling);
+  const sourceChildrenOf = childrenSlotInvocation(sourceParentElement, nearestFirst(sourceChildren, fromIndex));
+  const destinationChildrenOf = childrenSlotInvocation(
+    destinationParent,
+    nearestFirst(destinationChildren, beforeIndex).filter((child) => child !== element),
+  );
   const change: StructuralMove = {
     id,
     kind: "move",

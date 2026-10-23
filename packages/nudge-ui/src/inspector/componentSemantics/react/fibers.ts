@@ -48,15 +48,18 @@ export function hostOutputCount(fiber: Fiber): number {
   return count;
 }
 
-/** Only the naming fields of a component type; any of them may be missing or hold a non-string value. */
+/**
+ * Only the naming fields of a component type, which is a function or a forwardRef/memo object; any field may be
+ * missing or hold something unexpected, so each is read as unknown.
+ */
 interface NamedComponentType {
-  displayName?: string;
-  name?: string;
-  render?: NamedComponentType;
-  type?: NamedComponentType;
+  displayName?: unknown;
+  name?: unknown;
+  render?: NamedComponentType | null;
+  type?: NamedComponentType | null;
 }
 
-function readName(value: string | undefined): string | null {
+function readName(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
@@ -64,7 +67,8 @@ function readName(value: string | undefined): string | null {
 function componentTypeName(fiber: Fiber): { name: string; explicit: boolean } | null {
   const { type } = fiber;
   if (!type || (typeof type !== "function" && typeof type !== "object")) return null;
-  // SAFETY: component types are functions or forwardRef/memo objects, and readName checks each field's type.
+  // SAFETY: functions and objects both carry properties, every field is optional and read as unknown, and readName
+  // checks each value; `render` and `type` hold component types (a forwardRef render is a function) or nothing.
   const named = type as NamedComponentType;
   const explicit = readName(named.displayName) ?? readName(named.render?.displayName) ?? readName(named.type?.displayName);
   if (explicit) return { name: explicit, explicit: true };

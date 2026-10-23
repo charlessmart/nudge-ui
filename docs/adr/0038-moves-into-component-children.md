@@ -41,15 +41,21 @@ addressed by its rendered-instance ref, and preview, replay and verification
 resolve it exactly as before.
 
 **Capture infers the slot from where the children were authored.** A parent
-renders an invocation's children when a child authored in it (the moved
-element for the source; the anchor, or else the last tagged child, for the
-destination) comes from a different file than the parent's own JSX. The slot
-belongs to the nearest enclosing invocation whose callsite is in the child's
-file and precedes the child. That covers components that render children
-into their root and those that render them deeper inside their own markup.
-An empty parent has no authored child, so the nearest root invocation whose
-callsite differs from the parent's own source site is assumed to render its
-children there.
+renders an invocation's children when a child authored in it comes from a
+different file than the parent's own JSX. The slot belongs to the nearest
+enclosing invocation whose callsite is in the child's file and precedes the
+child. That covers components that render children into their root and those
+that render them deeper inside their own markup. Children are tried nearest
+the moved element (for the source) or the insertion point (for the
+destination) first; a child that is itself a component root, or the
+component's own internal markup, names no invocation, so the next is tried.
+
+When no child is authored at a callsite, a parent that is the root of exactly
+one invocation is assumed to render that invocation's children, unless its
+own source site is already that callsite. A composed root, such as `Stack`
+rendering `Box` rendering a `div`, is the root of several invocations, and
+nothing in the DOM says which one receives children, so no invocation is
+named.
 
 **The prompt edits the callsite.** A parent with `childrenOf` is described as
 "the children of the `<Stack>` invocation at src/Page.tsx:12:5".
@@ -62,6 +68,8 @@ children there.
   when no enclosing invocation matches, the move keeps its previous wording.
 - An empty component that does not render `children` is still described as
   taking the element as a child; the agent has to add that support.
+- A move into an empty composed component keeps its previous wording, which
+  names the root's definition rather than the place of use.
 - A component that transforms its children (wrapping each child, inserting
   separators) previews the raw DOM insertion, which may differ from what the
   component would render.
