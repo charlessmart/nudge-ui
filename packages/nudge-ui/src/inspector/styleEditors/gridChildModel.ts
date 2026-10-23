@@ -7,8 +7,6 @@ import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 /** One grid axis of a grid item: `column` maps to grid-column-*, `row` to grid-row-*. */
 export type GridAxis = "column" | "row";
 
-export type GridChildAlignment = "auto" | "stretch" | "start" | "center" | "end";
-
 export interface GridAxisPlacement {
   start: string;
   /** Expressible as start + span N; null when the end side is auto, negative, or underivable. */
@@ -97,14 +95,6 @@ export function readGridChildAlignment(el: HTMLElement, axis: "h" | "v"): string
   const token = normalizeToken(value.authored ?? value.computed);
   return token === "normal" ? "stretch" : token;
 }
-
-export const GRID_CHILD_ALIGNMENT_OPTIONS: Array<{ value: GridChildAlignment; label: string }> = [
-  { value: "auto", label: "Parent default" },
-  { value: "stretch", label: "Fill" },
-  { value: "start", label: "Start" },
-  { value: "center", label: "Center" },
-  { value: "end", label: "End" },
-];
 
 /** Accepts any self-alignment token, not just the picker's keywords. */
 export function commitGridChildAlignment(

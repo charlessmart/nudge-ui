@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { TokenEntry, TokenTable } from "../model/index.ts";
+import { extractVarCalls } from "./cssSyntax.ts";
 import {
   defaultTokenOrigin,
-  extractVarCalls,
   interpretTokenValue,
   type TokenInterpretationContext,
 } from "./tokenInterpretation.ts";

@@ -13,7 +13,6 @@
   border: 1px solid var(--border-subtle);
 }
 
-/* The preview that opens above a saved sketch: 200px of picture, or the whole width of a narrow screen. */
 .tooltip__popup.sketch-preview-popup {
   display: block;
   width: min(216px, calc(100vw - var(--space-24)));
@@ -107,7 +106,6 @@
   overflow: visible;
   background: transparent;
   pointer-events: none;
-  /* Let the live controls and CanvasToolbar participate in one layer stack. */
   z-index: auto;
 }
 

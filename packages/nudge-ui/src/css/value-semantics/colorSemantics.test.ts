@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ColorOpacity, TokenEntry, TokenTable } from "../model/index.ts";
-import { extractVarCalls } from "./tokenInterpretation.ts";
+import { extractVarCalls } from "./cssSyntax.ts";
 import {
   applyColorOpacity,
   replaceColorPreservingOpacity,

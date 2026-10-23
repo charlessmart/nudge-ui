@@ -13,8 +13,6 @@ import {
 } from "../changes/editModel.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
 
-/** Strict JSON boundary guard for a text projection target. */
-export const isTextProjectionTarget = isTextProjectionTargetValue;
 export type { TextProjectionTarget } from "../changes/editModel.ts";
 
 /** Raw report shape at the renderer postMessage boundary. */

@@ -1,7 +1,5 @@
 "use client";
 
-export type BadgeTone = "accent" | "quiet";
-
 export function ClientBadge({
   label,
   tone = "quiet",

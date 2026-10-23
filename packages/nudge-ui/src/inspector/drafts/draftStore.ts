@@ -294,8 +294,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     return mutate(() => {
       const replayed = seams.timeline.replay(direction, (entry, next) => {
         replaceContents(draftState(entry.draftId), next);
-        // Replay always makes the entry's draft active, including when another
-        // draft is active; a known frame is revealed before that switch.
+        // Replay always makes the entry's draft active, including when another draft is active; a known frame is revealed before that switch.
         if (entry.focus?.cardId) seams.revealDraft(entry.focus.draftId, entry.focus.cardId);
         else seams.revealDraft(entry.draftId);
         if (activeId() !== entry.draftId) activate(entry.draftId);

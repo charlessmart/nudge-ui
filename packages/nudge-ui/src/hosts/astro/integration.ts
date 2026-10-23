@@ -24,8 +24,7 @@ const BOOTSTRAP_ENTRY_CONTENT = [
   "  document.head.append(script);",
   "}",
 ].join("\n");
-// Astro loads this URL directly from the installed package: the .ts sibling serves
-// workspace dev, while the compiled .js sibling ships in the published package.
+// Astro loads this URL directly from the installed package: the .ts sibling serves workspace dev, while the compiled .js sibling ships in the published package.
 const MIDDLEWARE_ENTRYPOINT = new URL(
   import.meta.url.endsWith(".ts") ? "./middleware.ts" : "./middleware.js",
   import.meta.url,
@@ -44,13 +43,11 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
 
         const markdown = installMarkdownIdentity(config.markdown, fileURLToPath(config.root));
 
-        // Plain Vite plugin records; the monorepo typechecks them against a different Vite
-        // major than Astro resolves, but the runtime contract is identical.
+        // Plain Vite plugin records; the monorepo typechecks them against a different Vite major than Astro resolves, but the runtime contract is identical.
         updateConfig({
           ...(markdown ? { markdown } : {}),
           vite: {
-            // SAFETY: Astro and this package resolve different Vite type
-            // versions, but both consume the same runtime Plugin contract.
+            // SAFETY: Astro and this package resolve different Vite type versions, but both consume the same runtime Plugin contract.
             plugins: [
               createAstroClientTransportPlugin(),
               ...nudgeUi(sharedOptions),

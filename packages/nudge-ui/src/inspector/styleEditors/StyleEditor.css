@@ -1,9 +1,7 @@
 /* Shared chrome for style-editor sections. */
 .layout,
-.spacing,
 .typography,
 .border,
-.property,
 .color {
   display: flex;
   flex-direction: column;

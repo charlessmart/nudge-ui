@@ -120,8 +120,7 @@ export async function runCli(
     await adapter.start();
     await new Promise<void>((resolveAdapter) => {
       const finish = (): void => resolveAdapter();
-      // Installing a signal handler suppresses Node's default exit, so the
-      // handler needs this direct resolver to terminate.
+      // Installing a signal handler suppresses Node's default exit, so the handler needs this direct resolver to terminate.
       resolveAdapterWait = finish;
       process.stdin.once("end", finish);
       process.once("exit", finish);

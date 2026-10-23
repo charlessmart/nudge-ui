@@ -1,14 +1,11 @@
-/* The sketch bar sits above the canvas toolbar while the pencil is active: pen, eraser, rectangle, text, color,
-   then the copy button and the last copy. The bar slides up 16px as it fades in on the toolbar's surface, then each
-   control rises 16px and grows from 90% in turn. */
+/* Sketch bar above the canvas toolbar; the bar fades up, then its controls rise in. */
 
 .sketch-options {
   position: absolute;
   left: 50%;
   bottom: calc(100% + var(--space-8));
   translate: -50% 0;
-  /* Sized by its controls, not by the little room beside the toolbar's left edge that an absolute box would otherwise
-     squeeze it into; without this the last control can hang outside the bar's background. */
+  /* Sized by its controls, not by the little room beside the toolbar's left edge that an absolute box would otherwise squeeze it into; without this the last control can hang outside the bar's background. */
   width: max-content;
   padding: var(--space-4);
   border-radius: var(--radius-12);
@@ -24,10 +21,7 @@
   gap: var(--space-4);
 }
 
-/* While the controls rise in, nothing may show below the bar: the pen and eraser artwork runs to the bar's bottom edge,
-   so a control still on its way up would hang out underneath. The clip sits on this wrapper because the items move, and
-   not on the bar because that would cut its shadow. It reaches the bar's bottom edge (through its padding) and is
-   open everywhere else, then goes away once settled so the color palette can fan out past the bar. */
+/* Clip rising controls to the bar's bottom edge until settled; the wrapper clips because the items move, then the clip drops so the palette can fan out. */
 .sketch-options[data-settled="false"] .sketch-options__items {
   clip-path: inset(-200px -200px calc(var(--space-4) * -1) -200px);
 }
@@ -70,9 +64,7 @@
   }
 }
 
-/* The recent sketches sit beside the copy button and overlap like avatars, 22px apart, the newest in front and nearest
-   the button. Each sits at its slot along the stack, so when a copy joins at the front the others slide left by
-   transition, and the one pushed out slides on and fades. */
+/* Recents overlap like avatars, 22px apart; each sits at its slot so copies slide in and out. */
 .sketch-recents {
   --sketch-recent-step: 22px;
   position: relative;

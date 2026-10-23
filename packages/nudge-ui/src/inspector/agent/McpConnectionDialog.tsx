@@ -18,8 +18,6 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 
-export const MCP_DOCS_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
-
 /** Uses the guided installer so browser diagnostics never become shell arguments. */
 export function createMcpSetupCommand(): string {
   return "npx nudge-ui agent setup";

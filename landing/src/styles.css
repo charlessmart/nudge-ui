@@ -2,7 +2,6 @@
 :root {
   --surface-panel: #F5F5F4;
   --surface-control: var(--surface-well);
-  --surface-control-hover: var(--surface-well-2x);
   --surface-raised: #FAFAFA;
   --surface-raised-2x: #fff;
   --surface-raised-hover: #F5F5F4;
@@ -15,18 +14,11 @@
 
   --text-primary: #242424;
   --text-secondary: #6f6f6f;
-  --text-muted: #777777;
   --text-muted-subtle: #a1a1a1;
 
   --accent: #0096ff;
   --accent-surface: rgba(0, 176, 255, 0.15);
-  --warning: #d97706;
-  --warning-text: #9a5b00;
-  --warning-surface: #fff6e5;
   --danger: #df4b4b;
-  --danger-text: #bd3636;
-  --danger-surface: rgba(223, 75, 75, 0.2);
-  --success: #2e7d52;
 
   --space-0: 0;
   --space-4: 4px;
@@ -39,18 +31,13 @@
   --space-40: 40px;
   --space-48: 48px;
 
-  --radius-0: 0;
   --radius-4: 4px;
-  --radius-6: 6px;
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
-  --radius-20: 20px;
   --radius-24: 24px;
   --radius-pill: 999px;
 
-  --radius-control: var(--radius-8);
-  --shadow-outline: 0 0 0 1px rgba(0, 0, 0, 0.05);
   --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.10);
   --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), 0 0 0 0.5px rgba(0, 0, 0, 0.25);
 
@@ -64,16 +51,11 @@
   --surface-inverse-hover: #343532;
   --text-inverse: #fff;
   --palette-blue: #2563eb;
-  --palette-amber: #e9a800;
-  --palette-green: #16a34a;
-  --palette-rose: #e11d48;
-  --surface-brand: var(--palette-blue);
   /* Page-scale spacing continues the inspector's 4px grid. */
   --space-28: 28px;
   --space-36: 36px;
   --space-56: 56px;
   --space-64: 64px;
-  --space-72: 72px;
   --space-80: 80px;
   --space-88: 88px;
   --space-112: 112px;
@@ -186,15 +168,6 @@ a {
   width: min(1080px, 100%);
   padding: var(--space-128) var(--space-24);
   pointer-events: auto;
-}
-
-.landing-hero-demo-grid--review {
-  padding: var(--space-0);
-  justify-items: center;
-}
-
-.landing-hero-demo-grid--review .landing-hero-demo {
-  width: min(520px, 100%);
 }
 
 .landing-hero h1 {
@@ -1126,9 +1099,6 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
     font-size: 26px;
   }
 
-  .landing-hero-demo-grid--review {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

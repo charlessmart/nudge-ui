@@ -14,8 +14,7 @@ interface HostCase {
   readonly build: () => NudgeUiClientManifest;
 }
 
-// Every host that builds a manifest without a running development server is
-// listed here. The table is the conformance contract: a new host adds one row.
+// Every host that builds a manifest without a running development server is listed here. The table is the conformance contract: a new host adds one row.
 const HOSTS: readonly HostCase[] = [
   {
     name: "static-html",
@@ -53,8 +52,7 @@ describe("client manifest conformance", () => {
     if (!reload) return;
     expect(reload.endpoint.startsWith(NUDGE_UI_ROUTE_PREFIX)).toBe(true);
     expect(["refresh-manifest", "reload-document"]).toContain(reload.strategy);
-    // A document reload only completes when the host announces the events that
-    // settle a save; refresh-manifest hosts rebuild the manifest instead.
+    // A document reload only completes when the host announces the events that settle a save; refresh-manifest hosts rebuild the manifest instead.
     if (reload.strategy === "reload-document") {
       expect(reload.events?.length ?? 0).toBeGreaterThan(0);
     }

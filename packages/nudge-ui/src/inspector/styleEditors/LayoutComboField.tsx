@@ -13,7 +13,6 @@ import { TextInput } from "../ui/TextInput.tsx";
 import { cx } from "../ui/classNames.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
-import type { ControlAppearance } from "../ui/ControlSurface.tsx";
 import {
   getCanvasProjectionAcknowledgementVersion,
   getCanvasProjectionStatus,
@@ -36,10 +35,7 @@ export interface LayoutComboFieldProps {
   domElement: HTMLElement;
   editTarget?: EditTarget;
   selection?: StyleSelection | null;
-  compact?: boolean;
   inputOnly?: boolean;
-  alwaysShowInput?: boolean;
-  appearance?: ControlAppearance;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -51,10 +47,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     domElement: el,
     editTarget,
     selection,
-    compact,
     inputOnly,
-    alwaysShowInput,
-    appearance = "default",
     revision = 0,
     onAfterEdit,
   } = props;
@@ -99,9 +92,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       const cv = meaningfulLayoutValue(el, property);
       setCurrentValue(cv);
       setCustomValue(mixed ? "" : cv);
-    } catch {
-      // noop
-    }
+    } catch {}
   }, [el, mixed, property, revision, projectionAcknowledgementVersion]);
 
   const inPresets = presets.includes(currentValue);
@@ -173,8 +164,6 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   const customInput = (
     <TextInput
       ref={customInputRef}
-      compact={compact}
-      appearance={appearance}
       inputMode="decimal"
       placeholder={mixed ? "Mixed" : "0"}
       aria-label={formatInspectorLabel(property)}
@@ -192,7 +181,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
   return (
     <span
-      className={cx("layout-combo", compact && "layout-combo--compact", blockedBy && "layout-combo--blocked")}
+      className={cx("layout-combo", blockedBy && "layout-combo--blocked")}
       data-test="layout-combo"
       data-property={property}
     >
@@ -200,8 +189,6 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         <>
           <InlineStyleBlockedTooltip blockedBy={blockedBy}>
             <Select
-              compact={compact}
-              appearance={appearance}
               data-test={`layout-combo-select-${property}`}
               value={selectValue}
               options={[
@@ -212,7 +199,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
               disabled={blockedBy !== null}
             />
           </InlineStyleBlockedTooltip>
-          {showCustom || alwaysShowInput ? (
+          {showCustom ? (
             <span className="layout-combo__custom">{customInput}</span>
           ) : null}
         </>

@@ -49,11 +49,7 @@ interface BoundaryProps {
 
 let overridesByCallsite = new Map<string, Readonly<Record<string, unknown>>>();
 const listeners = new Set<() => void>();
-/**
- * Mounted invocation accounting is runtime state, not canonical identity: a boundary
- * registers by its stable transformed callsite and unregisters on unmount, surviving
- * rerenders and React Strict Mode's effect probe.
- */
+/** Mounted invocation accounting is runtime state, not canonical identity: a boundary registers by its stable transformed callsite and unregisters on unmount, surviving rerenders and React Strict Mode's effect probe. */
 const mountedCallsites = new Map<string, number>();
 
 function registerMountedCallsite(callsiteId: string): () => void {

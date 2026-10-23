@@ -32,10 +32,7 @@ export interface PreviewVerificationRequest {
   readonly retryAnimation?: (run: () => void) => void;
 }
 
-/**
- * Owns the verify-and-publish cycle shared by the host document and Canvas frames:
- * one preview attempt, every previewable change, one diagnostic per conflict.
- */
+/** Owns the verify-and-publish cycle shared by the host document and Canvas frames: one preview attempt, every previewable change, one diagnostic per conflict. */
 export function verifyPreviewChanges(
   request: PreviewVerificationRequest,
   effects: PreviewVerificationEffects = defaultEffects,

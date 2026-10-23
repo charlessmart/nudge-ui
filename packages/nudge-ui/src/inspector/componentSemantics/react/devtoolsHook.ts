@@ -33,17 +33,12 @@ interface CommitObserver {
 }
 
 function hook(): ReactDevtoolsHook | null {
-  // SAFETY: the global is absent or a hook object installed by React Refresh,
-  // React DevTools, or the capture script; members are checked before use.
+  // SAFETY: the global is absent or a hook object installed by React Refresh, React DevTools, or the capture script; members are checked before use.
   const value = (globalThis as typeof globalThis & GlobalWithHook).__REACT_DEVTOOLS_GLOBAL_HOOK__;
   return typeof value === "object" && value !== null ? value : null;
 }
 
-/**
- * A fiber must only be edited by its own renderer: a known owner without the toolkit
- * (a production build) answers null rather than borrowing another copy's; an unknown
- * owner resolves only when exactly one capable renderer exists.
- */
+/** A fiber must only be edited by its own renderer: a known owner without the toolkit (a production build) answers null rather than borrowing another copy's; an unknown owner resolves only when exactly one capable renderer exists. */
 export function propEditingRenderer(root?: FiberRoot): ReactRendererInternals | null {
   const renderers = hook()?.renderers;
   if (!(renderers instanceof Map)) return null;

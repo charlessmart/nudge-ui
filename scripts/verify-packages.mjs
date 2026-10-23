@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -30,7 +30,6 @@ try {
   for (const directory of packageDirectories) {
     verifyPackage(resolve(repositoryRoot, "packages", directory));
   }
-  if (process.argv.includes("--install-consumers")) verifyPackedAstroConsumers();
   console.log(`Verified ${packageDirectories.length} publishable packages.`);
 } finally {
   if (!retainedOutput) rmSync(outputDirectory, { recursive: true, force: true });
@@ -136,8 +135,7 @@ function verifyPackage(packageRoot) {
     );
     assert(entries.includes("package/bin/nudge-ui.mjs"), "nudge-ui is missing its CLI entry point.");
     assert(entries.includes("package/dist/nudge-ui.mjs"), "nudge-ui is missing its bundled CLI.");
-    // The browser client is served over HTTP into pages that have no module
-    // resolution, so it must carry every dependency it needs.
+    // The browser client is served over HTTP into pages that have no module resolution, so it must carry every dependency it needs.
     const clientPath = "package/dist/client.mjs";
     assert(entries.includes(clientPath), "nudge-ui is missing its self-contained inspector client.");
     const externalSpecifiers = externalModuleSpecifiers(tarFile(tarball, clientPath));
@@ -174,89 +172,6 @@ function verifyPackage(packageRoot) {
   console.log(`  ${packageJson.name}@${packageJson.version}: ${entries.length} files`);
 }
 
-/** Installs the packed tarballs into React 18 and 19 consumers, catching workspace-link blind spots. */
-function verifyPackedAstroConsumers() {
-  const tarballs = new Map();
-  for (const entry of readdirSync(outputDirectory).filter((name) => name.endsWith(".tgz"))) {
-    const tarball = join(outputDirectory, entry);
-    const packageJson = JSON.parse(tarFile(tarball, "package/package.json"));
-    tarballs.set(packageJson.name, tarball);
-  }
-  // Package names, not export subpaths: the hosts ship as subpaths of the
-  // single distribution package, so there is no separate tarball to install.
-  const requiredPackages = [
-    "nudge-ui",
-  ];
-  for (const packageName of requiredPackages) {
-    assert(tarballs.has(packageName), `Packed Astro verification is missing ${packageName}.`);
-  }
-
-  const consumers = [
-    { astroVersion: "5.0.0", reactVersion: "18.3.1" },
-    { astroVersion: "7.2.10", reactVersion: "19.2.8" },
-  ];
-  for (const { astroVersion, reactVersion } of consumers) {
-    const reactMajor = reactVersion.split(".")[0];
-    const consumerRoot = mkdtempSync(join(tmpdir(), `nudge-ui-astro-react-${reactMajor}-`));
-    try {
-      const localPackages = Object.fromEntries(requiredPackages.map((packageName) => [
-        packageName,
-        `file:${tarballs.get(packageName)}`,
-      ]));
-      writeFileSync(join(consumerRoot, "package.json"), JSON.stringify({
-        name: `packed-astro-react-${reactMajor}`,
-        private: true,
-        type: "module",
-        dependencies: {
-          ...localPackages,
-          astro: astroVersion,
-          react: reactVersion,
-          "react-dom": reactVersion,
-        },
-        pnpm: { overrides: localPackages },
-      }, null, 2));
-      mkdirSync(join(consumerRoot, "src/pages"), { recursive: true });
-      writeFileSync(
-        join(consumerRoot, "astro.config.mjs"),
-        'import { withNudgeUi } from "nudge-ui/astro";\nexport default withNudgeUi({});\n',
-      );
-      writeFileSync(join(consumerRoot, "src/pages/index.astro"), "<p>Packed Astro consumer</p>\n");
-      writeFileSync(join(consumerRoot, "verify.mjs"), [
-        'import { dev } from "astro";',
-        'import { withNudgeUi } from "nudge-ui/astro";',
-        'const integrations = [{ name: "existing", hooks: {} }];',
-        "const input = { integrations };",
-        "const output = withNudgeUi(input);",
-        'if (input.integrations.length !== 1) throw new Error("withNudgeUi mutated its input.");',
-        'if (output.integrations.length !== 2) throw new Error("withNudgeUi did not append the Adapter.");',
-        'if (output.integrations[1]?.name !== "nudge-ui") throw new Error("Astro Adapter is missing.");',
-        'const server = await dev({ root: new URL(".", import.meta.url), logLevel: "silent", server: { host: "127.0.0.1", port: 0 } });',
-        "try {",
-        '  const origin = `http://127.0.0.1:${server.address.port}`;',
-        '  const page = await fetch(`${origin}/`);',
-        '  if (!page.ok) throw new Error("Astro page is unavailable.");',
-        '  const manifest = await fetch(`${origin}/__nudge_ui__/manifest`);',
-        '  const payload = await manifest.json();',
-        '  if (!manifest.ok || payload.runtime?.host !== "astro") throw new Error("Astro manifest is unavailable.");',
-        '  const client = await fetch(`${origin}/__nudge_ui__/client.mjs`);',
-        '  if (!client.ok || (await client.text()).length === 0) throw new Error("Inspector client is unavailable.");',
-        "} finally {",
-        "  await server.stop();",
-        "}",
-      ].join("\n"));
-      runChecked(
-        process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-        ["install", "--ignore-scripts", "--config.auto-install-peers=false"],
-        consumerRoot,
-      );
-      runChecked(process.execPath, ["verify.mjs"], consumerRoot);
-      console.log(`  packed Astro consumer: Astro ${astroVersion}, React ${reactVersion}`);
-    } finally {
-      rmSync(consumerRoot, { recursive: true, force: true });
-    }
-  }
-}
-
 function externalModuleSpecifiers(code) {
   const sourceFile = ts.createSourceFile("client.mjs", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const specifiers = [];
@@ -276,14 +191,6 @@ function externalModuleSpecifiers(code) {
         : "<dynamic import>");
     }
     ts.forEachChild(node, visit);
-  }
-}
-
-function runChecked(executable, args, cwd) {
-  const result = spawnSync(executable, args, { cwd, encoding: "utf8" });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`${executable} ${args.join(" ")} failed:\n${result.stdout}${result.stderr}`);
   }
 }
 

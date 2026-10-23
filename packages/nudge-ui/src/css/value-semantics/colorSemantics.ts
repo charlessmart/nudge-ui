@@ -36,8 +36,7 @@ const COLOR_FUNCTION_NAMES = new Set([
   "hsla",
 ]);
 
-// Valid color values without an alpha syntax; opacity edits wrap them in
-// color-mix(), while full opacity preserves the authored keyword.
+// Valid color values without an alpha syntax; opacity edits wrap them in color-mix(), while full opacity preserves the authored keyword.
 const NAMED_COLOR_KEYWORDS = new Set([
   "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
   "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",

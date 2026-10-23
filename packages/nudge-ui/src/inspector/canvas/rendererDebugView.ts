@@ -66,10 +66,7 @@ interface ElementBackup {
   readonly properties: Map<string, StyleBackup>;
 }
 
-/**
- * Inline style overrides that can be put back exactly as the app left them.
- * A property the app rewrote meanwhile keeps the app's value.
- */
+/** Inline style overrides that can be put back exactly as the app left them. A property the app rewrote meanwhile keeps the app's value. */
 class InlineStyleOverrides {
   private readonly backups = new Map<StyledElement, ElementBackup>();
 
@@ -130,11 +127,7 @@ function countDescendants(element: Element, limit: number): number {
   return count;
 }
 
-/**
- * Chooses the subtree to explode for the element under the pointer: the
- * nearest ancestor with enough layers to be worth showing, preferring a
- * smaller candidate over one that covers most of the viewport.
- */
+/** Chooses the subtree to explode for the element under the pointer: the nearest ancestor with enough layers to be worth showing, preferring a smaller candidate over one that covers most of the viewport. */
 export function chooseXrayRoot(target: Element, viewportArea: number): Element | null {
   const body = target.ownerDocument.body;
   let smaller: Element | null = null;
@@ -275,8 +268,7 @@ export function createRendererDebugView(
     // Commit the starting state so the transforms below transition from it.
     void root.getBoundingClientRect();
     overrides.set(root, "transform", XRAY_ROOT_TRANSFORM);
-    // Transforms compound through preserve-3d, so a constant gap per level
-    // stacks each layer above its parent.
+    // Transforms compound through preserve-3d, so a constant gap per level stacks each layer above its parent.
     for (const { element, depth } of layers) {
       if (depth > 0) overrides.set(element, "translate", `0 0 ${XRAY_LAYER_GAP}px`);
     }
@@ -358,11 +350,7 @@ export function createRendererDebugView(
     hideHoverOutline();
   }
 
-  /**
-   * A click explodes the hovered subtree. Clicking a layer while exploded selects it and collapses back, staying in Explode view for the next click;
-   * any other click while exploded just collapses it. Clicks during the collapse do nothing, so a click that
-   * dismisses a group can't explode whatever sits under it.
-   */
+  /** A click explodes the hovered subtree; clicking a layer selects and collapses, while other clicks just collapse. */
   function onClick(event: MouseEvent): void {
     const point = { x: event.clientX, y: event.clientY };
     if (phase === "idle") {

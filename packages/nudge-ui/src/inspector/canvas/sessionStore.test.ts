@@ -98,9 +98,7 @@ function resetAllState(): void {
     localStorage.removeItem(storageKey(nudgeUiProjectId));
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v3`);
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v${SCHEMA_VERSION - 1}`);
-  } catch {
-    // ignore
-  }
+  } catch {}
   clearRestoreCount();
   resetAutoSave();
 }

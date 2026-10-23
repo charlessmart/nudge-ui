@@ -281,14 +281,6 @@ export function useSelectedElements(): readonly SelectedElement[] {
   return useSyncExternalStore(subscribe, getSelectedElements, getSelectedElements);
 }
 
-export function useSelection(): Selection | null {
-  return useSyncExternalStore(subscribe, getSelection, getSelection);
-}
-
 export function useHierarchy(): HTMLElement[] {
   return useSyncExternalStore(subscribe, getHierarchy, getHierarchy);
-}
-
-export function useHierarchyIndex(): number {
-  return useSyncExternalStore(subscribe, getHierarchyIndex, getHierarchyIndex);
 }

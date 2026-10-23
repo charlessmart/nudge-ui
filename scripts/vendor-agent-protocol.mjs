@@ -1,5 +1,4 @@
-// Copies the compiled private protocol into each public package and redirects emitted
-// imports, so consumers need no unpublished workspace dependency.
+// Copies the compiled private protocol into each public package and redirects emitted imports, so consumers need no unpublished workspace dependency.
 import {
   copyFileSync,
   mkdirSync,

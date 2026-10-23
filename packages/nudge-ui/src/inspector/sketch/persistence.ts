@@ -106,8 +106,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 async function openDatabase(): Promise<IDBDatabase | null> {
   const factory = indexedDbFactory();
   if (!factory) return null;
-  // Demo runtimes (the landing page) are session-only: sketches live in the
-  // in-memory fallback and never touch IndexedDB.
+  // Demo runtimes (the landing page) are session-only: sketches live in the in-memory fallback and never touch IndexedDB.
   if (isDemoRuntime()) return null;
   if (!databasePromise) {
     databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
@@ -204,51 +203,6 @@ export async function writeSketchPersistence(
   }
 }
 
-export async function writeSketchHandoff(
-  projectId: string,
-  handoff: SketchHandoffRecord,
-): Promise<void> {
-  if (configuredStorage) {
-    return updateConfigured(configuredStorage, projectId, { handoffs: [handoff] }, "Sketch handoff state could not be saved.");
-  }
-  const database = await openDatabase();
-  if (!database) {
-    memoryState(projectId).handoffs.set(handoff.id, handoff);
-    return;
-  }
-  try {
-    const transaction = database.transaction(SKETCH_HANDOFFS_STORE, "readwrite");
-    transaction.objectStore(SKETCH_HANDOFFS_STORE).put(handoff);
-    await transactionDone(transaction);
-  } catch (error) {
-    throw storageError("Sketch handoff state could not be saved.", error);
-  }
-}
-
-export async function writeSketchHandoffs(
-  projectId: string,
-  handoffs: readonly SketchHandoffRecord[],
-): Promise<void> {
-  if (handoffs.length === 0) return;
-  if (configuredStorage) {
-    return updateConfigured(configuredStorage, projectId, { handoffs }, "Sketch handoff state could not be saved.");
-  }
-  const database = await openDatabase();
-  if (!database) {
-    const state = memoryState(projectId);
-    handoffs.forEach((handoff) => state.handoffs.set(handoff.id, handoff));
-    return;
-  }
-  try {
-    const transaction = database.transaction(SKETCH_HANDOFFS_STORE, "readwrite");
-    const store = transaction.objectStore(SKETCH_HANDOFFS_STORE);
-    handoffs.forEach((handoff) => store.put(handoff));
-    await transactionDone(transaction);
-  } catch (error) {
-    throw storageError("Sketch handoff state could not be saved.", error);
-  }
-}
-
 export async function deleteSketchPersistence(projectId: string, sketchId: string): Promise<void> {
   const existing = await readSketchPersistence(projectId);
   const handoffIds = existing.handoffs
@@ -302,13 +256,6 @@ export async function clearSketchPersistence(projectId: string): Promise<void> {
   } catch (error) {
     throw storageError("Sketch storage could not be cleared.", error);
   }
-}
-
-export async function closeSketchDatabase(): Promise<void> {
-  if (!databasePromise) return;
-  const database = await databasePromise.catch(() => null);
-  database?.close();
-  databasePromise = null;
 }
 
 /** Test seam for the no-IndexedDB fallback; it does not delete browser data. */

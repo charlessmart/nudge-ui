@@ -2,8 +2,7 @@
   position: absolute;
   left: 50%;
   bottom: var(--space-20);
-  /* Keep the persistent controls above the live sketch surface. The sketch
-     toolbar gets the next layer so both toolbars remain available together. */
+  /* Keep the persistent controls above the live sketch surface. The sketch toolbar gets the next layer so both toolbars remain available together. */
   z-index: calc(var(--z-index) - 2);
   display: flex;
   align-items: center;
@@ -16,9 +15,7 @@
   pointer-events: auto;
 }
 
-/* The live sketch surface is a separate stacking context. Keep a copy of the
-   toolbar at the root layer while sketching so pointer events reach the
-   controls instead of the full-screen SVG drawing surface. */
+/* The live sketch surface is a separate stacking context. Keep a copy of the toolbar at the root layer while sketching so pointer events reach the controls instead of the full-screen SVG drawing surface. */
 .canvas-toolbar__portal {
   position: fixed;
   inset: 0;

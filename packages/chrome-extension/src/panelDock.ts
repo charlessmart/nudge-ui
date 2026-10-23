@@ -1,12 +1,4 @@
-/**
- * Floats nudge-ui's inspector panel over the page and lets the user drag it to
- * either edge. This lives in the extension only. It sets nudge-ui's panel
- * placement variables (`--panel-inset`, `--panel-reserve-start`,
- * `--panel-reserve-end`), which lay out everything beside the panel. A few
- * rules also target nudge-ui's `.panel`, `.panel__header-row`,
- * `.panel__restore`, `.locked-notice`, and collapse button, and its theme
- * variables; renaming any of those in nudge-ui needs a matching change here.
- */
+/** Extension-only panel docking; sets nudge-ui's `--panel-*` variables and targets its `.panel`, `.panel__header-row`, `.panel__restore`, `.locked-notice`, and collapse button. */
 import { INSPECTOR_ROOT_ID, PANEL_SIDE_WRITE_EVENT, type PanelSide } from "./protocol.ts";
 
 const SIDE_ATTRIBUTE = "data-nudge-panel-side";
@@ -20,8 +12,7 @@ const DRAG_HANDLE_SELECTOR = ".panel__header-row";
 const DOCKED = `:host([${SIDE_ATTRIBUTE}])`;
 const LEFT = `:host([${SIDE_ATTRIBUTE}="left"])`;
 
-// `:host(...)` raises every selector above nudge-ui's own single-class rules,
-// whatever order the sheets are adopted in.
+// `:host(...)` raises every selector above nudge-ui's own single-class rules, whatever order the sheets are adopted in.
 const DOCK_CSS = `
 ${DOCKED} { --panel-inset: 8px; }
 ${LEFT} {

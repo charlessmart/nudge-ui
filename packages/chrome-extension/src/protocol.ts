@@ -55,18 +55,12 @@ export function siteKeyPrefix(origin: string): string {
   return `site:${origin}|`;
 }
 
-/**
- * Consent for the font list lives apart from `site:` keys, which the page can
- * write through the bridge; only the service worker writes this one.
- */
+/** Consent for the font list lives apart from `site:` keys, which the page can write through the bridge; only the service worker writes this one. */
 export function systemFontsKey(origin: string): string {
   return `system-fonts:${origin}`;
 }
 
-/**
- * Sketches carry screenshots, so they live apart from the `site:` keys the
- * service worker reads in full before every injection.
- */
+/** Sketches carry screenshots, so they live apart from the `site:` keys the service worker reads in full before every injection. */
 export function sketchKeyPrefix(origin: string): string {
   return `sketch:${origin}|`;
 }
@@ -109,10 +103,7 @@ export type SketchResponse =
   | { id: number; ok: true; records?: StoredSketchRecords }
   | { id: number; ok: false; error: string };
 
-/**
- * `asked` is true when the bridge saw a trusted click or Enter on the "Show
- * system fonts" row, which records the user's consent for the sender's origin.
- */
+/** `asked` is true when the bridge saw a trusted click or Enter on the "Show system fonts" row, which records the user's consent for the sender's origin. */
 export interface FontListMessage {
   type: typeof FONT_LIST_MESSAGE;
   asked: boolean;

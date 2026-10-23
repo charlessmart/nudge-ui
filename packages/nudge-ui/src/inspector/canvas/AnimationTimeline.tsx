@@ -84,8 +84,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   const scaleRef = useRef<HTMLDivElement>(null);
   const ticks = timelineTicks(duration);
   const minorMs = minorStepMs(ticks);
-  // Where the playhead is drawn while it glides to a press; null outside one, so playback
-  // and dragging move it, and the marks rising around it, with `progress` exactly.
+  // Where the playhead is drawn while it glides to a press; null outside one, so playback and dragging move it, and the marks rising around it, with `progress` exactly.
   const [glideProgress, setGlideProgress] = useState<number | null>(null);
   const glideFrame = useRef(0);
   const glideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -95,8 +94,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   const drawnProgress = glideProgress ?? progress;
   const playheadMs = drawnProgress * duration;
 
-  // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as
-  // falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
+  // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
   const proximities = ticks.map((tick) => tickProximity(tick.ms - playheadMs, minorMs));
   const drawn = useRef<{ proximities: readonly (number | null)[]; falling: readonly boolean[] }>({ proximities: [], falling: [] });
   const falling = proximities.map((proximity, index) => {

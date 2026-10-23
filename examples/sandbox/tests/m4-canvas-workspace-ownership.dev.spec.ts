@@ -82,7 +82,6 @@ test.describe("Canvas workspace lease — single ownership", () => {
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
 
-    // Open second tab
     const page2 = await context.newPage();
     await page2.goto("/playground");
     await waitForLockedNotice(page2);
@@ -179,7 +178,6 @@ test.describe("Canvas workspace — stale change detection", () => {
       localStorage.setItem(keys[0]!, JSON.stringify(session));
     });
 
-    // Reload to trigger hydration
     await page.reload();
     await waitForInspector(page);
 

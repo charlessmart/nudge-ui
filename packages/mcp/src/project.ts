@@ -55,8 +55,7 @@ export interface StoredProjectSession extends ProjectSession {
 }
 
 export function defaultSessionRegistryRoot(): string {
-  // MCP hosts sanitize TMPDIR and XDG_RUNTIME_DIR for stdio child processes;
-  // the OS account home is stable across the development server and adapter.
+  // MCP hosts sanitize TMPDIR and XDG_RUNTIME_DIR for stdio child processes; the OS account home is stable across the development server and adapter.
   return join(userInfo().homedir, ".cache", "nudge-ui", "sessions");
 }
 

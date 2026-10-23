@@ -218,12 +218,6 @@ export function discardAgentDispatch(revision: number): void {
   dispatches.delete(revision);
 }
 
-export function getAgentDispatchSize(revision: number): number {
-  const snapshot = dispatches.get(revision);
-  if (!snapshot) return 0;
-  return snapshot.changes.length + snapshot.structuralChanges.length;
-}
-
 function afterBrowserPaint(doc: Document): Promise<void> {
   const ownerWindow = doc.defaultView;
   const requestFrame = ownerWindow?.requestAnimationFrame.bind(ownerWindow);

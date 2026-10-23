@@ -29,8 +29,7 @@ function createStore<T>(initial: T): {
   };
 }
 
-// Which view the tool applies. Outline view, Explode view and Animation are separate tools, so only one is ever active;
-// the tool selection lives with the canvas and this is just the view the tool will show when it is.
+// Which view the tool applies. Outline view, Explode view and Animation are separate tools, so only one is ever active; the tool selection lives with the canvas and this is just the view the tool will show when it is.
 const viewMode = createStore<DebugViewMode>("outlines");
 
 export const getDebugViewMode = viewMode.get;
@@ -51,10 +50,7 @@ export const getAnimationBusy = animationBusy.get;
 export const setAnimationBusy = animationBusy.set;
 export const useAnimationBusy = animationBusy.use;
 
-/**
- * Controller-only: a renderer has pulled a subtree apart, so element chrome the controller draws
- * flat over the frame would only sit on top of the exploded layers.
- */
+/** Controller-only: a renderer has pulled a subtree apart, so element chrome the controller draws flat over the frame would only sit on top of the exploded layers. */
 const exploded = createStore<boolean>(false);
 
 export const getDebugExploded = exploded.get;

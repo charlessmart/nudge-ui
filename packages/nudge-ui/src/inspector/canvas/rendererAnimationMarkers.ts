@@ -5,8 +5,7 @@ const CONTAINER_ID = "nudge-ui-animation-markers";
 const MARKER_ATTRIBUTE = "data-nudge-ui-animation-marker";
 const MARKER_LIMIT = 150;
 const RESCAN_DELAY_MS = 400;
-// Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables.
-// Same 24px square and 4px gap above the element as the DOM navigator trigger, so the navigator covers its marker on selection.
+// Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables. Same 24px square and 4px gap above the element as the DOM navigator trigger, so the navigator covers its marker on selection.
 const MARKER_SIZE = 24;
 const MARKER_GAP = 4;
 const MARKER_INSET = 4;
@@ -36,10 +35,7 @@ export interface RendererAnimationMarkers {
   dispose(): void;
 }
 
-/**
- * Pins one keyframes icon to the topmost element of each animation. Clicking an icon selects that element
- * through `onPick`, which sends it down the same path as a normal selection.
- */
+/** Pins one keyframes icon to the topmost element of each animation. Clicking an icon selects that element through `onPick`, which sends it down the same path as a normal selection. */
 export function createRendererAnimationMarkers(
   document: Document = globalThis.document,
   onPick: (target: Element) => boolean = () => false,
@@ -63,14 +59,12 @@ export function createRendererAnimationMarkers(
       container.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;pointer-events:none";
       root.append(container);
     }
-    const startedAt = window.performance.now();
     const byTrigger = new Map<HTMLElement, AnimationGroup[]>();
     for (const group of scanPageAnimations(document, isOwn)) {
       const groups = byTrigger.get(group.trigger) ?? [];
       groups.push(group);
       byTrigger.set(group.trigger, groups);
     }
-    container.setAttribute("data-scan-ms", (window.performance.now() - startedAt).toFixed(1));
     let placed = 0;
     for (const [trigger, groups] of byTrigger) {
       if (placed >= MARKER_LIMIT) break;

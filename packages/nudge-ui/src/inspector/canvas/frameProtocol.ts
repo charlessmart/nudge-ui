@@ -222,7 +222,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "Escape" | "KeyI" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "Escape" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 export interface KeyboardShortcutMessage extends RendererMessage {
@@ -298,10 +298,7 @@ export interface DebugViewStateMessage extends RendererMessage {
   state: DebugViewState;
 }
 
-/**
- * The view tool pulled a subtree apart in this renderer. The controller hides its own element
- * chrome meanwhile, since a flat overlay cannot follow the exploded layers.
- */
+/** The view tool pulled a subtree apart in this renderer. The controller hides its own element chrome meanwhile, since a flat overlay cannot follow the exploded layers. */
 export interface DebugViewPhaseMessage extends RendererMessage {
   type: "debug-view-phase";
   /** True from the moment a subtree explodes until it has finished collapsing. */

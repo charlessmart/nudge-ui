@@ -27,10 +27,8 @@ interface BarState {
   readonly description: string;
   readonly tool: SketchDrawingTool;
   readonly colorId?: SketchPenColor["id"];
-  /** Whether there is anything drawn to save. */
   readonly hasContent: boolean;
   readonly saving?: boolean;
-  /** How many saved sketches sit beside the save button. */
   readonly saved: number;
   readonly paletteOpen?: boolean;
 }

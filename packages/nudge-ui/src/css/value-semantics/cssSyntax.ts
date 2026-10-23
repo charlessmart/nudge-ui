@@ -3,10 +3,7 @@ export interface VarReference {
   readonly fallback?: string;
 }
 
-/**
- * Parses a value that is exactly one `var()` reference. The fallback may
- * contain nested parentheses; trailing text is rejected rather than swallowed.
- */
+/** Parses a value that is exactly one `var()` reference. The fallback may contain nested parentheses; trailing text is rejected rather than swallowed. */
 export function parseSingleVarReference(value: string): VarReference | null {
   const trimmed = value.trim();
   if (!/^var\(/i.test(trimmed)) return null;

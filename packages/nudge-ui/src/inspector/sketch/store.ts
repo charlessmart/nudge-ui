@@ -287,8 +287,7 @@ export function saveSketch(input: SaveSketchInput): Promise<SketchDocument> {
       originalImage: input.originalImage,
       annotatedImage: input.annotatedImage,
     };
-    // Only the most recent sketches are kept; saving another pushes the oldest out instead of failing. The one being
-    // saved is the latest by definition, whatever the clock says, so it always stays.
+    // Only the most recent sketches are kept; saving another pushes the oldest out instead of failing. The one being saved is the latest by definition, whatever the clock says, so it always stays.
     const others = sortDocuments(documents.filter((candidate) => candidate.id !== document.id));
     const nextDocuments = [document, ...others].slice(0, SKETCH_LIMITS.keptSketches);
     const evicted = others.filter((candidate) => !nextDocuments.includes(candidate));

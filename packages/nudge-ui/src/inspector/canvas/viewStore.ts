@@ -85,10 +85,6 @@ export function setBoardCamera(next: CanvasCamera): void {
   notify();
 }
 
-export function updateBoardCamera(partial: Partial<CanvasCamera>): void {
-  setBoardCamera({ ...camera, ...partial });
-}
-
 /** Moves the camera to frame content; the initial fit-all then no longer runs. */
 export function placeBoardCamera(next: CanvasCamera): void {
   cameraPlaced = true;

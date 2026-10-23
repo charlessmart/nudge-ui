@@ -88,7 +88,6 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   await expect(bar("pen").locator('[data-test="sketch-tool-text"]')).toHaveAttribute("data-active", "true");
   await expect(bar("eraser").locator('[data-test="sketch-tool-eraser"]')).toHaveAttribute("data-active", "true");
 
-  // A saved sketch opens its larger preview.
   await bar("three-saved").locator('[data-test="sketch-recent-copy"]').first().hover();
   await expect(page.locator('[data-test="sketch-preview"]')).toBeVisible();
   expect(errors).toEqual([]);
