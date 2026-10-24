@@ -77,22 +77,15 @@ export interface StoredImage {
   base64: string;
 }
 
-/** A sketch document with its images encoded; other fields pass through unchanged. */
+/** A sketch document with its image encoded; other fields pass through unchanged. */
 export interface StoredSketchDocument {
   id: string;
-  originalImage: StoredImage;
-  annotatedImage: StoredImage;
-  [field: string]: unknown;
-}
-
-export interface StoredSketchHandoff {
-  id: string;
+  image: StoredImage;
   [field: string]: unknown;
 }
 
 export interface StoredSketchRecords {
   documents: StoredSketchDocument[];
-  handoffs: StoredSketchHandoff[];
 }
 
 export type SketchRequest =
@@ -102,7 +95,6 @@ export type SketchRequest =
     op: "update";
     put: StoredSketchRecords;
     deleteDocumentIds: string[];
-    deleteHandoffIds: string[];
   };
 
 export type SketchResponse =
@@ -157,23 +149,15 @@ function parseJsonRecord(detail: unknown): Record<string, unknown> | null {
 /** Parses one record at rest; anything else is dropped before it reaches the inspector. */
 export function parseStoredSketchDocument(value: unknown): StoredSketchDocument | null {
   if (!isRecord(value) || typeof value.id !== "string") return null;
-  const { originalImage, annotatedImage } = value;
-  if (!isStoredImage(originalImage) || !isStoredImage(annotatedImage)) return null;
-  return { ...value, id: value.id, originalImage, annotatedImage };
-}
-
-/** Parses one handoff at rest; the sketch store validates the full record later. */
-export function parseStoredSketchHandoff(value: unknown): StoredSketchHandoff | null {
-  if (!isRecord(value) || typeof value.id !== "string") return null;
-  return { ...value, id: value.id };
+  const { image } = value;
+  if (!isStoredImage(image)) return null;
+  return { ...value, id: value.id, image };
 }
 
 export function parseStoredSketchRecords(value: unknown): StoredSketchRecords | null {
-  if (!isRecord(value) || !Array.isArray(value.documents) || !Array.isArray(value.handoffs)) return null;
+  if (!isRecord(value) || !Array.isArray(value.documents)) return null;
   const documents = value.documents.map(parseStoredSketchDocument).filter((document) => document !== null);
-  const handoffs = value.handoffs.map(parseStoredSketchHandoff).filter((handoff) => handoff !== null);
-  const complete = documents.length === value.documents.length && handoffs.length === value.handoffs.length;
-  return complete ? { documents, handoffs } : null;
+  return documents.length === value.documents.length ? { documents } : null;
 }
 
 export function parseStorageWrite(detail: unknown): StorageWrite | null {
@@ -219,8 +203,8 @@ export function parseSketchRequest(detail: unknown): SketchRequest | null {
   if (parsed.op === "read") return { id: parsed.id, op: "read" };
   if (parsed.op !== "update") return null;
   const put = parseStoredSketchRecords(parsed.put);
-  if (!put || !isStringArray(parsed.deleteDocumentIds) || !isStringArray(parsed.deleteHandoffIds)) return null;
-  return { id: parsed.id, op: "update", put, deleteDocumentIds: parsed.deleteDocumentIds, deleteHandoffIds: parsed.deleteHandoffIds };
+  if (!put || !isStringArray(parsed.deleteDocumentIds)) return null;
+  return { id: parsed.id, op: "update", put, deleteDocumentIds: parsed.deleteDocumentIds };
 }
 
 export function parseSketchResponse(detail: unknown): SketchResponse | null {

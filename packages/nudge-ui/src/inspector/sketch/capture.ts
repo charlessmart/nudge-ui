@@ -448,17 +448,3 @@ export async function captureViewport(options: SketchCaptureOptions, resources: 
     throw new SketchCaptureError("capture-failed", "The viewport could not be rendered from the page DOM. Try again.", { cause: error });
   }
 }
-
-export function createSketchCaptureOperation(options: SketchCaptureOptions): {
-  readonly promise: Promise<CapturedSketch>;
-  readonly cancel: () => void;
-} {
-  const controller = new AbortController();
-  const onAbort = (): void => controller.abort();
-  options.signal?.addEventListener("abort", onAbort, { once: true });
-  const promise = captureViewport({
-    ...options,
-    signal: controller.signal,
-  }).finally(() => options.signal?.removeEventListener("abort", onAbort));
-  return { promise, cancel: () => controller.abort() };
-}

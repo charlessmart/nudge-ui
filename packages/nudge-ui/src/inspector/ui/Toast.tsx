@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { IconAlertTriangleFilled, IconCircleCheckFilled } from "@tabler/icons-react";
 import { portalContainer } from "./portalContainer.ts";
 import { useInspectorOpen } from "../shell/openStore.ts";
-import { useSketchInteractionActive } from "../sketch/interaction.ts";
+import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
 
 /** `info` is a plain note with no icon, for things that are neither done nor wrong. */
 export type ToastTone = "success" | "error" | "info";

@@ -1,5 +1,4 @@
 import {
-  SKETCH_STROKE_OUTLINE,
   SKETCH_TEXT_FONT_FAMILY,
   SKETCH_TEXT_FONT_SIZE,
   SKETCH_TEXT_FONT_WEIGHT,
@@ -10,7 +9,7 @@ import {
   type SketchStroke,
   type SketchStrokeColor,
 } from "./model.ts";
-import { moveStroke, type SketchRegion } from "./selectionFrame.ts";
+import { moveStroke, strokeFrame, type SelectionFrame, type SketchRegion } from "./selectionFrame.ts";
 
 export interface SketchTextMetrics {
   readonly width: number;
@@ -53,6 +52,31 @@ export function measureSketchText(text: string, fontSize: number): SketchTextMet
     width = Math.max(width, context ? context.measureText(line).width : line.length * fontSize * FALLBACK_GLYPH_WIDTH_EM);
   }
   return { width: Math.max(width, fontSize * MIN_TEXT_WIDTH_EM), height: lines.length * lineHeight, lineHeight };
+}
+
+export interface SketchTextLayout {
+  readonly frame: SelectionFrame;
+  readonly lines: readonly string[];
+  /** Line spacing in drawing units, derived from the layer's box. */
+  readonly lineHeight: number;
+  /** Canvas font string, already scaled. */
+  readonly font: string;
+}
+
+/** The one layout used by the live SVG, the PNG renderer, and the in-place editor. */
+export function textLayout(
+  stroke: Pick<SketchStroke, "points" | "width" | "rotation" | "text" | "fontSize">,
+  scaleX = 1,
+  scaleY = scaleX,
+): SketchTextLayout {
+  const frame = strokeFrame(stroke);
+  const lines = sketchTextLines(stroke.text ?? "");
+  return {
+    frame,
+    lines,
+    lineHeight: frame.height / lines.length,
+    font: sketchTextFont((stroke.fontSize ?? SKETCH_TEXT_FONT_SIZE) * Math.max(scaleX, scaleY)),
+  };
 }
 
 function rotateAbout(point: SketchPoint, angle: number, origin: SketchPoint): SketchPoint {
@@ -98,7 +122,6 @@ export function createTextStroke({
     kind: "text",
     width: SKETCH_TEXT_STROKE_WIDTH,
     color,
-    outlineColor: SKETCH_STROKE_OUTLINE,
     points: box.map((point) => {
       const placed = rotateAbout(point, rotation, { x: 0, y: 0 });
       return { x: corner.x + placed.x, y: corner.y + placed.y };

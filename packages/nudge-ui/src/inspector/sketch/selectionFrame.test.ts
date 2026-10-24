@@ -12,7 +12,7 @@ import {
   transformStrokeWithHandle,
   type SketchRegion,
 } from "./selectionFrame.ts";
-import { SKETCH_STROKE_COLOR, SKETCH_STROKE_OUTLINE, type SketchStroke } from "./model.ts";
+import { SKETCH_STROKE_COLOR, type SketchStroke } from "./model.ts";
 
 const REGION: SketchRegion = { minX: 0, minY: 0, maxX: 400, maxY: 300 };
 
@@ -21,7 +21,6 @@ const rectangle: SketchStroke = {
   kind: "rectangle",
   width: 4,
   color: SKETCH_STROKE_COLOR,
-  outlineColor: SKETCH_STROKE_OUTLINE,
   points: [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 160 }, { x: 100, y: 160 }, { x: 100, y: 100 }],
 };
 

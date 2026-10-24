@@ -1,8 +1,6 @@
 import {
   isSketchDocument,
-  isSketchHandoffRecord,
   type SketchDocument,
-  type SketchHandoffRecord,
   type SketchPersistenceSnapshot,
   type SketchStorage,
   type SketchStorageChange,
@@ -15,7 +13,6 @@ import {
   type SketchResponse,
   type StoredImage,
   type StoredSketchDocument,
-  type StoredSketchHandoff,
 } from "./protocol.ts";
 
 // Distributive so each request keeps its own fields.
@@ -41,21 +38,13 @@ function decodeImage(image: StoredImage): Blob {
 }
 
 async function encodeDocument(document: SketchDocument): Promise<StoredSketchDocument> {
-  const [originalImage, annotatedImage] = await Promise.all([
-    encodeImage(document.originalImage),
-    encodeImage(document.annotatedImage),
-  ]);
-  return { ...document, originalImage, annotatedImage };
+  return { ...document, image: await encodeImage(document.image) };
 }
 
 // A corrupt image or invalid record drops only its own sketch.
 function decodeDocument(document: StoredSketchDocument): SketchDocument | null {
   try {
-    const decoded = {
-      ...document,
-      originalImage: decodeImage(document.originalImage),
-      annotatedImage: decodeImage(document.annotatedImage),
-    };
+    const decoded = { ...document, image: decodeImage(document.image) };
     return isSketchDocument(decoded) ? decoded : null;
   } catch {
     return null;
@@ -92,20 +81,14 @@ export function createExtensionSketchStorage(): SketchStorage {
         const decoded = decodeDocument(document);
         if (decoded && decoded.projectId === projectId) documents.push(decoded);
       }
-      const handoffs: SketchHandoffRecord[] = [];
-      for (const handoff of records?.handoffs ?? []) {
-        if (isSketchHandoffRecord(handoff) && handoff.projectId === projectId) handoffs.push(handoff);
-      }
-      return { documents, handoffs };
+      return { documents };
     },
     async update(_projectId: string, change: SketchStorageChange): Promise<void> {
       const documents = await Promise.all((change.documents ?? []).map(encodeDocument));
-      const handoffs: StoredSketchHandoff[] = (change.handoffs ?? []).map((handoff) => ({ ...handoff }));
       await send({
         op: "update",
-        put: { documents, handoffs },
+        put: { documents },
         deleteDocumentIds: [...(change.deleteDocumentIds ?? [])],
-        deleteHandoffIds: [...(change.deleteHandoffIds ?? [])],
       });
     },
   };

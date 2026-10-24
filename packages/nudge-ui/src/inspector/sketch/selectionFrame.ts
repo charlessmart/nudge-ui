@@ -104,6 +104,20 @@ function halfExtent(frame: SelectionFrame) {
   return { x: frame.width / 2 + frame.padding, y: frame.height / 2 + frame.padding };
 }
 
+/** The frame's visible half extents and its rotate-handle offset, shared by hit-testing and rendering. */
+export function frameGeometry(frame: SelectionFrame, unit: number): {
+  readonly halfWidth: number;
+  readonly halfHeight: number;
+  readonly rotateY: number;
+} {
+  const half = halfExtent(frame);
+  return {
+    halfWidth: half.x,
+    halfHeight: half.y,
+    rotateY: -half.y - FRAME_ROTATE_OFFSET_PX * unit,
+  };
+}
+
 /** Whether `point` is inside the stroke's own box (without the frame's gap), grown by `tolerance`. */
 export function pointInStrokeBox(
   stroke: Pick<SketchStroke, "points" | "width" | "rotation">,
@@ -123,10 +137,10 @@ export function frameCorner(frame: SelectionFrame, corner: FrameCorner): SketchP
 
 /** Where the rotation square sits: above the top edge, along the frame's own up axis. */
 export function frameRotateHandle(frame: SelectionFrame, unit: number): SketchPoint {
-  return toWorld(frame, { x: 0, y: -halfExtent(frame).y - FRAME_ROTATE_OFFSET_PX * unit });
+  return toWorld(frame, { x: 0, y: frameGeometry(frame, unit).rotateY });
 }
 
-function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPoint): number {
+export function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPoint): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSquared = dx * dx + dy * dy;

@@ -8,14 +8,14 @@ import {
   undoSketchEdit,
   type SketchHistory,
 } from "./history.ts";
-import { SKETCH_STROKE_COLOR, SKETCH_STROKE_OUTLINE, type SketchStroke } from "./model.ts";
+import { SKETCH_STROKE_COLOR, type SketchStroke } from "./model.ts";
 
 function stroke(id: string): SketchStroke {
   return {
     id,
+    kind: "freehand",
     width: 6,
     color: SKETCH_STROKE_COLOR,
-    outlineColor: SKETCH_STROKE_OUTLINE,
     points: [{ x: 0, y: 0 }, { x: 10, y: 10 }],
   };
 }

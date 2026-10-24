@@ -1,18 +1,15 @@
 import { getStroke } from "perfect-freehand";
 import type { ReactElement } from "react";
 import {
-  SKETCH_ACCENT_COLOR,
   SKETCH_RECTANGLE_FILL_OPACITY,
   SKETCH_STROKE_COLOR,
   SKETCH_TEXT_FONT_FAMILY,
   SKETCH_TEXT_FONT_SIZE,
   SKETCH_TEXT_FONT_WEIGHT,
-  type SketchAnnotation,
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
-import { strokeFrame } from "./selectionFrame.ts";
-import { sketchTextLines } from "./text.ts";
+import { textLayout } from "./text.ts";
 
 export type Vec2 = readonly [number, number];
 
@@ -74,9 +71,7 @@ export function sketchStrokePath(stroke: Pick<SketchStroke, "kind" | "points" | 
 
 /** Lines are spaced to fill the layer's box, so a resized or projected box keeps its text inside it. */
 function SketchTextElement({ stroke }: { readonly stroke: SketchStroke }): ReactElement {
-  const frame = strokeFrame(stroke);
-  const lines = sketchTextLines(stroke.text ?? "");
-  const lineHeight = frame.height / lines.length;
+  const { frame, lines, lineHeight } = textLayout(stroke);
   return (
     <text
       transform={`translate(${number(frame.center.x)} ${number(frame.center.y)}) rotate(${number((frame.rotation * 180) / Math.PI)})`}
@@ -100,15 +95,9 @@ function SketchTextElement({ stroke }: { readonly stroke: SketchStroke }): React
 
 export interface SketchSvgLayerProps {
   readonly strokes: readonly SketchStroke[];
-  readonly annotations?: readonly SketchAnnotation[];
-  readonly annotationScale?: number;
 }
 
-export function SketchSvgLayer({
-  strokes,
-  annotations = [],
-  annotationScale = 1,
-}: SketchSvgLayerProps): ReactElement {
+export function SketchSvgLayer({ strokes }: SketchSvgLayerProps): ReactElement {
   return (
     <g data-test="sketch-svg-layer">
       {strokes.map((stroke) => {
@@ -128,26 +117,6 @@ export function SketchSvgLayer({
             strokeLinejoin="round"
             pointerEvents="none"
           />
-        );
-      })}
-      {annotations.map((annotation) => {
-        const radius = 16 * annotationScale;
-        return (
-          <g key={annotation.id} transform={`translate(${number(annotation.point.x)} ${number(annotation.point.y)})`} pointerEvents="none">
-            <circle r={radius} fill={SKETCH_ACCENT_COLOR} />
-            <text
-              x="0"
-              y="0"
-              fill="#ffffff"
-              fontFamily="system-ui, sans-serif"
-              fontSize={12 * annotationScale}
-              fontWeight="600"
-              textAnchor="middle"
-              dominantBaseline="central"
-            >
-              {annotation.number}
-            </text>
-          </g>
         );
       })}
     </g>

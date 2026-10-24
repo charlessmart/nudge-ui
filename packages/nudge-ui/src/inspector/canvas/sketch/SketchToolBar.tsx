@@ -1,49 +1,56 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
-import { IconCheck, IconCopy } from "@tabler/icons-react";
-import { IconButton } from "../ui/IconButton.tsx";
-import { Tooltip, TooltipGroup } from "../ui/Tooltip.tsx";
-import {
-  SKETCH_TOOL_SHORTCUTS,
-  setSketchDrawingTool,
-  setSketchStrokeColor,
-  sketchToolForEvent,
-  useSketchDrawingTools,
-  type SketchDrawingTool,
-} from "../sketch/drawingTools.ts";
-import { copySketchImageOnRequest } from "../sketch/copySketch.ts";
-import { useLiveSketchControls } from "../sketch/liveSketch.ts";
-import { SKETCH_PEN_COLORS, SKETCH_RECTANGLE_FILL_OPACITY, type SketchPenColor, type SketchQueueItem } from "../sketch/model.ts";
-import { useSketchStore } from "../sketch/store.ts";
-import { showToast } from "../ui/Toast.tsx";
-import { SketchPreview } from "../sketch/SketchPreview.tsx";
-import { SketchThumbnail } from "../sketch/SketchThumbnail.tsx";
+import { IconCheck, IconCopy, IconX } from "@tabler/icons-react";
+import { Button } from "../../ui/Button.tsx";
+import { IconButton } from "../../ui/IconButton.tsx";
+import { Tooltip } from "../../ui/Tooltip.tsx";
+import { SKETCH_TOOL_SHORTCUTS, sketchToolForEvent } from "./sketchShortcuts.ts";
+import type { SketchDrawingTool } from "../../sketch/drawingTools.ts";
+import { copySketchImageOnRequest } from "./copySketch.ts";
+import { SKETCH_LIMITS, SKETCH_PEN_COLORS, SKETCH_RECTANGLE_FILL_OPACITY, type SketchDocument, type SketchPenColor } from "../../sketch/model.ts";
+import { removeSketch } from "./store.ts";
+import { showToast } from "../../ui/Toast.tsx";
+import { sketchThumbnailCrop } from "../../sketch/ink.ts";
+import { BlobImage } from "./BlobImage.tsx";
+import { SketchThumbnail } from "./SketchThumbnail.tsx";
 
-/** Closes a popover on an outside press or Escape, without letting that Escape also close the sketch. */
+/**
+ * Closes a popover on an outside press or Escape, without letting that Escape also close the sketch. Pressing inside a
+ * frame of the canvas never reaches this window, but it takes focus away from it, so that closes the popover too.
+ */
 function useDismissablePopover(
   open: boolean,
   rootRef: { readonly current: HTMLElement | null },
   close: () => void,
+  /** A part of the popover that lives elsewhere in the page, where a press is also inside it. */
+  extraRef?: { readonly current: HTMLElement | null },
 ): void {
   const closeRef = useRef(close);
   closeRef.current = close;
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent): void {
-      if (rootRef.current && !event.composedPath().includes(rootRef.current)) closeRef.current();
+      const path = event.composedPath();
+      if (rootRef.current && !path.includes(rootRef.current) && !(extraRef?.current && path.includes(extraRef.current))) closeRef.current();
     }
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key !== "Escape") return;
       event.stopPropagation();
       closeRef.current();
     }
+    function onBlur(): void {
+      closeRef.current();
+    }
     window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("blur", onBlur);
     };
-  }, [open, rootRef]);
+  }, [open, rootRef, extraRef]);
 }
 
 function PenIllustration({ color }: { readonly color: SketchPenColor }): ReactElement {
@@ -232,7 +239,7 @@ function paletteSwatchOffset(index: number, count: number): CSSProperties {
 
 type PalettePhase = "closed" | "open" | "closing";
 
-/** Matches the longest swatch collapse in SketchToolOptions.css (duration plus stagger). */
+/** Matches the longest swatch collapse in SketchToolBar.css (duration plus stagger). */
 const PALETTE_CLOSE_MS = 180 + (SKETCH_PEN_COLORS.length - 1) * PALETTE_STAGGER_MS;
 
 function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
@@ -327,16 +334,12 @@ function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
   );
 }
 
-/** These match `sketch-options-item-in` and the per-item delay in SketchToolOptions.css. The count includes the recent-sketch thumbnails, which are only there once something has been copied. */
+/** These match `sketch-options-item-in` and the per-item delay in SketchToolBar.css. The count includes the recent-sketch thumbnails, which are only there once something has been copied. */
 const ITEM_COUNT = 6;
 const ITEM_BASE_DELAY_MS = 40;
 const ITEM_STAGGER_MS = 25;
 const ITEM_DURATION_MS = 200;
 const INTRO_SETTLE_MS = ITEM_BASE_DELAY_MS + ITEM_DURATION_MS + (ITEM_COUNT - 1) * ITEM_STAGGER_MS;
-
-// The toolbar remounts when sketching moves it into a root-level portal. Remember whether the bar was showing so the
-// new copy does not replay the intro.
-let barWasOpen = false;
 
 function BarItem({ index, children }: {
   readonly index: number;
@@ -350,12 +353,26 @@ function BarItem({ index, children }: {
   );
 }
 
-const MAX_RECENT_SKETCHES = 3;
-/** Matches the slide and fade in SketchToolOptions.css. */
+/** Matches the slide and fade in SketchToolBar.css. */
 const STACK_MOVE_MS = 200;
 
+/** How long a card takes to travel between its thumbnail and its place in the grid, and the delay between cards. */
+const CARD_MOVE_MS = 260;
+const CARD_STAGGER_MS = 30;
+/** How far past the card its clip reaches when it is full size, so the shadow is not cut off. */
+const CARD_SHADOW_ROOM = 48;
+
+/** The turn of an element's computed transform, in degrees. The tiles lean, so a card has to land at the same angle. */
+function turnDegrees(transform: string): number {
+  const match = /matrix\(([^)]+)\)/.exec(transform)?.[1];
+  if (!match) return 0;
+  const values = match.split(",").map(Number);
+  if (values.length < 2) return 0;
+  return (Math.atan2(values[1]!, values[0]!) * 180) / Math.PI;
+}
+
 interface StackRow {
-  readonly item: SketchQueueItem;
+  readonly item: SketchDocument;
   /** How far along the stack the sketch sits: 0 is the newest, in front. */
   readonly slot: number;
   readonly leaving: boolean;
@@ -366,15 +383,15 @@ interface StackRow {
  * the front moves the others along by changing their slot, and CSS animates the difference. A sketch that has left the
  * stack stays one slot further along while it fades, then goes.
  */
-function useSketchStack(items: readonly SketchQueueItem[]): readonly StackRow[] {
-  const key = items.map((item) => item.document.id).join("|");
-  const [previous, setPrevious] = useState<{ readonly key: string; readonly items: readonly SketchQueueItem[]; readonly leaving: readonly StackRow[] }>(
+function useSketchStack(items: readonly SketchDocument[]): readonly StackRow[] {
+  const key = items.map((item) => item.id).join("|");
+  const [previous, setPrevious] = useState<{ readonly key: string; readonly items: readonly SketchDocument[]; readonly leaving: readonly StackRow[] }>(
     { key, items, leaving: [] },
   );
   if (previous.key !== key) {
-    const present = new Set(items.map((item) => item.document.id));
-    const gone = previous.items.flatMap((item, index): StackRow[] => present.has(item.document.id) ? [] : [{ item, slot: index + 1, leaving: true }]);
-    setPrevious({ key, items, leaving: [...gone, ...previous.leaving.filter((row) => !present.has(row.item.document.id))] });
+    const present = new Set(items.map((item) => item.id));
+    const gone = previous.items.flatMap((item, index): StackRow[] => present.has(item.id) ? [] : [{ item, slot: index + 1, leaving: true }]);
+    setPrevious({ key, items, leaving: [...gone, ...previous.leaving.filter((row) => !present.has(row.item.id))] });
   }
   useEffect(() => {
     if (previous.leaving.length === 0) return;
@@ -384,87 +401,250 @@ function useSketchStack(items: readonly SketchQueueItem[]): readonly StackRow[] 
   return [...items.map((item, slot): StackRow => ({ item, slot, leaving: false })), ...previous.leaving];
 }
 
-/** A recently copied sketch, kept in case it was never pasted: click to copy it again. */
-function RecentSketch({ row, enters, onCopy }: {
+
+/** The front sketch sits upright and the ones behind it lean alternately either way, a little more each. */
+function stackTilt(slot: number): number {
+  return slot === 0 ? 0 : (slot % 2 === 1 ? -1 : 1) * (2 + slot * 2);
+}
+
+/** One of the stacked thumbnails beside the save button. Clicking the stack opens or closes the grid of larger sketches. */
+function RecentSketch({ row, enters, open, onToggle }: {
   readonly row: StackRow;
   readonly enters: boolean;
-  readonly onCopy: (item: SketchQueueItem) => void;
+  readonly open: boolean;
+  readonly onToggle: () => void;
 }): ReactElement {
   const { item, slot, leaving } = row;
-  // Decided once, on arrival: only a sketch that joins a stack already on show animates in itself.
+  // Decided once, on arrival: only a sketch that is saved while the bar is already up animates in.
   const [enter] = useState(enters);
 
   return (
     <div
       className="sketch-recent"
       data-test={leaving ? "sketch-recent-leaving" : "sketch-recent"}
-      data-sketch-id={item.document.id}
+      data-sketch-id={item.id}
       data-leaving={leaving ? "true" : undefined}
       data-enter={enter ? "true" : undefined}
       aria-hidden={leaving ? "true" : undefined}
       // SAFETY: CSSProperties does not list custom properties, but React applies them to inline styles unchanged.
-      style={{ "--slot": slot } as CSSProperties}
+      style={{ "--slot": slot, "--tilt": `${stackTilt(slot)}deg` } as CSSProperties}
     >
-      <Tooltip
-        content={<SketchPreview item={item} />}
-        popupClassName="sketch-preview-popup"
-        sideOffset={12}
-        stableTrigger
+      <button
+        type="button"
+        className="sketch-recent__toggle"
+        aria-label={open ? "Hide saved sketches" : "Show saved sketches"}
+        aria-expanded={open}
+        tabIndex={leaving ? -1 : undefined}
+        data-test="sketch-recent-copy"
+        onClick={onToggle}
       >
-        <button
-          type="button"
-          className="sketch-recent__copy"
-          aria-label="Copy recent sketch"
-          data-test="sketch-recent-copy"
-          onClick={() => onCopy(item)}
-        >
-          <SketchThumbnail item={item} />
-          <span className="sketch-recent__copy-icon" aria-hidden="true">
-            <IconCopy size="var(--icon-size-small)" />
-          </span>
-        </button>
-      </Tooltip>
+        <SketchThumbnail item={item} />
+      </button>
     </div>
   );
 }
 
-/** The newest few sketches, overlapping like avatars beside the copy button, the newest in front and next to it. */
-function RecentSketches({ items, settled, onCopy }: {
-  readonly items: readonly SketchQueueItem[];
-  readonly settled: boolean;
-  readonly onCopy: (item: SketchQueueItem) => void;
-}): ReactElement | null {
-  const rows = useSketchStack(items);
-  return rows.length > 0 ? <RecentStack rows={rows} count={items.length} settled={settled} onCopy={onCopy} /> : null;
+/** A saved sketch at a size worth looking at: click to copy it again, or remove it. */
+function RecentSketchCard({ item, onCopy, onRemove }: {
+  readonly item: SketchDocument;
+  readonly onCopy: (item: SketchDocument) => void;
+  readonly onRemove: (item: SketchDocument) => void;
+}): ReactElement {
+  return (
+    <div className="sketch-grid__card" data-test="sketch-recent-card" data-sketch-id={item.id}>
+      <button
+        type="button"
+        className="sketch-grid__copy"
+        aria-label="Copy recent sketch"
+        data-test="sketch-recent-card-copy"
+        onClick={() => onCopy(item)}
+      >
+        <BlobImage className="sketch-grid__image" blob={item.image} width={item.imageWidth} height={item.imageHeight} />
+        <span className="sketch-grid__copy-action button button--primary button--default" aria-hidden="true">
+          <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" />
+          Copy sketch
+        </span>
+      </button>
+      <button
+        type="button"
+        className="sketch-grid__remove"
+        aria-label="Remove recent sketch"
+        data-test="sketch-recent-remove"
+        onClick={() => onRemove(item)}
+      >
+        <IconX size={10} stroke={2.5} aria-hidden="true" />
+      </button>
+    </div>
+  );
 }
 
-/** Mounted only while there is something to show, so what it decides on arrival is decided per stack. */
-function RecentStack({ rows, count, settled, onCopy }: {
-  readonly rows: readonly StackRow[];
-  readonly count: number;
+/**
+ * The newest few sketches, stacked small beside the save button. Clicking the stack grows them into a wrapping grid of
+ * large cards above the bar, where each can be previewed in place, clicked to copy again, or removed; the stack always
+ * takes one tile of room, so the bar does not shift. An outside press, Escape or a copy closes the grid.
+ */
+function RecentSketches({ items, settled, expanded, onCopy, onRemove }: {
+  readonly items: readonly SketchDocument[];
   readonly settled: boolean;
-  readonly onCopy: (item: SketchQueueItem) => void;
-}): ReactElement {
-  // A stack that appears while the bar is already up (a copy just finished) pops in, while one that is there as the
-  // bar opens simply joins the stagger.
-  const [pops] = useState(settled);
-  // Sketches that join a stack already on show animate in themselves.
-  const [shown, setShown] = useState(false);
-  useEffect(() => setShown(true), []);
+  readonly expanded: boolean;
+  readonly onCopy: (item: SketchDocument) => void;
+  readonly onRemove: (item: SketchDocument) => void;
+}): ReactElement | null {
+  const rows = useSketchStack(items);
+  const [open, setOpen] = useState(expanded);
+  // After a close the cards are still on their way back into the stack, so the grid stays up until they arrive.
+  const [closing, setClosing] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // The grid is centered on the screen, not on the bar, which on a narrow screen is wider than it and off to one side.
+  // So it is drawn in the sketch layer when there is one, and beside the stack otherwise.
+  const [layer, setLayer] = useState<Element | null>(null);
+  const hasSketches = items.length > 0;
+  useLayoutEffect(() => {
+    setLayer(rootRef.current?.closest(".sketch-bar-layer") ?? null);
+  }, [hasSketches]);
+  const close = (): void => {
+    if (!open) return;
+    setOpen(false);
+    setClosing(true);
+  };
+  useDismissablePopover(open, rootRef, close, gridRef);
+  // Removing the last sketch leaves nothing to show, and the grid should not come back open for the next one.
+  useEffect(() => {
+    if (items.length === 0) {
+      setOpen(false);
+      setClosing(false);
+    }
+  }, [items.length]);
+  // The cards grow out of their thumbnails when the grid opens and settle back into them when it closes.
+  useLayoutEffect(() => {
+    const cards = gridRef.current ? [...gridRef.current.querySelectorAll<HTMLElement>(".sketch-grid__card")] : [];
+    if (!open && !closing) return;
+    const tiles = rootRef.current ? [...rootRef.current.querySelectorAll<HTMLElement>(".sketch-recent:not([data-leaving])")] : [];
+    const animations = cards.flatMap((card, index) => {
+      const tile = tiles.find((candidate) => candidate.getAttribute("data-sketch-id") === card.getAttribute("data-sketch-id"));
+      if (!tile || typeof card.animate !== "function") return [];
+      const from = card.getBoundingClientRect();
+      const to = tile.getBoundingClientRect();
+      // The thumbnail is a square and the card is not. The card is scaled so its shorter side fills the thumbnail, and
+      // clipped on its longer side to a square, so it changes shape smoothly on the way rather than snapping at the end.
+      // The tile leans with the stack, so the card lands at the tile's own size and angle; `to` is the larger box that
+      // rotation paints into, which would leave the card a little too big and upright.
+      const turn = turnDegrees(getComputedStyle(tile).transform);
+      const radians = (turn * Math.PI) / 180;
+      const tileSide = to.width / (Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians)));
+      const side = Math.min(from.width, from.height);
+      const scale = tileSide / side;
+      const trimX = Math.max(from.width - side, 0) / 2;
+      const trimY = Math.max(from.height - side, 0) / 2;
+      const thumbnail = tile.querySelector<HTMLElement>(".sketch-thumbnail");
+      const tileRadius = thumbnail ? parseFloat(getComputedStyle(thumbnail).borderTopLeftRadius) / scale : 0;
+      const cardRadius = parseFloat(getComputedStyle(card.querySelector<HTMLElement>(".sketch-grid__image") ?? card).borderTopLeftRadius);
+      // Wide enough to leave the card's shadow alone once it is full size.
+      const small: Keyframe = {
+        transform: `translate(${to.x + to.width / 2 - (from.x + from.width / 2)}px, ${to.y + to.height / 2 - (from.y + from.height / 2)}px) rotate(${turn}deg) scale(${scale})`,
+        clipPath: `inset(${trimY}px ${trimX}px round ${tileRadius}px)`,
+      };
+      // Fully opaque throughout: the thumbnail is swapped for its card at the same instant, so nothing dips in between.
+      const large: Keyframe = { transform: "none", clipPath: `inset(${-CARD_SHADOW_ROOM}px round ${cardRadius}px)` };
+      const timing: KeyframeAnimationOptions = {
+        duration: CARD_MOVE_MS,
+        // The newest card (last in the grid) leaves the stack first and is the last to settle back into it.
+        delay: (open ? cards.length - 1 - index : index) * CARD_STAGGER_MS,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+        // Opening ends where the card naturally sits; closing stays small until the grid goes.
+        fill: open ? "backwards" : "forwards",
+      };
+      const moves = [card.animate(open ? [small, large] : [large, small], timing)];
+      // The thumbnail shows only the part of the picture around the ink, and the card all of it. So inside the card the
+      // picture is zoomed onto that part while it is small, and eases out to the whole picture as the card grows.
+      const image = card.querySelector<HTMLElement>(".sketch-grid__image");
+      const item = items.find((candidate) => candidate.id === card.getAttribute("data-sketch-id"));
+      if (image && item && item.imageWidth > 0 && item.imageHeight > 0) {
+        const crop = item.ink ? sketchThumbnailCrop(item.ink, item.imageWidth, item.imageHeight) : { x: 0, y: 0, width: item.imageWidth, height: item.imageHeight };
+        // The picture fills the card the way `object-fit: cover` does, and the thumbnail's square is the middle of the crop.
+        const fit = Math.max(from.width / item.imageWidth, from.height / item.imageHeight);
+        const offsetX = (from.width - item.imageWidth * fit) / 2;
+        const offsetY = (from.height - item.imageHeight * fit) / 2;
+        const zoom = side / (Math.min(crop.width, crop.height) * fit);
+        const centerX = offsetX + (crop.x + crop.width / 2) * fit;
+        const centerY = offsetY + (crop.y + crop.height / 2) * fit;
+        const zoomed: Keyframe = {
+          transformOrigin: "0 0",
+          transform: `translate(${from.width / 2 - zoom * centerX}px, ${from.height / 2 - zoom * centerY}px) scale(${zoom})`,
+        };
+        const whole: Keyframe = { transformOrigin: "0 0", transform: "none" };
+        moves.push(image.animate(open ? [zoomed, whole] : [whole, zoomed], timing));
+      }
+      return moves;
+    });
+    if (open) return () => animations.forEach((animation) => animation.cancel());
+    if (animations.length === 0) {
+      setClosing(false);
+      return;
+    }
+    let current = true;
+    void Promise.all(animations.map((animation) => animation.finished)).then(
+      () => current && setClosing(false),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [open, closing]);
+  if (rows.length === 0) return null;
+  const showGrid = (open || closing) && items.length > 0;
+  const grid = (
+    <div
+      ref={gridRef}
+      className="sketch-grid"
+      role="group"
+      aria-label="Saved sketches"
+      data-test="sketch-grid"
+      // SAFETY: CSSProperties does not list custom properties, but React applies them to inline styles unchanged.
+      style={{ "--count": items.length, "--rows": Math.ceil(items.length / 2) } as CSSProperties}
+    >
+      {/* Oldest first, so the newest comes last and paints over the rest, as it does on top of the stack. */}
+      {[...items].reverse().map((item) => (
+        <RecentSketchCard
+          key={item.id}
+          item={item}
+          onCopy={(chosen) => {
+            close();
+            onCopy(chosen);
+          }}
+          onRemove={onRemove}
+        />
+      ))}
+    </div>
+  );
   return (
-    // SAFETY: CSSProperties does not list custom properties, but React applies them to inline styles unchanged.
-    <div className="sketch-recents" data-pop={pops ? "true" : undefined} style={{ "--count": Math.max(count, 1) } as CSSProperties}>
-      {/* Moving from one sketch to the next hands the preview straight over instead of closing and reopening it. */}
-      <TooltipGroup delay={200} closeDelay={0} timeout={400}>
-        {rows.map((row) => <RecentSketch key={row.item.document.id} row={row} enters={shown && settled} onCopy={onCopy} />)}
-      </TooltipGroup>
+    <div ref={rootRef} className="sketch-recents-root">
+      <div className="sketch-recents" data-test="sketch-recents" data-open={showGrid ? "true" : "false"}>
+        {rows.map((row) => (
+          <RecentSketch
+            key={row.item.id}
+            row={row}
+            enters={settled}
+            open={open}
+            onToggle={() => {
+              if (open) close();
+              else {
+                setClosing(false);
+                setOpen(true);
+              }
+            }}
+          />
+        ))}
+      </div>
+      {showGrid ? (layer ? createPortal(grid, layer) : grid) : null}
     </div>
   );
 }
 
 /** Copy is always available, so an empty sketch is answered with a note on what to do rather than a dead button. */
-function tellNothingToCopy(): void {
-  showToast({ tone: "info", title: "Nothing to copy", description: "Sketch, then click done.", timeout: 3000 });
+function tellNothingToSave(): void {
+  showToast({ tone: "info", title: "Draw a sketch, then save", timeout: 3000 });
 }
 
 export interface SketchToolBarProps {
@@ -472,7 +652,7 @@ export interface SketchToolBarProps {
   readonly tool: SketchDrawingTool;
   readonly color: SketchPenColor;
   /** The saved sketches, newest first. */
-  readonly recents: readonly SketchQueueItem[];
+  readonly recents: readonly SketchDocument[];
   /** True while a save is in flight. */
   readonly saving: boolean;
   /** Whether there is anything drawn to save. */
@@ -481,18 +661,34 @@ export interface SketchToolBarProps {
   readonly onColorChange: (color: SketchPenColor) => void;
   readonly onSave: () => void;
   /** Clicking a saved sketch; by default it copies that sketch's image again. */
-  readonly onCopyRecent?: (item: SketchQueueItem) => void;
+  readonly onCopyRecent?: (item: SketchDocument) => void;
+  /** Clicking a saved sketch's remove button. */
+  readonly onRemoveRecent?: (item: SketchDocument) => void;
+  /** Starts with the saved sketches opened into their arc above the bar, for fixtures that show that state. */
+  readonly expanded?: boolean;
   /** Shows the bar in its settled state at once, with no intro and no keyboard shortcuts, for fixtures that hold one state. */
   readonly still?: boolean;
   /** Starts with the colour palette fanned out. */
   readonly paletteOpen?: boolean;
 }
 
-function copyRecentSketch(item: SketchQueueItem): void {
-  void copySketchImageOnRequest(item.document.annotatedImage);
+function copyRecentSketch(item: SketchDocument): void {
+  void copySketchImageOnRequest(item.image);
 }
 
-/** The sketch bar with its state passed in, so a page can show it in any state. The canvas uses `SketchToolOptions`. */
+async function removeRecentSketch(item: SketchDocument): Promise<void> {
+  try {
+    if (!await removeSketch(item.id)) throw new Error("The sketch could not be removed.");
+  } catch (error) {
+    showToast({
+      tone: "error",
+      title: "Sketch not removed",
+      description: error instanceof Error ? error.message : "The sketch could not be removed.",
+    });
+  }
+}
+
+/** The sketch bar with its state passed in, so a page can show it in any state. The canvas wiring lives in `SketchWorkspace`. */
 export function SketchToolBar({
   open,
   tool,
@@ -504,27 +700,38 @@ export function SketchToolBar({
   onColorChange,
   onSave,
   onCopyRecent = copyRecentSketch,
+  onRemoveRecent = removeRecentSketch,
+  expanded = false,
   still = false,
   paletteOpen = false,
 }: SketchToolBarProps): ReactElement | null {
-  const recents = allRecents.slice(0, MAX_RECENT_SKETCHES);
-  const [skipIntro, setSkipIntro] = useState(() => still || (open && barWasOpen));
-  const [settled, setSettled] = useState(() => still || (open && barWasOpen));
+  const recents = allRecents.slice(0, SKETCH_LIMITS.keptSketches);
+  const [settled, setSettled] = useState(still);
 
   useEffect(() => {
     if (still) return;
-    barWasOpen = open;
     if (!open) {
       // The bar leaves at once; the next time it opens it plays its intro again.
       setSettled(false);
-      setSkipIntro(false);
       return;
     }
     if (settled) return;
     const timer = setTimeout(() => setSettled(true), INTRO_SETTLE_MS);
     return () => clearTimeout(timer);
-    // `settled` only decides whether the intro timer is needed; it must not restart the effect.
-  }, [open]);
+  }, [open, settled, still]);
+
+  // Only while the sketch is open, and never while typing in a text field, so the letters still type.
+  useEffect(() => {
+    if (!open || still) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      const nextTool = sketchToolForEvent(event);
+      if (!nextTool) return;
+      event.preventDefault();
+      onToolChange(nextTool);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [onToolChange, open, still]);
 
   if (!open) return null;
   const drawing = { tool, color };
@@ -534,7 +741,7 @@ export function SketchToolBar({
       className="sketch-options"
       role="group"
       aria-label="Sketch tools"
-      data-intro={skipIntro ? "false" : "true"}
+      data-intro={still ? "false" : "true"}
       data-settled={settled ? "true" : "false"}
       data-test="sketch-tool-options"
     >
@@ -585,60 +792,25 @@ export function SketchToolBar({
           <ColorPicker color={drawing.color} hidden={!settled} initiallyOpen={paletteOpen} onColorChange={onColorChange} />
         </BarItem>
         <BarItem index={5}>
-          {/* The same divider the canvas toolbar uses, setting the copy action apart from the drawing tools. */}
+          {/* The same divider the canvas toolbar uses, setting the save action apart from the drawing tools. */}
           <div className="canvas-toolbar__divider" aria-hidden="true" data-test="sketch-options-divider" />
           <div className="sketch-options__copy-group" data-test="sketch-copy-group">
-            <RecentSketches items={recents} settled={settled} onCopy={onCopyRecent} />
-            <Tooltip content="Save sketch" stableTrigger>
-              <IconButton
-                variant="primary"
-                label={saving ? "Saving…" : "Save sketch"}
-                className="sketch-options__copy"
-                data-test="sketch-copy"
-                aria-busy={saving ? "true" : undefined}
-                disabled={saving}
-                onClick={hasContent ? onSave : tellNothingToCopy}
-              >
-                <IconCheck size={18} aria-hidden="true" />
-              </IconButton>
-            </Tooltip>
+            <RecentSketches items={recents} settled={settled} expanded={expanded} onCopy={onCopyRecent} onRemove={onRemoveRecent} />
+            <Button
+              variant="primary"
+              size="default"
+              className="sketch-options__copy"
+              data-test="sketch-copy"
+              aria-busy={saving ? "true" : undefined}
+              disabled={saving}
+              onClick={hasContent ? onSave : tellNothingToSave}
+            >
+              <IconCheck size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+              Save
+            </Button>
           </div>
         </BarItem>
       </div>
     </div>
-  );
-}
-
-/** The sketch bar wired to the live sketch: the chosen tool and colour, the saved sketches, and saving. */
-export function SketchToolOptions({ open }: { readonly open: boolean }): ReactElement | null {
-  const drawing = useSketchDrawingTools();
-  const live = useLiveSketchControls();
-  const recents = useSketchStore().items;
-
-  // Only while the sketch tool is open, and never while typing in a text field, so the letters still type.
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent): void {
-      const tool = sketchToolForEvent(event);
-      if (!tool) return;
-      event.preventDefault();
-      setSketchDrawingTool(tool);
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open]);
-
-  return (
-    <SketchToolBar
-      open={open}
-      tool={drawing.tool}
-      color={drawing.color}
-      recents={recents}
-      saving={live.saving}
-      hasContent={live.hasContent}
-      onToolChange={setSketchDrawingTool}
-      onColorChange={setSketchStrokeColor}
-      onSave={live.copy}
-    />
   );
 }

@@ -118,11 +118,13 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await expect(target).toHaveCSS("width", "240px");
 
   // Whichever way the App Router restores the route (bfcache or fresh bootstrap), the persisted session must reproject into the managed stylesheet.
+  // The element-selection tool consumes pointer events, so links stay inert until the app-interaction tool is active.
+  await page.locator('[data-test="canvas-tool-select"]').click();
   await frame.locator('a[href="/second"]').click();
   await expect.poll(() => frame.url()).toMatch(/\/second$/);
   await expect(frame.locator("#page-title")).toContainText("Second route");
-  // The canonical rule stays available while its target is absent so a return navigation can reapply it.
-  await expect.poll(() => managedSheetText(frame)).toContain("240px");
+  // Off-route the rule is withdrawn while its target is absent, then reprojected on return.
+  await expect.poll(() => managedSheetText(frame)).not.toContain("240px");
 
   await frame.locator('a[href="/"]').click();
   await expect.poll(() => frame.url()).toMatch(/\/$/);

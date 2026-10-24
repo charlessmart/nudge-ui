@@ -36,6 +36,8 @@ test("extension sketches round-trip through extension storage and never touch th
   const stored = await installExtensionStorage(page);
   await page.goto("/extension-sketch-storage");
   await injectExtension(page);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  await page.bringToFront();
 
   await page.locator('[data-test="canvas-tool-sketch"]').click();
   const bounds = await page.locator(".sketch__live-canvas").boundingBox();

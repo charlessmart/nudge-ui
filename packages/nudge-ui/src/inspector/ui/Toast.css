@@ -4,7 +4,9 @@
      xlarge control plus padding), then a small gap. */
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12));
   left: 50%;
-  z-index: 50;
+  /* Above everything the inspector draws. Browsers clamp z-index at --z-index, so `+ 1` would only tie; instead the
+     canvas toolbar and the sketch bar sit one layer below it. */
+  z-index: var(--z-index);
   display: flex;
   flex-direction: column-reverse;
   align-items: center;

@@ -25,8 +25,8 @@ import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegis
 import { portalContainer } from "../ui/portalContainer.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
-import { cancelSketchInteraction } from "../sketch/interaction.ts";
-import { clearSketchesForProject } from "../sketch/store.ts";
+import { cancelSketchInteraction } from "../canvas/sketch/interaction.ts";
+import { clearSketchesForProject } from "../canvas/sketch/store.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
 

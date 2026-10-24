@@ -11,15 +11,15 @@ import {
 } from "./debugViewStore.ts";
 
 afterEach(() => {
-  setDebugViewMode("outlines");
+  setDebugViewMode("animation");
   setAnimationSpeed(1);
   setAnimationBusy(false);
   setDebugExploded(false);
 });
 
 describe("debug view store", () => {
-  it("remembers which view the view tool shows, starting with outlines", () => {
-    expect(getDebugViewMode()).toBe("outlines");
+  it("remembers which view the view tool shows, starting with animation", () => {
+    expect(getDebugViewMode()).toBe("animation");
     setDebugViewMode("explode");
     expect(getDebugViewMode()).toBe("explode");
   });
@@ -34,6 +34,6 @@ describe("debug view store", () => {
   it("remembers that a renderer is holding a subtree apart, so element chrome can step aside", () => {
     expect(getDebugExploded()).toBe(false);
     setDebugExploded(true);
-    expect([getDebugExploded(), getDebugViewMode()]).toEqual([true, "outlines"]);
+    expect([getDebugExploded(), getDebugViewMode()]).toEqual([true, "animation"]);
   });
 });

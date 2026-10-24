@@ -43,3 +43,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0037: In-page extension inspector](./0037-in-page-extension-inspector.md) (supersedes ADR-0033's iframe editor and the extension permission list from ADR-0033 and ADR-0035)
 - [ADR-0038: Moves into component children name the invocation](./0038-moves-into-component-children.md)
 - [ADR-0039: Renderer-owned view tools and a controller-owned animation timeline](./0039-renderer-owned-view-tools.md)
+- [ADR-0040: Sketches are recent copied images](./0040-sketches-are-recent-copied-images.md) (supersedes ADR-0030's sketch ownership and ADR-0033's sketch storage notes as retained by ADR-0037)

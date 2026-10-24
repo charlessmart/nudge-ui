@@ -10,7 +10,6 @@ import {
   parseSketchRequest,
   parseStorageWrite,
   parseStoredSketchDocument,
-  parseStoredSketchHandoff,
   siteKeyPrefix,
   SKETCH_REQUEST_EVENT,
   SKETCH_RESPONSE_EVENT,
@@ -53,28 +52,29 @@ function inspectorGesture(event: Event): InspectorGesture | null {
 
 async function handleSketchRequest(prefix: string, request: SketchRequest): Promise<StoredSketchRecords | undefined> {
   const documentKey = (id: string) => `${prefix}doc:${id}`;
-  const handoffKey = (id: string) => `${prefix}handoff:${id}`;
   if (request.op === "read") {
     const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith(prefix));
     const stored = keys.length === 0 ? {} : await chrome.storage.local.get(keys);
-    const records: StoredSketchRecords = { documents: [], handoffs: [] };
+    const records: StoredSketchRecords = { documents: [] };
+    const stale: string[] = [];
     for (const [key, value] of Object.entries(stored)) {
       if (key.startsWith(documentKey(""))) {
         const document = parseStoredSketchDocument(value);
         if (document) records.documents.push(document);
-      } else if (key.startsWith(handoffKey(""))) {
-        const handoff = parseStoredSketchHandoff(value);
-        if (handoff) records.handoffs.push(handoff);
+        else stale.push(key);
+      } else if (key.startsWith(`${prefix}handoff:`)) {
+        // v1 dispatch metadata has no reader; drop it so it does not keep its quota.
+        stale.push(key);
       }
     }
+    if (stale.length > 0) await chrome.storage.local.remove(stale);
     return records;
   }
-  const removals = [...request.deleteDocumentIds.map(documentKey), ...request.deleteHandoffIds.map(handoffKey)];
+  const removals = request.deleteDocumentIds.map(documentKey);
   if (removals.length > 0) await chrome.storage.local.remove(removals);
-  const puts = Object.fromEntries([
-    ...request.put.documents.map((document) => [documentKey(document.id), document] as const),
-    ...request.put.handoffs.map((handoff) => [handoffKey(handoff.id), handoff] as const),
-  ]);
+  const puts = Object.fromEntries(
+    request.put.documents.map((document) => [documentKey(document.id), document] as const),
+  );
   if (Object.keys(puts).length > 0) await chrome.storage.local.set(puts);
   return undefined;
 }

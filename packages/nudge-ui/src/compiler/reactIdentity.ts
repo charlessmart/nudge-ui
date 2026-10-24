@@ -53,6 +53,16 @@ function isComponentName(name: string): boolean {
   return /^[A-Z]/.test(name);
 }
 
+/** `<Fragment>` accepts only `key` and `children`, so identity attributes on it make React warn on every render. */
+function isReactFragment(componentName: string | null, policy: ComponentInstrumentationPolicy): boolean {
+  if (!componentName) return false;
+  const [root, ...members] = componentName.split(".");
+  const binding = root ? policy.bindings.get(root) : undefined;
+  if (binding?.source !== "react") return false;
+  if (members.length === 0) return binding.exportName === "Fragment";
+  return members.length === 1 && members[0] === "Fragment" && (binding.namespace || binding.exportName === "default");
+}
+
 function getScopeName(node: Node): string {
   const id = node.id as { name?: string } | null | undefined;
   return id?.name ?? "";
@@ -290,6 +300,7 @@ function walk(
     const attrs = (opening?.attributes as Node[] | undefined) ?? [];
     if (
       componentName
+      && !isReactFragment(componentName, state.componentPolicy)
       && (isComponentName(componentName) || componentName.includes("."))
       && typeof line === "number"
       && typeof column === "number"
@@ -327,7 +338,7 @@ function walk(
     }
   }
 
-  if (node.type === "JSXOpeningElement") {
+  if (node.type === "JSXOpeningElement" && !isReactFragment(elementName(node.name), state.componentPolicy)) {
     const attrs = (node.attributes as Node[]) ?? [];
     const nameNode = node.name as Node;
     // JSX type arguments (`<Button<Props> size="small" />`) must stay adjacent to the name, so attributes go after the complete type argument list.

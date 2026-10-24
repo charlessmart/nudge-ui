@@ -70,6 +70,7 @@ export class AnimationSession {
   private captureFrame: number | null = null;
   private pollFrame: number | null = null;
   private disposed = false;
+  private autoplay = false;
 
   constructor(readonly element: HTMLElement) {}
 
@@ -89,10 +90,15 @@ export class AnimationSession {
 
   getSnapshot = (): AnimationSnapshot => this.snapshot;
 
-  /** Runs an entry and captures whatever it starts. Running the current entry again replays it. */
-  run(entry: AnimationEntry): void {
+  /**
+   * Runs an entry and captures whatever it starts. Running the current entry again replays it.
+   * Captures are held at their first frame, which hides an element that fades or slides in, so
+   * `autoplay` lets the animation play through and leave the element at rest.
+   */
+  run(entry: AnimationEntry, { autoplay = false }: { autoplay?: boolean } = {}): void {
     if (this.disposed) return;
     this.release();
+    this.autoplay = autoplay;
     const window = this.element.ownerDocument.defaultView;
     if (!window) return;
     // A page the pointer is still over is already hovered, so a forced hover would change nothing to capture.
@@ -205,16 +211,20 @@ export class AnimationSession {
   private adopt(baseline: ReadonlySet<Animation>, keepTime: boolean): void {
     const fresh = this.subtreeAnimations().filter((animation) => !baseline.has(animation) && !this.captured.includes(animation));
     if (fresh.length === 0) return;
-    const time = this.captured.length > 0 ? this.groupTime() : 0;
+    const first = this.captured.length === 0;
+    const time = first ? 0 : this.groupTime();
+    const follow = this.autoplay && this.snapshot.playing;
     for (const animation of fresh) {
       animation.pause();
       animation.playbackRate = this.snapshot.speed;
       if (!keepTime) animation.currentTime = time;
+      if (follow) animation.play();
     }
     this.captured.push(...fresh);
     this.total = Math.max(...this.captured.map(endTimeOf));
     this.publish({ ...this.snapshot, status: "ready", label: labelFor(this.captured), duration: this.total });
-    this.startPolling();
+    if (first && this.autoplay) this.play();
+    else this.startPolling();
   }
 
   private groupTime(): number {
@@ -282,6 +292,7 @@ export class AnimationSession {
     this.pollFrame = null;
     this.stopPreview?.();
     this.stopPreview = null;
+    this.autoplay = false;
     for (const animation of this.captured) animation.cancel();
     this.captured = [];
     this.total = 0;

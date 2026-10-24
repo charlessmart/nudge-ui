@@ -119,7 +119,8 @@ test("serves a self-contained inspector and edits static HTML through managed CS
 
   const prompt = await copyPrompt(page);
   expect(prompt).not.toContain("Framework:");
-  expect(prompt).toContain(`### html:button (${STATIC_SOURCE})`);
+  expect(prompt).toContain(`The button in ${STATIC_SOURCE} with the id "static-action"`);
+  expect(prompt).toContain("Change background-color from rgb(255, 255, 255) to var(--color-surface-alt)");
   expect(prompt).not.toContain("data-cid");
   expect(await readFile(projectPath("index.html"), "utf8")).toBe(originalHtml);
 });
@@ -140,9 +141,8 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
 
   const prompt = await copyPrompt(page);
   expect(prompt).not.toContain("Framework:");
-  expect(prompt).toContain("## Rendered text changes");
-  expect(prompt).toContain(RENDERED_TEXT);
-  expect(prompt).toContain(RENDERED_TEXT_SOURCE);
+  expect(prompt).toContain(`the one in ${RENDERED_TEXT_SOURCE} with the id "rendered-copy"`);
+  expect(prompt).toContain(`Change the text from "${RENDERED_TEXT}" to "Updated rendered copy"`);
   expect(prompt).not.toContain("data-cid");
   expect(await readFile(projectPath("index.html"), "utf8")).toBe(originalHtml);
 });
@@ -162,10 +162,9 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
   await expect.poll(() => computedStyle(frame, "#runtime-action", "color")).toBe("rgb(116, 66, 184)");
 
   const prompt = await copyPrompt(page);
-  expect(prompt).toContain("source unknown; runtime-created DOM");
-  expect(prompt).toContain("Rendered element: `<button>`");
-  expect(prompt).toContain("Text evidence: `Runtime action`");
-  expect(prompt).toContain("Accessible name evidence: `Runtime action`");
+  // Runtime-created elements get a document-local identity and must not claim a file source.
+  expect(prompt).toContain('The button with the id "runtime-action" that says "Runtime action"');
+  expect(prompt).not.toContain("index.html:");
   expect(prompt).not.toContain("data-cid");
   expect(prompt).not.toContain("(:0");
 });
@@ -191,7 +190,7 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
   frame = await waitForInspector(page);
   await expect.poll(() => computedStyle(frame, "#static-action", "color"))
     .toBe("rgb(222, 68, 110)");
-  await page.locator('[data-test="tokens-button"]').click();
+  await page.locator('[data-test="settings-button"]').click();
   await page.locator('[data-test="settings-nav-tokens"]').click();
   await expect(page.locator('[data-token-name="--color-accent"]')).toBeVisible({ timeout: 15_000 });
   await expect.poll(async () => frame.evaluate(() => {

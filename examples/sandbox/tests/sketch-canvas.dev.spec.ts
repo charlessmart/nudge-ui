@@ -1,6 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
 import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+
+async function grantClipboard(page: Page): Promise<void> {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  await page.bringToFront();
+}
 
 test("a live sketch blocks canvas pan and zoom until it closes", async ({ page }) => {
   await openEditor(page, "/playground?nudge-ui=on");
@@ -114,6 +119,7 @@ test("the first stroke targets another frame without selecting an application el
   await page.mouse.up();
   await expect(page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path')).toHaveCount(1);
   await expect(page.locator('[data-test="selection"]')).toHaveCount(0);
+  await grantClipboard(page);
   await page.locator('[data-test="sketch-copy"]').click();
   // The copy was taken from the frame that was drawn on, not from the first one.
   const recent = page.locator('[data-test="sketch-recent"]');
@@ -125,13 +131,13 @@ test("the first stroke targets another frame without selecting an application el
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    const saved = await new Promise<{ capture: { url: string } }>((resolve, reject) => {
+    const saved = await new Promise<{ url: string }>((resolve, reject) => {
       const request = database.transaction("documents").objectStore("documents").get(sketchId!);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
     database.close();
-    return new URL(saved.capture.url).pathname;
+    return new URL(saved.url).pathname;
   }, id);
   expect(capturedPath).toBe("/conformance");
 

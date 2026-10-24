@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, type ReactElement } from "react";
 
 export interface BlobImageProps {
   readonly blob: Blob;
+  /** Draws only this part of the picture, in the picture's own pixels. */
+  readonly crop?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly className: string;
   /** The picture's size when it is known, so the canvas holds its shape before the picture is drawn. */
   readonly width?: number;
@@ -24,7 +26,7 @@ function decode(blob: Blob): Promise<ImageBitmap> {
 }
 
 /** Paints an image blob onto a canvas, because a page's `img-src` policy can block `blob:` URLs in `<img>` but not canvas drawing. */
-export function BlobImage({ blob, className, width, height, label }: BlobImageProps): ReactElement {
+export function BlobImage({ blob, crop, className, width, height, label }: BlobImageProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // A layout effect, so a picture that is already decoded is drawn before the first paint rather than a frame after it.
@@ -34,14 +36,16 @@ export function BlobImage({ blob, className, width, height, label }: BlobImagePr
     let current = true;
     void decode(blob).then((bitmap) => {
       if (!current) return;
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+      const source = crop ?? { x: 0, y: 0, width: bitmap.width, height: bitmap.height };
+      canvas.width = Math.round(source.width);
+      canvas.height = Math.round(source.height);
+      canvas.getContext("2d")?.drawImage(bitmap, source.x, source.y, source.width, source.height, 0, 0, canvas.width, canvas.height);
     }, () => undefined);
     return () => {
       current = false;
     };
-  }, [blob]);
+    // The crop is a fresh object each render, so its numbers are the dependencies.
+  }, [blob, crop?.x, crop?.y, crop?.width, crop?.height]);
 
   return label
     ? <canvas ref={canvasRef} className={className} width={width} height={height} role="img" aria-label={label} />

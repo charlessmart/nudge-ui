@@ -40,7 +40,7 @@ export function AnimationBar(): ReactElement | null {
     session.setSpeed(getAnimationSpeed());
     // A click runs the app's own handlers, so only a described animation starts by itself.
     const first = session.getSnapshot().entries?.[0];
-    if (first && first.kind !== "click") session.run(first);
+    if (first && first.kind !== "click") session.run(first, { autoplay: true });
     return () => session.dispose();
   }, [session]);
 

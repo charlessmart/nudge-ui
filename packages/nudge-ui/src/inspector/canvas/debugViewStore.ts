@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-/** What the view tool shows: element outlines, or the page's layers pulled apart. */
-export type DebugViewMode = "outlines" | "explode";
+/** What the view tool shows: the page's animations, element outlines, or the page's layers pulled apart. */
+export type DebugViewMode = "animation" | "outlines" | "explode";
 
 function createStore<T>(initial: T): {
   get: () => T;
@@ -29,9 +29,9 @@ function createStore<T>(initial: T): {
   };
 }
 
-// Which view the tool applies. Outline view, Explode view and Animation are separate tools, so only one is ever active;
+// Which view the tool applies. Animation, Outline view and Explode view share one tool, so only one is ever active;
 // the tool selection lives with the canvas and this is just the view the tool will show when it is.
-const viewMode = createStore<DebugViewMode>("outlines");
+const viewMode = createStore<DebugViewMode>("animation");
 
 export const getDebugViewMode = viewMode.get;
 export const setDebugViewMode = viewMode.set;

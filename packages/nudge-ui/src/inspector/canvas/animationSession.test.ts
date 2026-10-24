@@ -88,6 +88,16 @@ describe("AnimationSession", () => {
     session.dispose();
   });
 
+  it("plays an autoplayed capture instead of holding it at its first frame", () => {
+    const session = new AnimationSession(button);
+    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
+    session.run(CLICK_ENTRY, { autoplay: true });
+
+    expect(session.getSnapshot()).toMatchObject({ status: "ready", playing: true });
+    expect(live[0]!.play).toHaveBeenCalled();
+    session.dispose();
+  });
+
   it("does not follow a link or submit when it runs a click", () => {
     document.body.innerHTML = `<a id="a" href="#elsewhere">Go</a>`;
     const link = document.getElementById("a") as HTMLAnchorElement;

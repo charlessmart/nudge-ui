@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconChevronUp, IconLayersSelected, IconRuler } from "@tabler/icons-react";
+import { IconCheck, IconChevronUp, IconKeyframes, IconLayersSelected, IconRuler } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -15,8 +15,9 @@ const VIEW_MODES: ReadonlyArray<{
   readonly label: string;
   readonly Icon: typeof IconRuler;
 }> = [
-  { mode: "outlines", label: "Outline view", Icon: IconRuler },
-  { mode: "explode", label: "Explode view", Icon: IconLayersSelected },
+  { mode: "animation", label: "Animation", Icon: IconKeyframes },
+  { mode: "outlines", label: "Outlines", Icon: IconRuler },
+  { mode: "explode", label: "Explode", Icon: IconLayersSelected },
 ];
 
 export interface ViewToolButtonProps {
@@ -27,7 +28,7 @@ export interface ViewToolButtonProps {
   readonly onToggle: () => void;
 }
 
-/** One toolbar tool that shows either Outline view or Explode view; the chevron beside it swaps between them. */
+/** One toolbar tool that shows Animation, Outlines or Explode; the chevron beside it swaps between them. */
 export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonProps): ReactElement {
   const mode = useDebugViewMode();
   const [open, setOpen] = useState(false);

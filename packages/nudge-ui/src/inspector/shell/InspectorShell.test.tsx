@@ -14,8 +14,8 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/run
 import { setInputValue } from "../styleEditors/_testUtils.ts";
 import { clearComments, getComments, saveComment } from "../comments/store.ts";
 import { beginInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
-import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
-import { resetSketchMemory } from "../sketch/persistence.ts";
+import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
+import { resetSketchMemory } from "../canvas/sketch/persistence.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -284,13 +284,10 @@ describe("InspectorShell", () => {
     const image = new Blob(["png"], { type: "image/png" });
     await initializeSketchStore();
     await saveSketch({
-      capture: {
-        url: window.location.href, title: "Sketch fixture", timestamp: 1,
-        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
-        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
-      },
-      description: "Move this button", strokes: [], imageWidth: 1, imageHeight: 1,
-      originalImage: image, annotatedImage: image,
+      url: window.location.href,
+      image,
+      imageWidth: 1,
+      imageHeight: 1,
     });
     try {
       act(() => mountInspector(host));

@@ -55,8 +55,8 @@ import {
   getClipboardHandoffSnapshot,
   recordClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
-import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
-import { readSketchPersistence, resetSketchMemory } from "../sketch/persistence.ts";
+import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
+import { readSketchPersistence, resetSketchMemory } from "../canvas/sketch/persistence.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -483,13 +483,10 @@ describe("sessionStore clear session", () => {
     const image = new Blob(["png"], { type: "image/png" });
     await initializeSketchStore(projectId);
     await saveSketch({
-      capture: {
-        url: window.location.href, title: "Sketch fixture", timestamp: 1,
-        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
-        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
-      },
-      description: "Move this button", strokes: [], imageWidth: 1, imageHeight: 1,
-      originalImage: image, annotatedImage: image,
+      url: window.location.href,
+      image,
+      imageWidth: 1,
+      imageHeight: 1,
     });
     expect((await readSketchPersistence(projectId)).documents).toHaveLength(1);
     try {

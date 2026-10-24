@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../../runtime/runtimeConfig.ts";
 import {
   clearSketchesForProject,
   getSketches,
@@ -17,29 +17,12 @@ import {
   type SketchStorage,
   type SketchStorageChange,
 } from "./persistence.ts";
-import {
-  SKETCH_STROKE_COLOR,
-  SKETCH_STROKE_OUTLINE,
-  type SketchCaptureMetadata,
-} from "./model.ts";
+import { SKETCH_LIMITS, type SketchDocument } from "../../sketch/model.ts";
 
 const projectId = "sketch-store-project";
 const image = new Blob(["png"], { type: "image/png" });
+const url = "http://localhost:5173/";
 let previousConfig = getNudgeUiRuntimeConfig();
-const capture: SketchCaptureMetadata = {
-  url: "http://localhost:5173/",
-  title: "Fixture",
-  timestamp: 1,
-  viewportWidth: 800,
-  viewportHeight: 600,
-  scrollX: 0,
-  scrollY: 0,
-  devicePixelRatio: 1,
-  host: "vite-react",
-  framework: "React",
-  imageWidth: 1,
-  imageHeight: 1,
-};
 
 function configureFixture(): void {
   configureNudgeUiRuntime({
@@ -50,16 +33,12 @@ function configureFixture(): void {
   });
 }
 
-function createSketch(description: string, id?: string) {
+function createSketch() {
   return saveSketch({
-    ...(id ? { id } : {}),
-    capture,
-    description,
-    strokes: [],
+    url,
+    image,
     imageWidth: 1,
     imageHeight: 1,
-    originalImage: image,
-    annotatedImage: image,
   });
 }
 
@@ -81,25 +60,23 @@ afterEach(async () => {
 describe("sketch store", () => {
   it("persists through configured storage instead of the page's own storage", async () => {
     const changes: SketchStorageChange[] = [];
-    const records = { documents: new Map(), handoffs: new Map() };
+    const records = { documents: new Map<string, SketchDocument>() };
     const storage: SketchStorage = {
-      read: async () => ({ documents: [...records.documents.values()], handoffs: [...records.handoffs.values()] }),
+      read: async () => ({ documents: [...records.documents.values()] }),
       update: async (_projectId, change) => {
         changes.push(change);
         change.documents?.forEach((document) => records.documents.set(document.id, document));
-        change.handoffs?.forEach((handoff) => records.handoffs.set(handoff.id, handoff));
         change.deleteDocumentIds?.forEach((id) => records.documents.delete(id));
-        change.deleteHandoffIds?.forEach((id) => records.handoffs.delete(id));
       },
     };
     configureSketchStorage(storage);
     try {
-      const document = await createSketch("Stored by the extension");
+      const document = await createSketch();
       expect(changes[0]?.documents?.map((saved) => saved.id)).toEqual([document.id]);
 
       resetSketchStore();
       await initializeSketchStore(projectId);
-      expect(getSketches().map((item) => item.document.id)).toEqual([document.id]);
+      expect(getSketches().map((saved) => saved.id)).toEqual([document.id]);
 
       await removeSketch(document.id);
       expect(changes.at(-1)?.deleteDocumentIds).toEqual([document.id]);
@@ -107,111 +84,100 @@ describe("sketch store", () => {
     } finally {
       configureSketchStorage(null);
     }
-    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [] });
   });
 
   it("explains a full configured storage instead of a generic save failure", async () => {
     configureSketchStorage({
-      read: async () => ({ documents: [], handoffs: [] }),
+      read: async () => ({ documents: [] }),
       update: async () => {
         throw new Error("Resource::kQuotaBytes quota exceeded");
       },
     });
     try {
-      await expect(createSketch("Too large")).rejects.toThrow(SKETCH_STORAGE_FULL_MESSAGE);
+      await expect(createSketch()).rejects.toThrow(SKETCH_STORAGE_FULL_MESSAGE);
     } finally {
       configureSketchStorage(null);
     }
   });
 
-  it("saves a revision without storing image bytes in its record", async () => {
+  it("saves the copied image and the page it came from", async () => {
     const document = await saveSketch({
-      capture,
-      description: "Align the card with the heading",
-      strokes: [{
-        id: "stroke-1",
-        width: 6,
-        color: SKETCH_STROKE_COLOR,
-        outlineColor: SKETCH_STROKE_OUTLINE,
-        points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-      }],
-      annotations: [{
-        id: "annotation-1",
-        number: 1,
-        point: { x: 1, y: 1 },
-        description: "Done button",
-      }],
+      url,
+      image,
       imageWidth: 1,
       imageHeight: 1,
-      originalImage: image,
-      annotatedImage: image,
     });
 
-    expect(document.filename).toBe(`sketch-${document.id}-r1.png`);
-    expect(document.annotations).toEqual([expect.objectContaining({ number: 1, description: "Done button" })]);
-    expect(getSketches()[0]).toMatchObject({ document: { id: document.id, revision: 1 } });
+    expect(document).toMatchObject({ url, imageWidth: 1, imageHeight: 1, schemaVersion: 2 });
+    expect(document.image).toBe(image);
+    expect(getSketches()[0]).toMatchObject({ id: document.id, url });
   });
 
-  it("keeps the three latest sketches, removing the oldest from storage too", async () => {
+  it("keeps the four latest sketches, removing the oldest from storage too", async () => {
     // Saves in the same millisecond tie on time, so each one gets its own.
     let clock = 1_000;
     const now = vi.spyOn(Date, "now").mockImplementation(() => (clock += 10));
-    const first = await createSketch("First copy");
-    const second = await createSketch("Second copy");
-    const third = await createSketch("Third copy");
-    const fourth = await createSketch("Fourth copy");
+    const first = await createSketch();
+    const second = await createSketch();
+    const third = await createSketch();
+    const fourth = await createSketch();
+    const fifth = await createSketch();
     now.mockRestore();
 
-    const kept = [fourth.id, third.id, second.id];
-    expect(getSketches().map((item) => item.document.id)).toEqual(kept);
+    const kept = [fifth.id, fourth.id, third.id, second.id];
+    expect(getSketches().map((saved) => saved.id)).toEqual(kept);
     const stored = await readSketchPersistence(projectId);
     expect(stored.documents.map((document) => document.id).sort()).toEqual([...kept].sort());
-    expect(stored.handoffs.every((handoff) => kept.includes(handoff.sketchId))).toBe(true);
     expect(stored.documents.some((document) => document.id === first.id)).toBe(false);
   });
 
   it("restores the kept sketch after a reload", async () => {
-    const kept = await createSketch("Copied before reloading");
+    const kept = await createSketch();
 
     resetSketchStore();
     await initializeSketchStore(projectId);
 
-    expect(getSketches().map((item) => item.document.id)).toEqual([kept.id]);
+    expect(getSketches().map((saved) => saved.id)).toEqual([kept.id]);
   });
 
-  it("shows only the newest when older sketches were left in storage by an earlier version", async () => {
-    const records = { documents: new Map<string, unknown>(), handoffs: new Map<string, unknown>() };
+  it("restores at most the kept sketches when storage holds more", async () => {
+    const records = { documents: new Map<string, SketchDocument>() };
     configureSketchStorage({
-      read: async () => ({ documents: [...records.documents.values()] as never, handoffs: [...records.handoffs.values()] as never }),
+      read: async () => ({ documents: [...records.documents.values()] }),
       update: async (_projectId, change) => {
         change.documents?.forEach((document) => records.documents.set(document.id, document));
-        change.handoffs?.forEach((handoff) => records.handoffs.set(handoff.id, handoff));
         change.deleteDocumentIds?.forEach((id) => records.documents.delete(id));
-        change.deleteHandoffIds?.forEach((id) => records.handoffs.delete(id));
       },
     });
     try {
-      const older = await createSketch("Older");
-      // An earlier version kept up to four sketches; put a second one straight into storage.
-      const newer = { ...older, id: "newer-sketch", updatedAt: older.updatedAt + 1000, createdAt: older.createdAt + 1000 };
-      records.documents.set(newer.id, newer);
+      const older = await createSketch();
+      for (let index = 0; index < SKETCH_LIMITS.keptSketches; index += 1) {
+        records.documents.set(`extra-${index}`, {
+          ...older,
+          id: `extra-${index}`,
+          updatedAt: older.updatedAt + index + 1,
+          createdAt: older.createdAt + index + 1,
+        });
+      }
 
       resetSketchStore();
       await initializeSketchStore(projectId);
 
-      expect(getSketches()[0]?.document.id).toBe(newer.id);
+      expect(getSketches()).toHaveLength(SKETCH_LIMITS.keptSketches);
+      expect(getSketches()[0]?.id).toBe(`extra-${SKETCH_LIMITS.keptSketches - 1}`);
     } finally {
       configureSketchStorage(null);
     }
   });
 
   it("removes the kept sketch entirely", async () => {
-    const document = await createSketch("Review this area");
+    const document = await createSketch();
 
     await expect(removeSketch(document.id)).resolves.toBe(true);
 
     expect(getSketches()).toHaveLength(0);
-    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [] });
     await expect(removeSketch(document.id)).resolves.toBe(false);
   });
 });
@@ -223,7 +189,7 @@ describe("demo runtimes", () => {
     resetSketchMemory();
     await initializeSketchStore(projectId);
 
-    await createSketch("Demo annotation");
+    await createSketch();
     expect(getSketches()).toHaveLength(1);
 
     resetSketchStore();
