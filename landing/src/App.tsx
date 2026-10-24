@@ -18,7 +18,6 @@ const manualSetupCode = [
   "Astro         nudge-ui/astro",
   "Static HTML   nudge-ui/static",
 ].join(String.fromCharCode(10));
-const agentSetupCode = "npx nudge-ui agent setup";
 
 const showcaseVideo = {
   title: "Edit the interface directly",
@@ -514,12 +513,7 @@ export function App(): ReactNode {
                 <pre className="landing-setup-code landing-setup-code--large"><code>{manualSetupCode}</code></pre>
               </div>
 
-              <div className="landing-setup-step">
-                <p className="landing-setup-lead">Connect your coding agent:</p>
-                <pre className="landing-setup-code landing-setup-code--command"><code>{agentSetupCode}</code></pre>
-              </div>
-
-              <p className="landing-setup-note">Run this from your application directory, select your coding agent, then start your app normally. Fully restart the agent host and ask it to listen to Nudge. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
+              <p className="landing-setup-note">Run this from your application directory, start your app normally, edit in the browser, then press <strong>Copy prompt</strong> and paste it into your coding agent.</p>
             </div>
           </section>
 

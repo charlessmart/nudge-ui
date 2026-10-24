@@ -1,12 +1,10 @@
 /** Shared by the Turbopack rule condition and the loader's runtime scope check so the two cannot drift apart. */
 export const NUDGE_UI_PACKAGE_DIRECTORIES = [
-  "agent-protocol",
   "compiler",
   "compatibility",
   "create-nudge-ui",
   "css",
   "inspector",
-  "mcp",
   "nextjs",
   "package-css-fixture",
   "plugin",

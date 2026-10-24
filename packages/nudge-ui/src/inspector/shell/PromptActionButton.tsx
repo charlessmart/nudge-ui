@@ -6,7 +6,6 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 
 export interface PromptActionButtonProps extends ButtonProps {
   readonly copied?: boolean;
-  readonly agentState?: string;
   readonly busy?: boolean;
   readonly icon?: ReactNode;
   readonly label?: ReactNode;
@@ -14,15 +13,15 @@ export interface PromptActionButtonProps extends ButtonProps {
   readonly hasMenu?: boolean;
 }
 
-/** Presents a prompt action without owning clipboard or agent connections. */
+/** Presents a prompt action without owning the clipboard. */
 export const PromptActionButton = forwardRef<HTMLButtonElement, PromptActionButtonProps>(function PromptActionButton({
-  copied = false, agentState = "disconnected", busy = false,
+  copied = false, busy = false,
   icon = <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />,
   label = "Copy prompt", badgeCount = 0, hasMenu = false, ...props
 }, ref) {
   return <Button
     ref={ref} variant="primary" className="copy-prompt__main" data-test="copy-prompt" type="button"
-    data-copied={copied ? "true" : "false"} data-agent-state={agentState}
+    data-copied={copied ? "true" : "false"}
     aria-busy={busy ? "true" : undefined} {...props}
   >
     {icon}{label}

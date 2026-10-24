@@ -56,8 +56,6 @@ export interface HandoffSnapshot {
   readonly structuralChanges: readonly StructuralChange[];
 }
 
-const dispatches = new Map<number, HandoffSnapshot>();
-
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableJsonValue);
   if (!value || typeof value !== "object") return value;
@@ -201,29 +199,6 @@ export function verifiedChangeKeys(
   return verified;
 }
 
-export function recordAgentDispatch(
-  revision: number,
-  changes: readonly ChangeRecord[],
-  structuralChanges: readonly StructuralChange[] = [],
-  owner: HandoffOwner = captureHandoffOwner(),
-): void {
-  dispatches.set(revision, {
-    owner: structuredClone(owner),
-    changes: changes.map((change) => structuredClone(change)),
-    structuralChanges: structuralChanges.map((change) => structuredClone(change)),
-  });
-}
-
-export function discardAgentDispatch(revision: number): void {
-  dispatches.delete(revision);
-}
-
-export function getAgentDispatchSize(revision: number): number {
-  const snapshot = dispatches.get(revision);
-  if (!snapshot) return 0;
-  return snapshot.changes.length + snapshot.structuralChanges.length;
-}
-
 function afterBrowserPaint(doc: Document): Promise<void> {
   const ownerWindow = doc.defaultView;
   const requestFrame = ownerWindow?.requestAnimationFrame.bind(ownerWindow);
@@ -337,28 +312,4 @@ function handoffDocument(owner: HandoffOwner): Document | null {
   return owner.target.kind === "application" && !isEditorShellDocument() ? document : null;
 }
 
-export function getAgentDispatch(revision: number): HandoffSnapshot | null {
-  return dispatches.get(revision) ?? null;
-}
 
-export function unchangedHandoffRecords(snapshot: HandoffSnapshot): Pick<HandoffSnapshot, "changes" | "structuralChanges"> {
-  const sent = new Set(snapshot.changes.map(handoffChangeFingerprint));
-  const sentStructural = new Set(snapshot.structuralChanges.map(handoffStructuralFingerprint));
-  const current = getDraftChanges(snapshot.owner.draftId);
-  return {
-    changes: current.changes.filter((change) => sent.has(handoffChangeFingerprint(change))),
-    structuralChanges: current.structuralChanges.filter((change) => sentStructural.has(handoffStructuralFingerprint(change))),
-  };
-}
-
-export async function verifyAndReconcileAgentDispatch(revision: number): Promise<number> {
-  const snapshot = dispatches.get(revision);
-  if (!snapshot) return 0;
-  dispatches.delete(revision);
-  return verifyAndReconcileHandoff(snapshot);
-}
-
-/** Test/session reset for in-memory dispatch snapshots. */
-export function resetAgentVerification(): void {
-  dispatches.clear();
-}

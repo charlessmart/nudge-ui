@@ -23,7 +23,7 @@ import { installInteractionStyles } from "../overlay/interactionStyles.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isEditableEvent, isInspectorToggleShortcut, isSendPromptShortcut } from "../shell/shortcuts.ts";
+import { isEditableEvent, isInspectorToggleShortcut, isCopyPromptShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { escapeCssString } from "../projection/cssEscapes.ts";
 import {
@@ -634,7 +634,7 @@ export function installRendererElementSelector(
     const code = isKeyboardShortcutCode(event.code) ? event.code : null;
     if (!code) return false;
     if (code === "KeyS") {
-      if (phase !== "keydown" || !isSendPromptShortcut(event)) return false;
+      if (phase !== "keydown" || !isCopyPromptShortcut(event)) return false;
     } else if (code !== "Backslash" && code !== "Escape" && interactionsSuspended) {
       // Escape leaves the debug tools, which keep the app interactive and the renderer suspended.
       return false;

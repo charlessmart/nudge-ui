@@ -5,8 +5,8 @@ coding agent. Nudge UI is a development-only visual inspector for Next.js,
 Astro, Vite with React, and static HTML.
 
 Select an element, adjust its design, and see the result immediately. Copy a
-structured prompt or send it to a connected agent to apply the changes to your
-source code. Nudge previews app edits; your coding agent implements them.
+structured prompt to apply the changes to your source code. Nudge previews app
+edits; your coding agent implements them.
 
 ![Nudge UI visual inspector](https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74)
 
@@ -36,8 +36,8 @@ optional, so you only need the tools your app uses.
 - **Explore alternatives:** Create independent HTML iterations from a frame,
   refine them, and ask an agent to implement your chosen design in the live app.
 - **Explain changes:** Add comments alongside visual edits, or sketch over the page and copy the image to paste into your agent.
-- **Hand off to an agent:** Copy a prompt with source context, or send it through
-  the optional MCP integration and see the agent's status in the editor.
+- **Hand off to an agent:** Copy a prompt with source context, comments, and
+  the exact design changes.
 
 ## Use the editor
 
@@ -62,23 +62,12 @@ appearance changed at the same viewport size, with previews removed. This
 detects a change; it does not verify that the note was satisfied. Missing or
 ambiguous targets keep their comments.
 
-## Connect a coding agent
+## Hand off to a coding agent
 
-To add or repair agent integration in an installed project, run:
-
-```sh
-npx nudge-ui agent setup
-```
-
-Setup installs [`@nudge-ui/mcp`](https://www.npmjs.com/package/@nudge-ui/mcp)
-and configures your selected agent. Fully restart the agent host, ask it to
-**listen to Nudge in this workspace**, and keep it listening while you send
-changes. You can use copied prompts without MCP.
-
-The MCP integration is early alpha. For diagnostics, run
-`npx nudge-ui agent doctor` from the app directory. See the
-[coding-agent guide](https://github.com/charlessmart/nudge-ui/blob/main/docs/agent-integration.md)
-for host limitations and session selection.
+Press **Copy prompt** in the inspector and paste the prompt into your agent. For
+an HTML iteration, the prompt menu offers **Copy iteration prompt** to keep
+refining the standalone HTML, or **Copy prompt for live app** to implement the
+design in application source.
 
 ## Manual installation
 
@@ -178,7 +167,6 @@ change without notice.
 ## Links
 
 [Initializer](https://www.npmjs.com/package/create-nudge-ui) ·
-[MCP integration](https://www.npmjs.com/package/@nudge-ui/mcp) ·
 [Repository](https://github.com/charlessmart/nudge-ui) ·
 [Issues](https://github.com/charlessmart/nudge-ui/issues) ·
 [MIT license](https://github.com/charlessmart/nudge-ui/blob/main/LICENSE)

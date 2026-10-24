@@ -2,7 +2,6 @@ import { changeKey } from "../changes/model.ts";
 import { canEditDraft, getActiveDraftChanges, reconcileDraftChanges } from "../drafts/store.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
-import { unchangedHandoffRecords, type HandoffSnapshot } from "../agent/verification.ts";
 import { getClipboardHandoffRecords } from "../prompt/clipboardHandoff.ts";
 import { getCommentsForTarget, removeComment, type ElementComment } from "../comments/store.ts";
 import type { DraftTarget } from "../drafts/model.ts";
@@ -15,17 +14,12 @@ export interface SentItems {
   readonly comments: readonly ElementComment[];
 }
 
-export function getSentItems(draftId: string, target: DraftTarget, agentDispatch: HandoffSnapshot | null): SentItems {
+export function getSentItems(draftId: string, target: DraftTarget): SentItems {
   const clipboard = getClipboardHandoffRecords(draftId);
-  const agent = agentDispatch?.owner.draftId === draftId
-    ? unchangedHandoffRecords(agentDispatch)
-    : { changes: [], structuralChanges: [] };
-  const changes = new Map([...clipboard.changes, ...agent.changes].map((change) => [changeKey(change), change]));
-  const structuralChanges = new Map([...clipboard.structuralChanges, ...agent.structuralChanges].map((change) => [change.id, change]));
   return {
     draftId,
-    changes: [...changes.values()],
-    structuralChanges: [...structuralChanges.values()],
+    changes: clipboard.changes,
+    structuralChanges: clipboard.structuralChanges,
     comments: getCommentsForTarget(target).filter((comment) => comment.handedOff),
   };
 }

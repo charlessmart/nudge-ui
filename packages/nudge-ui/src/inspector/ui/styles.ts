@@ -34,7 +34,6 @@ import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
-import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
 import settingsStyles from "../settings/SettingsDialog.css?inline";
 import sketchStyles from "../sketch/Sketch.css?inline";
 
@@ -75,7 +74,6 @@ export const UI_STYLES = [
   tokensPanelStyles,
   changesLogStyles,
   promptSettingsStyles,
-  mcpConnectionStyles,
   settingsStyles,
   sketchStyles,
 ].join("\n");

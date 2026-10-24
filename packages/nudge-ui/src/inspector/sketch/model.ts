@@ -1,4 +1,16 @@
-import type { AgentSketchCaptureMetadata } from "../agent/protocol.ts";
+/** Stored sketch capture provenance. */
+export interface SketchCaptureSource {
+  readonly url: string;
+  readonly title: string;
+  readonly timestamp: number;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly devicePixelRatio: number;
+  readonly host: string;
+  readonly framework: string;
+}
 
 export const SKETCH_SCHEMA_VERSION = 1 as const;
 export const SKETCH_DATABASE_NAME = "nudge-ui-sketches";
@@ -94,7 +106,7 @@ export interface SketchAnnotation {
   readonly description: string;
 }
 
-export interface SketchCaptureMetadata extends AgentSketchCaptureMetadata {
+export interface SketchCaptureMetadata extends SketchCaptureSource {
   readonly imageWidth: number;
   readonly imageHeight: number;
 }

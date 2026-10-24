@@ -43,3 +43,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0037: In-page extension inspector](./0037-in-page-extension-inspector.md) (supersedes ADR-0033's iframe editor and the extension permission list from ADR-0033 and ADR-0035)
 - [ADR-0038: Moves into component children name the invocation](./0038-moves-into-component-children.md)
 - [ADR-0039: Renderer-owned view tools and a controller-owned animation timeline](./0039-renderer-owned-view-tools.md)
+- [ADR-0041: Remove the MCP integration and add pages from the Canvas](./0041-remove-the-mcp-integration.md) (supersedes ADR-0013, ADR-0015, ADR-0026, ADR-0028, and ADR-0032)

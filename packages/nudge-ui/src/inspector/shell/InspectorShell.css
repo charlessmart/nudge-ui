@@ -196,48 +196,8 @@
   font-family: var(--font-mono);
 }
 
-.agent-status-button {
+.inspector-settings-button {
   position: relative;
-}
-
-.agent-status-button__avatars {
-  display: inline-flex;
-  align-items: center;
-}
-
-.agent-status-button__avatar {
-  width: 20px;
-  height: 20px;
-  display: block;
-  background: var(--surface-raised-2x);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--border-subtle);
-  padding: 2px;
-}
-
-.agent-status-button__avatar svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.agent-status-button__avatar + .agent-status-button__avatar {
-  margin-left: calc(var(--space-4) * -1);
-}
-
-.agent-status-button__dot {
-  position: absolute;
-  top: 50%;
-  right: 3px;
-  width: 6px;
-  height: 6px;
-  transform: translateY(-50%);
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.agent-status-button[data-mcp-listening="true"] .agent-status-button__dot {
-  background: var(--success);
 }
 
 .copy-prompt__hint {

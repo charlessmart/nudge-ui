@@ -108,9 +108,6 @@ importers:
       '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
-      '@nudge-ui/mcp':
-        specifier: workspace:*
-        version: link:../../packages/mcp
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -439,15 +436,6 @@ importers:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  packages/agent-protocol:
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
   packages/chrome-extension:
     dependencies:
       nudge-ui:
@@ -478,9 +466,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.5.4)
-      add-mcp:
-        specifier: ^2.4.0
-        version: 2.4.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -488,31 +473,6 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/mcp:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.30.0
-        version: 1.30.0(zod@3.25.76)
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
-    devDependencies:
-      '@nudge-ui/agent-protocol':
-        specifier: workspace:*
-        version: link:../agent-protocol
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      esbuild:
-        specifier: ^0.21.5
-        version: 0.21.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(patch_hash=7e680428127f7c4848a2282ee0161b8ba9e0591b940be4eefd7da6b60a174a53)(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/nudge-ui:
     dependencies:
@@ -553,9 +513,6 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      '@nudge-ui/agent-protocol':
-        specifier: workspace:*
-        version: link:../agent-protocol
       '@types/hast':
         specifier: ^3.0.5
         version: 3.0.5
@@ -928,15 +885,9 @@ packages:
     resolution: {integrity: sha512-CuNiSqg7+e1cO/GjffyMOm5Tt2jUF9CWHHnvQ/UkqvtkGfHdgwEC0wpmq7fkN3gxwpRnrAN0WzO3vREKmNolMQ==}
     engines: {node: '>=18'}
 
-  '@clack/core@0.4.1':
-    resolution: {integrity: sha512-Pxhij4UXg8KSr7rPek6Zowm+5M22rbd2g1nfojHJkxp5YkFqiZ2+YLEM/XGVIzvGOcM0nqjIFxrpDwWRZYWYjA==}
-
   '@clack/core@1.4.3':
     resolution: {integrity: sha512-/kr3UWNtdJfxZtPgDqUOmG2pvwlmcLGheex5yiZKdwbzZJxhV+HMNR9QNmyY5cGwTNV6LrR7Jtp+KjhUAP1qBQ==}
     engines: {node: '>= 20.12.0'}
-
-  '@clack/prompts@0.9.1':
-    resolution: {integrity: sha512-JIpyaboYZeWYlyP0H+OoPPxd6nqueG/CmN6ixBiNFsIDHREevjIf0n0Ohh5gr5C8pEDknzgvz+pIJ8dMhzWIeg==}
 
   '@clack/prompts@1.7.0':
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
@@ -1370,9 +1321,6 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
-
-  '@iarna/toml@2.2.5':
-    resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3117,11 +3065,6 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  add-mcp@2.4.0:
-    resolution: {integrity: sha512-fR2PZlcgq2VhDp53Bs3gLftf1FTVz8foXjMclIfc967D3sEKn7gWmmaSIAV5MhXfcT0ELx8yRkxgG10wbKX0kg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
@@ -3396,10 +3339,6 @@ packages:
   commander@11.1.0:
     resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
     engines: {node: '>=16'}
-
-  commander@13.1.0:
-    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
-    engines: {node: '>=18'}
 
   commander@14.0.3:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
@@ -6596,20 +6535,9 @@ snapshots:
     dependencies:
       fontkitten: 1.0.3
 
-  '@clack/core@0.4.1':
-    dependencies:
-      picocolors: 1.1.1
-      sisteransi: 1.0.5
-
   '@clack/core@1.4.3':
     dependencies:
       fast-wrap-ansi: 0.2.2
-      sisteransi: 1.0.5
-
-  '@clack/prompts@0.9.1':
-    dependencies:
-      '@clack/core': 0.4.1
-      picocolors: 1.1.1
       sisteransi: 1.0.5
 
   '@clack/prompts@1.7.0':
@@ -6916,8 +6844,6 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
-
-  '@iarna/toml@2.2.5': {}
 
   '@img/colour@1.1.0':
     optional: true
@@ -8621,15 +8547,6 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  add-mcp@2.4.0:
-    dependencies:
-      '@clack/prompts': 0.9.1
-      '@iarna/toml': 2.2.5
-      chalk: 5.6.2
-      commander: 13.1.0
-      js-yaml: 4.3.2
-      jsonc-parser: 3.3.1
-
   agent-base@7.1.4: {}
 
   ajv-formats@2.1.1(ajv@8.20.0):
@@ -8961,8 +8878,6 @@ snapshots:
   comma-separated-tokens@2.0.3: {}
 
   commander@11.1.0: {}
-
-  commander@13.1.0: {}
 
   commander@14.0.3: {}
 

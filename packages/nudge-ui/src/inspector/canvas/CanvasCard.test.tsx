@@ -320,7 +320,7 @@ describe("CanvasCard renderer handshake", () => {
 
   it("moves only the dragged linked frame at canvas zoom", () => {
     const source: CanvasCardData = {
-      id: "linked-source", groupId: "breakpoints",
+      id: "linked-source",
       content: { kind: "route", url: window.location.href }, title: null,
       x: 40, y: 60, width: 800, height: 600,
     };

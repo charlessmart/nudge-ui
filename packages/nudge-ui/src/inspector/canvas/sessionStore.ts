@@ -3,9 +3,6 @@ import { isFrameContent, type FrameContent } from "./frameContent.ts";
 import { clearComments } from "../comments/store.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
 import {
-  getFrameGroups,
-  isFrameGroup,
-  type FrameGroup,
   getCanvasCards,
   getFocusedCardId,
   getSelectedCardId,
@@ -75,7 +72,6 @@ export interface SerializableCard {
   id: string;
   content: FrameContent;
   title: string | null;
-  groupId?: string;
   x: number;
   y: number;
   width: number;
@@ -87,7 +83,6 @@ export interface DurableSession {
   projectId: string;
   mode: CanvasMode;
   presentation: CanvasPresentation;
-  groups: readonly FrameGroup[];
   inspectUrl: string;
   cards: SerializableCard[];
   camera: { x: number; y: number; zoom: number };
@@ -118,13 +113,11 @@ function buildSession(): DurableSession {
     projectId: projectId(),
     mode,
     presentation: getCanvasPresentation(),
-    groups: getFrameGroups(),
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
       content: c.content.kind === "route" ? { kind: "route", url: c.content.url } : { ...c.content },
       title: c.title,
-      ...(c.groupId ? { groupId: c.groupId } : {}),
       x: c.x,
       y: c.y,
       width: c.width,
@@ -236,7 +229,6 @@ export function hydrateSession(): HydrationResult {
       id: c.id as string,
       content: c.content as FrameContent,
       title: typeof c.title === "string" ? c.title as string : null,
-      ...(typeof c.groupId === "string" && c.groupId.length <= 256 ? { groupId: c.groupId } : {}),
       x: c.x as number,
       y: c.y as number,
       width: c.width as number,
@@ -263,8 +255,7 @@ export function hydrateSession(): HydrationResult {
   }
 
   const presentation = s.presentation ?? "focus";
-  const groups = Array.isArray(s.groups) ? s.groups.filter((group) => group?.kind !== "linked") : s.groups ?? [];
-  if ((presentation !== "focus" && presentation !== "canvas") || !Array.isArray(groups) || !groups.every(isFrameGroup)) {
+  if (presentation !== "focus" && presentation !== "canvas") {
     safeDiscard();
     return { restored: false };
   }
@@ -295,7 +286,6 @@ export function hydrateSession(): HydrationResult {
     camera,
     focusedCardId,
     presentation,
-    groups,
   );
   hydrateClipboardHandoff(clipboardHandoff);
   // A changed URL means the user navigated while Inspect was active: keep the edits but adopt the new route.

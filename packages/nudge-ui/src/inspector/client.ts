@@ -14,7 +14,6 @@ import {
   rememberNudgeUiTabSwitch,
   resolveNudgeUiClientEntry,
 } from "../transport/editor.ts";
-import { resetAgentClients } from "./agent/client.ts";
 import { getActiveCanvasDocument } from "./canvas/activeCanvasDocument.ts";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../transport/routes.ts";
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
@@ -22,10 +21,6 @@ export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
 const MOUNT_ID = "nudge-ui-root";
 const identityPreparedDocuments = new WeakSet<Document>();
-
-interface AgentBridgeWindow extends Window {
-  __NUDGE_UI_AGENT_BRIDGE__?: { baseUrl: string; autoConnect?: boolean };
-}
 
 export async function bootstrapNudgeUiClient(): Promise<void> {
   const script = document.querySelector<HTMLScriptElement>(
@@ -67,7 +62,6 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
     );
   }
 
-  applyAgentBridge(payload, false);
   const runtimeDocument = editorDocument ? findEditorPreviewDocument : () => document;
   configureNudgeUiRuntime(prepareRuntime(payload, runtimeDocument()));
   bootstrapNudgeUi(createMountElement());
@@ -108,7 +102,6 @@ export function subscribeToManifestReloads(
     refreshInFlight = true;
     try {
       const refreshed = await fetchManifest(manifestUrl);
-      applyAgentBridge(refreshed, true);
       configureNudgeUiRuntime(prepareRuntime(refreshed, runtimeDocument()));
       seenRevision = Math.max(seenRevision, refreshed.revision);
       if (refreshed.revision < requestedRevision) {
@@ -137,18 +130,6 @@ export function subscribeToManifestReloads(
   };
   for (const eventName of manifest.reload.events ?? ["message"]) {
     source.addEventListener(eventName, handleRevision);
-  }
-}
-
-function applyAgentBridge(manifest: NudgeUiClientManifest, reloadOnChange: boolean): void {
-  const target = window as AgentBridgeWindow;
-  const current = target.__NUDGE_UI_AGENT_BRIDGE__;
-  const next = manifest.agentBridge;
-  if (current?.baseUrl !== next?.baseUrl || current?.autoConnect !== next?.autoConnect) {
-    if (next) target.__NUDGE_UI_AGENT_BRIDGE__ = next;
-    else delete target.__NUDGE_UI_AGENT_BRIDGE__;
-    resetAgentClients();
-    if (reloadOnChange) window.location.reload();
   }
 }
 

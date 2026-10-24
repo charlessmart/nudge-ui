@@ -3,20 +3,14 @@ import type { ReactElement } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
   IconColorSwatch,
-  IconPlugConnected,
   IconSettings,
   IconX,
   IconTrash,
 } from "@tabler/icons-react";
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import {
-  McpConnectionContent,
-  type McpConnectionContentProps,
-} from "../agent/McpConnectionDialog.tsx";
-import {
   PromptSettingsFields,
 } from "../prompt/PromptSettingsDialog.tsx";
-import { getNudgeUiRuntimeConfig, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
 import { TokensPanel } from "../tokens/TokensPanel.tsx";
 import { useSelectedElement } from "../selection/selectionStore.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
@@ -28,7 +22,7 @@ import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../sketch/interaction.ts";
 import { clearSketchesForProject } from "../sketch/store.ts";
 
-export type SettingsSection = "instructions" | "mcp" | "tokens";
+export type SettingsSection = "instructions" | "tokens";
 
 interface SettingsSectionDefinition {
   readonly id: SettingsSection;
@@ -43,23 +37,19 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     icon: <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
   {
-    id: "mcp",
-    label: "MCP",
-    icon: <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
-  },
-  {
     id: "tokens",
     label: "Tokens",
     icon: <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
 ];
 
-export interface SettingsDialogProps extends McpConnectionContentProps {
+export interface SettingsDialogProps {
   readonly open: boolean;
   readonly initialSection: SettingsSection;
   readonly value: string;
   readonly onValueChange: (value: string) => void;
   readonly onOpenChange: (open: boolean) => void;
+  readonly projectId: string;
 }
 
 export function SettingsDialog({
@@ -69,12 +59,6 @@ export function SettingsDialog({
   onValueChange,
   onOpenChange,
   projectId,
-  origin,
-  snapshot,
-  onConnect,
-  onTakeOver,
-  onDisconnect,
-  onCheckAgain,
 }: SettingsDialogProps): ReactElement {
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -89,8 +73,7 @@ export function SettingsDialog({
     session: getBrowserCssInspection(activeDocument),
   });
   const tokenRows = tokenInspection.documentTokens?.tokens ?? [];
-  const mcpEnabled = isNudgeUiFeatureEnabled(getNudgeUiRuntimeConfig().features, "mcp");
-  const sections = SETTINGS_SECTIONS.filter((section) => section.id !== "mcp" || mcpEnabled);
+  const sections = SETTINGS_SECTIONS;
   const activeDefinition = sections.find((section) => section.id === activeSection) ?? sections[0]!;
 
   useEffect(() => {
@@ -117,7 +100,7 @@ export function SettingsDialog({
         >
           <Dialog.Title className="settings__visually-hidden">Settings</Dialog.Title>
           <Dialog.Description className="settings__visually-hidden">
-            Configure how Nudge connects to your coding agent and uses your design system.
+            Configure prompting, tokens, and this Nudge workspace.
           </Dialog.Description>
           <Dialog.Close
             ref={closeRef}
@@ -174,23 +157,6 @@ export function SettingsDialog({
                     onChange={onValueChange}
                     instructionsRef={instructionsRef}
                   />
-                </section>
-              ) : null}
-
-              {activeDefinition.id === "mcp" ? (
-                <section className="settings__section" data-test="settings-section-mcp">
-                  <h2 className="settings__section-title">{activeDefinition.label}</h2>
-                  <div data-test="mcp-connection-dialog">
-                    <McpConnectionContent
-                      projectId={projectId}
-                      origin={origin}
-                      snapshot={snapshot}
-                      onConnect={onConnect}
-                      onTakeOver={onTakeOver}
-                      onDisconnect={onDisconnect}
-                      onCheckAgain={onCheckAgain}
-                    />
-                  </div>
                 </section>
               ) : null}
 

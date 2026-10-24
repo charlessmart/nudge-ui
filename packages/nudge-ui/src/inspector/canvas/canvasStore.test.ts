@@ -22,6 +22,8 @@ import {
   PRIMARY_CARD_INSET,
   setCardPosition,
   addCanvasIteration,
+  addCanvasArtifact,
+  findCardByArtifactId,
   CARD_GAP,
 } from "./canvasStore.ts";
 import {
@@ -747,12 +749,8 @@ describe("independent linked live frames", () => {
     const next = snapshot.find((card) => card.id === neighbor.id)!;
     const nextCopy = snapshot.find((card) => card.id === neighborCopy.id)!;
     expect(copy.x).toBe(original.x + original.width + CARD_GAP);
-    expect(copy.groupId).toBeUndefined();
-    expect(original.groupId).toBeUndefined();
     expect(next.x).toBe(copy.x + copy.width + CARD_GAP);
     expect(nextCopy.x - next.x).toBe(400 + CARD_GAP);
-    expect(nextCopy.groupId).toBeUndefined();
-    expect(next.groupId).toBeUndefined();
   });
 
   it("moves, resizes, and removes a linked view without repositioning its peers", () => {
@@ -777,10 +775,31 @@ describe("independent linked live frames", () => {
     const iteration = addCanvasIteration(copy.id, "550e8400-e29b-41d4-a716-446655440000")!;
     expect(getCanvasCards().slice(0, 2)).toEqual(before);
     expect(iteration).toMatchObject({ x: copy.x, y: 380, width: copy.width, height: copy.height });
-    expect(iteration.groupId).toBeUndefined();
     const dropped = addCanvasIteration(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
     expect(dropped).toMatchObject({ x: -100, y: 150 });
     expect(getCanvasCards().slice(0, 2)).toEqual(before);
     hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  });
+
+  it("adds a saved iteration at its captured size and reuses the frame already showing it", () => {
+    const artifact = {
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      sourceUrl: "http://localhost:5173/pricing",
+      title: "Pricing draft",
+      capturedAt: 20,
+      viewport: { width: 1024, height: 768 },
+    };
+    const first = addCanvasArtifact(artifact);
+    expect(first).toMatchObject({
+      content: { kind: "iteration", artifactId: artifact.id, sourceUrl: artifact.sourceUrl },
+      title: "Pricing draft",
+      width: 1024,
+      height: 768,
+    });
+
+    const second = addCanvasArtifact({ ...artifact, title: "Duplicate" });
+    expect(second.id).toBe(first.id);
+    expect(getCanvasCards()).toHaveLength(1);
+    expect(findCardByArtifactId(artifact.id)?.id).toBe(first.id);
   });
 });

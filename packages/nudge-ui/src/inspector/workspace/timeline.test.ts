@@ -95,7 +95,6 @@ it("restores linked placement and releases an undone artifact when new edits dis
   const linked = duplicateCard(source.id)!;
   undo();
   expect(getCanvasCards()).toHaveLength(1);
-  expect(getCanvasCards()[0]?.groupId).toBeUndefined();
   redo();
   expect(getCanvasCards()[1]?.id).toBe(linked.id);
   expect(getCanvasCards()[1]).toMatchObject({ id: linked.id, x: linked.x, y: linked.y });

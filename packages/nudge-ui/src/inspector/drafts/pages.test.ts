@@ -16,7 +16,7 @@ import {
 import { startWorkspaceController } from "../workspace/controller.ts";
 import { applicationTarget } from "./model.ts";
 import { addLinkedFrame } from "../workspace/commands.ts";
-import { captureHandoffOwner, recordAgentDispatch, verifyAndReconcileAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
+import { captureHandoffOwner, verifyAndReconcileHandoff } from "../prompt/handoffVerification.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 const initial = getNudgeUiRuntimeConfig();
@@ -28,12 +28,12 @@ const change = (value: string): ElementChangeRecord => ({
 beforeEach(() => {
   document.documentElement.setAttribute("data-nudge-ui-editor", "");
   configureNudgeUiRuntime({ ...initial, demo: true });
-  resetDrafts(); resetAgentVerification();
+  resetDrafts();
   hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
 });
 afterEach(() => {
   controller?.dispose(); controller = undefined;
-  resetDrafts(); resetAgentVerification();
+  resetDrafts();
   document.documentElement.removeAttribute("data-nudge-ui-editor");
   configureNudgeUiRuntime(initial);
   vi.restoreAllMocks();
@@ -60,10 +60,10 @@ it("retains the sent page's changes when its only frame navigates elsewhere", as
   controller = startWorkspaceController();
   appendChanges([change("red")]);
   const owner = captureHandoffOwner(first.id);
-  recordAgentDispatch(42, [change("red")], [], owner);
+  const handoff = { owner, changes: [change("red")], structuralChanges: [] };
   updateCardUrl(first.id, window.location.origin + "/examples");
   appendChanges([change("blue")]);
-  expect(await verifyAndReconcileAgentDispatch(42)).toBe(0);
+  expect(await verifyAndReconcileHandoff(handoff)).toBe(0);
   expect(getDraftContentsForCard(first.id)?.changes).toMatchObject([{ rawValue: "blue" }]);
   updateCardUrl(first.id, window.location.origin + "/playground");
   expect(getDraftContentsForCard(first.id)?.changes).toMatchObject([{ rawValue: "red" }]);

@@ -1,5 +1,4 @@
 import { resolve } from "node:path";
-import { runAgentCommand } from "../../cli/agentCommand.ts";
 import { createStandaloneServer, type StandaloneServer } from "./server.ts";
 
 export interface ServeCommandOptions {
@@ -50,11 +49,7 @@ export async function runServeCommand(options: ServeCommandOptions): Promise<voi
   await waitForTermination(server);
 }
 
-export async function main(args = process.argv.slice(2), packageVersion?: string): Promise<void> {
-  if (args[0] === "agent") {
-    runAgentCommand(args.slice(1), packageVersion);
-    return;
-  }
+export async function main(args = process.argv.slice(2)): Promise<void> {
   const options = parseServeArguments(args);
   await runServeCommand(options);
 }

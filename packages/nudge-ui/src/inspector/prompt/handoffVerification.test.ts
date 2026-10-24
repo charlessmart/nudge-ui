@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appendChange, clearActiveDraft, getChangesList, resetDrafts } from "../drafts/store.ts";
-import type { ElementChangeRecord } from "../changes/types.ts";
+import type { ChangeRecord, ElementChangeRecord } from "../changes/types.ts";
+import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
@@ -11,11 +12,18 @@ import {
   resetStructuralDeleteProjection,
 } from "../projection/structuralProjection.ts";
 import {
-  recordAgentDispatch,
-  resetAgentVerification,
+  captureHandoffOwner,
   verifiedChangeKeys,
-  verifyAndReconcileAgentDispatch,
-} from "./verification.ts";
+  verifyAndReconcileHandoff,
+  type HandoffSnapshot,
+} from "./handoffVerification.ts";
+
+function snapshot(
+  changes: readonly ChangeRecord[],
+  structuralChanges: readonly StructuralChange[] = [],
+): HandoffSnapshot {
+  return { owner: captureHandoffOwner(), changes, structuralChanges };
+}
 
 function styleChange(property: string, rawValue: string): ElementChangeRecord {
   return {
@@ -58,12 +66,11 @@ function addItem(text: string): HTMLElement {
   return el;
 }
 
-describe("agent completion verification", () => {
+describe("handoff verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
     resetDrafts();
-    resetAgentVerification();
     resetStructuralDeleteProjection();
     document.head.replaceChildren();
     const card = document.createElement("div");
@@ -78,7 +85,6 @@ describe("agent completion verification", () => {
   afterEach(() => {
     document.documentElement.removeAttribute("data-nudge-ui-editor");
     clearActiveDraft();
-    resetAgentVerification();
     resetStructuralDeleteProjection();
     window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
@@ -99,21 +105,20 @@ describe("agent completion verification", () => {
     const unresolved = styleChange("margin-left", "12px");
     appendChange(sent);
     appendChange(unresolved);
-    const snapshot = getChangesList();
-    recordAgentDispatch(42, snapshot);
+    const handoff = snapshot(getChangesList());
 
     const authored = document.createElement("style");
     authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
     document.head.prepend(authored);
 
-    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(1);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(1);
     expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
   });
 
   it("retains a sent change if the page navigates during verification", async () => {
     const sent = styleChange("color", "rgb(255, 0, 0)");
     appendChange(sent);
-    recordAgentDispatch(42, getChangesList());
+    const handoff = snapshot(getChangesList());
     const authored = document.createElement("style");
     authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
     document.head.prepend(authored);
@@ -123,14 +128,14 @@ describe("agent completion verification", () => {
       return 1;
     });
 
-    expect(await verifyAndReconcileAgentDispatch(42)).toBe(0);
+    expect(await verifyAndReconcileHandoff(handoff)).toBe(0);
     expect(getChangesList()).toEqual([sent]);
   });
 
   it("preserves a newer value for the same change key", async () => {
     const sent = styleChange("color", "rgb(255, 0, 0)");
     appendChange(sent);
-    recordAgentDispatch(42, getChangesList());
+    const handoff = snapshot(getChangesList());
 
     // A newer canonical record for the same key must not be mistaken for the dispatched snapshot.
     appendChange(styleChange("color", "rgb(0, 0, 255)"));
@@ -139,7 +144,7 @@ describe("agent completion verification", () => {
     authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
     document.head.prepend(authored);
 
-    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getChangesList()).toMatchObject([{
       property: "color",
       rawValue: "rgb(0, 0, 255)",
@@ -155,7 +160,7 @@ describe("agent completion verification", () => {
     applyStructuralProjection(document, getStructuralChanges());
     expect(applied.isConnected).toBe(false);
     expect(pending.isConnected).toBe(false);
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
 
     // The source applied only the first delete; placeholders were created in snapshot order.
     const placeholders = Array.from(document.body.childNodes)
@@ -163,7 +168,7 @@ describe("agent completion verification", () => {
     expect(placeholders).toHaveLength(2);
     placeholders[0]!.remove();
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(1);
     expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-pending"]);
     expect(applied.isConnected).toBe(false);
     expect(pending.isConnected).toBe(false);
@@ -176,14 +181,14 @@ describe("agent completion verification", () => {
     const target = addItem("0.1");
     const change = createStructuralDelete(target, "delete-other-route")!;
     applyStructuralProjection(document, getStructuralChanges());
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
     const placeholder = Array.from(document.body.childNodes)
       .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
     placeholder?.remove();
     expect(target.isConnected).toBe(false);
     window.history.replaceState({}, "", "/other");
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
   });
 
@@ -193,7 +198,7 @@ describe("agent completion verification", () => {
     const target = addItem("0.1");
     const change = createStructuralDelete(target, "delete-other-state")!;
     applyStructuralProjection(document, getStructuralChanges());
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
     const placeholder = Array.from(document.body.childNodes)
       .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
     placeholder?.remove();
@@ -201,7 +206,7 @@ describe("agent completion verification", () => {
 
     window.history.replaceState({ panel: "open" }, "", "/authored#second");
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
   });
 
@@ -211,13 +216,13 @@ describe("agent completion verification", () => {
     const target = addItem("0.1");
     const change = createStructuralDelete(target, "delete-rendered-state")!;
     applyStructuralProjection(document, getStructuralChanges());
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
     const placeholder = Array.from(document.body.childNodes)
       .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
     placeholder?.remove();
     document.body.append(addItem("0.2"));
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
   });
 
@@ -235,12 +240,12 @@ describe("agent completion verification", () => {
 
     const change = createStructuralDelete(target, "delete-nested")!;
     applyStructuralProjection(document, getStructuralChanges());
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
     const placeholder = Array.from(parent.childNodes)
       .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
     placeholder?.remove();
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(1);
     expect(getStructuralChanges()).toEqual([]);
   });
 
@@ -248,24 +253,24 @@ describe("agent completion verification", () => {
     const card = movedCard("src/Card.tsx:9:3");
     document.body.replaceChildren(card);
     appendChange(movedStyleChange());
-    recordAgentDispatch(42, getChangesList());
+    const handoff = snapshot(getChangesList());
     const authored = document.createElement("style");
     authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
     document.head.prepend(authored);
 
-    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(1);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(1);
     expect(getChangesList()).toEqual([]);
   });
 
   it("keeps a moved style edit when its authored evidence matches several lines", async () => {
     document.body.replaceChildren(movedCard("src/Card.tsx:9:3"), movedCard("src/Card.tsx:14:3"));
     appendChange(movedStyleChange());
-    recordAgentDispatch(42, getChangesList());
+    const handoff = snapshot(getChangesList());
     const authored = document.createElement("style");
     authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
     document.head.prepend(authored);
 
-    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getChangesList()).toHaveLength(1);
   });
 
@@ -274,10 +279,10 @@ describe("agent completion verification", () => {
     const target = addItem("0.1");
     const change = createStructuralDelete(target, "delete-moved")!;
     applyStructuralProjection(document, getStructuralChanges());
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
     target.dataset.src = "src/App.tsx:15:5";
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
   });
 
@@ -287,10 +292,10 @@ describe("agent completion verification", () => {
     const change = createStructuralDelete(target, "delete-1")!;
     applyStructuralProjection(document, getStructuralChanges());
     expect(target.isConnected).toBe(false);
-    recordAgentDispatch(7, [], getStructuralChanges());
+    const handoff = snapshot([], getStructuralChanges());
 
     // The source did not apply the delete, so lifting the preview returns the element.
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
     expect(getStructuralChanges()).toEqual([change]);
     expect(target.isConnected).toBe(false);
   });

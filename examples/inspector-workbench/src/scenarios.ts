@@ -1,5 +1,3 @@
-import type { AgentClientSnapshot } from "@inspector/agent/client.ts";
-
 export interface Scenario {
   readonly id: string;
   readonly title: string;
@@ -7,7 +5,6 @@ export interface Scenario {
   readonly target: "none" | "text" | "flex" | "grid" | "button" | "mixed" | "controls" | "component-button" | "component-badge" | "component-card" | "component-nested" | "media-desktop-first" | "media-mobile-first" | "toolbar";
   readonly scope?: "source-site" | "rendered-instance";
   readonly error?: string;
-  readonly connected?: boolean;
 }
 
 /** Serializable initial states; browser-dependent editor values come from FixtureTargets. */
@@ -15,7 +12,7 @@ export const scenarios: readonly Scenario[] = [
   { id: "typography", title: "Typography", description: "Text, color tokens, border and shadow controls.", target: "text" },
   { id: "flex", title: "Flex layout", description: "Flex direction, alignment, gap, padding and sizing.", target: "flex" },
   { id: "grid", title: "Grid layout", description: "Grid templates, alignment and spacing.", target: "grid" },
-  { id: "linked", title: "Linked elements", description: "Repeated buttons with shared source, hover styles and a connected agent.", target: "button", scope: "source-site", connected: true },
+  { id: "linked", title: "Linked elements", description: "Repeated buttons with shared source and hover styles.", target: "button", scope: "source-site" },
   { id: "unlinked", title: "Unlinked element", description: "A single instance and the relink callout.", target: "button", scope: "rendered-instance" },
   { id: "component-button", title: "Component: Button", description: "A button component with variant, size and disabled props.", target: "component-button", scope: "source-site" },
   { id: "component-badge", title: "Component: Badge", description: "A badge component with tone and size props.", target: "component-badge" },
@@ -31,6 +28,3 @@ export const scenarios: readonly Scenario[] = [
   { id: "controls", title: "Controlled fields", description: "Real token fields driven by fixture values and local callbacks. No selected DOM element required.", target: "controls" },
 ];
 
-export function agentFixture(connected: boolean): AgentClientSnapshot {
-  return { state: connected ? "connected" : "disconnected", connection: connected ? "paired" : "offline", listenerActive: connected, companionReachable: connected, paired: connected, pairedElsewhere: false, request: null, agentClientName: connected ? "Codex" : undefined };
-}

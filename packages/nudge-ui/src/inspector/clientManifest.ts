@@ -14,11 +14,6 @@ export interface NudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig = Nu
   readonly version: typeof NUDGE_UI_CLIENT_MANIFEST_VERSION;
   readonly revision: number;
   readonly runtime: Runtime;
-  /** Project-owned, loopback-only agent bridge started by the dev host. */
-  readonly agentBridge?: {
-    readonly baseUrl: string;
-    readonly autoConnect?: boolean;
-  };
   /** Optional document preparation requested by the host Adapter. */
   readonly document?: {
     readonly runtimeIdentity?: "static-html";
@@ -38,7 +33,6 @@ export interface NudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig = Nu
 export interface NudgeUiClientManifestInput<Runtime extends NudgeUiRuntimeConfig = NudgeUiRuntimeConfig> {
   readonly runtime: Runtime;
   readonly revision?: number;
-  readonly agentBridge?: NudgeUiClientManifest["agentBridge"];
   readonly document?: NudgeUiClientManifest["document"];
   readonly reload?: NudgeUiClientManifest["reload"];
   readonly inspectAutomatedBrowsers?: true;
@@ -52,7 +46,6 @@ export function createNudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig
     version: NUDGE_UI_CLIENT_MANIFEST_VERSION,
     revision: input.revision ?? 0,
     runtime: input.runtime,
-    ...(input.agentBridge ? { agentBridge: input.agentBridge } : {}),
     ...(input.document ? { document: input.document } : {}),
     ...(input.reload ? { reload: input.reload } : {}),
     ...(input.inspectAutomatedBrowsers ? { inspectAutomatedBrowsers: true } : {}),
@@ -77,7 +70,6 @@ export function parseNudgeUiClientManifest(
       version: NUDGE_UI_CLIENT_MANIFEST_VERSION,
       revision: value.revision,
       runtime: normalizeNudgeUiRuntimeConfig(value.runtime),
-      ...(isAgentBridge(value.agentBridge) ? { agentBridge: value.agentBridge } : {}),
       ...(value.document === undefined ? {} : { document: value.document }),
       ...(value.reload === undefined ? {} : { reload: value.reload }),
       ...(value.inspectAutomatedBrowsers === true ? { inspectAutomatedBrowsers: true } : {}),
@@ -93,16 +85,7 @@ interface CandidateManifest {
   readonly runtime?: unknown;
   readonly document?: unknown;
   readonly reload?: unknown;
-  readonly agentBridge?: unknown;
   readonly inspectAutomatedBrowsers?: unknown;
-}
-
-function isAgentBridge(value: unknown): value is NudgeUiClientManifest["agentBridge"] {
-  if (value === undefined) return false;
-  if (!isRecord(value)) return false;
-  const candidate = value as { baseUrl?: unknown; autoConnect?: unknown };
-  if (typeof candidate.baseUrl !== "string" || candidate.baseUrl.length === 0) return false;
-  return candidate.autoConnect === undefined || typeof candidate.autoConnect === "boolean";
 }
 
 interface CandidateDocumentOptions {

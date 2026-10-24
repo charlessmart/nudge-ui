@@ -2,7 +2,7 @@ import { canvasFrameElement, type CanvasFrame } from "./canvasFrame.ts";
 import activityStyles from "./AgentActivityOverlay.css?inline";
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
-import { useAgentActivity, type ActivityFile } from "../agent/activity.ts";
+import { useAgentActivity, type ActivityFile } from "./agentActivity.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
 import { targetKey } from "../drafts/model.ts";
@@ -37,7 +37,7 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
   const activity = useAgentActivity(getNudgeUiRuntimeConfig().projectId);
   const [visual, setVisual] = useState<{ files: readonly ActivityFile[]; highlights: Highlight[] }>({ files: [], highlights: [] });
   useEffect(() => {
-    if (!activity.requestId || !iframe || !activity.files.length) { setVisual({ files: [], highlights: [] }); return; }
+    if (!activity.sessionId || !iframe || !activity.files.length) { setVisual({ files: [], highlights: [] }); return; }
     let detachDocument = () => {};
     const attachDocument = () => {
       detachDocument();
@@ -85,9 +85,9 @@ export function AgentActivityOverlay({ cardId, content, iframe }: { cardId: stri
     element?.addEventListener("load", attachDocument);
     return () => { element?.removeEventListener("load", attachDocument); detachDocument(); };
   }, [activity, content, iframe]);
-  const submitted = activity.requestId !== null && activity.targets.includes(cardId)
+  const submitted = activity.sessionId !== null && activity.targets.includes(cardId)
     && (!activity.target || targetKey(activity.target) === targetKey(contentEditTarget(content)));
-  const working = activity.requestId !== null && (submitted || visual.files.length > 0);
+  const working = activity.sessionId !== null && (submitted || visual.files.length > 0);
   if (!working) return null;
   return <div className="canvas-agent-activity" data-test={`canvas-agent-activity-${cardId}`}>
     {visual.highlights.map((rect, index) => <div key={index} className="canvas-agent-activity__shimmer" data-test="canvas-agent-component-shimmer" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} />)}

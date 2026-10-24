@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getInspectorToggleShortcutLabel, isEditableEvent, isSendPromptShortcut } from "./shortcuts.ts";
+import { getInspectorToggleShortcutLabel, isEditableEvent, isCopyPromptShortcut } from "./shortcuts.ts";
 
 describe("shortcut editable-target detection", () => {
   afterEach(() => {
@@ -45,11 +45,11 @@ describe("shortcut editable-target detection", () => {
   });
 
   it("recognises Shift+S without claiming the browser save shortcut", () => {
-    expect(isSendPromptShortcut(new KeyboardEvent("keydown", {
+    expect(isCopyPromptShortcut(new KeyboardEvent("keydown", {
       code: "KeyS",
       shiftKey: true,
     }))).toBe(true);
-    expect(isSendPromptShortcut(new KeyboardEvent("keydown", {
+    expect(isCopyPromptShortcut(new KeyboardEvent("keydown", {
       code: "KeyS",
       metaKey: true,
     }))).toBe(false);

@@ -8,7 +8,7 @@ import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import {
   isInspectorToggleShortcut,
   isOriginalPreviewShortcut,
-  SEND_PROMPT_HOTKEY_EVENT,
+  COPY_PROMPT_HOTKEY_EVENT,
 } from "./shell/shortcuts.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { isPageSurface } from "./canvas/pageSurface.ts";
@@ -89,7 +89,7 @@ function onKeyup(e: KeyboardEvent): void {
 function onRendererKeyboardShortcut(message: unknown, identity: FrameIdentity): void {
   if (!isKeyboardShortcutMessage(message, identity)) return;
   if (message.code === "KeyS" && message.phase === "keydown") {
-    window.dispatchEvent(new Event(SEND_PROMPT_HOTKEY_EVENT));
+    window.dispatchEvent(new Event(COPY_PROMPT_HOTKEY_EVENT));
     return;
   }
   if (message.code !== "Backslash") return;
@@ -126,7 +126,7 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
       rendererBootstrapHandle = bootstrapRenderer() ?? null;
       return;
     }
-    // The public demo shares the iframe editor without the write lease, persistence, or agent bridge.
+    // The public demo shares the iframe editor without the write lease or persistence.
     setCanvasMode("canvas");
     workspaceController?.dispose();
     workspaceController = startWorkspaceController();

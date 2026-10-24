@@ -7,10 +7,6 @@ describe("parseArguments", () => {
     expect(parseArguments(["--framework", "astro", "--package-manager=pnpm", "--dry-run"])).toEqual({
       framework: "astro",
       packageManager: "pnpm",
-      agentOnly: false,
-      agents: [],
-      mcpPackageSpecifier: undefined,
-      mcp: undefined,
       yes: false,
       dryRun: true,
       help: false,
@@ -30,31 +26,6 @@ describe("parseArguments", () => {
     expect(() => parseArguments(["--framework"])).toThrow("--framework requires a value.");
     expect(() => parseArguments(["--package-manager", "--dry-run"]))
       .toThrow("--package-manager requires a value.");
-  });
-
-  it("parses non-interactive and repair-only agent setup controls", () => {
-    expect(parseArguments([
-      "--agent-only",
-      "--mcp",
-      "--agent=codex",
-      "--agent",
-      "cursor",
-      "--mcp-package=/tmp/@nudge-ui-mcp-0.2.1.tgz",
-      "--yes",
-    ])).toMatchObject({
-      agentOnly: true,
-      agents: ["codex", "cursor"],
-      mcpPackageSpecifier: "/tmp/@nudge-ui-mcp-0.2.1.tgz",
-      mcp: true,
-      yes: true,
-    });
-    expect(parseArguments(["agent", "setup"]).agentOnly).toBe(true);
-  });
-
-  it("rejects contradictory MCP controls", () => {
-    expect(() => parseArguments(["--mcp", "--no-mcp"])).toThrow(/cannot be combined/);
-    expect(() => parseArguments(["--no-mcp", "--agent", "codex"])).toThrow(/cannot be combined/);
-    expect(() => parseArguments(["--agent-only", "--no-mcp"])).toThrow(/cannot be combined/);
   });
 });
 

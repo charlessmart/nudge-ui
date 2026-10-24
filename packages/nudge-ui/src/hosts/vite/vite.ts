@@ -50,11 +50,6 @@ import {
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
 import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
-import {
-  loopbackOrigin,
-  startOptionalProjectBridge,
-  type ProjectBridgeBrowserConfig,
-} from "../projectBridge.ts";
 import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -215,8 +210,6 @@ export function createVitePlugins(
   let command: "serve" | "build" = "serve";
   let demoBuild = false;
   let devServer: ViteDevServer | undefined;
-  let projectBridge: { browser: ProjectBridgeBrowserConfig; close(): Promise<void> } | null = null;
-  let projectBridgeStart: Promise<void> | null = null;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
   const activeHostCssFiles = new Set<string>();
@@ -576,37 +569,11 @@ export function createVitePlugins(
   }
 
   async function buildClientManifest(): Promise<NudgeUiClientManifest> {
-    await projectBridgeStart;
     await ensurePostTransformCss();
     await ensurePublishedThemeContract();
     return createNudgeUiClientManifest({
       runtime: buildRuntimeSnapshot(),
-      ...(projectBridge ? { agentBridge: projectBridge.browser } : {}),
       ...automationManifestFields(),
-    });
-  }
-
-  function startProjectBridge(server: ViteDevServer): void {
-    // The demo runs without project-owned sessions, an agent bridge, or filesystem persistence.
-    if (options.demo === true || !root || projectBridgeStart) return;
-    const address = server.httpServer?.address();
-    if (!address || typeof address === "string") return;
-    const origin = server.resolvedUrls?.local[0]
-      ? new URL(server.resolvedUrls.local[0]).origin
-      : loopbackOrigin(address, server.config.server.https ? "https" : "http");
-    const allowedOrigins = [
-      ...(server.resolvedUrls?.local ?? []),
-      ...(server.resolvedUrls?.network ?? []),
-    ].map((url) => new URL(url).origin);
-    projectBridgeStart = startOptionalProjectBridge({
-      appRoot: root,
-      projectId: options.projectId ?? basename(root),
-      origin,
-      ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
-      info: (message) => server.config.logger.info(message),
-      warn: (message) => server.config.logger.warn(message),
-    }).then((bridge) => {
-      projectBridge = bridge;
     });
   }
 
@@ -681,14 +648,6 @@ export function createVitePlugins(
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
-      if (server.httpServer?.listening) startProjectBridge(server);
-      else server.httpServer?.once("listening", () => startProjectBridge(server));
-      server.httpServer?.once("close", () => {
-        void projectBridgeStart?.then(() => projectBridge?.close()).finally(() => {
-          projectBridge = null;
-          projectBridgeStart = null;
-        });
-      });
       const runtimeWarning = framework?.unresolvedRuntimeWarning();
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {

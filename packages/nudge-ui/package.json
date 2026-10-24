@@ -86,7 +86,7 @@
   },
   "scripts": {
     "dev:client": "node scripts/watch-inspector-client.mjs",
-    "build": "node ../../scripts/build-package.mjs && node ../../scripts/vendor-agent-protocol.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-static-cli.mjs",
+    "build": "node ../../scripts/build-package.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-static-cli.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run --config vitest.unit.config.ts",
@@ -132,7 +132,6 @@
   },
   "devDependencies": {
     "@mdx-js/mdx": "^3.1.1",
-    "@nudge-ui/agent-protocol": "workspace:*",
     "@types/hast": "^3.0.5",
     "@types/node": "^22.20.1",
     "@types/react": "19.2.18",

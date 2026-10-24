@@ -1,6 +1,4 @@
-import { beginActivityDispatch } from "../agent/activity.ts";
-import { createPromptRevision, type AgentClient } from "../agent/client.ts";
-import { captureHandoffOwner, discardAgentDispatch, recordAgentDispatch, type HandoffSnapshot } from "../agent/verification.ts";
+import { captureHandoffOwner, type HandoffSnapshot } from "../prompt/handoffVerification.ts";
 import { htmlIterationImplementationPrompt, htmlIterationPrompt } from "../iterations/prompt.ts";
 import { getCanvasCardLabel, getCanvasCards } from "../canvas/canvasStore.ts";
 import { getCommentsForTarget, markCommentsHandedOff, type ElementComment } from "../comments/store.ts";
@@ -23,12 +21,6 @@ export interface PreparedHandoff extends HandoffSnapshot {
   readonly prompt: string;
   readonly comments: readonly ElementComment[];
 }
-
-export type HandoffOutcome =
-  | { readonly kind: "sent" }
-  | { readonly kind: "copied" };
-
-type PromptDispatcher = Pick<AgentClient, "dispatchPrompt" | "getSnapshot">;
 
 async function prepareDraftHandoff(request: HandoffRequest): Promise<Omit<PreparedHandoff, "prompt">> {
   const owner = captureHandoffOwner(request.cardId);
@@ -75,35 +67,5 @@ export async function copyHandoff(handoff: PreparedHandoff): Promise<void> {
   const { owner, changes, structuralChanges } = handoff;
   if (owner.target.kind === "application" && changes.length + structuralChanges.length > 0) {
     recordClipboardHandoff(changes, structuralChanges, owner);
-  }
-}
-
-/** Falls back to the clipboard when no agent is connected or the agent does not take the prompt. */
-export async function deliverHandoff(handoff: PreparedHandoff, projectId: string, agent: PromptDispatcher | null): Promise<HandoffOutcome> {
-  if (agent) {
-    const outcome = await dispatchHandoff(handoff, projectId, agent);
-    if (outcome) return outcome;
-  }
-  await copyHandoff(handoff);
-  return { kind: "copied" };
-}
-
-async function dispatchHandoff(handoff: PreparedHandoff, projectId: string, agent: PromptDispatcher): Promise<HandoffOutcome | null> {
-  const { owner, changes, structuralChanges } = handoff;
-  const revision = createPromptRevision(changes, structuralChanges, [...handoff.comments]);
-  recordAgentDispatch(revision, changes, structuralChanges, owner);
-  const clientDispatchId = `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  try {
-    beginActivityDispatch(projectId, clientDispatchId, owner.frameIds, owner.target);
-    const response = await agent.dispatchPrompt(handoff.prompt, revision, { clientDispatchId });
-    if (response) {
-      markCommentsHandedOff(handoff.comments);
-      return { kind: "sent" };
-    }
-    discardAgentDispatch(revision);
-    return null;
-  } catch {
-    discardAgentDispatch(revision);
-    return null;
   }
 }

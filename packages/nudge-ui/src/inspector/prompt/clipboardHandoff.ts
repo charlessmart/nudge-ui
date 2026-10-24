@@ -9,7 +9,7 @@ import {
   handoffStructuralFingerprint,
   verifyAndReconcileHandoff,
   type HandoffOwner,
-} from "../agent/verification.ts";
+} from "./handoffVerification.ts";
 import { isDraftTarget } from "../drafts/model.ts";
 
 export interface ClipboardHandoffFingerprint {
