@@ -6,9 +6,9 @@ const MARKER_ATTRIBUTE = "data-nudge-ui-animation-marker";
 const MARKER_LIMIT = 150;
 const RESCAN_DELAY_MS = 400;
 // Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables.
-// Same 24px square and 4px gap above the element as the DOM navigator trigger, so the navigator covers its marker on selection.
+// The marker shares the chip's bottom-center slot and gap, so selecting the element lets the navigator cover it.
 const MARKER_SIZE = 24;
-const MARKER_GAP = 4;
+const MARKER_GAP = 8;
 const MARKER_INSET = 4;
 const MARKER_STYLE = [
   "position:absolute",
@@ -81,8 +81,8 @@ export function createRendererAnimationMarkers(
       marker.setAttribute(MARKER_ATTRIBUTE, "");
       marker.style.cssText = MARKER_STYLE;
       // Page coordinates, kept inside the page's own top-left corner and never against the current scroll.
-      marker.style.left = `${Math.max(MARKER_INSET, Math.round(rect.left + window.scrollX))}px`;
-      marker.style.top = `${Math.max(MARKER_INSET, Math.round(rect.top + window.scrollY) - MARKER_SIZE - MARKER_GAP)}px`;
+      marker.style.left = `${Math.max(MARKER_INSET, Math.round(rect.left + rect.width / 2 - MARKER_SIZE / 2 + window.scrollX))}px`;
+      marker.style.top = `${Math.max(MARKER_INSET, Math.round(rect.top + rect.height + MARKER_GAP + window.scrollY))}px`;
       marker.innerHTML = MARKER_ICON;
       marker.title = groups.map((group) => group.label).join("\n");
       marker.setAttribute("aria-label", marker.title);

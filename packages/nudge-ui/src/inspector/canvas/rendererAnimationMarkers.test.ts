@@ -63,17 +63,18 @@ describe("renderer animation markers", () => {
     expect(document.getElementById("nudge-ui-animation-markers")).toBeNull();
   });
 
-  it("places a marker above its element in page coordinates, so scrolling never pins it to the viewport", () => {
+  it("places a marker centered below its element in page coordinates, so scrolling never pins it to the viewport", () => {
     mountPage();
     // The element sits 30px below the viewport top while the page is scrolled 500px.
     Object.defineProperty(window, "scrollY", { configurable: true, value: 500 });
     const markers = createRendererAnimationMarkers(document);
     markers.apply(true);
     const [card] = [...document.getElementById("nudge-ui-animation-markers")!.children] as HTMLElement[];
-    expect(card!.style.top).toBe("502px");
+    expect(card!.style.left).toBe("23px");
+    expect(card!.style.top).toBe("558px");
 
-    // An element at the top of the page keeps the marker inside the page, not above it.
-    document.getElementById("spinner")!.getBoundingClientRect = () => ({ left: 10, top: -490, width: 50, height: 20 } as DOMRect);
+    // An element whose bottom is above the page keeps the marker inside the page, not above it.
+    document.getElementById("spinner")!.getBoundingClientRect = () => ({ left: 10, top: -528, width: 50, height: 20 } as DOMRect);
     markers.apply(false);
     markers.apply(true);
     const rerendered = [...document.getElementById("nudge-ui-animation-markers")!.children] as HTMLElement[];
