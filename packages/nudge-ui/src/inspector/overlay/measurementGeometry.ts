@@ -98,8 +98,7 @@ function getAxisRulers(
     ].filter((ruler) => hasLength(ruler.selectedEdge, ruler.hoveredEdge));
   }
 
-  // Partially overlapping boxes measure from the selected outside edge to the
-  // hover's far edge rather than a zero or negative gap.
+  // Partially overlapping boxes measure from the selected outside edge to the hover's far edge rather than a zero or negative gap.
   if (centerFromBounds(selected) >= centerFromBounds(hovered)) {
     return [{ selectedEdge: selected.min, hoveredEdge: hovered.min }];
   }

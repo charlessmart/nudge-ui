@@ -11,7 +11,6 @@ import {
   interpretColorValue,
   type ColorComponentResolution,
 } from "./colorSemantics.ts";
-export { extractVarCalls } from "./cssSyntax.ts";
 import { extractVarCalls } from "./cssSyntax.ts";
 
 export interface TokenValueInterpretation {
@@ -77,8 +76,6 @@ function defaultAliasAttribution(ref: string, inner: AliasInnerResult): AliasAtt
     cycle: inner.cycle,
   };
 }
-
-/** Re-exported to keep the public token-interpretation API stable. */
 
 interface RefResult {
   known: boolean;
@@ -206,10 +203,7 @@ export function interpretTokenValue(
   if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
 
   const inner = resolveTokenValueInner(authored, table, new Set(), localAliases, ctx);
-  // An alpha variable is still a token reference, but it is not the field's
-  // color token (`rgb(37 99 235 / var(--opacity-muted))` is literal color plus
-  // token-backed alpha). Keeping that distinction lets the UI render a base
-  // color chip only when one actually exists.
+  // An alpha variable is a token reference but not the field's color token, so only a real base token renders a chip.
   const alphaTokenName = opacity?.tokenName;
   const baseKnown = firstKnown && firstKnown.tokenName !== alphaTokenName ? firstKnown : null;
   const baseInner = inner.tokenName && inner.tokenName !== alphaTokenName ? inner : null;

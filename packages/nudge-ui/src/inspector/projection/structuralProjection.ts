@@ -360,9 +360,6 @@ export function subscribeStructuralChanges(listener: () => void): () => void {
   return subscribeActiveDraftChanges(listener);
 }
 
-/** Compatibility name retained while the controller moved to a full union. */
-export const subscribeStructuralDeletes = subscribeStructuralChanges;
-
 export function subscribeStructuralDiagnostics(listener: () => void): () => void {
   diagnosticListeners.add(listener);
   return () => diagnosticListeners.delete(listener);

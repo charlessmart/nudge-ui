@@ -380,8 +380,7 @@ async function captureDomFrame(
         filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node) && videoFrames.filter(node),
         features: { restoreScrollPosition: true },
         timeout: MEDIA_LOAD_TIMEOUT_MS,
-        // modern-screenshot cannot serialize cross-origin Google CSS; computed
-        // font styles still remain inline.
+        // modern-screenshot cannot serialize cross-origin Google CSS; computed font styles still remain inline.
         font: hasGoogleFontStylesheet(surface.document) ? false : undefined,
         onCloneEachNode: (node) => {
           prepareDomClone(node);

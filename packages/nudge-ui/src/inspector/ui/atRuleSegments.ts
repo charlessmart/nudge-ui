@@ -23,10 +23,7 @@ function widthBound(params: string): { direction: "max" | "min"; size: number } 
   return { direction: match[4]!.startsWith("<") ? "max" : "min", size: pixels(match[5]!, match[6]!) };
 }
 
-/**
- * Segments ordered like a ruler from the largest viewport down. A base declaration sits at the
- * large end when the conditions are max-width (desktop first) and at the small end for min-width.
- */
+/** Segments ordered like a ruler from the largest viewport down. A base declaration sits at the large end when the conditions are max-width (desktop first) and at the small end for min-width. */
 export function atRuleSegments(atRules: readonly (AtRuleContext | AtRuleCandidate)[]): AtRuleSegment[] {
   const conditional = atRules.map((atRule, index): AtRuleSegment & { size: number | null } => ({
     key: `${atRule.kind}-${atRule.params}-${index}`,

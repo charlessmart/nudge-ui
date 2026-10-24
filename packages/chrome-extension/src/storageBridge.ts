@@ -127,8 +127,7 @@ if (!scope[BRIDGE_FLAG]) {
       (error: unknown) => respond({ id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) }),
     );
   });
-  // The inspector asks for fonts while handling the user's event, including its
-  // effects and microtasks; the gesture lasts until that task ends.
+  // The inspector asks for fonts while handling the user's event, including its effects and microtasks; the gesture lasts until that task ends.
   let gesture: InspectorGesture | null = null;
   for (const type of GESTURE_EVENTS) {
     window.addEventListener(type, (event) => {

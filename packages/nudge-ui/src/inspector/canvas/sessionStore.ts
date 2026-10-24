@@ -95,15 +95,6 @@ export interface DurableSession {
   clipboardHandoff: ClipboardHandoffSnapshot | null;
 }
 
-export type {
-  SerializableChange,
-  SerializableComponentChange,
-  SerializableElementChange,
-  SerializableTextContentChange,
-  SerializableTokenChange,
-  SerializableTokenRef,
-} from "../changes/codecs.ts";
-
 export interface HydrationResult {
   restored: boolean;
 }
@@ -407,4 +398,4 @@ export function resetAutoSave(): void {
   window.removeEventListener("beforeunload", flushAutoSave);
 }
 
-export { storageKey, SCHEMA_VERSION, type SerializableCard as HydratedCard };
+export { storageKey, SCHEMA_VERSION };

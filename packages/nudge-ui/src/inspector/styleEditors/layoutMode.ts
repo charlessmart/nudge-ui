@@ -15,10 +15,7 @@ export function layoutModeOf(display: string, flexDirection: string): LayoutMode
   return display === "block" ? "block" : null;
 }
 
-/**
- * Edits that move an element to `target`, keeping an inline outer display and a reverse direction.
- * With an unknown current state (a mixed selection) every property is written.
- */
+/** Edits that move an element to `target`, keeping an inline outer display and a reverse direction. With an unknown current state (a mixed selection) every property is written. */
 export function layoutModeEdits(
   current: { readonly display: string; readonly flexDirection: string } | null,
   target: LayoutMode,

@@ -139,8 +139,8 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
 export function appendAgentRouteCards(
   groupId: string,
   routes: readonly { url: string; title?: string | null }[],
-): CanvasCard[] | null {
-  if (!groupId || routes.length === 0) return null;
+): CanvasCard[] {
+  if (!groupId || routes.length === 0) return [];
 
   const before = cards;
   const nextCards: CanvasCard[] = [];

@@ -1,7 +1,6 @@
 .toast__viewport {
   position: fixed;
-  /* Sit just above the canvas toolbar: its bottom offset, its height (an
-     xlarge control plus padding), then a small gap. */
+  /* Sit just above the canvas toolbar: its bottom offset, its height (an xlarge control plus padding), then a small gap. */
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12));
   left: 50%;
   /* Above everything the inspector draws. Browsers clamp z-index at --z-index, so `+ 1` would only tie; instead the
@@ -17,8 +16,7 @@
   pointer-events: none;
 }
 
-/* While sketching, the sketch bar (a control row plus padding, and its gap to the toolbar) fills that space, so toasts
-   rise above it instead of hiding behind it. */
+/* While sketching, the sketch bar (a control row plus padding, and its gap to the toolbar) fills that space, so toasts rise above it instead of hiding behind it. */
 .toast__viewport[data-sketching="true"] {
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
 }

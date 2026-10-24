@@ -11,10 +11,7 @@ function authoredSource(element: Element): ParsedSrc | null {
   return src && !isRuntimeGeneratedSource(src) ? parseDataSrc(src) : null;
 }
 
-/**
- * Where `child` is written. A component's root is tagged at the component's definition, so its invocations'
- * callsites say where the instance itself was placed.
- */
+/** Where `child` is written. A component's root is tagged at the component's definition, so its invocations' callsites say where the instance itself was placed. */
 function authoredSites(child: Element): ParsedSrc[] {
   // SAFETY: an element in the XHTML namespace is an HTMLElement of its own document's realm.
   const roots = child.namespaceURI === HTML_NAMESPACE ? inspectRootInvocations(child as HTMLElement) ?? [] : [];
@@ -38,10 +35,7 @@ function evidenceOf(child: Element, parentSource: ParsedSrc, targets: readonly R
   return sites.some((site) => site.file === parentSource.file) ? { kind: "parent" } : { kind: "unknown" };
 }
 
-/**
- * Without an authored child, a root that belongs to exactly one invocation is assumed to render its children. A
- * composed root (Stack rendering Box) belongs to several, and nothing in the DOM says which one receives children.
- */
+/** Without an authored child, a root that belongs to exactly one invocation is assumed to render its children. A composed root (Stack rendering Box) belongs to several, and nothing in the DOM says which one receives children. */
 function soleRootInvocation(parent: HTMLElement): InvocationRef | null {
   const roots = inspectRootInvocations(parent);
   const root = roots?.length === 1 ? roots[0]! : null;
@@ -49,13 +43,7 @@ function soleRootInvocation(parent: HTMLElement): InvocationRef | null {
   return { callsiteId: root.callsiteId, componentName: root.componentName };
 }
 
-/**
- * The invocation whose children `parent` renders, when they are authored at its callsite rather than beside the
- * parent's own JSX. A component's root carries the source site of its definition, so without this a move into
- * `<Stack>` would point the agent at Stack's definition instead of the place it is used.
- *
- * `children` are tried in order of preference; one whose placement is unknown passes the question on to the next.
- */
+/** The invocation whose children `parent` renders; without it a move into `<Stack>` would point at Stack's definition instead of its callsite. */
 export function childrenSlotInvocation(parent: HTMLElement, children: readonly Element[]): InvocationRef | null {
   const parentSource = authoredSource(parent);
   if (!parentSource) return null;

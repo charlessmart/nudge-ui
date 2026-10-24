@@ -175,8 +175,3 @@
     transition: none;
   }
 }
-
-.panel__copy[data-copied="true"] {
-  background: #2eaf67;
-  color: #ffffff;
-}

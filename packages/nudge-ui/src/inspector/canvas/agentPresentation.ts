@@ -106,7 +106,6 @@ export class AgentPresentationError extends Error {
 
 interface RendererReadinessEntry {
   status: AgentRendererStatus;
-  message?: string;
 }
 
 interface ReadinessWaiter {
@@ -275,13 +274,6 @@ export function acknowledgeAgentRendererReady(cardId: string): void {
   settleReadinessWaiters();
 }
 
-/** Records a bounded, non-throwing renderer failure for one presented card. */
-export function acknowledgeAgentRendererError(cardId: string, message?: string): void {
-  if (!isNonEmptyString(cardId)) return;
-  rendererReadiness.set(cardId, { status: "error", message });
-  settleReadinessWaiters();
-}
-
 export function forgetAgentRendererReadiness(cardIds: readonly string[]): void {
   for (const cardId of cardIds) rendererReadiness.delete(cardId);
 }
@@ -391,9 +383,6 @@ export async function presentAgentRoutes(
       })),
       );
     });
-    if (!cards) {
-      throw new AgentPresentationError("group-id-conflict", `Route group ${groupId} already exists.`);
-    }
     const cardIds = cards.map((card) => card.id);
     beginRendererReadiness(cardIds);
     const readiness = await waitForAgentRendererReadiness(cardIds, readyTimeoutMs);
@@ -454,11 +443,6 @@ export function removeOwnAgentGroup(
   forgetAgentRendererReadiness(cardIds);
   return readCanvasState();
 }
-
-/** The only command vocabulary accepted by the browser presentation adapter. */
-export type AgentPresentationCommand = CanvasCommand;
-
-export type AgentPresentationCommandResponse = CanvasCommandResult;
 
 export interface AgentPresentationAdapterOptions {
   projectId?: string;

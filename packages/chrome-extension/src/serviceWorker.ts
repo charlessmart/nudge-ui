@@ -21,8 +21,7 @@ interface InspectorProbe {
   hadInspector: boolean;
 }
 
-// `executeScript` serializes these functions into the page's main world, so
-// they cannot close over module values; names arrive as arguments.
+// `executeScript` serializes these functions into the page's main world, so they cannot close over module values; names arrive as arguments.
 function toggleLoadedInspector(handleName: string): InspectorProbe {
   const handle = (window as unknown as Record<string, { toggle(): void } | undefined>)[handleName];
   handle?.toggle();
@@ -33,8 +32,7 @@ function publishGlobals(globals: Record<string, unknown>): void {
   Object.assign(window, globals);
 }
 
-// `getURL` returns the per-session `use_dynamic_url` ID only for paths that
-// match a web-accessible entry, so resolve a file rather than the directory.
+// `getURL` returns the per-session `use_dynamic_url` ID only for paths that match a web-accessible entry, so resolve a file rather than the directory.
 function cursorImageBase(): string {
   const file = "design-select.svg";
   return chrome.runtime.getURL(`${CURSOR_IMAGE_DIRECTORY}${file}`).slice(0, -file.length);

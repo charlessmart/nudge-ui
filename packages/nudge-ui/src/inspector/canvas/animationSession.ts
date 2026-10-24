@@ -56,10 +56,7 @@ function endTimeOf(animation: Animation): number {
   return Number(timing.delay ?? 0) + Number(timing.duration ?? 0);
 }
 
-/**
- * Captures the animations an element runs for one trigger and holds them paused,
- * so they can be played, stepped, scrubbed and slowed without the app's own timing.
- */
+/** Captures the animations an element runs for one trigger and holds them paused, so they can be played, stepped, scrubbed and slowed without the app's own timing. */
 export class AnimationSession {
   private snapshot: AnimationSnapshot = IDLE_ANIMATION_SNAPSHOT;
   private readonly listeners = new Set<() => void>();
@@ -74,10 +71,7 @@ export class AnimationSession {
 
   constructor(readonly element: HTMLElement) {}
 
-  /**
-   * Reads the element's animations. Kept out of the constructor, which React calls during render,
-   * because scanning walks the stylesheets and the computed style of every element it can match.
-   */
+  /** Reads the element's animations. Kept out of the constructor, which React calls during render, because scanning walks the stylesheets and the computed style of every element it can match. */
   scan(): void {
     if (this.disposed || this.snapshot.entries !== null) return;
     this.publish({ ...this.snapshot, entries: scanAnimations(this.element) });
@@ -249,10 +243,7 @@ export class AnimationSession {
     return this.captured.some((animation) => animation.playState === "running");
   }
 
-  /**
-   * Follows playback frame by frame until nothing moves. Seeking publishes its own progress, so a
-   * paused or finished group leaves the page with no animation frame loop at all.
-   */
+  /** Follows playback frame by frame until nothing moves. Seeking publishes its own progress, so a paused or finished group leaves the page with no animation frame loop at all. */
   private startPolling(): void {
     if (this.pollFrame !== null) return;
     const window = this.element.ownerDocument.defaultView;

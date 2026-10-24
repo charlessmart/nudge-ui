@@ -292,10 +292,7 @@ function isNearPoint(rect: DOMRect, x: number, y: number): boolean {
     && y <= bottomOf(rect) + MARGIN_SCAN_DISTANCE;
 }
 
-/**
- * A margin lies outside its element, so the pointer over it hits the parent: the
- * element's own margins and its tracked children's margins are both candidates.
- */
+/** A margin lies outside its element, so the pointer over it hits the parent: the element's own margins and its tracked children's margins are both candidates. */
 function marginAffordanceAtPoint(
   element: HTMLElement,
   x: number,

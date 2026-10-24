@@ -4,10 +4,7 @@ export function stripModuleExtension(value: string): string {
   return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
 }
 
-/**
- * The one component identity format: extensionless module source, a `#` marker,
- * then the export name. Identity and policy both match on this exact string.
- */
+/** The one component identity format: extensionless module source, a `#` marker, then the export name. Identity and policy both match on this exact string. */
 export function componentIdentity(moduleSource: string, exportName: string): string {
   return `${stripModuleExtension(moduleSource)}#${exportName}`;
 }

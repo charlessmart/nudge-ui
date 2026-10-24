@@ -221,7 +221,7 @@ function App() {
               A local visual editor for the small decisions that make a product feel finished.
             </p>
             <div className="hero-actions">
-              <Button label="Save a change" variant="primary" onClick={() => setClicks((c) => c + 1)} />
+              <Button label="Save a change" onClick={() => setClicks((c) => c + 1)} />
               <a className="text-link" href="#features">See how it works <span aria-hidden="true">↓</span></a>
             </div>
             <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span {...(import.meta.env.DEV ? { "data-test": "click-counter" } : {})}>clicks: {clicks}</span></p>

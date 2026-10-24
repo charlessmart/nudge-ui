@@ -34,15 +34,6 @@ let pendingChanges: PreviewableChangeRecord[] | null = null;
 let pendingAttempts = new Map<string, PreviewAttempt>();
 let stopFrameReady: (() => void) | null = null;
 
-export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
-
-export interface StaleChangeInfo {
-  index: number;
-  status: StaleChangeStatus;
-  matchedRoutes: string[];
-  driftMessage?: string;
-}
-
 function checkSelectorInDocument(doc: Document, selector: string): boolean {
   try {
     return doc.querySelectorAll(selector).length > 0;
@@ -69,7 +60,7 @@ function getRequestedValue(change: PreviewableChangeRecord): string {
   return change.rawValue ?? "";
 }
 
-function buildStaleResult(selector: string, requestedValue: string): PreviewResult {
+function buildStaleResult(requestedValue: string): PreviewResult {
   return {
     requestedValue,
     computedValue: "",
@@ -192,10 +183,7 @@ function applyStaleResults(
     // Publish target-missing only when no live document matches; a Canvas-only match is verified, not a host conflict.
     if (!routes || routes.length === 0) {
       for (const attempt of attempts.values()) {
-        publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
-          change.selector,
-          getRequestedValue(change),
-        ));
+        publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(getRequestedValue(change)));
       }
     }
   }

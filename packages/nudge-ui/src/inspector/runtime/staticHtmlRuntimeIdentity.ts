@@ -142,9 +142,7 @@ const LAZY_DESCENDANT_DEPTH = 2;
 
 /** Install before the inspector so its capture listeners run first. */
 export function installLazyRuntimeIdentity(doc: Document = document): () => void {
-  // Pointer order differs between page loads, so sequential numbers could hand a saved
-  // edit's identity to a different element; a per-install scope keeps fresh identities
-  // distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
+  // Per-install scope keeps fresh identities distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
   const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
 
   function tagDescendants(element: Element, depth: number): void {

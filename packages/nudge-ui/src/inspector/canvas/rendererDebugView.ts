@@ -374,11 +374,7 @@ export function createRendererDebugView(
     return clicked.contains(pressedLayer) ? pressedLayer : clicked;
   }
 
-  /**
-   * A click explodes the hovered subtree. Clicking a layer while exploded selects it and collapses back, staying in Explode view for the next click;
-   * any other click while exploded just collapses it. Clicks during the collapse do nothing, so a click that
-   * dismisses a group can't explode whatever sits under it.
-   */
+  /** A click explodes the hovered subtree; clicking a layer selects and collapses, while other clicks just collapse. */
   function onClick(event: MouseEvent): void {
     const point = { x: event.clientX, y: event.clientY };
     if (phase === "idle") {

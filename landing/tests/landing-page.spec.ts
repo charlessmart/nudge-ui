@@ -22,6 +22,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   const app = appFrame.contentFrame();
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  await expect(app.locator(".landing-hero-demo-grid")).toHaveCSS("position", "absolute");
   const demo = app.locator("section#demo");
   const openNudge = demo.getByRole("button", { name: "Open Nudge" });
   await expect(openNudge).toBeVisible();
@@ -68,8 +69,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await inspectorHost.locator('[data-test="sketch-copy"]').click();
   await expect(inspectorHost.locator('[data-test="sketch-recent"]')).toBeVisible();
 
-  // The public demo must leave nothing behind in visitors' browsers, including
-  // anything flushed when the page unloads.
+  // The public demo must leave nothing behind in visitors' browsers, including anything flushed when the page unloads.
   await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
   const demoStorage = await page.evaluate(async () => ({
     local: Object.keys(localStorage),

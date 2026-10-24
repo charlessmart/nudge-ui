@@ -140,9 +140,7 @@ async function loadFixture(page: Page): Promise<FrameLocator> {
       try {
         localStorage.clear();
         sessionStorage.clear();
-      } catch {
-        // ignore
-      }
+      } catch {}
     });
     fixtureStorageResetPages.add(page);
   }

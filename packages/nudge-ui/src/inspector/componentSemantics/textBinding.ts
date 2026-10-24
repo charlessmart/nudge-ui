@@ -120,8 +120,7 @@ function isApplicationEditingHost(element: HTMLElement): boolean {
 }
 
 function isApplicationEditingTextNode(element: HTMLElement, textNode: Text): boolean {
-  // `element.closest()` only checks the selected root; an editing island can
-  // live deeper, so inspect the text node's own chain as well.
+  // `element.closest()` only checks the selected root; an editing island can live deeper, so inspect the text node's own chain as well.
   const editingHost = textNode.parentElement?.closest<HTMLElement>("[contenteditable]");
   if (!editingHost) return false;
   return editingHost.getAttribute("data-inline-editor") !== "true"
@@ -236,8 +235,7 @@ function authoredAsFor(
 function mountedCountFor(element: HTMLElement, target: EditableComponentTarget): number | null {
   const mountedCount = callsiteMultiplicity(target);
   if (mountedCount !== null) return mountedCount;
-  // Compatibility fallback for adapters predating multiplicity: it can prove
-  // one root, never an arbitrary count.
+  // Compatibility fallback for adapters predating multiplicity: it can prove one root, never an arbitrary count.
   return hasUniqueInvocationEvidence(element, target.meta.callsiteId) ? 1 : null;
 }
 
@@ -295,8 +293,7 @@ function renderedTextCandidate(
   }
   const componentTarget = semantic?.target ?? inspectComponentTargets(element)[0];
   const semanticProperty = semantic?.property;
-  // A component target is source evidence only when its callsite produced this
-  // exact DOM root; otherwise the element's own data-src remains the source.
+  // A component target is source evidence only when its callsite produced this exact DOM root; otherwise the element's own data-src remains the source.
   const elementDataSrc = element.getAttribute("data-src");
   const elementSource = parseRenderedSource(elementDataSrc ?? "");
   const matchingComponentTarget = componentTarget
@@ -443,8 +440,7 @@ export function resolveTextBinding(
       message: "Application-owned editing surfaces are not managed by the inspector.",
     };
   }
-  // Descendant markup is intentionally not included: a semantic binding may still own a
-  // nested text node, while the rendered fallback keeps its stricter direct-leaf rule.
+  // Descendant markup is intentionally not included: a semantic binding may still own a nested text node, while the rendered fallback keeps its stricter direct-leaf rule.
   if (isUnsafeTextHost(element)) {
     return {
       kind: "rejected",
@@ -526,13 +522,11 @@ export function resolveTextBinding(
   const authoredAs = authoredAsFor(match.target, match.property);
   const binding = targetBinding(match.target, match.property);
   if (match.mountedCount! > 1 && authoredAs !== "literal") {
-    // Expressions/spreads are source-logic intent; a callsite override would
-    // fan out to every item, so keep one durable text target instead.
+    // Expressions/spreads are source-logic intent; a callsite override would fan out to every item, so keep one durable text target instead.
     return renderedTextCandidate(element, textNode, before, match);
   }
   if (match.mountedCount! > 1 && authoredAs === "literal") {
-    // Item-only scope must validate against the same bounded before-text
-    // evidence as the durable projection; source-site stays safe either way.
+    // Item-only scope must validate against the same bounded before-text evidence as the durable projection; source-site stays safe either way.
     const rendered = renderedTextCandidate(element, textNode, before, match, false);
     if (!("kind" in rendered)) {
       return {
@@ -544,8 +538,7 @@ export function resolveTextBinding(
         scopeChoices: ["rendered-instance", "source-site"],
       };
     }
-    // A missing rendered projection only removes the item-scoped option; the
-    // all-output source-site edit is still a safe canonical change.
+    // A missing rendered projection only removes the item-scoped option; the all-output source-site edit is still a safe canonical change.
     return {
       binding,
       editableTarget: match.target,

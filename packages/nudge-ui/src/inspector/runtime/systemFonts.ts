@@ -7,10 +7,7 @@ export type SystemFontAccess = "granted" | "prompt" | "denied" | "unavailable";
 export interface SystemFontSource {
   /** `"prompt"` waits for the user to ask before `families` runs. */
   access(): Promise<SystemFontAccess>;
-  /**
-   * Runs when a font list opens with access granted, or synchronously inside
-   * the user's request otherwise, so a browser prompt sees the user gesture.
-   */
+  /** Runs when a font list opens with access granted, or synchronously inside the user's request otherwise, so a browser prompt sees the user gesture. */
   families(): Promise<readonly string[]>;
 }
 

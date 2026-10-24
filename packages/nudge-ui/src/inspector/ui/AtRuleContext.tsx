@@ -58,10 +58,7 @@ export interface AtRuleIndicatorProps {
   className?: string;
 }
 
-/**
- * A dot on the field's top-left corner marking that conditional rules apply. It is accent while one of
- * them is the declaration currently winning the cascade. Hovering it lists the rules, base included.
- */
+/** A dot on the field's top-left corner marking that conditional rules apply. It is accent while one of them is the declaration currently winning the cascade. Hovering it lists the rules, base included. */
 export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleIndicatorProps): ReactElement | null {
   if (atRules.length === 0) return null;
   const label = labelFor(atRules);

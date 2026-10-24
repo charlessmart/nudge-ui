@@ -1,8 +1,4 @@
-/*
- * An avatar-style dot on the control's top-left corner. Its ring is the panel colour, so it reads as
- * cut out of the field. Accent means a conditional rule is the one currently winning; grey means
- * rules exist but the base declaration wins.
- */
+/* An avatar-style dot on the control's top-left corner. Its ring is the panel colour, so it reads as cut out of the field. Accent means a conditional rule is the one currently winning; grey means rules exist but the base declaration wins. */
 .at-rule-indicator {
   position: absolute;
   z-index: 2;

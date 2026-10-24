@@ -49,7 +49,6 @@ import { initializeSketchStore } from "./canvas/sketch/store.ts";
 import { inspectorStorage } from "./runtime/inspectorStorage.ts";
 import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts";
 
-let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
 /** Rendered by every mount until the next bootstrap; replaced so tests and embedders can supply a lighter shell. */
@@ -234,7 +233,6 @@ function mountLockedNotice(host: HTMLElement, storageError = false): void {
     removeManagedSheet();
     disposeRuntimeIdentityClaims(document);
     releaseDocumentProjection(document);
-    hostElement = null;
     unsubscribeOwnership?.();
     unsubscribeOwnership = null;
   }
@@ -263,7 +261,6 @@ export function mountInspector(host: HTMLElement): void {
     lockedRoot.unmount();
     lockedRoot = null;
   }
-  if (!hostElement) hostElement = host;
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
@@ -314,6 +311,5 @@ export function unmountInspector(): void {
     removeManagedSheet();
     removeInspectionBridge?.();
     removeInspectionBridge = null;
-    hostElement = null;
   }
 }

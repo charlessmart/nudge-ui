@@ -5,7 +5,6 @@ export const packageManagers = ["pnpm", "npm", "yarn", "bun"] as const;
 export type PackageManager = typeof packageManagers[number];
 
 export interface ProjectManifest {
-  readonly type?: string;
   readonly packageManager?: string;
   readonly dependencies: ReadonlySet<string>;
 }

@@ -63,8 +63,7 @@ export function componentChangeToOverride(
   const mountedCount = change.evidence?.mountedCount;
   if (mountedCount !== undefined
     && (!Number.isSafeInteger(mountedCount) || mountedCount < 0)) return null;
-  // Rendered-instance records and repeated expression/spread props must never
-  // broaden to a callsite override; repeated literals stay source-editable.
+  // Rendered-instance records and repeated expression/spread props must never broaden to a callsite override; repeated literals stay source-editable.
   if (mountedCount !== undefined && mountedCount > 1) {
     if (change.scope !== "source-site") return null;
     if (change.authoredAs === "expression" || change.authoredAs === "spread") return null;

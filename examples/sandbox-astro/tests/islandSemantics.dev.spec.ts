@@ -141,8 +141,7 @@ test("dev: the generated prompt carries the island component record without iden
 test("dev: the astro-island host keeps Astro-derived identity across hydration", async ({ page }) => {
   const severeErrors = trackSevereErrors(page);
 
-  // Installed before any page script runs, so nothing can slip past it; attribute-only
-  // mutations (Astro's toolbar stripping its own annotations) are ignored.
+  // Installed before any page script runs, so nothing can slip past it; attribute-only mutations (Astro's toolbar stripping its own annotations) are ignored.
   await page.addInitScript(() => {
     const removedTracked: string[] = [];
     (window as unknown as { __dtRemovedTracked?: string[] }).__dtRemovedTracked = removedTracked;

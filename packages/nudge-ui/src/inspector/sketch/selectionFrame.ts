@@ -29,10 +29,7 @@ export interface SketchRegion {
   readonly maxY: number;
 }
 
-/**
- * A rotated box around a stroke. `width` and `height` measure the stroke's
- * points along the frame's own axes; the visible frame adds `padding` on every side.
- */
+/** A rotated box around a stroke. `width` and `height` measure the stroke's points along the frame's own axes; the visible frame adds `padding` on every side. */
 export interface SelectionFrame {
   readonly center: SketchPoint;
   readonly width: number;
@@ -150,10 +147,7 @@ export function distanceToSegment(point: SketchPoint, start: SketchPoint, end: S
   return Math.hypot(point.x - (start.x + position * dx), point.y - (start.y + position * dy));
 }
 
-/**
- * Corners and the rotation line win over edges so a handle stays grabbable
- * where it overlaps the border it sits on.
- */
+/** Corners and the rotation line win over edges so a handle stays grabbable where it overlaps the border it sits on. */
 export function hitTestFrame(frame: SelectionFrame, point: SketchPoint, unit: number): FrameHandle | null {
   const handleReach = FRAME_HANDLE_HIT_PX * unit;
   for (const corner of FRAME_CORNERS) {
@@ -184,10 +178,7 @@ function nearestAxisCursor(angle: number): string {
   }
 }
 
-/**
- * Edges and the rotation handle show an open hand that closes while the drag is under way. Resize cursors follow the
- * frame's rotation so they keep pointing along the corner's diagonal.
- */
+/** Edges and the rotation handle show an open hand that closes while the drag is under way. Resize cursors follow the frame's rotation so they keep pointing along the corner's diagonal. */
 export function frameHandleCursor(handle: FrameHandle, frame: SelectionFrame, dragging: boolean): string {
   if (handle === "move" || handle === "rotate") return dragging ? "grabbing" : "grab";
   const sign = CORNER_SIGNS[handle];
@@ -201,10 +192,7 @@ function strokeInside(stroke: SketchStroke, region: SketchRegion): boolean {
     && point.y <= region.maxY + REGION_EPSILON);
 }
 
-/**
- * Builds the transform at full strength and, if it leaves the region, backs off
- * to the largest fraction that still fits, so a fast drag stops flush with the edge.
- */
+/** Builds the transform at full strength and, if it leaves the region, backs off to the largest fraction that still fits, so a fast drag stops flush with the edge. */
 function withinRegion(
   start: SketchStroke,
   region: SketchRegion,
@@ -235,11 +223,7 @@ export function moveStroke(start: SketchStroke, delta: SketchPoint, region: Sket
   return { ...start, points: start.points.map((point) => ({ x: point.x + x, y: point.y + y })) };
 }
 
-/**
- * Drags `corner` by the pointer's travel since the gesture began, keeping the
- * opposite corner fixed. Works in the frame's own axes, so rotated strokes
- * resize along their rotated sides. A zero-extent axis (a straight line) keeps its extent.
- */
+/** Drags `corner` by the pointer's travel since the gesture began, keeping the opposite corner fixed. Works in the frame's own axes, so rotated strokes resize along their rotated sides. A zero-extent axis (a straight line) keeps its extent. */
 export function resizeStroke(
   start: SketchStroke,
   corner: FrameCorner,

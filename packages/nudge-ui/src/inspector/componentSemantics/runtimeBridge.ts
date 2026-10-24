@@ -37,8 +37,7 @@ type GlobalWithHostRuntime = typeof globalThis & {
 };
 
 function registry(): HostRuntimeRegistry {
-  // SAFETY: this module exclusively owns the versioned symbol property and
-  // validates its initialization before returning the registry.
+  // SAFETY: this module exclusively owns the versioned symbol property and validates its initialization before returning the registry.
   const target = globalThis as GlobalWithHostRuntime;
   const current = target[HOST_RUNTIME_KEY];
   if (current !== undefined) {

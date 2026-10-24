@@ -133,10 +133,7 @@ const DISTRIBUTION_ITEMS = [
   { value: "space-evenly", label: "Spread evenly" },
 ];
 
-/**
- * The main-axis gap. Spreading the items (`justify-content: space-*`) replaces the fixed gap, so
- * the field reads Auto, keeps the gap as a faint value, and typing `auto` spreads between.
- */
+/** The main-axis gap. Spreading the items (`justify-content: space-*`) replaces the fixed gap, so the field reads Auto, keeps the gap as a faint value, and typing `auto` spreads between. */
 export function FlexMainGapField({ property, domElement, editTarget, selection, entries, tokenRows, revision = 0, onAfterEdit }: FlexGapFieldProps & { revision?: number }): ReactElement {
   const GapIcon = property === "column-gap" ? IconSpacingHorizontal : IconSpacingVertical;
   const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
@@ -163,8 +160,7 @@ export function FlexMainGapField({ property, domElement, editTarget, selection, 
       if (!distributed) setJustifyContent("space-between");
       return true;
     }
-    // A typed gap takes the items back out of a spread; the gap value itself is written by the field,
-    // which still saves it when justify-content is authored inline and cannot be changed here.
+    // A typed gap takes the items back out of a spread; the gap value itself is written by the field, which still saves it when justify-content is authored inline and cannot be changed here.
     if (distributed) setJustifyContent(lastPlacement.current);
     return false;
   }
