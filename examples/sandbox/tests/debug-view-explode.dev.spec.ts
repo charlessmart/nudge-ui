@@ -14,7 +14,7 @@ test("dev: the DOM navigator steps aside while Explode view holds a subtree apar
   const navigator = page.locator('[data-test="dom-navigator"]');
   await expect(navigator).toBeVisible();
 
-  // The view tool starts on Outline view, so pick Explode view from its menu.
+  // The view tool starts on Animation, so pick Explode view from its menu.
   await page.locator('[data-test="canvas-tool-debug"]').click();
   await page.locator('[data-test="canvas-tool-debug-menu"]').click();
   await page.locator('[data-test="debug-view-explode"]').click();

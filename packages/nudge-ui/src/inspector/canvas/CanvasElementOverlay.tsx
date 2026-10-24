@@ -805,7 +805,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     }))
     : [];
 
-  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction || debugExploded) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
 
   return (
     <>

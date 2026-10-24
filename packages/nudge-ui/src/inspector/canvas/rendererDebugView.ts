@@ -213,13 +213,14 @@ export function createRendererDebugView(
     if ((next !== "idle") !== wasExploded) onExplodedChange(next !== "idle");
   }
   let overrides = new InlineStyleOverrides();
-  let explodedRect: DOMRect | null = null;
   let explodedRoot: Element | null = null;
   let hoverOutline: HTMLElement | null = null;
   let hoverTarget: Element | null = null;
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
   let hoveredLayer: StyledElement | null = null;
   let outlinedLayers = new Set<StyledElement>();
+  let pressedLayer: Element | null = null;
+  let pressedPoint: { x: number; y: number } | null = null;
 
   function hideHoverOutline(): void {
     hoverOutline?.remove();
@@ -248,7 +249,6 @@ export function createRendererDebugView(
     if (!isStyledElement(root)) return;
     hideHoverOutline();
     const layers = collectXrayLayers(root);
-    explodedRect = root.getBoundingClientRect();
     explodedRoot = root;
     const transition = `transform ${XRAY_DURATION_MS}ms ${XRAY_EASING}, translate ${XRAY_DURATION_MS}ms ${XRAY_EASING}`;
     for (const { element, depth } of layers) {
@@ -286,11 +286,12 @@ export function createRendererDebugView(
   function finishCollapse(): void {
     hoveredLayer = null;
     outlinedLayers = new Set();
+    pressedLayer = null;
+    pressedPoint = null;
     clearTimeout(collapseTimer);
     collapseTimer = undefined;
     overrides.restoreAll();
     overrides = new InlineStyleOverrides();
-    explodedRect = null;
     explodedRoot = null;
     setPhase("idle");
   }
@@ -322,13 +323,6 @@ export function createRendererDebugView(
     if (root) explode(root);
   }
 
-  function insideExplodedRect(point: { x: number; y: number }): boolean {
-    if (!explodedRect) return false;
-    const margin = 8;
-    return point.x >= explodedRect.left - margin && point.x <= explodedRect.right + margin
-      && point.y >= explodedRect.top - margin && point.y <= explodedRect.bottom + margin;
-  }
-
   /** Thickens the outline of the exploded layer under the pointer; hit-testing already follows the 3D transform. */
   function highlightLayer(target: EventTarget | null): void {
     const next = target instanceof Element && isStyledElement(target) && !isInspectorElement(target, document) ? target : null;
@@ -358,6 +352,28 @@ export function createRendererDebugView(
     hideHoverOutline();
   }
 
+  /** Remembers the layer pressed before the explosion can move it out from under the pointer. */
+  function onPointerDown(event: PointerEvent): void {
+    pressedPoint = null;
+    pressedLayer = null;
+    if (phase !== "exploded" || event.button !== 0) return;
+    pressedPoint = { x: event.clientX, y: event.clientY };
+    pressedLayer = event.target instanceof Element ? event.target : null;
+  }
+
+  /**
+   * A transformed layer can move between press and release, so the browser
+   * reports the layer and pointer-up target's common ancestor as the click
+   * target. A click that lands on an ancestor of the pressed layer is really
+   * the layer the user pressed, provided the pointer itself did not drag away.
+   */
+  function pressedPickTarget(event: MouseEvent): Element | null {
+    const clicked = event.target instanceof Element ? event.target : null;
+    if (!clicked || !pressedLayer || !pressedPoint || !pressedLayer.isConnected) return clicked;
+    if (Math.hypot(event.clientX - pressedPoint.x, event.clientY - pressedPoint.y) > 6) return clicked;
+    return clicked.contains(pressedLayer) ? pressedLayer : clicked;
+  }
+
   /**
    * A click explodes the hovered subtree. Clicking a layer while exploded selects it and collapses back, staying in Explode view for the next click;
    * any other click while exploded just collapses it. Clicks during the collapse do nothing, so a click that
@@ -375,8 +391,12 @@ export function createRendererDebugView(
     event.preventDefault();
     event.stopPropagation();
     if (phase === "collapsing") return;
-    const target = event.target;
-    if (insideExplodedRect(point) && target instanceof Element && explodedRoot?.contains(target)) onPick(target);
+    const target = pressedPickTarget(event);
+    pressedLayer = null;
+    pressedPoint = null;
+    // Hit-testing follows the 3D transform; the original rect would reject
+    // layers that separate outside it, such as a section's top heading.
+    if (target && explodedRoot?.contains(target)) onPick(target);
     collapse(true);
   }
 
@@ -409,15 +429,19 @@ export function createRendererDebugView(
     setXrayCursor(state.xray);
     if (state.xray) {
       document.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
+      document.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
       document.addEventListener("click", onClick, { capture: true });
       document.addEventListener("keydown", onKeyDown, { capture: true });
       document.documentElement.addEventListener("pointerleave", onPointerLeave);
       return;
     }
     document.removeEventListener("pointermove", onPointerMove, { capture: true });
+    document.removeEventListener("pointerdown", onPointerDown, { capture: true });
     document.removeEventListener("click", onClick, { capture: true });
     document.removeEventListener("keydown", onKeyDown, { capture: true });
     document.documentElement.removeEventListener("pointerleave", onPointerLeave);
+    pressedLayer = null;
+    pressedPoint = null;
     hideHoverOutline();
     collapse(true);
   }
