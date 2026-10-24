@@ -144,7 +144,9 @@ function targetStatus(
 ): InspectionTargetStatus {
   if (element.ownerDocument !== doc) return "foreign-document";
   const HTMLElementConstructor = doc.defaultView?.HTMLElement;
-  if (HTMLElementConstructor && !(element instanceof HTMLElementConstructor)) return "unsupported";
+  const SVGElementConstructor = doc.defaultView?.SVGElement;
+  const isSvg = SVGElementConstructor ? element instanceof SVGElementConstructor : false;
+  if (HTMLElementConstructor && !(element instanceof HTMLElementConstructor) && !isSvg) return "unsupported";
   return element.isConnected ? "attached" : "detached";
 }
 
@@ -158,7 +160,7 @@ function targetDiagnostic(status: InspectionTargetStatus): InspectionDiagnostic 
   if (status === "unsupported") {
     return {
       code: "target-unsupported",
-      message: "Browser CSS inspection currently supports HTMLElement targets only.",
+      message: "Browser CSS inspection supports HTML and SVG element targets only.",
     };
   }
   if (status === "detached") {

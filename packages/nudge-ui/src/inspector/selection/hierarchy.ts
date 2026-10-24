@@ -28,20 +28,27 @@ export interface TrackedChildren {
   hidden: number;
 }
 
-function htmlElementConstructor(el: HTMLElement): typeof HTMLElement | null {
-  return el.ownerDocument.defaultView?.HTMLElement ?? null;
+function isTrackableChild(child: Element, html: typeof HTMLElement | null, svg: typeof SVGElement | null): boolean {
+  return Boolean((html && child instanceof html) || (svg && child instanceof svg));
+}
+
+function asTrackedElement(element: Element): HTMLElement {
+  // SAFETY: an SVG root shares the selection surface's identity, layout and containment APIs.
+  return element as HTMLElement;
 }
 
 /** The nearest tracked elements below `el` in document order, looking through untracked wrappers. */
 export function computeTrackedChildren(el: HTMLElement, limit = NAVIGATOR_CHILD_LIMIT): TrackedChildren {
-  const constructor = htmlElementConstructor(el);
+  const view = el.ownerDocument.defaultView;
+  const constructor = view?.HTMLElement ?? null;
+  const svgConstructor = view?.SVGElement ?? null;
   const result: TrackedChildren = { elements: [], hidden: 0 };
-  if (!constructor) return result;
+  if (!constructor && !svgConstructor) return result;
   const visit = (parent: Element): void => {
     for (const child of parent.children) {
-      if (!(child instanceof constructor)) continue;
+      if (!isTrackableChild(child, constructor, svgConstructor)) continue;
       if (!child.hasAttribute("data-cid")) visit(child);
-      else if (result.elements.length < limit) result.elements.push(child);
+      else if (result.elements.length < limit) result.elements.push(asTrackedElement(child));
       else result.hidden += 1;
     }
   };
@@ -50,11 +57,13 @@ export function computeTrackedChildren(el: HTMLElement, limit = NAVIGATOR_CHILD_
 }
 
 export function hasTrackedChildren(el: HTMLElement): boolean {
-  const constructor = htmlElementConstructor(el);
-  if (!constructor) return false;
+  const view = el.ownerDocument.defaultView;
+  const constructor = view?.HTMLElement ?? null;
+  const svgConstructor = view?.SVGElement ?? null;
+  if (!constructor && !svgConstructor) return false;
   const visit = (parent: Element): boolean => {
     for (const child of parent.children) {
-      if (!(child instanceof constructor)) continue;
+      if (!isTrackableChild(child, constructor, svgConstructor)) continue;
       if (child.hasAttribute("data-cid") || visit(child)) return true;
     }
     return false;

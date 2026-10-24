@@ -5,8 +5,7 @@ const CONTAINER_ID = "nudge-ui-animation-markers";
 const MARKER_ATTRIBUTE = "data-nudge-ui-animation-marker";
 const MARKER_LIMIT = 150;
 const RESCAN_DELAY_MS = 400;
-// Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables.
-// The marker shares the chip's bottom-center slot and gap, so selecting the element lets the navigator cover it.
+// Blue matches the DOM navigator chip in InspectorOverlay.css; the page has no access to the inspector's CSS variables. The marker shares the chip's bottom-center slot and gap, so selecting the element lets the navigator cover it.
 const MARKER_SIZE = 24;
 const MARKER_GAP = 8;
 const MARKER_INSET = 4;

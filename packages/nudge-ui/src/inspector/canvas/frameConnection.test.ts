@@ -74,6 +74,18 @@ describe("frame element lookup", () => {
     expect(connectFrame("card-1", iframe).element({ elementId: "r7", cid: "cid-a", src: "src/App.tsx:4:1" })).toBe(element);
   });
 
+  it("returns an SVG root with matching identity", () => {
+    const iframe = mountFrame({ left: 0, top: 0, width: 800, height: 600 }, 800);
+    const doc = iframe.contentDocument!;
+    const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute(RENDERER_ELEMENT_ID_ATTR, "r9");
+    svg.setAttribute("data-cid", "Cursor");
+    svg.setAttribute("data-src", "src/App.tsx:9:2");
+    doc.body.append(svg);
+
+    expect(connectFrame("card-1", iframe).element({ elementId: "r9", cid: "Cursor", src: "src/App.tsx:9:2" })).toBe(svg);
+  });
+
   it("rejects a renderer ID carried by two elements", () => {
     const iframe = mountFrame({ left: 0, top: 0, width: 800, height: 600 }, 800);
     addRendererElement(iframe, "r7", "cid-a", "src/App.tsx:4:1");

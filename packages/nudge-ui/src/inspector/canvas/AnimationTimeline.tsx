@@ -25,6 +25,16 @@ export function minorStepMs(ticks: readonly TimelineTick[]): number {
   return ticks.length > 1 ? ticks[1]!.ms - ticks[0]!.ms : 0;
 }
 
+/** Scroll-driven animations scrub from 0 to 100% rather than over a wall-clock ruler. */
+export function scrollProgressTicks(): TimelineTick[] {
+  const steps = 20;
+  return Array.from({ length: steps + 1 }, (_, index) => ({
+    ms: index / steps,
+    major: index % 5 === 0,
+    label: index % 5 === 0 && index <= 15 ? `${index * 5}%` : null,
+  }));
+}
+
 /** The distance, in marks, over which a mark's rise has fallen to 1/e of the playhead's own. */
 const PROXIMITY_DECAY_MARKS = 2;
 /** Marks whose rise falls below this are drawn at rest. */
@@ -73,6 +83,8 @@ export interface AnimationTimelineProps {
   readonly progress: number;
   /** Length of the animation the track spans, in milliseconds. */
   readonly duration: number;
+  /** `scroll` labels the track as scroll progress instead of milliseconds. */
+  readonly mode?: "time" | "scroll";
   readonly disabled?: boolean;
   readonly onSeek: (progress: number) => void;
   /** Called with true while a pointer is held on the track and false when it is released. */
@@ -80,9 +92,10 @@ export interface AnimationTimelineProps {
 }
 
 /** A ruler of the animation's length with a playhead; press or drag anywhere on it to scrub. */
-export function AnimationTimeline({ progress, duration, disabled = false, onSeek, onScrubChange }: AnimationTimelineProps): ReactElement {
+export function AnimationTimeline({ progress, duration, mode = "time", disabled = false, onSeek, onScrubChange }: AnimationTimelineProps): ReactElement {
   const scaleRef = useRef<HTMLDivElement>(null);
-  const ticks = timelineTicks(duration);
+  const unitDuration = mode === "scroll" ? 1 : duration;
+  const ticks = mode === "scroll" ? scrollProgressTicks() : timelineTicks(duration);
   const minorMs = minorStepMs(ticks);
   // Where the playhead is drawn while it glides to a press; null outside one, so playback and dragging move it, and the marks rising around it, with `progress` exactly.
   const [glideProgress, setGlideProgress] = useState<number | null>(null);
@@ -92,7 +105,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   const glideTarget = useRef(progress);
   glideTarget.current = progress;
   const drawnProgress = glideProgress ?? progress;
-  const playheadMs = drawnProgress * duration;
+  const playheadMs = drawnProgress * unitDuration;
 
   // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
   const proximities = ticks.map((tick) => tickProximity(tick.ms - playheadMs, minorMs));
@@ -173,7 +186,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
       className="animation-timeline"
       role="slider"
       tabIndex={disabled ? -1 : 0}
-      aria-label="Animation progress"
+      aria-label={mode === "scroll" ? "Scroll progress" : "Animation progress"}
       aria-valuemin={0}
       aria-valuemax={1}
       aria-valuenow={Number(progress.toFixed(3))}
@@ -208,7 +221,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
               className={tick.major ? "animation-timeline__tick animation-timeline__tick--major" : "animation-timeline__tick"}
               data-falling={falling[index] ? "" : undefined}
               style={{
-                "--tick-position": tick.ms / duration,
+                "--tick-position": tick.ms / unitDuration,
                 ...(proximity === null ? {} : { "--tick-proximity": proximity }),
               } as CSSProperties}
               aria-hidden="true"
@@ -222,7 +235,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
             className="animation-timeline__label"
             // The first label would be cut off by the track edge if it were centred on its mark.
             data-start={tick.ms === 0 ? "" : undefined}
-            style={{ "--tick-position": tick.ms / duration } as CSSProperties}
+            style={{ "--tick-position": tick.ms / unitDuration } as CSSProperties}
             aria-hidden="true"
           >
             {tick.label}
