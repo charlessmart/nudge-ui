@@ -53,8 +53,7 @@
   height: calc(var(--control-height-large) + var(--space-8));
   padding: var(--space-4);
   border-radius: var(--radius-12);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
+  background: var(--surface-well);
   transform: scale(var(--canvas-toolbar-scale, 1));
   transform-origin: left top;
   cursor: grab;
@@ -80,9 +79,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 var(--control-height-small);
-  width: var(--control-height-small);
-  height: var(--control-height-small);
+  flex: 0 0 var(--space-12);
+  width: var(--space-12);
+  height: var(--space-12);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -106,23 +105,25 @@
   cursor: not-allowed;
 }
 
-.canvas-card__grip {
+.canvas-card__live {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  color: var(--text-muted-subtle);
+  color: var(--accent);
   cursor: grab;
 }
 
-.canvas-card.is-dragging .canvas-card__grip {
+.canvas-card.is-dragging .canvas-card__live {
   cursor: grabbing;
 }
 
 .canvas-card__url {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: var(--surface-well);
+  flex: 0 1 280px;
+  width: 280px;
+  min-width: 120px;
+  max-width: 42%;
+  background: var(--surface-well-2x);
 }
 
 .canvas-card__url[data-invalid="true"] {
@@ -144,7 +145,12 @@
   font-size: var(--font-size-base);
   text-overflow: ellipsis;
   white-space: nowrap;
-  pointer-events: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas-card.is-dragging .canvas-card__title {
+  cursor: grabbing;
 }
 
 .canvas-card__actions {
@@ -152,6 +158,7 @@
   align-items: center;
   flex: 0 0 auto;
   gap: var(--space-4);
+  margin-left: auto;
 }
 
 .canvas-card__iteration-error {

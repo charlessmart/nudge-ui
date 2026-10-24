@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { IconArtboard, IconCopy, IconGripVertical, IconPlayerPlay, IconX } from "@tabler/icons-react";
+import { IconArtboard, IconBoltFilled, IconCopy, IconPlayerPlay, IconX } from "@tabler/icons-react";
 import type { CanvasCard } from "./canvasStore.ts";
 import { contentSourceUrl, iterationId } from "./frameContent.ts";
 import { resolveFrameUrl } from "./appRoute.ts";
+import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -91,13 +92,9 @@ export function CanvasCardHeader({
             disabled={!canRemove}
             onClick={onRemove}
           >
-            <IconX size={14} stroke="var(--icon-stroke-width)" aria-hidden="true" />
+            <IconX size={8} stroke={2} aria-hidden="true" />
           </button>
         </Tooltip>
-
-        <span className="canvas-card__grip" data-test={`canvas-card-drag-${card.id}`} title="Drag frame">
-          <IconGripVertical size={14} stroke="var(--icon-stroke-width)" aria-hidden="true" />
-        </span>
 
         {onShowFocus ? (
           <Tooltip content="Open this frame in focus view">
@@ -108,7 +105,11 @@ export function CanvasCardHeader({
         ) : null}
 
         {currentUrl ? (
-          <TextInput
+          <>
+            <span className="canvas-card__live" data-test={`canvas-card-drag-${card.id}`} title="Live view">
+              <IconBoltFilled size={12} aria-hidden="true" />
+            </span>
+            <TextInput
             className="canvas-card__url"
             aria-label="Frame URL"
             aria-invalid={urlError ? true : undefined}
@@ -151,30 +152,31 @@ export function CanvasCardHeader({
               }
             }}
           />
+          </>
         ) : (
           <span className="canvas-card__url-space">
-            <span className="canvas-card__title canvas-card__dimensions" data-test={`canvas-card-dimensions-${card.id}`}>{label}</span>
+            <span className="canvas-card__title canvas-card__dimensions" data-test={`canvas-card-drag-${card.id}`} title={label}>{label}</span>
           </span>
         )}
 
         <div className="canvas-card__actions">
-          {onDuplicate && !iteration ? (
-            <Tooltip content="Create a linked copy of this frame">
-              <IconButton variant="quiet" label="Duplicate" data-test={`canvas-card-duplicate-${card.id}`} onClick={onDuplicate}>
-                <IconCopy aria-hidden="true" />
-              </IconButton>
-            </Tooltip>
-          ) : null}
           {onCreateIteration ? (
             <Tooltip content="Create an unlinked HTML version">
-              <IconButton
-                variant="quiet"
-                label="Create HTML iteration"
+              <Button
+                variant="secondary"
                 data-test={`canvas-card-create-iteration-${card.id}`}
                 disabled={iterationBusy || iterationDisabled}
                 onClick={onCreateIteration}
               >
                 <IconArtboard aria-hidden="true" />
+                {iterationBusy ? "Creating…" : "Iteration"}
+              </Button>
+            </Tooltip>
+          ) : null}
+          {onDuplicate && !iteration ? (
+            <Tooltip content="Create a linked copy of this frame">
+              <IconButton variant="quiet" label="Duplicate" data-test={`canvas-card-duplicate-${card.id}`} onClick={onDuplicate}>
+                <IconCopy aria-hidden="true" />
               </IconButton>
             </Tooltip>
           ) : null}
