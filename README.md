@@ -39,15 +39,14 @@ The canvas allows you to open multiple pages of you app to compare flows, respon
 
 **Duplicate** creates a live frame, a view into your running app.
 
-**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`. 
+**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`. Agents can write standalone prototypes directly to that folder using the [HTML artifact format](docs/html-artifacts.md).
 
 You can ask an agent to refine an iteration, then use **Copy prompt for live app** to implement that design in application source. 
 
 ## Install
 
 The initializer detects Next.js, Astro, Vite with React, or static HTML,
-installs `nudge-ui`, and configures the integration. It also offers to connect
-a coding agent.
+installs `nudge-ui`, and configures the integration.
 
 Start your app with its usual development command and open the local URL.
 For static HTML, use the `nudge-ui serve` command printed by setup.

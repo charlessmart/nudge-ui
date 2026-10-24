@@ -140,6 +140,17 @@
   line-height: 18px;
 }
 
+.add-page-menu__section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.add-page-menu__section-heading .button {
+  flex-shrink: 0;
+}
+
 .add-page-menu__hint {
   display: flex;
   align-items: center;

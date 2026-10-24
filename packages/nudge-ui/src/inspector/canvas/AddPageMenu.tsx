@@ -1,14 +1,17 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
-import { IconArtboard, IconLink, IconPlus } from "@tabler/icons-react";
+import { IconArtboard, IconCopy, IconLink, IconPlus } from "@tabler/icons-react";
 import { addCanvasArtifact, addCanvasCard, findCardByArtifactId, findCardByNormalizedUrl } from "./canvasStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 import { listHtmlArtifacts } from "../iterations/client.ts";
+import { artifactAgentInstructions } from "../iterations/agentInstructions.ts";
 import type { HtmlArtifactMetadata } from "../../transport/artifacts.ts";
 import { NUDGE_UI_DIRECT_QUERY_PARAM, NUDGE_UI_EDITOR_QUERY_PARAM, isReservedNudgeUiRoute } from "../../transport/routes.ts";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
+import { copyToClipboard } from "../prompt/copyToClipboard.ts";
+import { showToast } from "../ui/Toast.tsx";
 
 export interface AddPageMenuProps {
   /** Selects and reveals the frame that was added or already showing the page. */
@@ -78,6 +81,18 @@ export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
     onAdded(card.id);
   }
 
+  async function copyAgentInstructions(): Promise<void> {
+    try {
+      await copyToClipboard(artifactAgentInstructions(window.location.origin));
+      showToast({
+        title: "Agent instructions copied",
+        description: "Paste them into your coding agent.",
+      });
+    } catch {
+      showToast({ tone: "error", title: "Could not copy the agent instructions" });
+    }
+  }
+
   return (
     <BasePopover.Root open={open} onOpenChange={setOpen}>
       <Tooltip content="Add a page to the canvas" stableTrigger>
@@ -126,14 +141,29 @@ export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
             <div className="add-page-menu__divider" role="separator" />
 
             <div className="add-page-menu__section">
-              <span className="add-page-menu__label">HTML iterations</span>
+              <div className="add-page-menu__section-heading">
+                <span className="add-page-menu__label">HTML iterations</span>
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  type="button"
+                  data-test="canvas-copy-agent-instructions"
+                  onClick={() => void copyAgentInstructions()}
+                >
+                  <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                  Copy agent instructions
+                </Button>
+              </div>
+              <p className="add-page-menu__muted">
+                Agents can write prototypes into .nudge/artifacts; they appear here when this menu opens.
+              </p>
               {artifacts === null ? (
                 <p className="add-page-menu__muted" role="status">Reading recent iterations…</p>
               ) : artifactsError !== null ? (
                 <p className="add-page-menu__error" role="alert">{artifactsError}</p>
               ) : artifacts.length === 0 ? (
                 <p className="add-page-menu__muted">
-                  No saved iterations. Create one from a frame with its iteration action.
+                  No saved iterations yet. Create one from a frame.
                 </p>
               ) : (
                 <div className="add-page-menu__list">

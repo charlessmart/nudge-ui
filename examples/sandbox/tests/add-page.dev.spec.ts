@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+
 test("adds an application route once and focuses the frame already showing it", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -35,6 +37,20 @@ test("rejects cross-origin routes", async ({ page }) => {
   await expect(page.locator('[data-test="canvas-add-page-menu"]')).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Only pages from this app can be added.");
   await expect(page.locator(".canvas-card")).toHaveCount(1);
+});
+
+test("copies agent instructions for writing artifacts", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await page.locator('[data-test="canvas-add-page"]').click();
+  await page.locator('[data-test="canvas-copy-agent-instructions"]').click();
+
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain(".nudge/artifacts/<uuid>/");
+  const instructions = await page.evaluate(() => navigator.clipboard.readText());
+  expect(instructions).toContain('"viewport"');
+  expect(instructions).toContain("/pricing");
+  expect(instructions).toContain("36-character UUID");
 });
 
 test("lists a saved iteration and adds it at its captured size", async ({ page, request }) => {
