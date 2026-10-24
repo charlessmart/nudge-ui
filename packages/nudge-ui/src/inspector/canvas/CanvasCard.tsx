@@ -14,15 +14,14 @@ import {
   getSelectedCardId,
   useSelectedCardId,
   useFocusedCardId,
+  navigateCard,
   type CanvasCard,
 } from "./canvasStore.ts";
 import { useBoardCamera, type CanvasPresentation } from "./viewStore.ts";
-import { IconArrowsDiagonal, IconCopy, IconCornerLeftDown, IconBoltFilled, IconArtboard, IconTrash } from "@tabler/icons-react";
+import { IconArrowsDiagonal } from "@tabler/icons-react";
 import { connectFrame } from "./frameConnection.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument } from "./projection.ts";
 import { Button } from "../ui/Button.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
-import { Tooltip } from "../ui/Tooltip.tsx";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -48,6 +47,7 @@ import {
 import { getDraftContentsForCard } from "../drafts/store.ts";
 import { removeFrame } from "../workspace/commands.ts";
 import { artifactDocumentUrl } from "../iterations/client.ts";
+import { CanvasCardHeader } from "./CanvasCardHeader.tsx";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -308,7 +308,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
     // SAFETY: pointer events on the card target are HTMLElements in this DOM context.
     const target = e.target as HTMLElement;
-    if (target.closest("button")) return;
+    if (target.closest("button, input, a, select, textarea, [contenteditable='true']")) return;
 
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
     selectCard(card.id);
@@ -388,6 +388,11 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const handleCardPointerDown = useCallback(() => {
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
     selectCard(card.id);
+  }, [card.id]);
+
+  const navigate = useCallback((href: string) => {
+    setSelectedElement(null);
+    navigateCard(card.id, href);
   }, [card.id]);
 
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>, direction: CanvasResizeDirection) => {
@@ -484,6 +489,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       aria-label={`Frame: ${frameLabel}`}
       style={{
         "--canvas-toolbar-scale": toolbarScale,
+        "--canvas-toolbar-inverse-scale": 1 / toolbarScale,
         position: "absolute",
         visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
         pointerEvents: presentation === "focus" && !presentationCard ? "none" : undefined,
@@ -494,86 +500,22 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       } as CSSProperties}
       onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
-      {presentation === "canvas" ? <>
-        <div
-          className="canvas-card__header"
-          style={{ bottom: "100%", minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
-        >
-          <div
-            className="canvas-card__drag-surface"
-            style={{ minHeight: `calc(var(--control-height-large) * ${toolbarScale})` }}
-            data-test={`canvas-card-drag-${card.id}`}
-            onPointerDown={handleToolbarPointerDown}
-          >
-            <div className="canvas-card__identity" style={{ zoom: toolbarScale }}>
-              <span className="canvas-card__dimensions" data-test={`canvas-card-dimensions-${card.id}`}>
-                {!iterationId(card.content) ? (
-                  <Tooltip content="Live view">
-                    <span className="canvas-card__live-badge" aria-label="Live view" data-test={`canvas-card-live-${card.id}`}>
-                      <IconBoltFilled size={12} aria-hidden="true" />
-                    </span>
-                  </Tooltip>
-                ) : (
-                  <Tooltip content="HTML only">
-                    <span className="canvas-card__iteration-badge" aria-label="HTML only" data-test={`canvas-card-iteration-badge-${card.id}`}>
-                      <IconArtboard size={14} aria-hidden="true" />
-                    </span>
-                  </Tooltip>
-                )}
-                <span className="canvas-card__title">
-                  {frameLabel}
-                </span>
-              </span>
-            </div>
-            {iterationError ? <span className="canvas-card__iteration-error" role="status">{iterationError}</span> : null}
-          </div>
-          <div
-            className="canvas-card__floating-toolbar"
-            data-busy={creatingIteration ? "true" : undefined}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <div
-              className="canvas-toolbar canvas-card__actions"
-              style={{ zoom: toolbarScale }}
-              role="toolbar"
-              aria-label="Frame actions"
-              aria-busy={creatingIteration}
-              data-test={`canvas-card-actions-${card.id}`}
-            >
-              {onShowFocus ? (
-                <Tooltip content="Open this frame in focus view">
-                  <Button variant="quiet" size="default" data-test={`canvas-card-focus-${card.id}`} onClick={() => onShowFocus(card.id)}>
-                    <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                    Focus
-                  </Button>
-                </Tooltip>
-              ) : null}
-              {onDuplicate && !iterationId(card.content) ? (
-                <Tooltip content="Create a linked copy of this frame">
-                  <Button variant="quiet" size="default" data-test={`canvas-card-duplicate-${card.id}`} onClick={() => onDuplicate(card.id)}>
-                    <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                    Duplicate
-                  </Button>
-                </Tooltip>
-              ) : null}
-              {onCreateIteration ? (
-                <Tooltip content="Unlinked HTML version" stableTrigger>
-                  <Button variant="quiet" size="default" data-test={`canvas-card-create-iteration-${card.id}`} disabled={creatingIteration || loadState !== "ready"} onClick={() => void handleIteration()}>
-                    <IconArtboard size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                    {creatingIteration ? "Creating…" : "Iteration"}
-                  </Button>
-                </Tooltip>
-              ) : null}
-              <div className="canvas-toolbar__divider" aria-hidden="true" />
-              <Tooltip content={canRemove ? "Delete frame" : "Keep at least one frame on the canvas"}>
-                <IconButton variant="quiet" size="default" label="Delete frame" data-test={`canvas-card-delete-${card.id}`} disabled={!canRemove} onClick={handleRemove}>
-                  <IconTrash size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                </IconButton>
-              </Tooltip>
-            </div>
-          </div>
-        </div>
-      </> : null}
+      {presentation === "canvas" ? (
+        <CanvasCardHeader
+          card={card}
+          label={frameLabel}
+          canRemove={canRemove}
+          iterationBusy={creatingIteration}
+          iterationDisabled={loadState !== "ready"}
+          iterationError={iterationError}
+          onShowFocus={onShowFocus ? () => onShowFocus(card.id) : undefined}
+          onDuplicate={onDuplicate ? () => onDuplicate(card.id) : undefined}
+          onCreateIteration={onCreateIteration ? () => void handleIteration() : undefined}
+          onRemove={handleRemove}
+          onNavigate={navigate}
+          onPointerDown={handleToolbarPointerDown}
+        />
+      ) : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (
           <div className="canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>

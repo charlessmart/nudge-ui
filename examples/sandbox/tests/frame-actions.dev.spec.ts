@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { waitForCanvasTransition } from "./canvasTransition.ts";
 
-test("frame actions appear on preview hover and keep working when the pointer enters the toolbar", async ({ page }) => {
+test("frame toolbar exposes the URL and actions without hovering", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   await waitForCanvasTransition(page);
@@ -9,15 +9,9 @@ test("frame actions appear on preview hover and keep working when the pointer en
   const original = cards.first();
   const actions = original.getByRole("toolbar", { name: "Frame actions" });
   await page.mouse.move(1200, 600);
-  await expect(actions).not.toBeVisible();
-  await expect(original.locator(".canvas-card__identity button")).toHaveCount(0);
-  await expect(original.locator('[data-test^="canvas-card-live-"]')).toBeVisible();
-  await original.locator("iframe").hover({ position: { x: 120, y: 200 } });
   await expect(actions).toBeVisible();
-  await expect(original.locator(".canvas-card__floating-toolbar")).toHaveCSS("opacity", "1");
+  await expect(original.locator('[data-test^="canvas-card-url-"]')).toBeVisible();
   await expect(actions.getByRole("button", { name: "Delete frame", exact: true })).toBeDisabled();
-  await actions.hover();
-  await expect(actions).toBeVisible();
   await actions.getByRole("button", { name: "Focus", exact: true }).click();
   await waitForCanvasTransition(page);
   await expect(page.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "focus");
@@ -33,7 +27,7 @@ test("frame actions appear on preview hover and keep working when the pointer en
   await expect(cards).toHaveCount(1);
 });
 
-test("keyboard focus reveals frame actions and leaving the frame hides them", async ({ page }) => {
+test("keyboard focus reaches the frame actions", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   await waitForCanvasTransition(page);
@@ -45,8 +39,32 @@ test("keyboard focus reveals frame actions and leaving the frame hides them", as
   await page.keyboard.press("Tab");
   await expect(actions.getByRole("button", { name: "Focus", exact: true })).toBeFocused();
   await page.locator('[data-test="canvas-tool-design"]').focus();
-  await expect(actions).not.toBeVisible();
-  await expect(card.locator('[data-test^="canvas-card-live-"]')).toBeVisible();
+  await expect(actions).toBeVisible();
+  await expect(card.locator('[data-test^="canvas-card-url-"]')).toBeVisible();
+});
+
+test("changes a live frame URL with the same-origin rules", async ({ page }) => {
+  await page.goto("/playground?nudge-ui=on");
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  const card = page.locator(".canvas-card").first();
+  const input = card.locator('[data-test^="canvas-card-url-"]');
+  const frame = card.locator("iframe");
+
+  await input.fill("/examples");
+  await input.press("Enter");
+  await expect(frame).toHaveAttribute("src", /\/examples$/);
+
+  const before = await frame.getAttribute("src");
+  await input.fill("https://example.com/pricing");
+  await input.press("Enter");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(frame).toHaveAttribute("src", before!);
+
+  await input.fill("/__nudge_ui__/editor");
+  await input.press("Enter");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(frame).toHaveAttribute("src", before!);
 });
 
 test("Delete after DOM navigation removes the selected icon and undo restores it", async ({ page }) => {

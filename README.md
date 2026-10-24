@@ -39,7 +39,7 @@ The canvas allows you to open multiple pages of you app to compare flows, respon
 
 **Duplicate** creates a live frame, a view into your running app.
 
-**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`. Agents can write standalone prototypes directly to that folder using the [HTML artifact format](docs/html-artifacts.md).
+**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`.
 
 You can ask an agent to refine an iteration, then use **Copy prompt for live app** to implement that design in application source. 
 

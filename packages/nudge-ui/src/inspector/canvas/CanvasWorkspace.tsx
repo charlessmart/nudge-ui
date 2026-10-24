@@ -20,6 +20,7 @@ import {
   updateCardTitle,
   addCanvasCard,
   selectCard,
+  setCanvasCardRevealer,
   deselectCard,
   CARD_GAP,
   type CanvasCard as CanvasCardData,
@@ -38,7 +39,6 @@ import {
   setTemporaryAppInteraction,
 } from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
-import { AddPageMenu } from "./AddPageMenu.tsx";
 import { PageCard } from "./PageCard.tsx";
 import { isPageSurface } from "./pageSurface.ts";
 import { canvasFrameHost } from "./canvasFrame.ts";
@@ -94,7 +94,6 @@ import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
 import { setDebugExploded, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
-import addPageMenuStyles from "./AddPageMenu.css?inline";
 import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
@@ -107,7 +106,7 @@ import { getSelectedElements, setSelectedElement } from "../selection/selectionS
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, addPageMenuStyles, sketchToolOptionsStyles].join("\n");
+const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolOptionsStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
@@ -387,12 +386,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   const revealAddedCard = useCallback((cardId: string) => {
-    selectCard(cardId);
     const board = boardRef.current;
     focusCanvasCards([cardId], board
       ? { width: board.clientWidth, height: board.clientHeight }
       : undefined);
   }, []);
+
+  useEffect(() => {
+    setCanvasCardRevealer(revealAddedCard);
+    return () => setCanvasCardRevealer(() => undefined);
+  }, [revealAddedCard]);
 
   const startPanning = useCallback((point: { x: number; y: number }) => {
     if (panningRef.current) return;
@@ -910,11 +913,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           {!primaryUrl ? (
             <div className="canvas-workspace__target-error" data-test="canvas-target-error">
               This editor URL does not identify an application page.
-            </div>
-          ) : null}
-          {presentation === "canvas" && !sketchActive ? (
-            <div className="canvas-workspace__add-page">
-              <AddPageMenu onAdded={revealAddedCard} />
             </div>
           ) : null}
           {inspectorOpen && presentation === "focus" && !pageSurface ? (

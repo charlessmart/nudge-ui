@@ -117,6 +117,18 @@ export function setCanvasHistoryActivator(activate: (cardId: string) => void): v
   activateHistoryCard = activate;
 }
 
+let revealCardInView: (cardId: string) => void = () => undefined;
+
+/** Lets the panel reveal a card in the Canvas without knowing the board geometry. */
+export function setCanvasCardRevealer(reveal: (cardId: string) => void): void {
+  revealCardInView = reveal;
+}
+
+export function revealCanvasCard(cardId: string): void {
+  selectCard(cardId);
+  revealCardInView(cardId);
+}
+
 function recordCreation(before: readonly CanvasCard[], created: readonly CanvasCard[]): void {
   const createdIds = new Set(created.map((card) => card.id));
   const after = cards.map((card) => ({ ...card }));
@@ -285,6 +297,14 @@ export function updateCardTitle(id: string, title: string): void {
 
 export function updateCardUrl(id: string, url: string): void {
   cards = cards.map((c) => (c.id === id && c.content.kind === "route" ? { ...c, content: { ...c.content, url } } : c));
+  notify();
+}
+
+/** Navigates a live card to a new same-origin route. */
+export function navigateCard(id: string, url: string): void {
+  cards = cards.map((c) => c.id === id && c.content.kind === "route"
+    ? { ...c, title: null, content: { kind: "route", url, navigationUrl: url } }
+    : c);
   notify();
 }
 

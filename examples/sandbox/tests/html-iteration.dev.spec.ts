@@ -11,7 +11,7 @@ test("clearing iteration changes preserves the canvas until Reset canvas is used
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("HTML iteration");
+  await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration");
   const iteration = cards.nth(2).locator("iframe");
   const iterationUrl = await iteration.getAttribute("src");
   const heading = iteration.contentFrame().locator("h1").first();
@@ -49,7 +49,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   const duplicate = cards.nth(1);
   await expect(duplicate.locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
   await clickFrameAction(page, duplicate.locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("HTML iteration", { timeout: 15_000 });
+  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
   await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
 
   const source = cards.first().locator("iframe");
@@ -84,6 +84,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
 
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveText(/Copy prompt/);
   await page.locator('[data-test="copy-prompt"]').click();
+  await page.locator('[data-test="copy-iteration-prompt"]').click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain(`.nudge/artifacts/${artifactId}/document.html`);
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   expect(prompt).toContain(`.nudge/artifacts/${artifactId}/document.html`);
@@ -134,7 +135,7 @@ test("an HTML iteration retains responsive layout after capture and prompt hando
     overrides.sheet!.insertRule("#responsive-iteration .fluid { letter-spacing: 3px; }");
   });
   await clickFrameAction(page, duplicate.locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("HTML iteration", { timeout: 15_000 });
+  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
   iframe = page.locator(".canvas-card").nth(2).locator("iframe");
   const iterationUrl = await iframe.getAttribute("src");
   const artifactId = iterationUrl!.split("/")[3]!;
@@ -155,6 +156,7 @@ test("an HTML iteration retains responsive layout after capture and prompt hando
 
     // Saving at the narrow size must not freeze the next editing base there.
     await page.locator('[data-test="copy-prompt"]').click();
+    await page.locator('[data-test="copy-iteration-prompt"]').click();
     await expect(page.locator('[data-test="copy-prompt"]')).toContainText("Copied!");
     await expect(iframe.contentFrame().locator("#responsive-iteration")).toBeVisible();
     await iframe.evaluate((element: HTMLIFrameElement) => { element.style.width = "1000px"; });
@@ -183,7 +185,7 @@ test("linked frames drag independently and iterations preserve their source layo
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
-  const handle = cards.nth(1).locator(".canvas-card__dimensions");
+  const handle = cards.nth(1).locator('[data-test^="canvas-card-drag-"]');
   const outside = await handle.boundingBox();
   expect(outside).not.toBeNull();
   await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", {
@@ -211,7 +213,7 @@ test("linked frames drag independently and iterations preserve their source layo
 
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards).toHaveCount(4);
-  await expect(cards.nth(3).locator(".canvas-card__dimensions")).toContainText("HTML iteration", { timeout: 15_000 });
+  await expect(cards.nth(3).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
   await expect(cards.locator(".canvas-card__frame")).toHaveCount(4);
   for (const card of await cards.all()) {
     await expect(card.locator(".canvas-card__frame")).not.toHaveCSS("outline-color", "rgb(168, 85, 247)");
@@ -248,7 +250,7 @@ for (const modifier of ["Alt"] as const) {
     });
     const before = await cards.nth(1).evaluate((element: HTMLElement) => ({ x: element.style.left, y: element.style.top }));
     await cards.nth(1).hover();
-    const toolbar = await cards.nth(1).locator('.canvas-card__dimensions').boundingBox();
+    const toolbar = await cards.nth(1).locator('[data-test^="canvas-card-drag-"]').boundingBox();
     await page.keyboard.down(modifier);
     await page.mouse.move(toolbar!.x + toolbar!.width / 2, toolbar!.y + toolbar!.height / 2);
     await page.mouse.down();
@@ -266,7 +268,7 @@ for (const modifier of ["Alt"] as const) {
     expect(await content.evaluate((element: HTMLElement) => element.style.transform)).toBe(cameraBefore);
     await expect(page.locator('[data-test="canvas-board"]')).not.toHaveClass(/is-layout-transitioning/);
     expect(await cards.nth(1).evaluate((element: HTMLElement) => ({ x: element.style.left, y: element.style.top }))).toEqual(before);
-    await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("HTML iteration");
+    await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration");
     await expect(cards.nth(2).locator(".canvas-card__frame")).not.toHaveCSS("outline-color", "rgb(168, 85, 247)");
     const dropped = await cards.nth(2).evaluate((element: HTMLElement) => ({ x: Number.parseFloat(element.style.left), y: Number.parseFloat(element.style.top) }));
     expect(dropped.x).toBeGreaterThan(Number.parseFloat(before.x));
@@ -308,6 +310,7 @@ test("a stale iteration handoff keeps pending edits and the agent's file", async
   await writeFile(documentPath, agentHtml);
   try {
     await page.locator('[data-test="copy-prompt"]').click();
+    await page.locator('[data-test="copy-iteration-prompt"]').click();
     await expect(page.locator('[data-test="iteration-save-hint"]')).toContainText("changed outside Nudge");
     expect(await readFile(documentPath, "utf8")).toBe(agentHtml);
     await expect(heading).toContainText("Pending browser design");

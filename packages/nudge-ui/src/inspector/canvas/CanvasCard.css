@@ -2,17 +2,6 @@
   position: relative;
 }
 
-/* Extend the card's hover region to the toolbar above the iframe. */
-.canvas-card::before {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  left: 0;
-  height: calc((var(--control-height-large) + var(--space-16)) * var(--canvas-toolbar-scale, 1));
-  pointer-events: auto;
-}
-
 .canvas-card__frame {
   position: relative;
   width: 100%;
@@ -47,143 +36,130 @@
 }
 
 .canvas-card__header {
-  display: flex;
-  align-items: center;
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + var(--space-8));
-  justify-content: flex-end;
+  bottom: calc(100% + (var(--space-8) * var(--canvas-toolbar-scale, 1)));
+  height: calc((var(--control-height-large) + var(--space-8)) * var(--canvas-toolbar-scale, 1));
   z-index: 3;
-  opacity: 1;
-  visibility: visible;
   pointer-events: auto;
 }
 
-.canvas-card__drag-surface {
-  position: relative;
+.canvas-card__bar {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  flex: 0 1 auto;
-  margin-right: auto;
-  min-width: 0;
-  min-height: var(--control-height-large);
-  padding: 0;
+  gap: var(--space-4);
+  width: calc(100% * var(--canvas-toolbar-inverse-scale, 1));
+  height: calc(var(--control-height-large) + var(--space-8));
+  padding: var(--space-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  transform: scale(var(--canvas-toolbar-scale, 1));
+  transform-origin: left top;
   cursor: grab;
   user-select: none;
   touch-action: none;
 }
 
-.canvas-card.is-dragging .canvas-card__drag-surface {
+.canvas-card.is-dragging .canvas-card__bar {
   cursor: grabbing;
 }
 
-.canvas-card__identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  min-width: 0;
+.canvas-card__header[data-kind="iteration"] .canvas-card__bar {
+  background: transparent;
+  box-shadow: none;
 }
 
-.canvas-card__dimensions {
+.canvas-card__header[data-kind="iteration"] .icon-button {
+  background: var(--surface-control);
+}
+
+.canvas-card__close {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--control-height-small);
+  width: var(--control-height-small);
+  height: var(--control-height-small);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--text-inverse);
+  cursor: pointer;
+}
+
+.canvas-card__close:hover:not(:disabled) {
+  background: var(--danger-text);
+}
+
+.canvas-card__close:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.canvas-card__close:disabled {
+  background: var(--surface-well-2x);
+  color: var(--text-muted-subtle);
+  cursor: not-allowed;
+}
+
+.canvas-card__grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--text-muted-subtle);
+  cursor: grab;
+}
+
+.canvas-card.is-dragging .canvas-card__grip {
+  cursor: grabbing;
+}
+
+.canvas-card__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--surface-well);
+}
+
+.canvas-card__url[data-invalid="true"] {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.canvas-card__url-space {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  position: relative;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 260px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  padding-inline: var(--space-4);
 }
 
 .canvas-card__title {
   min-width: 0;
   overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   text-overflow: ellipsis;
-}
-
-.canvas-card__live-badge,
-.canvas-card__iteration-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 20px;
-  height: 20px;
-  background: var(--accent-surface);
-  color: var(--accent);
-  border-radius: var(--radius-4);
-  pointer-events: auto;
-}
-
-.canvas-card__floating-toolbar {
-  position: absolute;
-  left: 50%;
-  flex-shrink: 0;
-  width: max-content;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translate(-50%, calc(-24px + var(--space-4)));
-  transition: opacity 140ms ease-out, transform 140ms ease-out, visibility 140ms;
-}
-
-.canvas-card:hover .canvas-card__floating-toolbar,
-.canvas-card:focus-within .canvas-card__floating-toolbar,
-.canvas-card__floating-toolbar[data-busy="true"] {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translate(-50%, -24px);
-}
-
-.canvas-card__actions.canvas-toolbar {
-  position: static;
-  width: max-content;
-  transform: none;
   white-space: nowrap;
-}
-
-.canvas-card__actions .canvas-toolbar__divider {
-  margin-inline: 0;
-}
-
-@media (hover: none) {
-  .canvas-card.is-selected .canvas-card__floating-toolbar {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translate(-50%, -24px);
-  }
-}
-
-.canvas-card.is-dragging .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-grabbable .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-grabbing .canvas-card__floating-toolbar,
-.canvas-workspace.is-presentation-transitioning .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-layout-transitioning .canvas-card__floating-toolbar {
-  opacity: 0;
-  visibility: hidden;
   pointer-events: none;
-  transition: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .canvas-card__floating-toolbar { transition: none; }
+.canvas-card__actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--space-4);
 }
 
 .canvas-card__iteration-error {
   position: absolute;
   right: 0;
-  bottom: calc(100% + var(--space-8));
-  color: var(--text-danger, #b42318);
-  font-size: 12px;
+  bottom: calc(100% + var(--space-4));
+  color: var(--danger);
+  font-size: var(--font-size-small);
   white-space: nowrap;
 }
 

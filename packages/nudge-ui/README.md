@@ -55,9 +55,7 @@ Use **Duplicate** for a linked live frame or **Iteration** for an independent
 HTML design. Iterations save HTML and CSS under `.nudge/artifacts/` in your
 project. They capture the rendered design without the app's scripts. Iteration
 prompts ask the agent to edit that HTML; **Copy prompt for live app** asks it to
-implement the design in application source. Agents can also write standalone
-prototypes directly to that folder; see the
-[HTML artifact format](https://github.com/charlessmart/nudge-ui/blob/main/docs/html-artifacts.md).
+implement the design in application source.
 
 After handoff, comments clear when Nudge detects that the target's content or
 appearance changed at the same viewport size, with previews removed. This

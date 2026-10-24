@@ -22,6 +22,7 @@ import inlineStyleWarningStyles from "./InlineStyleWarning.css?inline";
 import inspectorShellStyles from "../shell/InspectorShell.css?inline";
 import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import emptyStateStyles from "../shell/EmptyState.css?inline";
+import addPageMenuStyles from "../canvas/AddPageMenu.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import backgroundEditorStyles from "../styleEditors/BackgroundEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
@@ -62,6 +63,7 @@ export const UI_STYLES = [
   inspectorShellStyles,
   inspectorOverlayStyles,
   emptyStateStyles,
+  addPageMenuStyles,
   styleEditorStyles,
   backgroundEditorStyles,
   borderEditorStyles,

@@ -33,6 +33,7 @@
   font-size: var(--font-size-small);
   box-shadow: var(--shadow-control);
 }
+.empty-state__add-page { margin-top: var(--space-16); }
 .empty-state__shortcuts { width: 100%; margin-top: var(--space-32); text-align: left; }
 .empty-state__shortcuts .disclosure__panel { padding-top: var(--space-16); }
 .empty-state__shortcut-list { display: grid; gap: var(--space-8); margin: var(--space-0); padding: var(--space-0); list-style: none; }

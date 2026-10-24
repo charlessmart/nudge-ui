@@ -184,7 +184,7 @@ describe("CanvasCard renderer handshake", () => {
     expect(posted).toHaveLength(0);
   });
 
-  it("labels a frame with its route instead of dimensions", () => {
+  it("shows the frame URL in the header instead of its dimensions", () => {
     const card: CanvasCardData = {
       id: "card-dimensions",
       content: { kind: "route", url: window.location.href },
@@ -200,15 +200,15 @@ describe("CanvasCard renderer handshake", () => {
       root!.render(createElement(StoreBackedCard));
     });
 
-    const dimensions = () => host.querySelector(
-      `[data-test="canvas-card-dimensions-${card.id}"]`,
-    )?.textContent;
+    const url = () => host.querySelector<HTMLInputElement>(
+      `[data-test="canvas-card-url-${card.id}"]`,
+    )?.value;
 
-    expect(dimensions()).toBe(new URL(window.location.href).pathname);
+    expect(url()).toBe(new URL(window.location.href).href);
 
     act(() => resizeCard(card.id, 1024, 768));
 
-    expect(dimensions()).toBe(new URL(window.location.href).pathname);
+    expect(url()).toBe(new URL(window.location.href).href);
   });
 
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
@@ -259,7 +259,7 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Focus");
+    expect(control.getAttribute("aria-label")).toBe("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
@@ -283,7 +283,7 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Focus");
+    expect(control.getAttribute("aria-label")).toBe("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 

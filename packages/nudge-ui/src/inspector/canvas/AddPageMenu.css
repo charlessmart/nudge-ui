@@ -1,18 +1,3 @@
-.canvas-workspace__add-page {
-  position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left));
-  z-index: calc(var(--z-index) - 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  border-radius: var(--radius-12);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
-  pointer-events: auto;
-}
-
 .add-page-menu__positioner {
   z-index: var(--z-index);
   pointer-events: auto;
@@ -31,45 +16,6 @@
   pointer-events: auto;
 }
 
-.add-page-menu__section {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.add-page-menu__label {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.add-page-menu__row {
-  display: flex;
-  gap: var(--space-4);
-}
-
-.add-page-menu__input {
-  flex: 1;
-  min-width: 0;
-  height: var(--control-height-small);
-  padding: 0 var(--space-8);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-4);
-  background: var(--surface-well);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-base);
-}
-
-.add-page-menu__input:focus-visible {
-  outline: 1px solid var(--accent);
-  outline-offset: -1px;
-}
-
-.add-page-menu__error {
-  margin: 0;
-  color: var(--danger);
-  font-size: var(--font-size-small);
-}
-
 .add-page-menu__muted {
   margin: 0;
   color: var(--text-muted);
@@ -77,9 +23,10 @@
   line-height: 1.4;
 }
 
-.add-page-menu__divider {
-  height: 1px;
-  background: var(--border-subtle);
+.add-page-menu__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-size-small);
 }
 
 .add-page-menu__list {
@@ -140,23 +87,9 @@
   line-height: 18px;
 }
 
-.add-page-menu__section-heading {
+.add-page-menu__footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.add-page-menu__section-heading .button {
-  flex-shrink: 0;
-}
-
-.add-page-menu__hint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--font-size-small);
-  line-height: 1.4;
+  justify-content: flex-start;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }

@@ -23,5 +23,5 @@ Rules:
 - viewport becomes the prototype frame size in Nudge.
 - Use one directory per prototype. .nudge/ is local and gitignored.
 
-When the files are written, open Add page > HTML iterations in Nudge. Nudge scans .nudge/artifacts when the menu opens, so close and reopen it if it is already open.`;
+When the files are written, click Add page in the inspector with nothing selected and choose the prototype. Nudge scans .nudge/artifacts when the menu opens, so close and reopen it if it is already open.`;
 }

@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
 import { useCanvasPresentation } from "../canvas/viewStore.ts";
+import { revealCanvasCard } from "../canvas/canvasStore.ts";
+import { AddPageMenu } from "../canvas/AddPageMenu.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";
 import { CANVAS_ILLUSTRATION_SVG } from "../ui/assets/canvasIllustration.ts";
 import { GRID_ILLUSTRATION_SVG } from "../ui/assets/gridIllustration.ts";
@@ -27,6 +29,11 @@ export function EmptyState(): ReactElement {
           <h2 className="empty-state__title">Select an element to edit</h2>
         </>
       )}
+      {canvas ? (
+        <div className="empty-state__add-page">
+          <AddPageMenu onAdded={revealCanvasCard} />
+        </div>
+      ) : null}
       <Disclosure
         key={presentation}
         className="empty-state__shortcuts"

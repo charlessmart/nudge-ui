@@ -2,41 +2,19 @@ import { test, expect } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-test("adds an application route once and focuses the frame already showing it", async ({ page }) => {
+test("opens the artifact-only Add page menu from the inspector empty state", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.locator('[data-test="canvas-show-canvas"]').click();
 
-  const cards = page.locator(".canvas-card");
-  await expect(cards).toHaveCount(1);
-
-  await page.locator('[data-test="canvas-add-page"]').click();
-  await page.locator('[data-test="canvas-add-page-route"]').fill("/examples");
-  await page.locator('[data-test="canvas-add-page-submit"]').click();
-
-  await expect(page.locator('[data-test="canvas-add-page-menu"]')).not.toBeVisible();
-  await expect(cards).toHaveCount(2);
-  await expect(cards.nth(1).locator("iframe")).toHaveAttribute("src", /\/examples/);
-
-  await page.locator('[data-test="canvas-add-page"]').click();
-  await page.locator('[data-test="canvas-add-page-route"]').fill("/examples");
-  await page.locator('[data-test="canvas-add-page-submit"]').click();
-
-  await expect(cards).toHaveCount(2);
-  await expect(cards.nth(1)).toHaveClass(/is-selected/);
-});
-
-test("rejects cross-origin routes", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
-  await page.locator('[data-test="canvas-add-page"]').click();
-
-  await page.locator('[data-test="canvas-add-page-route"]').fill("https://example.com/pricing");
-  await page.locator('[data-test="canvas-add-page-submit"]').click();
+  await expect(page.locator('[data-test="empty-state"]')).toBeVisible();
+  const addPage = page.locator('[data-test="canvas-add-page"]');
+  await expect(addPage).toHaveClass(/button--secondary/);
+  await expect(addPage).toHaveClass(/button--default/);
+  await addPage.click();
 
   await expect(page.locator('[data-test="canvas-add-page-menu"]')).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Only pages from this app can be added.");
-  await expect(page.locator(".canvas-card")).toHaveCount(1);
+  await expect(page.locator('[data-test="canvas-add-page-route"]')).toHaveCount(0);
 });
 
 test("copies agent instructions for writing artifacts", async ({ page }) => {
@@ -78,7 +56,7 @@ test("lists a saved iteration and adds it at its captured size", async ({ page, 
 
   const cards = page.locator(".canvas-card");
   await expect(cards).toHaveCount(2);
-  await expect(cards.nth(1).locator(".canvas-card__dimensions")).toContainText("Iteration 1");
+  await expect(cards.nth(1)).toHaveAttribute("aria-label", /Iteration 1/);
   await expect(cards.nth(1).locator("iframe")).toHaveAttribute("src", new RegExp(`/artifacts/${id}/preview`));
   await request.delete(`/__nudge_ui__/artifacts/${id}`);
 });
