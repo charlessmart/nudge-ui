@@ -312,7 +312,7 @@ const heroDemos = [
 
 export function HeroDemoGrid(): ReactNode {
   return (
-    <div className="landing-hero-demo-grid" aria-hidden="true">
+    <div className="landing-hero-demo-grid landing-hero-demo-grid--hero" aria-hidden="true">
       {heroDemos.map(({ id, render: Demo, wireframe: Wireframe }, index) => (
         <div
           className={`landing-hero-demo landing-hero-demo--${id}`}

@@ -19,6 +19,7 @@
   --accent: #0096ff;
   --accent-surface: rgba(0, 176, 255, 0.15);
   --danger: #df4b4b;
+  --success: #2e7d52;
 
   --space-0: 0;
   --space-4: 4px;
@@ -51,6 +52,9 @@
   --surface-inverse-hover: #343532;
   --text-inverse: #fff;
   --palette-blue: #2563eb;
+  --palette-amber: #e9a800;
+  --palette-green: #16a34a;
+  --palette-rose: #e11d48;
   /* Page-scale spacing continues the inspector's 4px grid. */
   --space-28: 28px;
   --space-36: 36px;
