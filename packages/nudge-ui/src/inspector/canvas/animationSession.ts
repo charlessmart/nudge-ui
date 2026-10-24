@@ -80,6 +80,13 @@ function seekScrollAnimation(animation: Animation, progress: number, doc: Docume
   }
 }
 
+/** The element an animation affects; animations on pseudo-elements do not identify a capturable element. */
+function animationTarget(animation: Animation): Element | null {
+  // SAFETY: KeyframeEffect is the only AnimationEffect with a target; other effects expose no element.
+  const target = (animation.effect as KeyframeEffect | null)?.target;
+  return target instanceof Element ? target : null;
+}
+
 /** One iteration of an infinite animation, so it can still be scrubbed. */
 function endTimeOf(animation: Animation): number {
   const timing = animation.effect?.getComputedTiming();
@@ -97,6 +104,8 @@ export class AnimationSession {
   private readonly scrollAnimations = new Set<Animation>();
   private total = 0;
   private captureScope: "element" | "document" = "element";
+  /** The trigger, selection and animating members a document-wide capture may adopt. */
+  private captureTargets: ReadonlySet<Element> | null = null;
   private stopPreview: (() => void) | null = null;
   private waitFrame: number | null = null;
   private captureFrame: number | null = null;
@@ -157,9 +166,12 @@ export class AnimationSession {
       && [...entry.group.members.keys()].some((member) => member !== this.element && !this.element.contains(member))
       ? "document"
       : "element";
+    this.captureTargets = entry.kind === "state" && this.captureScope === "document"
+      ? new Set([this.element, entry.group.trigger, ...entry.group.members.keys()])
+      : null;
     // Settle transitions still running from before, so the capture starts from the resting state.
     for (const animation of this.scopeAnimations()) {
-      if ("transitionProperty" in animation) animation.cancel();
+      if ("transitionProperty" in animation && this.isCaptureTarget(animation)) animation.cancel();
     }
     const restore = entry.kind === "keyframes" ? this.restartKeyframes(entry.name) : null;
     const baseline = new Set(entry.kind === "running" ? [] : this.scopeAnimations());
@@ -266,9 +278,21 @@ export class AnimationSession {
     return this.captured.length > 0 && this.captured.every((animation) => this.scrollAnimations.has(animation));
   }
 
+  /** Document scope also sees unrelated page motion; only adopt what the trigger and its group can move. */
+  private isCaptureTarget(animation: Animation): boolean {
+    if (!this.captureTargets) return true;
+    const target = animationTarget(animation);
+    if (!target) return false;
+    for (const member of this.captureTargets) {
+      if (member === target || member.contains(target)) return true;
+    }
+    return false;
+  }
+
   /** Pauses animations the trigger started and aligns late arrivals with the group's current time. */
   private adopt(baseline: ReadonlySet<Animation>, keepTime: boolean): void {
-    const fresh = this.scopeAnimations().filter((animation) => !baseline.has(animation) && !this.captured.includes(animation));
+    const fresh = this.scopeAnimations()
+      .filter((animation) => !baseline.has(animation) && !this.captured.includes(animation) && this.isCaptureTarget(animation));
     if (fresh.length === 0) return;
     const first = this.captured.length === 0;
     const time = first ? 0 : this.groupTime();
@@ -371,6 +395,7 @@ export class AnimationSession {
     this.captured = [];
     this.scrollAnimations.clear();
     this.captureScope = "element";
+    this.captureTargets = null;
     this.total = 0;
     this.snapshot = { ...this.snapshot, timeline: "document" };
   }

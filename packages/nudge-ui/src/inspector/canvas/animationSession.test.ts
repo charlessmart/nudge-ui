@@ -13,7 +13,7 @@ interface FakeAnimation {
   currentTime: number;
   playbackRate: number;
   playState: "paused" | "running" | "finished";
-  effect: { getComputedTiming(): { endTime: number } };
+  effect: { target?: Element; getComputedTiming(): { endTime: number } };
   pause: ReturnType<typeof vi.fn>;
   play: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
@@ -30,13 +30,13 @@ interface FakeScrollAnimation {
   cancel: ReturnType<typeof vi.fn>;
 }
 
-function fakeAnimation(property: string, endTime: number): FakeAnimation {
+function fakeAnimation(property: string, endTime: number, target?: Element): FakeAnimation {
   const animation: FakeAnimation = {
     transitionProperty: property,
     currentTime: 0,
     playbackRate: 1,
     playState: "running",
-    effect: { getComputedTiming: () => ({ endTime }) },
+    effect: { ...(target ? { target } : {}), getComputedTiming: () => ({ endTime }) },
     pause: vi.fn(() => { animation.playState = "paused"; }),
     play: vi.fn(() => { animation.playState = "running"; }),
     cancel: vi.fn(),
@@ -279,10 +279,11 @@ describe("AnimationSession", () => {
     Reflect.deleteProperty(document.defaultView!, "CSS");
   });
 
-  it("captures a sibling that the selection triggers from the document scope", () => {
+  it("captures only the sibling group from the document scope, not unrelated page motion", () => {
     const trigger = button;
     const member = document.createElement("div");
-    document.body.append(member);
+    const unrelated = document.createElement("div");
+    document.body.append(member, unrelated);
     const group = {
       id: "state:1:opened",
       kind: "state",
@@ -296,19 +297,30 @@ describe("AnimationSession", () => {
     } as const;
     const entry: AnimationEntry = { id: group.id, kind: "state", label: group.label, state: null, group };
     const documentAnimations: Animation[] = [];
+    const ambient = fakeAnimation("transform", 300, unrelated);
+    documentAnimations.push(ambient as unknown as Animation);
     const descriptor = Object.getOwnPropertyDescriptor(document, "getAnimations");
     Object.defineProperty(document, "getAnimations", { configurable: true, value: () => documentAnimations });
     const setAttribute = trigger.setAttribute.bind(trigger);
+    const unrelatedAnimation = fakeAnimation("color", 400, unrelated);
     vi.spyOn(trigger, "setAttribute").mockImplementation((name, value) => {
       setAttribute(name, value);
-      if (name === "data-open" && value === "true") documentAnimations.push(fakeAnimation("opacity", 200) as unknown as Animation);
+      if (name === "data-open" && value === "true") {
+        documentAnimations.push(
+          fakeAnimation("opacity", 200, member) as unknown as Animation,
+          unrelatedAnimation as unknown as Animation,
+        );
+      }
     });
     const session = new AnimationSession(trigger);
 
     session.run(entry);
 
-    expect(session.getSnapshot()).toMatchObject({ status: "ready", label: "opacity" });
+    expect(session.getSnapshot()).toMatchObject({ status: "ready", label: "opacity", duration: 200 });
+    expect(ambient.cancel).not.toHaveBeenCalled();
+    expect(unrelatedAnimation.cancel).not.toHaveBeenCalled();
     session.dispose();
+    expect(unrelatedAnimation.cancel).not.toHaveBeenCalled();
     if (descriptor) Object.defineProperty(document, "getAnimations", descriptor);
     else Reflect.deleteProperty(document, "getAnimations");
   });
