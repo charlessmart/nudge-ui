@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -125,6 +126,14 @@ describe("HTML artifact route", () => {
     expect((await request("POST", `${path}/commit`)).status).toBe(428);
     const expected = JSON.parse((await request("GET", `${path}/revision`)).body);
     expect((await request("GET", `${path}/preview`)).body).toContain(`data-nudge-artifact-revision="${expected.preview}"`);
+  });
+
+  it("lists an empty project without creating artifact storage", async () => {
+    root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
+    const response = await request("GET", "/__nudge_ui__/artifacts");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toEqual([]);
+    expect(existsSync(join(root, ".nudge", "artifacts"))).toBe(false);
   });
 
   it("lists iterations newest first and ignores directories without valid metadata", async () => {

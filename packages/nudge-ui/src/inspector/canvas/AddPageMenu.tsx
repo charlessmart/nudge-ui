@@ -5,7 +5,7 @@ import { addCanvasArtifact, addCanvasCard, findCardByArtifactId, findCardByNorma
 import { normalizeUrl } from "./normalizeUrl.ts";
 import { listHtmlArtifacts } from "../iterations/client.ts";
 import type { HtmlArtifactMetadata } from "../../transport/artifacts.ts";
-import { NUDGE_UI_DIRECT_QUERY_PARAM, NUDGE_UI_EDITOR_QUERY_PARAM } from "../../transport/routes.ts";
+import { NUDGE_UI_DIRECT_QUERY_PARAM, NUDGE_UI_EDITOR_QUERY_PARAM, isReservedNudgeUiRoute } from "../../transport/routes.ts";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
@@ -49,6 +49,9 @@ export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
     }
     if (url.origin !== window.location.origin) {
       return { href: null, error: "Only pages from this app can be added." };
+    }
+    if (isReservedNudgeUiRoute(url.pathname)) {
+      return { href: null, error: "Nudge pages cannot be added to the canvas." };
     }
     url.hash = "";
     // A frame must render the app, never another editor shell.

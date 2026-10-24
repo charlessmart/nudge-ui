@@ -50,10 +50,10 @@ document.addEventListener("click", event => {
 }, true);
 </script>`;
 
-async function artifactsDirectory(root: string): Promise<string> {
+async function artifactsDirectory(root: string, create: boolean): Promise<string> {
   const project = await realpath(root);
   const artifacts = join(project, ".nudge", "artifacts");
-  await mkdir(artifacts, { recursive: true });
+  if (create) await mkdir(artifacts, { recursive: true });
   const actual = await realpath(artifacts);
   const pathFromRoot = relative(project, actual);
   if (pathFromRoot === ".." || pathFromRoot.startsWith(`..${sep}`) || isAbsolute(pathFromRoot)) {
@@ -62,8 +62,8 @@ async function artifactsDirectory(root: string): Promise<string> {
   return actual;
 }
 
-async function directory(root: string, id: string): Promise<string> {
-  return join(await artifactsDirectory(root), id);
+async function directory(root: string, id: string, create: boolean): Promise<string> {
+  return join(await artifactsDirectory(root, create), id);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -126,7 +126,7 @@ export async function handleHtmlArtifactRequest(
     if (request.method === "POST" && parts.length === 0) {
       const input = await body(request);
       if (!input || !validArtifact(input)) { respond(response, 400, "Invalid artifact"); return true; }
-      const target = await directory(root, input.id);
+      const target = await directory(root, input.id, true);
       const temporary = `${target}.create-${crypto.randomUUID()}`;
       const metadata: HtmlArtifactMetadata = {
         id: input.id,
@@ -154,7 +154,7 @@ export async function handleHtmlArtifactRequest(
       respond(response, 200, JSON.stringify(await listArtifacts(root)), "application/json; charset=utf-8");
       return true;
     }
-    const target = await directory(root, id);
+    const target = await directory(root, id, false);
     return await withArtifactLock(target, async () => {
       if (request.method !== "DELETE") {
         const actual = await realpath(target);
@@ -251,7 +251,13 @@ export async function handleHtmlArtifactRequest(
 
 /** Newest first and bounded; one unreadable artifact must not hide the rest. */
 async function listArtifacts(root: string): Promise<HtmlArtifactMetadata[]> {
-  const artifacts = await artifactsDirectory(root);
+  let artifacts: string;
+  try {
+    artifacts = await artifactsDirectory(root, false);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
   let entries;
   try {
     entries = await readdir(artifacts, { withFileTypes: true });

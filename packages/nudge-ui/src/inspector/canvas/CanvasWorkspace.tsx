@@ -912,7 +912,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
-          {presentation === "canvas" ? (
+          {presentation === "canvas" && !sketchActive ? (
             <div className="canvas-workspace__add-page">
               <AddPageMenu onAdded={revealAddedCard} />
             </div>

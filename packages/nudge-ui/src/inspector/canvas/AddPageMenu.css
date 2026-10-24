@@ -93,7 +93,7 @@
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-4) var(--space-8);
   border: 0;
   border-radius: var(--radius-4);
   background: transparent;
@@ -134,7 +134,7 @@
   flex-shrink: 0;
   padding: 0 var(--space-4);
   border-radius: var(--radius-4);
-  background: var(--surface-raised-3x);
+  background: var(--surface-well-2x);
   color: var(--text-muted);
   font-size: 10px;
   line-height: 18px;
