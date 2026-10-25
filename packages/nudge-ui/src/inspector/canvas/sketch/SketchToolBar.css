@@ -88,27 +88,29 @@
 }
 
 .sketch-recents {
-  --tile: calc(var(--control-height-xlarge) * 0.8);
+  --tile: calc(var(--control-height-xlarge) * 0.975);
   position: relative;
   /* The thumbnails' stacking order stays inside the stack. */
   isolation: isolate;
   flex-shrink: 0;
   width: var(--tile);
-  height: var(--tile);
+  /* As tall as the bar, its padding included, so the sketches run past the bottom edge and are cut off there. */
+  height: calc(var(--control-height-xlarge) + var(--space-8));
+  margin-block: calc(var(--space-4) * -1);
   /* The ones behind lean out past the tile, so the stack keeps room from the divider and the save button. */
-  margin-inline: var(--space-8);
+  margin-inline: var(--space-12);
+  clip-path: inset(-200px -200px 0 -200px);
 }
 
 .sketch-recent {
   position: absolute;
-  /* Centered on the stack. */
-  top: 50%;
+  /* The front sketch sits upright and centered; the ones behind lean out either side and sit a little lower. */
+  top: calc(50% + 6px);
   left: 50%;
   z-index: calc(10 - var(--slot));
   width: var(--tile);
   height: var(--tile);
-  /* Stacked: each one further back sits a little further left, turned a little. */
-  transform: translate(-50%, -50%) translate(calc(var(--slot) * -3px), calc(var(--slot) * -1px)) rotate(var(--tilt));
+  transform: translate(-50%, -50%) translate(var(--stack-x, 0), var(--stack-y, 0)) rotate(var(--tilt));
   transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -148,10 +150,16 @@
   height: 100%;
   border-radius: var(--radius-4);
   object-fit: cover;
-  /* A sketch is a picture of the page it sits on, so a hairline drawn over the picture gives it an edge. */
+  /* A sketch is a picture of the page it sits on, so a hairline drawn over the picture gives it an edge. It fades in
+     as the stack comes back, so the edge does not snap on under the card that has just landed on it. */
   outline: 0.5px solid rgba(0, 0, 0, 0.12);
   outline-offset: -0.5px;
   box-shadow: none;
+  transition: outline-color 140ms ease;
+}
+
+.sketch-recents[data-open="true"] .sketch-recent .sketch-thumbnail {
+  outline-color: transparent;
 }
 
 /* While the grid is up the sketches are out on the page, and the stack leaves an empty place in the bar. */
@@ -160,15 +168,16 @@
 }
 
 /* The grid of large sketches, loose cards on the page with nothing behind them. Each card grows out of its own
-   thumbnail in the stack (see the card animation in SketchToolBar.tsx). Cards are at most 400px wide and 500px tall, two to a row at most, and the whole grid is kept within the
-   room above the bar by shrinking the pictures, so it never scrolls. Sizes follow the sketch layer's width (which is
-   narrower than the screen while the panel is open), not the screen's. Narrow screens reflow it into one column. */
+   thumbnail in the stack (see the card animation in SketchToolBar.tsx). There are never more than three, so they sit in
+   one row of up to 400px cards and 500px tall, and the whole grid is kept within the room above the bar by shrinking
+   the pictures, so it never scrolls. Sizes follow the sketch layer's width (which is narrower than the screen while the
+   panel is open), not the screen's. Narrow screens reflow it into one column. */
 .sketch-grid {
   --gap: var(--space-8);
   --pad: 0px;
   /* The screen height left above the bar, less the bar's own offset and a margin. */
   --room: calc(100dvh - var(--space-20) - var(--control-height-xlarge) * 2 - var(--space-4) * 4 - var(--space-8) * 3 - var(--space-12));
-  --card-width: min(400px, calc((min(800px, 100cqw - var(--space-24)) - var(--pad) * 2 - var(--gap)) / 2));
+  --card-width: min(400px, calc((min(1200px, 100cqw - var(--space-24)) - var(--pad) * 2 - var(--gap) * 2) / 3));
   position: absolute;
   left: 50%;
   bottom: calc(100% + var(--space-8));
@@ -180,7 +189,7 @@
   gap: var(--gap);
   box-sizing: border-box;
   width: max-content;
-  max-width: min(800px, calc(100cqw - var(--space-24)));
+  max-width: min(1200px, calc(100cqw - var(--space-24)));
   max-height: var(--room);
   padding: var(--pad);
   /* The gaps between cards belong to the page, so pressing there closes the grid. */

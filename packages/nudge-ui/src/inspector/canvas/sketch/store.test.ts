@@ -114,7 +114,7 @@ describe("sketch store", () => {
     expect(getSketches()[0]).toMatchObject({ id: document.id, url });
   });
 
-  it("keeps the four latest sketches, removing the oldest from storage too", async () => {
+  it("keeps the three latest sketches, removing the oldest from storage too", async () => {
     // Saves in the same millisecond tie on time, so each one gets its own.
     let clock = 1_000;
     const now = vi.spyOn(Date, "now").mockImplementation(() => (clock += 10));
@@ -125,11 +125,12 @@ describe("sketch store", () => {
     const fifth = await createSketch();
     now.mockRestore();
 
-    const kept = [fifth.id, fourth.id, third.id, second.id];
+    const kept = [fifth.id, fourth.id, third.id];
     expect(getSketches().map((saved) => saved.id)).toEqual(kept);
     const stored = await readSketchPersistence(projectId);
     expect(stored.documents.map((document) => document.id).sort()).toEqual([...kept].sort());
     expect(stored.documents.some((document) => document.id === first.id)).toBe(false);
+    expect(stored.documents.some((document) => document.id === second.id)).toBe(false);
   });
 
   it("restores the kept sketch after a reload", async () => {

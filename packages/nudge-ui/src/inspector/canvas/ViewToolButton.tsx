@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconChevronUp, IconKeyframes, IconLayersSelected, IconRuler } from "@tabler/icons-react";
+import { IconCheck, IconChevronUp, IconCube3dSphere, IconKeyframes, IconLayersIntersect, IconRuler } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -16,8 +16,8 @@ const VIEW_MODES: ReadonlyArray<{
   readonly Icon: typeof IconRuler;
 }> = [
   { mode: "animation", label: "Animation", Icon: IconKeyframes },
-  { mode: "outlines", label: "Outlines", Icon: IconRuler },
-  { mode: "explode", label: "Explode", Icon: IconLayersSelected },
+  { mode: "outlines", label: "Outlines", Icon: IconLayersIntersect },
+  { mode: "explode", label: "Explode", Icon: IconCube3dSphere },
 ];
 
 export interface ViewToolButtonProps {

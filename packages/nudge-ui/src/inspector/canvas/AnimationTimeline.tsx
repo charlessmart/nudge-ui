@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactElement } from "react";
+import { elasticOffset } from "../tokens/dragElastic.ts";
 
 const MAJOR_STEPS_MS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
 /** Aims for about this many labelled marks across the track. */
@@ -13,6 +14,8 @@ const GLIDE_MS = 150;
 const GLIDE_BACKSTOP_MS = GLIDE_MS + 50;
 /** Playhead and tick widths in CSS; positions run edge to edge by leaving room for their own width. */
 const PLAYHEAD_WIDTH_PX = 2;
+/** Reuses the token fields' elastic curve; this scales it up since a track is wider than a field icon's travel. */
+const TRACK_STRETCH_RATIO = 1.5;
 
 export interface TimelineTick {
   readonly ms: number;
@@ -155,12 +158,35 @@ export function AnimationTimeline({ progress, duration, mode = "time", disabled 
   };
 
   const progressFromPointer = (event: PointerEvent<HTMLDivElement>): number | null => {
-    const rect = scaleRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return null;
+    // Measured on the track itself: the scale inside it stretches while a drag overshoots.
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return null;
     // The playhead's own width is the one part of the track it can't sit over.
     const travel = rect.width - PLAYHEAD_WIDTH_PX;
     if (travel <= 0) return null;
-    return clamp01((event.clientX - rect.left - PLAYHEAD_WIDTH_PX / 2) / travel);
+    const position = event.clientX - rect.left - PLAYHEAD_WIDTH_PX / 2;
+    stretchTrack(position < 0 ? position : Math.max(0, position - travel), rect.width);
+    return clamp01(position / travel);
+  };
+
+  /** Pulls the track out past the end the pointer has overshot, like the token fields; clearing it springs back. */
+  const stretchTrack = (overshoot: number, width: number): void => {
+    const scale = scaleRef.current;
+    if (!scale) return;
+    if (overshoot === 0 || prefersReducedMotion()) {
+      scale.removeAttribute("data-stretching");
+      scale.style.removeProperty("--timeline-stretch");
+      return;
+    }
+    // The side outlives the stretch, so the spring back keeps pivoting on the same end.
+    scale.setAttribute("data-stretch-side", overshoot < 0 ? "start" : "end");
+    scale.setAttribute("data-stretching", "");
+    scale.style.setProperty("--timeline-stretch", String(Math.abs(elasticOffset(overshoot)) * TRACK_STRETCH_RATIO / width));
+  };
+
+  const releaseTrack = (): void => {
+    stretchTrack(0, 1);
+    onScrubChange?.(false);
   };
 
   const seekFromPointer = (event: PointerEvent<HTMLDivElement>): void => {
@@ -206,9 +232,9 @@ export function AnimationTimeline({ progress, duration, mode = "time", disabled 
         // Only a captured pointer scrubs; a hovering one leaves the marks to the playhead alone.
         if (event.currentTarget.hasPointerCapture(event.pointerId)) seekFromPointer(event);
       }}
-      onPointerUp={() => onScrubChange?.(false)}
-      onPointerCancel={() => onScrubChange?.(false)}
-      onLostPointerCapture={() => onScrubChange?.(false)}
+      onPointerUp={releaseTrack}
+      onPointerCancel={releaseTrack}
+      onLostPointerCapture={releaseTrack}
       onKeyDown={onKeyDown}
       style={{ "--timeline-progress": drawnProgress } as CSSProperties}
     >

@@ -5,7 +5,7 @@ export const SKETCH_DOCUMENTS_STORE = "documents";
 
 export const SKETCH_LIMITS = {
   /** Sketches are kept only so a recent copy can be copied again, so this is deliberately small. */
-  keptSketches: 4,
+  keptSketches: 3,
   imageEdge: 2_048,
   imageBytes: 2 * 1024 * 1024,
   strokes: 500,

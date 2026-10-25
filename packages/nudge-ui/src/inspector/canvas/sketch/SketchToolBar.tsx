@@ -402,9 +402,21 @@ function useSketchStack(items: readonly SketchDocument[]): readonly StackRow[] {
 }
 
 
-/** The front sketch sits upright and the ones behind it lean alternately either way, a little more each. */
-function stackTilt(slot: number): number {
-  return slot === 0 ? 0 : (slot % 2 === 1 ? -1 : 1) * (2 + slot * 2);
+/** How far one of the sketches behind the front one sits from it, and how far it leans. */
+interface StackPose {
+  readonly x: number;
+  readonly y: number;
+  readonly tilt: number;
+}
+
+/**
+ * The front sketch sits upright. The two behind it lean out either side of it, one to the right and one to the left,
+ * and anything further back sits straight behind the front one, so it never shows.
+ */
+function stackPose(slot: number): StackPose {
+  if (slot === 1) return { x: 8, y: 5, tilt: 8 };
+  if (slot === 2) return { x: -8, y: 5, tilt: -8 };
+  return { x: 0, y: 0, tilt: 0 };
 }
 
 /** One of the stacked thumbnails beside the save button. Clicking the stack opens or closes the grid of larger sketches. */
@@ -417,6 +429,7 @@ function RecentSketch({ row, enters, open, onToggle }: {
   const { item, slot, leaving } = row;
   // Decided once, on arrival: only a sketch that is saved while the bar is already up animates in.
   const [enter] = useState(enters);
+  const pose = stackPose(slot);
 
   return (
     <div
@@ -427,7 +440,12 @@ function RecentSketch({ row, enters, open, onToggle }: {
       data-enter={enter ? "true" : undefined}
       aria-hidden={leaving ? "true" : undefined}
       // SAFETY: CSSProperties does not list custom properties, but React applies them to inline styles unchanged.
-      style={{ "--slot": slot, "--tilt": `${stackTilt(slot)}deg` } as CSSProperties}
+      style={{
+        "--slot": slot,
+        "--stack-x": `${pose.x}px`,
+        "--stack-y": `${pose.y}px`,
+        "--tilt": `${pose.tilt}deg`,
+      } as CSSProperties}
     >
       <button
         type="button"
@@ -509,18 +527,28 @@ function RecentSketches({ items, settled, expanded, onCopy, onRemove }: {
     setClosing(true);
   };
   useDismissablePopover(open, rootRef, close, gridRef);
-  // Removing the last sketch leaves nothing to show, and the grid should not come back open for the next one.
+  // Removing the last sketch leaves nothing to show, and the grid should not come back open for the next one. An empty
+  // list at first is the sketches still loading, so a bar that starts expanded keeps its grid.
+  const hadSketches = useRef(items.length > 0);
   useEffect(() => {
-    if (items.length === 0) {
-      setOpen(false);
-      setClosing(false);
+    if (items.length > 0) {
+      hadSketches.current = true;
+      return;
     }
+    if (!hadSketches.current) return;
+    setOpen(false);
+    setClosing(false);
   }, [items.length]);
   // The cards grow out of their thumbnails when the grid opens and settle back into them when it closes.
   useLayoutEffect(() => {
-    const cards = gridRef.current ? [...gridRef.current.querySelectorAll<HTMLElement>(".sketch-grid__card")] : [];
+    const grid = gridRef.current;
+    const cards = grid ? [...grid.querySelectorAll<HTMLElement>(".sketch-grid__card")] : [];
     if (!open && !closing) return;
     const tiles = rootRef.current ? [...rootRef.current.querySelectorAll<HTMLElement>(".sketch-recent:not([data-leaving])")] : [];
+    // The stack is cut off by the bar's bottom edge. Clipping the grid to the same line keeps the cut straight for the
+    // cards that land leaning, so they arrive exactly as the stack shows them. Read first, write once the cards are set.
+    const stackEdge = rootRef.current?.querySelector<HTMLElement>(".sketch-recents")?.getBoundingClientRect().bottom ?? 0;
+    const cutBelow = grid && stackEdge && !open ? grid.getBoundingClientRect().bottom - stackEdge : null;
     const animations = cards.flatMap((card, index) => {
       const tile = tiles.find((candidate) => candidate.getAttribute("data-sketch-id") === card.getAttribute("data-sketch-id"));
       if (!tile || typeof card.animate !== "function") return [];
@@ -578,6 +606,7 @@ function RecentSketches({ items, settled, expanded, onCopy, onRemove }: {
       }
       return moves;
     });
+    if (grid) grid.style.clipPath = cutBelow === null ? "" : `inset(-1000px -1000px ${cutBelow}px -1000px)`;
     if (open) return () => animations.forEach((animation) => animation.cancel());
     if (animations.length === 0) {
       setClosing(false);
@@ -602,7 +631,7 @@ function RecentSketches({ items, settled, expanded, onCopy, onRemove }: {
       aria-label="Saved sketches"
       data-test="sketch-grid"
       // SAFETY: CSSProperties does not list custom properties, but React applies them to inline styles unchanged.
-      style={{ "--count": items.length, "--rows": Math.ceil(items.length / 2) } as CSSProperties}
+      style={{ "--count": items.length, "--rows": Math.ceil(items.length / 3) } as CSSProperties}
     >
       {/* Oldest first, so the newest comes last and paints over the rest, as it does on top of the stack. */}
       {[...items].reverse().map((item) => (

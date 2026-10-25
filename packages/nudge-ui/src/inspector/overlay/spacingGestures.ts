@@ -160,9 +160,10 @@ function guideHit(guide: Rect, orientation: SpacingAxis): Rect {
   };
 }
 
+/** Drag directions make the handle, which sits mid-band, follow the pointer in the common case: auto-width blocks. */
 const PADDING_CONFIG = {
   top: { axis: "horizontal", dragAxis: "y", direction: 1 },
-  right: { axis: "vertical", dragAxis: "x", direction: 1 },
+  right: { axis: "vertical", dragAxis: "x", direction: -1 },
   bottom: { axis: "horizontal", dragAxis: "y", direction: 1 },
   left: { axis: "vertical", dragAxis: "x", direction: 1 },
 } as const satisfies Record<BoxSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
@@ -237,16 +238,16 @@ function paddingAffordanceAtPoint(
 }
 
 const MARGIN_CONFIG = {
-  top: { axis: "horizontal", dragAxis: "y", direction: -1 },
-  right: { axis: "vertical", dragAxis: "x", direction: 1 },
+  top: { axis: "horizontal", dragAxis: "y", direction: 1 },
+  right: { axis: "vertical", dragAxis: "x", direction: -1 },
   bottom: { axis: "horizontal", dragAxis: "y", direction: 1 },
-  left: { axis: "vertical", dragAxis: "x", direction: -1 },
+  left: { axis: "vertical", dragAxis: "x", direction: 1 },
 } as const satisfies Record<BoxSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
 const SIDES: readonly BoxSide[] = ["top", "right", "bottom", "left"];
 /** Children further than this from the pointer are skipped before their styles are read. */
 const MARGIN_SCAN_DISTANCE = 512;
 
-/** The margin band sits outside the border box, so a drag outward (away from the element) grows it. */
+/** In normal flow a bigger top or left margin pushes the element down or right, and a bigger right margin narrows an auto-width block, so those drags follow the element rather than reach outward. */
 function marginAffordanceForSide(
   element: HTMLElement,
   side: BoxSide,
@@ -664,6 +665,17 @@ export function spacingValueForDrag(
     }
   }
   return Math.max(0, Math.round(affordance.value + signedDelta));
+}
+
+/** How far a Shift snap puts the handle from the pointer along the drag axis: signed like the pointer's travel, in frame pixels. */
+export function spacingSnapOffset(
+  affordance: Pick<SpacingAffordance, "dragAxis" | "direction" | "value">,
+  start: { x: number; y: number },
+  point: { x: number; y: number },
+): number {
+  const snapped = spacingValueForDrag(affordance, start, point, true);
+  const unsnapped = spacingValueForDrag(affordance, start, point);
+  return (snapped - unsnapped) * affordance.direction;
 }
 
 export function spacingValueCss(value: number): string {

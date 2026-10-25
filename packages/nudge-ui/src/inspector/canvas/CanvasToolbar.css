@@ -194,6 +194,24 @@
 .animation-timeline__scale {
   position: absolute;
   inset: 0;
+  transform: scaleX(calc(1 + var(--timeline-stretch, 0)));
+  transform-origin: right center;
+  transition: transform var(--spring-duration) var(--spring-ease);
+}
+
+/* Dragging past an end stretches the track away from the opposite end; letting go springs it back. */
+.animation-timeline__scale[data-stretching] {
+  transition: none;
+}
+
+.animation-timeline__scale[data-stretch-side="end"] {
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-timeline__scale {
+    transition: none;
+  }
 }
 
 .animation-timeline__tick {

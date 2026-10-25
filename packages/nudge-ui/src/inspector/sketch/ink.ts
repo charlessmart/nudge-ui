@@ -33,12 +33,13 @@ const CROP_MARGIN = 0.18;
 
 /**
  * The square of the image a thumbnail should show: centred on the marks with some margin,
- * as small as that allows, and shifted to stay inside the image.
+ * as small as that allows, and shifted to stay inside the image. Whole pixels, so the thumbnail's canvas and the card
+ * that grows out of it sample exactly the same part of the picture.
  */
 export function sketchThumbnailCrop(ink: SketchInk, imageWidth: number, imageHeight: number): SketchInk {
   const longest = Math.max(ink.width, ink.height);
-  const side = Math.min(Math.max(longest * (1 + CROP_MARGIN * 2), MIN_CROP_EDGE), imageWidth, imageHeight);
-  const x = Math.min(Math.max(ink.x + ink.width / 2 - side / 2, 0), imageWidth - side);
-  const y = Math.min(Math.max(ink.y + ink.height / 2 - side / 2, 0), imageHeight - side);
+  const side = Math.round(Math.min(Math.max(longest * (1 + CROP_MARGIN * 2), MIN_CROP_EDGE), imageWidth, imageHeight));
+  const x = Math.min(Math.max(Math.round(ink.x + ink.width / 2 - side / 2), 0), imageWidth - side);
+  const y = Math.min(Math.max(Math.round(ink.y + ink.height / 2 - side / 2), 0), imageHeight - side);
   return { x, y, width: side, height: side };
 }

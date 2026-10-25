@@ -8,7 +8,7 @@ const LARGE_DRAG_PIXELS_PER_STEP = 8;
 
 export type NudgeDirection = -1 | 1;
 
-const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|(?:font-size|letter-spacing|line-height|opacity)|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
+const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|(?:min-|max-)?(?:width|height)|(?:font-size|letter-spacing|line-height|opacity)|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
 
 interface ParsedNumericLiteral {
   number: number;
@@ -67,6 +67,17 @@ export function nudgeCssValueByDrag(
   return next;
 }
 
+/** True when a drag step in `direction` cannot change `rawValue` because it sits at a limit, such as 0 padding or 100% opacity. */
+export function isAtNudgeLimit(
+  property: string,
+  rawValue: string,
+  direction: NudgeDirection,
+  large = false,
+): boolean {
+  const next = nudgeDragStep(property, rawValue, direction, large);
+  return next === null || canonicalNudgeValue(property, next) === canonicalNudgeValue(property, rawValue);
+}
+
 export function canNudgeCssValueByDrag(property: string, rawValue: string): boolean {
   return nudgeCssValueByDrag(property, rawValue, DRAG_PIXELS_PER_STEP) !== null
     || nudgeCssValueByDrag(property, rawValue, -DRAG_PIXELS_PER_STEP) !== null;
@@ -88,8 +99,12 @@ export function nudgeOpacityValue(
 function normaliseForNudge(property: string, rawValue: string): string {
   const value = rawValue.trim();
   if (!CSS_NUMBER.test(value)) return value;
-  const normalised = completeCssValue(value, valuePolicyFor(isLineHeight(property) ? "line-height" : property));
-  return isLineHeight(property) && normalised === "0" ? "0%" : normalised;
+  const policy = valuePolicyFor(isLineHeight(property) ? "line-height" : property);
+  const normalised = completeCssValue(value, policy);
+  if (isLineHeight(property) && normalised === "0") return "0%";
+  // A bare zero is valid CSS but nudging it would give a unitless number, which lengths reject.
+  if (policy.kind === "unit" && policy.defaultUnit && Number(normalised) === 0) return `0${policy.defaultUnit}`;
+  return normalised;
 }
 
 function parseNumericLiteral(value: string): ParsedNumericLiteral | null {
@@ -177,6 +192,21 @@ function snapOpacityValueToLargeStep(rawValue: string, direction: NudgeDirection
   return `${formatNumber(next)}%`;
 }
 
+/** Writes equal values the same way, so `1` and `100%` opacity compare as equal. */
+function canonicalNudgeValue(property: string, rawValue: string): string {
+  if (property === "opacity") {
+    const percent = parseOpacityPercent(rawValue);
+    return percent === null ? rawValue.trim() : `${formatNumber(percent)}%`;
+  }
+  return rawValue
+    .split(",")
+    .map((part) => {
+      const parsed = parseNumericLiteral(normaliseForNudge(property, part));
+      return parsed ? `${formatNumber(parsed.number)}${parsed.unit}` : part.trim();
+    })
+    .join(", ");
+}
+
 function parseOpacityPercent(rawValue: string): number | null {
   const parsed = parseNumericLiteral(rawValue);
   if (!parsed) return null;
@@ -194,7 +224,7 @@ function isFontWeight(property: string): boolean {
 }
 
 function isNonNegativeDimension(property: string): boolean {
-  return /^(?:padding|(?:row|column)-gap|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius)/.test(property);
+  return /^(?:padding|(?:row|column)-gap|(?:min-|max-)?(?:width|height)$|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius)/.test(property);
 }
 
 function isAxisPairProperty(property: string): boolean {

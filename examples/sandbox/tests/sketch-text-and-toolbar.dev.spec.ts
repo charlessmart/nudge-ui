@@ -346,14 +346,14 @@ test("copy sketch clears the canvas, keeps the tool open, and leaves the copy ou
   await expect(page.locator('[data-test="copy-prompt-menu"]')).toHaveCount(0);
   await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
 
-  // The saved sketch sits inside the bar, just left of the save button.
-  // (Measured once it has finished popping in and sliding into place.)
+  // The saved sketch sits in the bar, just left of the save button, and runs past the bar's bottom edge, where the
+  // stack is cut off. (Measured once it has finished popping in and sliding into place.)
   await recent.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
   const bar = await box(page.locator('[data-test="sketch-tool-options"]'));
   const stacked = await box(recent);
   const save = await box(page.locator('[data-test="sketch-copy"]'));
   expect(stacked.y).toBeGreaterThanOrEqual(bar.y);
-  expect(stacked.y + stacked.height).toBeLessThanOrEqual(bar.y + bar.height);
+  expect(stacked.y).toBeLessThan(bar.y + bar.height);
   expect(stacked.x + stacked.width).toBeLessThanOrEqual(save.x);
 });
 
@@ -418,24 +418,27 @@ test("clicking the stack opens a grid of large sketches, clicking one copies it 
   await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
 });
 
-test("four saved sketches open into a two by two grid, which reflows to one column on a narrow screen", async ({ page }) => {
+test("three saved sketches open into a row of three, which reflows to one column on a narrow screen", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
-  for (const [index, words] of ["One", "Two", "Three", "Four"].entries()) {
+  for (const [index, words] of ["One", "Two", "Three"].entries()) {
     await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 80 + index * 40 }, words);
   }
-  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(4);
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(3);
   await page.waitForTimeout(500);
 
   await openSketchGrid(page);
   const cards = page.locator('[data-test="sketch-recent-card"]');
-  await expect(cards).toHaveCount(4);
-  const boxes = await Promise.all([0, 1, 2, 3].map((index) => box(cards.nth(index))));
-  expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x + boxes[0]!.width - 1);
-  expect(Math.abs(boxes[1]!.y - boxes[0]!.y)).toBeLessThan(2);
-  expect(boxes[2]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height - 1);
-  expect(Math.abs(boxes[3]!.x - boxes[1]!.x)).toBeLessThan(2);
-  for (const card of boxes) expect(card.width).toBeLessThanOrEqual(400);
+  await expect(cards).toHaveCount(3);
+  const boxes = await Promise.all([0, 1, 2].map((index) => box(cards.nth(index))));
+  // All three in one row, each to the right of the last.
+  for (const [index, current] of boxes.entries()) {
+    expect(current.width).toBeLessThanOrEqual(400);
+    if (index === 0) continue;
+    const previous = boxes[index - 1]!;
+    expect(current.x).toBeGreaterThan(previous.x + previous.width - 1);
+    expect(Math.abs(current.y - previous.y)).toBeLessThan(2);
+  }
   const grid = page.locator('[data-test="sketch-grid"]');
   expect(await grid.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
 
@@ -484,7 +487,7 @@ test("the color palette fans out above the saved sketches", async ({ page }) => 
   expect(covered).toEqual([]);
 });
 
-test("the four latest copies are kept, newest in front, and they are still there after a reload", async ({ page }) => {
+test("the three latest copies are kept, newest in front, and they are still there after a reload", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
   const recent = page.locator('[data-test="sketch-recent"]');
@@ -492,14 +495,14 @@ test("the four latest copies are kept, newest in front, and they are still there
 
   // Newest first, as the bar lists them.
   const copies: string[] = [];
-  for (const [index, words] of ["First copy", "Second copy", "Third copy", "Fourth copy", "Fifth copy"].entries()) {
+  for (const [index, words] of ["First copy", "Second copy", "Third copy", "Fourth copy"].entries()) {
     await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 80 + index * 40 }, words);
     await expect.poll(async () => (await recentIds())[0]).not.toBe(copies[0] ?? null);
     copies.unshift((await recentIds())[0]!);
   }
 
-  const kept = copies.slice(0, 4);
-  await expect(recent).toHaveCount(4);
+  const kept = copies.slice(0, 3);
+  await expect(recent).toHaveCount(3);
   expect(await recentIds()).toEqual(kept);
   expect([...await storedSketchIds(page)].sort()).toEqual([...kept].sort());
 
@@ -512,7 +515,7 @@ test("the four latest copies are kept, newest in front, and they are still there
 
   await page.reload();
   await page.locator('[data-test="canvas-tool-sketch"]').click();
-  await expect(recent).toHaveCount(4);
+  await expect(recent).toHaveCount(3);
   expect(await recentIds()).toEqual(kept);
 });
 

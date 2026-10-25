@@ -69,7 +69,7 @@ describe("AnimationTimeline", () => {
 
   it("seeks to where the pointer presses and keeps following it while dragged", () => {    const onSeek = vi.fn();
     const timeline = render({ onSeek });
-    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 40, right: 302, bottom: 40, x: 100, y: 0 } as DOMRect);
     timeline.setPointerCapture = vi.fn();
     timeline.hasPointerCapture = vi.fn(() => true);
@@ -141,7 +141,7 @@ describe("AnimationTimeline", () => {
   it("leaves the marks to the playhead alone while the pointer merely hovers", () => {
     const onSeek = vi.fn();
     const timeline = render({ onSeek, progress: 0, duration: 1000 });
-    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
     timeline.hasPointerCapture = vi.fn(() => false);
     const levels = () => {
@@ -175,7 +175,7 @@ describe("AnimationTimeline", () => {
     try {
       const onSeek = vi.fn();
       const timeline = render({ onSeek, progress: 0, duration: 1000 });
-      const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+      const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
       scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
       timeline.setPointerCapture = vi.fn();
       const levels = () => {
@@ -254,5 +254,22 @@ describe("AnimationTimeline", () => {
       inert.dispatchEvent(pointerEvent("pointerdown", { clientX: 10, button: 0 }));
     });
     expect(disabled).not.toHaveBeenCalled();
+  });
+  it("stretches the track past an end while dragged beyond it, and releases it on pointer up", () => {
+    const track = render({ onSeek: vi.fn(), progress: 0, duration: 1000 });
+    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    track.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 40, right: 302, bottom: 40, x: 100, y: 0 } as DOMRect);
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = () => true;
+
+    act(() => { track.dispatchEvent(pointerEvent("pointerdown", { clientX: 200, button: 0 })); });
+    expect(scale.hasAttribute("data-stretching")).toBe(false);
+    act(() => { track.dispatchEvent(pointerEvent("pointermove", { clientX: 360 })); });
+    expect(scale.getAttribute("data-stretching")).toBe("");
+    expect(scale.getAttribute("data-stretch-side")).toBe("end");
+    expect(Number(scale.style.getPropertyValue("--timeline-stretch"))).toBeGreaterThan(0);
+    act(() => { track.dispatchEvent(pointerEvent("pointerup", { clientX: 360 })); });
+    expect(scale.hasAttribute("data-stretching")).toBe(false);
+    expect(scale.style.getPropertyValue("--timeline-stretch")).toBe("");
   });
 });

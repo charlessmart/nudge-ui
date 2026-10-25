@@ -28,4 +28,9 @@ describe("sketch ink", () => {
     expect(sketchThumbnailCrop({ x: 0, y: 0, width: 1000, height: 800 }, 1000, 800))
       .toEqual({ x: 100, y: 0, width: 800, height: 800 });
   });
+
+  it("snaps the crop to whole pixels, so a thumbnail and the card it grows into sample the same part", () => {
+    expect(sketchThumbnailCrop({ x: 401, y: 303, width: 201, height: 99 }, 1000, 800))
+      .toEqual({ x: 365, y: 216, width: 273, height: 273 });
+  });
 });

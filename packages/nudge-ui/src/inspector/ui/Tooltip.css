@@ -33,7 +33,7 @@
 
 /* Moving between tooltips in a group opens the next one instantly; replaying the entrance would read as a flicker. */
 .tooltip__popup[data-open]:not([data-instant]) {
-  animation: tooltip-enter 150ms ease-out;
+  animation: tooltip-enter calc(var(--spring-duration) * 0.7) var(--spring-ease);
 }
 
 @keyframes tooltip-enter {

@@ -38,7 +38,7 @@
 .disclosure__chevron {
   flex: none;
   color: var(--text-muted);
-  transition: transform 120ms ease;
+  transition: transform var(--spring-duration) var(--spring-ease);
 }
 
 .disclosure__trigger[data-panel-open] .disclosure__chevron {

@@ -5,14 +5,18 @@ export function startDragPointerLock(
   point: { x: number; y: number },
   onMove: (event: MouseEvent) => void,
   onEnd: () => void,
-): { isLocked: () => boolean; stop: () => void } {
+): { isLocked: () => boolean; setCursorOffset: (dx: number) => void; stop: () => void } {
   const doc = handle.ownerDocument;
   const root = handle.getRootNode() as Document | ShadowRoot;
   const isLocked = (): boolean => root.pointerLockElement === handle;
   let stopped = false;
   let pending = true;
   let acquired = false;
-  let removeCursor: (() => void) | undefined;
+  let cursor: ReturnType<typeof showLockedDragCursor> | undefined;
+  let cursorOffset = 0;
+  /** The locked pointer cannot leave its point, so vertical travel moves only the virtual cursor. */
+  let cursorDy = 0;
+  const applyCursor = (): void => cursor?.setOffset(cursorOffset, cursorDy);
 
   function removeLockListeners(): void {
     doc.removeEventListener("pointerlockchange", onLockChange);
@@ -26,8 +30,9 @@ export function startDragPointerLock(
       if (stopped) {
         doc.exitPointerLock();
         removeLockListeners();
-      } else if (!removeCursor) {
-        removeCursor = showLockedDragCursor(doc, point);
+      } else if (!cursor) {
+        cursor = showLockedDragCursor(doc, point);
+        applyCursor();
       }
     } else if (acquired) {
       onEnd();
@@ -40,7 +45,11 @@ export function startDragPointerLock(
   }
 
   function onMouseMove(event: MouseEvent): void {
-    if (!stopped && isLocked()) onMove(event);
+    if (stopped || !isLocked()) return;
+    const height = doc.defaultView?.innerHeight ?? Infinity;
+    cursorDy = Math.min(height - point.y, Math.max(-point.y, cursorDy + event.movementY));
+    applyCursor();
+    onMove(event);
   }
 
   function onMouseUp(event: MouseEvent): void {
@@ -61,9 +70,13 @@ export function startDragPointerLock(
 
   return {
     isLocked,
+    setCursorOffset(dx) {
+      cursorOffset = dx;
+      applyCursor();
+    },
     stop() {
       stopped = true;
-      removeCursor?.();
+      cursor?.remove();
       doc.removeEventListener("mousemove", onMouseMove);
       doc.removeEventListener("mouseup", onMouseUp);
       if (isLocked()) doc.exitPointerLock();
