@@ -24,6 +24,11 @@
   stroke-width: var(--icon-stroke-width);
 }
 
+/* Outline icons that gain weight, rather than swap to a filled glyph, while their tool is active. */
+.icon-button svg.icon--active-stroke {
+  stroke-width: var(--icon-stroke-width-active);
+}
+
 .icon-button--primary {
   background: var(--surface-inverse);
   color: var(--text-inverse);

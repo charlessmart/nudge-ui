@@ -83,6 +83,7 @@
   --icon-size-small: 16px;
   --icon-size-large: 20px;
   --icon-stroke-width: 1.5px;
+  --icon-stroke-width-active: 2px;
 
   position: fixed;
   inset: 0;

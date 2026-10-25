@@ -28,7 +28,7 @@
 }
 
 @keyframes spacing-snap {
-  from { scale: 1.7; }
+  from { scale: 1.25; }
   to { scale: 1; }
 }
 

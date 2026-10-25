@@ -12,6 +12,15 @@
   border-radius: 50%;
   background: var(--border-strong);
   cursor: default;
+  transition: opacity 120ms ease;
+}
+
+/* The dot sits half outside its field, and a nudge drag clips or restyles that edge, so it steps aside for the whole drag and spring-back. Hiding is instant; it fades back in once the field settles. */
+[data-nudge-elastic] .at-rule-indicator,
+:has(> [data-nudge-elastic]) > .at-rule-indicator,
+.field-row__control:has([data-nudge-elastic]) .at-rule-indicator {
+  opacity: 0;
+  transition: none;
 }
 
 .at-rule-indicator[data-active="true"] {
