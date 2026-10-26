@@ -97,7 +97,7 @@ test("Holding A temporarily enables app interaction across iframe focus and the 
   await page.keyboard.up("A");
 });
 
-test("Holding A opens links on the canvas without opening a browser tab", async ({ page, context }) => {
+test("Holding A clicks links inside the frame without opening a browser tab", async ({ page, context }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
   await waitForCanvasTransition(page);
@@ -115,8 +115,9 @@ test("Holding A opens links on the canvas without opening a browser tab", async 
   await page.keyboard.down("A");
   await expect(page.getByRole("button", { name: "Use app normally", exact: true })).toHaveAttribute("aria-pressed", "true");
   await iframe.contentFrame().locator("#app-interaction-link").click();
-  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
-  await expect.poll(() => page.locator(".canvas-card__iframe").last().contentFrame().locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#app-interaction-destination");
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(1);
+  await expect.poll(() => frame.locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#app-interaction-destination");
   await page.keyboard.up("A");
   expect(context.pages()).toHaveLength(initialPages);
 });

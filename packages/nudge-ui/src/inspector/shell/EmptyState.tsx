@@ -21,7 +21,7 @@ export function EmptyState(): ReactElement {
       {canvas ? (
         <>
           <span className="empty-state__icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CANVAS_ILLUSTRATION_SVG }} />
-          <p className="empty-state__hint" data-test="canvas-intro">Hold <kbd>A</kbd> to click links and open them as new pages on the canvas.</p>
+          <p className="empty-state__hint" data-test="canvas-intro">Hold <kbd>A</kbd> to use the app normally. Hover a link to open it in a new frame.</p>
         </>
       ) : (
         <>

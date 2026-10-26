@@ -41,19 +41,23 @@
   right: 0;
   bottom: calc(100% + (var(--space-8) * var(--canvas-toolbar-scale, 1)));
   height: calc((var(--control-height-large) + var(--space-8)) * var(--canvas-toolbar-scale, 1));
+  container-type: inline-size;
   z-index: 3;
   pointer-events: auto;
 }
 
 .canvas-card__bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(280px, 45%)) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-4);
   width: calc(100% * var(--canvas-toolbar-inverse-scale, 1));
   height: calc(var(--control-height-large) + var(--space-8));
-  padding: var(--space-4);
+  padding: calc(var(--space-4) - 1px);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-12);
-  background: var(--surface-well);
+  background: var(--surface-raised-2x);
+  box-shadow: none;
   transform: scale(var(--canvas-toolbar-scale, 1));
   transform-origin: left top;
   cursor: grab;
@@ -65,7 +69,10 @@
   cursor: grabbing;
 }
 
+/* Iteration frames have no bar chrome, so the actions sit flush with the frame instead of inside its inset. */
 .canvas-card__header[data-kind="iteration"] .canvas-card__bar {
+  padding: 0;
+  border: 0;
   background: transparent;
   box-shadow: none;
 }
@@ -74,44 +81,34 @@
   background: var(--surface-control);
 }
 
-.canvas-card__close {
-  appearance: none;
-  display: inline-flex;
+.canvas-card__start {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex: 0 0 var(--space-12);
-  width: var(--space-12);
-  height: var(--space-12);
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--danger);
-  color: var(--text-inverse);
-  cursor: pointer;
+  justify-self: start;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
-.canvas-card__close:hover:not(:disabled) {
-  background: var(--danger-text);
-}
-
-.canvas-card__close:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-.canvas-card__close:disabled {
-  background: var(--surface-well-2x);
-  color: var(--text-muted-subtle);
-  cursor: not-allowed;
+.canvas-card__center {
+  position: relative;
+  min-width: 0;
 }
 
 .canvas-card__live {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + var(--space-4));
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  width: var(--space-24);
+  height: var(--space-24);
+  border-radius: var(--radius-6);
+  background: var(--accent-surface);
   color: var(--accent);
   cursor: grab;
+  transform: translateY(-50%);
 }
 
 .canvas-card.is-dragging .canvas-card__live {
@@ -119,10 +116,8 @@
 }
 
 .canvas-card__url {
-  flex: 0 1 280px;
-  width: 280px;
-  min-width: 120px;
-  max-width: 42%;
+  width: 100%;
+  min-width: 0;
   background: var(--surface-well-2x);
 }
 
@@ -133,13 +128,15 @@
 .canvas-card__url-space {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
+  justify-content: center;
+  width: 100%;
   min-width: 0;
   padding-inline: var(--space-4);
 }
 
 .canvas-card__title {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--font-size-base);
@@ -156,9 +153,13 @@
 .canvas-card__actions {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  justify-self: end;
   gap: var(--space-4);
-  margin-left: auto;
+  min-width: 0;
+}
+
+.canvas-card__header[data-kind="iteration"] .canvas-card__delete {
+  background: transparent;
 }
 
 .canvas-card__iteration-error {
@@ -315,4 +316,30 @@
 .canvas-card__iteration-badge {
   color: var(--text-secondary);
   background: var(--surface-raised-2x);
+}
+
+@container (min-width: 720px) {
+  .canvas-card__bar:has(.canvas-card__url:focus) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 50%)) minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 620px) {
+  .canvas-card__bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40%) minmax(0, 1fr);
+  }
+
+  .canvas-card__iteration-label {
+    display: none;
+  }
+
+  .button.canvas-card__iteration-button {
+    padding: 0 var(--space-8);
+  }
+
+  .icon-button.canvas-card__action-icon {
+    width: var(--control-height-small);
+    height: var(--control-height-small);
+    border-radius: var(--radius-4);
+  }
 }

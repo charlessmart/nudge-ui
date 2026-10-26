@@ -81,6 +81,55 @@
   font: 500 14px/1.4 system-ui, sans-serif;
 }
 
+/* A link hover affordance; it must outlive the pointer crossing from the frame into it. */
+.canvas-link-popover {
+  appearance: none;
+  position: fixed;
+  z-index: calc(var(--z-index) - 1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-base);
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: canvas-link-popover-enter 120ms ease-out;
+}
+
+.canvas-link-popover:hover {
+  background: var(--surface-raised-hover);
+}
+
+.canvas-link-popover svg {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.canvas-link-popover:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-popup), inset 0 0 0 2px var(--accent);
+}
+
+@keyframes canvas-link-popover-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-link-popover {
+    animation: none;
+  }
+}
+
 /* Moving iframes must not acquire hover state beneath a stationary pointer. */
 .canvas-workspace.is-presentation-transitioning .canvas-card__iframe,
 .canvas-workspace__board.is-layout-transitioning .canvas-card__iframe {

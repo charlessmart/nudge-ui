@@ -2,7 +2,7 @@ import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
-import { IconCornerLeftUp } from "@tabler/icons-react";
+import { IconCornerLeftUp, IconExternalLink } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
@@ -61,7 +61,8 @@ import {
   getFrameRegistryVersion,
   subscribeFrameRegistry,
 } from "./projection.ts";
-import { connectFrame, toViewportPoint, type FrameConnection, type FrameViewport } from "./frameConnection.ts";
+import { connectFrame, toViewportPoint, toViewportRect, type FrameConnection, type FrameViewport } from "./frameConnection.ts";
+import { LINK_POPOVER_HEIGHT, LINK_POPOVER_WIDTH, placeLinkPopover, type LinkPopoverAnchor } from "./linkPopoverPlacement.ts";
 import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
 import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
@@ -118,6 +119,15 @@ interface RectSnapshot {
   readonly height: number;
 }
 
+/** A link under the pointer inside one canvas frame, in renderer viewport coordinates. */
+interface LinkPreviewState {
+  readonly frame: FrameConnection;
+  readonly url: string;
+  readonly rect: RectSnapshot;
+  /** Where the pointer entered the link, in renderer viewport coordinates. */
+  readonly point: { readonly x: number; readonly y: number } | null;
+}
+
 function snapshotRect(rect: DOMRect): RectSnapshot {
   return {
     left: rect.left,
@@ -166,6 +176,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true ? "select" : "design");
+  const [linkPreview, setLinkPreview] = useState<LinkPreviewState | null>(null);
+  const linkPreviewTimerRef = useRef<number | null>(null);
+  const linkPreviewHoveredRef = useRef(false);
+  const linkPopoverRef = useRef<HTMLButtonElement | null>(null);
+  const [linkPopoverSize, setLinkPopoverSize] = useState<{ readonly width: number; readonly height: number } | null>(null);
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
@@ -191,11 +206,76 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     : interactionTool === "design"
       ? DESIGN_SELECT_CURSOR
       : undefined;
-  const linksOpenInCards = appInteractive && presentation === "canvas";
+  const linkPreviewsEnabled = appInteractive && presentation === "canvas";
   const activeDebugViewRef = useRef(activeDebugView);
   activeDebugViewRef.current = activeDebugView;
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
   const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
+
+  const dismissLinkPreview = useCallback(() => {
+    if (linkPreviewTimerRef.current !== null) {
+      window.clearTimeout(linkPreviewTimerRef.current);
+      linkPreviewTimerRef.current = null;
+    }
+    linkPreviewHoveredRef.current = false;
+    setLinkPreview(null);
+  }, []);
+
+  const scheduleLinkPreviewDismiss = useCallback(() => {
+    if (linkPreviewTimerRef.current !== null) window.clearTimeout(linkPreviewTimerRef.current);
+    linkPreviewTimerRef.current = window.setTimeout(() => {
+      linkPreviewTimerRef.current = null;
+      if (!linkPreviewHoveredRef.current) setLinkPreview(null);
+    }, 220);
+  }, []);
+
+  const keepLinkPreview = useCallback(() => {
+    if (linkPreviewTimerRef.current !== null) {
+      window.clearTimeout(linkPreviewTimerRef.current);
+      linkPreviewTimerRef.current = null;
+    }
+    linkPreviewHoveredRef.current = true;
+  }, []);
+
+  const openLinkInNewFrame = useCallback((url: string) => {
+    const normalized = normalizeUrl(url);
+    if (!normalized || normalized.origin !== window.location.origin) return;
+    const card = getCanvasCards().find((candidate) => {
+      const route = !iterationId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
+      return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
+    }) ?? addCanvasCard(url);
+    selectCard(card.id);
+    const board = boardRef.current;
+    if (board) focusCanvasCards([card.id], { width: board.clientWidth, height: board.clientHeight });
+    dismissLinkPreview();
+  }, [dismissLinkPreview]);
+
+  useEffect(() => {
+    if (!linkPreviewsEnabled) dismissLinkPreview();
+  }, [dismissLinkPreview, linkPreviewsEnabled]);
+
+  useEffect(() => {
+    if (!linkPreview) return;
+    if (!linkPreview.frame.iframe.isConnected || !cards.some((card) => card.id === linkPreview.frame.cardId)) {
+      dismissLinkPreview();
+    }
+  }, [cards, dismissLinkPreview, linkPreview]);
+
+  useEffect(() => () => {
+    if (linkPreviewTimerRef.current !== null) window.clearTimeout(linkPreviewTimerRef.current);
+  }, []);
+
+  // Measure the real popover before paint so the centering never assumes a guess.
+  useLayoutEffect(() => {
+    const popover = linkPopoverRef.current;
+    if (!popover) {
+      setLinkPopoverSize(null);
+      return;
+    }
+    const width = popover.offsetWidth;
+    const height = popover.offsetHeight;
+    setLinkPopoverSize((current) => (current?.width === width && current?.height === height ? current : { width, height }));
+  }, [linkPreview?.url]);
 
   useLayoutEffect(() => {
     const previousPresentation = previousPresentationRef.current;
@@ -337,7 +417,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   const sendBoardGestureState = useCallback((frame: FrameConnection, enabled: boolean) => {
-    frame.post({ type: "board-gesture-state", enabled, panScroll: enabled && !appInteractive });
+    // App interaction keeps native wheel scrolling, and Space still turns a drag into a board pan.
+    frame.post({ type: "board-gesture-state", enabled, panScroll: enabled && !appInteractive, spacePan: enabled });
   }, [appInteractive]);
 
   useEffect(() => {
@@ -345,9 +426,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frame = connectFrame(cardId, iframe);
       sendInspectorInteractionState(frame, inspectorOpen, rendererInteractionsEnabled, rendererCursor);
       sendBoardGestureState(frame, presentation === "canvas");
-      frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
+      frame.post({ type: "link-preview-state", enabled: linkPreviewsEnabled });
     }
-  }, [inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState]);
+  }, [inspectorOpen, linkPreviewsEnabled, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState]);
 
   useEffect(() => {
     // A view change starts from the page as it was; a renderer still holding a subtree apart reports again.
@@ -604,6 +685,20 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (mode === "canvas") setTemporaryAppInteraction(msg.held === true);
         return;
       }
+      if (msg.type === "link-preview") {
+        if (!linkPreviewsEnabled) return;
+        if (!msg.url || !msg.rect) {
+          scheduleLinkPreviewDismiss();
+          return;
+        }
+        if (linkPreviewTimerRef.current !== null) {
+          window.clearTimeout(linkPreviewTimerRef.current);
+          linkPreviewTimerRef.current = null;
+        }
+        linkPreviewHoveredRef.current = false;
+        setLinkPreview({ frame, url: msg.url, rect: msg.rect, point: msg.point ?? null });
+        return;
+      }
       if (isKeyboardShortcutMessage(msg, identity)) {
         if (msg.phase === "keydown") {
           if (msg.code === "Escape") {
@@ -679,7 +774,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           spaceHeldRef.current ? "drag" : rendererCursor,
         );
         sendBoardGestureState(frame, presentation === "canvas");
-        frame.post({ type: "link-target-state", openInCard: linksOpenInCards });
+        frame.post({ type: "link-preview-state", enabled: linkPreviewsEnabled });
         // A reloaded document is whole again, whatever the document it replaced was showing.
         setDebugExploded(false);
         frame.post({ type: "debug-view-state", state: activeDebugViewRef.current });
@@ -728,33 +823,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         const frameDocument = frame.document();
         if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
         if (msg.url) syncActiveFrameUrl(msg.url);
+        dismissLinkPreview();
         return;
       }
       if (msg.type !== "navigation-intent") return;
+      dismissLinkPreview();
       if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
-
-      if (msg.openInCard === true && presentation === "canvas") {
-        const card = getCanvasCards().find((candidate) => {
-          const route = !iterationId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
-          return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
-        }) ?? addCanvasCard(msg.url);
-        selectCard(card.id);
-        const board = boardRef.current;
-        if (board) focusCanvasCards([card.id], { width: board.clientWidth, height: board.clientHeight });
-        return;
-      }
-      if (msg.openInCard === true) {
-        // A delayed renderer message must not create a new frame after entering focus mode.
-        selectCard(frame.cardId);
-        activateIframeWorkspace(msg.url, { width: boardRef.current?.clientWidth ?? window.innerWidth, height: boardRef.current?.clientHeight ?? window.innerHeight }, { replaceActiveCard: true });
-        return;
-      }
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, broadcastPanModifier, endPanning, handleToolChange, interactionTool, leaveViewTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [appInteractive, broadcastPanModifier, dismissLinkPreview, endPanning, handleToolChange, interactionTool, leaveViewTool, linkPreviewsEnabled, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -770,8 +850,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (mode !== "canvas" || presentation !== "canvas" || sketchActive || appInteractive) return;
-      if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
+      if (mode !== "canvas" || presentation !== "canvas" || sketchActive) return;
+      // Normal mode leaves Delete to the app; Space still pans the board.
+      if (!appInteractive && (e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
         if (e.defaultPrevented || getSelectedElements().length > 0 || getCanvasCards().length < 2) return;
         const selectedCardId = getSelectedCardId();
         if (!selectedCardId) return;
@@ -859,7 +940,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const path = e.composedPath();
       // Comment pins overlay the board without being its DOM descendants.
       const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));
-      if (!zoom && (appInteractive || !board || (!path.includes(board) && !overCommentPin))) return;
+      // Frame documents keep native scrolling in normal mode; wheel over the board still pans.
+      if (!zoom && (!board || (!path.includes(board) && !overCommentPin))) return;
       e.preventDefault();
       e.stopPropagation();
       if (zoom) zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
@@ -871,7 +953,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [appInteractive, mode, presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
+  }, [mode, presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
 
   // Every page card would share the one page renderer, so extra restored cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (
@@ -891,6 +973,22 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   );
 
   if (mode !== "canvas") return null;
+
+  const linkPreviewViewport = linkPreview && linkPreview.frame.iframe.isConnected
+    ? toViewportRect(linkPreview.frame.viewport(), linkPreview.rect)
+    : null;
+  const linkPointerViewport = linkPreview?.point
+    ? toViewportPoint(linkPreview.frame.viewport(), linkPreview.point)
+    : null;
+  const boardBounds = boardRef.current?.getBoundingClientRect() ?? null;
+  const linkPopoverAnchor: LinkPopoverAnchor | null = linkPreviewViewport
+    ? { kind: "rect", rect: linkPreviewViewport }
+    : linkPointerViewport
+      ? { kind: "point", x: linkPointerViewport.x, y: linkPointerViewport.y }
+      : null;
+  const linkPopoverPosition = linkPopoverAnchor && boardBounds
+    ? placeLinkPopover(linkPopoverAnchor, linkPopoverSize ?? { width: LINK_POPOVER_WIDTH, height: LINK_POPOVER_HEIGHT }, boardBounds)
+    : null;
 
   return (
     <>
@@ -947,6 +1045,21 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             />
           ) : null}
         </div>
+        {linkPreview && linkPopoverPosition ? (
+          <button
+            type="button"
+            ref={linkPopoverRef}
+            className="canvas-link-popover"
+            data-test="canvas-link-popover"
+            style={{ left: linkPopoverPosition.left, top: linkPopoverPosition.top }}
+            onPointerEnter={keepLinkPreview}
+            onPointerLeave={scheduleLinkPreviewDismiss}
+            onClick={() => openLinkInNewFrame(linkPreview.url)}
+          >
+            <IconExternalLink size={14} stroke="var(--icon-stroke-width)" aria-hidden="true" />
+            <span>Open in new frame</span>
+          </button>
+        ) : null}
       </div>
       {sketchActive ? (
         <div

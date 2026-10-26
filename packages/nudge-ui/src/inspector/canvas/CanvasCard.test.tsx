@@ -203,12 +203,41 @@ describe("CanvasCard renderer handshake", () => {
     const url = () => host.querySelector<HTMLInputElement>(
       `[data-test="canvas-card-url-${card.id}"]`,
     )?.value;
+    const expectedPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-    expect(url()).toBe(new URL(window.location.href).href);
+    expect(url()).toBe(expectedPath);
 
     act(() => resizeCard(card.id, 1024, 768));
 
-    expect(url()).toBe(new URL(window.location.href).href);
+    expect(url()).toBe(expectedPath);
+  });
+
+  it("shows the full URL only while the URL field is being edited", () => {
+    const card: CanvasCardData = {
+      id: "card-url-editing",
+      content: { kind: "route", url: new URL("/playground?tab=canvas", window.location.href).href },
+      title: null,
+      x: 20,
+      y: 30,
+      width: 1440,
+      height: 900,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(StoreBackedCard));
+    });
+
+    const input = host.querySelector<HTMLInputElement>(`[data-test="canvas-card-url-${card.id}"]`);
+    if (!input) throw new Error("URL field did not mount");
+
+    expect(input.value).toBe("/playground?tab=canvas");
+
+    act(() => input.focus());
+    expect(input.value).toBe(new URL("/playground?tab=canvas", window.location.href).href);
+
+    act(() => input.blur());
+    expect(input.value).toBe("/playground?tab=canvas");
   });
 
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
