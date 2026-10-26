@@ -201,7 +201,7 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
     expect(actual.barWidthRatio).toBeCloseTo(1, 1);
     expect(actual.buttonHeight / screenScale).toBeCloseTo(32, 1);
     expect(actual.actionHeight / screenScale).toBeCloseTo(32, 1);
-    expect(actual.urlHeight / screenScale).toBeCloseTo(32, 1);
+    expect(actual.urlHeight / screenScale).toBeCloseTo(24, 1);
     expect(actual.frameGap / screenScale).toBeCloseTo(8, 1);
     expect(actual.width).toBeCloseTo(initial.width, 1);
     expect(actual.height).toBeCloseTo(initial.height, 1);

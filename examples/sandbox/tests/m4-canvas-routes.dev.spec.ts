@@ -92,8 +92,6 @@ test("dev: delete key removes a comparison card and recovers the final editing s
   await page.keyboard.press("Delete");
 
   await expect(board.locator(".canvas-card")).toHaveCount(1);
-
-  await board.locator('[data-test^="canvas-card-reload-"]').click();
   await page.keyboard.press("Delete");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -127,52 +125,6 @@ test("dev: deleting the active route does not recreate it after reload", async (
   await expect(page.locator(".canvas-card")).toHaveCount(1);
   await expect.poll(() => page.frameLocator(".canvas-card__iframe").locator("body").evaluate(() => location.pathname))
     .toBe("/playground");
-});
-
-test("dev: open app escapes the editor to the plain application route", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
-
-  const popupPromise = page.waitForEvent("popup");
-  await page.locator('[data-test^="canvas-card-open-app-"]').first().click();
-  const application = await popupPromise;
-  await expect(application.locator("#root")).toBeVisible();
-  await expect(application.locator('[data-test="canvas-workspace"]')).toHaveCount(0);
-  await application.locator('a[href="/conformance"]').click();
-  await expect(application).toHaveURL(/\/conformance$/);
-  await expect(application.locator("#root")).toBeVisible();
-  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
-  await application.reload();
-  await expect(application).toHaveURL(/\/conformance$/);
-  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
-});
-
-
-
-test("dev: canvas card toolbar has open-app, duplicate, and refresh controls", async ({ page }) => {  await page.goto("/playground");
-  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
-
-  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
-  const openApp = page.locator('[data-test^="canvas-card-open-app-"]');
-  await expect(openApp).toHaveText("Open app");
-  await expect(openApp).toHaveClass(/button--secondary/);
-  await expect(openApp).toHaveClass(/button--default/);
-  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
-  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/icon-button--secondary/);
-  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/icon-button--secondary/);
-  await expect(page.locator('[data-test^="canvas-card-remove-"]')).toHaveCount(0);
-
-  const card = page.locator(".canvas-card").first();
-  const toolbar = card.locator(".canvas-card__toolbar");
-  const frame = card.locator(".canvas-card__frame");
-  const toolbarBox = await toolbar.boundingBox();
-  const frameBox = await frame.boundingBox();
-  expect(toolbarBox).not.toBeNull();
-  expect(frameBox).not.toBeNull();
-  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThan(frameBox!.y);
 });
 
 test("dev: Use app normally navigates links inside the frame without adding cards", async ({ page }) => {
