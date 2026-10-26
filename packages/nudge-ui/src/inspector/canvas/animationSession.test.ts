@@ -120,9 +120,9 @@ describe("AnimationSession", () => {
     expect(captured.cancel).toHaveBeenCalled();
   });
 
-  it("waits for the pointer to leave the page before capturing a hover", () => {
+  it("waits for the pointer to leave the trigger before capturing a hover", () => {
     let pointerOver = true;
-    vi.spyOn(document.documentElement, "matches").mockImplementation((selector: string) => selector === ":hover" && pointerOver);
+    vi.spyOn(button, "matches").mockImplementation((selector: string) => selector === ":hover" && pointerOver);
     const session = new AnimationSession(button);
 
     session.run(hoverEntryFor(button));
@@ -130,6 +130,16 @@ describe("AnimationSession", () => {
 
     pointerOver = false;
     vi.advanceTimersByTime(50);
+    expect(session.getSnapshot().status).toBe("capturing");
+    session.dispose();
+  });
+
+  it("captures a hover at once while the pointer rests elsewhere on the page", () => {
+    // The page itself stays hovered while the pointer is anywhere over it; only the trigger's own hover blocks a capture.
+    vi.spyOn(document.documentElement, "matches").mockImplementation((selector: string) => selector === ":hover");
+    const session = new AnimationSession(button);
+
+    session.run(hoverEntryFor(button));
     expect(session.getSnapshot().status).toBe("capturing");
     session.dispose();
   });
