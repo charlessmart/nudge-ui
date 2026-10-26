@@ -5,7 +5,6 @@ export function Button({
   onClick,
 }: {
   label: string;
-  variant?: "primary" | "secondary";
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (

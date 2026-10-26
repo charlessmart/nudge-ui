@@ -47,6 +47,7 @@ export function normalizeRuntimeTag(value: string): string {
 }
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 /** Never pointer targets or structural edit targets; see `EXCLUDED_TAG_NAMES` and the page target. */
 const DOCUMENT_STRUCTURE_TAGS = new Set(["HTML", "HEAD", "BODY"]);
 const EXCLUDED_SUBTREE_TAGS = new Set([
@@ -70,10 +71,12 @@ function isElement(node: Node): node is Element {
   return node.nodeType === 1;
 }
 
-function isEligibleElement(element: Element): element is HTMLElement {
-  if (element.namespaceURI !== HTML_NAMESPACE) return false;
-  if (DOCUMENT_STRUCTURE_TAGS.has(element.tagName)) return false;
-  let current: Element | null = element;
+/** SVG roots join the identity map so an icon can be selected and inspected as one element; its paths stay part of it. */
+function isEligibleElement(element: Element): boolean {
+  const svgRoot = element.namespaceURI === SVG_NAMESPACE && element.localName === "svg";
+  if (!svgRoot && element.namespaceURI !== HTML_NAMESPACE) return false;
+  if (DOCUMENT_STRUCTURE_TAGS.has(element.tagName) || EXCLUDED_SUBTREE_TAGS.has(element.tagName)) return false;
+  let current: Element | null = element.parentElement;
   while (current) {
     if (current.namespaceURI !== HTML_NAMESPACE) return false;
     if (EXCLUDED_SUBTREE_TAGS.has(current.tagName)) return false;
@@ -142,9 +145,7 @@ const LAZY_DESCENDANT_DEPTH = 2;
 
 /** Install before the inspector so its capture listeners run first. */
 export function installLazyRuntimeIdentity(doc: Document = document): () => void {
-  // Pointer order differs between page loads, so sequential numbers could hand a saved
-  // edit's identity to a different element; a per-install scope keeps fresh identities
-  // distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
+  // Per-install scope keeps fresh identities distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
   const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
 
   function tagDescendants(element: Element, depth: number): void {
@@ -157,14 +158,17 @@ export function installLazyRuntimeIdentity(doc: Document = document): () => void
 
   function onPointer(event: Event): void {
     const target = event.target;
-    if (!(target instanceof Element) || !isEligibleElement(target)) return;
-    for (let current: Element | null = target; current; current = current.parentElement) {
+    if (!(target instanceof Element)) return;
+    // Clicking any path of an icon targets the icon root, which is the element the app styles and animates.
+    const eligible = target.namespaceURI === SVG_NAMESPACE ? target.closest("svg") : target;
+    if (!eligible || !isEligibleElement(eligible)) return;
+    for (let current: Element | null = eligible; current; current = current.parentElement) {
       // Ancestors of a tagged element were tagged with it.
-      if (current.hasAttribute("data-cid") && current !== target) break;
+      if (current.hasAttribute("data-cid") && current !== eligible) break;
       ensureIdentity(current);
     }
-    tagDescendants(target, LAZY_DESCENDANT_DEPTH);
-    if (target.parentElement) tagDescendants(target.parentElement, 1);
+    tagDescendants(eligible, LAZY_DESCENDANT_DEPTH);
+    if (eligible.parentElement) tagDescendants(eligible.parentElement, 1);
   }
 
   for (const type of LAZY_IDENTITY_EVENTS) doc.addEventListener(type, onPointer, true);
@@ -173,12 +177,17 @@ export function installLazyRuntimeIdentity(doc: Document = document): () => void
   };
 }
 
+interface RuntimeIdentity {
+  readonly cid: string;
+  readonly src: string;
+}
+
 function createIdentityAllocator(doc: Document, scope = ""): (element: Element) => void {
   const usedCids = existingAttributeValues(doc, "data-cid");
   const usedSources = existingAttributeValues(doc, "data-src");
   let nextId = 1;
 
-  function nextIdentity(): { cid: string; src: string } {
+  function nextIdentity(): RuntimeIdentity {
     while (true) {
       const id = nextId++;
       const cid = `${RUNTIME_ELEMENT_CID_PREFIX}${scope}${id}`;

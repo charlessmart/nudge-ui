@@ -62,7 +62,7 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   await page.goto("/?nudge-ui=off&scenario=toolbar");
   const gallery = page.locator('[data-test="toolbar-gallery"]');
   await expect(gallery.locator('[data-test^="canvas-toolbar-"]')).toHaveCount(4);
-  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(10);
+  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(11);
 
   // Each interaction tool is active in its own toolbar, and only the Pencil opens the sketch bar.
   for (const tool of ["design", "comment", "sketch", "select"]) {
@@ -88,9 +88,8 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   await expect(bar("pen").locator('[data-test="sketch-tool-text"]')).toHaveAttribute("data-active", "true");
   await expect(bar("eraser").locator('[data-test="sketch-tool-eraser"]')).toHaveAttribute("data-active", "true");
 
-  // A saved sketch opens its larger preview.
-  await bar("three-saved").locator('[data-test="sketch-recent-copy"]').first().hover();
-  await expect(page.locator('[data-test="sketch-preview"]')).toBeVisible();
+  // The expanded bar shows its saved sketches as large cards.
+  await expect(bar("three-expanded").locator('[data-test="sketch-recent-card"]')).toHaveCount(3);
   expect(errors).toEqual([]);
 });
 

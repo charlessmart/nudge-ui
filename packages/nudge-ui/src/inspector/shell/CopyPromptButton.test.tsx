@@ -7,8 +7,8 @@ import { clearActiveDraft, getChangesList } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
-import { initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
-import { resetSketchMemory } from "../sketch/persistence.ts";
+import { initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
+import { resetSketchMemory } from "../canvas/sketch/persistence.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { clearClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 
@@ -117,13 +117,10 @@ describe("CopyPromptButton handoff", () => {
     await initializeSketchStore("handoff-project");
     const image = new Blob(["png"], { type: "image/png" });
     await saveSketch({
-      description: "Align the heading",
-      capture: {
-        url: window.location.href, title: "Fixture", timestamp: 1,
-        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
-        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
-      },
-      strokes: [], imageWidth: 1, imageHeight: 1, originalImage: image, annotatedImage: image,
+      url: window.location.href,
+      image,
+      imageWidth: 1,
+      imageHeight: 1,
     });
     act(() => root.render(<CopyPromptButton />));
     await flush();

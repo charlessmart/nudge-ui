@@ -74,7 +74,7 @@ test("dev: :root custom properties are listed with project-relative provenance",
   await page.goto("/");
   const frame = await waitForInspector(page);
 
-  await page.locator('[data-test="tokens-button"]').click();
+  await page.locator('[data-test="settings-button"]').click();
   await page.locator('[data-test="settings-nav-tokens"]').click();
   const panel = page.locator('[data-test="tokens-panel"]');
   await expect(panel).toBeVisible();

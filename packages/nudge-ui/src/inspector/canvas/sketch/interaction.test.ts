@@ -5,9 +5,8 @@ import {
   cancelSketchInteraction,
   completeSketchCapture,
   getSketchInteractionSnapshot,
-  resetSketchInteraction,
 } from "./interaction.ts";
-import { captureViewport } from "./capture.ts";
+import { captureViewport } from "../../sketch/capture.ts";
 
 const captured = {
   originalImage: new Blob(["png"], { type: "image/png" }),
@@ -33,7 +32,7 @@ const capture = vi.fn<typeof captureViewport>();
 
 describe("sketch interaction", () => {
   beforeEach(() => {
-    resetSketchInteraction();
+    cancelSketchInteraction();
     capture.mockClear();
     capture.mockResolvedValue(captured);
   });

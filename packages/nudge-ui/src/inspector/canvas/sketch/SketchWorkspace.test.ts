@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { projectLiveStrokes } from "./SketchWorkspace.tsx";
-import type { SketchLiveDraft } from "./SketchOverlay.tsx";
-import type { CapturedSketch } from "./capture.ts";
-import type { SketchStroke } from "./model.ts";
-import { createTextStroke } from "./text.ts";
+import type { SketchLiveDraft } from "./SketchWorkspace.tsx";
+import type { CapturedSketch } from "../../sketch/capture.ts";
+import type { SketchStroke } from "../../sketch/model.ts";
+import { createTextStroke } from "../../sketch/text.ts";
 
 const stroke: SketchStroke = {
   id: "stroke-1",
   kind: "freehand",
   width: 6,
   color: "#0096ff",
-  outlineColor: "",
   points: [
     { x: 40, y: 40 },
     { x: 140, y: 40 },
@@ -18,7 +17,6 @@ const stroke: SketchStroke = {
 };
 
 const draft: SketchLiveDraft = {
-  description: "",
   strokes: [stroke],
   viewport: {
     width: 100,

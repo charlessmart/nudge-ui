@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { SKETCH_ACCENT_COLOR, type SketchStroke } from "./model.ts";
-import { FRAME_HANDLE_SIZE_PX, FRAME_ROTATE_OFFSET_PX, strokeFrame } from "./selectionFrame.ts";
+import { FRAME_HANDLE_SIZE_PX, frameGeometry, strokeFrame } from "./selectionFrame.ts";
 
 export interface SketchSelectionFrameProps {
   readonly stroke: Pick<SketchStroke, "points" | "width" | "rotation">;
@@ -11,10 +11,8 @@ export interface SketchSelectionFrameProps {
 /** Border, corner squares, and a rotation line with its own square; hit-testing lives in `selectionFrame.ts`. */
 export function SketchSelectionFrame({ stroke, unit }: SketchSelectionFrameProps): ReactElement {
   const frame = strokeFrame(stroke);
-  const halfWidth = frame.width / 2 + frame.padding;
-  const halfHeight = frame.height / 2 + frame.padding;
+  const { halfWidth, halfHeight, rotateY } = frameGeometry(frame, unit);
   const handle = FRAME_HANDLE_SIZE_PX * unit;
-  const rotateY = -halfHeight - FRAME_ROTATE_OFFSET_PX * unit;
   const handleProps = {
     width: handle,
     height: handle,

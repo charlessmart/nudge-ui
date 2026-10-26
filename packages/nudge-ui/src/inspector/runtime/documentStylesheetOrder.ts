@@ -64,7 +64,6 @@ export function reconcileDocumentTokenCatalog(
       });
       return definition;
     }
-    // The incomplete-rank branch returned above, so these fallbacks are unreachable.
     declarations.sort((left, right) =>
       (left.rank ?? 0) - (right.rank ?? 0) || left.index - right.index);
     return {

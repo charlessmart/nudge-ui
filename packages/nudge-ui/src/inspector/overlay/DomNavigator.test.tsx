@@ -84,8 +84,7 @@ describe("DomNavigator", () => {
     const chip = (): HTMLElement | null => host.querySelector<HTMLElement>('[data-test="dom-navigator"]');
     root = createRoot(host);
 
-    // Below the element, inside the frame rather than the window. jsdom measures the chip as 0 x 0,
-    // so centring leaves the left edge where the element's middle is.
+    // Below the element, inside the frame rather than the window. jsdom measures the chip as 0 x 0, so centring leaves the left edge where the element's middle is.
     render({ left: 120, top: 150, width: 50, height: 30 });
     expect([chip()?.style.left, chip()?.style.top]).toEqual(["145px", "188px"]);
 

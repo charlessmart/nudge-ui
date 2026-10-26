@@ -180,8 +180,7 @@ export function groupForProperty(property: string, slot?: TokenSemanticSlot): To
 export function classifyEditCapability(property: string, value: string): EditCapability {
   const p = property.toLowerCase();
   const v = value.trim().toLowerCase();
-  // A numeric side control cannot represent these functions faithfully, so
-  // the authored expression stays raw even on a spacing property.
+  // A numeric side control cannot represent these functions faithfully, so the authored expression stays raw even on a spacing property.
   if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
   if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";

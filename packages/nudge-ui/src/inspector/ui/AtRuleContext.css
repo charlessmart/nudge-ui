@@ -1,8 +1,4 @@
-/*
- * An avatar-style dot on the control's top-left corner. Its ring is the panel colour, so it reads as
- * cut out of the field. Accent means a conditional rule is the one currently winning; grey means
- * rules exist but the base declaration wins.
- */
+/* An avatar-style dot on the control's top-left corner. Its ring is the panel colour, so it reads as cut out of the field. Accent means a conditional rule is the one currently winning; grey means rules exist but the base declaration wins. */
 .at-rule-indicator {
   position: absolute;
   z-index: 2;
@@ -16,6 +12,15 @@
   border-radius: 50%;
   background: var(--border-strong);
   cursor: default;
+  transition: opacity 120ms ease;
+}
+
+/* The dot sits half outside its field, and a nudge drag clips or restyles that edge, so it steps aside for the whole drag and spring-back. Hiding is instant; it fades back in once the field settles. */
+[data-nudge-elastic] .at-rule-indicator,
+:has(> [data-nudge-elastic]) > .at-rule-indicator,
+.field-row__control:has([data-nudge-elastic]) .at-rule-indicator {
+  opacity: 0;
+  transition: none;
 }
 
 .at-rule-indicator[data-active="true"] {

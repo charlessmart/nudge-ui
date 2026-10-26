@@ -12,11 +12,7 @@ export const OFFSET_PRESETS = ["auto", "0", "50%", "100%"];
 
 const INSET_SIDES = ["top", "right", "bottom", "left"];
 
-/**
- * Whether the position row belongs in the Layout section rather than only the options menu.
- * A bare `position: relative` is usually just a containing block, so it stays tucked away
- * until it carries a z-index or an offset.
- */
+/** Whether the position row belongs in the Layout section rather than only the options menu. A bare `position: relative` is usually just a containing block, so it stays tucked away until it carries a z-index or an offset. */
 export function showsPositionControls(el: HTMLElement, position: string): boolean {
   if (position === "static") return false;
   if (position !== "relative") return true;

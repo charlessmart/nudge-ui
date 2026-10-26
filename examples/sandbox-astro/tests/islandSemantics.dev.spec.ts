@@ -129,10 +129,8 @@ test("dev: the generated prompt carries the island component record without iden
   await expect(frame.locator(".counter-label").first()).toHaveClass(/counter-label--ghost/);
 
   const prompt = await copyPrompt(page);
-  expect(prompt).toContain("## Component prop changes");
-  expect(prompt).toContain("### IslandCounter invocation (src/components/Counter.tsx:");
-  expect(prompt).toContain("`variant`: `primary` → `ghost`");
-  expect(prompt).toContain("Component contract: `src/components/Counter#IslandCounter`");
+  expect(prompt).toContain("Every IslandCounter component rendered from src/components/Counter.tsx:");
+  expect(prompt).toContain('- Change the variant prop from "primary" to "ghost"');
   // Injected runtime selectors are not source guidance.
   expect(prompt).not.toContain("data-cid");
   expect(prompt).not.toContain("data-cprops");
@@ -143,8 +141,7 @@ test("dev: the generated prompt carries the island component record without iden
 test("dev: the astro-island host keeps Astro-derived identity across hydration", async ({ page }) => {
   const severeErrors = trackSevereErrors(page);
 
-  // Installed before any page script runs, so nothing can slip past it; attribute-only
-  // mutations (Astro's toolbar stripping its own annotations) are ignored.
+  // Installed before any page script runs, so nothing can slip past it; attribute-only mutations (Astro's toolbar stripping its own annotations) are ignored.
   await page.addInitScript(() => {
     const removedTracked: string[] = [];
     (window as unknown as { __dtRemovedTracked?: string[] }).__dtRemovedTracked = removedTracked;

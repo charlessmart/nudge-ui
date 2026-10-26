@@ -3,7 +3,7 @@ import {
   captureViewport,
   type CapturedSketch,
   type SketchCaptureOptions,
-} from "./capture.ts";
+} from "../../sketch/capture.ts";
 
 export type SketchCaptureState = "idle" | "sketching" | "capturing" | "ready" | "error";
 
@@ -23,8 +23,7 @@ let snapshot = EMPTY_SNAPSHOT;
 let captureController: AbortController | null = null;
 const listeners = new Set<() => void>();
 
-function publish(next: SketchInteractionSnapshot): void {
-  snapshot = next;
+function notify(): void {
   for (const listener of listeners) {
     try {
       listener();
@@ -32,6 +31,11 @@ function publish(next: SketchInteractionSnapshot): void {
       // A view subscriber must not break the interaction state machine.
     }
   }
+}
+
+function publish(next: SketchInteractionSnapshot): void {
+  snapshot = next;
+  notify();
 }
 
 export function getSketchInteractionSnapshot(): SketchInteractionSnapshot {
@@ -99,10 +103,4 @@ export function cancelSketchInteraction(): void {
   captureController?.abort();
   captureController = null;
   publish(EMPTY_SNAPSHOT);
-}
-
-export function resetSketchInteraction(): void {
-  captureController?.abort();
-  captureController = null;
-  snapshot = EMPTY_SNAPSHOT;
 }

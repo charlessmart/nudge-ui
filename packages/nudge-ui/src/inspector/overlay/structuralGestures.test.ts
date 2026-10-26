@@ -254,8 +254,7 @@ describe("structuralGestures", () => {
   });
 
   describe("a column stack inside a flex-row shell", () => {
-    // The voice library modal: a row of sidebar and main pane, and in the pane a 5x Stack holding a back button,
-    // a 3x Stack of form fields, and the previews. Stacks are column flex boxes with a row gap.
+    // The voice library modal: a row of sidebar and main pane, and in the pane a 5x Stack holding a back button, a 3x Stack of form fields, and the previews. Stacks are column flex boxes with a row gap.
     function voiceModalFixture() {
       const boxed = (cid: string, [left, top, width, height]: readonly [number, number, number, number], style = "", tag = "div") => {
         const element = document.createElement(tag);

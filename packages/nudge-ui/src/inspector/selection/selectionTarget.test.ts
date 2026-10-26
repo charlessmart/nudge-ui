@@ -6,7 +6,7 @@ import {
   trackedElementStack,
 } from "./selectionTarget.ts";
 
-function tracked(element: HTMLElement, cid: string): HTMLElement {
+function tracked<T extends Element>(element: T, cid: string): T {
   element.setAttribute("data-cid", cid);
   return element;
 }
@@ -49,5 +49,16 @@ describe("selection target resolution", () => {
     outer.appendChild(inner);
 
     expect(resolveSelectionTarget(inner)).toBe(inner);
+  });
+
+  it("selects an SVG icon as one target, while a deep click can still reach a path", () => {
+    const svg = tracked(document.createElementNS("http://www.w3.org/2000/svg", "svg"), "Cursor");
+    const path = tracked(document.createElementNS("http://www.w3.org/2000/svg", "path"), "CursorPath");
+    svg.appendChild(path);
+    document.body.append(svg);
+
+    expect(trackedElementStack(path)).toEqual([path, svg]);
+    expect(resolveSelectionTarget(path)).toBe(svg);
+    expect(resolveSelectionTarget(path, "deep")).toBe(path);
   });
 });

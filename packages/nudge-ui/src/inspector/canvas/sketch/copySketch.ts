@@ -1,8 +1,8 @@
-import { showToast } from "../ui/Toast.tsx";
-import { copyImageToClipboard } from "./raster.ts";
+import { showToast } from "../../ui/Toast.tsx";
+import { copyImageToClipboard } from "../../sketch/raster.ts";
 
-/** Three times the usual two seconds: the toast is the only sign the clipboard changed. */
-const COPIED_TOAST_MS = 6000;
+/** One and a half times the usual two seconds: the toast is the only sign the clipboard changed. */
+const COPIED_TOAST_MS = 3000;
 
 function reportCopyFailure(title: string, error: unknown): void {
   showToast({
@@ -13,24 +13,21 @@ function reportCopyFailure(title: string, error: unknown): void {
 }
 
 /** The toast is the only sign the clipboard changed, so success is announced too. */
-function reportAutoCopy(copied: Promise<void>): void {
-  void copied.then(
-    () => showToast({ title: "Copied to clipboard", timeout: COPIED_TOAST_MS }),
-    (error: unknown) => reportCopyFailure("Sketch saved, but not copied", error),
-  );
+function reportCopySuccess(): void {
+  showToast({ title: "Copied to clipboard", timeout: COPIED_TOAST_MS });
 }
 
 /** Copies a kept sketch again. The user asked for it, so success is confirmed as well as failure. */
 export function copySketchImageOnRequest(image: Blob): Promise<void> {
   const copied = copyImageToClipboard(image);
   void copied.then(
-    () => showToast({ title: "Copied to clipboard", timeout: COPIED_TOAST_MS }),
+    reportCopySuccess,
     (error: unknown) => reportCopyFailure("Sketch not copied", error),
   );
   return copied.catch(() => undefined);
 }
 
-/** A failed save skips the toast and rethrows so the caller can show its own error; the clipboard write starts before `save` resolves. */
+/** Resolves once the sketch has been saved and copied; rejects if either fails so the caller can keep the sketch. The clipboard write starts before `save` resolves, as Safari requires. */
 export async function saveAndCopySketch(save: () => Promise<Blob>): Promise<void> {
   let resolveImage: (blob: Blob) => void = () => undefined;
   let rejectImage: (reason: unknown) => void = () => undefined;
@@ -47,5 +44,11 @@ export async function saveAndCopySketch(save: () => Promise<Blob>): Promise<void
     rejectImage(error);
     throw error;
   }
-  reportAutoCopy(copied);
+  try {
+    await copied;
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? ` ${error.message}` : "";
+    throw new Error(`The sketch was saved, but it could not be copied.${reason}`);
+  }
+  reportCopySuccess();
 }

@@ -4,8 +4,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../sketch/store.ts";
-import { resetSketchMemory } from "../sketch/persistence.ts";
+import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
+import { resetSketchMemory } from "../canvas/sketch/persistence.ts";
 import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import {
   createStructuralDelete,
@@ -111,13 +111,10 @@ describe("ChangesLog", () => {
     const image = new Blob(["png"], { type: "image/png" });
     await initializeSketchStore();
     await saveSketch({
-      capture: {
-        url: window.location.href, title: "Sketch fixture", timestamp: 1,
-        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
-        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
-      },
-      description: "Align the button with the heading", strokes: [], imageWidth: 1, imageHeight: 1,
-      originalImage: image, annotatedImage: image,
+      url: window.location.href,
+      image,
+      imageWidth: 1,
+      imageHeight: 1,
     });
     container = document.createElement("div");
     document.body.appendChild(container);

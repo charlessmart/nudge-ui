@@ -1,4 +1,4 @@
-import { Fragment, type ReactElement, type ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { Toggle } from "@base-ui/react/toggle";
 import { Tooltip } from "./Tooltip.tsx";
 
@@ -39,6 +39,7 @@ export function SegmentedControl<T extends string>({
   allowDeselect = false,
   onDeselect,
 }: SegmentedControlProps<T>): ReactElement {
+  const selectedIndex = options.findIndex((option) => option.value === value);
   return (
     <div
       className={`segmented-control${className ? ` ${className}` : ""}`}
@@ -46,7 +47,9 @@ export function SegmentedControl<T extends string>({
       aria-label={ariaLabel}
       data-test={dataTest}
       data-property={dataProperty}
+      style={{ "--segment-count": options.length, "--segment-index": Math.max(0, selectedIndex) } as CSSProperties}
     >
+      <span className="segmented-control__indicator" aria-hidden="true" data-hidden={selectedIndex < 0 ? "" : undefined} />
       {options.map((option) => {
         const selected = option.value === value;
         const toggle = (

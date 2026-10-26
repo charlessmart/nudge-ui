@@ -1,12 +1,13 @@
-import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
+import { isDemoRuntime } from "../../runtime/runtimeConfig.ts";
 import {
   SKETCH_DATABASE_NAME,
   SKETCH_DATABASE_VERSION,
   SKETCH_DOCUMENTS_STORE,
-  SKETCH_HANDOFFS_STORE,
   type SketchDocument,
-  type SketchHandoffRecord,
-} from "./model.ts";
+} from "../../sketch/model.ts";
+
+/** The v1 database also held dispatch handoffs; opening v2 removes that store. */
+const LEGACY_HANDOFFS_STORE = "handoffs";
 
 export class SketchStorageError extends Error {
   readonly code = "sketch_storage_error";
@@ -31,20 +32,16 @@ function storageError(message: string, error: unknown): SketchStorageError {
 
 export interface SketchPersistenceSnapshot {
   readonly documents: SketchDocument[];
-  readonly handoffs: SketchHandoffRecord[];
 }
 
 interface MemoryProjectState {
   documents: Map<string, SketchDocument>;
-  handoffs: Map<string, SketchHandoffRecord>;
 }
 
 /** One atomic set of puts and deletes against a project's sketch records. */
 export interface SketchStorageChange {
   readonly documents?: readonly SketchDocument[];
-  readonly handoffs?: readonly SketchHandoffRecord[];
   readonly deleteDocumentIds?: readonly string[];
-  readonly deleteHandoffIds?: readonly string[];
 }
 
 /** Replaces the page origin's IndexedDB for sketches, for example with extension storage. */
@@ -77,7 +74,7 @@ async function updateConfigured(
 function memoryState(projectId: string): MemoryProjectState {
   let state = memoryProjects.get(projectId);
   if (!state) {
-    state = { documents: new Map(), handoffs: new Map() };
+    state = { documents: new Map() };
     memoryProjects.set(projectId, state);
   }
   return state;
@@ -106,8 +103,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 async function openDatabase(): Promise<IDBDatabase | null> {
   const factory = indexedDbFactory();
   if (!factory) return null;
-  // Demo runtimes (the landing page) are session-only: sketches live in the
-  // in-memory fallback and never touch IndexedDB.
+  // Demo runtimes (the landing page) are session-only: sketches live in the in-memory fallback and never touch IndexedDB.
   if (isDemoRuntime()) return null;
   if (!databasePromise) {
     databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
@@ -118,16 +114,18 @@ async function openDatabase(): Promise<IDBDatabase | null> {
         reject(error);
         return;
       }
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (event) => {
         const database = request.result;
         if (!database.objectStoreNames.contains(SKETCH_DOCUMENTS_STORE)) {
           const documents = database.createObjectStore(SKETCH_DOCUMENTS_STORE, { keyPath: "id" });
           documents.createIndex("projectId", "projectId", { unique: false });
         }
-        if (!database.objectStoreNames.contains(SKETCH_HANDOFFS_STORE)) {
-          const handoffs = database.createObjectStore(SKETCH_HANDOFFS_STORE, { keyPath: "id" });
-          handoffs.createIndex("projectId", "projectId", { unique: false });
-          handoffs.createIndex("sketchKey", ["sketchId", "sketchRevision"], { unique: false });
+        if (database.objectStoreNames.contains(LEGACY_HANDOFFS_STORE)) {
+          database.deleteObjectStore(LEGACY_HANDOFFS_STORE);
+        }
+        // v1 documents carried the editable-sketch model; drop them instead of leaving records that no reader accepts.
+        if (event.oldVersion > 0 && event.oldVersion < SKETCH_DATABASE_VERSION) {
+          request.transaction?.objectStore(SKETCH_DOCUMENTS_STORE).clear();
         }
       };
       request.onsuccess = () => {
@@ -156,23 +154,17 @@ export async function readSketchPersistence(projectId: string): Promise<SketchPe
   const database = await openDatabase();
   if (!database) {
     const state = memoryState(projectId);
-    return {
-      documents: [...state.documents.values()],
-      handoffs: [...state.handoffs.values()],
-    };
+    return { documents: [...state.documents.values()] };
   }
   try {
-    const transaction = database.transaction([SKETCH_DOCUMENTS_STORE, SKETCH_HANDOFFS_STORE], "readonly");
+    const transaction = database.transaction(SKETCH_DOCUMENTS_STORE, "readonly");
     const done = transactionDone(transaction);
     // Records come back as stored; the store drops anything that fails validation during hydration.
     const documentsPromise = requestResult<SketchDocument[]>(
       transaction.objectStore(SKETCH_DOCUMENTS_STORE).index("projectId").getAll(projectId),
     );
-    const handoffsPromise = requestResult<SketchHandoffRecord[]>(
-      transaction.objectStore(SKETCH_HANDOFFS_STORE).index("projectId").getAll(projectId),
-    );
-    const [documents, handoffs] = await Promise.all([documentsPromise, handoffsPromise, done]);
-    return { documents, handoffs };
+    const [documents] = await Promise.all([documentsPromise, done]);
+    return { documents };
   } catch (error) {
     throw storageError("Sketch storage could not be read.", error);
   }
@@ -181,95 +173,41 @@ export async function readSketchPersistence(projectId: string): Promise<SketchPe
 export async function writeSketchPersistence(
   projectId: string,
   document: SketchDocument,
-  handoff: SketchHandoffRecord,
 ): Promise<void> {
   if (configuredStorage) {
-    const change = { documents: [document], handoffs: [handoff] };
-    return updateConfigured(configuredStorage, projectId, change, "Sketch could not be saved to browser storage.");
+    return updateConfigured(configuredStorage, projectId, { documents: [document] }, "Sketch could not be saved to browser storage.");
   }
   const database = await openDatabase();
   if (!database) {
-    const state = memoryState(projectId);
-    state.documents.set(document.id, document);
-    state.handoffs.set(handoff.id, handoff);
+    memoryState(projectId).documents.set(document.id, document);
     return;
   }
   try {
-    const transaction = database.transaction([SKETCH_DOCUMENTS_STORE, SKETCH_HANDOFFS_STORE], "readwrite");
+    const transaction = database.transaction(SKETCH_DOCUMENTS_STORE, "readwrite");
     transaction.objectStore(SKETCH_DOCUMENTS_STORE).put(document);
-    transaction.objectStore(SKETCH_HANDOFFS_STORE).put(handoff);
     await transactionDone(transaction);
   } catch (error) {
     throw storageError("Sketch could not be saved to browser storage.", error);
   }
 }
 
-export async function writeSketchHandoff(
-  projectId: string,
-  handoff: SketchHandoffRecord,
-): Promise<void> {
-  if (configuredStorage) {
-    return updateConfigured(configuredStorage, projectId, { handoffs: [handoff] }, "Sketch handoff state could not be saved.");
-  }
-  const database = await openDatabase();
-  if (!database) {
-    memoryState(projectId).handoffs.set(handoff.id, handoff);
-    return;
-  }
-  try {
-    const transaction = database.transaction(SKETCH_HANDOFFS_STORE, "readwrite");
-    transaction.objectStore(SKETCH_HANDOFFS_STORE).put(handoff);
-    await transactionDone(transaction);
-  } catch (error) {
-    throw storageError("Sketch handoff state could not be saved.", error);
-  }
-}
-
-export async function writeSketchHandoffs(
-  projectId: string,
-  handoffs: readonly SketchHandoffRecord[],
-): Promise<void> {
-  if (handoffs.length === 0) return;
-  if (configuredStorage) {
-    return updateConfigured(configuredStorage, projectId, { handoffs }, "Sketch handoff state could not be saved.");
-  }
-  const database = await openDatabase();
-  if (!database) {
-    const state = memoryState(projectId);
-    handoffs.forEach((handoff) => state.handoffs.set(handoff.id, handoff));
-    return;
-  }
-  try {
-    const transaction = database.transaction(SKETCH_HANDOFFS_STORE, "readwrite");
-    const store = transaction.objectStore(SKETCH_HANDOFFS_STORE);
-    handoffs.forEach((handoff) => store.put(handoff));
-    await transactionDone(transaction);
-  } catch (error) {
-    throw storageError("Sketch handoff state could not be saved.", error);
-  }
-}
-
 export async function deleteSketchPersistence(projectId: string, sketchId: string): Promise<void> {
-  const existing = await readSketchPersistence(projectId);
-  const handoffIds = existing.handoffs
-    .filter((handoff) => handoff.sketchId === sketchId)
-    .map((handoff) => handoff.id);
   if (configuredStorage) {
-    const change = { deleteDocumentIds: [sketchId], deleteHandoffIds: handoffIds };
-    return updateConfigured(configuredStorage, projectId, change, "Sketch could not be removed from browser storage.");
+    return updateConfigured(
+      configuredStorage,
+      projectId,
+      { deleteDocumentIds: [sketchId] },
+      "Sketch could not be removed from browser storage.",
+    );
   }
   const database = await openDatabase();
   if (!database) {
-    const state = memoryState(projectId);
-    state.documents.delete(sketchId);
-    handoffIds.forEach((id) => state.handoffs.delete(id));
+    memoryState(projectId).documents.delete(sketchId);
     return;
   }
   try {
-    const transaction = database.transaction([SKETCH_DOCUMENTS_STORE, SKETCH_HANDOFFS_STORE], "readwrite");
+    const transaction = database.transaction(SKETCH_DOCUMENTS_STORE, "readwrite");
     transaction.objectStore(SKETCH_DOCUMENTS_STORE).delete(sketchId);
-    const handoffs = transaction.objectStore(SKETCH_HANDOFFS_STORE);
-    handoffIds.forEach((id) => handoffs.delete(id));
     await transactionDone(transaction);
   } catch (error) {
     throw storageError("Sketch could not be removed from browser storage.", error);
@@ -279,36 +217,26 @@ export async function deleteSketchPersistence(projectId: string, sketchId: strin
 export async function clearSketchPersistence(projectId: string): Promise<void> {
   const existing = await readSketchPersistence(projectId);
   if (configuredStorage) {
-    const change = {
-      deleteDocumentIds: existing.documents.map((document) => document.id),
-      deleteHandoffIds: existing.handoffs.map((handoff) => handoff.id),
-    };
-    return updateConfigured(configuredStorage, projectId, change, "Sketch storage could not be cleared.");
+    return updateConfigured(
+      configuredStorage,
+      projectId,
+      { deleteDocumentIds: existing.documents.map((document) => document.id) },
+      "Sketch storage could not be cleared.",
+    );
   }
   const database = await openDatabase();
   if (!database) {
-    const state = memoryState(projectId);
-    state.documents.clear();
-    state.handoffs.clear();
+    memoryState(projectId).documents.clear();
     return;
   }
   try {
-    const transaction = database.transaction([SKETCH_DOCUMENTS_STORE, SKETCH_HANDOFFS_STORE], "readwrite");
+    const transaction = database.transaction(SKETCH_DOCUMENTS_STORE, "readwrite");
     const documents = transaction.objectStore(SKETCH_DOCUMENTS_STORE);
-    const handoffs = transaction.objectStore(SKETCH_HANDOFFS_STORE);
     existing.documents.forEach((document) => documents.delete(document.id));
-    existing.handoffs.forEach((handoff) => handoffs.delete(handoff.id));
     await transactionDone(transaction);
   } catch (error) {
     throw storageError("Sketch storage could not be cleared.", error);
   }
-}
-
-export async function closeSketchDatabase(): Promise<void> {
-  if (!databasePromise) return;
-  const database = await databasePromise.catch(() => null);
-  database?.close();
-  databasePromise = null;
 }
 
 /** Test seam for the no-IndexedDB fallback; it does not delete browser data. */

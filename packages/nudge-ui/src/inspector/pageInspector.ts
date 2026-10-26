@@ -9,7 +9,7 @@ import { releaseLease } from "./canvas/workspaceLease.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { configureInspectorStorage, type InspectorStorage } from "./runtime/inspectorStorage.ts";
-import { configureSketchStorage, type SketchStorage } from "./sketch/persistence.ts";
+import { configureSketchStorage, type SketchStorage } from "./canvas/sketch/persistence.ts";
 import { configureSystemFontSource, type SystemFontSource } from "./runtime/systemFonts.ts";
 import { preferAdoptedStylesheets } from "./runtime/ownedStylesheets.ts";
 import { enableInspectionPerformanceDiagnostics } from "./inspection/performanceDiagnostics.ts";
@@ -21,10 +21,10 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 
 export type { InspectorStorage } from "./runtime/inspectorStorage.ts";
 export { createMirroredStorage } from "./runtime/inspectorStorage.ts";
-export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./sketch/persistence.ts";
-export { isSketchDocument, isSketchHandoffRecord } from "./sketch/model.ts";
+export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./canvas/sketch/persistence.ts";
+export { isSketchDocument } from "./sketch/model.ts";
 export type { SystemFontAccess, SystemFontSource } from "./runtime/systemFonts.ts";
-export type { SketchDocument, SketchHandoffRecord } from "./sketch/model.ts";
+export type { SketchDocument } from "./sketch/model.ts";
 
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_PAGE_INSPECTOR__";
@@ -33,7 +33,7 @@ const COMPUTED_ROOT_ID = "computed:root";
 export interface PageInspectorOptions {
   /** Replaces `localStorage` for comments, drafts, and Canvas state. */
   storage?: InspectorStorage;
-  /** Replaces the page origin's IndexedDB for sketch documents and handoffs. */
+  /** Replaces the page origin's IndexedDB for saved sketch images. */
   sketchStorage?: SketchStorage;
   /** Replaces the Local Font Access API for the font family list. */
   systemFonts?: SystemFontSource;

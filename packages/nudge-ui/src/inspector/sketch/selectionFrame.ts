@@ -29,10 +29,7 @@ export interface SketchRegion {
   readonly maxY: number;
 }
 
-/**
- * A rotated box around a stroke. `width` and `height` measure the stroke's
- * points along the frame's own axes; the visible frame adds `padding` on every side.
- */
+/** A rotated box around a stroke. `width` and `height` measure the stroke's points along the frame's own axes; the visible frame adds `padding` on every side. */
 export interface SelectionFrame {
   readonly center: SketchPoint;
   readonly width: number;
@@ -104,6 +101,20 @@ function halfExtent(frame: SelectionFrame) {
   return { x: frame.width / 2 + frame.padding, y: frame.height / 2 + frame.padding };
 }
 
+/** The frame's visible half extents and its rotate-handle offset, shared by hit-testing and rendering. */
+export function frameGeometry(frame: SelectionFrame, unit: number): {
+  readonly halfWidth: number;
+  readonly halfHeight: number;
+  readonly rotateY: number;
+} {
+  const half = halfExtent(frame);
+  return {
+    halfWidth: half.x,
+    halfHeight: half.y,
+    rotateY: -half.y - FRAME_ROTATE_OFFSET_PX * unit,
+  };
+}
+
 /** Whether `point` is inside the stroke's own box (without the frame's gap), grown by `tolerance`. */
 export function pointInStrokeBox(
   stroke: Pick<SketchStroke, "points" | "width" | "rotation">,
@@ -123,10 +134,10 @@ export function frameCorner(frame: SelectionFrame, corner: FrameCorner): SketchP
 
 /** Where the rotation square sits: above the top edge, along the frame's own up axis. */
 export function frameRotateHandle(frame: SelectionFrame, unit: number): SketchPoint {
-  return toWorld(frame, { x: 0, y: -halfExtent(frame).y - FRAME_ROTATE_OFFSET_PX * unit });
+  return toWorld(frame, { x: 0, y: frameGeometry(frame, unit).rotateY });
 }
 
-function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPoint): number {
+export function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPoint): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSquared = dx * dx + dy * dy;
@@ -136,10 +147,7 @@ function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPo
   return Math.hypot(point.x - (start.x + position * dx), point.y - (start.y + position * dy));
 }
 
-/**
- * Corners and the rotation line win over edges so a handle stays grabbable
- * where it overlaps the border it sits on.
- */
+/** Corners and the rotation line win over edges so a handle stays grabbable where it overlaps the border it sits on. */
 export function hitTestFrame(frame: SelectionFrame, point: SketchPoint, unit: number): FrameHandle | null {
   const handleReach = FRAME_HANDLE_HIT_PX * unit;
   for (const corner of FRAME_CORNERS) {
@@ -170,10 +178,7 @@ function nearestAxisCursor(angle: number): string {
   }
 }
 
-/**
- * Edges and the rotation handle show an open hand that closes while the drag is under way. Resize cursors follow the
- * frame's rotation so they keep pointing along the corner's diagonal.
- */
+/** Edges and the rotation handle show an open hand that closes while the drag is under way. Resize cursors follow the frame's rotation so they keep pointing along the corner's diagonal. */
 export function frameHandleCursor(handle: FrameHandle, frame: SelectionFrame, dragging: boolean): string {
   if (handle === "move" || handle === "rotate") return dragging ? "grabbing" : "grab";
   const sign = CORNER_SIGNS[handle];
@@ -187,10 +192,7 @@ function strokeInside(stroke: SketchStroke, region: SketchRegion): boolean {
     && point.y <= region.maxY + REGION_EPSILON);
 }
 
-/**
- * Builds the transform at full strength and, if it leaves the region, backs off
- * to the largest fraction that still fits, so a fast drag stops flush with the edge.
- */
+/** Builds the transform at full strength and, if it leaves the region, backs off to the largest fraction that still fits, so a fast drag stops flush with the edge. */
 function withinRegion(
   start: SketchStroke,
   region: SketchRegion,
@@ -221,11 +223,7 @@ export function moveStroke(start: SketchStroke, delta: SketchPoint, region: Sket
   return { ...start, points: start.points.map((point) => ({ x: point.x + x, y: point.y + y })) };
 }
 
-/**
- * Drags `corner` by the pointer's travel since the gesture began, keeping the
- * opposite corner fixed. Works in the frame's own axes, so rotated strokes
- * resize along their rotated sides. A zero-extent axis (a straight line) keeps its extent.
- */
+/** Drags `corner` by the pointer's travel since the gesture began, keeping the opposite corner fixed. Works in the frame's own axes, so rotated strokes resize along their rotated sides. A zero-extent axis (a straight line) keeps its extent. */
 export function resizeStroke(
   start: SketchStroke,
   corner: FrameCorner,

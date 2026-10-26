@@ -309,6 +309,40 @@ describe("TokenField", () => {
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
   });
 
+  it("pulls the field harder while a drag pushes on against a limit, and unwinds before the value moves", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "0px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+      leading: createElement("span", null, "↔"),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    mockPointerCapture(dragHandle);
+    const input = () => handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    const stretch = () => {
+      const surface = handle.host.querySelector("[data-nudge-elastic]") as HTMLElement;
+      return Number.parseFloat(surface.style.getPropertyValue("--nudge-stretch"));
+    };
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 200 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 160 })));
+    const shallow = stretch();
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 60 })));
+    expect(input().value).toBe("0px");
+    expect(stretch()).toBeGreaterThan(shallow);
+
+    // Pulling back unwinds the overshoot first, so the value stays put while the stretch relaxes.
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 100 })));
+    expect(input().value).toBe("0px");
+    expect(stretch()).toBeLessThan(shallow * 10);
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 200 })));
+    expect(input().value).toBe("0px");
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 230 })));
+    expect(input().value).toBe("1px");
+  });
+
   it("undoes a complete field drag and redoes its final value", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "padding-top": "16px" });

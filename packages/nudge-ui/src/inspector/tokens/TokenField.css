@@ -31,6 +31,16 @@
   cursor: var(--nudge-drag-cursor, ew-resize);
   touch-action: none;
   user-select: none;
+  transform: translateX(var(--nudge-shift, 0px));
+}
+
+/* The left edge follows the drag: a same-coloured offset shadow extends it outwards, a clip pulls it inwards. Both follow the corner radius. */
+[data-nudge-elastic="out"] {
+  box-shadow: calc(-1 * var(--nudge-stretch, 0px)) 0 0 0 var(--surface-control-hover);
+}
+
+[data-nudge-elastic="in"] {
+  clip-path: inset(0 0 0 var(--nudge-stretch, 0px) round var(--radius-control));
 }
 
 .token-field__leading--nudge:hover,

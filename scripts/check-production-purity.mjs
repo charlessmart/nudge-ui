@@ -9,8 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
-// Runtime artifacts only Nudge UI emits. A bare "@nudge-ui/" reference is deliberately
-// not one: package names legitimately appear in fixture copy and build traces.
+// Runtime artifacts only Nudge UI emits. A bare "@nudge-ui/" reference is deliberately not one: package names legitimately appear in fixture copy and build traces.
 const FORBIDDEN_MARKERS = [
   "data-cid=",
   "data-src=",

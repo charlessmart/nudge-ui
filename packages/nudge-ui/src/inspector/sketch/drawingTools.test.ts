@@ -3,18 +3,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getSketchDrawingTools,
   resetSketchDrawingTool,
-  restoreDefaultSketchDrawingTools,
   setSketchDrawingTool,
   setSketchStrokeColor,
-  sketchToolForEvent,
   subscribeSketchDrawingTools,
 } from "./drawingTools.ts";
+import { sketchToolForEvent } from "../canvas/sketch/sketchShortcuts.ts";
 import { SKETCH_PEN_COLORS, SKETCH_STROKE_COLOR } from "./model.ts";
 
 const red = SKETCH_PEN_COLORS.find((color) => color.id === "red")!;
+const defaultColor = SKETCH_PEN_COLORS.find((color) => color.value === SKETCH_STROKE_COLOR)!;
 
 afterEach(() => {
-  restoreDefaultSketchDrawingTools();
+  setSketchDrawingTool("pen");
+  setSketchStrokeColor(defaultColor);
 });
 
 describe("sketch drawing tools", () => {

@@ -9,13 +9,9 @@ import {
   sep,
 } from "node:path";
 import type {
-  Alias,
-  ConfigEnv,
   ModuleNode,
   Plugin,
   ResolvedConfig,
-  UserConfig,
-  UserConfigExport,
   ViteDevServer,
 } from "vite";
 import {
@@ -287,8 +283,7 @@ export function createVitePlugins(
     if (!CSS_EXT.test(id)) return;
     let code = rawCode;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    // Astro compiles component <style> blocks into JS wrappers with no authored .css artifact,
-    // so unwrap the embedded stylesheet or the catalog never sees scoped custom properties (ADR-0011).
+    // Astro compiles component <style> blocks into JS wrappers with no authored .css artifact, so unwrap the embedded stylesheet or the catalog never sees scoped custom properties (ADR-0011).
     if (!CSS_EXT.test(fileId)) {
       const unwrapped = extractViteModuleCss(code);
       if (unwrapped !== null) code = unwrapped;
@@ -550,8 +545,7 @@ export function createVitePlugins(
     if (!devServer || !root || command !== "serve") return Promise.resolve();
     if (postTransformPromise) return postTransformPromise;
 
-    // The module graph decides reachability: only the reachable entries are transformed,
-    // without activating dead CSS files.
+    // The module graph decides reachability: only the reachable entries are transformed, without activating dead CSS files.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
       const cssPaths = activeHostCssFiles.size > 0
@@ -705,8 +699,7 @@ export function createVitePlugins(
       server.watcher?.on("unlink", (file) => handleStylesheetWatchEvent(server, file, "unlink"));
     },
     buildStart() {
-      // The browser imports virtual:design-tokens before styles.css is necessarily transformed,
-      // so transform-only collection would yield an empty first load.
+      // The browser imports virtual:design-tokens before styles.css is necessarily transformed, so transform-only collection would yield an empty first load.
       if (!enabled || (command !== "serve" && !demoBuild) || !root) return;
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
@@ -805,8 +798,7 @@ export function createVitePlugins(
       }
       return null;
     },
-    // React's Vite plugin is also `enforce: "pre"` with no explicit hook order, so hook-level
-    // `order: "pre"` is what parses authored TSX before Babel shifts the AST locations data-src depends on.
+    // React's Vite plugin is also `enforce: "pre"` with no explicit hook order, so hook-level `order: "pre"` is what parses authored TSX before Babel shifts the AST locations data-src depends on.
     transform: {
       order: "pre",
       async handler(code, id) {
@@ -832,8 +824,7 @@ export function createVitePlugins(
       },
     },
     transformIndexHtml(html) {
-      // The static demo build imports the virtual module from the app entry, because Vite
-      // cannot preserve the dev HTML virtual-module URL.
+      // The static demo build imports the virtual module from the app entry, because Vite cannot preserve the dev HTML virtual-module URL.
       if (!enabled || demoBuild) return;
       // Demo builds return above: they ship production React, which has no prop-editing toolkit.
       const headScript = framework?.documentHeadScript;
@@ -947,8 +938,7 @@ export function createVitePlugins(
     },
   };
 
-  // Tailwind's generator is a pre-transform hook, so this companion stays in Vite's normal
-  // group: after every pre plugin regardless of user order, and before Vite's CSS-post wrapper.
+  // Tailwind's generator is a pre-transform hook, so this companion stays in Vite's normal group: after every pre plugin regardless of user order, and before Vite's CSS-post wrapper.
   const transformedCssObserver: Plugin = {
     name: "nudge-ui:transformed-css",
     apply: "serve",

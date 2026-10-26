@@ -20,6 +20,7 @@ import {
 } from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
 import { deleteElement, getDropAttemptAtPoint, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { shake } from "../ui/shake.ts";
 import { showToast } from "../ui/Toast.tsx";
 import { changeKey } from "../changes/model.ts";
 import { getActiveDraftChanges, redo, subscribeActiveDraftChanges, undo } from "../drafts/store.ts";
@@ -49,6 +50,7 @@ import {
   getSpacingHoverAtPoint,
   SPACING_GUIDE_HANDLE_LENGTH,
   spacingValueCss,
+  spacingSnapOffset,
   spacingValueForDrag,
   type SpacingAffordance,
   type SpacingDescriptor,
@@ -102,6 +104,8 @@ interface CanvasSpacingBadgeState {
   iframe: CanvasFrame;
   point: { x: number; y: number };
   value: number;
+  /** Shift is snapping to 8px steps: the badge rides the snapped handle instead of the raw pointer. */
+  snapping: boolean;
 }
 
 /** A committed drag's preview inline, held until the renderer applies the projected rule so the value never flashes. */
@@ -132,12 +136,12 @@ function singleSelectedRendererElement(element: HTMLElement | null): HTMLElement
 function spacingBadgeForDrag(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
+  snapping = false,
 ): CanvasSpacingBadgeState {
-  return {
-    iframe: drag.iframe,
-    point: { x: point.x, y: point.y },
-    value: drag.currentValue,
-  };
+  const badgePoint = { x: point.x, y: point.y };
+  // The badge rides the snapped handle rather than the pointer, which sits somewhere between two snaps.
+  if (snapping) badgePoint[drag.affordance.dragAxis] += spacingSnapOffset(drag.affordance, drag.start, point);
+  return { iframe: drag.iframe, point: badgePoint, value: drag.currentValue, snapping };
 }
 
 function overlayStyle(rect: Rect): CSSProperties {
@@ -193,18 +197,22 @@ function spacingDescriptorMatches(
 function clearSpacingDrag(ref: { current: CanvasSpacingDragState | null }): void {
   const drag = ref.current;
   ref.current = null;
-  if (drag) restoreSpacingPreview(drag);
+  if (!drag) return;
+  restoreSpacingPreview(drag);
 }
 
+/** Returns true when an 8px snap stepped to a new value, so the handle can morph and settle. */
 function applySpacingPreview(
   drag: CanvasSpacingDragState,
   point: { x: number; y: number },
   shiftKey = false,
-): void {
+): boolean {
   const value = spacingValueForDrag(drag.affordance, drag.start, point, shiftKey);
+  const stepped = shiftKey && value !== drag.currentValue;
   drag.currentValue = value;
   beginLayoutPreview(drag.element, drag.affordance.property);
   drag.element.style.setProperty(drag.affordance.property, spacingValueCss(value));
+  return stepped;
 }
 
 function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
@@ -370,6 +378,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   const spacingDragRef = useRef<CanvasSpacingDragState | null>(null);
   const pendingSpacingCommitsRef = useRef<PendingSpacingCommit[]>([]);
   const [spacingDragBadge, setSpacingDragBadge] = useState<CanvasSpacingBadgeState | null>(null);
+  /** Counts 8px snap steps in the current drag; it keys the handle so each step replays its settle. */
+  const [spacingSnapTick, setSpacingSnapTick] = useState(0);
   const measureAltKeyRef = useRef(false);
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide);
@@ -528,6 +538,45 @@ export function CanvasElementOverlay(): ReactElement | null {
       });
     };
 
+    const moveSpacingDrag = (drag: CanvasSpacingDragState, point: { x: number; y: number }, shiftKey: boolean): void => {
+      if (applySpacingPreview(drag, point, shiftKey)) {
+        setSpacingSnapTick((tick) => tick + 1);
+      }
+      setSpacingDragBadge(spacingBadgeForDrag(drag, point, shiftKey));
+      refreshSpacingPreviewOverlay(drag);
+    };
+
+    const finishSpacingDrag = (
+      drag: CanvasSpacingDragState,
+      point: { x: number; y: number },
+      shiftKey: boolean,
+      cancelled: boolean,
+    ): void => {
+      if (spacingDragRef.current === drag) spacingDragRef.current = null;
+      setSpacingDragBadge(null);
+      if (cancelled) {
+        restoreSpacingPreview(drag);
+        refreshSpacingPreviewOverlay(drag);
+      } else {
+        applySpacingPreview(drag, point, shiftKey);
+        const records = commitSpacingDrag(drag);
+        if (records.length > 0) {
+          pushPendingSpacingCommit(pendingSpacingCommitsRef.current, {
+            iframe: drag.iframe,
+            element: drag.element,
+            property: drag.affordance.property,
+            committedValue: spacingValueCss(drag.currentValue),
+            keys: records.map((record) => changeKey(record)),
+            originalInlineValue: drag.originalInlineValue,
+            originalInlinePriority: drag.originalInlinePriority,
+          });
+        }
+        refreshSpacingPreviewOverlay(drag);
+      }
+      clearDropGuide("canvas");
+      if (!cancelled) selectGestureElement(drag.element);
+    };
+
     const unsubscribe = subscribeCanvasRendererMessages(({ frame, message: data }) => {
       if (data.type === "renderer-hello" || data.type === "frame-ready") {
         frame.post({ type: "measure-modifier", altKey: measureAltKeyRef.current });
@@ -652,10 +701,10 @@ export function CanvasElementOverlay(): ReactElement | null {
             originalInlineValue: element.style.getPropertyValue(spacing.property),
             originalInlinePriority: element.style.getPropertyPriority(spacing.property),
           };
+          const drag = spacingDragRef.current;
           selectGestureElement(element);
-          applySpacingPreview(spacingDragRef.current, msg.point, msg.shiftKey === true);
-          setSpacingDragBadge(spacingBadgeForDrag(spacingDragRef.current, msg.point));
-          refreshSpacingPreviewOverlay(spacingDragRef.current);
+          setSpacingSnapTick(0);
+          moveSpacingDrag(drag, msg.point, msg.shiftKey === true);
           return;
         }
         dragRef.current = { iframe: frame.iframe, element };
@@ -664,9 +713,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (data.type === "element-drag-move") {
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === frame.iframe) {
-          applySpacingPreview(spacing, data.point, data.shiftKey === true);
-          setSpacingDragBadge(spacingBadgeForDrag(spacing, data.point));
-          refreshSpacingPreviewOverlay(spacing);
+          moveSpacingDrag(spacing, data.point, data.shiftKey === true);
           return;
         }
         updateDropGuide(data.point);
@@ -674,31 +721,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === frame.iframe) {
-          spacingDragRef.current = null;
-          setSpacingDragBadge(null);
-          if (msg.cancelled) {
-            restoreSpacingPreview(spacing);
-            refreshSpacingPreviewOverlay(spacing);
-          } else {
-            applySpacingPreview(spacing, msg.point, msg.shiftKey === true);
-            const records = commitSpacingDrag(spacing);
-            if (records.length > 0) {
-              pushPendingSpacingCommit(pendingSpacingCommitsRef.current, {
-                iframe: frame.iframe,
-                element: spacing.element,
-                property: spacing.affordance.property,
-                committedValue: spacingValueCss(spacing.currentValue),
-                keys: records.map((record) => changeKey(record)),
-                originalInlineValue: spacing.originalInlineValue,
-                originalInlinePriority: spacing.originalInlinePriority,
-              });
-            }
-            refreshSpacingPreviewOverlay(spacing);
-          }
-          clearDropGuide("canvas");
-          if (!msg.cancelled) {
-            selectGestureElement(spacing.element);
-          }
+          finishSpacingDrag(spacing, msg.point, msg.shiftKey === true, msg.cancelled === true);
           return;
         }
         const current = dragRef.current;
@@ -709,6 +732,8 @@ export function CanvasElementOverlay(): ReactElement | null {
             showToast({ tone: "error", title: "Couldn't record this move" });
           } else if (rejection) {
             showToast({ tone: "error", title: rejection.message });
+            const outline = outlineNodes.current.get(current.element);
+            if (outline) shake(outline);
           }
           selectGestureElement(current.element);
         }
@@ -766,11 +791,12 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectedSpacingGuides = hover && hoverViewport ? hover.spacingGuides.map((guide) => toViewportRect(hoverViewport, guide)) : [];
   const projectedSpacingAreas = hover && hoverViewport ? hover.spacingAreas.map((area) => toViewportRect(hoverViewport, area)) : [];
   const spacingBadge = spacingDragBadge
-    ?? (hover?.spacingHandleBadge ? { iframe: hover.iframe, ...hover.spacingHandleBadge } : null);
+    ?? (hover?.spacingHandleBadge ? { iframe: hover.iframe, ...hover.spacingHandleBadge, snapping: false } : null);
   const projectedSpacingBadge = spacingBadge
     ? toViewportPoint(measureFrameViewport(spacingBadge.iframe), spacingBadge.point)
     : null;
   const hoverSpacing = hover?.spacing ?? null;
+  const spacingSnapKey = spacingDragBadge?.snapping ? spacingSnapTick : 0;
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
   const hoverInSelectedFrame = hover?.iframe === selectedFrame ? hover : null;
   const showGuideOverlay = Boolean(
@@ -805,7 +831,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     }))
     : [];
 
-  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction || debugExploded) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
 
   return (
     <>
@@ -838,8 +864,9 @@ export function CanvasElementOverlay(): ReactElement | null {
           ) : null}
           {hoverSpacing ? projectedSpacingGuides.map((guide, index) => (
             <div
-              key={`${hoverSpacing.property}-${index}`}
+              key={`${hoverSpacing.property}-${index}-${spacingSnapKey}`}
               className="canvas-spacing-guide"
+              data-snap={spacingSnapKey > 0 ? "" : undefined}
               data-test="canvas-spacing-guide"
               data-kind={hoverSpacing.kind}
               data-property={hoverSpacing.property}
@@ -878,6 +905,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       {projectedSpacingBadge && spacingBadge ? (
         <div
           className="canvas-spacing-value-badge"
+          data-snapping={spacingBadge.snapping ? "" : undefined}
           data-test="canvas-spacing-value-badge"
           style={{ left: projectedSpacingBadge.x, top: projectedSpacingBadge.y }}
           aria-hidden="true"

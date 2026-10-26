@@ -17,6 +17,7 @@ import { deriveActiveTokenName, isExpressionRow } from "../styleEditors/fieldVal
 import {
   canNudgeCssValueByDrag,
   nudgeCssValue,
+  isAtNudgeLimit,
   nudgeCssValueByDrag,
   nudgeOpacityValue,
   supportsDragNudge,
@@ -31,6 +32,7 @@ import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { cx } from "../ui/classNames.ts";
 import { TokenChip } from "./TokenChip.tsx";
+import { createElasticDrag, type ElasticDrag } from "./dragElastic.ts";
 import { startDragPointerLock } from "./dragPointerLock.ts";
 import { createChangeHistoryGroup } from "../workspace/timeline.ts";
 import { isMultiTarget, targetElements, type EditTarget } from "../selection/editTarget.ts";
@@ -171,6 +173,11 @@ interface DragNudgeState {
   handle: HTMLSpanElement;
   pointerId: number;
   lastClientX: number;
+  /** Net signed pointer travel the value followed; unlike `deltaX` it survives shift re-baselining. */
+  travelX: number;
+  /** Signed travel pushed on against a limit (0 padding, 100% opacity); it unwinds before the value moves again. */
+  wallOvershoot: number;
+  elastic: ElasticDrag;
   deltaX: number;
   startValue: string;
   lastValue: string;
@@ -520,6 +527,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (!drag) return;
     dragNudgeRef.current = null;
     drag.pointerLock?.stop();
+    drag.elastic.release();
     releasePointerCapture(drag);
     setIsDraggingNudge(false);
   }, []);
@@ -546,6 +554,12 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       handle,
       pointerId: event.pointerId,
       lastClientX: event.clientX,
+      travelX: 0,
+      wallOvershoot: 0,
+      elastic: createElasticDrag(
+        handle.closest<HTMLElement>(".control-surface, .text-input, .token-chip") ?? handle.parentElement ?? handle,
+        (offset) => dragNudgeRef.current?.pointerLock?.setCursorOffset(offset),
+      ),
       deltaX: 0,
       startValue: rawValue,
       lastValue: rawValue,
@@ -574,6 +588,22 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     updateDragNudge(event, movementX);
   }
 
+  /** Splits pointer movement into what the value follows and what pushes against a limit; returns the part the value follows. */
+  function followDragMovement(drag: DragNudgeState, movementX: number): number {
+    if (movementX === 0) return 0;
+    const direction = movementX < 0 ? -1 : 1;
+    if (drag.wallOvershoot !== 0 && Math.sign(drag.wallOvershoot) !== direction) {
+      const unwound = Math.min(Math.abs(movementX), Math.abs(drag.wallOvershoot));
+      drag.wallOvershoot += direction * unwound;
+      return movementX - direction * unwound;
+    }
+    if (drag.wallOvershoot !== 0 || isAtNudgeLimit(nudgeProperty, drag.lastValue, direction, drag.shiftActive)) {
+      drag.wallOvershoot += movementX;
+      return 0;
+    }
+    return movementX;
+  }
+
   function updateDragNudge(event: MouseEvent | React.PointerEvent<HTMLSpanElement>, movementX: number): void {
     const drag = dragNudgeRef.current;
     if (!drag) return;
@@ -583,7 +613,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       drag.deltaX = 0;
       drag.shiftSnapPending = event.shiftKey;
     }
-    drag.deltaX += movementX;
+    const followed = followDragMovement(drag, movementX);
+    drag.deltaX += followed;
+    drag.travelX += followed;
+    drag.elastic.update(drag.travelX, event.shiftKey, drag.wallOvershoot);
     const next = nudgeCssValueByDrag(
       nudgeProperty,
       drag.startValue,

@@ -48,10 +48,7 @@ export function hostOutputCount(fiber: Fiber): number {
   return count;
 }
 
-/**
- * Only the naming fields of a component type, which is a function or a forwardRef/memo object; any field may be
- * missing or hold something unexpected, so each is read as unknown.
- */
+/** Only the naming fields of a component type, which is a function or a forwardRef/memo object; any field may be missing or hold something unexpected, so each is read as unknown. */
 interface NamedComponentType {
   displayName?: unknown;
   name?: unknown;
@@ -67,8 +64,7 @@ function readName(value: unknown): string | null {
 function componentTypeName(fiber: Fiber): { name: string; explicit: boolean } | null {
   const { type } = fiber;
   if (!type || (typeof type !== "function" && typeof type !== "object")) return null;
-  // SAFETY: functions and objects both carry properties, every field is optional and read as unknown, and readName
-  // checks each value; `render` and `type` hold component types (a forwardRef render is a function) or nothing.
+  // SAFETY: functions and objects both carry properties, every field is optional and read as unknown, and readName checks each value; `render` and `type` hold component types (a forwardRef render is a function) or nothing.
   const named = type as NamedComponentType;
   const explicit = readName(named.displayName) ?? readName(named.render?.displayName) ?? readName(named.type?.displayName);
   if (explicit) return { name: explicit, explicit: true };
@@ -77,10 +73,7 @@ function componentTypeName(fiber: Fiber): { name: string; explicit: boolean } | 
   return inferred && /^[A-Z]/.test(inferred) ? { name: inferred, explicit: false } : null;
 }
 
-/**
- * Names the component whose root renders `element`: the outermost layer with an explicit `displayName`, as design
- * systems set (`Stack` over the `Box` it renders), or else the nearest capitalised function name.
- */
+/** Names the component whose root renders `element`: the outermost layer with an explicit `displayName`, as design systems set (`Stack` over the `Box` it renders), or else the nearest capitalised function name. */
 export function hostComponentName(element: Element): string | null {
   const host = findFiber(element);
   let nearest: string | null = null;

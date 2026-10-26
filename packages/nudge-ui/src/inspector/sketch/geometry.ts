@@ -1,35 +1,23 @@
-import {
-  SKETCH_ANNOTATION_RADIUS,
-  type SketchAnnotation,
-  type SketchPoint,
-  type SketchStroke,
-} from "./model.ts";
-import { pointInStrokeBox } from "./selectionFrame.ts";
-
-export interface SketchBounds {
-  readonly width: number;
-  readonly height: number;
-}
-
-export type SketchElementReference =
-  | { readonly kind: "stroke"; readonly id: string }
-  | { readonly kind: "annotation"; readonly id: string };
+import { distanceToSegment, pointInStrokeBox } from "./selectionFrame.ts";
+import type { SketchPoint, SketchStroke } from "./model.ts";
 
 function distance(left: SketchPoint, right: SketchPoint): number {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
-export function distanceToSegment(point: SketchPoint, start: SketchPoint, end: SketchPoint): number {
-  const deltaX = end.x - start.x;
-  const deltaY = end.y - start.y;
-  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
-  if (lengthSquared === 0) return distance(point, start);
-  const projection = ((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) / lengthSquared;
-  const position = Math.max(0, Math.min(1, projection));
-  return distance(point, {
-    x: start.x + position * deltaX,
-    y: start.y + position * deltaY,
-  });
+/** Closed box between two opposite corners, clockwise from the top-left. */
+export function rectanglePoints(start: SketchPoint, end: SketchPoint): SketchPoint[] {
+  const left = Math.min(start.x, end.x);
+  const right = Math.max(start.x, end.x);
+  const top = Math.min(start.y, end.y);
+  const bottom = Math.max(start.y, end.y);
+  return [
+    { x: left, y: top },
+    { x: right, y: top },
+    { x: right, y: bottom },
+    { x: left, y: bottom },
+    { x: left, y: top },
+  ];
 }
 
 function distanceToStroke(point: SketchPoint, stroke: SketchStroke): number {
@@ -41,37 +29,11 @@ function distanceToStroke(point: SketchPoint, stroke: SketchStroke): number {
   return closest;
 }
 
-function pointBounds(points: readonly SketchPoint[]): {
-  readonly minX: number;
-  readonly maxX: number;
-  readonly minY: number;
-  readonly maxY: number;
-} {
-  let minX = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const point of points) {
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-  return { minX, maxX, minY, maxY };
-}
-
+/** The topmost stroke under the point, or null. */
 export function findSketchElementAt(
   point: SketchPoint,
   strokes: readonly SketchStroke[],
-  annotations: readonly SketchAnnotation[],
-): SketchElementReference | null {
-  for (let index = annotations.length - 1; index >= 0; index -= 1) {
-    const annotation = annotations[index]!;
-    if (distance(point, annotation.point) <= SKETCH_ANNOTATION_RADIUS * 1.5) {
-      return { kind: "annotation", id: annotation.id };
-    }
-  }
-
+): string | null {
   for (let index = strokes.length - 1; index >= 0; index -= 1) {
     const stroke = strokes[index]!;
     const tolerance = Math.max(10, stroke.width / 2 + 6);
@@ -79,52 +41,10 @@ export function findSketchElementAt(
     const solid = stroke.kind === "rectangle" || stroke.kind === "text";
     if ((solid && pointInStrokeBox(stroke, point, tolerance))
       || (stroke.kind !== "text" && distanceToStroke(point, stroke) <= tolerance)) {
-      return { kind: "stroke", id: stroke.id };
+      return stroke.id;
     }
   }
   return null;
-}
-
-function constrainedDelta(points: readonly SketchPoint[], delta: SketchPoint, bounds: SketchBounds): SketchPoint {
-  if (points.length === 0) return delta;
-  const { minX, maxX, minY, maxY } = pointBounds(points);
-  let x = delta.x;
-  let y = delta.y;
-  if (minX + x < 0) x = -minX;
-  else if (maxX + x > bounds.width) x = bounds.width - maxX;
-  if (minY + y < 0) y = -minY;
-  else if (maxY + y > bounds.height) y = bounds.height - maxY;
-  return { x, y };
-}
-
-export function translateSketchStroke(
-  stroke: SketchStroke,
-  delta: SketchPoint,
-  bounds: SketchBounds,
-): SketchStroke {
-  const constrained = constrainedDelta(stroke.points, delta, bounds);
-  return {
-    ...stroke,
-    points: stroke.points.map((point) => ({
-      x: point.x + constrained.x,
-      y: point.y + constrained.y,
-    })),
-  };
-}
-
-export function translateSketchAnnotation(
-  annotation: SketchAnnotation,
-  delta: SketchPoint,
-  bounds: SketchBounds,
-): SketchAnnotation {
-  const constrained = constrainedDelta([annotation.point], delta, bounds);
-  return {
-    ...annotation,
-    point: {
-      x: annotation.point.x + constrained.x,
-      y: annotation.point.y + constrained.y,
-    },
-  };
 }
 
 /** Rectangles are hit on their outline only, so erasing inside a box leaves it in place; text is hit anywhere in its box. */

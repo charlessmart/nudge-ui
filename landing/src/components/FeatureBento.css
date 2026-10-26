@@ -85,7 +85,6 @@
   background: var(--surface-well-2x);
 }
 
-/* Text */
 .landing-bento-text {
   display: flex;
   flex-direction: column;
@@ -182,7 +181,6 @@
   transition-delay: 0ms;
 }
 
-/* Tokens */
 .landing-bento-tokens {
   display: flex;
   flex-direction: column;
@@ -298,7 +296,6 @@
   width: 52%;
 }
 
-/* Comment */
 /* Wider than the card so the bubble's overflow keeps the group centered. */
 .landing-bento-comment {
   position: relative;
@@ -448,7 +445,6 @@
   50% { opacity: 0; }
 }
 
-/* Sketch */
 .landing-bento-sketch {
   display: flex;
   flex-direction: column;
@@ -540,7 +536,6 @@
 .landing-bento[data-visible="true"] .landing-bento-sketch-strokes path:nth-child(2) { transition-delay: calc(var(--landing-bento-delay) + 700ms); transition-duration: 400ms; }
 .landing-bento[data-visible="true"] .landing-bento-sketch-strokes path:nth-child(3) { transition-delay: calc(var(--landing-bento-delay) + 1100ms); transition-duration: 200ms; }
 
-/* Canvas */
 .landing-bento-canvas {
   display: flex;
   width: 100%;

@@ -5,8 +5,7 @@ import type { ConfigurationChange, Framework } from "./types.ts";
 
 const nextConfigNames = ["next.config.ts", "next.config.mts", "next.config.mjs", "next.config.js", "next.config.cjs"];
 const astroConfigNames = ["astro.config.ts", "astro.config.mts", "astro.config.mjs", "astro.config.js"];
-// Vite's own `DEFAULT_CONFIG_FILES` order: the first existing file wins, so creating
-// one out of order would silently shadow the configuration Vite actually loads.
+// Vite's own `DEFAULT_CONFIG_FILES` order: the first existing file wins, so creating one out of order would silently shadow the configuration Vite actually loads.
 const viteConfigNames = [
   "vite.config.js",
   "vite.config.mjs",

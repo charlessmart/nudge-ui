@@ -17,7 +17,6 @@ import {
 import { createProjectTokenSnapshot } from "../../project/tokens.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_RELOAD_PATH,
   NUDGE_UI_ROUTE_PREFIX,
@@ -119,10 +118,7 @@ function isWithinRoot(root: string, candidate: string): boolean {
       && !isAbsolute(pathFromRoot));
 }
 
-/**
- * Reads authored sources directly because Turbopack's persistent cache can skip
- * loader re-runs; `canonicalRoot` must be realpath'd so keys match loader postings.
- */
+/** Reads authored sources directly because Turbopack's persistent cache can skip loader re-runs; `canonicalRoot` must be realpath'd so keys match loader postings. */
 async function scanProjectContracts(
   canonicalRoot: string,
   apply: (file: string, contracts: unknown[]) => void,
@@ -209,15 +205,13 @@ export async function ensureSidecar(
   root: string,
   options: SidecarOptions = {},
 ): Promise<SidecarHandle> {
-  // Watchers report REAL paths; on macOS the textual form can differ from root
-  // (/tmp -> /private/tmp), so canonicalize once and derive everything from fsRoot.
+  // Watchers report REAL paths; on macOS the textual form can differ from root (/tmp -> /private/tmp), so canonicalize once and derive everything from fsRoot.
   const fsRoot = await realpath(root).catch(() => root);
   const scanRoots = await tokenScanRoots(fsRoot, options.sourceRoots);
   const state = globalState(
     `${options.tokens ? "tokens" : "manifest"}:${fsRoot}:${scanRoots.join("|")}`,
   );
-  // The settled promise doubles as the handle cache: awaiting it replays the
-  // same handle for every caller until close/failure clears the slot.
+  // The settled promise doubles as the handle cache: awaiting it replays the same handle for every caller until close/failure clears the slot.
   if (state.starting) return state.starting;
 
   const starting = (async () => {
@@ -230,8 +224,7 @@ export async function ensureSidecar(
       contractsTimer = null;
       const flat: unknown[] = [];
       for (const list of contractsByFile.values()) flat.push(...list);
-      // SAFETY: contracts come from the shared extractor or the loader's
-      // serialized output of that same extractor contract.
+      // SAFETY: contracts come from the shared extractor or the loader's serialized output of that same extractor contract.
       manifest.runtime.componentContracts = flat as NudgeUiManifest["runtime"]["componentContracts"];
       generation += 1;
       for (const stream of streams) {
@@ -315,12 +308,10 @@ export async function ensureSidecar(
         changes: readonly ProjectFileChange[],
       ): Promise<void> => {
         let needsContractRescan = false;
-        // Deletions must prune or stale controls survive forever; a read that
-        // lands mid-write is skipped and retried on the next settled batch.
+        // Deletions must prune or stale controls survive forever; a read that lands mid-write is skipped and retried on the next settled batch.
         for (const change of changes) {
           const normalized = change.absolutePath.split("\\").join("/");
-          // fs.watch can report a directory or omit the filename, leaving the
-          // source unknown; a bounded rescan is then the only way to stay coherent.
+          // fs.watch can report a directory or omit the filename, leaving the source unknown; a bounded rescan is then the only way to stay coherent.
           if (!CONTRACT_SOURCE_EXT.test(normalized)) {
             needsContractRescan = true;
             continue;
@@ -360,8 +351,7 @@ export async function ensureSidecar(
         await settleTokens();
       };
 
-      // Extra workspace roots refresh tokens only; contract rescans stay
-      // within the app root (nested roots are already covered by the app watcher).
+      // Extra workspace roots refresh tokens only; contract rescans stay within the app root (nested roots are already covered by the app watcher).
       const additionalRoots = scanRoots.filter(
         (scanRoot) => scanRoot !== fsRoot && !isWithinRoot(fsRoot, scanRoot),
       );
@@ -382,8 +372,7 @@ export async function ensureSidecar(
           rootDirectory: tokenRoot,
           debounceMs: 60,
           onSettled: async (changes) => {
-            // App edits fire this watcher too; the app watcher already covers them,
-            // so only changes outside the app need a second scan.
+            // App edits fire this watcher too; the app watcher already covers them, so only changes outside the app need a second scan.
             const outside = isWithinRoot(tokenRoot, fsRoot)
               ? changes.filter((change) => !isWithinRoot(fsRoot, change.absolutePath))
               : changes;
@@ -423,8 +412,7 @@ export async function ensureSidecar(
     return handle;
   })();
 
-  // A failed start must not wedge the singleton (the Symbol.for key survives
-  // HMR): clear the slot, identity-checked so a concurrent start is not discarded.
+  // A failed start must not wedge the singleton (the Symbol.for key survives HMR): clear the slot, identity-checked so a concurrent start is not discarded.
   starting.catch(() => {
     if (state.starting === starting) state.starting = undefined;
   });

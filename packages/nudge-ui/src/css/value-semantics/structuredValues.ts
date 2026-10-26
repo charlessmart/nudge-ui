@@ -187,8 +187,7 @@ function expandBorder(
   // SAFETY: lower is one of the known border structure source properties from the parser typed union.
   const sourceProperty = lower as BorderStructure["sourceProperty"];
   const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
-  // Interpret each distinct component once; every projected longhand reuses
-  // that component result instead of re-resolving the same token.
+  // Interpret each distinct component once; every projected longhand reuses that component result instead of re-resolving the same token.
   const { widthResult, styleResult, colorResult } = components;
   const scopedStructure: BorderStructure = {
     kind: "border",

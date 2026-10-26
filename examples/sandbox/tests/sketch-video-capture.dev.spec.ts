@@ -69,13 +69,13 @@ test("captures a playing video's current frame without interrupting playback", a
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    const saved = await new Promise<{ originalImage: Blob }>((resolve, reject) => {
+    const saved = await new Promise<{ image: Blob }>((resolve, reject) => {
       const request = database.transaction("documents").objectStore("documents").get(id!);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
     database.close();
-    const image = await createImageBitmap(saved.originalImage);
+    const image = await createImageBitmap(saved.image);
     const canvas = document.createElement("canvas");
     canvas.width = image.width;
     canvas.height = image.height;

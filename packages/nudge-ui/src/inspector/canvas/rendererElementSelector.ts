@@ -298,8 +298,7 @@ export function installRendererElementSelector(
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
     if (spacing) {
-      // A margin lies on its parent, so the pointer is over that element, not the margin's owner. Tracked
-      // elements each carry their own cursor rule, so the element under the pointer needs the resize cursor too.
+      // A margin lies on its parent, so the pointer is over that element, not the margin's owner. Tracked elements each carry their own cursor rule, so the element under the pointer needs the resize cursor too.
       const underPointer = pending.point ? document.elementFromPoint?.(pending.point.x, pending.point.y) : null;
       setSpacingCursor(
         underPointer instanceof HTMLElement && underPointer !== spacing.element ? [spacing.element, underPointer] : [spacing.element],
@@ -757,7 +756,6 @@ export function installRendererElementSelector(
       if (scrolling) return;
       if (related instanceof Node && (target.contains(related) || target === related)) return;
 
-      if (!(target instanceof Element)) return;
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
 

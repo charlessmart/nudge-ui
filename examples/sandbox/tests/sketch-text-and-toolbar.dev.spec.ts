@@ -93,8 +93,7 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   expect(steps).toEqual([...steps].sort((first, second) => first - second));
   expect(new Set(steps).size).toBe(steps.length);
 
-  // While the controls rise in, they are clipped to the bar so the pen and eraser artwork never hangs below it; the
-  // clip is dropped afterwards so the color palette can fan out past the bar.
+  // While the controls rise in, they are clipped to the bar so the pen and eraser artwork never hangs below it; the clip is dropped afterwards so the color palette can fan out past the bar.
   const items = page.locator(".sketch-options__items");
   await expect(bar).toHaveAttribute("data-settled", "false");
   await expect(items).toHaveCSS("clip-path", /^inset\(/);
@@ -114,8 +113,7 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   // With nothing drawn, the button stays as it is and a plain toast (no icon) says what to do instead.
   await page.locator('[data-test="sketch-copy"]').click();
   const toast = page.locator('[data-test="toast"]');
-  await expect(toast).toContainText("Nothing to copy");
-  await expect(toast).toContainText("Sketch, then click done.");
+  await expect(toast).toContainText("Draw a sketch, then save");
   await expect(toast.locator(".toast__icon")).toHaveCount(0);
   await expect(page.locator('[data-test="sketch-live-prompt-input"]')).toHaveCount(0);
 
@@ -135,17 +133,13 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   expect(await divider.evaluate((element) => getComputedStyle(element).backgroundColor))
     .toBe(await page.locator('[data-test="canvas-toolbar"] > .canvas-toolbar__divider').evaluate((element) => getComputedStyle(element).backgroundColor));
 
-  // The copy button is a standard-size tick, and there is no clear button beside it.
+  // The save button is a labeled primary button with the tick icon, and there is no clear button beside it.
   const copyButton = page.locator('[data-test="sketch-copy"]');
-  await expect(copyButton).toHaveAttribute("aria-label", "Save sketch");
-  // The pointer is still on it from the click, so move away first for the tooltip to open on the way back.
-  await page.mouse.move(0, 0);
-  await copyButton.hover();
-  await expect(page.locator(".tooltip__popup", { hasText: "Save sketch" })).toBeVisible();
+  await expect(copyButton).toHaveText("Save");
   await expect(copyButton.locator("svg")).toHaveCount(1);
   const copy = await box(copyButton);
   expect(copy.height).toBe(32);
-  expect(copy.width).toBe(32);
+  expect(copy.width).toBeGreaterThan(32);
   await expect(page.locator('[data-test="sketch-clear"]')).toHaveCount(0);
 });
 
@@ -248,6 +242,21 @@ test("choosing another tool while typing keeps the text", async ({ page }) => {
   await expect(page.locator('[data-test="sketch-copy"]')).toBeEnabled();
 });
 
+test("clicking away from the text editor finishes the text without starting another box", async ({ page }) => {
+  const middle = await openSketch(page);
+  await page.locator('[data-test="sketch-tool-text"]').click();
+  await page.mouse.click(middle.x - 100, middle.y);
+  const editor = page.locator(EDITOR);
+  await expect(editor).toBeFocused();
+  await page.keyboard.type("Finish on click");
+
+  // The first click outside commits the text and is consumed; it must not open a second editor.
+  await page.mouse.click(middle.x + 140, middle.y + 100);
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator(TEXT)).toHaveText("Finish on click");
+  await expect(page.locator(TEXT)).toHaveCount(1);
+});
+
 test("double-clicking a text layer edits it and undo restores the old words", async ({ page }) => {
   const middle = await openSketch(page);
   await typeText(page, { x: middle.x - 100, y: middle.y }, "First");
@@ -304,6 +313,17 @@ async function copyTextSketch(page: Page, at: Point, text: string): Promise<void
   await expect(page.locator(TEXT)).toHaveCount(0, { timeout: 10_000 });
 }
 
+/** Clicks the stack of saved sketches beside the save button, which opens them into a grid of large cards above the bar. */
+async function openSketchGrid(page: Page): Promise<void> {
+  await page.locator('[data-test="sketch-recent-copy"]').first().click();
+  await expect(page.locator('[data-test="sketch-grid"]')).toBeVisible();
+  // Let the cards finish growing out of their thumbnails before anything is measured.
+  await page.waitForFunction(() => {
+    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
+    return root.querySelector('[data-test="sketch-grid"]')?.getAnimations({ subtree: true }).length === 0;
+  });
+}
+
 test("copy sketch clears the canvas, keeps the tool open, and leaves the copy out of the prompt", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
@@ -326,95 +346,114 @@ test("copy sketch clears the canvas, keeps the tool open, and leaves the copy ou
   await expect(page.locator('[data-test="copy-prompt-menu"]')).toHaveCount(0);
   await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
 
-  // The thumbnail sits straight before the copy button, after the divider, and is not tilted.
-  const copy = await box(page.locator('[data-test="sketch-copy"]'));
-  const divider = await box(page.locator('[data-test="sketch-options-divider"]'));
-  const thumbnail = await box(recent);
-  expect(thumbnail.x + thumbnail.width).toBeLessThanOrEqual(copy.x);
-  expect(copy.x - (thumbnail.x + thumbnail.width)).toBeLessThan(24);
-  expect(thumbnail.x).toBeGreaterThan(divider.x + divider.width);
-  const flat = await recent.evaluate((element) => ({
-    image: getComputedStyle(element.querySelector(".sketch-thumbnail")!).transform,
-    icon: getComputedStyle(element.querySelector(".sketch-recent__copy-icon")!).transform,
-  }));
-  expect(flat).toEqual({ image: "none", icon: "none" });
+  // The saved sketch sits in the bar, just left of the save button, and runs past the bar's bottom edge, where the
+  // stack is cut off. (Measured once it has finished popping in and sliding into place.)
+  await recent.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+  const bar = await box(page.locator('[data-test="sketch-tool-options"]'));
+  const stacked = await box(recent);
+  const save = await box(page.locator('[data-test="sketch-copy"]'));
+  expect(stacked.y).toBeGreaterThanOrEqual(bar.y);
+  expect(stacked.y).toBeLessThan(bar.y + bar.height);
+  expect(stacked.x + stacked.width).toBeLessThanOrEqual(save.x);
 });
 
-test("the copied sketch shows a copy icon on hover, and copies again on click", async ({ page }) => {
+test("clicking the stack opens a grid of large sketches, clicking one copies it and closes the grid, and remove deletes it", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
   await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Forgot to paste");
-  const recent = page.locator('[data-test="sketch-recent"]');
-  await expect(recent).toBeVisible();
+  const stack = page.locator('[data-test="sketch-recent"]');
+  await expect(stack).toBeVisible();
+  const grid = page.locator('[data-test="sketch-grid"]');
+  const card = page.locator('[data-test="sketch-recent-card"]');
+  const remove = page.locator('[data-test="sketch-recent-remove"]');
 
-  // The copy icon appears only while the thumbnail is hovered.
-  const icon = recent.locator(".sketch-recent__copy-icon");
-  await page.mouse.move(middle.x, middle.y - 150);
+  // Stacked, there is no grid. Clicking the stack opens it above the bar without moving the bar.
+  await expect(grid).toHaveCount(0);
+  const restingBar = await box(page.locator('[data-test="sketch-tool-options"]'));
+  await openSketchGrid(page);
+  expect(await box(page.locator('[data-test="sketch-tool-options"]'))).toEqual(restingBar);
+  await expect(card).toHaveCount(1);
+  // The sketches are out on the page, so the stack leaves an empty place in the bar.
+  await expect(stack).toHaveCSS("opacity", "0");
+  await expect(grid).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const shown = await box(grid);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(restingBar.y);
+  expect(restingBar.y - (shown.y + shown.height)).toBeLessThan(24);
+  const image = await box(card.locator("canvas.sketch-grid__image"));
+  expect(image.width).toBeGreaterThan(200);
+  expect(image.width).toBeLessThanOrEqual(400);
+  expect(image.height).toBeLessThanOrEqual(500);
+
+  // The copy icon and the remove button appear while the card is hovered.
+  const icon = card.locator(".sketch-grid__copy-action");
   await expect(icon).toHaveCSS("opacity", "0");
-  await recent.locator('[data-test="sketch-recent-copy"]').hover();
+  await expect(remove).toHaveCSS("opacity", "0");
+  await card.hover();
   await expect(icon).toHaveCSS("opacity", "1");
-  await expect(icon.locator("svg")).toHaveCount(1);
+  await expect(icon).toHaveText("Copy sketch");
+  await expect(remove).toHaveCSS("opacity", "1");
 
-  // Clicking it puts the image back on the clipboard after something else replaced it.
+  // Clicking it puts the image back on the clipboard after something else replaced it, and closes the grid.
   await page.evaluate(() => navigator.clipboard.writeText("something else"));
   expect(await clipboardTypes(page)).not.toContain("image/png");
-  await recent.locator('[data-test="sketch-recent-copy"]').click();
+  await card.locator('[data-test="sketch-recent-card-copy"]').click();
   await expect.poll(() => clipboardTypes(page)).toContain("image/png");
+  await expect(grid).toHaveCount(0);
+  await expect(stack).toHaveCSS("opacity", "1");
 
-  // The copy icon has no tint behind it, and there is no remove button: a sketch only leaves when newer ones push it out.
-  expect(await icon.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
-  await expect(recent.locator("button")).toHaveCount(1);
+  // Pressing outside the grid closes it too.
+  await openSketchGrid(page);
+  await page.mouse.click(middle.x - 300, middle.y);
+  await expect(grid).toHaveCount(0);
+
+  // The remove button deletes the stored sketch.
+  await openSketchGrid(page);
   expect(await storedSketchIds(page)).toHaveLength(1);
+  await card.hover();
+  await remove.click();
+  await expect(stack).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-recents"]')).toHaveCount(0);
+  await expect(grid).toHaveCount(0);
+  expect(await storedSketchIds(page)).toEqual([]);
   await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
 });
 
-test("moving from one saved sketch to the next hands the preview straight over", async ({ page }) => {
+test("three saved sketches open into a row of three, which reflows to one column on a narrow screen", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
-  await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 40 }, "First");
-  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(1);
-  await copyTextSketch(page, { x: middle.x - 100, y: middle.y + 40 }, "Second");
-  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(2);
-  await expect(page.locator(".sketch-recent[data-enter]")).toHaveCount(1);
+  for (const [index, words] of ["One", "Two", "Three"].entries()) {
+    await copyTextSketch(page, { x: middle.x - 100, y: middle.y - 80 + index * 40 }, words);
+  }
+  await expect(page.locator('[data-test="sketch-recent"]')).toHaveCount(3);
   await page.waitForTimeout(500);
 
-  const thumbnails = page.locator('[data-test="sketch-recent-copy"]');
-  const front = await box(thumbnails.nth(0));
-  const behind = await box(thumbnails.nth(1));
-  // Hover the visible left strip of the older sketch, clear of the one in front.
-  await page.mouse.move(front.x + front.width / 2, front.y + front.height / 2);
-  const preview = page.locator('[data-test="sketch-preview"]');
-  await expect(preview).toBeVisible();
+  await openSketchGrid(page);
+  const cards = page.locator('[data-test="sketch-recent-card"]');
+  await expect(cards).toHaveCount(3);
+  const boxes = await Promise.all([0, 1, 2].map((index) => box(cards.nth(index))));
+  // All three in one row, each to the right of the last.
+  for (const [index, current] of boxes.entries()) {
+    expect(current.width).toBeLessThanOrEqual(400);
+    if (index === 0) continue;
+    const previous = boxes[index - 1]!;
+    expect(current.x).toBeGreaterThan(previous.x + previous.width - 1);
+    expect(Math.abs(current.y - previous.y)).toBeLessThan(2);
+  }
+  const grid = page.locator('[data-test="sketch-grid"]');
+  expect(await grid.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
 
-  // Watch every frame from the move: the preview may swap, but it must not go away and wait to come back.
-  await page.evaluate(() => {
-    const root = document.getElementById("nudge-ui-root")!.shadowRoot!;
-    const log = { frames: 0, empty: 0, done: false, grew: 0 };
-    Object.assign(window, { __previewLog: log });
-    // The first height each open popup is seen at: a handed-over preview must already be its full size and drawn.
-    const firstHeight = new WeakMap<Element, number>();
-    const start = performance.now();
-    const tick = (): void => {
-      log.frames += 1;
-      if (!root.querySelector('[data-test="sketch-preview"]')) log.empty += 1;
-      for (const popup of root.querySelectorAll(".sketch-preview-popup[data-open][data-instant]")) {
-        const height = popup.getBoundingClientRect().height;
-        const first = firstHeight.get(popup);
-        if (first === undefined) firstHeight.set(popup, height);
-        else if (Math.abs(height - first) > 1) log.grew += 1;
-      }
-      if (performance.now() - start < 600) requestAnimationFrame(tick);
-      else log.done = true;
-    };
-    requestAnimationFrame(tick);
-  });
-  await page.mouse.move(behind.x + 6, behind.y + behind.height / 2, { steps: 4 });
-  await page.waitForFunction(() => (window as unknown as { __previewLog: { done: boolean } }).__previewLog.done);
-  const log = await page.evaluate(() => (window as unknown as { __previewLog: { frames: number; empty: number; grew: number } }).__previewLog);
-  expect(log.frames).toBeGreaterThan(10);
-  expect(log.empty).toBeLessThanOrEqual(1);
-  expect(log.grew).toBe(0);
-  await expect(preview).toBeVisible();
+  // With the panel open, a short 800px screen leaves the canvas under 640px wide, so the cards stack in one column and shrinks the pictures to fit, with no scrolling.
+  await page.setViewportSize({ width: 800, height: 700 });
+  await expect.poll(async () => {
+    const [first, second] = await Promise.all([box(cards.nth(0)), box(cards.nth(1))]);
+    return second.y > first.y + first.height - 1 && Math.abs(second.x - first.x) < 2;
+  }).toBe(true);
+  const column = await box(grid);
+  expect(column.x).toBeGreaterThanOrEqual(0);
+  expect(column.x + column.width).toBeLessThanOrEqual(800);
+  expect(column.width).toBeGreaterThan(200);
+  expect(column.y).toBeGreaterThanOrEqual(0);
+  expect(await grid.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
 });
 
 test("the color palette fans out above the saved sketches", async ({ page }) => {
@@ -448,35 +487,6 @@ test("the color palette fans out above the saved sketches", async ({ page }) => 
   expect(covered).toEqual([]);
 });
 
-test("hovering a saved sketch opens a large preview above it, titled with what a click does", async ({ page }) => {
-  const middle = await openSketch(page);
-  await grantClipboard(page);
-  await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Show me bigger");
-  const copyThumbnail = page.locator('[data-test="sketch-recent-copy"]');
-  await expect(copyThumbnail).toBeVisible();
-  await expect(page.locator('[data-test="sketch-preview"]')).toHaveCount(0);
-
-  await copyThumbnail.hover();
-  const preview = page.locator('[data-test="sketch-preview"]');
-  await expect(preview).toBeVisible();
-  await expect(preview).toContainText("Click to copy");
-  // Painted on a canvas, so a page's image policy cannot block it.
-  const image = preview.locator("canvas.sketch-preview__image");
-  await expect(image).toBeVisible();
-  const shown = await box(image);
-  expect(shown.width).toBeGreaterThan(150);
-  expect(shown.width).toBeLessThanOrEqual(200);
-  const thumb = await box(copyThumbnail);
-  expect(shown.y + shown.height).toBeLessThanOrEqual(thumb.y);
-
-  // Clicking still copies, and moving away closes the preview.
-  await page.evaluate(() => navigator.clipboard.writeText("something else"));
-  await copyThumbnail.click();
-  await expect.poll(() => clipboardTypes(page)).toContain("image/png");
-  await page.mouse.move(middle.x, middle.y - 150);
-  await expect(preview).toHaveCount(0);
-});
-
 test("the three latest copies are kept, newest in front, and they are still there after a reload", async ({ page }) => {
   const middle = await openSketch(page);
   await grantClipboard(page);
@@ -496,19 +506,12 @@ test("the three latest copies are kept, newest in front, and they are still ther
   expect(await recentIds()).toEqual(kept);
   expect([...await storedSketchIds(page)].sort()).toEqual([...kept].sort());
 
-  // The fourth copy slid the others to the left rather than replacing the front one, and the oldest fully left.
-  const slid = page.locator(`[data-test="sketch-recent"][data-sketch-id="${kept[1]}"]`);
-  await expect.poll(async () => (await box(recent.first())).x - (await box(slid)).x).toBeCloseTo(22, 0);
+  // The oldest has fully left.
   await expect(page.locator('[data-test="sketch-recent-leaving"]')).toHaveCount(0);
 
-  // The newest sits next to the copy button; each older copy tucks behind the one in front of it, further left.
-  const copy = await box(page.locator('[data-test="sketch-copy"]'));
-  const [front, behind, last] = (await Promise.all([0, 1, 2].map((index) => box(recent.nth(index))))) as [Box, Box, Box];
-  expect(front.x + front.width).toBeLessThanOrEqual(copy.x);
-  expect(behind.x).toBeLessThan(front.x);
-  expect(behind.x).toBeGreaterThan(front.x - front.width);
-  expect(last.x).toBeLessThan(behind.x);
-  expect(last.x).toBeGreaterThan(behind.x - behind.width);
+  // Opened, the newest card comes last in the grid, so it stays on top as it was in the stack.
+  await openSketchGrid(page);
+  expect(await page.locator('[data-test="sketch-recent-card"]').evaluateAll((elements) => elements.map((element) => element.getAttribute("data-sketch-id")))).toEqual([...kept].reverse());
 
   await page.reload();
   await page.locator('[data-test="canvas-tool-sketch"]').click();
@@ -523,7 +526,7 @@ interface PopSample {
   readonly animation: string | null;
 }
 
-test("a finished copy pops its thumbnail in beside the copy button, with nothing flying across the page", async ({ page }) => {
+test("a finished copy pops its sketch in behind the bar, with nothing flying across the page", async ({ page }) => {
   const middle = await openSketch(page);
   await typeText(page, { x: middle.x - 100, y: middle.y }, "Pop");
 
@@ -544,7 +547,7 @@ test("a finished copy pops its thumbnail in beside the copy button, with nothing
     }).observe(root, { childList: true, subtree: true });
     let frames = 0;
     const tick = (): void => {
-      const item = root.querySelector<HTMLElement>('.sketch-recents[data-pop="true"]');
+      const item = root.querySelector<HTMLElement>('.sketch-recent[data-enter="true"]');
       if (item) {
         const style = getComputedStyle(item);
         samples.push({
@@ -576,7 +579,7 @@ test("a finished copy pops its thumbnail in beside the copy button, with nothing
   expect(animated[0]!.opacity).toBeLessThan(0.5);
   expect(Math.max(...animated.map((sample) => sample.scale))).toBeGreaterThan(1);
   expect(animated.at(-1)!.scale).toBeCloseTo(1, 1);
-  // ...in place of the stagger's rise, and no screenshot flies anywhere.
+  // ...and no screenshot flies anywhere.
   expect(samples.every((sample) => sample.animation === null || sample.animation === "sketch-options-pop")).toBe(true);
   expect(strays).toEqual([]);
   await expect(page.locator('[data-test="sketch-flight"]')).toHaveCount(0);
@@ -604,13 +607,14 @@ test("copying announces itself with a white toast that sits above the sketch bar
 
   // It is the only sign the clipboard changed, so it outlasts the usual two seconds. (A toast waits while it is hovered.)
   await page.mouse.move(0, 0);
-  await page.waitForTimeout(2_600);
+  await page.waitForTimeout(2_200);
   await expect(toast).toBeVisible();
-  await expect(toast).toHaveCount(0, { timeout: 8_000 });
+  await expect(toast).toHaveCount(0, { timeout: 5_000 });
 });
 
-test("a copy kept from earlier joins the stagger when the bar opens, instead of popping", async ({ page }) => {
+test("a copy kept from earlier is already tucked in when the bar opens, instead of popping", async ({ page }) => {
   const middle = await openSketch(page);
+  await grantClipboard(page);
   await copyTextSketch(page, { x: middle.x - 100, y: middle.y }, "Already kept");
   const recent = page.locator('[data-test="sketch-recent"]');
   await expect(recent).toBeVisible({ timeout: 10_000 });
@@ -619,13 +623,9 @@ test("a copy kept from earlier joins the stagger when the bar opens, instead of 
   await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(0);
   await page.locator('[data-test="canvas-tool-sketch"]').click();
 
-  // The stack comes in with the copy button's item, in the stagger, and does not scale in on its own.
-  const item = page.locator('.sketch-options__item:has([data-test="sketch-recent"])');
-  const stack = page.locator(".sketch-recents");
-  await expect(item).toHaveCount(1);
-  await expect(stack).not.toHaveAttribute("data-pop", "true");
-  const animation = await item.evaluate((element) => (element.getAnimations()[0] as CSSAnimation | undefined)?.animationName ?? null);
-  expect(animation === null || animation === "sketch-options-item-in").toBe(true);
+  // The sketch is there with the bar and does not scale in on its own.
+  await expect(recent).toHaveCount(1);
+  await expect(recent).not.toHaveAttribute("data-enter", "true");
   await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
-  await expect(stack).not.toHaveAttribute("data-pop", "true");
+  await expect(recent).not.toHaveAttribute("data-enter", "true");
 });

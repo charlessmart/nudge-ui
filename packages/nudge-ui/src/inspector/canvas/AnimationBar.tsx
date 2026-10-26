@@ -40,7 +40,7 @@ export function AnimationBar(): ReactElement | null {
     session.setSpeed(getAnimationSpeed());
     // A click runs the app's own handlers, so only a described animation starts by itself.
     const first = session.getSnapshot().entries?.[0];
-    if (first && first.kind !== "click") session.run(first);
+    if (first && first.kind !== "click") session.run(first, { autoplay: true });
     return () => session.dispose();
   }, [session]);
 
@@ -59,6 +59,7 @@ export function AnimationBar(): ReactElement | null {
   // With nothing selected, or nothing to play on the selection, the full toolbar stays up, disabled, under a hint.
   const entries = snapshot.entries;
   const ready = session !== null && snapshot.status === "ready";
+  const scrollDriven = snapshot.timeline === "scroll";
   const status = STATUS_LABEL[snapshot.status];
 
   return (
@@ -69,11 +70,14 @@ export function AnimationBar(): ReactElement | null {
         <span className="animation-bar__hint" data-test="animation-empty">No animations on this element</span>
       ) : status ? (
         <span className="animation-bar__hint" data-test="animation-status">{status}</span>
+      ) : scrollDriven ? (
+        <span className="animation-bar__hint" data-test="animation-scroll-hint">Scroll-driven · scrub the timeline</span>
       ) : null}
       <div className="animation-bar__row">
         <AnimationTimeline
           progress={snapshot.progress}
           duration={snapshot.duration}
+          mode={scrollDriven ? "scroll" : "time"}
           disabled={!ready}
           onSeek={(progress) => session?.seek(progress)}
           onScrubChange={setScrubbing}
@@ -85,7 +89,7 @@ export function AnimationBar(): ReactElement | null {
             variant="secondary"
             size="default"
             label={snapshot.playing ? "Pause" : "Play"}
-            disabled={!ready}
+            disabled={!ready || scrollDriven}
             data-test="animation-play"
             onClick={() => (snapshot.playing ? session?.pause() : session?.play())}
           >
@@ -98,7 +102,7 @@ export function AnimationBar(): ReactElement | null {
           className="animation-bar__speed"
           value={String(speed)}
           options={SPEED_OPTIONS}
-          disabled={!ready}
+          disabled={!ready || scrollDriven}
           onChange={(value) => {
             setAnimationSpeed(Number(value));
             session?.setSpeed(Number(value));

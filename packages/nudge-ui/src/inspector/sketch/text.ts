@@ -1,5 +1,4 @@
 import {
-  SKETCH_STROKE_OUTLINE,
   SKETCH_TEXT_FONT_FAMILY,
   SKETCH_TEXT_FONT_SIZE,
   SKETCH_TEXT_FONT_WEIGHT,
@@ -10,7 +9,7 @@ import {
   type SketchStroke,
   type SketchStrokeColor,
 } from "./model.ts";
-import { moveStroke, type SketchRegion } from "./selectionFrame.ts";
+import { moveStroke, strokeFrame, type SelectionFrame, type SketchRegion } from "./selectionFrame.ts";
 
 export interface SketchTextMetrics {
   readonly width: number;
@@ -55,6 +54,31 @@ export function measureSketchText(text: string, fontSize: number): SketchTextMet
   return { width: Math.max(width, fontSize * MIN_TEXT_WIDTH_EM), height: lines.length * lineHeight, lineHeight };
 }
 
+export interface SketchTextLayout {
+  readonly frame: SelectionFrame;
+  readonly lines: readonly string[];
+  /** Line spacing in drawing units, derived from the layer's box. */
+  readonly lineHeight: number;
+  /** Canvas font string, already scaled. */
+  readonly font: string;
+}
+
+/** The one layout used by the live SVG, the PNG renderer, and the in-place editor. */
+export function textLayout(
+  stroke: Pick<SketchStroke, "points" | "width" | "rotation" | "text" | "fontSize">,
+  scaleX = 1,
+  scaleY = scaleX,
+): SketchTextLayout {
+  const frame = strokeFrame(stroke);
+  const lines = sketchTextLines(stroke.text ?? "");
+  return {
+    frame,
+    lines,
+    lineHeight: frame.height / lines.length,
+    font: sketchTextFont((stroke.fontSize ?? SKETCH_TEXT_FONT_SIZE) * Math.max(scaleX, scaleY)),
+  };
+}
+
 function rotateAbout(point: SketchPoint, angle: number, origin: SketchPoint): SketchPoint {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -73,10 +97,7 @@ export interface SketchTextInput {
   readonly color: SketchStrokeColor;
 }
 
-/**
- * A text layer is a closed box of points like a rectangle, so the frame, move,
- * resize and rotate all work on it unchanged. `points[0]` stays the box's top-left corner.
- */
+/** A text layer is a closed box of points like a rectangle, so the frame, move, resize and rotate all work on it unchanged. `points[0]` stays the box's top-left corner. */
 export function createTextStroke({
   id,
   corner,
@@ -98,7 +119,6 @@ export function createTextStroke({
     kind: "text",
     width: SKETCH_TEXT_STROKE_WIDTH,
     color,
-    outlineColor: SKETCH_STROKE_OUTLINE,
     points: box.map((point) => {
       const placed = rotateAbout(point, rotation, { x: 0, y: 0 });
       return { x: corner.x + placed.x, y: corner.y + placed.y };
@@ -121,10 +141,7 @@ export function retypeTextStroke(stroke: SketchStroke, text: string): SketchStro
   });
 }
 
-/**
- * Slides a text layer back inside `region`, shrinking its type first if it is too big to fit.
- * Returns `null` when even the smallest type would not fit, so nothing hangs off the edge to be cropped later.
- */
+/** Slides a text layer back inside `region`, shrinking its type first if it is too big to fit. Returns `null` when even the smallest type would not fit, so nothing hangs off the edge to be cropped later. */
 export function fitTextStroke(stroke: SketchStroke, region: SketchRegion): SketchStroke | null {
   let fitted = stroke;
   for (let attempt = 0; attempt < 3; attempt += 1) {

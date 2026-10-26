@@ -130,4 +130,15 @@ export const App = () => <Card><Button /><External><Button /></External></Card>;
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<External");
     expect(result?.code.match(/__nudgeUiInstrumentComponent\(<Button/g)).toHaveLength(1);
   });
+
+  it("leaves named React fragments free of identity attributes", () => {
+    const code = `import React, { Fragment } from "react";
+export const App = () => <div><Fragment key="a"><span /></Fragment><React.Fragment><b /></React.Fragment></div>;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+
+    expect(result?.code).not.toMatch(/<Fragment[^>]*data-/);
+    expect(result?.code).not.toMatch(/<React\.Fragment[^>]*data-/);
+    expect(result?.code).toContain("<span data-cid=");
+    expect(result?.code).toContain("<b data-cid=");
+  });
 });

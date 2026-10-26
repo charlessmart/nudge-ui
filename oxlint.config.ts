@@ -39,7 +39,6 @@ export default {
     {
       files: [
         "packages/nudge-ui/src/compiler/**",
-        "packages/nudge-ui/src/hosts/vite/components/**",
         "packages/nudge-ui/src/hosts/vite/tokens/**",
         "packages/compatibility/src/playwright.ts",
         "packages/nudge-ui/src/inspector/canvas/frameProtocol.ts",
@@ -50,7 +49,6 @@ export default {
         "packages/nudge-ui/src/inspector/componentSemantics/boundaries.ts",
         "packages/nudge-ui/src/inspector/componentSemantics/react/runtime.tsx",
         "packages/nudge-ui/src/inspector/componentSemantics/runtimeTypes.ts",
-        "packages/nudge-ui/src/inspector/inline-text/textChangeBoundary.ts",
         "packages/nudge-ui/src/inspector/projection/renderedInstance.ts",
         "packages/nudge-ui/src/inspector/projection/structuralProjectionBoundary.ts",
         "packages/nudge-ui/src/inspector/projection/textProjection.ts",

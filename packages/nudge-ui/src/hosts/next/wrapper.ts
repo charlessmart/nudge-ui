@@ -236,8 +236,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     compose("*.jsx", { ...identityRule });
 
   }
-  // Nudge UI carries its own react copy for standalone consumers; without an alias
-  // SWC loads both, and two Reacts in one document silently break inspector rendering.
+  // Nudge UI carries its own react copy for standalone consumers; without an alias SWC loads both, and two Reacts in one document silently break inspector rendering.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
   const componentRuntime = adapterPackageExport("nudge-ui/internal/component-runtime");
@@ -273,8 +272,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     const userAlias = (resolveConfig.alias ?? {}) as Record<string, unknown>;
     const rules = Array.isArray(module.rules) ? [...(module.rules as unknown[])] : [];
     const paths = loaderPaths();
-    // Next 16 removed the webpack CSS pipeline entirely (nextjs.org/docs/messages/built-in-css-disabled);
-    // registration stays so Next 15.x works, and the combination is flagged loudly.
+    // Next 16 removed the webpack CSS pipeline entirely (nextjs.org/docs/messages/built-in-css-disabled); registration stays so Next 15.x works, and the combination is flagged loudly.
     const version = resolveNextVersion(root);
     if (version && Number(version.split(".")[0]) >= 16) {
       console.warn(

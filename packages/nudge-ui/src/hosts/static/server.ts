@@ -125,8 +125,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   };
   const processSettledChanges = (_changes: readonly ProjectFileChange[]): void => {
     changeQueue = changeQueue.then(async () => {
-      // fs.watch can omit a filename, so CSS changes cannot be identified by extension:
-      // rebuild once per settled batch to keep the manifest coherent before reload.
+      // fs.watch can omit a filename, so CSS changes cannot be identified by extension: rebuild once per settled batch to keep the manifest coherent before reload.
       const tokens = await createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" });
       manifest = createStandaloneRuntimeManifest(projectId, tokens, revision + 1);
       revision += 1;
@@ -429,8 +428,7 @@ async function handleRequest(input: {
   const contentType = contentTypeForPath(resolution.projectPath);
 
   if (request.method === "HEAD") {
-    // HEAD answers headers without the response transform; Content-Length is omitted for
-    // HTML so it cannot disagree with a subsequent GET body.
+    // HEAD answers headers without the response transform; Content-Length is omitted for HTML so it cannot disagree with a subsequent GET body.
     const body = await readProjectFile(resolution.absolutePath);
     if (isHtml) {
       response.writeHead(200, {

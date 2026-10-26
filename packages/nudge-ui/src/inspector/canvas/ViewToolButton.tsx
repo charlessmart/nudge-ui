@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconChevronUp, IconLayersSelected, IconRuler } from "@tabler/icons-react";
+import { IconCheck, IconChevronUp, IconCube3dSphere, IconKeyframes, IconLayersIntersect, IconRuler } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { ToolbarButton } from "./ToolbarButton.tsx";
+import { KeyframesFilledIcon } from "./CanvasToolIcons.tsx";
 import { setDebugViewMode, useDebugViewMode, type DebugViewMode } from "./debugViewStore.ts";
 
 const ICON_SIZE = "var(--icon-size-large)";
@@ -14,9 +15,12 @@ const VIEW_MODES: ReadonlyArray<{
   readonly mode: DebugViewMode;
   readonly label: string;
   readonly Icon: typeof IconRuler;
+  /** Shown on the toolbar button while the tool is active; modes without one thicken their outline instead. */
+  readonly ActiveIcon?: typeof KeyframesFilledIcon;
 }> = [
-  { mode: "outlines", label: "Outline view", Icon: IconRuler },
-  { mode: "explode", label: "Explode view", Icon: IconLayersSelected },
+  { mode: "animation", label: "Animation", Icon: IconKeyframes, ActiveIcon: KeyframesFilledIcon },
+  { mode: "outlines", label: "Outlines", Icon: IconLayersIntersect },
+  { mode: "explode", label: "Explode", Icon: IconCube3dSphere },
 ];
 
 export interface ViewToolButtonProps {
@@ -27,7 +31,7 @@ export interface ViewToolButtonProps {
   readonly onToggle: () => void;
 }
 
-/** One toolbar tool that shows either Outline view or Explode view; the chevron beside it swaps between them. */
+/** One toolbar tool that shows Animation, Outlines or Explode; the chevron beside it swaps between them. */
 export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonProps): ReactElement {
   const mode = useDebugViewMode();
   const [open, setOpen] = useState(false);
@@ -40,6 +44,13 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
         label={current.label}
         shortcut="D"
         icon={<current.Icon size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+        activeIcon={
+          current.ActiveIcon ? (
+            <current.ActiveIcon size={ICON_SIZE} aria-hidden="true" />
+          ) : (
+            <current.Icon size={ICON_SIZE} className="icon--active-stroke" aria-hidden="true" />
+          )
+        }
         dataTest="canvas-tool-debug"
         onClick={onToggle}
       />

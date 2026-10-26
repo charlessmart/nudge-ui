@@ -1,14 +1,10 @@
 /** Shared by the Turbopack rule condition and the loader's runtime scope check so the two cannot drift apart. */
 export const NUDGE_UI_PACKAGE_DIRECTORIES = [
-  "compiler",
+  "chrome-extension",
   "compatibility",
   "create-nudge-ui",
-  "css",
-  "inspector",
-  "nextjs",
+  "nudge-ui",
   "package-css-fixture",
-  "plugin",
-  "standalone",
 ] as const;
 
 const ALTERNATION = NUDGE_UI_PACKAGE_DIRECTORIES.join("|");

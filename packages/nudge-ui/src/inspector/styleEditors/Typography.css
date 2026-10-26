@@ -28,11 +28,6 @@
   height: var(--icon-size-small);
 }
 
-.typography__field--font-family .token-field__leading svg {
-  width: var(--icon-size-small);
-  height: var(--icon-size-small);
-}
-
 .typography__alignment {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

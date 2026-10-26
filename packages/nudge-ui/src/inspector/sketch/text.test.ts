@@ -3,7 +3,6 @@ import {
   SKETCH_STROKE_COLOR,
   SKETCH_TEXT_FONT_SIZE,
   SKETCH_TEXT_LINE_HEIGHT,
-  isSketchStroke,
 } from "./model.ts";
 import { findErasedSketchStrokeIds, findSketchElementAt } from "./geometry.ts";
 import { resizeStroke, rotateStroke, strokeFrame, type SketchRegion } from "./selectionFrame.ts";
@@ -38,7 +37,6 @@ describe("sketch text layers", () => {
     expect(layer.text).toBe("Tighten spacing");
     expect(layer.fontSize).toBe(SKETCH_TEXT_FONT_SIZE);
     expect(layer.rotation).toBeUndefined();
-    expect(isSketchStroke(layer)).toBe(true);
   });
 
   it("places a rotated box around its corner and records the angle", () => {
@@ -96,7 +94,6 @@ describe("sketch text layers", () => {
     expect(after.width / after.height).toBeCloseTo(frame.width / frame.height, 6);
     expect(after.width / frame.width).toBeCloseTo(grown.fontSize! / SKETCH_TEXT_FONT_SIZE, 6);
     expect(grown.points[0]).toEqual(layer.points[0]);
-    expect(isSketchStroke(grown)).toBe(true);
   });
 
   it("never scales its type below the minimum or past the maximum", () => {
@@ -115,14 +112,14 @@ describe("sketch text layers", () => {
     const { width, height } = measureSketchText("Tighten spacing", SKETCH_TEXT_FONT_SIZE);
     const inside = { x: 100 + width / 2, y: 100 + height / 2 };
 
-    expect(findSketchElementAt(inside, [layer], [])).toEqual({ kind: "stroke", id: "text-1" });
-    expect(findSketchElementAt({ x: 100 + width + 60, y: 100 + height / 2 }, [layer], [])).toBeNull();
+    expect(findSketchElementAt(inside, [layer])).toBe("text-1");
+    expect(findSketchElementAt({ x: 100 + width + 60, y: 100 + height / 2 }, [layer])).toBeNull();
 
     const turned = rotateStroke(layer, { x: inside.x, y: 20 }, { x: inside.x + 130, y: inside.y }, REGION);
     const center = strokeFrame(turned).center;
-    expect(findSketchElementAt(center, [turned], [])).toEqual({ kind: "stroke", id: "text-1" });
+    expect(findSketchElementAt(center, [turned])).toBe("text-1");
     // Where the unrotated box used to be is now empty at its far corner.
-    expect(findSketchElementAt({ x: 100 + width - 1, y: 100 + 1 }, [turned], [])).toBeNull();
+    expect(findSketchElementAt({ x: 100 + width - 1, y: 100 + 1 }, [turned])).toBeNull();
   });
 
   it("is erased by crossing its box, not only its outline", () => {
@@ -132,20 +129,5 @@ describe("sketch text layers", () => {
 
     expect(findErasedSketchStrokeIds(middle, { x: middle.x + 2, y: middle.y }, [layer], 4)).toEqual(["text-1"]);
     expect(findErasedSketchStrokeIds({ x: 0, y: 0 }, { x: 10, y: 10 }, [layer], 4)).toEqual([]);
-  });
-});
-
-describe("text layer validation", () => {
-  it("requires words and a sensible size on text layers and forbids them elsewhere", () => {
-    const layer = label();
-
-    expect(isSketchStroke({ ...layer, text: "" })).toBe(false);
-    expect(isSketchStroke({ ...layer, text: "x".repeat(501) })).toBe(false);
-    expect(isSketchStroke({ ...layer, text: undefined })).toBe(false);
-    expect(isSketchStroke({ ...layer, fontSize: 2 })).toBe(false);
-    expect(isSketchStroke({ ...layer, fontSize: 9_999 })).toBe(false);
-    expect(isSketchStroke({ ...layer, fontSize: Number.NaN })).toBe(false);
-    expect(isSketchStroke({ ...layer, kind: "rectangle" })).toBe(false);
-    expect(isSketchStroke({ ...layer, kind: undefined })).toBe(false);
   });
 });

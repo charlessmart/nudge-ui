@@ -30,8 +30,7 @@ function routeRendererMessage(event: MessageEvent): void {
     return;
   }
 
-  // SAFETY: The type is a known renderer message; subscribers narrow it and
-  // apply the strict per-message schema before trusting message-specific fields.
+  // SAFETY: The type is a known renderer message; subscribers narrow it and apply the strict per-message schema before trusting message-specific fields.
   const routed = { frame, message: event.data as RendererToControllerMessage };
   for (const listener of listeners) listener(routed);
 }

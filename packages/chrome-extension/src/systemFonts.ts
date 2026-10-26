@@ -24,11 +24,7 @@ function readFontList(id: number): Promise<string[]> {
   });
 }
 
-/**
- * Lists fonts through `chrome.fontSettings`, which shows no browser prompt.
- * The service worker releases the list on a site only after the user has
- * chosen the request row there once; `allowed` reports that at injection.
- */
+/** Lists fonts through `chrome.fontSettings`, which shows no browser prompt. The service worker releases the list on a site only after the user has chosen the request row there once; `allowed` reports that at injection. */
 export function createExtensionSystemFonts(allowed: boolean): SystemFontSource {
   let nextId = 0;
   return {

@@ -1,9 +1,7 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import {
   IconMessageCircle,
   IconMessageCircleFilled,
-  IconKeyframes,
-  IconKeyframesFilled,
   IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
@@ -15,7 +13,6 @@ import {
   SketchThickIcon,
 } from "./CanvasToolIcons.tsx";
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
-import { SketchToolOptions } from "./SketchToolOptions.tsx";
 import { ViewToolButton } from "./ViewToolButton.tsx";
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
@@ -41,8 +38,6 @@ export interface CanvasToolbarProps {
   readonly tool: CanvasInteractionTool;
   readonly sketchEnabled: boolean;
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
-  /** The sketch bar shown above the toolbar. Defaults to the one wired to the live sketch; a page can pass its own. */
-  readonly sketchOptions?: ReactNode;
 }
 
 const ICON_SIZE = "var(--icon-size-large)";
@@ -51,7 +46,6 @@ export function CanvasToolbar({
   tool,
   sketchEnabled,
   onToolChange,
-  sketchOptions,
 }: CanvasToolbarProps): ReactElement {
   return (
     <div className="canvas-toolbar" data-test="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
@@ -84,14 +78,6 @@ export function CanvasToolbar({
           dataTest="canvas-tool-sketch"
           onClick={() => onToolChange("sketch")}
         />
-        <ToolbarButton
-          active={tool === "animation"}
-          label="Animation"
-          icon={<IconKeyframes size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          activeIcon={<IconKeyframesFilled size={ICON_SIZE} aria-hidden="true" />}
-          dataTest="canvas-tool-animation"
-          onClick={() => onToolChange("animation")}
-        />
         <ViewToolButton
           active={tool === "debug"}
           onActivate={() => onToolChange("debug")}
@@ -110,7 +96,6 @@ export function CanvasToolbar({
           onClick={() => onToolChange("select")}
         />
       </div>
-      {sketchOptions ?? <SketchToolOptions open={tool === "sketch" && sketchEnabled} />}
     </div>
   );
 }

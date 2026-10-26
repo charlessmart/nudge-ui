@@ -36,9 +36,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   useEffect(() => {
     try {
       setValue(getStateStyleValue(el, property, options[0]));
-    } catch {
-      // noop
-    }
+    } catch {}
   }, [el, property, options, revision]);
 
   function handleChange(next: string): void {

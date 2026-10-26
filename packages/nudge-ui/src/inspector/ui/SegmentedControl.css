@@ -1,4 +1,5 @@
 .segmented-control {
+  position: relative;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -26,13 +27,39 @@
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-base);
   box-shadow: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* The raised chip sits behind the buttons and slides between equal-width columns. */
+.segmented-control__indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px - (var(--segment-count) - 1) * 2px) / var(--segment-count));
+  border-radius: 6px;
+  background: var(--surface-raised-2x);
+  box-shadow: 0 0 0 0.5px var(--border-subtle);
+  transform: translateX(calc(var(--segment-index) * (100% + 2px)));
+  transition: transform var(--spring-duration) var(--spring-ease), opacity 120ms ease;
+  pointer-events: none;
+}
+
+.segmented-control__indicator[data-hidden] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-control__indicator {
+    transition: none;
+  }
 }
 
 .button.segmented-control__button--selected,
 .button.segmented-control__button--selected:hover:not(:disabled) {
-  background: var(--surface-raised-2x);
+  background: transparent;
   color: var(--text-primary);
-  box-shadow: 0 0 0 0.5px var(--border-subtle);
 }
 
 .button.segmented-control__button:not(.segmented-control__button--selected):hover:not(:disabled) {

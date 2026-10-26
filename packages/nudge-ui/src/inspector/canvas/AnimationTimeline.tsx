@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactElement } from "react";
+import { elasticOffset } from "../tokens/dragElastic.ts";
 
 const MAJOR_STEPS_MS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
 /** Aims for about this many labelled marks across the track. */
@@ -13,6 +14,8 @@ const GLIDE_MS = 150;
 const GLIDE_BACKSTOP_MS = GLIDE_MS + 50;
 /** Playhead and tick widths in CSS; positions run edge to edge by leaving room for their own width. */
 const PLAYHEAD_WIDTH_PX = 2;
+/** Reuses the token fields' elastic curve; this scales it up since a track is wider than a field icon's travel. */
+const TRACK_STRETCH_RATIO = 1.5;
 
 export interface TimelineTick {
   readonly ms: number;
@@ -23,6 +26,16 @@ export interface TimelineTick {
 /** The distance between neighbouring marks, so callers can tell which ones sit beside the playhead. */
 export function minorStepMs(ticks: readonly TimelineTick[]): number {
   return ticks.length > 1 ? ticks[1]!.ms - ticks[0]!.ms : 0;
+}
+
+/** Scroll-driven animations scrub from 0 to 100% rather than over a wall-clock ruler. */
+export function scrollProgressTicks(): TimelineTick[] {
+  const steps = 20;
+  return Array.from({ length: steps + 1 }, (_, index) => ({
+    ms: index / steps,
+    major: index % 5 === 0,
+    label: index % 5 === 0 && index <= 15 ? `${index * 5}%` : null,
+  }));
 }
 
 /** The distance, in marks, over which a mark's rise has fallen to 1/e of the playhead's own. */
@@ -73,6 +86,8 @@ export interface AnimationTimelineProps {
   readonly progress: number;
   /** Length of the animation the track spans, in milliseconds. */
   readonly duration: number;
+  /** `scroll` labels the track as scroll progress instead of milliseconds. */
+  readonly mode?: "time" | "scroll";
   readonly disabled?: boolean;
   readonly onSeek: (progress: number) => void;
   /** Called with true while a pointer is held on the track and false when it is released. */
@@ -80,12 +95,12 @@ export interface AnimationTimelineProps {
 }
 
 /** A ruler of the animation's length with a playhead; press or drag anywhere on it to scrub. */
-export function AnimationTimeline({ progress, duration, disabled = false, onSeek, onScrubChange }: AnimationTimelineProps): ReactElement {
+export function AnimationTimeline({ progress, duration, mode = "time", disabled = false, onSeek, onScrubChange }: AnimationTimelineProps): ReactElement {
   const scaleRef = useRef<HTMLDivElement>(null);
-  const ticks = timelineTicks(duration);
+  const unitDuration = mode === "scroll" ? 1 : duration;
+  const ticks = mode === "scroll" ? scrollProgressTicks() : timelineTicks(duration);
   const minorMs = minorStepMs(ticks);
-  // Where the playhead is drawn while it glides to a press; null outside one, so playback
-  // and dragging move it, and the marks rising around it, with `progress` exactly.
+  // Where the playhead is drawn while it glides to a press; null outside one, so playback and dragging move it, and the marks rising around it, with `progress` exactly.
   const [glideProgress, setGlideProgress] = useState<number | null>(null);
   const glideFrame = useRef(0);
   const glideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -93,10 +108,9 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   const glideTarget = useRef(progress);
   glideTarget.current = progress;
   const drawnProgress = glideProgress ?? progress;
-  const playheadMs = drawnProgress * duration;
+  const playheadMs = drawnProgress * unitDuration;
 
-  // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as
-  // falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
+  // Marks rise the instant the playhead nears them but ease back down once it passes: a mark is flagged as falling when its rise drops, and stays flagged until it rises again, so a settling mark finishes its ease.
   const proximities = ticks.map((tick) => tickProximity(tick.ms - playheadMs, minorMs));
   const drawn = useRef<{ proximities: readonly (number | null)[]; falling: readonly boolean[] }>({ proximities: [], falling: [] });
   const falling = proximities.map((proximity, index) => {
@@ -144,12 +158,35 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
   };
 
   const progressFromPointer = (event: PointerEvent<HTMLDivElement>): number | null => {
-    const rect = scaleRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return null;
+    // Measured on the track itself: the scale inside it stretches while a drag overshoots.
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return null;
     // The playhead's own width is the one part of the track it can't sit over.
     const travel = rect.width - PLAYHEAD_WIDTH_PX;
     if (travel <= 0) return null;
-    return clamp01((event.clientX - rect.left - PLAYHEAD_WIDTH_PX / 2) / travel);
+    const position = event.clientX - rect.left - PLAYHEAD_WIDTH_PX / 2;
+    stretchTrack(position < 0 ? position : Math.max(0, position - travel), rect.width);
+    return clamp01(position / travel);
+  };
+
+  /** Pulls the track out past the end the pointer has overshot, like the token fields; clearing it springs back. */
+  const stretchTrack = (overshoot: number, width: number): void => {
+    const scale = scaleRef.current;
+    if (!scale) return;
+    if (overshoot === 0 || prefersReducedMotion()) {
+      scale.removeAttribute("data-stretching");
+      scale.style.removeProperty("--timeline-stretch");
+      return;
+    }
+    // The side outlives the stretch, so the spring back keeps pivoting on the same end.
+    scale.setAttribute("data-stretch-side", overshoot < 0 ? "start" : "end");
+    scale.setAttribute("data-stretching", "");
+    scale.style.setProperty("--timeline-stretch", String(Math.abs(elasticOffset(overshoot)) * TRACK_STRETCH_RATIO / width));
+  };
+
+  const releaseTrack = (): void => {
+    stretchTrack(0, 1);
+    onScrubChange?.(false);
   };
 
   const seekFromPointer = (event: PointerEvent<HTMLDivElement>): void => {
@@ -175,7 +212,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
       className="animation-timeline"
       role="slider"
       tabIndex={disabled ? -1 : 0}
-      aria-label="Animation progress"
+      aria-label={mode === "scroll" ? "Scroll progress" : "Animation progress"}
       aria-valuemin={0}
       aria-valuemax={1}
       aria-valuenow={Number(progress.toFixed(3))}
@@ -195,9 +232,9 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
         // Only a captured pointer scrubs; a hovering one leaves the marks to the playhead alone.
         if (event.currentTarget.hasPointerCapture(event.pointerId)) seekFromPointer(event);
       }}
-      onPointerUp={() => onScrubChange?.(false)}
-      onPointerCancel={() => onScrubChange?.(false)}
-      onLostPointerCapture={() => onScrubChange?.(false)}
+      onPointerUp={releaseTrack}
+      onPointerCancel={releaseTrack}
+      onLostPointerCapture={releaseTrack}
       onKeyDown={onKeyDown}
       style={{ "--timeline-progress": drawnProgress } as CSSProperties}
     >
@@ -210,7 +247,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
               className={tick.major ? "animation-timeline__tick animation-timeline__tick--major" : "animation-timeline__tick"}
               data-falling={falling[index] ? "" : undefined}
               style={{
-                "--tick-position": tick.ms / duration,
+                "--tick-position": tick.ms / unitDuration,
                 ...(proximity === null ? {} : { "--tick-proximity": proximity }),
               } as CSSProperties}
               aria-hidden="true"
@@ -224,7 +261,7 @@ export function AnimationTimeline({ progress, duration, disabled = false, onSeek
             className="animation-timeline__label"
             // The first label would be cut off by the track edge if it were centred on its mark.
             data-start={tick.ms === 0 ? "" : undefined}
-            style={{ "--tick-position": tick.ms / duration } as CSSProperties}
+            style={{ "--tick-position": tick.ms / unitDuration } as CSSProperties}
             aria-hidden="true"
           >
             {tick.label}

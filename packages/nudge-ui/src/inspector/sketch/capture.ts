@@ -380,8 +380,7 @@ async function captureDomFrame(
         filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node) && videoFrames.filter(node),
         features: { restoreScrollPosition: true },
         timeout: MEDIA_LOAD_TIMEOUT_MS,
-        // modern-screenshot cannot serialize cross-origin Google CSS; computed
-        // font styles still remain inline.
+        // modern-screenshot cannot serialize cross-origin Google CSS; computed font styles still remain inline.
         font: hasGoogleFontStylesheet(surface.document) ? false : undefined,
         onCloneEachNode: (node) => {
           prepareDomClone(node);
@@ -447,18 +446,4 @@ export async function captureViewport(options: SketchCaptureOptions, resources: 
     if (error instanceof DOMException && error.name === "AbortError") throw abortError();
     throw new SketchCaptureError("capture-failed", "The viewport could not be rendered from the page DOM. Try again.", { cause: error });
   }
-}
-
-export function createSketchCaptureOperation(options: SketchCaptureOptions): {
-  readonly promise: Promise<CapturedSketch>;
-  readonly cancel: () => void;
-} {
-  const controller = new AbortController();
-  const onAbort = (): void => controller.abort();
-  options.signal?.addEventListener("abort", onAbort, { once: true });
-  const promise = captureViewport({
-    ...options,
-    signal: controller.signal,
-  }).finally(() => options.signal?.removeEventListener("abort", onAbort));
-  return { promise, cancel: () => controller.abort() };
 }

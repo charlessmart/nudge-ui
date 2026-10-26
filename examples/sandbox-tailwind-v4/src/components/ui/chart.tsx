@@ -352,8 +352,7 @@ function getPayloadConfigFromPayload(
     // SAFETY: The `key in payload` guard above proves the key indexes payload.
     typeof payload[key as keyof typeof payload] === "string"
   ) {
-    // SAFETY: The `key in payload` guard above proves the key indexes payload,
-    // and the `typeof ... === "string"` check proves the guarded read is a string.
+    // SAFETY: The `key in payload` guard above proves the key indexes payload, and the `typeof ... === "string"` check proves the guarded read is a string.
     configLabelKey = payload[key as keyof typeof payload] as string
   } else if (
     payloadPayload &&
@@ -361,8 +360,7 @@ function getPayloadConfigFromPayload(
     // SAFETY: The `key in payloadPayload` guard above proves the key indexes payloadPayload.
     typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
   ) {
-    // SAFETY: The `key in payloadPayload` guard proves the key indexes payloadPayload,
-    // and the `typeof ... === "string"` check proves the same guarded read is a string.
+    // SAFETY: The `key in payloadPayload` guard proves the key indexes payloadPayload, and the `typeof ... === "string"` check proves the same guarded read is a string.
     configLabelKey = payloadPayload[
       key as keyof typeof payloadPayload
     ] as string

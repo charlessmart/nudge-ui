@@ -64,8 +64,8 @@ import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
-import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
-import { useSketchInteractionActive } from "../sketch/interaction.ts";
+import { SketchWorkspace } from "../canvas/sketch/SketchWorkspace.tsx";
+import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {

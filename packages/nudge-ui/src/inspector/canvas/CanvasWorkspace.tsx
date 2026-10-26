@@ -95,10 +95,10 @@ import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
 import { setDebugExploded, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
-import sketchToolOptionsStyles from "./SketchToolOptions.css?inline";
+import sketchToolBarStyles from "./sketch/SketchToolBar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
-import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
-import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
+import { startSketchCapture } from "./sketch/SketchWorkspace.tsx";
+import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
@@ -107,7 +107,7 @@ import { getSelectedElements, setSelectedElement } from "../selection/selectionS
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolOptionsStyles].join("\n");
+const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolBarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
@@ -184,16 +184,17 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
-  // the Animation tool selects elements instead.
-  const appInteractive = interactionTool === "select" || interactionTool === "debug";
   const debugViewMode = useDebugViewMode();
+  const animationViewActive = selectedTool === "debug" && debugViewMode === "animation";
+  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
+  // Animation view selects elements instead.
+  const appInteractive = interactionTool === "select" || (interactionTool === "debug" && debugViewMode !== "animation");
   const animationBusy = useAnimationBusy();
   const activeDebugView = useMemo<DebugViewState>(() => {
-    if (selectedTool === "debug") return { outlines: debugViewMode === "outlines", xray: debugViewMode === "explode", animations: false };
+    if (selectedTool !== "debug") return DEBUG_VIEW_OFF;
     // Markers step aside while the animation moves.
-    if (selectedTool === "animation") return { ...DEBUG_VIEW_OFF, animations: !animationBusy };
-    return DEBUG_VIEW_OFF;
+    if (debugViewMode === "animation") return { ...DEBUG_VIEW_OFF, animations: !animationBusy };
+    return { outlines: debugViewMode === "outlines", xray: debugViewMode === "explode", animations: false };
   }, [animationBusy, debugViewMode, selectedTool]);
   const rendererInteractionsEnabled = !appInteractive && !layoutTransitioning && !sketchActive;
   const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
@@ -512,13 +513,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const leaveViewTool = useCallback(() => {
-    if (selectedTool !== "debug" && selectedTool !== "animation") return;
+    if (selectedTool !== "debug") return;
     setInteractionTool("design");
     stopPanMode();
   }, [selectedTool, stopPanMode]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
-    if ((nextTool === "select" || nextTool === "debug" || nextTool === "animation") && selectedTool === nextTool) {
+    if ((nextTool === "select" || nextTool === "debug") && selectedTool === nextTool) {
       setInteractionTool("design");
       stopPanMode();
       return;
@@ -931,17 +932,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     function handleGlobalWheel(e: WheelEvent): void {
       const zoom = e.ctrlKey || e.metaKey;
       const board = boardRef.current;
-      if (sketchActive) {
-        if (e.composedPath().some((node) => node instanceof Element && node.closest(".panel"))) return;
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
       const path = e.composedPath();
+      if (sketchActive && path.some((node) => node instanceof Element && node.closest(".panel"))) return;
       // Comment pins overlay the board without being its DOM descendants.
       const overCommentPin = path.some((node) => node instanceof Element && node.matches(".comment-pin"));
-      // Frame documents keep native scrolling in normal mode; wheel over the board still pans.
-      if (!zoom && (!board || (!path.includes(board) && !overCommentPin))) return;
+      // The sketch surface covers the board, and frame documents keep their own scrolling in normal mode.
+      const overBoard = sketchActive || (board !== null && path.includes(board)) || overCommentPin;
+      if (!zoom && (!board || !overBoard)) return;
       e.preventDefault();
       e.stopPropagation();
       if (zoom) zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
@@ -1036,14 +1033,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
-          {!sketchActive && selectedTool === "animation" ? <AnimationBar /> : null}
-          {!sketchActive ? (
-            <CanvasToolbar
-              tool={interactionTool}
-              sketchEnabled={sketchAvailable}
-              onToolChange={handleToolChange}
-            />
-          ) : null}
+          {!sketchActive && animationViewActive ? <AnimationBar /> : null}
         </div>
         {linkPreview && linkPopoverPosition ? (
           <button
@@ -1061,19 +1051,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           </button>
         ) : null}
       </div>
-      {sketchActive ? (
-        <div
-          className="canvas-toolbar__portal"
-          data-test="canvas-toolbar-portal"
-          style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
-        >
-          <CanvasToolbar
-            tool={interactionTool}
-            sketchEnabled={sketchAvailable}
-            onToolChange={handleToolChange}
-          />
-        </div>
-      ) : null}
+      <div
+        className="canvas-toolbar__portal"
+        data-sketching={sketchActive ? "true" : "false"}
+        data-test="canvas-toolbar-portal"
+        style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
+      >
+        <CanvasToolbar
+          tool={interactionTool}
+          sketchEnabled={sketchAvailable}
+          onToolChange={handleToolChange}
+        />
+      </div>
     </>
   );
 }

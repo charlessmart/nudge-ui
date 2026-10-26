@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AnimationTimeline, timelineTicks } from "./AnimationTimeline.tsx";
+import { AnimationTimeline, scrollProgressTicks, timelineTicks } from "./AnimationTimeline.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +23,14 @@ describe("timelineTicks", () => {
 
   it("has no marks before an animation is captured", () => {
     expect(timelineTicks(0)).toEqual([]);
+  });
+});
+
+describe("scrollProgressTicks", () => {
+  it("labels scroll progress in percentages and leaves the end of the track unlabelled", () => {
+    const ticks = scrollProgressTicks();
+    expect(ticks.filter((tick) => tick.label).map((tick) => tick.label)).toEqual(["0%", "25%", "50%", "75%"]);
+    expect(ticks.filter((tick) => tick.major).map((tick) => tick.ms)).toEqual([0, 0.25, 0.5, 0.75, 1]);
   });
 });
 
@@ -53,10 +61,15 @@ describe("AnimationTimeline", () => {
     return host.querySelector<HTMLElement>('[data-test="animation-scrubber"]')!;
   }
 
-  it("seeks to where the pointer presses and keeps following it while dragged", () => {
-    const onSeek = vi.fn();
+  it("labels a scroll timeline as progress percentages", () => {
+    const timeline = render({ onSeek: vi.fn(), mode: "scroll", duration: 0 });
+    expect(timeline.getAttribute("aria-label")).toBe("Scroll progress");
+    expect([...host.querySelectorAll(".animation-timeline__label")].map((label) => label.textContent)).toEqual(["0%", "25%", "50%", "75%"]);
+  });
+
+  it("seeks to where the pointer presses and keeps following it while dragged", () => {    const onSeek = vi.fn();
     const timeline = render({ onSeek });
-    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 40, right: 302, bottom: 40, x: 100, y: 0 } as DOMRect);
     timeline.setPointerCapture = vi.fn();
     timeline.hasPointerCapture = vi.fn(() => true);
@@ -96,8 +109,7 @@ describe("AnimationTimeline", () => {
       });
       return levels;
     };
-    // 1000ms is marked every 200ms with a minor mark every 10ms, so 500ms is mark 50.
-    // The rise decays exponentially: e^-1 two marks out, and nothing past five.
+    // 1000ms is marked every 200ms with a minor mark every 10ms, so 500ms is mark 50. The rise decays exponentially: e^-1 two marks out, and nothing past five.
     expect(falloff(0.5)).toEqual({
       45: 0.08, 46: 0.14, 47: 0.22, 48: 0.37, 49: 0.61, 50: 1, 51: 0.61, 52: 0.37, 53: 0.22, 54: 0.14, 55: 0.08,
     });
@@ -129,7 +141,7 @@ describe("AnimationTimeline", () => {
   it("leaves the marks to the playhead alone while the pointer merely hovers", () => {
     const onSeek = vi.fn();
     const timeline = render({ onSeek, progress: 0, duration: 1000 });
-    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
     scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
     timeline.hasPointerCapture = vi.fn(() => false);
     const levels = () => {
@@ -163,7 +175,7 @@ describe("AnimationTimeline", () => {
     try {
       const onSeek = vi.fn();
       const timeline = render({ onSeek, progress: 0, duration: 1000 });
-      const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+      const scale = host.querySelector<HTMLElement>(".animation-timeline")!;
       scale.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 36, right: 302, bottom: 36, x: 100, y: 0 } as DOMRect);
       timeline.setPointerCapture = vi.fn();
       const levels = () => {
@@ -242,5 +254,22 @@ describe("AnimationTimeline", () => {
       inert.dispatchEvent(pointerEvent("pointerdown", { clientX: 10, button: 0 }));
     });
     expect(disabled).not.toHaveBeenCalled();
+  });
+  it("stretches the track past an end while dragged beyond it, and releases it on pointer up", () => {
+    const track = render({ onSeek: vi.fn(), progress: 0, duration: 1000 });
+    const scale = host.querySelector<HTMLElement>(".animation-timeline__scale")!;
+    track.getBoundingClientRect = () => ({ left: 100, width: 202, top: 0, height: 40, right: 302, bottom: 40, x: 100, y: 0 } as DOMRect);
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = () => true;
+
+    act(() => { track.dispatchEvent(pointerEvent("pointerdown", { clientX: 200, button: 0 })); });
+    expect(scale.hasAttribute("data-stretching")).toBe(false);
+    act(() => { track.dispatchEvent(pointerEvent("pointermove", { clientX: 360 })); });
+    expect(scale.getAttribute("data-stretching")).toBe("");
+    expect(scale.getAttribute("data-stretch-side")).toBe("end");
+    expect(Number(scale.style.getPropertyValue("--timeline-stretch"))).toBeGreaterThan(0);
+    act(() => { track.dispatchEvent(pointerEvent("pointerup", { clientX: 360 })); });
+    expect(scale.hasAttribute("data-stretching")).toBe(false);
+    expect(scale.style.getPropertyValue("--timeline-stretch")).toBe("");
   });
 });

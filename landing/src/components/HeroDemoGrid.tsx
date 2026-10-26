@@ -103,14 +103,14 @@ function TypographyAlignment({ axis, values, selected }: { axis: AlignmentAxis; 
   );
 }
 
-function BankMark({ color, icon, label, large = false, wireframe = false }: { color: string; icon?: ReactNode; label?: string; large?: boolean; wireframe?: boolean }): ReactNode {
+function BankMark({ color, icon, wireframe = false }: { color: string; icon: ReactNode; wireframe?: boolean }): ReactNode {
   return (
     <span
-      className={`landing-hero-demo-bank-mark${large ? " landing-hero-demo-bank-mark--large" : ""}`}
+      className="landing-hero-demo-bank-mark"
       style={wireframe ? undefined : { backgroundColor: color }}
       aria-hidden="true"
     >
-      {icon ?? label}
+      {icon}
     </span>
   );
 }
@@ -310,9 +310,9 @@ const heroDemos = [
   { id: "weekly-distance", render: WeeklyDistanceDemo, wireframe: WireframeWeeklyDemo },
 ] as const;
 
-export function HeroDemoGrid({ variant = "hero" }: { variant?: "hero" | "review" }): ReactNode {
+export function HeroDemoGrid(): ReactNode {
   return (
-    <div className={`landing-hero-demo-grid landing-hero-demo-grid--${variant}`} aria-hidden="true">
+    <div className="landing-hero-demo-grid landing-hero-demo-grid--hero" aria-hidden="true">
       {heroDemos.map(({ id, render: Demo, wireframe: Wireframe }, index) => (
         <div
           className={`landing-hero-demo landing-hero-demo--${id}`}

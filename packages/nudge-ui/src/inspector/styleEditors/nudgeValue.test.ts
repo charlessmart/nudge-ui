@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudgeCssValue, nudgeCssValueByDrag, nudgeOpacityValue, supportsDragNudge } from "./nudgeValue.ts";
+import { isAtNudgeLimit, nudgeCssValue, nudgeCssValueByDrag, nudgeOpacityValue, supportsDragNudge } from "./nudgeValue.ts";
 
 describe("nudgeCssValue", () => {
   it.each([
@@ -70,11 +70,17 @@ describe("nudgeCssValue", () => {
     "opacity",
     "border-radius",
     "border-bottom-left-radius",
+    "width",
+    "height",
+    "min-width",
+    "max-width",
+    "min-height",
+    "max-height",
   ])("supports drag nudging for %s", (property) => {
     expect(supportsDragNudge(property)).toBe(true);
   });
 
-  it.each(["width", "box-shadow", "color"])("does not expose drag nudging for %s", (property) => {
+  it.each(["box-shadow", "color", "aspect-ratio"])("does not expose drag nudging for %s", (property) => {
     expect(supportsDragNudge(property)).toBe(false);
   });
 });
@@ -91,5 +97,52 @@ describe("nudgeOpacityValue", () => {
 
   it.each(["80", "var(--opacity)", "calc(50% + 1%)"])("rejects non-percentage opacity values: %s", (value) => {
     expect(nudgeOpacityValue(value, 1)).toBeNull();
+  });
+});
+
+describe("isAtNudgeLimit", () => {
+  it.each([
+    ["padding-top", "0", -1, false, true],
+    ["padding-top", "0px", 1, false, false],
+    ["padding-top", "1", -1, false, false],
+    ["padding-top", "5", -1, true, false],
+    ["padding-top", "0", -1, true, true],
+    ["padding-horizontal", "0, 0", -1, false, true],
+    ["padding-horizontal", "0, 4", -1, false, false],
+    ["opacity", "100%", 1, false, true],
+    ["opacity", "1", 1, false, true],
+    ["opacity", "99%", 1, false, false],
+    ["opacity", "0%", -1, true, true],
+    ["margin-left", "0", -1, false, false],
+  ] as const)("%s %s direction %i large=%s -> %s", (property, value, direction, large, expected) => {
+    expect(isAtNudgeLimit(property, value, direction, large)).toBe(expected);
+  });
+
+  it("treats a value that cannot be nudged as a limit", () => {
+    expect(isAtNudgeLimit("padding-top", "auto", 1)).toBe(true);
+  });
+});
+
+describe("dragging size properties", () => {
+  it.each([
+    ["width", "200px", 32, "202px"],
+    ["height", "50%", 16, "51%"],
+    ["max-width", "640px", -16, "639px"],
+    ["min-height", "0", 16, "1px"],
+    ["padding-top", "0", 16, "1px"],
+  ])("nudges %s %s by %i px of drag to %s", (property, value, deltaX, expected) => {
+    expect(nudgeCssValueByDrag(property, value, deltaX)).toBe(expected);
+  });
+
+  it.each(["auto", "fit-content", "max-content", "none", "calc(100% - 2rem)", "min(100%, 40rem)", "var(--w)"])(
+    "does not drag %s",
+    (value) => {
+      expect(nudgeCssValueByDrag("width", value, 32)).toBeNull();
+      expect(nudgeCssValueByDrag("max-width", value, -32)).toBeNull();
+    },
+  );
+
+  it("never drags a size below zero", () => {
+    expect(nudgeCssValueByDrag("width", "2px", -160)).toBe("0px");
   });
 });

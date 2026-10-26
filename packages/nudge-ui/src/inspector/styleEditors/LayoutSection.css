@@ -4,15 +4,6 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-.layout__group--bottom-rule {
-  margin-top: 0;
-  margin-bottom: var(--space-4);
-  padding-top: 0;
-  padding-bottom: var(--space-8);
-  border-top: 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
 .layout__tool-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
@@ -91,8 +82,7 @@
   width: 100%;
 }
 
-.layout__size-grid .layout-combo,
-.layout__aspect-ratio-control {
+.layout__size-grid .layout-combo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-4);
@@ -100,10 +90,6 @@
 }
 
 .layout__size-grid .layout-combo__custom {
-  min-width: 0;
-}
-
-.layout__aspect-ratio-control .text-input {
   min-width: 0;
 }
 
@@ -192,14 +178,7 @@
 
 .inspector-popover__popup:has(> .layout__options) {
   padding: var(--space-16);
-}
-
-.inspector-popover__popup:has(> .layout__options) {
   padding-block-start: var(--space-8);
-}
-
-.layout__grid-value {
-  min-width: 0;
 }
 
 /* Display, its container controls and padding read as one group. */
@@ -373,10 +352,7 @@
   pointer-events: none;
 }
 
-/*
- * A miniature of the container: the bars lay out in the same direction and align the same way as the
- * items, so a row shows vertical bars side by side and a column shows horizontal bars stacked.
- */
+/* A miniature of the container: the bars lay out in the same direction and align the same way as the items, so a row shows vertical bars side by side and a column shows horizontal bars stacked. */
 .layout__alignment-glyph {
   display: flex;
   gap: 3px;
@@ -435,12 +411,7 @@
 
 .layout__spacing-field .layout-combo {
   flex: 1 1 auto;
-  /*
-   * Fill the surface and lay out as a row so the token field gets the surface's
-   * height. A column's min-height:auto pins it to the 32px embedded input, which
-   * pushes a raw value 2px low; without the stretch a token chip collapses to
-   * its text height.
-   */
+  /* Row layout gives the token field surface height; column min-height would pin it to the 32px input. */
   align-self: stretch;
   flex-direction: row;
   min-width: 0;

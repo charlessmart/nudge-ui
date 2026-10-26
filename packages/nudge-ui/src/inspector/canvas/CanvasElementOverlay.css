@@ -22,6 +22,16 @@
   pointer-events: none;
 }
 
+/* Each 8px snap remounts the handle, which swells and settles on the shared spring. */
+.canvas-spacing-guide[data-snap] {
+  animation: spacing-snap var(--spring-duration) var(--spring-ease);
+}
+
+@keyframes spacing-snap {
+  from { scale: 1.25; }
+  to { scale: 1; }
+}
+
 .canvas-spacing-fill {
   position: fixed;
   z-index: 1;
@@ -63,6 +73,21 @@
   pointer-events: none;
 }
 
+/* While snapping, the badge rides the snapped handle and glides between steps instead of tracking the raw pointer. */
+.canvas-spacing-value-badge[data-snapping] {
+  transition: left var(--spring-duration) var(--spring-ease), top var(--spring-duration) var(--spring-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-spacing-guide[data-snap] {
+    animation: none;
+  }
+
+  .canvas-spacing-value-badge[data-snapping] {
+    transition: none;
+  }
+}
+
 .canvas-selected-outline {
   position: fixed;
   pointer-events: none;
@@ -90,32 +115,6 @@
   background: #3b82f6;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 95%), 0 1px 5px rgb(37 99 235 / 72%);
 }
-
-.canvas-dom-drop-line::before,
-.canvas-dom-drop-line::after {
-  position: absolute;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: #2563eb;
-  content: "";
-  transform: translateY(-50%);
-}
-
-.canvas-dom-drop-line::before { left: -3px; }
-.canvas-dom-drop-line::after { right: -3px; }
-
-.canvas-dom-drop-line[data-orientation="vertical"]::before,
-.canvas-dom-drop-line[data-orientation="vertical"]::after {
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-}
-
-.canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
-.canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
 
 .canvas-dom-drop-label {
   z-index: 2147483647;

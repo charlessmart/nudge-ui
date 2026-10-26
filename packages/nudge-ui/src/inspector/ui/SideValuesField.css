@@ -33,10 +33,6 @@
   line-height: 1.25;
 }
 
-.side-values__linked {
-  min-width: 0;
-}
-
 .side-values__value-row {
   display: grid;
   min-width: 0;
@@ -47,18 +43,6 @@
 
 .side-values[data-expanded="true"] .side-values__value-row {
   align-items: start;
-}
-
-.side-values__linked-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-}
-
-.side-values__linked-row--no-label {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.side-values__linked-row .side-values__label {
-  white-space: nowrap;
 }
 
 .side-values__pairs {

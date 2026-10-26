@@ -1,25 +1,14 @@
-import { strokeFrame } from "./selectionFrame.ts";
-import { sketchTextFont, sketchTextLines } from "./text.ts";
+import { textLayout } from "./text.ts";
 import {
-  SKETCH_ANNOTATION_RADIUS,
-  SKETCH_TEXT_FONT_SIZE,
   SKETCH_LIMITS,
-  SKETCH_ACCENT_COLOR,
   SKETCH_RECTANGLE_FILL_OPACITY,
   SKETCH_STROKE_COLOR,
-  type SketchAnnotation,
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
 import { sketchStrokeOutline } from "./freehand.tsx";
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-const SKETCH_NOTE_PADDING = 24;
-const SKETCH_NOTE_TITLE_LINE_HEIGHT = 34;
-const SKETCH_NOTE_LINE_HEIGHT = 32;
-const SKETCH_NOTE_FONT = "24px system-ui, sans-serif";
-const SKETCH_NOTE_TITLE_FONT = "600 24px system-ui, sans-serif";
-const SKETCH_NOTE_FALLBACK_HEADING = "Sketch notes";
 
 export interface PngDimensions {
   readonly width: number;
@@ -83,12 +72,10 @@ function drawSketchText(
   scaleX: number,
   scaleY: number,
 ): void {
-  const frame = strokeFrame(stroke);
-  const lines = sketchTextLines(stroke.text ?? "");
-  const lineHeight = frame.height / lines.length;
+  const { frame, lines, lineHeight, font } = textLayout(stroke, scaleX, scaleY);
   ctx.translate(frame.center.x * scaleX, frame.center.y * scaleY);
   ctx.rotate(frame.rotation);
-  ctx.font = sketchTextFont((stroke.fontSize ?? SKETCH_TEXT_FONT_SIZE) * Math.max(scaleX, scaleY));
+  ctx.font = font;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillStyle = stroke.color || SKETCH_STROKE_COLOR;
@@ -99,8 +86,8 @@ function drawSketchText(
 
 export function drawSketchStroke(
   ctx: CanvasRenderingContext2D,
-  stroke: Pick<SketchStroke, "points" | "width">
-    & Partial<Pick<SketchStroke, "kind" | "color" | "text" | "fontSize" | "rotation">>,
+  stroke: Pick<SketchStroke, "kind" | "points" | "width">
+    & Partial<Pick<SketchStroke, "color" | "text" | "fontSize" | "rotation">>,
   scaleX = 1,
   scaleY = scaleX,
 ): void {
@@ -145,41 +132,6 @@ export function drawSketchStrokes(
   for (const stroke of strokes) drawSketchStroke(ctx, stroke, scaleX, scaleY);
 }
 
-export function drawSketchAnnotation(
-  ctx: CanvasRenderingContext2D,
-  annotation: Pick<SketchAnnotation, "number" | "point">,
-  scaleX = 1,
-  scaleY = scaleX,
-): void {
-  const scale = Math.max(scaleX, scaleY);
-  const x = annotation.point.x * scaleX;
-  const y = annotation.point.y * scaleY;
-  const radius = SKETCH_ANNOTATION_RADIUS * scale;
-
-  ctx.save();
-  ctx.fillStyle = SKETCH_ACCENT_COLOR;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `600 ${12 * scale}px system-ui, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(String(annotation.number), x, y);
-  ctx.restore();
-}
-
-export function drawSketchAnnotations(
-  ctx: CanvasRenderingContext2D,
-  annotations: readonly SketchAnnotation[],
-  scaleX = 1,
-  scaleY = scaleX,
-): void {
-  for (const annotation of annotations) {
-    drawSketchAnnotation(ctx, annotation, scaleX, scaleY);
-  }
-}
-
 interface LoadedImage {
   readonly source: CanvasImageSource;
   readonly close: () => void;
@@ -217,93 +169,11 @@ function canvasPng(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const next = line ? `${line} ${word}` : word;
-    if (line && ctx.measureText(next).width > maxWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-function wrapSketchHeading(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  heading: string,
-): string[] {
-  const text = heading.trim();
-  if (!text) return [];
-  ctx.font = SKETCH_NOTE_TITLE_FONT;
-  return wrapText(ctx, text, Math.max(1, width - SKETCH_NOTE_PADDING * 2));
-}
-
-function wrapSketchNotes(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  description: string,
-  annotations: readonly SketchAnnotation[],
-): string[] {
-  const notes = [
-    description.trim(),
-    ...annotations.map((annotation) => {
-      const text = annotation.description.trim();
-      return text ? `${annotation.number}. ${text}` : "";
-    }),
-  ].filter(Boolean);
-  ctx.font = SKETCH_NOTE_FONT;
-  const textWidth = Math.max(1, width - SKETCH_NOTE_PADDING * 2);
-  return notes.flatMap((note) => wrapText(ctx, note, textWidth));
-}
-
-function sketchNotePanelHeight(headingLineCount: number, noteLineCount: number): number {
-  if (headingLineCount + noteLineCount === 0) return 0;
-  return SKETCH_NOTE_PADDING * 2
-    + headingLineCount * SKETCH_NOTE_TITLE_LINE_HEIGHT
-    + noteLineCount * SKETCH_NOTE_LINE_HEIGHT;
-}
-
-function drawSketchNotes(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  top: number,
-  headingLines: readonly string[],
-  noteLines: readonly string[],
-): void {
-  ctx.save();
-  ctx.fillStyle = SKETCH_ACCENT_COLOR;
-  ctx.fillRect(0, top, width, sketchNotePanelHeight(headingLines.length, noteLines.length));
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.font = SKETCH_NOTE_TITLE_FONT;
-  let y = top + SKETCH_NOTE_PADDING;
-  for (const line of headingLines) {
-    ctx.fillText(line, SKETCH_NOTE_PADDING, y);
-    y += SKETCH_NOTE_TITLE_LINE_HEIGHT;
-  }
-  ctx.font = SKETCH_NOTE_FONT;
-  for (const line of noteLines) {
-    ctx.fillText(line, SKETCH_NOTE_PADDING, y);
-    y += SKETCH_NOTE_LINE_HEIGHT;
-  }
-  ctx.restore();
-}
-
-export async function renderAnnotatedPng(
+export async function renderSketchPng(
   originalImage: Blob,
   imageWidth: number,
   imageHeight: number,
   strokes: readonly SketchStroke[],
-  annotations: readonly SketchAnnotation[] = [],
-  description = "",
-  heading = SKETCH_NOTE_FALLBACK_HEADING,
 ): Promise<{ readonly blob: Blob; readonly width: number; readonly height: number }> {
   await validatePngBlob(originalImage, { width: imageWidth, height: imageHeight });
   if (typeof document === "undefined") throw new Error("Sketch rendering requires a browser document.");
@@ -311,27 +181,16 @@ export async function renderAnnotatedPng(
   try {
     const canvas = document.createElement("canvas");
     canvas.width = imageWidth;
+    canvas.height = imageHeight;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("The browser could not create a sketch canvas.");
-    const headingLines = wrapSketchHeading(context, imageWidth, heading);
-    const noteLines = wrapSketchNotes(context, imageWidth, description, annotations);
-    const outputHeight = imageHeight + sketchNotePanelHeight(headingLines.length, noteLines.length);
-    if (outputHeight > SKETCH_LIMITS.imageEdge) {
-      throw new Error("Sketch notes are too long to fit below the captured image.");
-    }
-    // Resizing clears the canvas and resets context state; the context stays valid.
-    canvas.height = outputHeight;
     context.drawImage(image.source, 0, 0, imageWidth, imageHeight);
     drawSketchStrokes(context, strokes);
-    drawSketchAnnotations(context, annotations);
-    if (headingLines.length > 0 || noteLines.length > 0) {
-      drawSketchNotes(context, imageWidth, imageHeight, headingLines, noteLines);
-    }
     const result = await canvasPng(canvas);
     if (result.size > SKETCH_LIMITS.imageBytes) {
       throw new Error("This sketch is too detailed to save within the 2 MiB image limit.");
     }
-    return { blob: result, width: imageWidth, height: outputHeight };
+    return { blob: result, width: imageWidth, height: imageHeight };
   } finally {
     image.close();
   }
@@ -340,29 +199,7 @@ export async function renderAnnotatedPng(
 /** The promise form lets callers start the write inside the user gesture (required by Safari). */
 export async function copyImageToClipboard(blob: Blob | Promise<Blob>): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Image clipboard access is unavailable. Use Download image instead.");
+    throw new Error("Image clipboard access is unavailable in this browser.");
   }
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-}
-
-export async function copyImageAndTextToClipboard(blob: Blob, text: string): Promise<void> {
-  if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Combined image and text clipboard access is unavailable. Copy the prompt and image separately.");
-  }
-  await navigator.clipboard.write([
-    new ClipboardItem({
-      "image/png": blob,
-      "text/plain": new Blob([text], { type: "text/plain" }),
-    }),
-  ]);
-}
-
-export function downloadImage(blob: Blob, filename: string): void {
-  if (typeof document === "undefined" || typeof URL === "undefined") return;
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

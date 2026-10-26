@@ -44,14 +44,12 @@
   --space-40: 40px;
   --space-48: 48px;
 
-  /* Radius */
   --radius-0: 0;
   --radius-4: 4px;
   --radius-6: 6px;
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
-  --radius-20: 20px;
   --radius-24: 24px;
   --radius-pill: 999px;
 
@@ -62,13 +60,19 @@
   --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), var(--shadow-control-outline);
   --z-index: 2147483647;
 
+  /* One shared spring: settles in ~380ms with a ~1.5% overshoot, subtle enough for arrivals, releases and resting states. */
+  --spring-duration: 380ms;
+  --spring-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Presses go in fast and out on the spring, so the control never feels sluggish. */
+  --press-duration: 90ms;
+  --shake-duration: 320ms;
+
   --font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-size-base: 12px;
   --font-size-small: 10px;
   --font-weight-base: 400;
   --font-weight-label: 500;
 
-  /* Control semantic sizes */
   --control-height-small: 24px;
   --control-height-large: 32px;
   --control-height-xlarge: 40px;
@@ -79,6 +83,7 @@
   --icon-size-small: 16px;
   --icon-size-large: 20px;
   --icon-stroke-width: 1.5px;
+  --icon-stroke-width-active: 2px;
 
   position: fixed;
   inset: 0;
@@ -99,4 +104,39 @@ button,
 input,
 select {
   font-family: inherit;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :host {
+    --spring-ease: linear(0, 0.036, 0.1232, 0.2366, 0.3589, 0.4787, 0.5889, 0.6857, 0.7675, 0.8345, 0.8877, 0.9286, 0.9591, 0.981, 0.9961, 1.0058, 1.0115, 1.0143, 1.0152, 1.0147, 1.0134, 1.0117, 1.0098, 1.008, 1.0063, 1.0048, 1.0036, 1.0026, 1);
+  }
+}
+
+/* Gives whatever a rule transitions the shared spring; pair with `transition-property`. */
+.spring {
+  transition-duration: var(--spring-duration);
+  transition-timing-function: var(--spring-ease);
+}
+
+/* A short "no": add via `shake()` from ui/shake.ts, which restarts it if it is already running. */
+@keyframes nudge-shake {
+  0%, 100% { translate: 0 0; }
+  18% { translate: -4px 0; }
+  38% { translate: 3.5px 0; }
+  58% { translate: -2.5px 0; }
+  78% { translate: 1.5px 0; }
+}
+
+.shake {
+  animation: nudge-shake var(--shake-duration) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spring {
+    transition-duration: 0s;
+  }
+
+  .shake {
+    animation: none;
+  }
 }

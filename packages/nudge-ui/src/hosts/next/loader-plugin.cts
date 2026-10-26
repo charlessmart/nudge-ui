@@ -1,8 +1,4 @@
-/**
- * Turbopack runs this through a webpack LoaderRunner compatibility layer: the module
- * itself must be the loader (hence CJS in .cts, `require`, no sourcemap — a map through
- * `this.callback` corrupts Turbopack's pipeline).
- */
+/** Turbopack runs this through a webpack LoaderRunner compatibility layer: the module itself must be the loader (hence CJS in .cts, `require`, no sourcemap — a map through `this.callback` corrupts Turbopack's pipeline). */
 
 interface NudgeUiLoaderContext {
   resourcePath?: string;
@@ -59,11 +55,7 @@ const { nudgeUiRepositoryPackagePattern } = require("./repositoryScope.ts") as {
 const nodePath = require("node:path");
 const nodeFs = require("node:fs");
 
-/**
- * Compilers report canonical resourcePaths while the wrapper's root comes from
- * `process.cwd()`, whose textual form can differ on symlinked paths (macOS /tmp vs
- * /private/tmp); canonicalizing both keeps the sidecar's aggregation key identical.
- */
+/** Compilers report canonical resourcePaths while the wrapper's root comes from `process.cwd()`, whose textual form can differ on symlinked paths (macOS /tmp vs /private/tmp); canonicalizing both keeps the sidecar's aggregation key identical. */
 const canonicalRootCache = new Map<string, string>();
 // Provenance checks canonicalise the same files repeatedly, so memoise them for the loader process.
 const canonicalFileCache = new Map<string, string>();

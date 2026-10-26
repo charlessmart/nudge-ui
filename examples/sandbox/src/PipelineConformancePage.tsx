@@ -1,15 +1,5 @@
 import "./pipeline-conformance.css";
 
-export const PIPELINE_CASES = [
-  "token-color",
-  "raw-fallback-color",
-  "physical-spacing",
-  "logical-spacing",
-  "simple-border",
-  "typography-shorthand",
-  "flex-layout",
-] as const;
-
 export function PipelineConformancePage() {
   return (
     <main className="pipeline-conformance-page">

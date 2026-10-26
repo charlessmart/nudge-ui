@@ -206,7 +206,7 @@ describe("spacing gestures", () => {
     expect(spacingValueForDrag(affordance!, { x: 80, y: 46 }, { x: 80, y: 54 })).toBe(20);
   });
 
-  it("uses screen-axis movement to increase every padding side", () => {
+  it("grows top and bottom padding by dragging down and right padding by dragging left", () => {
     const element = trackedElement();
     element.style.paddingRight = "20px";
     element.style.paddingBottom = "20px";
@@ -219,7 +219,8 @@ describe("spacing gestures", () => {
 
     const right = getSpacingAffordanceAtPoint(document, 200, 70);
     expect(right?.property).toBe("padding-right");
-    expect(spacingValueForDrag(right!, { x: 200, y: 70 }, { x: 208, y: 70 })).toBe(28);
+    expect(spacingValueForDrag(right!, { x: 200, y: 70 }, { x: 192, y: 70 })).toBe(28);
+    expect(spacingValueForDrag(right!, { x: 200, y: 70 }, { x: 208, y: 70 })).toBe(12);
   });
 
   it("moves spacing in 8px steps anchored on the nearest step while Shift is held", () => {
@@ -320,7 +321,7 @@ describe("spacing gestures", () => {
       return { parent, child };
     }
 
-    it("finds a child's margin handle in the band outside its border box and grows it by dragging away", () => {
+    it("finds a child's margin handle in the band outside its border box and grows it by dragging down", () => {
       const { child } = parentWithChild("40px 0 0 0");
 
       const affordance = getSpacingAffordanceAtPoint(document, 200, 60);
@@ -336,21 +337,21 @@ describe("spacing gestures", () => {
         affectedAreas: [{ left: 100, top: 40, width: 200, height: 40 }],
       });
       expect(affordance?.element).toBe(child);
-      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 52 })).toBe(48);
-      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 80 })).toBe(20);
+      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 68 })).toBe(48);
+      expect(spacingValueForDrag(affordance!, { x: 200, y: 60 }, { x: 200, y: 40 })).toBe(20);
       expect(toSpacingDescriptor(affordance!)).toEqual({ kind: "margin", property: "margin-top", side: "top" });
     });
 
-    it("grows left and right margins away from the element", () => {
+    it("grows the left margin by dragging right and the right margin by dragging left", () => {
       parentWithChild("0 30px 0 50px");
 
       const left = getSpacingAffordanceAtPoint(document, 75, 130);
       const right = getSpacingAffordanceAtPoint(document, 315, 130);
 
-      expect(left).toMatchObject({ property: "margin-left", direction: -1, value: 50 });
-      expect(right).toMatchObject({ property: "margin-right", direction: 1, value: 30 });
-      expect(spacingValueForDrag(left!, { x: 75, y: 130 }, { x: 65, y: 130 })).toBe(60);
-      expect(spacingValueForDrag(right!, { x: 315, y: 130 }, { x: 325, y: 130 })).toBe(40);
+      expect(left).toMatchObject({ property: "margin-left", direction: 1, value: 50 });
+      expect(right).toMatchObject({ property: "margin-right", direction: -1, value: 30 });
+      expect(spacingValueForDrag(left!, { x: 75, y: 130 }, { x: 85, y: 130 })).toBe(60);
+      expect(spacingValueForDrag(right!, { x: 315, y: 130 }, { x: 305, y: 130 })).toBe(40);
     });
 
     it("previews the whole margin band on hover and not outside it", () => {
