@@ -322,12 +322,21 @@ export function findCanvasFrameBySource(
 }
 
 /** The registered frame rendering `doc`; on the page surface this is the controller document. */
-export function findCanvasFrameByDocument(doc: Document | null | undefined): CanvasFrame | null {
+function findFrameEntryByDocument(doc: Document | null | undefined): readonly [string, CanvasFrame] | null {
   if (!doc) return null;
-  for (const iframe of frameRegistry.values()) {
-    if (getFrameDocument(iframe) === doc) return iframe;
+  for (const entry of frameRegistry) {
+    if (getFrameDocument(entry[1]) === doc) return entry;
   }
   return null;
+}
+
+export function findCanvasFrameByDocument(doc: Document | null | undefined): CanvasFrame | null {
+  return findFrameEntryByDocument(doc)?.[1] ?? null;
+}
+
+/** The card owning a document, for state that is per frame rather than board-wide. */
+export function findCanvasCardIdByDocument(doc: Document | null | undefined): string | null {
+  return findFrameEntryByDocument(doc)?.[0] ?? null;
 }
 
 const frameRegistryListeners = new Set<() => void>();

@@ -155,11 +155,10 @@ test("dev: selection defaults to Base and can target an authored hover state", a
   const picker = backgroundField.locator('[data-test="token-color-input"]');
   await expect(picker).toBeVisible();
   // Use a concrete value that is not one of the sandbox's token values.
-  await picker.evaluate((element, value) => {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    setter.call(element, value);
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, "#13579b");
+  await picker.click();
+  const hex = page.locator('[data-test="color-picker-hex"]');
+  await hex.fill("13579b");
+  await hex.press("Enter");
 
   await expect.poll(() => sheetText(page), { timeout: 5000 })
     .toContain(':hover { background-color: rgb(19, 87, 155); }');

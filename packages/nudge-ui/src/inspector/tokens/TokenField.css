@@ -65,8 +65,7 @@
 
 .token-field--blocked .text-input,
 .token-field--blocked .token-chip__trigger,
-.token-field--blocked .token-color-control,
-.token-field--blocked .token-color-control__input {
+.token-field--blocked .token-color-control {
   cursor: not-allowed;
 }
 
@@ -119,7 +118,21 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-6);
+  outline: 0;
+  background: transparent;
   cursor: pointer;
+}
+
+.token-color-control:focus-visible .color-swatch,
+.token-color-control[data-popup-open] .color-swatch {
+  box-shadow: 0 0 0 1px var(--border-medium), 0 0 0 3px var(--accent);
+}
+
+.token-color-control:disabled {
+  cursor: not-allowed;
 }
 
 .token-field--color .token-color-control {
@@ -130,20 +143,6 @@
 
 .token-color-control[data-resolved="false"] .color-swatch {
   background: repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
-}
-
-.token-color-control__input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.token-color-control__input:disabled {
-  cursor: not-allowed;
 }
 
 /* Off-screen samples skip layout, so a long list loads only the fonts in view. */

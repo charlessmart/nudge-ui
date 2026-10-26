@@ -32,8 +32,9 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
-import { useAnimationBusy, useDebugExploded } from "./debugViewStore.ts";
-import { findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
+import { useAnimationBusy } from "./debugViewStore.ts";
+import { useFrameExploded } from "./frameViewState.ts";
+import { findCanvasCardIdByDocument, findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
@@ -354,12 +355,14 @@ export function CanvasElementOverlay(): ReactElement | null {
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
   const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
   const selected = useSelectedElement();
+  // The overlay draws flat chrome over the board, so it follows the selection's own frame rather than the whole board.
+  const selectedFrame = findCanvasFrameByDocument(selected?.domElement.ownerDocument);
+  const selectedFrameExploded = useFrameExploded(findCanvasCardIdByDocument(selected?.domElement.ownerDocument));
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
   const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
   const inlineTextSession = useInlineTextSession();
   const animationBusy = useAnimationBusy();
-  const debugExploded = useDebugExploded();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
   const presentationTransitioning = useCanvasPresentationTransitioning();
@@ -384,7 +387,6 @@ export function CanvasElementOverlay(): ReactElement | null {
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide);
 
-  const selectedFrame = findCanvasFrameByDocument(selected?.domElement.ownerDocument);
   const selectedInCanvas = selectedFrame !== null;
   const selectedRects = selectedInCanvas
     ? selectedElements.map((candidate) => {
@@ -831,7 +833,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     }))
     : [];
 
-  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction || debugExploded) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
+  if (presentationTransitioning || layoutTransitioning || temporaryAppInteraction || selectedFrameExploded) return <InspectorStyle testId="canvas-element-overlay-styles" css={overlayStyles} />;
 
   return (
     <>
@@ -913,7 +915,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
-      {domNavigationEnabled && !animationBusy && !debugExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
+      {domNavigationEnabled && !animationBusy && !selectedFrameExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
         <DomNavigator
           selected={selected}
           hierarchy={hierarchy}

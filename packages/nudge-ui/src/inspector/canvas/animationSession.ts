@@ -186,8 +186,6 @@ export class AnimationSession {
         stopPseudo?.();
         activation();
       };
-    } else if (entry.kind === "click") {
-      this.dispatchClick();
     }
 
     const startedAt = window.performance.now();
@@ -362,21 +360,6 @@ export class AnimationSession {
       this.pollFrame = window.requestAnimationFrame(poll);
     };
     this.pollFrame = window.requestAnimationFrame(poll);
-  }
-
-  /** Synthetic clicks run the app's handlers but never follow links or submit forms. */
-  private dispatchClick(): void {
-    const doc = this.element.ownerDocument;
-    const synthetic = new (doc.defaultView?.MouseEvent ?? MouseEvent)("click", { bubbles: true, cancelable: true });
-    const preventDefault = (event: Event): void => {
-      if (event === synthetic) event.preventDefault();
-    };
-    doc.addEventListener("click", preventDefault, { capture: true });
-    try {
-      this.element.dispatchEvent(synthetic);
-    } finally {
-      doc.removeEventListener("click", preventDefault, { capture: true });
-    }
   }
 
   /** Drops the captured animations and the forced state, leaving the page as the app had it. */

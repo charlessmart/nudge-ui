@@ -4,12 +4,12 @@ import {
   beginSketchCapture,
   cancelSketchInteraction,
   completeSketchCapture,
-  getSketchInteractionSnapshot,
+  isSketchInteractionActive,
 } from "./interaction.ts";
 import { captureViewport } from "../../sketch/capture.ts";
 
 const captured = {
-  originalImage: new Blob(["png"], { type: "image/png" }),
+  pageImage: new Blob(["png"], { type: "image/png" }),
   imageWidth: 1,
   imageHeight: 1,
   capture: {
@@ -37,25 +37,52 @@ describe("sketch interaction", () => {
     capture.mockResolvedValue(captured);
   });
 
-  it("waits for the copy before capturing a newly started sketch", async () => {
-    const hostElement = document.createElement("div");
+  it("opens the tool without capturing, and closes it again", () => {
     beginSketchCapture();
 
-    expect(getSketchInteractionSnapshot().captureState).toBe("sketching");
+    expect(isSketchInteractionActive()).toBe(true);
     expect(capture).not.toHaveBeenCalled();
-
-    await completeSketchCapture(hostElement, capture);
-    await vi.waitFor(() => expect(getSketchInteractionSnapshot().captureState).toBe("ready"));
-
-    expect(capture).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
-
-    // Copying hands the tool back to a fresh canvas without keeping the capture in memory.
-    beginSketchCapture();
-
-    expect(getSketchInteractionSnapshot()).toEqual({ captureState: "sketching", captured: null, error: null });
 
     cancelSketchInteraction();
 
-    expect(getSketchInteractionSnapshot()).toEqual({ captureState: "idle", captured: null, error: null });
+    expect(isSketchInteractionActive()).toBe(false);
+  });
+
+  it("hands the capture result back and keeps the tool open for the next sketch", async () => {
+    const hostElement = document.createElement("div");
+    beginSketchCapture();
+
+    await expect(completeSketchCapture(hostElement, capture)).resolves.toBe(captured);
+    expect(capture).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
+    expect(isSketchInteractionActive()).toBe(true);
+  });
+
+  it("closes the tool when a capture is aborted", async () => {
+    const hostElement = document.createElement("div");
+    beginSketchCapture();
+    capture.mockImplementationOnce(({ signal }) => new Promise((_, reject) => {
+      signal?.addEventListener("abort", () => reject(new Error("aborted")));
+    }));
+    const pending = completeSketchCapture(hostElement, capture);
+    cancelSketchInteraction();
+
+    await expect(pending).rejects.toThrow("aborted");
+    expect(isSketchInteractionActive()).toBe(false);
+  });
+
+  it("stays open when the tool is reopened before an aborted capture settles", async () => {
+    const hostElement = document.createElement("div");
+    beginSketchCapture();
+    let rejectCapture: (error: Error) => void = () => undefined;
+    capture.mockImplementationOnce(() => new Promise((_, reject) => {
+      rejectCapture = reject;
+    }));
+    const pending = completeSketchCapture(hostElement, capture);
+    cancelSketchInteraction();
+    beginSketchCapture();
+    rejectCapture(new Error("aborted"));
+
+    await expect(pending).rejects.toThrow("aborted");
+    expect(isSketchInteractionActive()).toBe(true);
   });
 });

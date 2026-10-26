@@ -64,8 +64,7 @@
   color: var(--success);
 }
 
-.toast[data-tone="error"],
-.toast[data-tone="info"] {
+.toast[data-tone="error"] {
   border-radius: var(--radius-12);
 }
 

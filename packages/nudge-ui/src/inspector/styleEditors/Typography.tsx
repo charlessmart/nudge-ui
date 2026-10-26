@@ -36,11 +36,10 @@ export interface TypographyProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: readonly ResolvedProperty[];
-  onAfterEdit?: () => void;
 }
 
 export function Typography(props: TypographyProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [] } = props;
   const el = element.domElement;
   const target: EditTarget = selection?.target ?? el;
   const targetElements = selection?.domElements ?? [el];
@@ -62,7 +61,6 @@ export function Typography(props: TypographyProps): ReactElement {
           domElement={el}
           editTarget={target}
           entries={allEntries}
-          onAfterEdit={onAfterEdit}
         />
 
         <FontStyleField
@@ -71,7 +69,6 @@ export function Typography(props: TypographyProps): ReactElement {
           editTarget={target}
           fontStyleRow={findTokenRow(tokenRows, "font-style")}
           fontWeightRow={findTokenRow(tokenRows, "font-weight")}
-          onAfterEdit={onAfterEdit}
         />
 
         <div className="typography__metrics" data-test="typography-metrics">
@@ -84,7 +81,6 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             editTarget={target}
             entries={allEntries}
-            onAfterEdit={onAfterEdit}
           />
           <TypographyTokenField
             property="line-height"
@@ -95,7 +91,6 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             editTarget={target}
             entries={allEntries}
-            onAfterEdit={onAfterEdit}
           />
           <TypographyTokenField
             property="letter-spacing"
@@ -106,7 +101,6 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             editTarget={target}
             entries={allEntries}
-            onAfterEdit={onAfterEdit}
           />
         </div>
 
@@ -123,7 +117,6 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "center", label: "Align center", icon: <IconAlignCenter size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
               { value: "right", label: "Align right", icon: <IconAlignRight size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
-            onAfterEdit={onAfterEdit}
           />
           <AlignmentField
             property="vertical-align"
@@ -137,7 +130,6 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "middle", label: "Align middle", icon: <IconLayoutAlignMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
               { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
-            onAfterEdit={onAfterEdit}
           />
         </div>
       </div>
@@ -154,11 +146,10 @@ interface TypographyTokenFieldProps {
   domElement: HTMLElement;
   editTarget: EditTarget;
   entries: TokenEntry[];
-  onAfterEdit?: () => void;
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries, onAfterEdit } = props;
+  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries } = props;
   const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
@@ -180,7 +171,6 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
         leading={icon}
         trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
         label={label}
-        onAfterEdit={onAfterEdit}
       />
     </ControlSurface>
   );
@@ -210,10 +200,9 @@ interface FontStyleFieldProps {
   editTarget: EditTarget;
   fontStyleRow: ResolvedProperty | null;
   fontWeightRow: ResolvedProperty | null;
-  onAfterEdit?: () => void;
 }
 
-function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeightRow, onAfterEdit }: FontStyleFieldProps): ReactElement {
+function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeightRow }: FontStyleFieldProps): ReactElement {
   const fontStyleAtRules = useFieldAtRules("font-style");
   const fontWeightAtRules = useFieldAtRules("font-weight");
   const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules
@@ -247,7 +236,6 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
       { property: "font-style", value: option.style, metadata: metadataFor(fontStyleRow ?? fontWeightRow) },
       { property: "font-weight", value: option.weight, metadata: metadataFor(fontWeightRow ?? fontStyleRow) },
     ]);
-    onAfterEdit?.();
   }
 
   return (
@@ -307,10 +295,9 @@ interface AlignmentFieldProps {
   editTarget: EditTarget;
   defaultValue: string;
   options: AlignmentOption[];
-  onAfterEdit?: () => void;
 }
 
-function AlignmentField({ property, label, element, elements, editTarget, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
+function AlignmentField({ property, label, element, elements, editTarget, defaultValue, options }: AlignmentFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
   const blockedBy = inlineBlockedBy(elements, property);
   const readValues = () => elements.map((target) => getStateStyleValue(target, property, defaultValue));
@@ -329,7 +316,6 @@ function AlignmentField({ property, label, element, elements, editTarget, defaul
     if (blockedBy) return;
     setCurrent(value);
     setStyle(editTarget, property, value);
-    onAfterEdit?.();
   }
 
   return (

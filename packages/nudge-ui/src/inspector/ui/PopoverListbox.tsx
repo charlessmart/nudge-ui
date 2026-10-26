@@ -1,5 +1,6 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Autocomplete } from "@base-ui/react/autocomplete";
+import { IconCheck } from "@tabler/icons-react";
 import { Fragment, useRef } from "react";
 import type { FocusEventHandler, KeyboardEventHandler, ReactElement, ReactNode, Ref } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
@@ -13,6 +14,8 @@ export interface PopoverListboxItem {
   label: string;
   leading?: ReactNode;
   trailing?: ReactNode;
+  /** Marks the row as the current choice; the check sits at the trailing edge, as in `Select`. */
+  selected?: boolean;
   "data-test"?: string;
   /** Consecutive items in one group render under its label. */
   group?: string;
@@ -36,6 +39,18 @@ function itemSections(items: readonly PopoverListboxItem[]): ItemSection[] {
     else sections.push({ key: `${sections.length}:${item.group ?? ""}`, label: item.group, items: [item.value] });
   }
   return sections;
+}
+
+/** `wide` keeps the popup at least 260px for long labels; `fit` sizes it to its items, never narrower than the control. */
+export type PopupWidth = "fit" | "wide";
+
+/** The current row's check, matching the trailing indicator that `Select` puts after its item text. */
+function SelectedIndicator(): ReactElement {
+  return (
+    <span className="popover-listbox__indicator" data-test="popover-listbox-indicator">
+      <IconCheck size={15} stroke={2.4} aria-hidden="true" />
+    </span>
+  );
 }
 
 export interface PopoverListboxProps {
@@ -64,7 +79,7 @@ export interface PopoverListboxProps {
   disabled?: boolean;
   className?: string;
   /** `wide` keeps the popup at least 260px for long labels; `fit` sizes it to its items, never narrower than the control. */
-  popupWidth?: "fit" | "wide";
+  popupWidth?: PopupWidth;
   onQueryChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
   onSelect: (value: string) => void;
@@ -128,6 +143,7 @@ export function PopoverListbox({
         {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
         <span className="popover-listbox__label">{item.label}</span>
         {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
+        {item.selected ? <SelectedIndicator /> : null}
       </Combobox.Item>
     );
   }
@@ -148,6 +164,7 @@ export function PopoverListbox({
         {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
         <span className="popover-listbox__label">{item.label}</span>
         {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
+        {item.selected ? <SelectedIndicator /> : null}
       </Autocomplete.Item>
     );
   }

@@ -38,9 +38,8 @@ export function AnimationBar(): ReactElement | null {
     // The constructor is cheap so it can run in render; the scan reads stylesheets, so it runs here.
     session.scan();
     session.setSpeed(getAnimationSpeed());
-    // A click runs the app's own handlers, so only a described animation starts by itself.
     const first = session.getSnapshot().entries?.[0];
-    if (first && first.kind !== "click") session.run(first, { autoplay: true });
+    if (first) session.run(first, { autoplay: true });
     return () => session.dispose();
   }, [session]);
 

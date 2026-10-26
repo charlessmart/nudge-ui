@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { IconBackground } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
-import { normalizeOpacityPercent } from "../../css/value-semantics/index.ts";
+import { normalizeOpacityPercent, normalizeTypedOpacityPercent } from "../../css/value-semantics/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { metadataFor } from "./rowLookup.ts";
 import { deriveActiveTokenName } from "./fieldValue.ts";
@@ -25,10 +25,9 @@ export interface OpacityEditorProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
 }
 
-export function OpacityEditor({ element, selection, entries, tokenRows = [], onAfterEdit }: OpacityEditorProps): ReactElement {
+export function OpacityEditor({ element, selection, entries, tokenRows = [] }: OpacityEditorProps): ReactElement {
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
@@ -66,11 +65,10 @@ export function OpacityEditor({ element, selection, entries, tokenRows = [], onA
           editMetadata={metadataFor(row)}
           disabled={!editable}
           mixed={mixed}
-          formatRawValue={(raw) => normalizeOpacityPercent(raw) ?? ""}
+          formatRawValue={(raw) => normalizeTypedOpacityPercent(raw) ?? ""}
           leading={<IconBackground size={16} stroke={1.8} aria-hidden="true" />}
           trailing={activeToken ? <span className="opacity-editor__effective" data-test="opacity-effective">{value}</span> : undefined}
           label="Opacity"
-          onAfterEdit={onAfterEdit}
         />
       </ControlSurface>
     </div>

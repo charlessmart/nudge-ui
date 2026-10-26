@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnimationSession } from "./animationSession.ts";
-import { CLICK_ENTRY, scanAnimations, type AnimationEntry } from "./animationScan.ts";
+import { scanAnimations, type AnimationEntry } from "./animationScan.ts";
+
+/** A neutral entry for tests that only need the capture pipeline: no keyframes restart and no forced state. */
+const RUNNING_ENTRY: AnimationEntry = { id: "running", kind: "running", label: "Running now" };
 
 function hoverEntryFor(trigger: HTMLElement): AnimationEntry {
   const group = { id: "state:1:pointer", kind: "state", label: "Hover", trigger, members: new Map([[trigger, new Set(["transform"])]]), state: "hover", conditions: [{ kind: "pseudo", state: "hover" }], timeline: "document", name: "" } as const;
@@ -62,17 +65,12 @@ describe("AnimationSession", () => {
     vi.useRealTimers();
   });
 
-  it("captures animations started by a click, pauses them at the start and scrubs them", () => {
+  it("captures the animations running on the element, pauses them at the start and scrubs them", () => {
     const session = new AnimationSession(button);
-    const clicked = vi.fn();
-    button.addEventListener("click", () => {
-      clicked();
-      live.push(fakeAnimation("background-color", 200), fakeAnimation("transform", 400));
-    });
+    live.push(fakeAnimation("background-color", 200), fakeAnimation("transform", 400));
 
-    session.run(CLICK_ENTRY);
+    session.run(RUNNING_ENTRY);
 
-    expect(clicked).toHaveBeenCalledOnce();
     expect(session.getSnapshot()).toMatchObject({ status: "ready", label: "background-color +1", playing: false });
     expect(live.every((animation) => animation.pause.mock.calls.length > 0 && animation.currentTime === 0)).toBe(true);
 
@@ -85,8 +83,8 @@ describe("AnimationSession", () => {
 
   it("applies the chosen speed and restarts from the beginning when played at the end", () => {
     const session = new AnimationSession(button);
-    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
-    session.run(CLICK_ENTRY);
+    live.push(fakeAnimation("opacity", 100));
+    session.run(RUNNING_ENTRY);
 
     session.setSpeed(0.25);
     expect(live[0]!.playbackRate).toBe(0.25);
@@ -101,36 +99,22 @@ describe("AnimationSession", () => {
 
   it("plays an autoplayed capture instead of holding it at its first frame", () => {
     const session = new AnimationSession(button);
-    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
-    session.run(CLICK_ENTRY, { autoplay: true });
+    live.push(fakeAnimation("opacity", 100));
+    session.run(RUNNING_ENTRY, { autoplay: true });
 
     expect(session.getSnapshot()).toMatchObject({ status: "ready", playing: true });
     expect(live[0]!.play).toHaveBeenCalled();
     session.dispose();
   });
 
-  it("does not follow a link or submit when it runs a click", () => {
-    document.body.innerHTML = `<a id="a" href="#elsewhere">Go</a>`;
-    const link = document.getElementById("a") as HTMLAnchorElement;
-    link.getAnimations = () => [];
-    const session = new AnimationSession(link);
-    const seen: boolean[] = [];
-    document.addEventListener("click", (event) => seen.push(event.defaultPrevented));
-
-    session.run(CLICK_ENTRY);
-
-    expect(seen).toEqual([true]);
-    session.dispose();
-  });
-
   it("reports no animation after the capture window, and cancels what it captured on dispose", () => {
     const session = new AnimationSession(button);
-    session.run(CLICK_ENTRY);
+    session.run(RUNNING_ENTRY);
     vi.advanceTimersByTime(700);
     expect(session.getSnapshot().status).toBe("none");
 
-    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
-    session.run(CLICK_ENTRY);
+    live.push(fakeAnimation("opacity", 100));
+    session.run(RUNNING_ENTRY);
     const captured = live[0]!;
     session.dispose();
     expect(captured.cancel).toHaveBeenCalled();
@@ -161,8 +145,8 @@ describe("AnimationSession", () => {
 
   it("stops asking for frames once nothing is moving", () => {
     const session = new AnimationSession(button);
-    button.addEventListener("click", () => live.push(fakeAnimation("opacity", 100)));
-    session.run(CLICK_ENTRY);
+    live.push(fakeAnimation("opacity", 100));
+    session.run(RUNNING_ENTRY);
     // Let the capture window finish, so only playback frames are counted.
     vi.advanceTimersByTime(700);
 
@@ -176,7 +160,7 @@ describe("AnimationSession", () => {
     session.dispose();
   });
 
-  it("gives each state its own movement and offers a click only beside other animations on elements that look clickable", async () => {
+  it("gives each state its own movement", async () => {
     document.head.innerHTML = `<style>
       .deck { position: relative; }
       .card { transition-property: transform, opacity; transition-duration: 200ms; }
@@ -205,14 +189,6 @@ describe("AnimationSession", () => {
     expect(scanAnimations(byId("spin")).map((entry) => entry.label)).toEqual(["spin"]);
     expect(scanAnimations(byId("plain"))).toEqual([]);
 
-    document.head.innerHTML = `<style>.spinner { animation-name: spin; animation-duration: 1s; } .pointer { cursor: pointer; }</style>`;
-    document.body.innerHTML = `<button id="go" class="spinner">Go</button><div id="tab" role="tab" class="spinner"></div><div id="inert" class="spinner"></div>`
-      + `<button id="bare">Bare</button><div id="card" class="pointer spinner"><i id="icon" class="spinner"></i></div>`;
-    for (const element of document.querySelectorAll<HTMLElement>("*")) element.getAnimations = () => [];
-    await Promise.resolve();
-    const clickable = (id: string): boolean => scanAnimations(byId(id)).some((entry) => entry.kind === "click");
-    // A clickable element with nothing animating gets no click on its own; a pointer cursor only counts where it starts.
-    expect(["go", "tab", "inert", "bare", "card", "icon"].map(clickable)).toEqual([true, true, false, false, true, false]);
   });
 
   it("replays an attribute-gated state even when it is already applied", async () => {
@@ -264,9 +240,9 @@ describe("AnimationSession", () => {
     const css = { percent: (value: number) => ({ value, unit: "percent" as const }) };
     Object.defineProperty(document.defaultView!, "CSS", { configurable: true, value: css });
     const session = new AnimationSession(target);
-    target.addEventListener("click", () => live.push(scroll as unknown as FakeAnimation));
+    live.push(scroll as unknown as FakeAnimation);
 
-    session.run(CLICK_ENTRY);
+    session.run(RUNNING_ENTRY);
 
     expect(session.getSnapshot()).toMatchObject({ status: "ready", timeline: "scroll", duration: 0, progress: 0 });
     session.seek(0.5);

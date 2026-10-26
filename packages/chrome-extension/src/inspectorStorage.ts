@@ -1,30 +1,17 @@
 import { createMirroredStorage, type InspectorStorage } from "nudge-ui/internal/page-inspector";
-import { parseStorageReadResponse, STORAGE_READ_EVENT, STORAGE_READ_RESPONSE_EVENT, STORAGE_WRITE_EVENT } from "./protocol.ts";
+import { createChannelClient, sendNotification } from "./bridge.ts";
+import { storageReadChannel } from "./channels.ts";
+import { STORAGE_WRITE_EVENT } from "./protocol.ts";
 
 /** Reloads saved state under the workspace lease; writes remain synchronous to callers. */
 export function createExtensionInspectorStorage(initial: Record<string, string>): InspectorStorage {
-  let nextId = 0;
-  const read = (): Promise<Record<string, string>> => new Promise((resolve, reject) => {
-    const id = ++nextId;
-    const finish = (): void => {
-      clearTimeout(timeout);
-      document.removeEventListener(STORAGE_READ_RESPONSE_EVENT, onResponse);
-    };
-    const onResponse = (event: Event): void => {
-      const response = parseStorageReadResponse((event as CustomEvent<unknown>).detail);
-      if (!response || response.id !== id) return;
-      finish();
-      if (response.values) resolve(response.values);
-      else reject(new Error(response.error ?? "Inspector storage could not be read."));
-    };
-    const timeout = setTimeout(() => {
-      finish();
-      reject(new Error("Inspector storage did not respond."));
-    }, 5000);
-    document.addEventListener(STORAGE_READ_RESPONSE_EVENT, onResponse);
-    document.dispatchEvent(new CustomEvent(STORAGE_READ_EVENT, { detail: id }));
-  });
+  const client = createChannelClient(storageReadChannel);
+  const read = async (): Promise<Record<string, string>> => {
+    const reply = await client.send({});
+    if (reply.values) return reply.values;
+    throw new Error(reply.error ?? "Inspector storage could not be read.");
+  };
   return createMirroredStorage(initial, (key, value) => {
-    document.dispatchEvent(new CustomEvent(STORAGE_WRITE_EVENT, { detail: JSON.stringify({ key, value }) }));
+    sendNotification(document, STORAGE_WRITE_EVENT, JSON.stringify({ key, value }));
   }, read);
 }

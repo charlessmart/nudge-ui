@@ -110,11 +110,10 @@ export interface BoxShadowEditorProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
 }
 
 export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [] } = props;
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
@@ -147,7 +146,6 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
     const nextValue = serializeShadows(nextLayers);
     if (!setStyle(editTarget, "box-shadow", nextValue, selection && selection.elements.length > 1 ? undefined : metadataFor(tokenRow))) return false;
     setDraft({ element: el, source, value: nextValue });
-    onAfterEdit?.();
     return true;
   }
 
@@ -184,7 +182,7 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
       {visibility.visible ? <div className="box-shadow-editor__layers">
         {!layers || (wholeShadowToken && !activeDraft) ? <ControlSurface>
           <TokenField property="box-shadow" selection={selection} tokenRow={tokenRow} domElement={el}
-            editTarget={editTarget} entries={allEntries} onAfterEdit={onAfterEdit} editMetadata={metadataFor(tokenRow)} />
+            editTarget={editTarget} entries={allEntries} editMetadata={metadataFor(tokenRow)} />
         </ControlSurface> : null}
         {layers?.map((layer, index) => {
           const color = interpretTokenValue(layer.color, { table: colorContext.tokenTable });

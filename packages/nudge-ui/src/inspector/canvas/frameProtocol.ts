@@ -349,43 +349,126 @@ export type ControllerToRendererMessage =
   | InspectorInteractionStateMessage
   | DebugViewStateMessage;
 
-const RENDERER_MESSAGE_TYPES = {
-  "renderer-hello": true,
-  "frame-ready": true,
-  "frame-runtime": true,
-  "frame-metadata": true,
-  "frame-error": true,
-  "projection-applied": true,
-  "structural-projection-report": true,
-  "rendered-instance-projection-report": true,
-  "text-projection-report": true,
-  "navigation-intent": true,
-  "element-hover": true,
-  "element-measure-state": true,
-  "element-click": true,
-  "inline-text-intent": true,
-  "element-deselect": true,
-  "element-drag-start": true,
-  "element-drag-move": true,
-  "element-drag-end": true,
-  "element-delete": true,
-  "element-nudge": true,
-  "history-request": true,
-  "inspector-toggle-request": true,
-  "inspector-open-request": true,
-  "keyboard-shortcut": true,
-  "pan-start": true,
-  "pan-move": true,
-  "pan-end": true,
-  "pan-modifier": true,
-  "zoom": true,
-  "wheel-pan": true,
-  "app-interaction-modifier": true,
-  "debug-view-phase": true,
-} satisfies Record<RendererToControllerMessage["type"], true>;
+/** One message's payload rule: the keys it may carry beyond the shared envelope, and how to check them. */
+interface MessageSchema {
+  /** Extra keys this message may carry; `null` while its reader still narrows by hand. */
+  readonly fields: readonly string[] | null;
+  readonly validate?: (value: ProtocolObject) => boolean;
+}
+
+const ENVELOPE_KEYS = ["type", "protocolVersion", "projectId", "workspaceId", "cardId"] as const;
+
+function isRevision(value: ProtocolObject): boolean {
+  const revision = ownValue(value, "revision");
+  return typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0;
+}
+
+function isReportList(value: ProtocolObject, check: (candidate: unknown) => boolean): boolean {
+  const reports = ownValue(value, "reports");
+  return Array.isArray(reports) && reports.every(check);
+}
+
+/**
+ * One entry per renderer message. The union above is the type; this table is the runtime contract. Adding a message
+ * means adding a type and one entry here, and the `satisfies` clause fails until both exist.
+ */
+const RENDERER_SCHEMAS = {
+  "renderer-hello": { fields: null },
+  "frame-ready": { fields: null },
+  "frame-runtime": { fields: null },
+  "frame-metadata": { fields: null },
+  "frame-error": { fields: null },
+  "projection-applied": { fields: ["revision"], validate: isRevision },
+  "structural-projection-report": {
+    fields: ["revision", "reports"],
+    validate: (value) => isRevision(value) && isReportList(value, isStructuralProjectionReport),
+  },
+  "rendered-instance-projection-report": {
+    fields: ["revision", "reports"],
+    validate: (value) => isRevision(value) && isReportList(value, isDocumentProjectionReport),
+  },
+  "text-projection-report": {
+    fields: ["revision", "reports"],
+    validate: (value) => isRevision(value) && isReportList(value, isTextProjectionReport),
+  },
+  "navigation-intent": { fields: null },
+  "element-hover": { fields: null },
+  "element-measure-state": { fields: null },
+  "element-click": {
+    fields: ["cid", "selector", "src", "elementId", "file", "line", "component", "additive"],
+    validate: (value) => {
+      const line = ownValue(value, "line");
+      const additive = ownValue(value, "additive");
+      return typeof ownValue(value, "cid") === "string"
+        && typeof ownValue(value, "selector") === "string"
+        && typeof ownValue(value, "src") === "string"
+        && typeof ownValue(value, "elementId") === "string"
+        && typeof ownValue(value, "file") === "string"
+        && typeof line === "number" && Number.isSafeInteger(line) && line >= 0
+        && typeof ownValue(value, "component") === "string"
+        && (additive === undefined || typeof additive === "boolean");
+    },
+  },
+  "inline-text-intent": {
+    fields: ["intent", "cid", "src", "elementId", "point", "clickCount", "emptyProjectionId"],
+    validate: (value) => {
+      const intent = ownValue(value, "intent");
+      const point = ownValue(value, "point");
+      const clickCount = ownValue(value, "clickCount");
+      const emptyProjectionId = ownValue(value, "emptyProjectionId");
+      return (intent === "pointer-down" || intent === "double-click")
+        && typeof ownValue(value, "cid") === "string"
+        && typeof ownValue(value, "src") === "string"
+        && typeof ownValue(value, "elementId") === "string"
+        && isProtocolObject(point)
+        && hasOnlyKeys(point, ["x", "y"])
+        && typeof ownValue(point, "x") === "number" && Number.isFinite(ownValue(point, "x"))
+        && typeof ownValue(point, "y") === "number" && Number.isFinite(ownValue(point, "y"))
+        && (clickCount === undefined || (typeof clickCount === "number" && Number.isSafeInteger(clickCount) && clickCount >= 0))
+        && (emptyProjectionId === undefined || typeof emptyProjectionId === "string");
+    },
+  },
+  "element-deselect": { fields: null },
+  "element-drag-start": { fields: null },
+  "element-drag-move": { fields: null },
+  "element-drag-end": { fields: null },
+  "element-delete": { fields: null },
+  "element-nudge": { fields: null },
+  "history-request": { fields: null },
+  "inspector-toggle-request": { fields: null },
+  "inspector-open-request": { fields: null },
+  "keyboard-shortcut": {
+    fields: ["phase", "code"],
+    validate: (value) => (ownValue(value, "phase") === "keydown" || ownValue(value, "phase") === "keyup")
+      && isKeyboardShortcutCode(ownValue(value, "code")),
+  },
+  "pan-start": { fields: null },
+  "pan-move": { fields: null },
+  "pan-end": { fields: null },
+  "pan-modifier": { fields: null },
+  "zoom": { fields: null },
+  "wheel-pan": { fields: null },
+  "app-interaction-modifier": { fields: null },
+  "debug-view-phase": {
+    fields: ["exploded"],
+    validate: (value) => typeof ownValue(value, "exploded") === "boolean",
+  },
+} satisfies Record<RendererToControllerMessage["type"], MessageSchema>;
 
 export function isRendererMessageType(type: unknown): type is RendererToControllerMessage["type"] {
-  return typeof type === "string" && Object.hasOwn(RENDERER_MESSAGE_TYPES, type);
+  return typeof type === "string" && Object.hasOwn(RENDERER_SCHEMAS, type);
+}
+
+function isMessageOfType<K extends RendererToControllerMessage["type"]>(
+  value: unknown,
+  identity: FrameIdentity,
+  type: K,
+): value is Extract<RendererToControllerMessage, { type: K }> {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (ownValue(value, "type") !== type) return false;
+  const schema: MessageSchema = RENDERER_SCHEMAS[type];
+  if (schema.fields && !hasOnlyKeys(value, [...ENVELOPE_KEYS, ...schema.fields])) return false;
+  return schema.validate === undefined || schema.validate(value);
 }
 
 export type FrameProtocolMessage =
@@ -469,138 +552,56 @@ export function isKeyboardShortcutMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is KeyboardShortcutMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "phase", "code",
-  ])) return false;
-  return ownValue(value, "type") === "keyboard-shortcut"
-    && (ownValue(value, "phase") === "keydown" || ownValue(value, "phase") === "keyup")
-    && isKeyboardShortcutCode(ownValue(value, "code"));
+  return isMessageOfType(value, identity, "keyboard-shortcut");
 }
 
 export function isDebugViewPhaseMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is DebugViewPhaseMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "exploded",
-  ])) return false;
-  return ownValue(value, "type") === "debug-view-phase"
-    && typeof ownValue(value, "exploded") === "boolean";
+  return isMessageOfType(value, identity, "debug-view-phase");
 }
 
 export function isElementClickMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is ElementClickMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId",
-    "cid", "selector", "src", "elementId", "file", "line", "component", "additive",
-  ])) return false;
-  const line = ownValue(value, "line");
-  const additive = ownValue(value, "additive");
-  return ownValue(value, "type") === "element-click"
-    && typeof ownValue(value, "cid") === "string"
-    && typeof ownValue(value, "selector") === "string"
-    && typeof ownValue(value, "src") === "string"
-    && typeof ownValue(value, "elementId") === "string"
-    && typeof ownValue(value, "file") === "string"
-    && typeof line === "number" && Number.isSafeInteger(line) && line >= 0
-    && typeof ownValue(value, "component") === "string"
-    && (additive === undefined || typeof additive === "boolean");
+  return isMessageOfType(value, identity, "element-click");
 }
 
 export function isInlineTextIntentMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is InlineTextIntentMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId",
-    "intent", "cid", "src", "elementId", "point", "clickCount", "emptyProjectionId",
-  ])) return false;
-  const intent = ownValue(value, "intent");
-  const point = ownValue(value, "point");
-  const clickCount = ownValue(value, "clickCount");
-  const emptyProjectionId = ownValue(value, "emptyProjectionId");
-  return ownValue(value, "type") === "inline-text-intent"
-    && (intent === "pointer-down" || intent === "double-click")
-    && typeof ownValue(value, "cid") === "string"
-    && typeof ownValue(value, "src") === "string"
-    && typeof ownValue(value, "elementId") === "string"
-    && isProtocolObject(point)
-    && hasOnlyKeys(point, ["x", "y"])
-    && typeof ownValue(point, "x") === "number" && Number.isFinite(ownValue(point, "x"))
-    && typeof ownValue(point, "y") === "number" && Number.isFinite(ownValue(point, "y"))
-    && (clickCount === undefined || (typeof clickCount === "number" && Number.isSafeInteger(clickCount) && clickCount >= 0))
-    && (emptyProjectionId === undefined || typeof emptyProjectionId === "string");
+  return isMessageOfType(value, identity, "inline-text-intent");
 }
 
 export function isStructuralProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is StructuralProjectionReportMessage {
-  if (!isRendererMessageFor(value, identity) || !value || typeof value !== "object") return false;
-  const message = value as unknown as Record<string, unknown>;
-  if (!hasOnlyKeys(message, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
-  ])) return false;
-  return message.type === "structural-projection-report"
-    && Number.isSafeInteger(message.revision)
-    && (message.revision as number) >= 0
-    && Array.isArray(message.reports)
-    && message.reports.every(isStructuralProjectionReport);
+  return isMessageOfType(value, identity, "structural-projection-report");
 }
 
 export function isRenderedInstanceProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is RenderedInstanceProjectionReportMessage {
-  if (!isRendererMessageFor(value, identity) || !value || typeof value !== "object") return false;
-  const message = value as unknown as Record<string, unknown>;
-  if (!hasOnlyKeys(message, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
-  ])) return false;
-  return message.type === "rendered-instance-projection-report"
-    && Number.isSafeInteger(message.revision)
-    && (message.revision as number) >= 0
-    && Array.isArray(message.reports)
-    && message.reports.every(isDocumentProjectionReport);
+  return isMessageOfType(value, identity, "rendered-instance-projection-report");
 }
 
 export function isTextProjectionReportMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is TextProjectionReportMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
-  ])) return false;
-  const type = ownValue(value, "type");
-  const revision = ownValue(value, "revision");
-  const reports = ownValue(value, "reports");
-  return type === "text-projection-report"
-    && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0
-    && Array.isArray(reports)
-    && reports.every(isTextProjectionReport);
+  return isMessageOfType(value, identity, "text-projection-report");
 }
 
 export function isProjectionAppliedMessage(
   value: unknown,
   identity: FrameIdentity,
 ): value is ProjectionAppliedMessage {
-  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
-  if (!hasOnlyKeys(value, [
-    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision",
-  ])) return false;
-  const type = ownValue(value, "type");
-  const revision = ownValue(value, "revision");
-  return type === "projection-applied"
-    && typeof revision === "number"
-    && Number.isSafeInteger(revision)
-    && revision >= 0;
+  return isMessageOfType(value, identity, "projection-applied");
 }
 
 export function isComponentOverrideList(value: unknown): value is ComponentOverride[] {
@@ -621,75 +622,15 @@ export function isComponentOverrideList(value: unknown): value is ComponentOverr
   });
 }
 
-/** Raw JSON object at the renderer postMessage boundary. */
-interface ProtocolObject {
-  readonly additive?: unknown;
-  readonly cardId?: unknown;
-  readonly cid?: unknown;
-  readonly callsiteId?: unknown;
-  readonly exploded?: unknown;
-  readonly framework?: unknown;
-  readonly elementId?: unknown;
-  readonly file?: unknown;
-  readonly line?: unknown;
-  readonly intent?: unknown;
-  readonly point?: unknown;
-  readonly clickCount?: unknown;
-  readonly emptyProjectionId?: unknown;
-  readonly x?: unknown;
-  readonly y?: unknown;
-  readonly prop?: unknown;
-  readonly projectId?: unknown;
-  readonly protocolVersion?: unknown;
-  readonly reports?: unknown;
-  readonly revision?: unknown;
-  readonly type?: unknown;
-  readonly selector?: unknown;
-  readonly src?: unknown;
-  readonly component?: unknown;
-  readonly code?: unknown;
-  readonly phase?: unknown;
-  readonly value?: unknown;
-  readonly workspaceId?: unknown;
-}
-
-type ProtocolObjectKey = keyof ProtocolObject;
+/** Raw JSON object at the renderer postMessage boundary: unvalidated until a schema accepts it. */
+type ProtocolObject = Readonly<Record<string, unknown>>;
 
 function isProtocolObject(value: unknown): value is ProtocolObject {
   return typeof value === "object" && value !== null;
 }
 
-function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
-  switch (key) {
-    case "additive": return value.additive;
-    case "emptyProjectionId": return value.emptyProjectionId;
-    case "exploded": return value.exploded;
-    case "cardId": return value.cardId;
-    case "cid": return value.cid;
-    case "callsiteId": return value.callsiteId;
-    case "framework": return value.framework;
-    case "elementId": return value.elementId;
-    case "file": return value.file;
-    case "line": return value.line;
-    case "intent": return value.intent;
-    case "point": return value.point;
-    case "clickCount": return value.clickCount;
-    case "x": return value.x;
-    case "y": return value.y;
-    case "prop": return value.prop;
-    case "projectId": return value.projectId;
-    case "protocolVersion": return value.protocolVersion;
-    case "reports": return value.reports;
-    case "revision": return value.revision;
-    case "type": return value.type;
-    case "selector": return value.selector;
-    case "src": return value.src;
-    case "component": return value.component;
-    case "code": return value.code;
-    case "phase": return value.phase;
-    case "value": return value.value;
-    case "workspaceId": return value.workspaceId;
-  }
+function ownValue(value: ProtocolObject, key: string): unknown {
+  return value[key];
 }
 
 function hasOnlyKeys(value: ProtocolObject, keys: readonly string[]): boolean {

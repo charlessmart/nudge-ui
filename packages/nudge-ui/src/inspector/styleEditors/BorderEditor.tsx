@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import {
   IconBorderSides,
   IconBorderStyle2,
-  IconCheck,
   IconMinus,
   IconPlus,
 } from "@tabler/icons-react";
@@ -44,11 +43,10 @@ function stateStyleReader(el: HTMLElement): ComputedStyleReader {
   return (property, fallback) => getStateStyleValue(el, property, fallback);
 }
 
-function commitBorderIntent(target: EditTarget, source: BorderSource, intent: BorderIntent, onAfterEdit?: () => void): boolean {
+function commitBorderIntent(target: EditTarget, source: BorderSource, intent: BorderIntent): boolean {
   const declarations = borderDeclarations(source, intent);
   if (declarations.length === 0) return false;
   setStyles(target, declarations);
-  onAfterEdit?.();
   return true;
 }
 
@@ -57,7 +55,6 @@ export interface BorderEditorProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
 }
 
 /** User toggle is optimistic: it holds until the cascade-derived state catches up. */
@@ -89,7 +86,7 @@ function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [bool
 }
 
 export function BorderEditor(props: BorderEditorProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [] } = props;
   const el = element.domElement;
   const selectedElements = selection?.domElements ?? [el];
   const editTarget: EditTarget = selection?.target ?? el;
@@ -107,13 +104,13 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
 
   function handleAddBorder(): void {
     if (borderBlockedBy) return;
-    commitBorderIntent(editTarget, source, { kind: "add" }, onAfterEdit);
+    commitBorderIntent(editTarget, source, { kind: "add" });
     visibility.show();
   }
 
   function handleRemoveBorder(): void {
     if (borderBlockedBy) return;
-    commitBorderIntent(editTarget, source, { kind: "remove" }, onAfterEdit);
+    commitBorderIntent(editTarget, source, { kind: "remove" });
     visibility.hide();
   }
 
@@ -124,11 +121,11 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   function handleCollapse(): void {
     if (borderBlockedBy) return;
     setBorderLinked(true);
-    commitBorderIntent(editTarget, source, { kind: "link-sides" }, onAfterEdit);
+    commitBorderIntent(editTarget, source, { kind: "link-sides" });
   }
 
   function handleSelectStyle(property: string, style: string): boolean {
-    return commitBorderIntent(editTarget, source, { kind: "set-style", property, style }, onAfterEdit);
+    return commitBorderIntent(editTarget, source, { kind: "set-style", property, style });
   }
 
   const sideRows = BORDER_SIDES.map((side) => ({
@@ -142,7 +139,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           domElement={el}
           editTarget={editTarget}
           entries={allEntries}
-          onAfterEdit={onAfterEdit}
         />
       </ControlSurface>
     ),
@@ -155,7 +151,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           domElement={el}
           editTarget={editTarget}
           entries={allEntries}
-          onAfterEdit={onAfterEdit}
         />
       </ControlSurface>
     ),
@@ -213,7 +208,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                   domElement={el}
                   editTarget={editTarget}
                   entries={allEntries}
-                  onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>
             </FieldRow>
@@ -230,7 +224,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         domElement={el}
                         editTarget={editTarget}
                         entries={allEntries}
-                        onAfterEdit={onAfterEdit}
                       />
                     </ControlSurface>
                   </div>
@@ -243,7 +236,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         domElement={el}
                         editTarget={editTarget}
                         entries={allEntries}
-                        onAfterEdit={onAfterEdit}
                       />
                     </ControlSurface>
                   </div>
@@ -395,7 +387,7 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, selection
       items={BORDER_STYLES.map((style) => ({
         value: style,
         label: formatInspectorLabel(style),
-        leading: style === value ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : undefined,
+        selected: style === value,
         "data-test": `border-style-setting-${style}`,
       }))}
       onQueryChange={() => undefined}

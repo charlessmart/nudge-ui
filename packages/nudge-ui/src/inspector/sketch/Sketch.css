@@ -9,10 +9,6 @@
   object-fit: cover;
 }
 
-.sketch-thumbnail--empty {
-  border: 1px solid var(--border-subtle);
-}
-
 .sketch__backdrop {
   position: fixed;
   inset: 0;

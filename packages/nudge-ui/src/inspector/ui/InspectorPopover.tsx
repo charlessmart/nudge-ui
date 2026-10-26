@@ -12,6 +12,7 @@ export interface InspectorPopoverProps {
   align?: "start" | "center" | "end";
   sideOffset?: number;
   triggerTooltip?: ReactNode;
+  popupClassName?: string;
   "data-test"?: string;
 }
 
@@ -25,6 +26,7 @@ export function InspectorPopover({
   align = "center",
   sideOffset = 6,
   triggerTooltip,
+  popupClassName,
   "data-test": dataTest,
 }: InspectorPopoverProps): ReactElement {
   return (
@@ -40,7 +42,7 @@ export function InspectorPopover({
           sideOffset={sideOffset}
         >
           <BasePopover.Popup
-            className="inspector-popover__popup"
+            className={`inspector-popover__popup${popupClassName ? ` ${popupClassName}` : ""}`}
             data-test={dataTest ? `${dataTest}-popover` : undefined}
           >
             {children}

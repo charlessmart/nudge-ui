@@ -31,7 +31,7 @@ const draft: SketchLiveDraft = {
 };
 
 const captured: CapturedSketch = {
-  originalImage: new Blob(["png"], { type: "image/png" }),
+  pageImage: new Blob(["png"], { type: "image/png" }),
   imageWidth: 100,
   imageHeight: 100,
   capture: {

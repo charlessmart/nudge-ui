@@ -85,6 +85,12 @@ export function normalizeOpacityPercent(value: string): string | null {
   return percent === null ? null : formatOpacityPercent(percent);
 }
 
+/** Typed opacity reads a bare number as a percent, so `25` means 25%, not 2500% clamped to 100%. */
+export function normalizeTypedOpacityPercent(value: string): string | null {
+  const trimmed = value.trim();
+  return normalizeOpacityPercent(CSS_NUMBER.test(trimmed) ? `${trimmed}%` : trimmed);
+}
+
 interface ColorMixItem {
   color: string;
   percentage: string | null;

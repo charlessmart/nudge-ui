@@ -40,7 +40,7 @@
   box-sizing: border-box;
   flex: 0 0 auto;
   width: 100%;
-  min-height: 32px;
+  min-height: var(--control-height-large);
   padding: var(--space-12) var(--space-16);
   border: none;
   border-bottom: 1px solid var(--border-subtle);
@@ -85,7 +85,7 @@
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--control-height-large);
   padding: var(--space-8) 9px;
   border-radius: var(--radius-4);
   color: var(--text-primary);
@@ -131,6 +131,15 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The current row's check closes the row, matching the trailing indicator inside a select menu. */
+.popover-listbox__indicator {
+  display: inline-flex;
+  width: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
 }
 
 .popover-listbox__group + .popover-listbox__group,

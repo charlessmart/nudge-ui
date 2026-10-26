@@ -253,3 +253,4 @@ describe("projection acknowledgement schema", () => {
     expect(isProjectionAppliedMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });
+

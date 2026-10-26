@@ -59,7 +59,6 @@ function linkAllCorners(
   target: EditTarget,
   rows: ResolvedProperty[],
   selection: StyleSelection | null | undefined,
-  onAfterEdit?: () => void,
 ): void {
   const firstRow = findTokenRow(rows, BORDER_RADIUS_CORNERS[0]);
   const selectedValue = selection && selection.elements.length > 1
@@ -71,7 +70,6 @@ function linkAllCorners(
     ?? "";
   if (!sharedValue) return;
   setStyle(target, "border-radius", sharedValue);
-  onAfterEdit?.();
 }
 
 export interface BorderRadiusEditorProps {
@@ -79,12 +77,11 @@ export interface BorderRadiusEditorProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
   embedded?: boolean;
 }
 
 export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement {
-  const { element, selection, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
+  const { element, selection, entries, tokenRows = [], embedded = false } = props;
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
@@ -115,7 +112,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     if (blockedBy) return;
     setUserLinked(true);
     setUserUnlinked(false);
-    linkAllCorners(editTarget, tokenRows, selection, onAfterEdit);
+    linkAllCorners(editTarget, tokenRows, selection);
   }
 
   const cornerSides = BORDER_RADIUS_CORNERS.map((corner, index) => ({
@@ -131,7 +128,6 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         editTarget={editTarget}
         entries={allEntries}
         editMetadata={metadataFor(findTokenRow(tokenRows, corner))}
-        onAfterEdit={onAfterEdit}
         leading={(() => {
           const Icon = BORDER_RADIUS_ICONS[index]!;
           return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
@@ -165,7 +161,6 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         formatRawValue={(value) => mixed && value.trim().toLowerCase() === "mix"
           ? ""
           : completeCssValue(value.trim(), valuePolicyFor("border-radius"))}
-        onAfterEdit={onAfterEdit}
         leading={<IconBorderCorners className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />}
       />
     </ControlSurface>

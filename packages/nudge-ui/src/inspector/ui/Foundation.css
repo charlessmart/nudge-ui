@@ -60,8 +60,8 @@
   --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), var(--shadow-control-outline);
   --z-index: 2147483647;
 
-  /* One shared spring: settles in ~380ms with a ~1.5% overshoot, subtle enough for arrivals, releases and resting states. */
-  --spring-duration: 380ms;
+  /* One shared spring: settles in ~250ms with a ~1.5% overshoot, subtle enough for arrivals, releases and resting states. */
+  --spring-duration: 250ms;
   --spring-ease: cubic-bezier(0.32, 0.72, 0, 1);
   /* Presses go in fast and out on the spring, so the control never feels sluggish. */
   --press-duration: 90ms;

@@ -73,7 +73,21 @@ describe("BackgroundEditor", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-image": "linear-gradient(60deg, red 0%, blue 100%)" });
     handle = mount(createElement(BackgroundEditor, { element: selected }));
-    setSelectValue(button("Gradient type"), "conic");
+    // The reverse button sits beside the track, in the column the toolbar reserves at its end.
+    const track = handle.host.querySelector('[data-test="gradient-track"]') as HTMLElement;
+    expect(track.parentElement?.querySelector('button[aria-label="Reverse gradient"]')).toBeTruthy();
+    const typeSelect = button("Gradient type");
+    act(() => {
+      typeSelect.focus();
+      typeSelect.click();
+    });
+    // The menu hugs its options instead of opening the default wide menu.
+    expect(document.body.querySelector(".select__popup--fit")).toBeTruthy();
+    const conic = document.body.querySelector<HTMLElement>('.select__item[data-value="conic"]')!;
+    act(() => {
+      conic.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      conic.click();
+    });
     act(() => button("Reverse gradient").click());
     expect(sheetText()).toContain("conic-gradient(from 60deg, blue 0%, red 100%)");
   });

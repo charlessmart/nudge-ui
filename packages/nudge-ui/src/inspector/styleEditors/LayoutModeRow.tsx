@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { IconArrowNarrowDown, IconArrowNarrowRight, IconDots, IconLayoutGrid, IconPlus, IconSquare } from "@tabler/icons-react";
 import { GridAdvancedFields } from "./GridSection.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
@@ -52,6 +52,8 @@ export interface LayoutModeRowProps {
 export interface LayoutAddAction {
   key: string;
   label: string;
+  /** Replaces the default plus when the group has its own field glyph, such as margin. */
+  icon?: ReactNode;
   disabled: boolean;
   onAdd(): void;
 }
@@ -119,7 +121,7 @@ function LayoutOptionsMenu({
   addActions = [],
 }: LayoutModeRowProps): ReactElement {
   const [open, setOpen] = useState(false);
-  const shared = { domElement, editTarget, selection, revision, onAfterEdit, stacked: true };
+  const shared = { domElement, editTarget, selection, revision, onAfterEdit, stacked: true, popupWidth: "fit" as const };
 
   return (
     <InspectorPopover
@@ -147,9 +149,9 @@ function LayoutOptionsMenu({
         </div>
         {addActions.length > 0 ? (
           <div className="layout__options-actions" data-test="layout-options-add">
-            {addActions.map(({ key, label, disabled, onAdd }) => (
+            {addActions.map(({ key, label, icon, disabled, onAdd }) => (
               <Button key={key} variant="secondary" size="default" data-test={`add-${key}`} disabled={disabled} onClick={() => { onAdd(); setOpen(false); }}>
-                <IconPlus size={16} aria-hidden="true" />
+                {icon ?? <IconPlus size={16} aria-hidden="true" />}
                 {label}
               </Button>
             ))}
@@ -161,9 +163,12 @@ function LayoutOptionsMenu({
               <LayoutDropdown property="flex-direction" options={FLEX_DIRECTION_OPTIONS} {...shared} />
               <LayoutDropdown property="flex-wrap" options={FLEX_WRAP_OPTIONS} {...shared} />
             </div>
-            <div className="layout__options-pair">
-              <LayoutDropdown property="align-items" options={ALIGN_ITEMS_OPTIONS} {...shared} />
-              <LayoutDropdown property="align-content" options={ALIGN_CONTENT_OPTIONS} {...shared} />
+            <div className="layout__options-section" data-test="layout-flex-alignment">
+              <div className="editor__title">Flex alignment</div>
+              <div className="layout__options-pair">
+                <LayoutDropdown property="align-items" options={ALIGN_ITEMS_OPTIONS} {...shared} />
+                <LayoutDropdown property="align-content" options={ALIGN_CONTENT_OPTIONS} {...shared} />
+              </div>
             </div>
           </>
         ) : null}

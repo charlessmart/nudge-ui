@@ -5,7 +5,7 @@ import type { TokenEntry } from "../../css/model/index.ts";
 import {
   applyValueEdit,
   isCalcExpression,
-  normalizeOpacityPercent,
+  normalizeTypedOpacityPercent,
   selectTokens,
 } from "../../css/value-semantics/index.ts";
 import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "../../css/model/index.ts";
@@ -13,6 +13,7 @@ import type { TokenSemanticSlot } from "../../css/value-semantics/index.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
+import { firstCssListItem, formatCssNumber, parseCssNumber } from "../styleEditors/cssValue.ts";
 import { deriveActiveTokenName, isExpressionRow } from "../styleEditors/fieldValue.ts";
 import {
   canNudgeCssValueByDrag,
@@ -23,9 +24,11 @@ import {
   supportsDragNudge,
 } from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
+import { sameEditTarget } from "../styleEditors/valueField.ts";
 import { IconButton } from "../ui/IconButton.tsx";
-import { PopoverListbox, type PopoverListboxItem } from "../ui/PopoverListbox.tsx";
+import { PopoverListbox, type PopoverListboxItem, type PopupWidth } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
+import { ColorSwatchPicker } from "./ColorSwatchPicker.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
@@ -48,12 +51,16 @@ export interface TokenValueFieldProps {
   /** Supplies the numeric nudge policy instead of `property` for composite slots. */
   nudgeProperty?: string;
   domElement?: HTMLElement;
+  /** The elements an edit lands on; a draft typed for one set is dropped when it changes. Defaults to `domElement`. */
+  resetKey?: EditTarget;
   semanticSlot?: TokenSemanticSlot;
   committedValue: string;
   resolvedValue?: string;
   activeTokenName?: string | null;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
+  /** Sizes the suggestion list to its labels instead of the default wide menu; the token picker stays wide. */
+  suggestionPopupWidth?: PopupWidth;
   inputDataTest?: string;
   allowedTokenNames?: ReadonlySet<string>;
   isColor?: boolean;
@@ -93,6 +100,8 @@ export interface TokenFieldProps {
   editTarget?: EditTarget;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
+  /** Sizes the suggestion list to its labels instead of the default wide menu; the token picker stays wide. */
+  suggestionPopupWidth?: PopupWidth;
   inputDataTest?: string;
   onAfterEdit?: () => void;
   editMetadata?: StyleEditMetadata;
@@ -142,29 +151,22 @@ function lineHeightPercentage(lineHeight: string, fontSize: string): string | nu
   const lineHeightPx = parsePixels(lineHeight);
   const fontSizePx = parsePixels(fontSize);
   if (lineHeightPx === null || fontSizePx === null || fontSizePx === 0) return null;
-  return `${formatNumber((lineHeightPx / fontSizePx) * 100)}%`;
+  return `${formatCssNumber((lineHeightPx / fontSizePx) * 100)}%`;
 }
 
 function parsePixels(value: string): number | null {
-  const match = /^([+-]?(?:(?:\d+\.?\d*)|(?:\.\d+)))px$/i.exec(value.trim());
-  if (!match) return null;
-  const number = Number(match[1]);
-  return Number.isFinite(number) ? number : null;
+  const parsed = parseCssNumber(value);
+  return parsed?.unit === "px" ? parsed.number : null;
 }
-
-function formatNumber(value: number): string {
-  return String(Number(value.toFixed(12)));
-}
-
-const NUMERIC_VALUE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)?$/i;
 
 /** A token that is a plain number or length reads best as its value; others, such as colors and fonts, read as their name. */
 function isNumericTokenValue(value: string): boolean {
-  return NUMERIC_VALUE.test(value.trim());
+  return parseCssNumber(value) !== null;
 }
 
 function stripCssUnit(value: string): string {
-  return value.replace(/^(-?\d+(?:\.\d+)?)(px|rem|em|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)$/i, "$1");
+  const parsed = parseCssNumber(value);
+  return parsed ? formatCssNumber(parsed.number) : value;
 }
 
 interface DragNudgeState {
@@ -193,28 +195,6 @@ function releasePointerCapture(state: DragNudgeState): void {
   } catch {
     // The browser may release capture before pointerup/pointercancel arrives.
   }
-}
-
-/** First family in a CSS family list; commas inside var() fallbacks are ignored. */
-function primaryFontFamily(value: string): string {
-  let depth = 0;
-  let quote: "'" | '"' | null = null;
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]!;
-    if (quote) {
-      if (char === "\\") index++;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      continue;
-    }
-    if (char === "(") depth++;
-    else if (char === ")") depth = Math.max(0, depth - 1);
-    else if (char === "," && depth === 0) return value.slice(0, index).trim();
-  }
-  return value.trim();
 }
 
 function rgbToHex(value: string): string | null {
@@ -265,33 +245,29 @@ function browserRecognizesColor(value: string): boolean {
   return probe.style.color !== "";
 }
 
-function NativeColorSwatch({
+function ColorSwatchControl({
   value,
+  authored,
   onChange,
   disabled,
 }: {
   value: string;
+  /** The written value, whose syntax picks the format the picker opens in. */
+  authored: string;
   onChange(value: string): void;
   disabled?: boolean;
 }): ReactElement {
   const resolvedHex = colorValueToHex(value);
-  const hex = resolvedHex ?? "#000000";
+  // The swatch keeps the authored color, alpha included; the hex only stands in for values the browser cannot paint.
   const cssColor = browserRecognizesColor(value) ? value.trim() : resolvedHex;
-  const hasRenderableColor = cssColor !== null;
   return (
-    <label className="token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
-      {/* The native picker holds six-digit hex only, so the swatch keeps the alpha-bearing color. */}
-      <ColorSwatch color={cssColor ?? "transparent"} data-test="token-color-swatch" />
-      <input
-        className="token-color-control__input"
-        data-test="token-color-input"
-        type="color"
-        value={hex}
-        disabled={disabled}
-        aria-label="Choose color"
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    <ColorSwatchPicker
+      swatchColor={cssColor}
+      value={cssColor ?? "#000000"}
+      authored={authored}
+      disabled={disabled}
+      onChange={onChange}
+    />
   );
 }
 
@@ -300,12 +276,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     property,
     nudgeProperty = property,
     domElement,
+    resetKey = domElement,
     semanticSlot,
     committedValue,
     resolvedValue = committedValue,
     activeTokenName: controlledTokenName = null,
     entries,
     suggestions = [],
+    suggestionPopupWidth = "wide",
     inputDataTest = "raw-input",
     allowedTokenNames,
     isColor = false,
@@ -351,6 +329,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const selectedFromPopover = useRef(false);
   const cancelOnBlur = useRef(false);
   const isNavigatingSuggestions = useRef(false);
+  const rawDirtyRef = useRef(false);
+  const opacityDirtyRef = useRef(false);
+  const opacityCancelOnBlur = useRef(false);
+  const targetRef = useRef({ resetKey, property });
   const dragNudgeRef = useRef<DragNudgeState | null>(null);
   /** A drag that changed the value ends in a click on the handle, which must not also open the token picker. */
   const dragNudgedRef = useRef(false);
@@ -368,10 +350,21 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   useEffect(() => () => previewValueRef.current?.(null), []);
 
   useEffect(() => {
-    setRawValue(committedValue);
-    setActiveTokenName(controlledTokenName);
-    setOpacityValue(opacity?.value ?? defaultOpacityValue);
-  }, [committedValue, controlledTokenName, defaultOpacityValue, mixed, opacity?.value, property]);
+    const targetChanged = !sameEditTarget(targetRef.current.resetKey, resetKey) || targetRef.current.property !== property;
+    targetRef.current = { resetKey, property };
+    if (targetChanged) {
+      rawDirtyRef.current = false;
+      opacityDirtyRef.current = false;
+      opacityCancelOnBlur.current = false;
+    }
+    if (!rawDirtyRef.current) {
+      setRawValue(committedValue);
+      setActiveTokenName(controlledTokenName);
+    }
+    if (!opacityDirtyRef.current) {
+      setOpacityValue(opacity?.value ?? defaultOpacityValue);
+    }
+  }, [committedValue, controlledTokenName, defaultOpacityValue, mixed, opacity?.value, property, resetKey]);
 
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
@@ -437,6 +430,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (rawSuggestion !== null) {
       selectedFromPopover.current = true;
       cancelOnBlur.current = false;
+      rawDirtyRef.current = false;
       const formatted = formatRawValue(rawSuggestion);
       setActiveTokenName(null);
       setRawValue(formatted);
@@ -452,9 +446,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (mixed && value.trim().toLowerCase() === "mixed") return;
     const formatted = formatRawValue(value);
     if (!formatted) {
+      rawDirtyRef.current = false;
       setRawValue(committedValue);
       return;
     }
+    rawDirtyRef.current = false;
     setRawValue(formatted);
     setActiveTokenName(null);
     onCommitRaw(formatted);
@@ -463,6 +459,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function handleDelink(): void {
     // Unlinking must preserve the complete authored color expression and its alpha.
     const value = opacity ? committedValue : activeToken?.value || resolvedValue || committedValue;
+    rawDirtyRef.current = false;
     setActiveTokenName(null);
     setRawValue(value);
     onUnlink(value);
@@ -472,17 +469,21 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     selectedFromPopover.current = true;
     cancelOnBlur.current = false;
     if (onSelectToken(chosen) === false) return;
+    rawDirtyRef.current = false;
     setActiveTokenName(chosen.name);
     setRawValue(chosen.value);
   }
 
   function handleRawBlur(): void {
+    // Only the user's own edit commits; a value that changed while the field sat focused is not theirs to write back.
+    const dirty = rawDirtyRef.current;
+    rawDirtyRef.current = false;
     if (selectedFromPopover.current) {
       selectedFromPopover.current = false;
       setIsFocused(false);
       return;
     }
-    if (!cancelOnBlur.current) commitRawValue();
+    if (dirty && !cancelOnBlur.current) commitRawValue();
     cancelOnBlur.current = false;
     setIsFocused(false);
   }
@@ -497,6 +498,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         event.preventDefault();
         event.stopPropagation();
         isNavigatingSuggestions.current = false;
+        rawDirtyRef.current = false;
         setRawValue(next);
         setActiveTokenName(null);
         onCommitRaw(next);
@@ -510,6 +512,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      rawDirtyRef.current = false;
       setRawValue(committedValue);
       cancelOnBlur.current = true;
       setIsFocused(false);
@@ -634,6 +637,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     event.preventDefault();
     event.stopPropagation();
     dragNudgedRef.current = true;
+    rawDirtyRef.current = false;
     setRawValue(next);
     setActiveTokenName(null);
     drag.commit(() => onCommitRaw(next));
@@ -683,7 +687,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   function commitOpacityValue(value = opacityValue): void {
     if (fieldDisabled || !showOpacity || !onCommitOpacity) return;
-    const normalized = normalizeOpacityPercent(value);
+    opacityDirtyRef.current = false;
+    const normalized = normalizeTypedOpacityPercent(value);
     if (normalized === null) {
       setOpacityValue(opacity?.value ?? "100%");
       return;
@@ -704,8 +709,19 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       value={opacityValue}
       disabled={fieldDisabled || !onCommitOpacity}
       aria-label={`Opacity for ${property}`}
-      onChange={(event) => setOpacityValue(event.target.value)}
-      onBlur={() => commitOpacityValue()}
+      onChange={(event) => {
+        opacityDirtyRef.current = true;
+        setOpacityValue(event.target.value);
+      }}
+      onBlur={() => {
+        if (opacityCancelOnBlur.current) {
+          opacityCancelOnBlur.current = false;
+          opacityDirtyRef.current = false;
+          setOpacityValue(opacity?.value ?? defaultOpacityValue);
+          return;
+        }
+        if (opacityDirtyRef.current) commitOpacityValue();
+      }}
       onKeyDown={(event) => {
         const direction = arrowDirection(event.key);
         if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -713,6 +729,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           if (next) {
             event.preventDefault();
             event.stopPropagation();
+            opacityDirtyRef.current = false;
             setOpacityValue(next);
             commitOpacityValue(next);
             return;
@@ -720,10 +737,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         }
         if (event.key === "Escape") {
           event.preventDefault();
+          opacityDirtyRef.current = false;
+          opacityCancelOnBlur.current = true;
           setOpacityValue(opacity?.value ?? "100%");
           event.currentTarget.blur();
         } else if (event.key === "Enter") {
           event.preventDefault();
+          opacityCancelOnBlur.current = false;
           event.currentTarget.blur();
         }
       }}
@@ -732,8 +752,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   const colorPreview = activeToken ? resolvedValue || activeToken.value : resolvedValue || rawValue;
   const colorControlEl = isColor ? (
-    <NativeColorSwatch
+    <ColorSwatchControl
       value={colorPreview}
+      authored={activeToken ? activeToken.value : rawValue}
       disabled={fieldDisabled}
       onChange={(value) => commitRawValue(value)}
     />
@@ -763,13 +784,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       >
         <TokenChip data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
           {renderLeading(() => setTokenPickerOpen(true))}
+          {/* Beside the trigger rather than in it: the swatch is its own button, opening the color picker. */}
+          {colorControlEl}
           <PopoverListbox
             query=""
             value={activeToken.name}
             open={isTokenPickerOpen}
             trigger={(
               <TokenChip.Picker>
-                {colorControlEl}
                 <TokenChip.Label title={numericToken ? activeToken.name : undefined}>
                   {chipValue}
                 </TokenChip.Label>
@@ -791,7 +813,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             items={[
               detachItem(),
               ...rawSuggestionItems,
-              ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName)),
+              ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName, activeToken.name)),
               ...pickerFontItems,
             ]}
             onQueryChange={() => undefined}
@@ -855,6 +877,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         inputRef={inputRef}
         inputAppearance="embedded"
         inputDataTest={inputDataTest}
+        popupWidth={suggestionPopupWidth}
         inputOnFocus={() => {
           setIsFocused(true);
           if (mixed && rawValue.trim().toLowerCase() === "mixed") setRawValue("");
@@ -868,6 +891,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         ]}
         onQueryChange={(value) => {
           isNavigatingSuggestions.current = false;
+          rawDirtyRef.current = true;
           setRawValue(value);
         }}
         onOpenChange={setIsFocused}
@@ -921,6 +945,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     editTarget,
     entries,
     suggestions,
+    suggestionPopupWidth = "wide",
     inputDataTest,
     onAfterEdit,
     editMetadata,
@@ -972,7 +997,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const committedValue = effectiveMixed
     ? displayValue ?? "Mixed"
     : displayValue ?? selectionDisplayValue ?? (property === "font-family" && !activeTokenName
-      ? primaryFontFamily(authoredOrComputed)
+      ? firstCssListItem(authoredOrComputed)
       : authoredOrComputed);
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
@@ -989,6 +1014,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     <TokenValueField
       property={property}
       domElement={el}
+      resetKey={selection?.domElements}
       semanticSlot={semanticSlot}
       committedValue={committedValue}
       resolvedValue={resolvedValue}
@@ -1002,6 +1028,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       color={tokenRow?.color}
       entries={entries}
       suggestions={suggestions}
+      suggestionPopupWidth={suggestionPopupWidth}
       inputDataTest={inputDataTest}
       disabled={disabled}
       blockedBy={blockedBy}
@@ -1061,7 +1088,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   );
 }
 
-function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>) {
+function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>, activeTokenName?: string | null) {
   return {
     value: entry.name,
     label: entry.name,
@@ -1070,6 +1097,7 @@ function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>)
       ? <ColorSwatch color={entry.value} />
       : undefined,
     trailing: <span>{entry.value}</span>,
+    selected: entry.name === activeTokenName,
   };
 }
 

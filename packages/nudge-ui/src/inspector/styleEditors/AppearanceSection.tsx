@@ -11,7 +11,6 @@ export interface AppearanceSectionProps {
   selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
-  onAfterEdit?: () => void;
 }
 
 export function AppearanceSection(props: AppearanceSectionProps): ReactElement {

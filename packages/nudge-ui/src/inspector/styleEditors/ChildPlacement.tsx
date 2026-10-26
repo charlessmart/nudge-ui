@@ -27,7 +27,7 @@ export function FlexChildOptions(props: FlexChildOptionsProps): ReactElement {
         <LayoutValueField label="Basis" property="flex-basis" presets={FLEX_BASIS_PRESETS} inputOnly {...props} />
       </div>
       <div className="layout__options-pair">
-        <LayoutDropdown property="align-self" options={ALIGN_SELF_OPTIONS} stacked {...props} />
+        <LayoutDropdown property="align-self" options={ALIGN_SELF_OPTIONS} stacked {...props} popupWidth="fit" />
         <LayoutValueField label="Order" property="order" presets={ORDER_PRESETS} inputOnly {...props} />
       </div>
     </div>

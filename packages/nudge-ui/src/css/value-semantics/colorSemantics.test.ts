@@ -10,6 +10,7 @@ import {
   colorValueHasEmbeddedAlpha,
   interpretColorOpacity,
   normalizeOpacityPercent,
+  normalizeTypedOpacityPercent,
   type ColorComponentResolution,
   type ColorSemanticsContext,
 } from "./colorSemantics.ts";
@@ -346,6 +347,16 @@ describe("applyColorTokenReplacement", () => {
       entry("--white-short", "#fff", { cssName: "--white-short" }),
       entry("--black", "#000", { cssName: "--black" }),
     )).toEqual({ ok: true, value: "var(--black)" });
+  });
+});
+
+describe("normalizeTypedOpacityPercent", () => {
+  it("reads a bare typed number as a percent", () => {
+    expect(normalizeTypedOpacityPercent("25")).toBe("25%");
+    expect(normalizeTypedOpacityPercent(" 0.5 ")).toBe("0.5%");
+    expect(normalizeTypedOpacityPercent("40%")).toBe("40%");
+    expect(normalizeTypedOpacityPercent("150")).toBe("100%");
+    expect(normalizeTypedOpacityPercent("abc")).toBeNull();
   });
 });
 

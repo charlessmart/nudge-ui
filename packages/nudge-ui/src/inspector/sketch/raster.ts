@@ -170,14 +170,14 @@ function canvasPng(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 export async function renderSketchPng(
-  originalImage: Blob,
+  pageImage: Blob,
   imageWidth: number,
   imageHeight: number,
   strokes: readonly SketchStroke[],
 ): Promise<{ readonly blob: Blob; readonly width: number; readonly height: number }> {
-  await validatePngBlob(originalImage, { width: imageWidth, height: imageHeight });
+  await validatePngBlob(pageImage, { width: imageWidth, height: imageHeight });
   if (typeof document === "undefined") throw new Error("Sketch rendering requires a browser document.");
-  const image = await loadImage(originalImage);
+  const image = await loadImage(pageImage);
   try {
     const canvas = document.createElement("canvas");
     canvas.width = imageWidth;

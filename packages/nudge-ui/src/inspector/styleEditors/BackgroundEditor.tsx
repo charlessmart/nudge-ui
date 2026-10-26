@@ -28,7 +28,7 @@ const TYPES = [{ value: "linear", label: "Linear" }, { value: "radial", label: "
 
 /** Background layers are displayed in CSS paint order, with the top layer first. */
 export function BackgroundEditor(props: ColorPickerProps): ReactElement {
-  const { element, selection, onAfterEdit } = props;
+  const { element, selection } = props;
   const el = element.domElement;
   const elements = selection?.domElements ?? [el];
   const source = readBackgroundLayers((property, fallback) => getStateStyleValue(el, property, fallback));
@@ -57,7 +57,6 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
     if (inlineBlockedBy(elements, ...declarations.map((declaration) => declaration.property))) return false;
     if (declarations.length && !setStyles(selection?.target ?? el, declarations).length) return false;
     setDraft({ element: el, elements: [...elements], revision: getActiveDraftChanges().revision, layers: next });
-    onAfterEdit?.();
     return true;
   }
 
@@ -194,53 +193,55 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
         { property: "background-position", value: "center" },
       ])}
       onSizing={(declarations) => commit(value, "image", undefined, declarations)} /> : gradient && mode === "gradient" ? <div className="background-editor__gradient">
-      <div className="background-editor__track" data-test="gradient-track" aria-label="Gradient stops"
-        style={{ backgroundImage: serializeGradient({ ...gradient, type: "linear", angle: 90, prelude: "", repeating: false,
-          stops: gradient.stops.map((stop) => ({ ...stop, color: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) })) }) }}
-        onPointerDown={(event) => { if (event.target === event.currentTarget && event.button === 0) addStop(percentAt(event.currentTarget, event.clientX)); }}>
-        {gradient.stops.map((stop, index) => <button type="button" key={index}
-          className="background-editor__stop" aria-label={`Gradient stop ${index + 1}`}
-          disabled={blockedBy !== null}
-          // SAFETY: React CSSProperties permits custom properties through index signatures; only --stop-color is added.
-          style={{ left: `clamp(8px, ${stop.position}%, calc(100% - 8px))`, "--stop-color": previewColor(interpretTokenValue(stop.color, { table: tokenTable })) } as CSSProperties}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            event.stopPropagation();
-            dragCommit.current = createChangeHistoryGroup();
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={(event) => {
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              const position = percentAt(event.currentTarget.parentElement!, event.clientX);
-              if (position !== stop.position) dragCommit.current?.(() => updateStop(index, { position }));
-            }
-          }}
-          onPointerUp={(event) => {
-            dragCommit.current = null;
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-          }}
-          onPointerCancel={() => { dragCommit.current = null; }}
-          onLostPointerCapture={() => { dragCommit.current = null; }}
-          onDoubleClick={() => removeStop(index)}
-          onKeyDown={(event) => {
-            if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); event.stopPropagation(); removeStop(index); }
-            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-              event.preventDefault();
+      <div className="background-editor__track-row">
+        <div className="background-editor__track" data-test="gradient-track" aria-label="Gradient stops"
+          style={{ backgroundImage: serializeGradient({ ...gradient, type: "linear", angle: 90, prelude: "", repeating: false,
+            stops: gradient.stops.map((stop) => ({ ...stop, color: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) })) }) }}
+          onPointerDown={(event) => { if (event.target === event.currentTarget && event.button === 0) addStop(percentAt(event.currentTarget, event.clientX)); }}>
+          {gradient.stops.map((stop, index) => <button type="button" key={index}
+            className="background-editor__stop" aria-label={`Gradient stop ${index + 1}`}
+            disabled={blockedBy !== null}
+            // SAFETY: React CSSProperties permits custom properties through index signatures; only --stop-color is added.
+            style={{ left: `clamp(8px, ${stop.position}%, calc(100% - 8px))`, "--stop-color": previewColor(interpretTokenValue(stop.color, { table: tokenTable })) } as CSSProperties}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
               event.stopPropagation();
-              updateStop(index, { position: Math.max(0, Math.min(100, stop.position + (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1))) });
-            }
-          }} />)}
+              dragCommit.current = createChangeHistoryGroup();
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                const position = percentAt(event.currentTarget.parentElement!, event.clientX);
+                if (position !== stop.position) dragCommit.current?.(() => updateStop(index, { position }));
+              }
+            }}
+            onPointerUp={(event) => {
+              dragCommit.current = null;
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onPointerCancel={() => { dragCommit.current = null; }}
+            onLostPointerCapture={() => { dragCommit.current = null; }}
+            onDoubleClick={() => removeStop(index)}
+            onKeyDown={(event) => {
+              if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); event.stopPropagation(); removeStop(index); }
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                event.stopPropagation();
+                updateStop(index, { position: Math.max(0, Math.min(100, stop.position + (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1))) });
+              }
+            }} />)}
+        </div>
+        <IconButton variant="quiet" label="Reverse gradient" disabled={blockedBy !== null}
+          onClick={() => commitGradient({ ...gradient, stops: [...gradient.stops].reverse().map((stop) => ({ ...stop, position: 100 - stop.position })) })}>
+          <IconArrowsDiff aria-hidden="true" /></IconButton>
       </div>
       <div className="background-editor__toolbar">
-        <Select aria-label="Gradient type" value={gradient.type} options={TYPES} disabled={blockedBy !== null}
+        <Select aria-label="Gradient type" value={gradient.type} options={TYPES} disabled={blockedBy !== null} popupWidth="fit"
           onValueChange={(type) => commitGradient({ ...gradient, type: type as GradientType, prelude: type === "radial" ? "circle at center" : "" })} />
         {gradient.type !== "radial" ? rawField("Gradient angle", `${gradient.angle}deg`, (raw) => {
           const match = /^([+-]?(?:\d*\.)?\d+)(?:deg)?$/.exec(raw.trim());
           if (match && Number.isFinite(Number(match[1]))) commitGradient({ ...gradient, angle: Number(match[1]) });
         }) : null}
-        <IconButton variant="secondary" label="Reverse gradient" disabled={blockedBy !== null}
-          onClick={() => commitGradient({ ...gradient, stops: [...gradient.stops].reverse().map((stop) => ({ ...stop, position: 100 - stop.position })) })}>
-          <IconArrowsDiff aria-hidden="true" /></IconButton>
         <IconButton variant="quiet" label="Add gradient stop" disabled={blockedBy !== null} onClick={() => addStop()}>
           <IconPlus aria-hidden="true" /></IconButton>
       </div>

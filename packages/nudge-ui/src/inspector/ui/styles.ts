@@ -15,6 +15,7 @@ import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
 import menuScrollbarStyles from "./MenuScrollbar.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
+import colorPickerPanelStyles from "./ColorPickerPanel.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import tooltipStyles from "./Tooltip.css?inline";
 import toastStyles from "./Toast.css?inline";
@@ -56,6 +57,7 @@ export const UI_STYLES = [
   popoverListboxStyles,
   menuScrollbarStyles,
   inspectorPopoverStyles,
+  colorPickerPanelStyles,
   sideValuesFieldStyles,
   tooltipStyles,
   toastStyles,

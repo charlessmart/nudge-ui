@@ -1,16 +1,8 @@
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
+import { INITIAL_SIZE_VALUES, type OptionalSizeProperty } from "./cssValue.ts";
 
-export type OptionalSizeProperty = "min-width" | "max-width" | "min-height" | "max-height" | "aspect-ratio";
-
-/** Initial values of the size properties whose fields stay hidden until they are set or added. */
-const SIZE_DEFAULTS: Readonly<Record<OptionalSizeProperty, string>> = {
-  "min-width": "0",
-  "min-height": "0",
-  "max-width": "none",
-  "max-height": "none",
-  "aspect-ratio": "auto",
-};
+export type { OptionalSizeProperty } from "./cssValue.ts";
 
 const FLEX_CHILD_DEFAULTS: Readonly<Record<string, string>> = {
   "flex-grow": "0",
@@ -40,7 +32,7 @@ function normalize(value: string): string {
 export function hasSizeOverride(el: HTMLElement, property: OptionalSizeProperty): boolean {
   const value = normalize(meaningfulLayoutValue(el, property));
   // `auto` is the initial minimum and sets no limit, the same as `0`, so removing a minimum can restore it.
-  return (property.startsWith("min-") && value === "auto" ? "0" : value) !== SIZE_DEFAULTS[property];
+  return (property.startsWith("min-") && value === "auto" ? "0" : value) !== INITIAL_SIZE_VALUES[property];
 }
 
 /** True when the flex or grid child properties of an item differ from their initial values. */

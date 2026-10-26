@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowBack, IconCheck, IconChevronDown, IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
+import { IconArrowBack, IconChevronDown, IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
 import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { GapField } from "./GapField.tsx";
@@ -79,6 +79,7 @@ export function FlexGapField({ property, domElement, editTarget, selection, entr
         selection={selection}
         entries={entries}
         tokenRows={tokenRows}
+        suggestionPopupWidth="fit"
         leading={(
           <GapIcon
             className="layout__spacing-icon"
@@ -186,11 +187,11 @@ export function FlexMainGapField({ property, domElement, editTarget, selection, 
       disabled={blockedBy !== null}
       items={DISTRIBUTION_ITEMS.map((item) => ({
         ...item,
-        leading: (distributed ? justify : "packed") === item.value
-          ? <IconCheck size={14} stroke={2} aria-hidden="true" />
-          : undefined,
+        selected: (distributed ? justify : "packed") === item.value,
         "data-test": `layout-flex-distribution-${item.value}`,
       }))}
+      // The distribution lives in the small gap control, so the menu hugs its labels instead of the default wide menu.
+      popupWidth="fit"
       onQueryChange={() => undefined}
       onOpenChange={setOpen}
       onSelect={(next) => {
@@ -211,6 +212,7 @@ export function FlexMainGapField({ property, domElement, editTarget, selection, 
         tokenRows={tokenRows}
         {...(distributed ? { displayOverride: "Auto" } : {})}
         interceptRaw={interceptRaw}
+        suggestionPopupWidth="fit"
         trailing={(
           <>
             {distributed && Number.isFinite(gapPixels) ? (

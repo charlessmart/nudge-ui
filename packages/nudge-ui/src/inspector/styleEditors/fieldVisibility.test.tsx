@@ -117,12 +117,10 @@ describe("inspector field visibility", () => {
   it("keeps a background editable after its opacity reaches zero", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { background-color: rgb(40, 80, 120); }');
-    const render = () => createElement(ColorPicker, {
-      element: selected, property: "background-color",
-      onAfterEdit: () => handle!.root.render(render()),
-    });
+    const render = () => createElement(ColorPicker, { element: selected, property: "background-color" });
     handle = mount(render());
     setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="raw-input"]')!, "transparent");
+    act(() => handle!.root.render(render()));
     expect(handle.host.querySelector<HTMLInputElement>('[data-test="raw-input"]')?.value).toBe("rgba(0, 0, 0, 0)");
     expect(handle.host.querySelector('[data-test="add-color"]')).toBeNull();
   });
@@ -130,11 +128,10 @@ describe("inspector field visibility", () => {
   it("keeps a shadow editable after its opacity reaches zero", () => {
     const { selected } = makeSelected();
     addCss('[data-cid="Button"] { box-shadow: 0 2px 4px black; }');
-    const render = () => createElement(BoxShadowEditor, {
-      element: selected, onAfterEdit: () => handle!.root.render(render()),
-    });
+    const render = () => createElement(BoxShadowEditor, { element: selected });
     handle = mount(render());
     setInputValue(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')!, "0%");
+    act(() => handle!.root.render(render()));
     expect(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')?.value).toBe("0%");
     expect(handle.host.querySelector('[data-test="shadow-0-0"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="add-shadow"]')).not.toBeNull();

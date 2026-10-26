@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -10,6 +10,7 @@ import type { StringRecord } from "./stringRecord.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
+import { useValueDraft } from "./valueField.ts";
 
 const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",
@@ -46,36 +47,23 @@ export function GridValueField({
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";
   };
   const [value, setValue] = useState(readValue);
-  const [draft, setDraft] = useState(value);
-  // Commit reads the ref, not state: Escape reverts then blurs in one event, before React re-renders.
-  const draftRef = useRef(value);
-
   useEffect(() => {
-    const next = readValue();
-    setValue(next);
-    updateDraft(mixed ? "" : next);
+    setValue(readValue());
   }, [el, mixed, property, revision]);
 
-  function updateDraft(next: string): void {
-    draftRef.current = next;
-    setDraft(next);
-  }
-
-  function commit(): void {
-    if (blockedBy) return;
-    const next = draftRef.current.trim();
-    if (!next) {
-      updateDraft(mixed ? "" : value);
-      return;
-    }
-    setValue(next);
-    updateDraft(next);
-    if (setStyle(editTarget ?? el, property, next)) onAfterEdit?.();
-  }
-
-  function cancel(): void {
-    updateDraft(mixed ? "" : value);
-  }
+  const field = useValueDraft({
+    value,
+    mixed,
+    blocked: blockedBy !== null,
+    property,
+    resetKey: selection?.domElements ?? el,
+    reseedKey: revision,
+    commitOnNudge: true,
+    onCommit: (next) => {
+      setValue(next);
+      if (setStyle(editTarget ?? el, property, next)) onAfterEdit?.();
+    },
+  });
 
   return (
     <FieldRow
@@ -86,25 +74,14 @@ export function GridValueField({
     >
       <InlineStyleBlockedTooltip blockedBy={blockedBy}>
         <TextInput
-          value={draft}
+          value={field.draft}
           placeholder={mixed ? "Mixed" : undefined}
           data-test={`layout-grid-input-${property}`}
           aria-label={property}
           disabled={blockedBy !== null}
-          onChange={(event) => updateDraft(event.target.value)}
-          onBlur={() => {
-            commit();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              cancel();
-              event.currentTarget.blur();
-            } else if (event.key === "Enter") {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-          }}
+          onChange={(event) => field.setDraft(event.target.value)}
+          onBlur={field.handleBlur}
+          onKeyDown={field.handleKeyDown}
         />
       </InlineStyleBlockedTooltip>
     </FieldRow>

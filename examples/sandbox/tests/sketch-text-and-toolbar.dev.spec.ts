@@ -115,6 +115,12 @@ test("the sketch tools sit in a bar above the toolbar with the copy button after
   const toast = page.locator('[data-test="toast"]');
   await expect(toast).toContainText("Draw a sketch, then save");
   await expect(toast.locator(".toast__icon")).toHaveCount(0);
+  // It is a default toast, so it keeps the pill shape rather than the tighter radius used for multi-line errors.
+  const corners = await toast.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { radius: parseFloat(style.borderTopLeftRadius), height: element.getBoundingClientRect().height };
+  });
+  expect(corners.radius).toBeGreaterThanOrEqual(corners.height / 2);
   await expect(page.locator('[data-test="sketch-live-prompt-input"]')).toHaveCount(0);
 
   // A divider, like the one in the canvas toolbar, sits between the color picker and the copy button.

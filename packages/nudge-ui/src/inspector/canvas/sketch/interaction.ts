@@ -1,25 +1,11 @@
 import { useSyncExternalStore } from "react";
-import {
-  captureViewport,
-  type CapturedSketch,
-  type SketchCaptureOptions,
-} from "../../sketch/capture.ts";
+import { captureViewport, type CapturedSketch, type SketchCaptureOptions } from "../../sketch/capture.ts";
 
-export type SketchCaptureState = "idle" | "sketching" | "capturing" | "ready" | "error";
-
-export interface SketchInteractionSnapshot {
-  readonly captureState: SketchCaptureState;
-  readonly captured: CapturedSketch | null;
-  readonly error: string | null;
-}
-
-const EMPTY_SNAPSHOT: SketchInteractionSnapshot = {
-  captureState: "idle",
-  captured: null,
-  error: null,
-};
-
-let snapshot = EMPTY_SNAPSHOT;
+/**
+ * Whether the sketch tool is open. The tool has one mode — drawing over the live frame — so the only state anything
+ * outside this module needs is "open or not"; the capture result goes straight back to the caller.
+ */
+let active = false;
 let captureController: AbortController | null = null;
 const listeners = new Set<() => void>();
 
@@ -28,79 +14,61 @@ function notify(): void {
     try {
       listener();
     } catch {
-      // A view subscriber must not break the interaction state machine.
+      // A view subscriber must not break the interaction state.
     }
   }
 }
 
-function publish(next: SketchInteractionSnapshot): void {
-  snapshot = next;
+function setActive(next: boolean): void {
+  if (active === next) return;
+  active = next;
   notify();
 }
 
-export function getSketchInteractionSnapshot(): SketchInteractionSnapshot {
-  return snapshot;
-}
-
-export function subscribeSketchInteraction(listener: () => void): () => void {
+function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function useSketchInteraction(): SketchInteractionSnapshot {
-  return useSyncExternalStore(
-    subscribeSketchInteraction,
-    getSketchInteractionSnapshot,
-    getSketchInteractionSnapshot,
-  );
-}
-
 export function isSketchInteractionActive(): boolean {
-  return snapshot.captureState !== "idle" || snapshot.captured !== null;
+  return active;
 }
 
 export function useSketchInteractionActive(): boolean {
-  const current = useSketchInteraction();
-  return current.captureState !== "idle" || current.captured !== null;
+  return useSyncExternalStore(subscribe, isSketchInteractionActive, isSketchInteractionActive);
 }
 
 export function beginSketchCapture(): void {
   captureController?.abort();
   captureController = null;
-  publish({ captureState: "sketching", captured: null, error: null });
+  setActive(true);
 }
 
-export function completeSketchCapture(hostElement: HTMLElement, capture: typeof captureViewport = captureViewport): Promise<CapturedSketch> {
+export function completeSketchCapture(
+  hostElement: HTMLElement,
+  capture: typeof captureViewport = captureViewport,
+): Promise<CapturedSketch> {
   captureController?.abort();
   const controller = new AbortController();
   captureController = controller;
-  publish({ captureState: "capturing", captured: null, error: null });
   const options: SketchCaptureOptions = { hostElement, signal: controller.signal };
-  return capture(options)
-    .then((captured) => {
-      if (captureController !== controller) return captured;
-      captureController = null;
-      publish({ captureState: "ready", captured, error: null });
+  return capture(options).then(
+    (captured) => {
+      if (captureController === controller) captureController = null;
       return captured;
-    })
-    .catch((error: unknown) => {
+    },
+    (error: unknown) => {
+      // A superseded capture was aborted by whoever replaced it, which already owns the open state.
       if (captureController !== controller) throw error;
       captureController = null;
-      if (controller.signal.aborted) {
-        publish(EMPTY_SNAPSHOT);
-        throw error;
-      }
-      publish({
-        captureState: "error",
-        captured: null,
-        error: error instanceof Error ? error.message : "The viewport could not be captured.",
-      });
+      if (controller.signal.aborted) setActive(false);
       throw error;
-    });
+    },
+  );
 }
 
 export function cancelSketchInteraction(): void {
   captureController?.abort();
   captureController = null;
-  publish(EMPTY_SNAPSHOT);
+  setActive(false);
 }

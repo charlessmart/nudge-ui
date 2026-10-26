@@ -5,18 +5,9 @@ import {
   type SketchStorage,
   type SketchStorageChange,
 } from "nudge-ui/internal/page-inspector";
-import {
-  parseSketchResponse,
-  SKETCH_REQUEST_EVENT,
-  SKETCH_RESPONSE_EVENT,
-  type SketchRequest,
-  type SketchResponse,
-  type StoredImage,
-  type StoredSketchDocument,
-} from "./protocol.ts";
-
-// Distributive so each request keeps its own fields.
-type RequestBody<Request = SketchRequest> = Request extends unknown ? Omit<Request, "id"> : never;
+import { createChannelClient } from "./bridge.ts";
+import { sketchChannel } from "./channels.ts";
+import type { SketchResponse, StoredImage, StoredSketchDocument } from "./protocol.ts";
 
 // Bounds String.fromCharCode's argument count.
 const ENCODE_CHUNK = 0x8000;
@@ -51,33 +42,19 @@ function decodeDocument(document: StoredSketchDocument): SketchDocument | null {
   }
 }
 
+function assertOk(response: SketchResponse): asserts response is Extract<SketchResponse, { ok: true }> {
+  if (!response.ok) throw new Error(response.error);
+}
+
 /** Persists sketches through the isolated-world bridge so the inspected site's own storage is never written. */
 export function createExtensionSketchStorage(): SketchStorage {
-  let nextId = 0;
-  const pending = new Map<number, (response: SketchResponse) => void>();
-  document.addEventListener(SKETCH_RESPONSE_EVENT, (event) => {
-    const response = parseSketchResponse((event as CustomEvent<unknown>).detail);
-    if (!response) return;
-    const settle = pending.get(response.id);
-    pending.delete(response.id);
-    settle?.(response);
-  });
-
-  const send = (body: RequestBody): Promise<SketchResponse & { ok: true }> => new Promise((resolve, reject) => {
-    nextId += 1;
-    const request: SketchRequest = { ...body, id: nextId };
-    pending.set(request.id, (response) => {
-      if (response.ok) resolve(response);
-      else reject(new Error(response.error));
-    });
-    document.dispatchEvent(new CustomEvent(SKETCH_REQUEST_EVENT, { detail: JSON.stringify(request) }));
-  });
-
+  const client = createChannelClient(sketchChannel);
   return {
     async read(projectId: string): Promise<SketchPersistenceSnapshot> {
-      const { records } = await send({ op: "read" });
+      const response = await client.send({ op: "read" });
+      assertOk(response);
       const documents: SketchDocument[] = [];
-      for (const document of records?.documents ?? []) {
+      for (const document of response.records?.documents ?? []) {
         const decoded = decodeDocument(document);
         if (decoded && decoded.projectId === projectId) documents.push(decoded);
       }
@@ -85,11 +62,12 @@ export function createExtensionSketchStorage(): SketchStorage {
     },
     async update(_projectId: string, change: SketchStorageChange): Promise<void> {
       const documents = await Promise.all((change.documents ?? []).map(encodeDocument));
-      await send({
+      const response = await client.send({
         op: "update",
         put: { documents },
         deleteDocumentIds: [...(change.deleteDocumentIds ?? [])],
       });
+      assertOk(response);
     },
   };
 }

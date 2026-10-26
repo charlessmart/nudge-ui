@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { getLayoutValue } from "./layoutValue.ts";
+import { splitCssTokens } from "./cssValue.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
 import { setStyles } from "../tokens/editActions.ts";
 import { targetElements, type EditTarget } from "../selection/editTarget.ts";
@@ -31,34 +32,7 @@ function clampDimension(value: number, max: number): number {
 }
 
 function splitTrackList(value: string): string[] {
-  const parts: string[] = [];
-  let start = 0;
-  let depth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === "(") depth++;
-    else if (char === ")") depth = Math.max(0, depth - 1);
-    else if (/\s/.test(char) && depth === 0) {
-      if (value.slice(start, index).trim()) parts.push(value.slice(start, index).trim());
-      while (/\s/.test(value[index + 1] ?? "")) index++;
-      start = index + 1;
-    }
-  }
-  if (value.slice(start).trim()) parts.push(value.slice(start).trim());
-  return parts;
+  return splitCssTokens(value);
 }
 
 /** Null when the browser determines the track count (auto-fill/auto-fit, none, subgrid). */
