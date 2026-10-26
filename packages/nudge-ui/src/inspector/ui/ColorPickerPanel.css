@@ -1,0 +1,212 @@
+.color-picker {
+  --color-picker-checker: repeating-conic-gradient(#d9d9d9 0 25%, #fff 0 50%) 0 50% / 8px 8px;
+  --color-picker-thumb-size: 16px;
+  display: flex;
+  width: 264px;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-12);
+}
+
+.color-picker[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.color-picker__surface {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-6);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  cursor: crosshair;
+  outline: 0;
+  touch-action: none;
+}
+
+.color-picker__surface:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--border-subtle), 0 0 0 2px var(--accent);
+}
+
+.color-picker__thumb {
+  position: absolute;
+  top: 50%;
+  box-sizing: border-box;
+  width: var(--color-picker-thumb-size);
+  height: var(--color-picker-thumb-size);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--thumb-color);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  /* Releases settle on the shared spring; `scale` stays apart from the centering transform. */
+  transition: scale var(--spring-duration) var(--spring-ease);
+}
+
+/* A grab goes in fast, like a button press. */
+.color-picker__surface:active .color-picker__thumb,
+.color-picker__slider:active .color-picker__thumb {
+  scale: 1.15;
+  transition: scale var(--press-duration) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .color-picker__surface:active .color-picker__thumb,
+  .color-picker__slider:active .color-picker__thumb {
+    scale: none;
+  }
+}
+
+.color-picker__slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.color-picker__sliders {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* The rail is inset by half a thumb so the thumb's center reaches each end without overflowing the row. */
+.color-picker__slider {
+  position: relative;
+  height: 12px;
+  margin-inline: calc(var(--color-picker-thumb-size) / 2);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  outline: 0;
+  touch-action: none;
+}
+
+.color-picker__slider::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(var(--color-picker-thumb-size) / -2 - var(--stretch-end, 0px)) 0 calc(var(--color-picker-thumb-size) / -2 - var(--stretch-start, 0px));
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  transition: left var(--spring-duration) var(--spring-ease), right var(--spring-duration) var(--spring-ease);
+}
+
+.color-picker__slider .color-picker__thumb {
+  z-index: 1;
+  translate: calc(var(--stretch-end, 0px) - var(--stretch-start, 0px)) 0;
+  transition: scale var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
+}
+
+.color-picker__slider:active .color-picker__thumb {
+  transition: scale var(--press-duration) ease-out, translate var(--spring-duration) var(--spring-ease);
+}
+
+/* Dragging past an end pulls the rail and thumb out with the pointer; letting go springs them back. */
+.color-picker__slider[data-stretching]::before,
+.color-picker__slider[data-stretching] .color-picker__thumb {
+  transition: none;
+}
+
+.color-picker__slider:focus-visible::before {
+  box-shadow: inset 0 0 0 1px var(--border-subtle), 0 0 0 2px var(--accent);
+}
+
+.color-picker__slider--hue::before {
+  background: linear-gradient(90deg, #f00 0%, #ff0 16.67%, #0f0 33.33%, #0ff 50%, #00f 66.67%, #f0f 83.33%, #f00 100%);
+}
+
+.color-picker__slider--alpha::before {
+  background: linear-gradient(90deg, transparent, var(--track-color)), var(--color-picker-checker);
+}
+
+/* The opacity thumb shows its translucent color over the same checkerboard as the rail. */
+.color-picker__slider--alpha .color-picker__thumb {
+  background: linear-gradient(var(--thumb-color), var(--thumb-color)), var(--color-picker-checker);
+}
+
+.color-picker__footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.color-picker__format.select {
+  width: 68px;
+  flex: 0 0 auto;
+}
+
+.color-picker__channels {
+  display: flex;
+  min-width: 0;
+  height: var(--control-height-large);
+  flex: 1 1 auto;
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--surface-control);
+}
+
+.color-picker__cell {
+  box-sizing: border-box;
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 0;
+  padding: 0 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-base);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.color-picker__cell + .color-picker__cell {
+  box-shadow: inset 1px 0 0 var(--surface-raised-2x);
+}
+
+.color-picker__cell:focus {
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.color-picker__cell--hex {
+  flex-grow: 3;
+  padding-inline: var(--space-8);
+  text-align: left;
+}
+
+/* One field for value and unit: a separator before it, the focus ring around both. */
+.color-picker__alpha {
+  display: flex;
+  min-width: 0;
+  flex: 1.4 1 0;
+  align-items: center;
+  border-radius: var(--radius-control);
+  box-shadow: inset 1px 0 0 var(--surface-raised-2x);
+  cursor: text;
+}
+
+.color-picker__alpha:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.color-picker__alpha .color-picker__cell--alpha {
+  padding: 0;
+  text-align: right;
+}
+
+.color-picker__alpha .color-picker__cell--alpha:focus {
+  box-shadow: none;
+}
+
+.color-picker__unit {
+  flex: 0 0 auto;
+  padding-right: var(--space-8);
+  padding-left: 1px;
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+}

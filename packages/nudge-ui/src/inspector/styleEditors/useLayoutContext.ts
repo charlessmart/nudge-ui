@@ -25,7 +25,6 @@ const GRID_DISPLAYS = ["grid", "inline-grid"];
 export function useLayoutContext(
   el: HTMLElement,
   selection: StyleSelection | null | undefined,
-  onAfterEdit?: () => void,
 ): LayoutContext {
   const [primaryIsFlexContainer, setPrimaryIsFlexContainer] = useState(false);
   const [primaryIsFlexChild, setPrimaryIsFlexChild] = useState(false);
@@ -68,7 +67,6 @@ export function useLayoutContext(
     revision,
     notifyAfterEdit(): void {
       setLayoutRevision((value) => value + 1);
-      onAfterEdit?.();
     },
     isFlexContainer: selection ? selection.supportsRole("flex-container") : primaryIsFlexContainer,
     isGridContainer: selection ? selection.supportsRole("grid-container") : primaryIsGridContainer,

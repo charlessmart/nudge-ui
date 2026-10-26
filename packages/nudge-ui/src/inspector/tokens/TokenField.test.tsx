@@ -718,6 +718,25 @@ describe("TokenField", () => {
     expect(suggestions[0]?.textContent).toContain(alternate.name);
   });
 
+  it("checks the active token at the trailing edge of its menu row", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE, { name: "--font-size-large", value: "20px", source: "styles.css:3" }],
+    }));
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    const rows = Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]'));
+    const active = rows.find((row) => row.textContent?.includes(FONT_SIZE.name))!;
+    const other = rows.find((row) => row.textContent?.includes("--font-size-large"))!;
+    // The check closes the current row instead of starting it, matching the font-style menu.
+    expect(active.querySelector(".popover-listbox__leading")).toBeNull();
+    expect(active.lastElementChild?.getAttribute("data-test")).toBe("popover-listbox-indicator");
+    expect(other.querySelector('[data-test="popover-listbox-indicator"]')).toBeNull();
+  });
+
   it("shows authored functional CSS without an inline token attribution label", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
@@ -911,15 +930,19 @@ describe("TokenField", () => {
       onSelectToken: vi.fn(),
       onUnlink: vi.fn(),
     }));
-    const picker = handle.host.querySelector('[data-test="token-color-input"]') as HTMLInputElement;
-    expect(picker).not.toBeNull();
+    const trigger = handle.host.querySelector('[data-test="token-color-input"]') as HTMLButtonElement;
+    expect(trigger).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')).not.toBeNull();
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
+    act(() => trigger.click());
+    const hex = document.querySelector('[data-test="color-picker-hex"]') as HTMLInputElement;
+    expect(hex.value).toBe("112233");
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-      setter.call(picker, "#abcdef");
-      picker.dispatchEvent(new Event("change", { bubbles: true }));
+      setter.call(hex, "abcdef");
+      hex.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    act(() => hex.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
     selected.domElement.remove();
   });
@@ -1041,6 +1064,34 @@ describe("TokenField", () => {
 
     expect(onCommitOpacity).toHaveBeenCalledWith("50%");
     expect(opacityInput.value).toBe("100%");
+  });
+
+  it("reads a bare typed opacity as a percent", () => {
+    const onCommitOpacity = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "#ff0000",
+      resolvedValue: "#ff0000",
+      entries: [],
+      isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    const opacityInput = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+    act(() => {
+      opacityInput.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(opacityInput, "25");
+      opacityInput.dispatchEvent(new Event("change", { bubbles: true }));
+      opacityInput.blur();
+    });
+
+    expect(onCommitOpacity).toHaveBeenCalledWith("25%");
+    expect(opacityInput.value).toBe("25%");
   });
 
   it("nudges opacity by one percent, or ten percent with Shift", () => {
@@ -1405,5 +1456,286 @@ describe("TokenField system fonts", () => {
     await settle();
 
     expect(source.access).not.toHaveBeenCalled();
+  });
+});
+
+describe("TokenField draft ownership", () => {
+  let handle: MountHandle | null = null;
+
+  afterEach(() => {
+    handle?.unmount();
+    handle = null;
+  });
+
+  function typeRaw(input: HTMLInputElement, value: string): void {
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  it("does not write an untouched field on blur", () => {
+    const { selected } = makeSelected();
+    const onCommitRaw = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => input.focus());
+    act(() => input.blur());
+
+    expect(onCommitRaw).not.toHaveBeenCalled();
+  });
+
+  it("commits a typed raw value as one undoable edit", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    typeRaw(input, "32px");
+    act(() => input.blur());
+
+    expect(getChangeRecords()).toMatchObject([{ property: "padding-top", rawValue: "32px" }]);
+    act(() => { expect(undo()).toBe(true); });
+    expect(getChangeRecords()).toEqual([]);
+    act(() => { expect(redo()).toBe(true); });
+    expect(getChangeRecords()).toMatchObject([{ property: "padding-top", rawValue: "32px" }]);
+  });
+
+  it("keeps a typed raw value when the committed value changes underneath", () => {
+    const { selected } = makeSelected();
+    const onCommitRaw = vi.fn();
+    const render = (committedValue: string) => createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue,
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render("16px"));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    typeRaw(input, "32px");
+    act(() => handle!.root.render(render("24px")));
+
+    expect(input.value).toBe("32px");
+    act(() => input.blur());
+    expect(onCommitRaw).toHaveBeenLastCalledWith("32px");
+  });
+
+  it("accepts a committed value change when the user has not edited", () => {
+    const { selected } = makeSelected();
+    const onCommitRaw = vi.fn();
+    const render = (committedValue: string) => createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue,
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render("16px"));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => handle!.root.render(render("24px")));
+
+    expect(input.value).toBe("24px");
+  });
+
+  it("drops a typed raw value when the target element changes", () => {
+    const { el: first } = makeSelected("First");
+    const { el: second } = makeSelected("Second");
+    const onCommitRaw = vi.fn();
+    const render = (el: HTMLElement, committedValue: string) => createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: el,
+      committedValue,
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render(first, "16px"));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    typeRaw(input, "32px");
+    act(() => handle!.root.render(render(second, "24px")));
+
+    expect(input.value).toBe("24px");
+    act(() => input.blur());
+    expect(onCommitRaw).not.toHaveBeenCalled();
+  });
+
+  it("commits nothing when an untouched field blurs", () => {
+    const { selected } = makeSelected();
+    const onCommitRaw = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => input.focus());
+    act(() => input.blur());
+    expect(onCommitRaw).not.toHaveBeenCalled();
+  });
+
+  it("does not write back a background change when a focused, untouched field blurs", () => {
+    const { selected } = makeSelected();
+    const onCommitRaw = vi.fn();
+    const render = (committedValue: string) => createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue,
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render("16px"));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => input.focus());
+    act(() => handle!.root.render(render("24px")));
+    expect(input.value).toBe("24px");
+    act(() => input.blur());
+    expect(onCommitRaw).not.toHaveBeenCalled();
+  });
+
+  it("drops a typed raw value when the selection grows around the same primary element", () => {
+    const { el: first } = makeSelected("First");
+    const { el: second } = makeSelected("Second");
+    const onCommitRaw = vi.fn();
+    const render = (resetKey: readonly HTMLElement[]) => createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: first,
+      resetKey,
+      committedValue: "16px",
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render([first]));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    typeRaw(input, "32px");
+    // A rebuilt list of the same elements is the same target and keeps the draft.
+    act(() => handle!.root.render(render([first])));
+    expect(input.value).toBe("32px");
+    act(() => handle!.root.render(render([first, second])));
+    expect(input.value).toBe("16px");
+    act(() => input.blur());
+    expect(onCommitRaw).not.toHaveBeenCalled();
+  });
+
+  it("commits nothing when an untouched opacity blurs", () => {
+    const { selected } = makeSelected();
+    const onCommitOpacity = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "#ff0000",
+      resolvedValue: "#ff0000",
+      domElement: selected.domElement,
+      entries: [],
+      isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
+      opacity: { value: "80%", authoredValue: "0.8", source: "rgb", tokenName: null },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const input = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+
+    act(() => input.focus());
+    act(() => input.blur());
+    expect(onCommitOpacity).not.toHaveBeenCalled();
+  });
+
+  it("reverts a typed opacity on Escape without committing", () => {
+    const { selected } = makeSelected();
+    const onCommitOpacity = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "#ff0000",
+      resolvedValue: "#ff0000",
+      domElement: selected.domElement,
+      entries: [],
+      isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
+      opacity: { value: "80%", authoredValue: "0.8", source: "rgb", tokenName: null },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const input = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "40%");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+
+    expect(input.value).toBe("80%");
+    expect(onCommitOpacity).not.toHaveBeenCalled();
+  });
+
+  it("keeps a typed opacity when the committed opacity changes underneath", () => {
+    const { selected } = makeSelected();
+    const onCommitOpacity = vi.fn();
+    const render = (opacityValue: string) => createElement(TokenValueField, {
+      property: "color",
+      committedValue: "#ff0000",
+      resolvedValue: "#ff0000",
+      domElement: selected.domElement,
+      entries: [],
+      isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
+      opacity: { value: opacityValue, authoredValue: "1", source: "rgb", tokenName: null },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    });
+    handle = mount(render("80%"));
+    const input = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "40%");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    act(() => handle!.root.render(render("60%")));
+
+    expect(input.value).toBe("40%");
+    act(() => input.blur());
+    expect(onCommitOpacity).toHaveBeenLastCalledWith("40%");
   });
 });

@@ -7,11 +7,19 @@
   min-width: 0;
 }
 
+/* The track ends where the reverse button starts, so the button fills the column the toolbar reserves at the end. */
+.background-editor__track-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-block: var(--space-8) var(--space-12);
+}
+
 .background-editor__track {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 28px;
-  /* End at the blend button, leaving the trailing icon-button column empty. */
-  margin: var(--space-8) calc(var(--control-height-large) + var(--space-8)) var(--space-12) 0;
   border: 1px solid var(--border-subtle);
   background-clip: padding-box;
   border-radius: var(--radius-4);
@@ -21,7 +29,8 @@
 
 .background-editor__stop {
   position: absolute;
-  top: 19px;
+  /* The handle starts at the bar's midline and hangs below it. */
+  top: 50%;
   width: 16px;
   height: 20px;
   padding: 0;
@@ -36,10 +45,24 @@
   outline: none;
   cursor: grab;
   touch-action: none;
+  /* Releases settle on the shared spring; `scale` stays apart from the centering transform. */
+  transition: scale var(--spring-duration) var(--spring-ease);
 }
 
-.background-editor__stop:active { cursor: grabbing; }
+/* A grab goes in fast, like a button press. */
+.background-editor__stop:active:not(:disabled) {
+  scale: 1.15;
+  cursor: grabbing;
+  transition: scale var(--press-duration) ease-out;
+}
+
 .background-editor__stop:disabled { cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .background-editor__stop:active:not(:disabled) {
+    scale: none;
+  }
+}
 
 .background-editor__toolbar {
   display: flex;

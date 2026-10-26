@@ -9,7 +9,7 @@ import { LayoutModeRow, type LayoutAddAction } from "./LayoutModeRow.tsx";
 import { GridContainerControls } from "./GridSection.tsx";
 import { GridChildSection } from "./GridChildSection.tsx";
 import { OFFSET_PRESETS, PositionControls, insetKindFor, showsPositionControls } from "./PositionControls.tsx";
-import { SpacingField, projectSpacing, useSpacingVisibility } from "./SpacingField.tsx";
+import { MarginFieldIcon, SpacingField, projectSpacing, useSpacingVisibility } from "./SpacingField.tsx";
 import {
   FlexAlignmentGrid,
   FlexGapField,
@@ -33,7 +33,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const el = element.domElement;
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const { revision, notifyAfterEdit, isFlexContainer, isGridContainer, isFlexChild, isGridChild, position } = useLayoutContext(el, selection, onAfterEdit);
+  const { revision, notifyAfterEdit, isFlexContainer, isGridContainer, isFlexChild, isGridChild, position } = useLayoutContext(el, selection);
   const common = { domElement: el, editTarget, selection, revision, onAfterEdit: notifyAfterEdit };
   const spacing = projectSpacing(el, selection, tokenRows);
   const spacingProps = { domElement: el, editTarget, selection, entries: allEntries, tokenRows, onAfterEdit: notifyAfterEdit };
@@ -44,7 +44,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const insetVisibility = useSpacingVisibility("inset", spacing.inset, elements);
   const insetKind = insetKindFor(selection, position);
   const addActions: LayoutAddAction[] = [
-    { key: "margin", label: "Add margin", disabled: marginVisibility.visible, onAdd: marginVisibility.show },
+    { key: "margin", label: "Add margin", icon: <MarginFieldIcon />, disabled: marginVisibility.visible, onAdd: marginVisibility.show },
     ...(insetKind ? [{ key: "inset", label: "Add inset", disabled: insetVisibility.visible, onAdd: insetVisibility.show }] : []),
   ];
   // A flex item's fields live in the layout options menu; a grid item's also show here once one is set.

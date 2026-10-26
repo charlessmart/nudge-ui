@@ -5,6 +5,7 @@ import type { ResolvedProperty, TokenEntry } from "../../css/model/index.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyle } from "../tokens/editActions.ts";
 import { measureAspectRatio } from "./aspectRatioLock.ts";
+import { SIZE_LIMIT_RESET_VALUES, type SizeLimitProperty } from "./cssValue.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { IconMaxHeight, IconMaxWidth, IconMinHeight, IconMinWidth } from "./SizeLimitIcons.tsx";
 import { hasChildPlacementOverrides, hasSizeOverride } from "./hiddenSizeOverrides.ts";
@@ -24,7 +25,7 @@ const MIN_SIZE_PRESETS = ["0", "min-content", "fit-content"];
 const MAX_WIDTH_PRESETS = ["none", "100%", "100vw", "fit-content"];
 const MAX_HEIGHT_PRESETS = ["none", "100%", "100vh", "fit-content"];
 
-type SizeLimit = "min-width" | "max-width" | "min-height" | "max-height";
+type SizeLimit = SizeLimitProperty;
 type SizeSetting = SizeLimit | "child-placement";
 
 const LIMIT_PRESETS = {
@@ -33,14 +34,6 @@ const LIMIT_PRESETS = {
   "max-width": MAX_WIDTH_PRESETS,
   "max-height": MAX_HEIGHT_PRESETS,
 } satisfies Record<SizeLimit, string[]>;
-
-/** What removing a limit writes: the property's initial value, which sets no limit. */
-const LIMIT_RESET_VALUES = {
-  "min-width": "auto",
-  "min-height": "auto",
-  "max-width": "none",
-  "max-height": "none",
-} satisfies Record<SizeLimit, string>;
 
 type SizeField = "width" | "height" | SizeLimit;
 
@@ -161,7 +154,7 @@ export function SizeSection({ domElement: el, editTarget, selection, entries, to
   function removeLimit(property: SizeLimit): void {
     // Only a value that is set needs writing; removing an untouched, just-added field changes nothing.
     if (hasSizeOverride(el, property) || edited.current.properties.has(property)) {
-      setStyle(editTarget, property, LIMIT_RESET_VALUES[property]);
+      setStyle(editTarget, property, SIZE_LIMIT_RESET_VALUES[property]);
       edited.current.properties.delete(property);
       onAfterEdit?.();
     }

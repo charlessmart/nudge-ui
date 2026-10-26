@@ -9,7 +9,7 @@ const CAPTURE_WINDOW_MS = 500;
 export interface AnimationSnapshot {
   /** The entry currently captured, or null before one runs. */
   readonly entryId: string | null;
-  /** `idle` until a trigger runs, `waiting` for the pointer to leave the page, `none` once a trigger produced no animation. */
+  /** `idle` until a trigger runs, `waiting` for the pointer to leave a hover trigger, `none` once a trigger produced no animation. */
   readonly status: "idle" | "waiting" | "capturing" | "ready" | "none";
   readonly label: string;
   /** Position within the longest captured animation, 0 to 1. */
@@ -139,12 +139,14 @@ export class AnimationSession {
     this.autoplay = autoplay;
     const window = this.element.ownerDocument.defaultView;
     if (!window) return;
-    // A page the pointer is still over is already hovered, so a forced hover would change nothing to capture.
-    if (entry.kind === "state" && entry.state === "hover" && this.element.ownerDocument.documentElement.matches(":hover")) {
+    // A trigger the pointer is still over is already hovered, so a forced hover would change nothing to capture.
+    // Only the trigger matters: the pointer may rest anywhere else on the page, which the user can't tell apart from "away".
+    const trigger = entry.kind === "state" && entry.state === "hover" ? entry.group.trigger : null;
+    if (trigger?.matches(":hover")) {
       this.publish({ ...this.snapshot, entryId: entry.id, status: "waiting", label: "", progress: 0, duration: 0, playing: false });
       const wait = (): void => {
         if (this.disposed) return;
-        if (this.element.ownerDocument.documentElement.matches(":hover")) {
+        if (trigger.matches(":hover")) {
           this.waitFrame = window.requestAnimationFrame(wait);
           return;
         }
@@ -186,8 +188,6 @@ export class AnimationSession {
         stopPseudo?.();
         activation();
       };
-    } else if (entry.kind === "click") {
-      this.dispatchClick();
     }
 
     const startedAt = window.performance.now();
@@ -362,21 +362,6 @@ export class AnimationSession {
       this.pollFrame = window.requestAnimationFrame(poll);
     };
     this.pollFrame = window.requestAnimationFrame(poll);
-  }
-
-  /** Synthetic clicks run the app's handlers but never follow links or submit forms. */
-  private dispatchClick(): void {
-    const doc = this.element.ownerDocument;
-    const synthetic = new (doc.defaultView?.MouseEvent ?? MouseEvent)("click", { bubbles: true, cancelable: true });
-    const preventDefault = (event: Event): void => {
-      if (event === synthetic) event.preventDefault();
-    };
-    doc.addEventListener("click", preventDefault, { capture: true });
-    try {
-      this.element.dispatchEvent(synthetic);
-    } finally {
-      doc.removeEventListener("click", preventDefault, { capture: true });
-    }
   }
 
   /** Drops the captured animations and the forced state, leaving the page as the app had it. */

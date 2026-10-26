@@ -1,28 +1,19 @@
+import { serveChannel } from "./bridge.ts";
+import { fontListChannel, sketchChannel, storageReadChannel, type SketchRequestBody } from "./channels.ts";
 import {
   FONT_LIST_MESSAGE,
-  FONT_LIST_REQUEST_EVENT,
-  FONT_LIST_RESPONSE_EVENT,
   INSPECTOR_ROOT_ID,
   PANEL_SIDE_KEY,
   PANEL_SIDE_WRITE_EVENT,
   parsePanelSide,
   parseFontListResult,
-  parseSketchRequest,
   parseStorageWrite,
   parseStoredSketchDocument,
   siteKeyPrefix,
-  SKETCH_REQUEST_EVENT,
-  SKETCH_RESPONSE_EVENT,
   sketchKeyPrefix,
   STORAGE_WRITE_EVENT,
-  STORAGE_READ_EVENT,
-  STORAGE_READ_RESPONSE_EVENT,
   type FontListMessage,
-  type FontListResponse,
-  type SketchRequest,
-  type SketchResponse,
   type StoredSketchRecords,
-  type StorageReadResponse,
 } from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
@@ -50,7 +41,7 @@ function inspectorGesture(event: Event): InspectorGesture | null {
   return { asksForFonts: event.key === "Enter" && row !== null };
 }
 
-async function handleSketchRequest(prefix: string, request: SketchRequest): Promise<StoredSketchRecords | undefined> {
+async function handleSketchRequest(prefix: string, request: SketchRequestBody): Promise<StoredSketchRecords | undefined> {
   const documentKey = (id: string) => `${prefix}doc:${id}`;
   if (request.op === "read") {
     const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith(prefix));
@@ -84,22 +75,19 @@ const scope = globalThis as typeof globalThis & { [BRIDGE_FLAG]?: true };
 if (!scope[BRIDGE_FLAG]) {
   scope[BRIDGE_FLAG] = true;
   const prefix = siteKeyPrefix(location.origin);
-  document.addEventListener(STORAGE_READ_EVENT, (event) => {
-    const id = (event as CustomEvent<unknown>).detail;
-    if (typeof id !== "number" || !Number.isSafeInteger(id)) return;
-    const respond = (response: StorageReadResponse): void => {
-      document.dispatchEvent(new CustomEvent(STORAGE_READ_RESPONSE_EVENT, { detail: JSON.stringify(response) }));
-    };
-    void chrome.storage.local.getKeys().then(async (keys) => {
-      const siteKeys = keys.filter((key) => key.startsWith(prefix));
-      const stored = siteKeys.length ? await chrome.storage.local.get(siteKeys) : {};
-      const values: Record<string, string> = {};
-      for (const [key, value] of Object.entries(stored)) {
-        if (typeof value === "string") values[key.slice(prefix.length)] = value;
-      }
-      respond({ id, values });
-    }).catch((error: unknown) => respond({ id, error: error instanceof Error ? error.message : String(error) }));
-  });
+  const sketchPrefix = sketchKeyPrefix(location.origin);
+
+  serveChannel(storageReadChannel, async () => {
+    const keys = await chrome.storage.local.getKeys();
+    const siteKeys = keys.filter((key) => key.startsWith(prefix));
+    const stored = siteKeys.length ? await chrome.storage.local.get(siteKeys) : {};
+    const values: Record<string, string> = {};
+    for (const [key, value] of Object.entries(stored)) {
+      if (typeof value === "string") values[key.slice(prefix.length)] = value;
+    }
+    return { values };
+  }, { target: document });
+
   document.addEventListener(STORAGE_WRITE_EVENT, (event) => {
     const write = parseStorageWrite((event as CustomEvent<unknown>).detail);
     if (!write) return;
@@ -115,18 +103,12 @@ if (!scope[BRIDGE_FLAG]) {
     chrome.storage.local.set({ [PANEL_SIDE_KEY]: side })
       .catch((error: unknown) => console.warn("[nudge-ui] Could not save the panel side.", error));
   });
-  const sketchPrefix = sketchKeyPrefix(location.origin);
-  document.addEventListener(SKETCH_REQUEST_EVENT, (event) => {
-    const request = parseSketchRequest((event as CustomEvent<unknown>).detail);
-    if (!request) return;
-    const respond = (response: SketchResponse): void => {
-      document.dispatchEvent(new CustomEvent(SKETCH_RESPONSE_EVENT, { detail: JSON.stringify(response) }));
-    };
-    void handleSketchRequest(sketchPrefix, request).then(
-      (records) => respond({ id: request.id, ok: true, ...(records ? { records } : {}) }),
-      (error: unknown) => respond({ id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) }),
-    );
-  });
+
+  serveChannel(sketchChannel, async (request) => {
+    const records = await handleSketchRequest(sketchPrefix, request);
+    return records ? { ok: true, records } : { ok: true };
+  }, { target: document });
+
   // The inspector asks for fonts while handling the user's event, including its effects and microtasks; the gesture lasts until that task ends.
   let gesture: InspectorGesture | null = null;
   for (const type of GESTURE_EVENTS) {
@@ -139,21 +121,10 @@ if (!scope[BRIDGE_FLAG]) {
       });
     }, true);
   }
-  document.addEventListener(FONT_LIST_REQUEST_EVENT, (event) => {
-    // SAFETY: the detail stays unknown until the ID check below.
-    const id = (event as CustomEvent<unknown>).detail;
-    if (typeof id !== "number" || !Number.isSafeInteger(id)) return;
-    const respond = (response: FontListResponse): void => {
-      document.dispatchEvent(new CustomEvent(FONT_LIST_RESPONSE_EVENT, { detail: JSON.stringify(response) }));
-    };
-    if (!gesture) {
-      respond({ id, error: "The font list is available only during a click or key press in Nudge UI." });
-      return;
-    }
+  serveChannel(fontListChannel, async () => {
+    if (!gesture) return { error: "The font list is available only during a click or key press in Nudge UI." };
     const message: FontListMessage = { type: FONT_LIST_MESSAGE, asked: gesture.asksForFonts };
-    void chrome.runtime.sendMessage(message).then((reply: unknown) => {
-      const result = parseFontListResult(reply);
-      respond(result ? { id, ...result } : { id, error: "The font list could not be read." });
-    }, (error: unknown) => respond({ id, error: error instanceof Error ? error.message : String(error) }));
-  });
+    const reply: unknown = await chrome.runtime.sendMessage(message);
+    return parseFontListResult(reply) ?? { error: "The font list could not be read." };
+  }, { target: document });
 }

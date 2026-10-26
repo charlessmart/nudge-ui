@@ -33,10 +33,7 @@ export interface AnimationGroup {
 export type AnimationEntry =
   | { readonly id: string; readonly kind: "keyframes"; readonly label: string; readonly name: string; readonly group: AnimationGroup }
   | { readonly id: string; readonly kind: "state"; readonly label: string; readonly state: PreviewState | null; readonly group: AnimationGroup }
-  | { readonly id: string; readonly kind: "running"; readonly label: string }
-  | { readonly id: string; readonly kind: "click"; readonly label: string };
-
-export const CLICK_ENTRY: AnimationEntry = { id: "click", kind: "click", label: "Click" };
+  | { readonly id: string; readonly kind: "running"; readonly label: string };
 
 const PAGE_ELEMENT_LIMIT = 5000;
 const SKIPPED_TAGS = new Set(["SCRIPT", "STYLE", "LINK", "META", "HEAD", "NOSCRIPT", "TEMPLATE"]);
@@ -523,6 +520,60 @@ function timelineFor(element: Element, style: CSSStyleDeclaration, scrollElement
   return /(?:^|[\s,])(?:scroll|view)\s*\(/.test(declared) ? "scroll" : "document";
 }
 
+/** Visits each element a rule's selector matches, once per compound that can gate it. */
+function forEachStateCompound(
+  doc: Document,
+  allowed: ReadonlySet<Element>,
+  selectorText: string,
+  visit: (candidate: Element, compound: StatefulCompound) => void,
+): void {
+  for (const branch of splitSelectorAtTopLevel(selectorText, ",")) {
+    const parsed = parseConditions(branch.trim());
+    if (!parsed) continue;
+    let matched: NodeListOf<Element>;
+    try {
+      matched = doc.querySelectorAll(parsed.stripped);
+    } catch {
+      continue;
+    }
+    for (const candidate of matched) {
+      if (!allowed.has(candidate)) continue;
+      for (const compound of parsed.compounds) visit(candidate, compound);
+    }
+  }
+}
+
+/** The group for one trigger and switch, created the first time either a transition or a keyframe rule names it. */
+function stateGroupFor(
+  groups: Map<string, MutableGroup>,
+  trigger: HTMLElement,
+  compound: StatefulCompound,
+  defaults: { readonly timeline: AnimationTimelineKind; readonly name: string },
+): MutableGroup {
+  const key = `state:${triggerId(trigger)}:${conditionsKey(compound.conditions)}`;
+  let group = groups.get(key);
+  if (!group) {
+    group = {
+      kind: "state",
+      trigger,
+      members: new Map(),
+      state: compound.conditions.find((condition) => condition.kind === "pseudo")?.state ?? null,
+      conditions: compound.conditions,
+      timeline: defaults.timeline,
+      key,
+      name: defaults.name,
+    };
+    groups.set(key, group);
+  }
+  return group;
+}
+
+function addGroupMember(group: MutableGroup, candidate: Element, names: Iterable<string>): void {
+  const member = group.members.get(asAnimationElement(candidate)) ?? new Set<string>();
+  for (const name of names) member.add(name);
+  group.members.set(asAnimationElement(candidate), member);
+}
+
 /** Finds each animation on `elements`: keyframes they run, and the transitions their states set off, grouped by trigger and state. */
 function findGroups(
   doc: Document,
@@ -571,44 +622,14 @@ function findGroups(
     for (const rule of rules) {
       // A rule that touches nothing the page transitions can match all it likes.
       if (!rule.declarations.some(({ property }) => moving.has(property) || moving.has("all"))) continue;
-      for (const branch of splitSelectorAtTopLevel(rule.selectorText, ",")) {
-        const parsed = parseConditions(branch.trim());
-        if (!parsed) continue;
-        let matched: NodeListOf<Element>;
-        try {
-          matched = doc.querySelectorAll(parsed.stripped);
-        } catch {
-          continue;
-        }
-        for (const candidate of matched) {
-          if (!allowed.has(candidate)) continue;
-          const properties = transitioning.get(candidate);
-          if (!properties) continue;
-          const changed = rule.declarations.map(({ property }) => property).filter((property) => properties.has(property) || properties.has("all"));
-          if (changed.length === 0) continue;
-          for (const compound of parsed.compounds) {
-            const trigger = triggerFor(candidate, compound);
-            const key = `state:${triggerId(trigger)}:${conditionsKey(compound.conditions)}`;
-            let group = groups.get(key);
-            if (!group) {
-              group = {
-                kind: "state",
-                trigger,
-                members: new Map(),
-                state: compound.conditions.find((condition) => condition.kind === "pseudo")?.state ?? null,
-                conditions: compound.conditions,
-                timeline: "document",
-                key,
-                name: "",
-              };
-              groups.set(key, group);
-            }
-            const member = group.members.get(asAnimationElement(candidate)) ?? new Set<string>();
-            for (const property of changed) member.add(property);
-            group.members.set(asAnimationElement(candidate), member);
-          }
-        }
-      }
+      forEachStateCompound(doc, allowed, rule.selectorText, (candidate, compound) => {
+        const properties = transitioning.get(candidate);
+        if (!properties) return;
+        const changed = rule.declarations.map(({ property }) => property).filter((property) => properties.has(property) || properties.has("all"));
+        if (changed.length === 0) return;
+        const trigger = triggerFor(candidate, compound);
+        addGroupMember(stateGroupFor(groups, trigger, compound, { timeline: "document", name: "" }), candidate, changed);
+      });
     }
   }
 
@@ -617,41 +638,13 @@ function findGroups(
     const names = declaredAnimationNames(rule.declarations);
     if (names.length === 0) continue;
     const scrollDriven = declaresScrollTimeline(rule.declarations);
-    for (const branch of splitSelectorAtTopLevel(rule.selectorText, ",")) {
-      const parsed = parseConditions(branch.trim());
-      if (!parsed) continue;
-      let matched: NodeListOf<Element>;
-      try {
-        matched = doc.querySelectorAll(parsed.stripped);
-      } catch {
-        continue;
-      }
-      for (const candidate of matched) {
-        if (!allowed.has(candidate)) continue;
-        for (const compound of parsed.compounds) {
-          const trigger = triggerFor(candidate, compound);
-          const key = `state:${triggerId(trigger)}:${conditionsKey(compound.conditions)}`;
-          let group = groups.get(key);
-          if (!group) {
-            group = {
-              kind: "state",
-              trigger,
-              members: new Map(),
-              state: compound.conditions.find((condition) => condition.kind === "pseudo")?.state ?? null,
-              conditions: compound.conditions,
-              timeline: scrollDriven || scrollElements.has(candidate) ? "scroll" : "document",
-              key,
-              name: names[0] ?? "",
-            };
-            groups.set(key, group);
-          }
-          if (scrollDriven || scrollElements.has(candidate)) group.timeline = "scroll";
-          const member = group.members.get(asAnimationElement(candidate)) ?? new Set<string>();
-          for (const name of names) member.add(name);
-          group.members.set(asAnimationElement(candidate), member);
-        }
-      }
-    }
+    forEachStateCompound(doc, allowed, rule.selectorText, (candidate, compound) => {
+      const trigger = triggerFor(candidate, compound);
+      const timeline = scrollDriven || scrollElements.has(candidate) ? "scroll" : "document";
+      const group = stateGroupFor(groups, trigger, compound, { timeline, name: names[0] ?? "" });
+      if (timeline === "scroll") group.timeline = "scroll";
+      addGroupMember(group, candidate, names);
+    });
   }
   return collapseRestatedStates([...groups.values()].map(buildGroup));
 }
@@ -672,21 +665,6 @@ export function scanPageAnimations(doc: Document, skip: (element: Element) => bo
     .sort((left, right) => (order.get(left.trigger) ?? 0) - (order.get(right.trigger) ?? 0));
 }
 
-const CLICKABLE_TAGS = new Set(["BUTTON", "INPUT", "SELECT", "SUMMARY", "LABEL", "TEXTAREA"]);
-const CLICKABLE_ROLES = new Set(["button", "link", "tab", "menuitem", "switch", "checkbox", "radio", "option"]);
-
-/** Handlers can't be listed, so a click is only offered where the element looks like it takes one. */
-function looksClickable(element: HTMLElement): boolean {
-  if (CLICKABLE_TAGS.has(element.tagName) || (element.tagName === "A" && element.hasAttribute("href"))) return true;
-  if (CLICKABLE_ROLES.has(element.getAttribute("role") ?? "") || element.hasAttribute("onclick")) return true;
-  if (Number(element.getAttribute("tabindex") ?? -1) >= 0) return true;
-  // `cursor` inherits, so only the element that starts the pointer counts, not everything inside it.
-  const view = element.ownerDocument.defaultView;
-  if (view?.getComputedStyle(element).cursor !== "pointer") return false;
-  const parent = element.parentElement;
-  return !parent || view.getComputedStyle(parent).cursor !== "pointer";
-}
-
 /** Whether `element` takes part in the group as its trigger, or as an animating member. */
 function belongsTo(group: AnimationGroup, element: HTMLElement): boolean {
   if (element === group.trigger || element.contains(group.trigger)) return true;
@@ -696,7 +674,7 @@ function belongsTo(group: AnimationGroup, element: HTMLElement): boolean {
   return false;
 }
 
-/** The animations to offer for a selected element. A click is added only beside animations the page declares, because handlers can't be listed and a click on its own usually captures nothing. */
+/** The animations to offer for a selected element, most direct first. */
 export function scanAnimations(element: HTMLElement): AnimationEntry[] {
   const doc = element.ownerDocument;
   const entries: AnimationEntry[] = [];
@@ -714,6 +692,5 @@ export function scanAnimations(element: HTMLElement): AnimationEntry[] {
   const scripted = typeof element.getAnimations === "function"
     && element.getAnimations({ subtree: true }).some((animation) => !("animationName" in animation) && !("transitionProperty" in animation));
   if (scripted) ordered.push({ id: "running", kind: "running", label: "Running now" });
-  if (ordered.length > 0 && looksClickable(element)) ordered.push(CLICK_ENTRY);
   return ordered;
 }

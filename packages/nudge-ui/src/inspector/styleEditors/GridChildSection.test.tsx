@@ -135,4 +135,45 @@ describe("GridChildSection", () => {
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-v-"][aria-pressed="true"]')).toHaveLength(0);
   });
 
+  function typeWithoutBlur(input: HTMLInputElement, value: string): void {
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  it("keeps a typed start line when the computed placement changes underneath", () => {
+    mockComputedStyle({ "grid-column-start": "2" });
+    const { el } = makeSelected("First");
+    const render = (revision: number) => createElement(GridChildSection, { domElement: el, revision });
+    handle = mount(render(0));
+    const input = startInput("column");
+
+    typeWithoutBlur(input, "3");
+    mockComputedStyle({ "grid-column-start": "4" });
+    act(() => handle!.root.render(render(1)));
+
+    expect(input.value).toBe("3");
+    act(() => input.blur());
+    expect(sheetText()).toContain("grid-column-start: 3;");
+  });
+
+  it("drops a typed start line when the target element changes", () => {
+    mockComputedStyle({ "grid-column-start": "2" });
+    const { el: first } = makeSelected("First");
+    const { el: second } = makeSelected("Second");
+    const render = (el: HTMLElement) => createElement(GridChildSection, { domElement: el });
+    handle = mount(render(first));
+    const input = startInput("column");
+
+    typeWithoutBlur(input, "3");
+    mockComputedStyle({ "grid-column-start": "5" });
+    act(() => handle!.root.render(render(second)));
+
+    expect(input.value).toBe("5");
+    act(() => input.blur());
+    expect(sheetText()).not.toContain("grid-column-start: 3;");
+  });
 });

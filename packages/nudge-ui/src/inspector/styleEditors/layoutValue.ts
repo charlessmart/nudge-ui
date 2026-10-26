@@ -2,21 +2,7 @@ import { getActiveStyleState } from "../shell/styleState.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { readInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
-import type { StringRecord } from "./stringRecord.ts";
-
-const DEFAULT_LAYOUT_VALUES: StringRecord = {
-  width: "auto",
-  height: "auto",
-  "min-width": "0",
-  "min-height": "0",
-  "max-width": "none",
-  "max-height": "none",
-  "aspect-ratio": "auto",
-  top: "auto",
-  right: "auto",
-  bottom: "auto",
-  left: "auto",
-};
+import { INITIAL_LAYOUT_VALUES } from "./cssValue.ts";
 
 /** Known layout properties never fall back to the browser's used pixel value. */
 export function meaningfulLayoutValue(el: HTMLElement, property: string): string {
@@ -25,7 +11,7 @@ export function meaningfulLayoutValue(el: HTMLElement, property: string): string
   const computed = getStateStyleValue(el, property);
   // Aspect-ratio's computed value stays authored-like, unlike used dimensions such as a block's pixel width.
   if (property === "aspect-ratio" && computed && computed !== "auto") return computed;
-  return DEFAULT_LAYOUT_VALUES[property] ?? computed;
+  return INITIAL_LAYOUT_VALUES[property] ?? computed;
 }
 
 export function readAuthoredStyleValue(el: HTMLElement, property: string): string | null {

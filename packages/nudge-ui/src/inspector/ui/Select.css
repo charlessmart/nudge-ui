@@ -68,6 +68,13 @@
   transform-origin: var(--transform-origin);
 }
 
+/* Sized to the options, but never narrower than the control it opens from. */
+.select__popup--fit {
+  width: max-content;
+  min-width: var(--anchor-width, 0px);
+  max-width: min(260px, calc(100vw - 24px));
+}
+
 .select__popup--searchable {
   display: flex;
   flex-direction: column;
@@ -78,7 +85,7 @@
   box-sizing: border-box;
   flex: 0 0 auto;
   width: calc(100% - (var(--space-4) * 2));
-  min-height: 32px;
+  min-height: var(--control-height-large);
   margin: var(--space-4);
   padding: var(--space-8);
   border: 1px solid var(--border-subtle);

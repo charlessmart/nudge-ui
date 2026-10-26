@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
-import { nudgeCssValue } from "./nudgeValue.ts";
+import { sameEditTarget, useValueDraft } from "./valueField.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
@@ -57,53 +57,22 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   const [currentValue, setCurrentValue] = useState(() =>
     meaningfulLayoutValue(el, property),
   );
-  const [customValue, setCustomValue] = useState(currentValue);
   const [showCustom, setShowCustom] = useState(false);
   const customInputRef = useRef<HTMLInputElement>(null);
-  const draftDirtyRef = useRef(false);
   const pendingProjectionRef = useRef<PendingProjection | null>(null);
+  const targetElements = selection?.domElements ?? el;
+  const targetRef = useRef({ targetElements, property });
   const projectionAcknowledgementVersion = useSyncExternalStore(
     subscribeCanvasProjectionAcknowledgements,
     getCanvasProjectionAcknowledgementVersion,
     getCanvasProjectionAcknowledgementVersion,
   );
 
-  useEffect(() => {
-    draftDirtyRef.current = false;
-    pendingProjectionRef.current = null;
-  }, [el, property]);
-
-  useEffect(() => {
-    try {
-      if (draftDirtyRef.current) return;
-
-      const pending = pendingProjectionRef.current;
-      if (pending && (pending.document !== el.ownerDocument || pending.property !== property)) {
-        pendingProjectionRef.current = null;
-      } else if (pending) {
-        const status = getCanvasProjectionStatus(el.ownerDocument);
-        const waitingForProjection = status !== null
-          && status.sentRevision >= pending.revision
-          && status.appliedRevision < pending.revision;
-        if (waitingForProjection) return;
-        pendingProjectionRef.current = null;
-      }
-
-      const cv = meaningfulLayoutValue(el, property);
-      setCurrentValue(cv);
-      setCustomValue(mixed ? "" : cv);
-    } catch {}
-  }, [el, mixed, property, revision, projectionAcknowledgementVersion]);
-
-  const inPresets = presets.includes(currentValue);
-
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], property);
 
   function commit(value: string): void {
     if (blockedBy) return;
     setCurrentValue(value);
-    setCustomValue(value);
-    draftDirtyRef.current = false;
     pendingProjectionRef.current = null;
     const change = setStyle(editTarget ?? el, property, value);
     if (change) {
@@ -129,35 +98,47 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     commit(val);
   }
 
-  function handleCustomApply(): void {
-    const trimmed = customValue.trim();
-    if (trimmed) {
-      commit(completeCssValue(trimmed, valuePolicyFor(property)));
-    } else {
-      draftDirtyRef.current = false;
-      setCustomValue(mixed ? "" : currentValue);
-    }
-    setShowCustom(false);
-  }
+  const field = useValueDraft({
+    value: mixed ? "" : currentValue,
+    mixed,
+    blocked: blockedBy !== null,
+    property,
+    resetKey: targetElements,
+    complete: (value) => completeCssValue(value, valuePolicyFor(property)),
+    onCommit: commit,
+    commitOnNudge: true,
+  });
+  const dirty = field.isDirty();
 
-  function handleCustomKeyDown(e: React.KeyboardEvent): void {
-    const direction = arrowDirection(e.key);
-    if (direction && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      const next = nudgeCssValue(property, customValue, direction, e.shiftKey);
-      if (next) {
-        e.preventDefault();
-        e.stopPropagation();
-        commit(next);
-        return;
+  useEffect(() => {
+    const targetChanged = !sameEditTarget(targetRef.current.targetElements, targetElements)
+      || targetRef.current.property !== property;
+    targetRef.current = { targetElements, property };
+    if (targetChanged) pendingProjectionRef.current = null;
+    try {
+      const pending = pendingProjectionRef.current;
+      if (pending && (pending.document !== el.ownerDocument || pending.property !== property)) {
+        pendingProjectionRef.current = null;
+      } else if (pending) {
+        const status = getCanvasProjectionStatus(el.ownerDocument);
+        const waitingForProjection = status !== null
+          && status.sentRevision >= pending.revision
+          && status.appliedRevision < pending.revision;
+        if (waitingForProjection) return;
+        pendingProjectionRef.current = null;
       }
-    }
-    if (e.key === "Enter") {
-      handleCustomApply();
-    } else if (e.key === "Escape") {
-      draftDirtyRef.current = false;
-      setCustomValue(mixed ? "" : currentValue);
-      setShowCustom(false);
-    }
+
+      // The same target keeps the user's draft; a new target always starts from its own value.
+      if (!targetChanged && dirty) return;
+      setCurrentValue(meaningfulLayoutValue(el, property));
+    } catch {}
+  }, [dirty, el, property, revision, projectionAcknowledgementVersion, targetElements]);
+
+  const inPresets = presets.includes(currentValue);
+
+  function handleCustomBlur(): void {
+    field.commit();
+    setShowCustom(false);
   }
 
   const selectValue = mixed ? CUSTOM_KEY : inPresets ? currentValue : CUSTOM_KEY;
@@ -168,14 +149,11 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       placeholder={mixed ? "Mixed" : "0"}
       aria-label={formatInspectorLabel(property)}
       data-test={`layout-combo-input-${property}`}
-      value={customValue}
+      value={field.draft}
       disabled={blockedBy !== null}
-      onChange={(e) => {
-        draftDirtyRef.current = true;
-        setCustomValue(e.target.value);
-      }}
-      onBlur={handleCustomApply}
-      onKeyDown={handleCustomKeyDown}
+      onChange={(e) => field.setDraft(e.target.value)}
+      onBlur={handleCustomBlur}
+      onKeyDown={field.handleKeyDown}
     />
   );
 
@@ -208,10 +186,4 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       {inputOnly ? <LayoutBlockedIndicator blockedBy={blockedBy} /> : null}
     </span>
   );
-}
-
-function arrowDirection(key: string): -1 | 1 | null {
-  if (key === "ArrowUp" || key === "ArrowRight") return 1;
-  if (key === "ArrowDown" || key === "ArrowLeft") return -1;
-  return null;
 }

@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { setStyle } from "../tokens/editActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
+import type { PopupWidth } from "../ui/PopoverListbox.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
@@ -18,12 +19,14 @@ export interface LayoutDropdownProps {
   editTarget?: EditTarget;
   selection?: StyleSelection | null;
   stacked?: boolean;
+  /** Sizes the menu to its options; the layout options popover uses `fit`. */
+  popupWidth?: PopupWidth;
   revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
-  const { property, options, domElement: el, editTarget, selection, stacked, revision = 0, onAfterEdit } = props;
+  const { property, options, domElement: el, editTarget, selection, stacked, popupWidth, revision = 0, onAfterEdit } = props;
   const atRules = useFieldAtRules(property);
   const selectedProperty = selection?.getProperty(property);
   const mixed = selectedProperty?.value.kind === "mixed";
@@ -63,6 +66,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
           data-test={`layout-select-${property}`}
           value={mixed ? "mixed" : value}
           options={allOptions.map((opt) => ({ value: opt, label: formatInspectorLabel(opt) }))}
+          popupWidth={popupWidth}
           onValueChange={handleChange}
           disabled={blockedBy !== null}
         />

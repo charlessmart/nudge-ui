@@ -537,6 +537,33 @@ describe("renderer hover scheduling", () => {
     ]));
   });
 
+  it("keeps an active drag when the controller re-sends an unchanged interaction state", () => {
+    const element = trackedElement("resent-state-target");
+    element.style.paddingTop = "20px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    sendInteractionState({ open: true, interactionsEnabled: true });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 100, clientY: 20 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, clientX: 100, clientY: 32 }));
+    sendInteractionState({ open: true, interactionsEnabled: true });
+
+    const messages = postMessage.mock.calls.map(([message]) => message);
+    expect(messages).toEqual(expect.arrayContaining([expect.objectContaining({ type: "element-drag-start" })]));
+    expect(messages).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "element-drag-end" })]));
+  });
+
   it("forwards double-click text intent to the controller", () => {
     const heading = trackedElement("editable-heading");
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);

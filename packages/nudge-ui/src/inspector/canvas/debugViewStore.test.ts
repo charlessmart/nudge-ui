@@ -2,11 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getAnimationBusy,
   getAnimationSpeed,
-  getDebugExploded,
   getDebugViewMode,
   setAnimationBusy,
   setAnimationSpeed,
-  setDebugExploded,
   setDebugViewMode,
 } from "./debugViewStore.ts";
 
@@ -14,7 +12,6 @@ afterEach(() => {
   setDebugViewMode("animation");
   setAnimationSpeed(1);
   setAnimationBusy(false);
-  setDebugExploded(false);
 });
 
 describe("debug view store", () => {
@@ -29,11 +26,5 @@ describe("debug view store", () => {
     setAnimationBusy(true);
     setDebugViewMode("explode");
     expect([getAnimationSpeed(), getAnimationBusy(), getDebugViewMode()]).toEqual([0.5, true, "explode"]);
-  });
-
-  it("remembers that a renderer is holding a subtree apart, so element chrome can step aside", () => {
-    expect(getDebugExploded()).toBe(false);
-    setDebugExploded(true);
-    expect([getDebugExploded(), getDebugViewMode()]).toEqual([true, "animation"]);
   });
 });

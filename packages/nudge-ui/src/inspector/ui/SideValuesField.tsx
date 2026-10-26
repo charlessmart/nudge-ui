@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { IconBorderSides, IconPlus } from "@tabler/icons-react";
+import { IconBorderSides } from "@tabler/icons-react";
 import { IconButton } from "./IconButton.tsx";
 import { ToggleButton } from "./ToggleButton.tsx";
 import { formatInspectorLabel } from "./labels.ts";
@@ -33,9 +33,6 @@ export interface SideValuesFieldProps {
   pairedControls?: readonly SideValuePairSlot[];
   defaultExpanded?: boolean;
   showLabel?: boolean;
-  empty?: boolean;
-  onAdd?: () => void;
-  emptyAction?: ReactNode;
   /** Shown at the end of the label row once the field has values, such as a button that removes them. */
   headerAction?: ReactNode;
   resetKey?: unknown;
@@ -50,9 +47,6 @@ export function SideValuesField({
   pairedControls,
   defaultExpanded = false,
   showLabel = true,
-  empty = false,
-  onAdd,
-  emptyAction,
   headerAction,
   resetKey,
   "data-test": dataTest,
@@ -84,27 +78,11 @@ export function SideValuesField({
       className="side-values"
       data-test={dataTest}
       data-property={dataProperty}
-      data-empty={empty ? "true" : undefined}
       {...(hasPairedControls
         ? { "data-expanded": isExpanded ? "true" : "false" }
         : {})}
     >
-      {empty ? (
-        <div className="side-values__header">
-          <span className="side-values__label">{displayLabel}</span>
-          {emptyAction ?? (
-            <IconButton
-              variant="quiet"
-              size="default"
-              data-test="add-value"
-              label={`Add ${labelText}`}
-              onClick={onAdd}
-            >
-              <IconPlus size={16} aria-hidden="true" />
-            </IconButton>
-          )}
-        </div>
-      ) : hasPairedControls ? (
+      {hasPairedControls ? (
         <>
           {showLabel ? (
             <div className="side-values__header">

@@ -4,6 +4,7 @@ import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import { useRef, type ButtonHTMLAttributes, type ComponentProps, type ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { portalContainer } from "./portalContainer.ts";
+import type { PopupWidth } from "./PopoverListbox.tsx";
 import { IconButton } from "./IconButton.tsx";
 import { controlAnchor } from "./controlAnchor.ts";
 
@@ -27,6 +28,8 @@ export type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChang
   /** Uses the shared icon button as the trigger; requires an accessible label. */
   iconOnly?: boolean;
   appearance?: ControlAppearance;
+  /** `wide` keeps the popup at least 260px for long labels; `fit` sizes it to its options, never narrower than the control. */
+  popupWidth?: PopupWidth;
   /** Overrides popup placement, including text alignment for icon-only triggers. */
   popupPosition?: Pick<ComponentProps<typeof BaseSelect.Positioner>, "side" | "align" | "alignItemWithTrigger">;
   searchable?: boolean;
@@ -49,6 +52,7 @@ function NativeSelect({
   compact,
   iconOnly,
   appearance = "default",
+  popupWidth = "wide",
   popupPosition,
   searchable: _searchable,
   searchPlaceholder: _searchPlaceholder,
@@ -95,7 +99,7 @@ function NativeSelect({
           anchor={iconOnly ? undefined : controlAnchor(triggerRef)}
           // Overlapping the trigger would offset the popup from the control's edges.
           alignItemWithTrigger={iconOnly ? false : popupPosition?.alignItemWithTrigger ?? false}>
-          <BaseSelect.Popup className="select__popup">
+          <BaseSelect.Popup className={`select__popup${popupWidth === "fit" ? " select__popup--fit" : ""}`}>
             <BaseSelect.List className="select__list">
               {options.map((option) => <SelectItem key={option.value} option={option} />)}
               {groups.map((group) => (
@@ -128,6 +132,7 @@ function SearchableSelect({
   compact,
   iconOnly,
   appearance = "default",
+  popupWidth = "wide",
   popupPosition,
   searchable: _searchable,
   searchPlaceholder = "Search…",
@@ -190,7 +195,7 @@ function SearchableSelect({
       <BaseCombobox.Portal container={portalContainer()}>
         <BaseCombobox.Positioner className="select__positioner" sideOffset={4} side={popupPosition?.side} align={popupPosition?.align}
           anchor={iconOnly ? undefined : controlAnchor(triggerRef)}>
-          <BaseCombobox.Popup className="select__popup select__popup--searchable">
+          <BaseCombobox.Popup className={`select__popup select__popup--searchable${popupWidth === "fit" ? " select__popup--fit" : ""}`}>
             <BaseCombobox.Input
               className="select__search-input"
               placeholder={searchPlaceholder}

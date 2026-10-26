@@ -24,7 +24,6 @@ export interface ColorPickerProps {
   property?: string;
   entries?: TokenEntry[];
   tokenRow?: ResolvedProperty | null;
-  onAfterEdit?: () => void;
 }
 
 function colorSectionTitle(property: string): string {
@@ -46,7 +45,7 @@ export function isEmptyColorValue(value: string): boolean {
 }
 
 export function ColorPicker(props: ColorPickerProps): ReactElement {
-  const { element, selection, property = "color", entries, tokenRow, onAfterEdit } = props;
+  const { element, selection, property = "color", entries, tokenRow } = props;
   const el = element.domElement;
   const selectedElements = selection?.domElements ?? [el];
   const target: EditTarget = selection?.target ?? el;
@@ -61,7 +60,6 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
     if (blockedBy) return;
     setStyle(target, property, "transparent");
     visibility.hide();
-    onAfterEdit?.();
   }
 
   return (
@@ -103,7 +101,6 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
               domElement={el}
               editTarget={target}
               entries={allEntries}
-              onAfterEdit={onAfterEdit}
             />
           </ControlSurface>
         </div>

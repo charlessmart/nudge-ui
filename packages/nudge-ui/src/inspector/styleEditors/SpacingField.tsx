@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import { IconMinus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
+import { splitCssList } from "./cssValue.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -288,6 +289,17 @@ function SpacingAxisIndicator({
   );
 }
 
+/** The margin glyph the margin fields show, for the control that adds the margin group. */
+export function MarginFieldIcon(): ReactElement {
+  return (
+    <svg className="side-values__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="6" y="5" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+      <line x1="2" y1="5" x2="2" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+      <line x1="22" y1="5" x2="22" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface PairedTokenFieldProps {
   displayProperty: string;
   sideProperties: readonly [string, string];
@@ -384,26 +396,9 @@ function fieldDisplayValue(field: InspectorFieldProjection): string {
 }
 
 function splitAxisValue(value: string): readonly [string, string] | null {
-  let depth = 0;
-  let quote: "\"" | "'" | null = null;
-  let separator = -1;
-  for (let index = 0; index < value.length; index++) {
-    const character = value[index];
-    if (quote) {
-      if (character === quote && value[index - 1] !== "\\") quote = null;
-      continue;
-    }
-    if (character === "\"" || character === "'") quote = character;
-    else if (character === "(" || character === "[") depth++;
-    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
-    else if (character === "," && depth === 0) {
-      if (separator >= 0) return null;
-      separator = index;
-    }
-  }
-  if (separator < 0) return null;
-  const first = value.slice(0, separator).trim();
-  const second = value.slice(separator + 1).trim();
+  const parts = splitCssList(value);
+  if (parts.length !== 2) return null;
+  const [first, second] = parts;
   return first && second ? [first, second] : null;
 }
 

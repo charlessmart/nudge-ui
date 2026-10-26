@@ -303,4 +303,59 @@ describe("LayoutComboField", () => {
     expect(input.disabled).toBe(false);
     expect(handle.host.querySelector('[data-test="layout-combo-blocked"]')).toBeNull();
   });
+
+  it("keeps a typed value when the background value changes on the same element", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "flex-grow": "1" });
+    const render = (revision: number) => createElement(LayoutComboField, {
+      property: "flex-grow",
+      presets: ["0", "1"],
+      domElement: el,
+      inputOnly: true,
+      revision,
+    });
+    handle = mount(render(0));
+    const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "3");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    mockComputedStyle({ "flex-grow": "2" });
+    act(() => handle.root.render(render(1)));
+
+    expect(input.value).toBe("3");
+    act(() => input.blur());
+    expect(sheetText()).toContain("flex-grow: 3;");
+  });
+
+  it("drops a typed value when the selected element changes", () => {
+    const { el: first } = makeSelected("First");
+    const { el: second } = makeSelected("Second");
+    mockComputedStyle({ "flex-grow": "1" });
+    const render = (el: HTMLElement, revision: number) => createElement(LayoutComboField, {
+      property: "flex-grow",
+      presets: ["0", "1", "4"],
+      domElement: el,
+      inputOnly: true,
+      revision,
+    });
+    handle = mount(render(first, 0));
+    const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "3");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    mockComputedStyle({ "flex-grow": "4" });
+    act(() => handle.root.render(render(second, 0)));
+
+    expect(input.value).toBe("4");
+    act(() => input.blur());
+    expect(sheetText()).not.toContain("flex-grow: 3;");
+  });
 });

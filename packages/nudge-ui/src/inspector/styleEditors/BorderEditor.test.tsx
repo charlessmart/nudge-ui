@@ -156,7 +156,13 @@ describe("BorderEditor", () => {
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
     expect(handle.host.querySelector('[data-test="border-style-settings"]')?.getAttribute("data-current-style")).toBe("solid");
     expect(handle.host.querySelector('[data-test="border-style-settings"] svg')?.classList.contains("tabler-icon-border-style-2")).toBe(true);
-    selectBorderStyle("dashed");
+
+    act(() => (handle.host.querySelector('[data-test="border-style-settings"]') as HTMLButtonElement).click());
+    // The checked style sits at the row's trailing edge, matching every other menu.
+    const solid = document.body.querySelector('[data-test="border-style-setting-solid"]') as HTMLElement;
+    expect(solid.querySelector(".popover-listbox__leading")).toBeNull();
+    expect(solid.lastElementChild?.getAttribute("data-test")).toBe("popover-listbox-indicator");
+    act(() => (document.body.querySelector('[data-test="border-style-setting-dashed"]') as HTMLElement).click());
     expect(sheetText()).toContain("border-style: dashed;");
   });
 
@@ -708,7 +714,7 @@ describe("BorderEditor", () => {
         capability: "composite", confidence: "exact", evidence: { reason: "shadow color token" },
       }],
     }));
-    expect(handle.host.querySelector<HTMLInputElement>('[data-test="token-color-input"]')?.value).toBe("#e60023");
+    expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style")).toContain("--swatch-color: rgb(230 0 35 / 20%)");
     expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--color-danger");
     expect(handle.host.querySelector<HTMLInputElement>('[data-test="color-opacity-input"]')?.value).toBe("20%");
   });

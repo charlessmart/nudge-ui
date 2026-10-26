@@ -43,7 +43,7 @@ export interface GridContainerControlsProps extends GridControlProps {
   tokenRows: ResolvedProperty[];
 }
 
-/** Track templates, flow and content alignment: the grid container settings the cell picker does not cover. */
+/** Content and item alignment first, then the track and auto-flow fields. */
 export function GridAdvancedFields({
   domElement,
   editTarget,
@@ -53,19 +53,24 @@ export function GridAdvancedFields({
 }: GridControlProps): ReactElement {
   const shared = { domElement, editTarget, selection, revision, onAfterEdit };
   return (
-    <div className="layout__grid-advanced" data-test="layout-grid-advanced">
-      <div className="editor__title">Advanced grid CSS</div>
-      <div className="layout__grid-fields">
-        {GRID_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
-        <LayoutDropdown property="grid-auto-flow" options={GRID_AUTO_FLOW_OPTIONS} {...shared} />
-        {GRID_AUTO_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
+    <>
+      <div className="layout__options-section" data-test="layout-grid-alignment-group">
+        <div className="editor__title">Grid alignment</div>
+        <div className="layout__grid-alignment" data-test="layout-grid-alignment">
+          {GRID_ALIGNMENT_FIELDS.map(({ property, options }) => (
+            <LayoutDropdown key={property} property={property} options={[...options]} stacked {...shared} popupWidth="fit" />
+          ))}
+        </div>
       </div>
-      <div className="layout__grid-alignment" data-test="layout-grid-alignment">
-        {GRID_ALIGNMENT_FIELDS.map(({ property, options }) => (
-          <LayoutDropdown key={property} property={property} options={[...options]} stacked {...shared} />
-        ))}
+      <div className="layout__options-section" data-test="layout-grid-advanced">
+        <div className="editor__title">Advanced grid CSS</div>
+        <div className="layout__grid-fields">
+          {GRID_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
+          <LayoutDropdown property="grid-auto-flow" options={GRID_AUTO_FLOW_OPTIONS} {...shared} popupWidth="fit" />
+          {GRID_AUTO_TRACK_PROPERTIES.map((property) => <GridValueField key={property} property={property} {...shared} />)}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

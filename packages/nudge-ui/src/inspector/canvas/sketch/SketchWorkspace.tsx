@@ -11,7 +11,7 @@ import { useBoardCamera, useTemporaryAppInteraction } from "../viewStore.ts";
 import { SketchToolBar } from "./SketchToolBar.tsx";
 import { renderSketchPng } from "../../sketch/raster.ts";
 import { getSketchViewport } from "../../sketch/capture.ts";
-import { beginSketchCapture, cancelSketchInteraction, completeSketchCapture, useSketchInteraction } from "./interaction.ts";
+import { beginSketchCapture, cancelSketchInteraction, completeSketchCapture, useSketchInteractionActive } from "./interaction.ts";
 import { initializeSketchStore, saveSketch, useSketchStore } from "./store.ts";
 import { saveAndCopySketch } from "./copySketch.ts";
 
@@ -76,7 +76,7 @@ export function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSke
 }
 
 export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps): ReactElement | null {
-  const interaction = useSketchInteraction();
+  const active = useSketchInteractionActive();
   const history = useSketchHistory();
   const drawing = useSketchDrawingTools();
   const recents = useSketchStore().documents;
@@ -85,7 +85,6 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
   const camera = useBoardCamera();
   const [textEdit, setTextEdit] = useState<SketchTextEdit | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const active = interaction.captureState !== "idle";
 
   // Deliberately independent of the localStorage session schema; a failed
   // hydration leaves the inspector usable.
@@ -149,7 +148,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
     const captured = await completeSketchCapture(host);
     const strokes = projectLiveStrokes(draft, captured);
     const rendered = await renderSketchPng(
-      captured.originalImage,
+      captured.pageImage,
       captured.imageWidth,
       captured.imageHeight,
       strokes,

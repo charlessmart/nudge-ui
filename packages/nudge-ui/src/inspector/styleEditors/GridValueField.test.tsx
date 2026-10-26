@@ -88,6 +88,56 @@ describe("GridValueField", () => {
     expect(input.value).toBe("2 / span 2");
   });
 
+  it("keeps a typed value when the computed value changes on the same element", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "grid-column": "2" });
+    const render = (revision: number) => createElement(GridValueField, {
+      property: "grid-column",
+      domElement: selected.domElement,
+      revision,
+    });
+    handle = mount(render(0));
+    const input = handle.host.querySelector('[data-test="layout-grid-input-grid-column"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "3");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    mockComputedStyle({ "grid-column": "5" });
+    act(() => handle.root.render(render(1)));
+
+    expect(input.value).toBe("3");
+    act(() => input.blur());
+    expect(sheetText()).toContain("grid-column: 3;");
+  });
+
+  it("drops a typed value when the selected element changes", () => {
+    const { el: first } = makeSelected("First");
+    const { el: second } = makeSelected("Second");
+    mockComputedStyle({ "grid-column": "2" });
+    const render = (el: HTMLElement) => createElement(GridValueField, {
+      property: "grid-column",
+      domElement: el,
+    });
+    handle = mount(render(first));
+    const input = handle.host.querySelector('[data-test="layout-grid-input-grid-column"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "3");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    mockComputedStyle({ "grid-column": "5" });
+    act(() => handle.root.render(render(second)));
+
+    expect(input.value).toBe("5");
+    act(() => input.blur());
+    expect(sheetText()).not.toContain("grid-column: 3;");
+  });
+
   it("keeps a draft visible while replacing a mixed group value", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "grid-template-columns": "1fr" });

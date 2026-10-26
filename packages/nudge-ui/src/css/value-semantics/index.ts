@@ -22,5 +22,5 @@ export type {
   TokenSemanticSlot,
 } from "./propertyPolicy.ts";
 
-export { applyValueEdit, normalizeOpacityPercent } from "./colorSemantics.ts";
+export { applyValueEdit, normalizeOpacityPercent, normalizeTypedOpacityPercent } from "./colorSemantics.ts";
 export type { ColorEditResult, ValueEditRequest } from "./colorSemantics.ts";

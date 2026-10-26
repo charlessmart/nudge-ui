@@ -1,19 +1,19 @@
-import { completeCssValue, CSS_NUMBER_SOURCE } from "./completeCssValue.ts";
+import { completeCssValue } from "./completeCssValue.ts";
+import {
+  formatCssNumber,
+  isCssNumber,
+  parseCssNumber,
+  splitCssList,
+  type CssUnit,
+  type ParsedCssNumber,
+} from "./cssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
-
-const CSS_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
-const CSS_NUMERIC_LITERAL = new RegExp(`^(${CSS_NUMBER_SOURCE})(px|rem|em|%)?$`, "i");
 const DRAG_PIXELS_PER_STEP = 16;
 const LARGE_DRAG_PIXELS_PER_STEP = 8;
 
 export type NudgeDirection = -1 | 1;
 
 const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|(?:min-|max-)?(?:width|height)|(?:font-size|letter-spacing|line-height|opacity)|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
-
-interface ParsedNumericLiteral {
-  number: number;
-  unit: "px" | "rem" | "em" | "%" | "";
-}
 
 export function nudgeCssValue(
   property: string,
@@ -24,7 +24,7 @@ export function nudgeCssValue(
   if (property === "opacity") return nudgeOpacityValue(rawValue, direction, large);
 
   const normalised = normaliseForNudge(property, rawValue);
-  const parsed = parseNumericLiteral(normalised);
+  const parsed = parseCssNumber(normalised);
   if (!parsed) return null;
 
   const step = nudgeStep(property, parsed.unit, large);
@@ -32,7 +32,7 @@ export function nudgeCssValue(
 
   const next = clampNudgeNumber(property, parsed.number + direction * step);
 
-  return `${formatNumber(next)}${parsed.unit}`;
+  return `${formatCssNumber(next)}${parsed.unit}`;
 }
 
 export function supportsDragNudge(property: string): boolean {
@@ -93,12 +93,12 @@ export function nudgeOpacityValue(
 
   const step = large ? 10 : 1;
   const next = Math.min(100, Math.max(0, percent + direction * step));
-  return `${formatNumber(next)}%`;
+  return `${formatCssNumber(next)}%`;
 }
 
 function normaliseForNudge(property: string, rawValue: string): string {
   const value = rawValue.trim();
-  if (!CSS_NUMBER.test(value)) return value;
+  if (!isCssNumber(value)) return value;
   const policy = valuePolicyFor(isLineHeight(property) ? "line-height" : property);
   const normalised = completeCssValue(value, policy);
   if (isLineHeight(property) && normalised === "0") return "0%";
@@ -107,17 +107,7 @@ function normaliseForNudge(property: string, rawValue: string): string {
   return normalised;
 }
 
-function parseNumericLiteral(value: string): ParsedNumericLiteral | null {
-  const match = CSS_NUMERIC_LITERAL.exec(value.trim());
-  if (!match) return null;
-  const number = Number(match[1]);
-  if (!Number.isFinite(number)) return null;
-  // SAFETY: the regex guarantees match[2] is one of the known CSS unit strings.
-  const unit = (match[2] ?? "").toLowerCase() as ParsedNumericLiteral["unit"];
-  return { number, unit };
-}
-
-function nudgeStep(property: string, unit: ParsedNumericLiteral["unit"], large: boolean): number | null {
+function nudgeStep(property: string, unit: CssUnit, large: boolean): number | null {
   if (isFontWeight(property)) return large ? 800 : 100;
   if (isLineHeight(property) && unit === "%") return large ? 80 : 10;
 
@@ -133,7 +123,7 @@ function nudgeDragStep(
   large: boolean,
 ): string | null {
   if (!isAxisPairProperty(property)) return nudgeCssValue(property, rawValue, direction, large);
-  const parts = rawValue.split(",").map((part) => part.trim());
+  const parts = splitCssList(rawValue);
   if (parts.length !== 2) return nudgeCssValue(property, rawValue, direction, large);
   const nudgedParts = parts.map((part) => nudgeCssValue(property, part, direction, large));
   if (nudgedParts.some((part) => part === null)) return null;
@@ -146,7 +136,7 @@ function snapCssValueToLargeStep(
   direction: NudgeDirection,
 ): string | null {
   if (!isAxisPairProperty(property)) return snapNumericValueToLargeStep(property, rawValue, direction);
-  const parts = rawValue.split(",").map((part) => part.trim());
+  const parts = splitCssList(rawValue);
   if (parts.length !== 2) return snapNumericValueToLargeStep(property, rawValue, direction);
   const snappedParts = parts.map((part) => snapNumericValueToLargeStep(property, part, direction));
   if (snappedParts.some((part) => part === null)) return null;
@@ -161,7 +151,7 @@ function snapNumericValueToLargeStep(
   if (property === "opacity") return snapOpacityValueToLargeStep(rawValue, direction);
 
   const normalised = normaliseForNudge(property, rawValue);
-  const parsed = parseNumericLiteral(normalised);
+  const parsed = parseCssNumber(normalised);
   if (!parsed) return null;
 
   const step = nudgeStep(property, parsed.unit, true);
@@ -174,7 +164,7 @@ function snapNumericValueToLargeStep(
     next += direction * step;
   }
   next = clampNudgeNumber(property, next);
-  return `${formatNumber(next)}${parsed.unit}`;
+  return `${formatCssNumber(next)}${parsed.unit}`;
 }
 
 function snapOpacityValueToLargeStep(rawValue: string, direction: NudgeDirection): string | null {
@@ -189,26 +179,25 @@ function snapOpacityValueToLargeStep(rawValue: string, direction: NudgeDirection
     next += direction * step;
   }
   next = Math.min(100, Math.max(0, next));
-  return `${formatNumber(next)}%`;
+  return `${formatCssNumber(next)}%`;
 }
 
 /** Writes equal values the same way, so `1` and `100%` opacity compare as equal. */
 function canonicalNudgeValue(property: string, rawValue: string): string {
   if (property === "opacity") {
     const percent = parseOpacityPercent(rawValue);
-    return percent === null ? rawValue.trim() : `${formatNumber(percent)}%`;
+    return percent === null ? rawValue.trim() : `${formatCssNumber(percent)}%`;
   }
-  return rawValue
-    .split(",")
+  return splitCssList(rawValue)
     .map((part) => {
-      const parsed = parseNumericLiteral(normaliseForNudge(property, part));
-      return parsed ? `${formatNumber(parsed.number)}${parsed.unit}` : part.trim();
+      const parsed = parseCssNumber(normaliseForNudge(property, part));
+      return parsed ? `${formatCssNumber(parsed.number)}${parsed.unit}` : part.trim();
     })
     .join(", ");
 }
 
 function parseOpacityPercent(rawValue: string): number | null {
-  const parsed = parseNumericLiteral(rawValue);
+  const parsed = parseCssNumber(rawValue);
   if (!parsed) return null;
   if (parsed.unit === "%") return parsed.number;
   if (parsed.unit === "" && parsed.number >= 0 && parsed.number <= 1) return parsed.number * 100;
@@ -237,7 +226,3 @@ function clampNudgeNumber(property: string, value: number): number {
   return value;
 }
 
-function formatNumber(value: number): string {
-  const rounded = Number(value.toFixed(12));
-  return Object.is(rounded, -0) ? "0" : String(rounded);
-}

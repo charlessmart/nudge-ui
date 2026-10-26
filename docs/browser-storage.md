@@ -16,7 +16,7 @@ or untrusted scripts.
 | `nudge-ui:<project-id>:prompt-settings` | Custom instructions used when generating prompts. | Until overwritten or site data is removed. |
 
 Sketches are stored separately from `localStorage`. The tick button in the sketch bar copies the
-sketch image to the clipboard and keeps the four most recent ones, so a copy can be
+sketch image to the clipboard and keeps the three most recent ones, so a copy can be
 copied again if it was never pasted. Those copies (the marked-up page images) live in
 IndexedDB under `nudge-ui-sketches`, in extension storage when running as the
 browser extension, and in memory only in demo builds. A fourth copy replaces the

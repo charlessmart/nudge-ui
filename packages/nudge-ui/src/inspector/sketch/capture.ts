@@ -27,9 +27,11 @@ export class SketchCaptureError extends Error {
 }
 
 export interface CapturedSketch {
-  readonly originalImage: Blob;
+  /** The page as it was before any marks were drawn on it. */
+  readonly pageImage: Blob;
   readonly imageWidth: number;
   readonly imageHeight: number;
+  /** Where and how the page was captured; the scroll is what the strokes are projected against. */
   readonly capture: {
     readonly url: string;
     readonly title: string;
@@ -440,7 +442,7 @@ export async function captureViewport(options: SketchCaptureOptions, resources: 
       imageWidth: frame.width,
       imageHeight: frame.height,
     } as const;
-    return { originalImage: frame.blob, imageWidth: frame.width, imageHeight: frame.height, capture };
+    return { pageImage: frame.blob, imageWidth: frame.width, imageHeight: frame.height, capture };
   } catch (error) {
     if (error instanceof SketchCaptureError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") throw abortError();

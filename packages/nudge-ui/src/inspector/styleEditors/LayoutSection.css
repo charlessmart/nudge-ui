@@ -169,7 +169,8 @@
   gap: var(--space-8);
 }
 
-.layout__grid-advanced {
+/* A titled block inside the layout options menu: its label, then its fields, tighter than the menu's own row gap. */
+.layout__options-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);

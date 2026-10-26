@@ -77,6 +77,11 @@ describe("LayoutSection", () => {
     const columnGap = handle.host.querySelector('[data-test="layout-combo"][data-property="column-gap"]');
     expect(columnGap).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-spacing-icon-column-gap"]')).toBeTruthy();
+
+    // The gap suggestions hug their labels rather than opening the default wide menu.
+    const gapInput = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+    act(() => gapInput.focus());
+    expect(document.body.querySelector(".popover-listbox__popup--fit")).toBeTruthy();
   });
 
   it("adds a separate line gap when flex items wrap", () => {
@@ -477,6 +482,12 @@ describe("LayoutSection", () => {
       '[data-test="layout-flex-distribution-space-between"]',
     ) as HTMLElement;
     expect(distribution).toBeTruthy();
+    // The menu hugs its labels rather than opening the default wide menu.
+    expect(distribution.closest(".popover-listbox__popup--fit")).toBeTruthy();
+    // The current distribution is checked at the row's trailing edge, matching every other menu.
+    const packed = document.body.querySelector('[data-test="layout-flex-distribution-packed"]') as HTMLElement;
+    expect(packed.querySelector(".popover-listbox__leading")).toBeNull();
+    expect(packed.lastElementChild?.getAttribute("data-test")).toBe("popover-listbox-indicator");
     act(() => distribution.click());
 
     expect(sheetText()).toContain("justify-content: space-between;");
@@ -484,10 +495,38 @@ describe("LayoutSection", () => {
     act(() => {
       (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click();
     });
+    // The alignment pair carries a heading, like Advanced grid CSS does for the grid options.
+    const flexAlignment = document.body.querySelector('[data-test="layout-flex-alignment"]');
+    expect(flexAlignment?.querySelector(".editor__title")?.textContent).toBe("Flex alignment");
+    expect(flexAlignment?.querySelector('[data-test="layout-select-align-items"]')).toBeTruthy();
     const alignItems = document.body.querySelector('[data-test="layout-select-align-items"]') as HTMLElement;
     expect(alignItems).toBeTruthy();
     setSelectValue(alignItems, "stretch");
     expect(sheetText()).toContain("align-items: stretch;");
+  });
+
+  it("opens select menus in the layout options popover sized to their options", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "flex",
+      position: "static",
+      "flex-direction": "row",
+      "flex-wrap": "nowrap",
+      "justify-content": "flex-start",
+      "align-items": "stretch",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click();
+    });
+    const alignItems = document.body.querySelector('[data-test="layout-select-align-items"]') as HTMLElement;
+    act(() => {
+      alignItems.focus();
+      alignItems.click();
+    });
+
+    expect(document.body.querySelector(".select__popup--fit")).toBeTruthy();
   });
 
   it("shows both gap axes when selected flex containers use mixed axes", () => {
@@ -597,7 +636,6 @@ describe("LayoutSection", () => {
   it("refreshes the flex controls after switching to a flex mode", () => {
     const { selected, el } = makeSelected();
     let display = "block";
-    let editCount = 0;
     const original = window.getComputedStyle;
     (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
       const base = original(target);
@@ -614,17 +652,15 @@ describe("LayoutSection", () => {
       });
     }) as typeof getComputedStyle;
 
-    handle = mount(createElement(LayoutSection, {
-      element: selected,
-      onAfterEdit: () => {
-        editCount += 1;
-        if (editCount === 1) display = "flex";
-      },
-    }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeFalsy();
 
-    act(() => (handle.host.querySelector('[data-test="layout-mode-row"]') as HTMLButtonElement).click());
+    // The browser applies the new display in the same task as the edit; the section re-reads it after the revision bump.
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-mode-row"]') as HTMLButtonElement).click();
+      display = "flex";
+    });
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
   });
 
@@ -675,6 +711,12 @@ describe("LayoutSection", () => {
     expect(advanced?.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeTruthy();
     expect(advanced?.querySelector('[data-test="layout-grid-alignment"]')).toBeTruthy();
 
+    // Alignment comes first, and both groups carry a heading like the rest of the options menu.
+    const sections = Array.from(advanced?.querySelectorAll<HTMLElement>(".layout__options-section") ?? []);
+    expect(sections.map((section) => section.querySelector(".editor__title")?.textContent))
+      .toEqual(["Grid alignment", "Advanced grid CSS"]);
+    expect(sections[0]?.querySelector('[data-test="layout-select-justify-content"]')).toBeTruthy();
+
     const autoFlow = advanced?.querySelector('[data-test="layout-select-grid-auto-flow"]') as HTMLElement;
     expect(selectOptionValues(autoFlow)).toEqual(["row", "column", "row dense", "column dense"]);
   });
@@ -697,13 +739,13 @@ describe("LayoutSection", () => {
       });
     }) as typeof getComputedStyle;
 
-    handle = mount(createElement(LayoutSection, {
-      element: selected,
-      onAfterEdit: () => { display = "grid"; },
-    }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
     expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeFalsy();
 
-    act(() => (handle.host.querySelector('[data-test="layout-mode-grid"]') as HTMLButtonElement).click());
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-mode-grid"]') as HTMLButtonElement).click();
+      display = "grid";
+    });
     expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeTruthy();
     expect(sheetText()).toContain("display: grid;");
   });
@@ -782,12 +824,15 @@ describe("LayoutSection", () => {
 
     expect(document.body.querySelector('[data-test="add-margin"]')).toBeTruthy();
     expect(document.body.querySelector('[data-test="add-inset"]')).toBeFalsy();
+    // The button carries the margin glyph the margin fields use, not a generic plus.
+    const addMargin = document.body.querySelector('[data-test="add-margin"]') as HTMLElement;
+    expect(addMargin.querySelector("svg.side-values__icon")).toBeTruthy();
+    expect(addMargin.querySelector(".tabler-icon-plus")).toBeNull();
   });
 
   it("refreshes the inset controls after a position edit", () => {
     const { selected, el } = makeSelected();
     let position = "static";
-    let editCount = 0;
     const original = window.getComputedStyle;
     (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
       const base = original(target);
@@ -804,18 +849,13 @@ describe("LayoutSection", () => {
       });
     }) as typeof getComputedStyle;
 
-    handle = mount(createElement(LayoutSection, {
-      element: selected,
-      onAfterEdit: () => {
-        editCount += 1;
-        position = "absolute";
-      },
-    }));
+    handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
 
     act(() => (handle.host.querySelector('[data-test="layout-options"]') as HTMLButtonElement).click());
     expect(document.body.querySelector('[data-test="add-inset"]')).toBeFalsy();
+    position = "absolute";
     setSelectValue(document.body.querySelector('[data-test="layout-select-position"]') as HTMLElement, "absolute");
     expect(document.body.querySelector('[data-test="add-inset"]')).toBeTruthy();
     addFromLayoutOptions("inset");

@@ -30,7 +30,7 @@ test("dev: Tokens settings edits only the active theme token and updates every c
   await expect(row.locator('[data-test="token-context"]')).toHaveCount(0);
   await expect(row.locator('[data-test="token-source"]')).toHaveCount(0);
   await expect(row.locator('[data-test="token-color-swatch"]')).toBeVisible();
-  await expect(row.locator('[data-test="token-color-input"]')).toHaveAttribute("type", "color");
+  await expect(row.locator('[data-test="token-color-input"]')).toHaveAttribute("type", "button");
 
   const input = row.locator('[data-test="raw-input"]');
   await input.fill("#123456");

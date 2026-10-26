@@ -91,7 +91,7 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
                 >
                   <Icon size={16} stroke="var(--icon-stroke-width)" aria-hidden="true" />
                   <span className="view-tool-menu__label">{label}</span>
-                  {option === mode ? <IconCheck size={14} aria-hidden="true" /> : null}
+                  {option === mode ? <IconCheck size={15} stroke={2.4} aria-hidden="true" /> : null}
                 </button>
               ))}
             </BasePopover.Popup>

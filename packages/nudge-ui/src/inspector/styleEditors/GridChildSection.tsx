@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import {
   IconAlignBoxCenterBottom,
@@ -14,6 +14,7 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
+import { useValueDraft } from "./valueField.ts";
 import { InlineStyleBlockedTooltip, InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
 import {
   commitGridAxisPlacement,
@@ -53,25 +54,18 @@ interface AxisPlacementRowProps {
 
 function AxisPlacementRow({ axis, label, state, elements, onStart }: AxisPlacementRowProps): ReactElement {
   const blockedBy = inlineBlockedBy(elements, `grid-${axis}-start`, `grid-${axis}-end`);
-  const [draft, setDraft] = useState(state.placement.start);
-  const draftRef = useRef(draft);
-
-  useEffect(() => {
-    draftRef.current = state.placement.start;
-    setDraft(state.placement.start);
-  }, [state.placement.start]);
-
-  function updateDraft(next: string): void {
-    draftRef.current = next;
-    setDraft(next);
-  }
-
-  function commit(): void {
-    if (blockedBy) return;
-    const next = draftRef.current.trim() || "auto";
-    updateDraft(next);
-    if (next !== state.placement.start) onStart(next);
-  }
+  const field = useValueDraft({
+    value: state.placement.start,
+    mixed: false,
+    blocked: blockedBy !== null,
+    property: `grid-${axis}-start`,
+    resetKey: elements,
+    emptyValue: "auto",
+    onCommit: (next) => {
+      if (next !== state.placement.start) onStart(next);
+    },
+    commitOnNudge: true,
+  });
 
   const AxisIcon = axis === "column" ? IconColumns2 : IconLayoutRows;
 
@@ -90,22 +84,13 @@ function AxisPlacementRow({ axis, label, state, elements, onStart }: AxisPlaceme
         />
         <TextInput
           appearance="embedded"
-          value={draft}
+          value={field.draft}
           data-test={`layout-grid-child-${axis}-start`}
           aria-label={label}
           disabled={blockedBy !== null}
-          onChange={(event) => updateDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              updateDraft(state.placement.start);
-              event.currentTarget.blur();
-            } else if (event.key === "Enter") {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-          }}
+          onChange={(event) => field.setDraft(event.target.value)}
+          onBlur={field.handleBlur}
+          onKeyDown={field.handleKeyDown}
         />
         <InlineStyleWarning blockedBy={blockedBy} />
       </ControlSurface>

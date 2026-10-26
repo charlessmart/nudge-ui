@@ -204,6 +204,10 @@ export function installRendererElementSelector(
   let commentMode = false;
   let interactionCursor: RendererCursor = "design";
   let commentCursor = COMMENT_CURSOR;
+  /** The last interaction state applied, so an unchanged re-send is a no-op. */
+  let appliedInteractionState: string | null = null;
+  /** Space is held for a board pan, which shows the drag cursor whatever the tool. */
+  let panCursorHeld = false;
   let appliedInteractionCursor = rendererCursorValue("design");
   let appliedRootCursor: string | null = null;
   let spacingCursor: {
@@ -452,19 +456,26 @@ export function installRendererElementSelector(
       return;
     }
     if (message.type === "pan-modifier" && typeof message.spaceHeld === "boolean") {
-      setInteractionCursor(message.spaceHeld ? "drag" : interactionCursor);
+      panCursorHeld = message.spaceHeld;
+      setInteractionCursor(panCursorHeld ? "drag" : interactionCursor);
       return;
     }
     if (message.type !== "inspector-interaction-state" || typeof message.open !== "boolean") return;
-    if (typeof message.commentCursor === "string") commentCursor = message.commentCursor;
-    interactionCursor = message.cursor === "comment" ? "comment" : message.cursor === "drag" ? "drag" : "design";
-    commentMode = interactionCursor === "comment";
-    cancelActiveDrag();
-    clearSpacingCursor();
-    setInteractionCursor(interactionCursor);
+    const nextCommentCursor = typeof message.commentCursor === "string" ? message.commentCursor : commentCursor;
+    const nextCursor: RendererCursor = message.cursor === "comment" ? "comment" : message.cursor === "drag" ? "drag" : "design";
     const interactionsEnabled = message.interactionsEnabled === undefined
       ? message.open
       : message.interactionsEnabled === true;
+    // The controller re-sends its whole state whenever any part changes, so only a real change may interrupt a drag.
+    const stateKey = JSON.stringify([message.open, interactionsEnabled, nextCursor, nextCommentCursor]);
+    if (stateKey === appliedInteractionState) return;
+    appliedInteractionState = stateKey;
+    commentCursor = nextCommentCursor;
+    interactionCursor = nextCursor;
+    commentMode = interactionCursor === "comment";
+    cancelActiveDrag();
+    clearSpacingCursor();
+    setInteractionCursor(panCursorHeld ? "drag" : interactionCursor);
     interactionsSuspended = !interactionsEnabled;
     if (message.open) {
       document.documentElement.setAttribute("data-nudge-ui-panel", "open");

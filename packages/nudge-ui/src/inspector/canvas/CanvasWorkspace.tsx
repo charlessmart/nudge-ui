@@ -20,7 +20,6 @@ import {
   updateCardTitle,
   addCanvasCard,
   selectCard,
-  setCanvasCardRevealer,
   deselectCard,
   CARD_GAP,
   type CanvasCard as CanvasCardData,
@@ -54,7 +53,6 @@ import { beginPreviewAttempt } from "../changes/previewDiagnostics.ts";
 import { verifyPreviewChanges } from "../changes/previewVerification.ts";
 import {
   getCanvasPreviewDocument,
-  getRegisteredFrames,
   isCanvasCanonicalProjectionRevisionCurrent,
   projectToAllReadyCards,
   recordCanvasProjectionApplied,
@@ -91,8 +89,10 @@ import {
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
-import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
-import { setDebugExploded, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
+import { canvasToolEffects, type BoardPointerState } from "./toolEffects.ts";
+import { useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
+import { rendererDesiredState, sendRendererState, sendRendererStateToAll } from "./rendererState.ts";
+import { clearFramesExploded, setFrameExploded } from "./frameViewState.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolBarStyles from "./sketch/SketchToolBar.css?inline";
@@ -100,7 +100,7 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR, type RendererCursor } from "../ui/customCursors.ts";
+import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
@@ -119,15 +119,6 @@ interface RectSnapshot {
   readonly height: number;
 }
 
-/** A link under the pointer inside one canvas frame, in renderer viewport coordinates. */
-interface LinkPreviewState {
-  readonly frame: FrameConnection;
-  readonly url: string;
-  readonly rect: RectSnapshot;
-  /** Where the pointer entered the link, in renderer viewport coordinates. */
-  readonly point: { readonly x: number; readonly y: number } | null;
-}
-
 function snapshotRect(rect: DOMRect): RectSnapshot {
   return {
     left: rect.left,
@@ -135,6 +126,15 @@ function snapshotRect(rect: DOMRect): RectSnapshot {
     width: rect.width,
     height: rect.height,
   };
+}
+
+/** A link under the pointer inside one canvas frame, in renderer viewport coordinates. */
+interface LinkPreviewState {
+  readonly frame: FrameConnection;
+  readonly url: string;
+  readonly rect: RectSnapshot;
+  /** Where the pointer entered the link, in renderer viewport coordinates. */
+  readonly point: { readonly x: number; readonly y: number } | null;
 }
 
 export interface CanvasWorkspaceProps {
@@ -167,6 +167,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const cameraAtPanStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const framePanContextRef = useRef<FrameViewport | null>(null);
   const spaceHeldRef = useRef(false);
+  // Mirrored into state so the desired renderer state can carry it; the ref stays for synchronous event handlers.
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const updateSpaceHeld = useCallback((held: boolean): void => {
+    spaceHeldRef.current = held;
+    setSpaceHeld(held);
+  }, []);
   const fitAllScheduledRef = useRef(false);
   // Track the consumed primaryUrl prop separately from navigation inside a frame.
   const activatedPrimaryUrlRef = useRef<string | null>(null);
@@ -176,42 +182,55 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true ? "select" : "design");
+  const temporaryAppInteraction = useTemporaryAppInteraction();
+  const layoutTransitioning = useCanvasLayoutTransitioning();
+  const debugViewMode = useDebugViewMode();
+  const animationBusy = useAnimationBusy();
+  const pointerState: BoardPointerState = boardCursorClass === "is-grabbing"
+    ? "grabbing"
+    : boardCursorClass !== "" ? "grabbable" : "idle";
+  const toolEffects = useMemo(
+    () => canvasToolEffects({
+      tool: selectedTool,
+      debugView: debugViewMode,
+      animationBusy,
+      presentation,
+      layoutTransitioning,
+      sketchActive,
+      temporaryAppInteraction,
+      pointer: pointerState,
+    }),
+    [animationBusy, debugViewMode, layoutTransitioning, pointerState, presentation, selectedTool, sketchActive, temporaryAppInteraction],
+  );
+  const {
+    tool: interactionTool,
+    appInteractive,
+    animationViewActive,
+    debugView: activeDebugView,
+    rendererInteractionsEnabled,
+    rendererCursor,
+    linksOpenInCards,
+    commentToolActive,
+  } = toolEffects;
+  const boardCursor = toolEffects.boardCursor === "grabbing"
+    ? "grabbing"
+    : toolEffects.boardCursor === "pan"
+      ? PAN_CURSOR
+    : toolEffects.boardCursor === "comment"
+      ? createCommentCursor(boardRef.current)
+    : toolEffects.boardCursor === "design"
+      ? DESIGN_SELECT_CURSOR
+      : undefined;
+  const activeDebugViewRef = useRef(activeDebugView);
+  activeDebugViewRef.current = activeDebugView;
+  const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
+  const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
+
   const [linkPreview, setLinkPreview] = useState<LinkPreviewState | null>(null);
   const linkPreviewTimerRef = useRef<number | null>(null);
   const linkPreviewHoveredRef = useRef(false);
   const linkPopoverRef = useRef<HTMLButtonElement | null>(null);
   const [linkPopoverSize, setLinkPopoverSize] = useState<{ readonly width: number; readonly height: number } | null>(null);
-  const temporaryAppInteraction = useTemporaryAppInteraction();
-  const interactionTool = temporaryAppInteraction ? "select" : selectedTool;
-  const layoutTransitioning = useCanvasLayoutTransitioning();
-  const debugViewMode = useDebugViewMode();
-  const animationViewActive = selectedTool === "debug" && debugViewMode === "animation";
-  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
-  // Animation view selects elements instead.
-  const appInteractive = interactionTool === "select" || (interactionTool === "debug" && debugViewMode !== "animation");
-  const animationBusy = useAnimationBusy();
-  const activeDebugView = useMemo<DebugViewState>(() => {
-    if (selectedTool !== "debug") return DEBUG_VIEW_OFF;
-    // Markers step aside while the animation moves.
-    if (debugViewMode === "animation") return { ...DEBUG_VIEW_OFF, animations: !animationBusy };
-    return { outlines: debugViewMode === "outlines", xray: debugViewMode === "explode", animations: false };
-  }, [animationBusy, debugViewMode, selectedTool]);
-  const rendererInteractionsEnabled = !appInteractive && !layoutTransitioning && !sketchActive;
-  const rendererCursor: RendererCursor = interactionTool === "comment" ? "comment" : "design";
-  const boardCursor = boardCursorClass === "is-grabbing"
-    ? "grabbing"
-    : boardCursorClass !== ""
-      ? PAN_CURSOR
-    : interactionTool === "comment"
-      ? createCommentCursor(boardRef.current)
-    : interactionTool === "design"
-      ? DESIGN_SELECT_CURSOR
-      : undefined;
-  const linkPreviewsEnabled = appInteractive && presentation === "canvas";
-  const activeDebugViewRef = useRef(activeDebugView);
-  activeDebugViewRef.current = activeDebugView;
-  const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
-  const linkedFrameIds = getLinkedFrameIds(cards, selectedCardId);
 
   const dismissLinkPreview = useCallback(() => {
     if (linkPreviewTimerRef.current !== null) {
@@ -252,8 +271,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [dismissLinkPreview]);
 
   useEffect(() => {
-    if (!linkPreviewsEnabled) dismissLinkPreview();
-  }, [dismissLinkPreview, linkPreviewsEnabled]);
+    if (!linksOpenInCards) dismissLinkPreview();
+  }, [dismissLinkPreview, linksOpenInCards]);
 
   useEffect(() => {
     if (!linkPreview) return;
@@ -402,48 +421,34 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     }
   }, [cards, focusedCardId, primaryUrl, selectedCardId]);
 
-  const sendInspectorInteractionState = useCallback((
-    frame: FrameConnection,
-    open: boolean,
-    interactionsEnabled: boolean,
-    cursor: RendererCursor,
-  ) => {
-    frame.post({
-      type: "inspector-interaction-state",
-      open,
-      interactionsEnabled,
-      cursor,
-      ...(cursor === "comment" ? { commentCursor: createCommentCursor(boardRef.current) } : {}),
-    });
-  }, []);
-
-  const sendBoardGestureState = useCallback((frame: FrameConnection, enabled: boolean) => {
-    // App interaction keeps native wheel scrolling, and Space still turns a drag into a board pan.
-    frame.post({ type: "board-gesture-state", enabled, panScroll: enabled && !appInteractive, spacePan: enabled });
-  }, [appInteractive]);
-
-  useEffect(() => {
-    for (const [cardId, iframe] of getRegisteredFrames()) {
-      const frame = connectFrame(cardId, iframe);
-      sendInspectorInteractionState(frame, inspectorOpen, rendererInteractionsEnabled, rendererCursor);
-      sendBoardGestureState(frame, presentation === "canvas");
-      frame.post({ type: "link-preview-state", enabled: linkPreviewsEnabled });
-    }
-  }, [inspectorOpen, linkPreviewsEnabled, presentation, rendererCursor, rendererInteractionsEnabled, sendBoardGestureState, sendInspectorInteractionState]);
+  // One object describing what every renderer should currently show. Sending it whole means a frame that just loaded
+  // cannot miss a piece, and a state change cannot forget to re-send one.
+  const commentCursor = interactionTool === "comment" ? createCommentCursor(boardRef.current) : null;
+  const desiredRendererState = useMemo(
+    () => rendererDesiredState({
+      open: inspectorOpen,
+      interactionsEnabled: rendererInteractionsEnabled,
+      cursor: rendererCursor,
+      commentCursor,
+      spaceHeld,
+      boardGestures: presentation === "canvas",
+      appInteractive,
+      linkPreviews: linksOpenInCards,
+      debugView: activeDebugView,
+    }),
+    [activeDebugView, appInteractive, commentCursor, inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, spaceHeld],
+  );
+  const desiredRendererStateRef = useRef(desiredRendererState);
+  desiredRendererStateRef.current = desiredRendererState;
 
   useEffect(() => {
-    // A view change starts from the page as it was; a renderer still holding a subtree apart reports again.
-    setDebugExploded(false);
-    for (const [cardId, iframe] of getRegisteredFrames()) {
-      connectFrame(cardId, iframe).post({ type: "debug-view-state", state: activeDebugView });
-    }
-  }, [activeDebugView]);
+    sendRendererStateToAll(desiredRendererState);
+  }, [desiredRendererState]);
 
-  const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
-    for (const [cardId, iframe] of getRegisteredFrames()) {
-      connectFrame(cardId, iframe).post({ type: "pan-modifier", spaceHeld });
-    }
-  }, []);
+  useEffect(() => {
+    // Leaving Explode view starts from the page as it was; renderers still holding a subtree apart report again.
+    if (!activeDebugView.xray) clearFramesExploded();
+  }, [activeDebugView.xray]);
 
   const zoomAtPointer = useCallback((point: { x: number; y: number }, deltaY: number) => {
     const board = boardRef.current;
@@ -466,18 +471,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const board = boardRef.current;
     fitAllCards(board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
   }, []);
-
-  const revealAddedCard = useCallback((cardId: string) => {
-    const board = boardRef.current;
-    focusCanvasCards([cardId], board
-      ? { width: board.clientWidth, height: board.clientHeight }
-      : undefined);
-  }, []);
-
-  useEffect(() => {
-    setCanvasCardRevealer(revealAddedCard);
-    return () => setCanvasCardRevealer(() => undefined);
-  }, [revealAddedCard]);
 
   const startPanning = useCallback((point: { x: number; y: number }) => {
     if (panningRef.current) return;
@@ -506,11 +499,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   const stopPanMode = useCallback(() => {
-    spaceHeldRef.current = false;
-    broadcastPanModifier(false);
+    updateSpaceHeld(false);
     endPanning();
     setBoardCursorClass("");
-  }, [broadcastPanModifier, endPanning]);
+  }, [endPanning, updateSpaceHeld]);
 
   const leaveViewTool = useCallback(() => {
     if (selectedTool !== "debug") return;
@@ -533,7 +525,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const hostElement = canvasFrameHost(getActiveCanvasFrame());
       if (!hostElement) return;
       stopPanMode();
-      setCommentToolActive(false);
       setInteractionTool(nextTool);
       startSketchCapture(hostElement);
       return;
@@ -541,7 +532,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     if (sketchActive) cancelSketchInteraction();
 
-    setCommentToolActive(nextTool === "comment");
     setInteractionTool(nextTool);
     stopPanMode();
   }, [selectedTool, sketchActive, sketchEnabled, stopPanMode]);
@@ -549,9 +539,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useEffect(() => () => setCommentToolActive(false), []);
 
   useEffect(() => {
-    setCommentToolActive(interactionTool === "comment");
+    setCommentToolActive(commentToolActive);
     if (temporaryAppInteraction) stopPanMode();
-  }, [interactionTool, temporaryAppInteraction, stopPanMode]);
+  }, [commentToolActive, temporaryAppInteraction, stopPanMode]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -660,10 +650,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useLayoutEffect(() => {
     if (presentation !== "focus") return;
     endPanning();
-    spaceHeldRef.current = false;
+    updateSpaceHeld(false);
     setBoardCursorClass("");
-    broadcastPanModifier(false);
-  }, [broadcastPanModifier, endPanning, presentation]);
+  }, [endPanning, presentation, updateSpaceHeld]);
 
   useEffect(() => {
     const stopChanges = subscribeActiveDraftChanges(() => {
@@ -687,7 +676,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type === "link-preview") {
-        if (!linkPreviewsEnabled) return;
+        if (!linksOpenInCards) return;
         if (!msg.url || !msg.rect) {
           scheduleLinkPreviewDismiss();
           return;
@@ -713,7 +702,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       if (isDebugViewPhaseMessage(msg, identity)) {
         // Only a renderer in Explode view can report this, and only that view hides the controller's chrome.
-        setDebugExploded(msg.exploded && activeDebugViewRef.current.xray);
+        setFrameExploded(frame.cardId, msg.exploded && activeDebugViewRef.current.xray);
         return;
       }
       const syncActiveFrameUrl = (url: string): void => {
@@ -766,27 +755,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       if (msg.type === "frame-ready") {
         syncActiveFrameUrl(msg.url);
-        // A card can load after Space was pressed, so seed the current modifier state.
-        frame.post({ type: "pan-modifier", spaceHeld: spaceHeldRef.current });
-        sendInspectorInteractionState(
-          frame,
-          inspectorOpen,
-          rendererInteractionsEnabled,
-          spaceHeldRef.current ? "drag" : rendererCursor,
-        );
-        sendBoardGestureState(frame, presentation === "canvas");
-        frame.post({ type: "link-preview-state", enabled: linkPreviewsEnabled });
         // A reloaded document is whole again, whatever the document it replaced was showing.
-        setDebugExploded(false);
-        frame.post({ type: "debug-view-state", state: activeDebugViewRef.current });
+        setFrameExploded(frame.cardId, false);
+        sendRendererState(frame, desiredRendererStateRef.current);
       }
       if (msg.type === "pan-modifier") {
         if (presentation !== "canvas") return;
-        spaceHeldRef.current = msg.spaceHeld;
+        updateSpaceHeld(msg.spaceHeld);
         if (!panningRef.current) {
           setBoardCursorClass(msg.spaceHeld ? "is-grabbable" : "");
         }
-        broadcastPanModifier(msg.spaceHeld);
         return;
       }
       if (msg.type === "wheel-pan") {
@@ -835,7 +813,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, broadcastPanModifier, dismissLinkPreview, endPanning, handleToolChange, interactionTool, leaveViewTool, linkPreviewsEnabled, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sendBoardGestureState, sendInspectorInteractionState, sketchActive, sketchAvailable, startPanning, zoomAtPointer]);
+  }, [appInteractive, dismissLinkPreview, endPanning, handleToolChange, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -864,8 +842,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (e.code === "Space" && !e.repeat) {
         if (isEditableEvent(e)) return;
         e.preventDefault();
-        spaceHeldRef.current = true;
-        broadcastPanModifier(true);
+        updateSpaceHeld(true);
         if (!panningRef.current) {
           setBoardCursorClass("is-grabbable");
         }
@@ -874,8 +851,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     function onKeyUp(e: KeyboardEvent): void {
       if (e.code === "Space") {
-        spaceHeldRef.current = false;
-        broadcastPanModifier(spaceHeldRef.current);
+        updateSpaceHeld(false);
         if (!panningRef.current) {
           setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");
         }
@@ -888,7 +864,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [appInteractive, broadcastPanModifier, mode, presentation, sketchActive]);
+  }, [appInteractive, mode, presentation, sketchActive, updateSpaceHeld]);
 
   const handleBoardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (presentation !== "canvas" || sketchActive || spaceHeldRef.current || panningRef.current) return;

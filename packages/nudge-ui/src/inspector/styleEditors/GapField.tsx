@@ -5,6 +5,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import type { PopupWidth } from "../ui/PopoverListbox.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 
 export const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
@@ -21,6 +22,8 @@ export interface GapFieldProps {
   /** Replaces the shown value (and ignores the token) while another property overrides the gap, such as `Auto`. */
   displayOverride?: string;
   interceptRaw?: (value: string) => boolean;
+  /** Sizes the suggestion list to its labels instead of the default wide menu. */
+  suggestionPopupWidth?: PopupWidth;
   onAfterEdit?: () => void;
 }
 
@@ -35,6 +38,7 @@ export function GapField({
   trailing,
   displayOverride,
   interceptRaw,
+  suggestionPopupWidth,
   onAfterEdit,
 }: GapFieldProps): ReactElement {
   const tokenRow = displayOverride !== undefined ? null : tokenRows.find((row) => row.property === property) ?? null;
@@ -54,6 +58,7 @@ export function GapField({
         editTarget={editTarget}
         entries={entries}
         suggestions={GAP_PRESETS}
+        suggestionPopupWidth={suggestionPopupWidth}
         leading={leading}
         trailing={trailing}
         interceptRaw={interceptRaw}
