@@ -25,6 +25,17 @@ describe("rule matching", () => {
       ".title:first-child { color: purple; }",
       "#hero .title { color: teal; }",
       ".title + .body { margin-top: 4px; }",
+      "section { display: block; }",
+      "H2 { margin: 0; }",
+      "section#hero { padding: 0; }",
+      "#hero { position: relative; }",
+      "p, span { line-height: 1.4; }",
+      "p.body, h2:hover { color: navy; }",
+      "[data-x] { color: gray; }",
+      "div[data-x]:first-child, h2 { color: olive; }",
+      ":root { color: black; }",
+      "#missing { color: red; }",
+      "article { color: red; }",
     ].join("\n");
     document.head.append(style);
     document.body.innerHTML = `
@@ -33,7 +44,7 @@ describe("rule matching", () => {
           <h2 class="title">Title</h2>
           <p class="body">Body</p>
         </div>
-        <div class="other"></div>
+        <div class="other" data-x></div>
         <span></span>
       </section>`;
     const { rules } = collectRules(document);

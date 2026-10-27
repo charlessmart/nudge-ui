@@ -1,4 +1,4 @@
-import { collectRules } from "../tokens/resolution/cssomCollector.ts";
+import { collectRules, pageStylesheetEpoch } from "../tokens/resolution/cssomCollector.ts";
 import { selectorPseudoClasses, splitSelectorAtTopLevel } from "../tokens/resolution/selectorSemantics.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 
@@ -278,8 +278,21 @@ interface ParsedConditions {
   readonly compounds: readonly StatefulCompound[];
 }
 
-/** Finds interaction states and the attribute/class switches applications use in their place. */
+const PARSED_CONDITIONS_CACHE_MAX = 32_768;
+const parsedConditionsMemo = new Map<string, ParsedConditions | null>();
+
+/** The same selectors are parsed on every scan of an unchanged stylesheet, so the pure parse is kept. */
 function parseConditions(branch: string): ParsedConditions | null {
+  const cached = parsedConditionsMemo.get(branch);
+  if (cached !== undefined) return cached;
+  const parsed = parseConditionsUncached(branch);
+  if (parsedConditionsMemo.size >= PARSED_CONDITIONS_CACHE_MAX) parsedConditionsMemo.clear();
+  parsedConditionsMemo.set(branch, parsed);
+  return parsed;
+}
+
+/** Finds interaction states and the attribute/class switches applications use in their place. */
+function parseConditionsUncached(branch: string): ParsedConditions | null {
   const ranges: ConditionRange[] = [];
   for (const pseudo of selectorPseudoClasses(branch)) {
     if (isPreviewState(pseudo.name)) {
@@ -442,13 +455,27 @@ function collapseRestatedStates(groups: readonly AnimationGroup[]): AnimationGro
   return kept;
 }
 
-function addMatched(doc: Document, selector: string, allowed: ReadonlySet<Element>, found: Set<Element>): void {
-  let matched: NodeListOf<Element>;
+/**
+ * Elements a selector matches, shared by every pass of one scan: candidate discovery, scroll timelines, and the transition and keyframe passes read the same selectors, and the document cannot change while a scan runs. Null when the selector does not parse.
+ */
+let scanQueries: Map<string, readonly Element[] | null> | null = null;
+
+function queryAll(doc: Document, selector: string): readonly Element[] | null {
+  const cached = scanQueries?.get(selector);
+  if (cached !== undefined) return cached;
+  let matched: readonly Element[] | null;
   try {
-    matched = doc.querySelectorAll(selector);
+    matched = Array.from(doc.querySelectorAll(selector));
   } catch {
-    return;
+    matched = null;
   }
+  scanQueries?.set(selector, matched);
+  return matched;
+}
+
+function addMatched(doc: Document, selector: string, allowed: ReadonlySet<Element>, found: Set<Element>): void {
+  const matched = queryAll(doc, selector);
+  if (!matched) return;
   for (const element of matched) if (allowed.has(element)) found.add(element);
 }
 
@@ -530,12 +557,8 @@ function forEachStateCompound(
   for (const branch of splitSelectorAtTopLevel(selectorText, ",")) {
     const parsed = parseConditions(branch.trim());
     if (!parsed) continue;
-    let matched: NodeListOf<Element>;
-    try {
-      matched = doc.querySelectorAll(parsed.stripped);
-    } catch {
-      continue;
-    }
+    const matched = queryAll(doc, parsed.stripped);
+    if (!matched) continue;
     for (const candidate of matched) {
       if (!allowed.has(candidate)) continue;
       for (const compound of parsed.compounds) visit(candidate, compound);
@@ -649,8 +672,62 @@ function findGroups(
   return collapseRestatedStates([...groups.values()].map(buildGroup));
 }
 
+interface CachedPageScan {
+  readonly epoch: number;
+  readonly generation: number;
+  readonly groups: readonly AnimationGroup[];
+}
+
+let pageChangeTrackers = 0;
+let pageGeneration = 0;
+const cachedPageScans = new WeakMap<Document, CachedPageScan>();
+
+/**
+ * Lets scans share one result while the caller reports page changes through `invalidatePageScan`. The scan reads every rule and tests its selectors against the whole document, which on a large page is hundreds of milliseconds, and animation mode would otherwise repeat it for the markers and again for every selection. Without a tracker nothing reports changes, so every scan stays fresh. Returns the release function.
+ */
+export function trackPageScanChanges(): () => void {
+  pageChangeTrackers += 1;
+  pageGeneration += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    pageChangeTrackers -= 1;
+    pageGeneration += 1;
+  };
+}
+
+/** The page's content or layout changed, so a shared scan may be out of date. */
+export function invalidatePageScan(): void {
+  pageGeneration += 1;
+}
+
 /** Every animation on the page, in document order of its trigger. */
 export function scanPageAnimations(doc: Document, skip: (element: Element) => boolean = () => false): AnimationGroup[] {
+  if (pageChangeTrackers === 0) return scanPageUncached(doc, skip);
+  // Page stylesheet changes also arrive as an epoch, so edits the inspector previews do not discard the scan.
+  const epoch = pageStylesheetEpoch(doc);
+  const cached = cachedPageScans.get(doc);
+  if (cached && cached.epoch === epoch && cached.generation === pageGeneration) {
+    return cached.groups.filter((group) => !skip(group.trigger));
+  }
+  const generation = pageGeneration;
+  const groups = scanPageUncached(doc, () => false);
+  cachedPageScans.set(doc, { epoch, generation, groups });
+  return groups.filter((group) => !skip(group.trigger));
+}
+
+function scanPageUncached(doc: Document, skip: (element: Element) => boolean): AnimationGroup[] {
+  const outer = scanQueries;
+  scanQueries = outer ?? new Map();
+  try {
+    return scanPage(doc, skip);
+  } finally {
+    scanQueries = outer;
+  }
+}
+
+function scanPage(doc: Document, skip: (element: Element) => boolean): AnimationGroup[] {
   const elements: HTMLElement[] = [];
   for (const element of doc.body?.querySelectorAll<HTMLElement>("*") ?? []) {
     if (elements.length >= PAGE_ELEMENT_LIMIT) break;

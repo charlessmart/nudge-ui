@@ -431,6 +431,22 @@ export function selectorSubjectClass(selector: string): string | null {
   return selectorClassRequirements(selector)[0] ?? null;
 }
 
+const SUBJECT_TAG = /^([A-Za-z][A-Za-z0-9-]*)(?=$|[.#[:])/;
+const SUBJECT_ID = /^(?:[A-Za-z][A-Za-z0-9-]*)?#([A-Za-z_][A-Za-z0-9_-]*)(?=$|[.#[:])/;
+
+/**
+ * Where the browser's own rule index would file the selector's subject: a required class (`.name`), else an id (`#name`), else a type selector (`<tag`). Null when none applies, such as `*`, `:root`, attribute-only subjects, or anything with escapes or namespaces, and those rules are tested against every element.
+ */
+export function selectorSubjectKey(selector: string): string | null {
+  const className = selectorSubjectClass(selector);
+  if (className !== null) return `.${className}`;
+  const subject = selectorSubject(selector);
+  const id = SUBJECT_ID.exec(subject);
+  if (id) return `#${id[1]!}`;
+  const tag = SUBJECT_TAG.exec(subject);
+  return tag ? `<${tag[1]!.toLowerCase()}` : null;
+}
+
 /** Conservative prefilter: false only for an impossible required subject class; everything else goes to the browser engine. */
 export function canMatchSelectorSubject(el: Element, selector: string): boolean {
   return selectorClassRequirements(selector).every((className) => el.classList.contains(className));

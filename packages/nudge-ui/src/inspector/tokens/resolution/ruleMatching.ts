@@ -7,7 +7,7 @@ import {
   isElementSensitiveSelector,
   canMatchSelectorSubject,
   selectorPseudoClasses,
-  selectorSubjectClass,
+  selectorSubjectKey,
   splitSelectorAtTopLevel,
 } from "./selectorSemantics.ts";
 
@@ -119,72 +119,74 @@ function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): A
 
 type MatchEntry = { rule: MatchedRule; selectorText: string };
 
-/** Entries keyed by a subject-required class, as browsers do, because testing thousands of utility rules dominates latency. */
-interface SubjectClassIndex {
-  byClass: Map<string, number[]>;
-  /** Entries with a branch whose subject requires no class. */
+/** Entries keyed by what their subject requires (a class, an id or a tag), as browsers do, because testing thousands of rules dominates latency. */
+interface SubjectIndex {
+  byKey: Map<string, number[]>;
+  /** Entries with a branch whose subject requires none of those. */
   unindexed: number[];
   unindexedEntries: MatchEntry[];
 }
 
-const subjectClassIndexMemo = new WeakMap<readonly MatchEntry[], SubjectClassIndex>();
-const SUBJECT_CLASS_KEYS_CACHE_MAX = 32_768;
-const subjectClassKeysMemo = new Map<string, readonly string[] | null>();
+const subjectIndexMemo = new WeakMap<readonly MatchEntry[], SubjectIndex>();
+const SUBJECT_KEYS_CACHE_MAX = 32_768;
+const subjectKeysMemo = new Map<string, readonly string[] | null>();
 
-/** One required class per branch, or null when some branch requires none. */
-function subjectClassKeys(selectorText: string): readonly string[] | null {
-  const cached = subjectClassKeysMemo.get(selectorText);
+/** One required key per branch, or null when some branch requires none. */
+function subjectKeys(selectorText: string): readonly string[] | null {
+  const cached = subjectKeysMemo.get(selectorText);
   if (cached !== undefined) return cached;
   const keys = new Set<string>();
   let indexed = true;
   for (const branch of splitSelectorAtTopLevel(selectorText, ",")) {
-    const className = selectorSubjectClass(branch.trim());
-    if (className === null) {
+    const key = selectorSubjectKey(branch.trim());
+    if (key === null) {
       indexed = false;
       break;
     }
-    keys.add(className);
+    keys.add(key);
   }
   const result = indexed ? [...keys] : null;
-  if (subjectClassKeysMemo.size >= SUBJECT_CLASS_KEYS_CACHE_MAX) subjectClassKeysMemo.clear();
-  subjectClassKeysMemo.set(selectorText, result);
+  if (subjectKeysMemo.size >= SUBJECT_KEYS_CACHE_MAX) subjectKeysMemo.clear();
+  subjectKeysMemo.set(selectorText, result);
   return result;
 }
 
-function subjectClassIndex(entries: readonly MatchEntry[]): SubjectClassIndex {
-  const cached = subjectClassIndexMemo.get(entries);
+function subjectIndex(entries: readonly MatchEntry[]): SubjectIndex {
+  const cached = subjectIndexMemo.get(entries);
   if (cached) return cached;
-  const byClass = new Map<string, number[]>();
+  const byKey = new Map<string, number[]>();
   const unindexed: number[] = [];
   entries.forEach((entry, index) => {
-    const keys = subjectClassKeys(entry.selectorText);
+    const keys = subjectKeys(entry.selectorText);
     if (keys === null) {
       unindexed.push(index);
       return;
     }
     for (const key of keys) {
-      const bucket = byClass.get(key);
+      const bucket = byKey.get(key);
       if (bucket) bucket.push(index);
-      else byClass.set(key, [index]);
+      else byKey.set(key, [index]);
     }
   });
-  const built = { byClass, unindexed, unindexedEntries: unindexed.map((index) => entries[index]!) };
-  subjectClassIndexMemo.set(entries, built);
+  const built = { byKey, unindexed, unindexedEntries: unindexed.map((index) => entries[index]!) };
+  subjectIndexMemo.set(entries, built);
   return built;
 }
 
-/** Entries that can match `el`, in original order; only skips branches `canMatchSelectorSubject` would reject anyway. */
+/** Entries that can match `el`, in original order; only skips branches that need a class, id or tag the element lacks. */
 function candidateEntries(entries: readonly MatchEntry[], el: Element): readonly MatchEntry[] {
-  const index = subjectClassIndex(entries);
-  if (el.classList.length === 0 || index.byClass.size === 0) return index.unindexedEntries;
-  let picked: number[] | null = null;
-  for (const className of el.classList) {
-    const bucket = index.byClass.get(className);
-    if (!bucket) continue;
-    picked ??= [...index.unindexed];
-    for (const entryIndex of bucket) picked.push(entryIndex);
-  }
-  if (!picked) return index.unindexedEntries;
+  const index = subjectIndex(entries);
+  const buckets: number[][] = [];
+  const collect = (key: string): void => {
+    const bucket = index.byKey.get(key);
+    if (bucket) buckets.push(bucket);
+  };
+  for (const className of el.classList) collect(`.${className}`);
+  if (el.id) collect(`#${el.id}`);
+  collect(`<${el.localName.toLowerCase()}`);
+  if (buckets.length === 0) return index.unindexedEntries;
+  const picked = [...index.unindexed];
+  for (const bucket of buckets) for (const entryIndex of bucket) picked.push(entryIndex);
   picked.sort((left, right) => left - right);
   const candidates: MatchEntry[] = [];
   let previous = -1;
@@ -518,8 +520,40 @@ export interface RuleMatcher {
   matchesForElement(element: HTMLElement): { matched: ElementMatch[]; allMatched: ElementMatch[] };
 }
 
+type SensitiveMatchScope = WeakMap<MatchedRule[], Map<CascadeTransform, Map<HTMLElement, ElementMatch[]>>>;
+
+let sensitiveMatchScope: SensitiveMatchScope | null = null;
+
+/**
+ * Element-sensitive selectors (`:has()`, sibling combinators, `:checked`) are re-evaluated per matcher so they stay fresh. One synchronous refresh builds several matchers over the same lineage (the container query prefetch, then the authored and stable cascades) and nothing can change between them, so within `run` they share their results.
+ */
+export function withSharedSensitiveMatches<T>(run: () => T): T {
+  if (sensitiveMatchScope) return run();
+  sensitiveMatchScope = new WeakMap();
+  try {
+    return run();
+  } finally {
+    sensitiveMatchScope = null;
+  }
+}
+
+function sensitiveMatchMemo(rules: MatchedRule[], transform: CascadeTransform): Map<HTMLElement, ElementMatch[]> {
+  if (!sensitiveMatchScope) return new Map();
+  let byTransform = sensitiveMatchScope.get(rules);
+  if (!byTransform) {
+    byTransform = new Map();
+    sensitiveMatchScope.set(rules, byTransform);
+  }
+  let memo = byTransform.get(transform);
+  if (!memo) {
+    memo = new Map();
+    byTransform.set(transform, memo);
+  }
+  return memo;
+}
+
 export function createRuleMatcher(rules: MatchedRule[], transform: CascadeTransform): RuleMatcher {
-  const sensitiveMatches = new Map<HTMLElement, ElementMatch[]>();
+  const sensitiveMatches = sensitiveMatchMemo(rules, transform);
   return {
     dynamicMatchKey: (element) => elementSensitiveMatchKey(element, rules, transform, sensitiveMatches),
     matchesForElement: (element) => ({
@@ -553,8 +587,8 @@ export function prewarmRuleMatching(rules: MatchedRule[]): void {
   const transforms: CascadeTransform[] = ["base", "stable", "live", ...statesWithPseudoInSelectors(rules)];
   for (const transform of new Set(transforms)) {
     const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
-    subjectClassIndex(cacheable);
-    subjectClassIndex(elementSensitive);
+    subjectIndex(cacheable);
+    subjectIndex(elementSensitive);
   }
 }
 

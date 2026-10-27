@@ -17,6 +17,7 @@ import {
   prefetchContainerQueries,
 } from "../tokens/resolution.ts";
 import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
+import { withSharedSensitiveMatches } from "../tokens/resolution/ruleMatching.ts";
 import {
   documentRevisions,
   invalidateOwnedStyleResolution,
@@ -417,24 +418,26 @@ export function createBrowserCssInspection(
     },
 
     refresh(elements, state) {
-      const containerQueries = createContainerQueryEvaluator(config.document);
-      const targets = elements.filter((element) => element.ownerDocument === config.document);
-      try {
-        if (!disposed) prefetchContainerQueries(targets, state, containerQueries);
-      } catch (error) {
+      return withSharedSensitiveMatches(() => {
+        const containerQueries = createContainerQueryEvaluator(config.document);
+        const targets = elements.filter((element) => element.ownerDocument === config.document);
+        try {
+          if (!disposed) prefetchContainerQueries(targets, state, containerQueries);
+        } catch (error) {
+          return {
+            elements: elements.map((element) => emptySnapshot(
+              targetStatus(element, config.document), "authored", state, currentRevision(),
+              [{ code: "inspection-failed", message: error instanceof Error ? error.message : "Container query evaluation failed." }],
+            )),
+            stableProperties: [],
+          };
+        }
         return {
-          elements: elements.map((element) => emptySnapshot(
-            targetStatus(element, config.document), "authored", state, currentRevision(),
-            [{ code: "inspection-failed", message: error instanceof Error ? error.message : "Container query evaluation failed." }],
-          )),
-          stableProperties: [],
+          elements: elements.map((element) => session.inspect(element, { state, containerQueries })),
+          stableProperties: elements[0] && state === "base"
+            ? session.inspect(elements[0], { cascade: "stable", containerQueries }).properties : [],
         };
-      }
-      return {
-        elements: elements.map((element) => session.inspect(element, { state, containerQueries })),
-        stableProperties: elements[0] && state === "base"
-          ? session.inspect(elements[0], { cascade: "stable", containerQueries }).properties : [],
-      };
+      });
     },
 
     inspectTokens(root = config.document.documentElement) {

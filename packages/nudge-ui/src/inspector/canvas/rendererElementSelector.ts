@@ -40,7 +40,14 @@ import {
   toSpacingDescriptor,
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
-import { COMMENT_CURSOR, INTERACTION_CURSOR_PROPERTY, rendererCursorValue, type RendererCursor } from "../ui/customCursors.ts";
+import {
+  COMMENT_CURSOR,
+  INTERACTION_CURSOR_PROPERTY,
+  SPACING_CURSOR_PROPERTY,
+  registerSpacingCursorProperty,
+  rendererCursorValue,
+  type RendererCursor,
+} from "../ui/customCursors.ts";
 import { isInspectorUiEvent, isPageSurface } from "./pageSurface.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
@@ -235,16 +242,21 @@ export function installRendererElementSelector(
 
   setInteractionCursor("design");
 
+  // On the page surface the cursor travels in a non-inheriting custom property, so a handle hover restyles the one or two elements it names. Writing `cursor` restyles every descendant, and the root write restyles the whole document.
+  const scopedSpacingCursor = isPageSurface() && registerSpacingCursorProperty();
+  const spacingCursorProperty = scopedSpacingCursor ? SPACING_CURSOR_PROPERTY : "cursor";
+  const spacingCursorPriority = scopedSpacingCursor ? "" : "important";
+
   function clearSpacingCursor(): void {
     const active = spacingCursor;
     spacingCursor = null;
     for (const target of active?.targets ?? []) {
-      if (target.element.style.getPropertyValue("cursor") !== active!.appliedValue
-        || target.element.style.getPropertyPriority("cursor") !== "important") continue;
+      if (target.element.style.getPropertyValue(spacingCursorProperty) !== active!.appliedValue
+        || target.element.style.getPropertyPriority(spacingCursorProperty) !== spacingCursorPriority) continue;
       if (target.previousValue) {
-        target.element.style.setProperty("cursor", target.previousValue, target.previousPriority);
+        target.element.style.setProperty(spacingCursorProperty, target.previousValue, target.previousPriority);
       } else {
-        target.element.style.removeProperty("cursor");
+        target.element.style.removeProperty(spacingCursorProperty);
       }
     }
     if (appliedRootCursor !== null
@@ -267,15 +279,17 @@ export function installRendererElementSelector(
       spacingCursor = {
         targets: elements.map((element) => ({
           element,
-          previousValue: element.style.getPropertyValue("cursor"),
-          previousPriority: element.style.getPropertyPriority("cursor"),
+          previousValue: element.style.getPropertyValue(spacingCursorProperty),
+          previousPriority: element.style.getPropertyPriority(spacingCursorProperty),
         })),
         appliedValue: cursor,
       };
     } else {
       spacingCursor!.appliedValue = cursor;
     }
-    for (const element of elements) element.style.setProperty("cursor", cursor, "important");
+    for (const element of elements) element.style.setProperty(spacingCursorProperty, cursor, spacingCursorPriority);
+    // The page surface names the element under the pointer, which is the root when the pointer is outside the body.
+    if (scopedSpacingCursor) return;
     document.documentElement.style.setProperty("cursor", cursor, "important");
     appliedRootCursor = cursor;
   }
