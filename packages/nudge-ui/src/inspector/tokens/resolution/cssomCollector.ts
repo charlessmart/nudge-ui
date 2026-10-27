@@ -1,7 +1,8 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
 import { resolveNestedSelector } from "./nestedSelectors.ts";
 import { adoptedStylesheetKey, STATE_PREVIEW_SHEET_ID, VALUE_PREVIEW_SHEET_ID } from "../../runtime/ownedStylesheets.ts";
-import { INTERACTION_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
+import { INTERACTION_CURSOR_PROPERTY, SPACING_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
+import { isPageSurface } from "../../canvas/pageSurface.ts";
 import type { AtRuleContext, MatchedRule, StyleDeclaration } from "../../../css/model/index.ts";
 
 interface RuleSnapshot {
@@ -33,6 +34,12 @@ const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 /** Bumped when a page-owned stylesheet's walk could change without replacing its CSSStyleSheet object; inspector-owned writes leave it alone. */
 const pageSheetEpochs = new WeakMap<Document, number>();
 
+/** Changes whenever a page-owned stylesheet may have changed; unlike the stylesheet revision, the inspector's own previews leave it alone. */
+export function pageStylesheetEpoch(doc: Document): number {
+  documentRevisions(doc);
+  return pageSheetEpochs.get(doc) ?? 0;
+}
+
 function bumpPageSheetEpoch(doc: Document): void {
   pageSheetEpochs.set(doc, (pageSheetEpochs.get(doc) ?? 0) + 1);
 }
@@ -40,6 +47,8 @@ const documentResolutionSessions = new WeakMap<Document, DocumentResolutionSessi
 const documentResolutionReferences = new WeakMap<Document, DocumentResolutionReference>();
 
 const registeredElements = new WeakSet<Element>();
+/** The inspected elements themselves, whose content can reach them through `:has()` and `:empty`; their ancestors are only in `registeredElements`. */
+const resolutionSubjects = new WeakSet<Element>();
 const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
 
 function isCurrentDocumentResolutionSession(doc: Document, session: DocumentResolutionSession): boolean {
@@ -75,6 +84,7 @@ export function registerResolutionElement(el: Element): void {
 }
 
 export function registerResolutionLineage(element: HTMLElement): void {
+  resolutionSubjects.add(element);
   let current: HTMLElement | null = element;
   while (current) {
     registerResolutionElement(current);
@@ -139,6 +149,11 @@ function isStylesheetNode(node: Node | null): boolean {
   return tag === "style" || tag === "link";
 }
 
+function containsStylesheetNode(node: Node): boolean {
+  if (node.nodeType !== node.ELEMENT_NODE) return false;
+  return isStylesheetNode(node) || (node as Element).querySelector("style, link") !== null;
+}
+
 function changesStylesheet(record: MutationRecord): boolean {
   if (record.type === "attributes") return isStylesheetNode(record.target);
   if (record.type === "characterData") return isStylesheetNode(record.target.parentElement);
@@ -176,7 +191,7 @@ function changesPageStylesheet(record: MutationRecord): boolean {
 }
 
 // The renderer rewrites these on hover and spacing drags; bumping the element revision would re-resolve the cascade per pointer move.
-const RENDERER_INLINE_CURSOR_PROPERTIES = ["cursor", INTERACTION_CURSOR_PROPERTY];
+const RENDERER_INLINE_CURSOR_PROPERTIES = ["cursor", INTERACTION_CURSOR_PROPERTY, SPACING_CURSOR_PROPERTY];
 
 function styleTextWithoutCursor(doc: Document, text: string | null): string {
   const scratch = doc.createElement("div");
@@ -188,6 +203,13 @@ function styleTextWithoutCursor(doc: Document, text: string | null): string {
 function isCursorOnlyStyleChange(target: Element, oldValue: string | null): boolean {
   const doc = target.ownerDocument;
   return styleTextWithoutCursor(doc, oldValue) === styleTextWithoutCursor(doc, target.getAttribute("style"));
+}
+
+function withinResolutionSubject(node: Node | null): boolean {
+  for (let current = node instanceof Element ? node : node?.parentElement ?? null; current; current = current.parentElement) {
+    if (resolutionSubjects.has(current)) return true;
+  }
+  return false;
 }
 
 function isProbeMutation(record: MutationRecord): boolean {
@@ -207,15 +229,25 @@ function isProbeMutation(record: MutationRecord): boolean {
       || CONTAINER_PROBE_MARKER.test(name)
       || (name === "style" && isCursorOnlyStyleChange(target, record.oldValue));
   }
+  const pageSurface = isPageSurface();
   if (record.type === "characterData") {
+    // On an arbitrary page, text that streams or counts up outside the inspected lineage never feeds the cascade unless it is stylesheet source.
+    const parent = record.target.parentElement;
+    if (pageSurface && !isStylesheetNode(parent) && !(parent && registeredElements.has(parent)) && !withinResolutionSubject(parent)) return true;
     return isProbeNode(record.target) && !isManagedStylesheetNode(record.target.parentElement);
   }
   if (isProbeNode(record.target) && !isManagedStylesheetNode(record.target)) return true;
   // Removed nodes are already disconnected, so check their own attributes instead of an ancestor chain.
   const nodes = [...record.addedNodes, ...record.removedNodes];
   if (nodes.some(isManagedStylesheetNode)) return false;
-  return nodes.length > 0 && nodes.every((node) =>
-    node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-nudge-ui"));
+  if (nodes.length > 0 && nodes.every((node) =>
+    node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-nudge-ui"))) return true;
+  // Host adapters re-resolve on any structural change, which HMR and verification rely on. A page the user does not control churns constantly, and a selector reaches the selection through its lineage or its own content, so a change elsewhere matters only when it brings in a stylesheet.
+  return pageSurface
+    && !isStylesheetNode(record.target)
+    && !registeredElements.has(record.target as Element)
+    && !withinResolutionSubject(record.target)
+    && !nodes.some(containsStylesheetNode);
 }
 
 export function documentRevisions(doc: Document): DocumentRevisions {

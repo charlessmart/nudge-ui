@@ -62,7 +62,8 @@ function normalizeInElementContext(el: HTMLElement, property: string, value: str
   probe.style.setProperty(property, value, "important");
   probe.style.setProperty("position", "fixed", "important");
   probe.style.setProperty("visibility", "hidden", "important");
-  el.parentElement?.insertBefore(probe, el.nextSibling);
+  // Appending leaves the element's following siblings untouched; inserting beside the element restyles whatever sibling and `:has()` selectors reach, which on a large page is a recalculation per probe.
+  el.parentElement?.appendChild(probe);
   if (!probe.isConnected) doc.body.appendChild(probe);
   const normalized = getElementComputedStyle(probe).getPropertyValue(property).trim();
   probe.remove();

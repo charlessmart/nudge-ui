@@ -1,5 +1,5 @@
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
-import { scanPageAnimations, type AnimationGroup } from "./animationScan.ts";
+import { invalidatePageScan, scanPageAnimations, trackPageScanChanges, type AnimationGroup } from "./animationScan.ts";
 
 const CONTAINER_ID = "nudge-ui-animation-markers";
 const MARKER_ATTRIBUTE = "data-nudge-ui-animation-marker";
@@ -24,7 +24,8 @@ const MARKER_STYLE = [
   "border-radius:4px",
   "background:#0096ff",
   "color:#fff",
-  "cursor:pointer",
+  // The page surface forces the design cursor on every element with `!important`.
+  "cursor:pointer !important",
   "pointer-events:auto",
 ].join(";");
 // Tabler "keyframes" outline icon.
@@ -46,11 +47,18 @@ export function createRendererAnimationMarkers(
   const window = document.defaultView;
   let container: HTMLElement | null = null;
   let observer: MutationObserver | null = null;
+  let releaseScanTracking: (() => void) | null = null;
   let rescanTimer: ReturnType<typeof setTimeout> | undefined;
   const targets = new WeakMap<Element, Element>();
 
   const isOwn = (element: Element): boolean =>
     element.id === NUDGE_UI_MOUNT_ID || element.id === CONTAINER_ID || element.closest(`#${NUDGE_UI_MOUNT_ID}, #${CONTAINER_ID}`) !== null;
+
+  /** Inspection briefly attaches a hidden element (`data-nudge-ui`) to read a computed value; that is not a page change. */
+  const isInspectorProbe = (mutation: MutationRecord): boolean => {
+    const nodes = [...mutation.addedNodes, ...mutation.removedNodes];
+    return nodes.length > 0 && nodes.every((node) => node instanceof Element && node.hasAttribute("data-nudge-ui"));
+  };
 
   function render(): void {
     if (!window) return;
@@ -106,19 +114,39 @@ export function createRendererAnimationMarkers(
     if (target) onPick(target);
   }
 
+  function onPageChange(): void {
+    invalidatePageScan();
+    scheduleRender();
+  }
+
+  /** A class or state attribute the page toggles changes which selectors match; the inspector's own tagging and cursor writes do not. */
+  const isPageAttributeChange = (mutation: MutationRecord): boolean => {
+    const name = mutation.attributeName ?? "";
+    return mutation.type === "attributes"
+      && !(mutation.target instanceof Element && isOwn(mutation.target))
+      && name !== "style" && name !== "data-cid" && name !== "data-src" && name !== "data-renderer-id"
+      && !name.startsWith("data-nudge-ui");
+  };
+
   function observe(): void {
     window?.addEventListener("click", onClick, { capture: true });
-    window?.addEventListener("resize", scheduleRender);
-    // Children only: the markers themselves and style changes would otherwise retrigger a scan.
+    window?.addEventListener("resize", onPageChange);
+    // While the markers watch the page, selections reuse their scan instead of walking the page again.
+    releaseScanTracking = trackPageScanChanges();
+    // Only child changes move the markers; the markers themselves and style changes would otherwise retrigger a scan. Attribute changes only retire the shared scan, so a selection sees the page as it is now.
     observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) => !(mutation.target instanceof Element && isOwn(mutation.target)))) scheduleRender();
+      const children = mutations.filter((mutation) => mutation.type === "childList");
+      if (children.some((mutation) => !(mutation.target instanceof Element && isOwn(mutation.target)) && !isInspectorProbe(mutation))) onPageChange();
+      else if (mutations.some(isPageAttributeChange)) invalidatePageScan();
     });
-    if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    if (document.body) observer.observe(document.body, { childList: true, subtree: true, attributes: true });
   }
 
   function stop(): void {
     window?.removeEventListener("click", onClick, { capture: true });
-    window?.removeEventListener("resize", scheduleRender);
+    window?.removeEventListener("resize", onPageChange);
+    releaseScanTracking?.();
+    releaseScanTracking = null;
     observer?.disconnect();
     observer = null;
     clearTimeout(rescanTimer);
@@ -132,8 +160,9 @@ export function createRendererAnimationMarkers(
       if (next === enabled) return;
       enabled = next;
       if (next) {
-        render();
+        // Tracking starts first so the opening scan is the one selections reuse.
         observe();
+        render();
       } else {
         stop();
       }

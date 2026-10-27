@@ -5,6 +5,25 @@ export type RendererCursor = "design" | "drag" | "comment";
 /** Custom property the renderer sets on its root to drive the interaction cursor. */
 export const INTERACTION_CURSOR_PROPERTY = "--nudge-ui-interaction-cursor";
 
+/** Overrides the interaction cursor on the one or two elements under a spacing handle. */
+export const SPACING_CURSOR_PROPERTY = "--nudge-ui-spacing-cursor";
+
+/**
+ * Registers the spacing cursor property as non-inheriting, so writing it restyles only the element it is set on. The `cursor` property inherits, and a write on a large container (or the root) restyles every descendant on each handle hover. False when the browser cannot register properties, and callers fall back to writing `cursor`.
+ */
+export function registerSpacingCursorProperty(view: Window = window): boolean {
+  // The DOM typings omit the Properties and Values API.
+  const css = view.CSS as { registerProperty?: (definition: { name: string; syntax: string; inherits: boolean }) => void } | undefined;
+  if (typeof css?.registerProperty !== "function") return false;
+  try {
+    css.registerProperty({ name: SPACING_CURSOR_PROPERTY, syntax: "*", inherits: false });
+  } catch (error) {
+    // An earlier mount in this document already registered it, and a registration cannot be undone.
+    return error instanceof DOMException && error.name === "InvalidModificationError";
+  }
+  return true;
+}
+
 const DESIGN_SELECT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#clip0_1681_15)">
 <g filter="url(#filter0_d_1681_15)">

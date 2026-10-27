@@ -335,6 +335,47 @@ function compareCandidates(preferred: TokenGroup) {
   };
 }
 
+interface ResolvedToken {
+  resolvedValue: string;
+  presentation: TokenPresentation;
+}
+
+let resolvedTokenScope: WeakMap<HTMLElement, WeakMap<TokenEntry, ResolvedToken>> | null = null;
+
+/**
+ * What a token resolves to on an element, and how it is grouped, does not depend on the property being edited. A panel render asks once per field over the same entries, which on a page with thousands of custom properties repeats the computed style reads and name matching for every field. Computed style can change between tasks, so the scope ends with the microtask that opened it. Requests with their own grammar classify differently and skip it.
+ */
+function resolvedTokensFor(element: HTMLElement | undefined, customGrammar: boolean): WeakMap<TokenEntry, ResolvedToken> | null {
+  if (!element || customGrammar) return null;
+  if (!resolvedTokenScope) {
+    const scope = new WeakMap<HTMLElement, WeakMap<TokenEntry, ResolvedToken>>();
+    resolvedTokenScope = scope;
+    queueMicrotask(() => {
+      if (resolvedTokenScope === scope) resolvedTokenScope = null;
+    });
+  }
+  let byEntry = resolvedTokenScope.get(element);
+  if (!byEntry) {
+    byEntry = new WeakMap();
+    resolvedTokenScope.set(element, byEntry);
+  }
+  return byEntry;
+}
+
+function resolveToken(
+  entry: TokenEntry,
+  style: CSSStyleDeclaration | null,
+  grammar: CssValueGrammar,
+  cache: WeakMap<TokenEntry, ResolvedToken> | null,
+): ResolvedToken {
+  const cached = cache?.get(entry);
+  if (cached) return cached;
+  const resolvedValue = resolveValueInElement(entry, style);
+  const resolved = { resolvedValue, presentation: presentationForToken({ ...entry, value: resolvedValue }, grammar) };
+  cache?.set(entry, resolved);
+  return resolved;
+}
+
 /** The single candidate-selection seam; presentation labels only rank results. */
 export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest): TokenCandidate[] {
   const grammar = request.grammar ?? browserCssGrammar(request.element);
@@ -342,10 +383,10 @@ export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest)
   const property = validationProperty(request.property, slot);
   const preferredGroup = groupForProperty(request.property, slot);
   const style = elementStyle(request.element);
+  const cache = resolvedTokensFor(request.element, request.grammar !== undefined);
   return request.entries
     .map((entry): TokenCandidate => {
-      const resolvedValue = resolveValueInElement(entry, style);
-      const presentation = presentationForToken({ ...entry, value: resolvedValue }, grammar);
+      const { resolvedValue, presentation } = resolveToken(entry, style, grammar, cache);
       return {
         entry,
         resolvedValue,
@@ -378,10 +419,10 @@ export function selectTokens(request: TokenSelectionRequest): TokenSelection {
 
   const grammar = request.grammar ?? browserCssGrammar(request.element);
   const style = elementStyle(request.element);
+  const cache = resolvedTokensFor(request.element, request.grammar !== undefined);
   return {
     candidates: request.entries.map((entry) => {
-      const resolvedValue = resolveValueInElement(entry, style);
-      const presentation = presentationForToken({ ...entry, value: resolvedValue }, grammar);
+      const { resolvedValue, presentation } = resolveToken(entry, style, grammar, cache);
       return {
         entry,
         resolvedValue,

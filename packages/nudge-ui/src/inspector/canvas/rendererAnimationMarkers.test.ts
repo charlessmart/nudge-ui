@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
-import { scanPageAnimations } from "./animationScan.ts";
+import { scanAnimations, scanPageAnimations } from "./animationScan.ts";
 import { createRendererAnimationMarkers } from "./rendererAnimationMarkers.ts";
 
 function mountPage(): void {
@@ -81,6 +81,45 @@ describe("renderer animation markers", () => {
     expect(rerendered[1]!.style.top).toBe("4px");
     markers.dispose();
     Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+  });
+
+  it("does not rescan for the hidden element inspection attaches to read a computed value", () => {
+    vi.useFakeTimers();
+    mountPage();
+    const markers = createRendererAnimationMarkers(document);
+    markers.apply(true);
+    const container = document.getElementById("nudge-ui-animation-markers")!;
+    const first = container.children[0];
+
+    const probe = document.createElement("div");
+    probe.setAttribute("data-nudge-ui", "attribution-probe");
+    document.body.append(probe);
+    probe.remove();
+    return Promise.resolve().then(() => {
+      vi.advanceTimersByTime(500);
+      // A rescan replaces every marker, so the same node still being there means none ran.
+      expect(container.children[0]).toBe(first);
+      markers.dispose();
+    });
+  });
+
+  it("lets a selection see a state the page toggled after the markers scanned", async () => {
+    mountPage();
+    document.head.insertAdjacentHTML("beforeend", "<style>.open .item { transition-property: opacity; transition-duration: 1s; } .open .item:hover { opacity: 0.5; }</style>");
+    const item = document.createElement("div");
+    item.className = "item";
+    document.getElementById("still")!.append(item);
+    // Let the stylesheet change land first, so the markers' scan is the one the selection reuses.
+    await Promise.resolve();
+    const markers = createRendererAnimationMarkers(document);
+    markers.apply(true);
+    expect(scanAnimations(item)).toEqual([]);
+
+    document.getElementById("still")!.classList.add("open");
+    await Promise.resolve();
+
+    expect(scanAnimations(item).map((entry) => entry.label)).toContain("Hover · opacity");
+    markers.dispose();
   });
 
   it("rescans after the page changes", () => {

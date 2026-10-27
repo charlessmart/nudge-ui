@@ -1,22 +1,31 @@
-import { DESIGN_SELECT_CURSOR, INTERACTION_CURSOR_PROPERTY } from "../ui/customCursors.ts";
+import { DESIGN_SELECT_CURSOR, INTERACTION_CURSOR_PROPERTY, SPACING_CURSOR_PROPERTY } from "../ui/customCursors.ts";
 import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
+import { isPageSurface } from "../canvas/pageSurface.ts";
 
 const INTERACTION_STYLE_ID = "nudge-ui-interaction-styles";
 
 const interactionStyleDocuments = new Set<Document>();
 
-const INTERACTION_CSS = `
-  html, body,
-  [data-cid], [data-cid] * {
-    cursor: var(${INTERACTION_CURSOR_PROPERTY}, ${DESIGN_SELECT_CURSOR}) !important;
+/**
+ * Host adapters tag every rendered element at build time, so the rules follow `data-cid`. The page surface tags elements lazily as the pointer reaches them, and a selector keyed on that attribute makes each new tag restyle the tagged element's whole subtree, which on a large page means a document-wide recalculation per hover.
+ */
+function interactionCss(pageSurface: boolean): string {
+  const tracked = pageSurface ? "html, html *" : "html, body,\n  [data-cid], [data-cid] *";
+  const scope = pageSurface ? "html " : "[data-cid] ";
+  const interactionCursor = `var(${INTERACTION_CURSOR_PROPERTY}, ${DESIGN_SELECT_CURSOR})`;
+  // The spacing property is non-inheriting where the renderer could register it, so a handle hover restyles two elements rather than their subtrees.
+  const cursor = pageSurface ? `var(${SPACING_CURSOR_PROPERTY}, ${interactionCursor})` : interactionCursor;
+  return `
+  ${tracked} {
+    cursor: ${cursor} !important;
     -webkit-user-select: none !important;
     user-select: none !important;
   }
 
-  [data-cid] input,
-  [data-cid] textarea,
-  [data-cid] [contenteditable="true"],
-  [data-cid] [contenteditable="plaintext-only"] {
+  ${scope}input,
+  ${scope}textarea,
+  ${scope}[contenteditable="true"],
+  ${scope}[contenteditable="plaintext-only"] {
     cursor: text !important;
     -webkit-user-select: text !important;
     user-select: text !important;
@@ -40,6 +49,7 @@ const INTERACTION_CSS = `
     outline: 0 !important;
   }
 `;
+}
 
 export function isInteractionStylesInstalled(doc: Document = document): boolean {
   return interactionStyleDocuments.has(doc);
@@ -54,7 +64,7 @@ export function installInteractionStyles(doc: Document = document): () => void {
   if (!style) {
     style = doc.createElement("style");
     style.id = INTERACTION_STYLE_ID;
-    style.textContent = INTERACTION_CSS;
+    style.textContent = interactionCss(isPageSurface());
     doc.head.append(style);
     created = true;
   }
@@ -72,7 +82,7 @@ export function installInteractionStyles(doc: Document = document): () => void {
 }
 
 function installAdoptedInteractionStyles(doc: Document): () => void {
-  adoptStylesheet(doc, INTERACTION_STYLE_ID, INTERACTION_CSS);
+  adoptStylesheet(doc, INTERACTION_STYLE_ID, interactionCss(isPageSurface()));
   interactionStyleDocuments.add(doc);
   for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-empty-text]"))) {
     slot.hidden = false;
