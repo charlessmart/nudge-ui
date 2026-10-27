@@ -17,8 +17,6 @@ import type { ElementChangeRecord } from "../changes/types.ts";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
-import { initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
-import { resetSketchMemory } from "../canvas/sketch/persistence.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
@@ -119,8 +117,6 @@ describe("CopyPromptButton agent handoff", () => {
     localStorage.clear();
     clearClipboardHandoff();
     resetAgentVerification();
-    resetSketchStore();
-    resetSketchMemory();
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({ ...previousConfig, projectId: "handoff-project" });
     container = document.createElement("div");
@@ -135,8 +131,6 @@ describe("CopyPromptButton agent handoff", () => {
     clearActiveDraft();
     clearClipboardHandoff();
     resetAgentVerification();
-    resetSketchStore();
-    resetSketchMemory();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
     vi.unstubAllGlobals();
@@ -208,33 +202,6 @@ describe("CopyPromptButton agent handoff", () => {
 
     act(() => replaceActiveDraft([]));
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
-  });
-
-  it("leaves a kept sketch out of the prompt: no count, no menu, no reason to enable the button", async () => {
-    await initializeSketchStore("handoff-project");
-    const image = new Blob(["png"], { type: "image/png" });
-    await saveSketch({
-      url: window.location.href,
-      image,
-      imageWidth: 1,
-      imageHeight: 1,
-    });
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = null;
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    expect(button.textContent).toContain("Copy prompt");
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
-    expect(button.disabled).toBe(false);
-    await act(async () => { button.click(); });
-    expect(button.textContent).toContain("Nothing to copy");
-    expect(button.querySelector("svg")).toBeNull();
-    expect(container.querySelector('[data-test="copy-prompt-menu"]')).toBeNull();
-    act(() => replaceActiveDraft([change()]));
-    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
   });
 
   it("shows the connected status without a setup action when the agent is not listening", async () => {

@@ -41,7 +41,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-card.is-focused .canvas-card__frame {
+  .canvas-card.is-focused.is-selected:not(.is-linked) .canvas-card__frame {
     animation: none;
   }
 }
@@ -130,8 +130,15 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translate(-50%, calc(-24px + var(--space-4)));
-  transition: opacity 140ms ease-out, transform 140ms ease-out, visibility 140ms;
+  transform: translate(-50%, -24px);
+  transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1), visibility 140ms;
+}
+
+/* Only a real pointer gets the small rise; a tap just fades it in. */
+@media (hover: hover) and (pointer: fine) {
+  .canvas-card__floating-toolbar {
+    transform: translate(-50%, calc(-24px + var(--space-4)));
+  }
 }
 
 .canvas-card:hover .canvas-card__floating-toolbar,

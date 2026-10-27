@@ -1,104 +1,85 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { canvasFrameHost } from "../canvasFrame.ts";
-import { getRegisteredFrames } from "../projection.ts";
+import { createPortal } from "react-dom";
+import { canvasFrameElement, canvasFrameHost } from "../canvasFrame.ts";
+import { getFrameRegistryVersion, getRegisteredFrames, subscribeFrameRegistry } from "../projection.ts";
 import { setSelectedElement } from "../../selection/selectionStore.ts";
 import { selectCard } from "../canvasStore.ts";
 import { activateDraftForCard } from "../../drafts/store.ts";
 import { useInspectorOpen } from "../../shell/openStore.ts";
 import { isEditableEvent } from "../../shell/shortcuts.ts";
+import { portalContainer } from "../../ui/portalContainer.ts";
 import { useBoardCamera, useTemporaryAppInteraction } from "../viewStore.ts";
 import { SketchToolBar } from "./SketchToolBar.tsx";
-import { renderSketchPng } from "../../sketch/raster.ts";
-import { getSketchViewport } from "../../sketch/capture.ts";
-import { beginSketchCapture, cancelSketchInteraction, completeSketchCapture, useSketchInteractionActive } from "./interaction.ts";
-import { initializeSketchStore, saveSketch, useSketchStore } from "./store.ts";
-import { saveAndCopySketch } from "./copySketch.ts";
+import { cancelSketchInteraction, openSketchInteraction, sketchOpenedByKeyboard, useSketchInteractionActive } from "./interaction.ts";
+import { clearAllSketchMarks, hasSketchMarks, setSketchEditingKey, useSketchMarks } from "./marksStore.ts";
+import { SketchMarks } from "./SketchMarks.tsx";
+import { useSketchMarksKey } from "./sketchFrames.ts";
+import { takeSketchScreenshot } from "./screenshot.ts";
+import { copyScreenshot } from "./copySketch.ts";
 
 import { SketchSurface } from "../../sketch/SketchSurface.tsx";
-import { useSketchHistory } from "../../sketch/useSketchHistory.ts";
 import { resetSketchDrawingTool, setSketchDrawingTool, setSketchStrokeColor, useSketchDrawingTools } from "../../sketch/drawingTools.ts";
 import type { SketchTextEdit } from "../../sketch/SketchTextEditor.tsx";
-import type { SketchPoint, SketchStroke } from "../../sketch/model.ts";
-import type { CapturedSketch } from "../../sketch/capture.ts";
-import { sketchInkBounds } from "../../sketch/ink.ts";
-import { showToast } from "../../ui/Toast.tsx";
+import type { SketchPoint } from "../../sketch/model.ts";
 
 export interface SketchWorkspaceProps {
   readonly hostElement: HTMLElement | null;
-  readonly projectId: string;
 }
+
+/** Matches the "Copied" toast. */
+const COPIED_TICK_MS = 3000;
 
 /** Leaves the open panel's reserved space uncovered; matches the canvas toolbar layer. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
 
-function clamp(value: number, maximum: number): number {
-  return Math.max(0, Math.min(maximum, value));
+/** The page surface has no card to hold its marks, so they cover the page from the inspector's own layer. */
+function PageSurfaceMarks(): ReactElement | null {
+  useSyncExternalStore(subscribeFrameRegistry, getFrameRegistryVersion, getFrameRegistryVersion);
+  const container = portalContainer();
+  if (!container) return null;
+  const pages = [...getRegisteredFrames()].filter(([, frame]) => !canvasFrameElement(frame));
+  if (pages.length === 0) return null;
+  return createPortal(
+    <>
+      {pages.map(([cardId, frame]) => (
+        <SketchMarks key={cardId} cardId={cardId} host={canvasFrameHost(frame)} placement="page" />
+      ))}
+    </>,
+    container,
+  );
 }
 
-export interface SketchLiveDraft {
-  readonly strokes: readonly SketchStroke[];
-  readonly viewport: ReturnType<typeof getSketchViewport>;
-}
-
-export function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSketch): SketchStroke[] {
-  const scaleX = captured.imageWidth / Math.max(1, draft.viewport.width);
-  const scaleY = captured.imageHeight / Math.max(1, draft.viewport.height);
-  const captureScrollX = captured.capture.scrollX;
-  const captureScrollY = captured.capture.scrollY;
-  const visibleRight = captureScrollX + draft.viewport.width;
-  const visibleBottom = captureScrollY + draft.viewport.height;
-
-  // Layers pushed flush against the viewport edge may overshoot it by rounding error.
-  const slack = 0.5;
-  const isVisible = (point: SketchPoint): boolean => point.x >= captureScrollX - slack
-    && point.x <= visibleRight + slack
-    && point.y >= captureScrollY - slack
-    && point.y <= visibleBottom + slack;
-  const typeScale = Math.max(scaleX, scaleY);
-
-  return draft.strokes.flatMap((stroke) => {
-    // Cropping a text box would leave its words half-drawn, so it is kept whole or not at all.
-    const visiblePoints = stroke.kind === "text"
-      ? stroke.points.every(isVisible) ? stroke.points : []
-      : stroke.points.filter(isVisible);
-    if (visiblePoints.length === 0) return [];
-    return [{
-      ...stroke,
-      width: stroke.width * typeScale,
-      ...(stroke.fontSize === undefined ? {} : { fontSize: stroke.fontSize * typeScale }),
-      points: visiblePoints.map((point) => ({
-        x: clamp((point.x - captureScrollX) * scaleX, captured.imageWidth),
-        y: clamp((point.y - captureScrollY) * scaleY, captured.imageHeight),
-      })),
-    }];
-  });
-}
-
-export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps): ReactElement | null {
+export function SketchWorkspace({ hostElement }: SketchWorkspaceProps): ReactElement {
   const active = useSketchInteractionActive();
-  const history = useSketchHistory();
   const drawing = useSketchDrawingTools();
-  const recents = useSketchStore().documents;
   const inspectorOpen = useInspectorOpen();
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const camera = useBoardCamera();
+  const marksKey = useSketchMarksKey(hostElement);
+  const marks = useSketchMarks(marksKey);
   const [textEdit, setTextEdit] = useState<SketchTextEdit | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Deliberately independent of the localStorage session schema; a failed
-  // hydration leaves the inspector usable.
+  // The tick on the screenshot button lasts as long as the "Copied" toast.
   useEffect(() => {
-    void initializeSketchStore(projectId).catch(() => undefined);
-  }, [projectId]);
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_TICK_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   useEffect(() => {
     if (!active) return;
     resetSketchDrawingTool();
-    history.reset();
     setTextEdit(null);
-    setSubmitting(false);
-  }, [active, history.reset]);
+  }, [active]);
+
+  // The surface draws the frame it is editing; every other frame keeps its marks in the passive layer.
+  useEffect(() => {
+    setSketchEditingKey(active ? marksKey : null);
+  }, [active, marksKey]);
+  useEffect(() => () => setSketchEditingKey(null), []);
 
   // Window-level so undo works while focus is in the canvas toolbar; text fields keep their native undo.
   useEffect(() => {
@@ -111,110 +92,66 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
       if (!isRedo && !isUndo) return;
       event.preventDefault();
       event.stopPropagation();
-      if (isRedo) history.redo();
-      else history.undo();
+      if (isRedo) marks.redo();
+      else marks.undo();
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [active, history.redo, history.undo]);
+  }, [active, marks.redo, marks.undo]);
 
-  if (!hostElement) return null;
-  const host = hostElement;
-
-  function selectTarget(point: SketchPoint, lockedTarget: HTMLElement | null): HTMLElement | null {
+  /** A press on any frame draws on that frame; its marks and history are its own. */
+  function selectTarget(point: SketchPoint): HTMLElement | null {
     for (const [cardId, frame] of getRegisteredFrames()) {
       const target = canvasFrameHost(frame);
       if (!target || !frame.isConnected || getComputedStyle(target).visibility === "hidden") continue;
       const bounds = frame.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) continue;
       if (point.x < bounds.left || point.x > bounds.right || point.y < bounds.top || point.y > bounds.bottom) continue;
-      if (lockedTarget && target !== lockedTarget) return null;
-      if (target !== host) {
+      if (target !== hostElement) {
         setSelectedElement(null);
         selectCard(cardId);
         activateDraftForCard(cardId);
-        beginSketchCapture();
       }
       return target;
     }
     return null;
   }
 
-  /**
-   * Captures the page, draws the marks on it, and returns the image for the clipboard. The image is also kept so the
-   * last copy can be copied again, but keeping it is best effort: a storage failure never stops the copy.
-   */
-  async function copyLiveSketchImage(draft: SketchLiveDraft): Promise<Blob> {
-    const captured = await completeSketchCapture(host);
-    const strokes = projectLiveStrokes(draft, captured);
-    const rendered = await renderSketchPng(
-      captured.pageImage,
-      captured.imageWidth,
-      captured.imageHeight,
-      strokes,
-    );
-    try {
-      await saveSketch({
-        url: captured.capture.url,
-        image: rendered.blob,
-        imageWidth: rendered.width,
-        imageHeight: rendered.height,
-        ink: sketchInkBounds(strokes, rendered.width, rendered.height) ?? undefined,
-      });
-    } catch (error) {
-      showToast({
-        tone: "error",
-        title: "Sketch not kept",
-        description: error instanceof Error ? error.message : "The copied sketch could not be saved for later.",
-      });
-    }
-    // The sketch tool stays open on a fresh canvas, ready for the next one.
-    beginSketchCapture();
-    return rendered.blob;
-  }
-
-  async function copySketch(): Promise<void> {
-    if (submitting || history.history.strokes.length === 0) return;
-    setSubmitting(true);
-    try {
-      await saveAndCopySketch(() => copyLiveSketchImage({
-        strokes: history.history.strokes,
-        viewport: getSketchViewport(host),
-      }));
-      // Once saved the sketch is done with: the canvas starts empty again and the tool stays open for the next one.
-      history.reset();
-      setTextEdit(null);
-      setSubmitting(false);
-    } catch (error) {
-      showToast({
-        tone: "error",
-        title: "Sketch not copied",
-        description: error instanceof Error ? error.message : "The sketch could not be saved.",
-      });
-      setSubmitting(false);
-    }
+  /** Called straight from the click: without the extension it asks to share the screen, which needs the gesture. */
+  function takeScreenshot(): void {
+    if (capturing) return;
+    setCapturing(true);
+    const landing = (): Element | null => portalContainer()?.querySelector('[data-test="sketch-screenshot"]') ?? null;
+    setCopied(false);
+    void copyScreenshot(takeSketchScreenshot(), landing).then((done) => {
+      setCapturing(false);
+      setCopied(done);
+    });
   }
 
   return (
     <>
-      <SketchSurface
-        open={active}
-        hostElement={hostElement}
-        selectTarget={selectTarget}
-        onCancel={cancelSketchInteraction}
-        history={history.history}
-        addStroke={history.addStroke}
-        eraseStrokes={history.eraseStrokes}
-        transformStroke={history.transformStroke}
-        textEdit={textEdit}
-        setTextEdit={setTextEdit}
-        submitting={submitting}
-        tool={drawing.tool}
-        color={drawing.color.value}
-        inspectorOpen={inspectorOpen}
-        temporaryAppInteraction={temporaryAppInteraction}
-        layoutKey={`${camera.x},${camera.y},${camera.zoom}`}
-      />
+      <PageSurfaceMarks />
+      {hostElement ? (
+        <SketchSurface
+          open={active}
+          hostElement={hostElement}
+          selectTarget={selectTarget}
+          onCancel={cancelSketchInteraction}
+          history={marks.history}
+          addStroke={marks.addStroke}
+          eraseStrokes={marks.eraseStrokes}
+          transformStroke={marks.transformStroke}
+          textEdit={textEdit}
+          setTextEdit={setTextEdit}
+          submitting={capturing}
+          tool={drawing.tool}
+          color={drawing.color.value}
+          inspectorOpen={inspectorOpen}
+          temporaryAppInteraction={temporaryAppInteraction}
+          layoutKey={`${camera.x},${camera.y},${camera.zoom}`}
+        />
+      ) : null}
       {active ? (
         <div
           className="sketch-bar-layer"
@@ -223,14 +160,16 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
         >
           <SketchToolBar
             open
+            intro={!sketchOpenedByKeyboard()}
             tool={drawing.tool}
             color={drawing.color}
-            recents={recents}
-            saving={submitting}
-            hasContent={history.history.strokes.length > 0}
+            capturing={capturing}
+            copied={copied}
+            hasMarks={hasSketchMarks()}
             onToolChange={setSketchDrawingTool}
             onColorChange={setSketchStrokeColor}
-            onSave={() => void copySketch()}
+            onScreenshot={takeScreenshot}
+            onClear={clearAllSketchMarks}
           />
         </div>
       ) : null}
@@ -238,7 +177,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
   );
 }
 
-export function startSketchCapture(hostElement: HTMLElement | null): void {
+export function startSketch(hostElement: HTMLElement | null, options?: { readonly viaKeyboard?: boolean }): void {
   if (!hostElement) return;
-  beginSketchCapture();
+  openSketchInteraction(options);
 }

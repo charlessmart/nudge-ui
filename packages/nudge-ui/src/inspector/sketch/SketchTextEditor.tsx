@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactElement } from "react";
-import type { SketchViewport } from "./capture.ts";
+import type { SketchViewport } from "./viewport.ts";
 import {
   SKETCH_LIMITS,
   SKETCH_TEXT_FONT_FAMILY,

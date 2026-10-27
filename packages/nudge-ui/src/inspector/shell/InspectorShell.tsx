@@ -350,7 +350,7 @@ export function InspectorShell(): ReactElement {
         />
       </InspectorPanel>
       {sketchEnabled ? (
-        <SketchWorkspace hostElement={sketchHost} projectId={runtimeConfig.projectId} />
+        <SketchWorkspace hostElement={sketchHost} />
       ) : null}
     </>
   );

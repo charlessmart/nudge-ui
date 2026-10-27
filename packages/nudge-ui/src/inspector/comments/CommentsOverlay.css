@@ -16,7 +16,8 @@
   font-size: var(--font-size-base);
   cursor: pointer;
   pointer-events: auto;
-  transition: height 180ms cubic-bezier(0.2, 0, 0, 1);
+  /* The colour eases with the shape, so the pin does not flash from accent to surface as it opens. */
+  transition: height 180ms cubic-bezier(0.2, 0, 0, 1), background-color 120ms ease;
 }
 
 /* Animating the grid track from 0fr to 1fr grows the pin to exactly the width of its note. */
@@ -39,18 +40,28 @@
   transition: opacity 120ms ease;
 }
 
-.comment-pin:hover,
 .comment-pin:focus-visible {
   z-index: 11;
   height: var(--space-32);
   background: var(--surface-raised-2x);
 }
 
-.comment-pin:hover .comment-pin__reveal,
 .comment-pin:focus-visible .comment-pin__reveal { grid-template-columns: 1fr; }
 
-.comment-pin:hover .comment-pin__note,
 .comment-pin:focus-visible .comment-pin__note { opacity: 1; transition-delay: 60ms; }
+
+/* A tap on a touch screen would leave the pin stuck open, so only a real pointer previews the note on hover. */
+@media (hover: hover) and (pointer: fine) {
+  .comment-pin:hover {
+    z-index: 11;
+    height: var(--space-32);
+    background: var(--surface-raised-2x);
+  }
+
+  .comment-pin:hover .comment-pin__reveal { grid-template-columns: 1fr; }
+
+  .comment-pin:hover .comment-pin__note { opacity: 1; transition-delay: 60ms; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .comment-pin, .comment-pin__reveal, .comment-pin__note { transition: none; }

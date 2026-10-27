@@ -112,7 +112,7 @@
 
 /* Popup triggers stay still: a scaled trigger moves the rect the popup anchors to. */
 .icon-button:active:not(:disabled):not([aria-haspopup]) {
-  transform: scale(var(--press-scale, 0.93));
+  transform: scale(var(--press-scale, 0.95));
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform var(--press-duration) ease-out;
 }
 

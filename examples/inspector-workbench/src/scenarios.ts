@@ -27,7 +27,7 @@ export const scenarios: readonly Scenario[] = [
   { id: "changes", title: "Pending changes", description: "Two fixture edits, the changes log and the enabled prompt action.", target: "text" },
   { id: "empty", title: "Empty panel", description: "The real empty state and keyboard shortcut disclosure.", target: "none" },
   { id: "unavailable", title: "Inspection error", description: "A page-level error with long content.", target: "none", error: "its security policy" },
-  { id: "toolbar", title: "Canvas toolbar", description: "The real floating toolbar with each tool active, and the sketch bar in every state: tools, colours, palette, empty, saving and saved sketches.", target: "toolbar" },
+  { id: "toolbar", title: "Canvas toolbar", description: "The real floating toolbar with each tool active, and the sketch bar in every state: tools, colours, palette, empty and taking a screenshot.", target: "toolbar" },
   { id: "controls", title: "Controlled fields", description: "Real token fields driven by fixture values and local callbacks. No selected DOM element required.", target: "controls" },
 ];
 

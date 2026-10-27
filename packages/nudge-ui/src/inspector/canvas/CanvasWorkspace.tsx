@@ -88,16 +88,16 @@ import {
   CanvasToolbar,
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
-import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, viewModeForCode } from "./keyboardShortcuts.ts";
 import { canvasToolEffects, type BoardPointerState } from "./toolEffects.ts";
-import { useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
+import { getDebugViewMode, setDebugViewMode, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
 import { rendererDesiredState, sendRendererState, sendRendererStateToAll } from "./rendererState.ts";
 import { clearFramesExploded, setFrameExploded } from "./frameViewState.ts";
 import { AnimationBar } from "./AnimationBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolBarStyles from "./sketch/SketchToolBar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
-import { startSketchCapture } from "./sketch/SketchWorkspace.tsx";
+import { startSketch } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
@@ -109,6 +109,8 @@ import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolBarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
+/** A strong in-out curve: the card morphs on screen rather than entering or leaving. */
+const PRESENTATION_TRANSITION_EASING = "cubic-bezier(0.77, 0, 0.175, 1)";
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
 
@@ -257,7 +259,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         },
         { transformOrigin: "center center", transform: "none" },
       ],
-      { duration: PRESENTATION_TRANSITION_MS, easing: "ease", fill: "both" },
+      { duration: PRESENTATION_TRANSITION_MS, easing: PRESENTATION_TRANSITION_EASING, fill: "both" },
     );
     presentationAnimationRef.current = animation;
     void animation.finished.then(() => {
@@ -430,7 +432,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     stopPanMode();
   }, [selectedTool, stopPanMode]);
 
-  const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
+  const handleToolChange = useCallback((nextTool: CanvasInteractionTool, source: "pointer" | "keyboard" = "pointer") => {
     if ((nextTool === "select" || nextTool === "debug") && selectedTool === nextTool) {
       setInteractionTool("design");
       stopPanMode();
@@ -446,7 +448,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (!hostElement) return;
       stopPanMode();
       setInteractionTool(nextTool);
-      startSketchCapture(hostElement);
+      startSketch(hostElement, { viaKeyboard: source === "keyboard" });
       return;
     }
 
@@ -455,6 +457,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setInteractionTool(nextTool);
     stopPanMode();
   }, [selectedTool, sketchActive, sketchEnabled, stopPanMode]);
+
+  // A view key picks its view directly: pressing it while that view is showing puts the tool away, as the toolbar button does.
+  const handleToolShortcut = useCallback((code: string, nextTool: CanvasInteractionTool) => {
+    const view = viewModeForCode(code);
+    if (view) {
+      if (selectedTool === "debug" && getDebugViewMode() !== view) {
+        setDebugViewMode(view);
+        return;
+      }
+      setDebugViewMode(view);
+    }
+    handleToolChange(nextTool, "keyboard");
+  }, [handleToolChange, selectedTool]);
 
   useEffect(() => () => setCommentToolActive(false), []);
 
@@ -501,12 +516,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       // copy that is still being captured.
       if (nextTool === "sketch" && sketchActive) return;
       event.preventDefault();
-      handleToolChange(nextTool);
+      handleToolShortcut(event.code, nextTool);
     }
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleToolChange, leaveViewTool, mode, sketchActive, sketchAvailable]);
+  }, [handleToolShortcut, leaveViewTool, mode, sketchActive, sketchAvailable]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (sketchActive) return;
@@ -602,7 +617,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             return;
           }
           const nextTool = canvasToolForCode(msg.code);
-          if (nextTool && (nextTool !== "sketch" || (sketchAvailable && !sketchActive))) handleToolChange(nextTool);
+          if (nextTool && (nextTool !== "sketch" || (sketchAvailable && !sketchActive))) handleToolShortcut(msg.code, nextTool);
         }
         return;
       }
@@ -735,7 +750,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, endPanning, handleToolChange, interactionTool, leaveViewTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
+  }, [appInteractive, endPanning, handleToolShortcut, interactionTool, leaveViewTool, mode, panCanvasByWheel, inspectorOpen, linksOpenInCards, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {

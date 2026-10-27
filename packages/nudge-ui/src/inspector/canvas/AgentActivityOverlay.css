@@ -37,19 +37,30 @@
 
 .canvas-agent-activity__shimmer {
   position: absolute;
+  overflow: hidden;
   border-radius: 5px;
+}
+
+/* The highlight is a band that slides across on `translate`, so the sweep composites instead of repainting the
+   gradient every frame for as long as the agent works. */
+.canvas-agent-activity__shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 250%;
   background: linear-gradient(110deg, transparent 20%, rgb(212 212 212 / 0.18) 35%, rgb(212 212 212 / 0.35) 50%, rgb(212 212 212 / 0.18) 65%, transparent 80%);
-  background-size: 250% 100%;
-  animation: nudge-component-shimmer 2.4s ease-in-out infinite;
+  animation: nudge-component-shimmer 2.4s linear infinite;
 }
 
 @keyframes nudge-component-shimmer {
-  from { background-position: 150% 0; }
-  to { background-position: -150% 0; }
+  /* The band is 2.5 highlights wide, so these carry its bright middle from one width left of the box to well past its right edge, leaving a pause between sweeps. */
+  from { translate: -90% 0; }
+  to { translate: 90% 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-agent-activity__shimmer {
+  .canvas-agent-activity__shimmer::before {
     animation: none;
+    opacity: 0;
   }
 }

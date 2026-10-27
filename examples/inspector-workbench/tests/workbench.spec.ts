@@ -62,7 +62,7 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   await page.goto("/?nudge-ui=off&scenario=toolbar");
   const gallery = page.locator('[data-test="toolbar-gallery"]');
   await expect(gallery.locator('[data-test^="canvas-toolbar-"]')).toHaveCount(4);
-  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(11);
+  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(8);
 
   // Each interaction tool is active in its own toolbar, and only the Pencil opens the sketch bar.
   for (const tool of ["design", "comment", "sketch", "select"]) {
@@ -78,18 +78,16 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   }
   await expect(bar("palette").locator('[data-test="sketch-color-palette"]')).toHaveCount(1);
   await expect(bar("palette").locator('[data-test="sketch-color-red"]')).toBeVisible();
-  await expect(bar("saving").locator('[data-test="sketch-copy"]')).toBeDisabled();
-  await expect(bar("empty").locator('[data-test="sketch-copy"]')).toBeEnabled();
-  await expect(bar("one-saved").locator('[data-test="sketch-recent"]')).toHaveCount(1);
-  await expect(bar("three-saved").locator('[data-test="sketch-recent"]')).toHaveCount(3);
+  await expect(bar("capturing").locator('[data-test="sketch-screenshot"]')).toBeDisabled();
+  await expect(bar("empty").locator('[data-test="sketch-screenshot"]')).toBeEnabled();
+  await expect(bar("empty").locator('[data-test="sketch-clear"]')).toBeDisabled();
+  await expect(bar("pen").locator('[data-test="sketch-clear"]')).toBeEnabled();
 
   // The bars are live: choosing a tool changes only that bar.
   await bar("pen").locator('[data-test="sketch-tool-text"]').click();
   await expect(bar("pen").locator('[data-test="sketch-tool-text"]')).toHaveAttribute("data-active", "true");
   await expect(bar("eraser").locator('[data-test="sketch-tool-eraser"]')).toHaveAttribute("data-active", "true");
 
-  // The expanded bar shows its saved sketches as large cards.
-  await expect(bar("three-expanded").locator('[data-test="sketch-recent-card"]')).toHaveCount(3);
   expect(errors).toEqual([]);
 });
 

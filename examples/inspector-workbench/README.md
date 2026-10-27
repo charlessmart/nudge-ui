@@ -48,11 +48,9 @@ fixtures.
 The **Canvas toolbar** scenario renders the real floating `CanvasToolbar` with each
 tool active, and the real sketch bar (`SketchToolBar`, the presentational half of
 `SketchToolBar`) in every state on one page: each drawing tool, other colours,
-the colour palette open, nothing drawn, saving, and one or three saved sketches
-stacked beside the save button, plus a state with them opened into an arc above the bar. Click the
-stacked ones to open them, and hover an open one for its larger preview. Each bar holds its own state, so you can change its tool
-or colour, but nothing is drawn, saved or sent. Saved sketches are drawn in the
-browser by `fixtureSketches.ts`. The fixture's agent status is a snapshot and its prompt action displays
+the colour palette open, nothing drawn, and taking a screenshot. Each bar holds
+its own state, so you can change its tool or colour, but nothing is drawn,
+captured or sent. The fixture's agent status is a snapshot and its prompt action displays
 local feedback; neither sends to an agent nor writes to the clipboard.
 
 ## Isolation and styling

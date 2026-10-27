@@ -1,5 +1,6 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
 import { resolveNestedSelector } from "./nestedSelectors.ts";
+import { readableStylesheet, subscribeStylesheetCopies } from "./crossOriginStylesheets.ts";
 import { adoptedStylesheetKey, STATE_PREVIEW_SHEET_ID, VALUE_PREVIEW_SHEET_ID } from "../../runtime/ownedStylesheets.ts";
 import { INTERACTION_CURSOR_PROPERTY } from "../../ui/customCursors.ts";
 import type { AtRuleContext, MatchedRule, StyleDeclaration } from "../../../css/model/index.ts";
@@ -21,6 +22,7 @@ interface DocumentResolutionSession {
   observer: MutationObserver | null;
   view: Window | null;
   resizeListener: (() => void) | null;
+  stopCopyListener: (() => void) | null;
 }
 
 interface DocumentResolutionReference {
@@ -90,8 +92,10 @@ export function disposeDocumentResolution(doc: Document): void {
     if (session.view && session.resizeListener) {
       session.view.removeEventListener("resize", session.resizeListener);
     }
+    session.stopCopyListener?.();
     session.observer = null;
     session.resizeListener = null;
+    session.stopCopyListener = null;
     documentResolutionSessions.delete(doc);
   }
   documentResolutionReferences.delete(doc);
@@ -232,6 +236,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
     observer: null,
     view: doc.defaultView,
     resizeListener: null,
+    stopCopyListener: null,
   };
   documentResolutionSessions.set(doc, session);
 
@@ -259,15 +264,17 @@ export function documentRevisions(doc: Document): DocumentRevisions {
       subtree: true,
     });
 
-    const resizeListener = () => {
+    // Resizing changes which media rules apply; a fetched copy of a cross-origin sheet adds rules with no mutation to observe.
+    const invalidate = () => {
       if (!isCurrentDocumentResolutionSession(doc, session)) return;
       record.element++;
       record.stylesheet++;
       bumpPageSheetEpoch(doc);
       notifyDocumentRevision(doc);
     };
-    session.resizeListener = resizeListener;
-    session.view?.addEventListener("resize", resizeListener);
+    session.resizeListener = invalidate;
+    session.view?.addEventListener("resize", invalidate);
+    session.stopCopyListener = subscribeStylesheetCopies(doc, invalidate);
   }
   return record;
 }
@@ -616,7 +623,9 @@ export function collectRules(doc: Document) {
         ?? sheet.href
         ?? (owner?.id ? `#${owner.id}` : `stylesheet:${index + 1}`);
       const inspectorOwned = typeof owner?.hasAttribute === "function" && owner.hasAttribute("data-nudge-ui");
-      append(sheetEvents(sheet, !inspectorOwned), source);
+      const readable = readableStylesheet(sheet, doc);
+      if (readable) append(sheetEvents(readable, !inspectorOwned), source);
+      else inaccessible = true;
     } catch {
       inaccessible = true;
     }

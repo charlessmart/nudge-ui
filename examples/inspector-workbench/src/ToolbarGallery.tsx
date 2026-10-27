@@ -4,10 +4,9 @@ import "@inspector/canvas/sketch/SketchToolBar.css";
 import { CanvasToolbar, type CanvasInteractionTool } from "@inspector/canvas/CanvasToolbar.tsx";
 import { SketchToolBar } from "@inspector/canvas/sketch/SketchToolBar.tsx";
 import type { SketchDrawingTool } from "@inspector/sketch/drawingTools.ts";
-import { SKETCH_PEN_COLORS, type SketchDocument, type SketchPenColor } from "@inspector/sketch/model.ts";
+import { SKETCH_PEN_COLORS, type SketchPenColor } from "@inspector/sketch/model.ts";
 import { ToastRegion } from "@inspector/ui/Toast.tsx";
 import { TooltipGroup } from "@inspector/ui/Tooltip.tsx";
-import { useFixtureSketches } from "./fixtureSketches.ts";
 
 const DEFAULT_COLOR = SKETCH_PEN_COLORS.find((color) => color.id === "blue")!;
 
@@ -27,33 +26,26 @@ interface BarState {
   readonly description: string;
   readonly tool: SketchDrawingTool;
   readonly colorId?: SketchPenColor["id"];
-  readonly hasContent: boolean;
-  readonly saving?: boolean;
-  readonly saved: number;
+  readonly hasMarks: boolean;
+  readonly capturing?: boolean;
   readonly paletteOpen?: boolean;
-  /** Holds the saved sketches opened into their arc above the bar. */
-  readonly expanded?: boolean;
 }
 
-/** One sketch bar for each state it can be in. Every bar is live: change its tool or colour, or hover a saved sketch. */
+/** One sketch bar for each state it can be in. Every bar is live: change its tool or colour. */
 const BAR_STATES: readonly BarState[] = [
-  { id: "pen", title: "Pen", description: "The default tool, with the active tool lifted into its well.", tool: "pen", hasContent: true, saved: 0 },
-  { id: "eraser", title: "Eraser", description: "Choosing a colour hands the eraser back to the pen.", tool: "eraser", hasContent: true, saved: 0 },
-  { id: "rectangle", title: "Rectangle", description: "Takes the pen colour.", tool: "rectangle", colorId: "orange", hasContent: true, saved: 0 },
-  { id: "text", title: "Text", description: "Click the sketch to type.", tool: "text", hasContent: true, saved: 0 },
-  { id: "color", title: "Another colour", description: "The pen and the rectangle follow the chosen colour.", tool: "pen", colorId: "red", hasContent: true, saved: 0 },
-  { id: "palette", title: "Colour palette open", description: "The swatches fan out above the saved sketches.", tool: "pen", hasContent: true, saved: 1, paletteOpen: true },
-  { id: "empty", title: "Nothing drawn yet", description: "Save still works: it says what to do instead.", tool: "pen", hasContent: false, saved: 0 },
-  { id: "saving", title: "Saving", description: "The save button is busy and disabled.", tool: "pen", hasContent: true, saving: true, saved: 0 },
-  { id: "one-saved", title: "One saved sketch", description: "Beside the save button. Click it to open it, a little bigger, above the bar.", tool: "pen", hasContent: false, saved: 1 },
-  { id: "three-saved", title: "Three saved sketches", description: "Stacked on top of each other beside the save button. Click them to open them into an arc above the bar, like cards in a hand; the bar does not shift.", tool: "pen", hasContent: false, saved: 3 },
-  { id: "three-expanded", title: "Saved sketches expanded", description: "The grid above the bar: click a sketch to copy it, or remove it.", tool: "pen", hasContent: false, saved: 3, expanded: true },
+  { id: "pen", title: "Pen", description: "The default tool, with the active tool lifted into its well.", tool: "pen", hasMarks: true },
+  { id: "eraser", title: "Eraser", description: "Choosing a colour hands the eraser back to the pen.", tool: "eraser", hasMarks: true },
+  { id: "rectangle", title: "Rectangle", description: "Takes the pen colour.", tool: "rectangle", colorId: "orange", hasMarks: true },
+  { id: "text", title: "Text", description: "Click the sketch to type.", tool: "text", hasMarks: true },
+  { id: "color", title: "Another colour", description: "The pen and the rectangle follow the chosen colour.", tool: "pen", colorId: "red", hasMarks: true },
+  { id: "palette", title: "Colour palette open", description: "The swatches fan out above the bar.", tool: "pen", hasMarks: true, paletteOpen: true },
+  { id: "empty", title: "Nothing drawn yet", description: "A screenshot still works; there is nothing to clear.", tool: "pen", hasMarks: false },
+  { id: "capturing", title: "Taking a screenshot", description: "The screenshot button is busy and disabled.", tool: "pen", hasMarks: true, capturing: true },
 ];
 
-function CanvasToolbarFixture({ tool: initialTool, title, sketches }: {
+function CanvasToolbarFixture({ tool: initialTool, title }: {
   readonly tool: CanvasInteractionTool;
   readonly title: string;
-  readonly sketches: readonly SketchDocument[];
 }): ReactElement {
   const [tool, setTool] = useState(initialTool);
   const [sketchTool, setSketchTool] = useState<SketchDrawingTool>("pen");
@@ -71,13 +63,12 @@ function CanvasToolbarFixture({ tool: initialTool, title, sketches }: {
           still
           tool={sketchTool}
           color={color}
-          recents={sketches.slice(0, 1)}
-          saving={false}
-          hasContent
+          capturing={false}
+          hasMarks
           onToolChange={setSketchTool}
           onColorChange={setColor}
-          onSave={noop}
-          onRemoveRecent={noop}
+          onScreenshot={noop}
+          onClear={noop}
         />
       </div>
       <figcaption>{title}</figcaption>
@@ -85,12 +76,12 @@ function CanvasToolbarFixture({ tool: initialTool, title, sketches }: {
   );
 }
 
-function SketchBarFixture({ state, sketches }: { readonly state: BarState; readonly sketches: readonly SketchDocument[] }): ReactElement {
+function SketchBarFixture({ state }: { readonly state: BarState }): ReactElement {
   const [tool, setTool] = useState(state.tool);
   const [color, setColor] = useState<SketchPenColor>(SKETCH_PEN_COLORS.find((candidate) => candidate.id === state.colorId) ?? DEFAULT_COLOR);
   return (
     <figure className="toolbar-fixture" data-test={`sketch-bar-${state.id}`}>
-      <div className="toolbar-stage" data-size={state.paletteOpen ? "palette" : state.expanded ? "grid" : "sketch"}>
+      <div className="toolbar-stage" data-size={state.paletteOpen ? "palette" : "sketch"}>
         <CanvasToolbar
           tool="sketch"
           sketchEnabled
@@ -100,19 +91,17 @@ function SketchBarFixture({ state, sketches }: { readonly state: BarState; reado
           open
           still
           paletteOpen={state.paletteOpen}
-          expanded={state.expanded}
           tool={tool}
           color={color}
-          recents={sketches.slice(0, state.saved)}
-          saving={state.saving ?? false}
-          hasContent={state.hasContent}
+          capturing={state.capturing ?? false}
+          hasMarks={state.hasMarks}
           onToolChange={(next) => setTool(next)}
           onColorChange={(next) => {
             setColor(next);
             if (tool === "eraser") setTool("pen");
           }}
-          onSave={noop}
-          onRemoveRecent={noop}
+          onScreenshot={noop}
+          onClear={noop}
         />
       </div>
       <figcaption><strong>{state.title}</strong> {state.description}</figcaption>
@@ -122,20 +111,19 @@ function SketchBarFixture({ state, sketches }: { readonly state: BarState; reado
 
 /** The real canvas toolbar and sketch bar, driven by local state instead of the canvas, with every sketch state on one page. */
 export function ToolbarGallery(): ReactElement {
-  const sketches = useFixtureSketches(3);
   return (
     <TooltipGroup>
       <div className="toolbar-gallery" data-test="toolbar-gallery">
         <section aria-labelledby="canvas-toolbar-heading">
           <h3 id="canvas-toolbar-heading">Each tool active</h3>
           <div className="toolbar-grid">
-            {CANVAS_TOOLS.map((item) => <CanvasToolbarFixture key={item.tool} tool={item.tool} title={item.title} sketches={sketches} />)}
+            {CANVAS_TOOLS.map((item) => <CanvasToolbarFixture key={item.tool} tool={item.tool} title={item.title}/>)}
           </div>
         </section>
         <section aria-labelledby="sketch-bar-heading">
           <h3 id="sketch-bar-heading">Sketch bar states</h3>
           <div className="toolbar-grid">
-            {BAR_STATES.map((state) => <SketchBarFixture key={state.id} state={state} sketches={sketches} />)}
+            {BAR_STATES.map((state) => <SketchBarFixture key={state.id} state={state}/>)}
           </div>
         </section>
       </div>

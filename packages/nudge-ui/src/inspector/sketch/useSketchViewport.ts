@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getSketchViewport, type SketchViewport } from "./capture.ts";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { getSketchViewport, type SketchViewport } from "./viewport.ts";
 
 /** Tracks the captured frame's placement and scroll; a card or panel resize re-measures it too. */
 export function useSketchViewport(
@@ -31,8 +31,9 @@ export function useSketchViewport(
     };
   }, [hostElement, open]);
 
-  // Panning or zooming the board moves the frame without resizing it, so no listener above sees it.
-  useEffect(() => {
+  // Panning or zooming the board moves the frame without resizing it, so no listener above sees it. Measured before
+  // paint, so the surface moves with the board instead of a frame behind it.
+  useLayoutEffect(() => {
     if (open) setViewport(getSketchViewport(hostElement));
   }, [hostElement, layoutKey, open]);
 

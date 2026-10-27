@@ -17,6 +17,7 @@ import {
   type FrameIdentity,
 } from "./frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame } from "./projection.ts";
+import { setAnimationBusy } from "./debugViewStore.ts";
 import { PROJECT_ID, WORKSPACE_ID } from "./frameConnection.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,6 +49,7 @@ describe("CanvasElementOverlay", () => {
     cancelInlineTextEdit();
     clearActiveDraft();
     setSelectedElement(null);
+    setAnimationBusy(false);
     unregisterCardFrame(cardId);
     host.remove();
     iframe.remove();
@@ -167,8 +169,8 @@ describe("CanvasElementOverlay", () => {
     expect(fill?.style.height).toBe("20px");
     const badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
     expect(badge?.textContent).toBe("20px");
-    expect(badge?.style.left).toBe("200px");
-    expect(badge?.style.top).toBe("60px");
+    expect(badge?.style.getPropertyValue("--badge-x")).toBe("200px");
+    expect(badge?.style.getPropertyValue("--badge-y")).toBe("60px");
     expect(host.querySelector('[data-test="canvas-hover-outline"]')).toBeNull();
     expect(host.querySelectorAll('[data-test="canvas-selected-outline"]')).toHaveLength(1);
 
@@ -346,15 +348,15 @@ describe("CanvasElementOverlay", () => {
     let badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("20px");
-    expect(badge?.style.left).toBe("200px");
-    expect(badge?.style.top).toBe("60px");
+    expect(badge?.style.getPropertyValue("--badge-x")).toBe("200px");
+    expect(badge?.style.getPropertyValue("--badge-y")).toBe("60px");
 
     dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
 
     badge = host.querySelector<HTMLElement>('[data-test="canvas-spacing-value-badge"]');
     expect(badge?.textContent).toBe("32px");
-    expect(badge?.style.left).toBe("200px");
-    expect(badge?.style.top).toBe("72px");
+    expect(badge?.style.getPropertyValue("--badge-x")).toBe("200px");
+    expect(badge?.style.getPropertyValue("--badge-y")).toBe("72px");
 
     dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
 
@@ -817,5 +819,32 @@ describe("CanvasElementOverlay", () => {
       }),
     ]));
     clearActiveDraft();
+  });
+
+  it("hides the selection outline while an animation plays or scrubs", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    act(() => {
+      setSelectedElement(resolveSelectionFromElement(card));
+    });
+    const outlines = (): number => host.querySelectorAll('[data-test="canvas-selected-outline"]').length;
+
+    const before = outlines();
+    act(() => setAnimationBusy(true));
+    const busy = outlines();
+    act(() => setAnimationBusy(false));
+
+    expect([before, busy, outlines()]).toEqual([1, 0, 1]);
   });
 });

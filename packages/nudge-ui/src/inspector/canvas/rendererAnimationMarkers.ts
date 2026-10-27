@@ -1,4 +1,5 @@
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
+import { subscribeStylesheetCopies } from "../tokens/resolution/crossOriginStylesheets.ts";
 import { scanPageAnimations, type AnimationGroup } from "./animationScan.ts";
 
 const CONTAINER_ID = "nudge-ui-animation-markers";
@@ -47,6 +48,7 @@ export function createRendererAnimationMarkers(
   let container: HTMLElement | null = null;
   let observer: MutationObserver | null = null;
   let rescanTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopCopyListener: (() => void) | null = null;
   const targets = new WeakMap<Element, Element>();
 
   const isOwn = (element: Element): boolean =>
@@ -114,6 +116,8 @@ export function createRendererAnimationMarkers(
       if (mutations.some((mutation) => !(mutation.target instanceof Element && isOwn(mutation.target)))) scheduleRender();
     });
     if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    // A cross-origin sheet's rules arrive after its fetch, which no mutation announces.
+    stopCopyListener = subscribeStylesheetCopies(document, scheduleRender);
   }
 
   function stop(): void {
@@ -121,6 +125,8 @@ export function createRendererAnimationMarkers(
     window?.removeEventListener("resize", scheduleRender);
     observer?.disconnect();
     observer = null;
+    stopCopyListener?.();
+    stopCopyListener = null;
     clearTimeout(rescanTimer);
     container?.remove();
     container = null;

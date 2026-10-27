@@ -9,11 +9,12 @@ import { releaseLease } from "./canvas/workspaceLease.ts";
 import { enablePageSurface } from "./canvas/pageSurface.ts";
 import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import { configureInspectorStorage, type InspectorStorage } from "./runtime/inspectorStorage.ts";
-import { configureSketchStorage, type SketchStorage } from "./canvas/sketch/persistence.ts";
 import { configureSystemFontSource, type SystemFontSource } from "./runtime/systemFonts.ts";
+import { configureTabCaptureSource, type TabCaptureSource } from "./sketch/tabCapture.ts";
 import { preferAdoptedStylesheets } from "./runtime/ownedStylesheets.ts";
 import { enableInspectionPerformanceDiagnostics } from "./inspection/performanceDiagnostics.ts";
 import { installLazyRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
+import { stylesheetText } from "./tokens/resolution/crossOriginStylesheets.ts";
 import { createTokenInventory } from "../css/token-inventory/inventory.ts";
 import type { InventoryDiagnostic, StylesheetArtifact } from "../css/token-inventory/types.ts";
 import type { TokenCatalogDiagnostic, TokenDeclaration, TokenDefinition } from "../css/model/index.ts";
@@ -21,10 +22,8 @@ import type { NudgeUiRuntimeConfig } from "./runtime/runtimeConfig.ts";
 
 export type { InspectorStorage } from "./runtime/inspectorStorage.ts";
 export { createMirroredStorage } from "./runtime/inspectorStorage.ts";
-export type { SketchPersistenceSnapshot, SketchStorage, SketchStorageChange } from "./canvas/sketch/persistence.ts";
-export { isSketchDocument } from "./sketch/model.ts";
 export type { SystemFontAccess, SystemFontSource } from "./runtime/systemFonts.ts";
-export type { SketchDocument } from "./sketch/model.ts";
+export type { TabCaptureSource } from "./sketch/tabCapture.ts";
 
 const MOUNT_ID = "nudge-ui-root";
 const LOADED_FLAG = "__NUDGE_UI_PAGE_INSPECTOR__";
@@ -33,10 +32,10 @@ const COMPUTED_ROOT_ID = "computed:root";
 export interface PageInspectorOptions {
   /** Replaces `localStorage` for comments, drafts, and Canvas state. */
   storage?: InspectorStorage;
-  /** Replaces the page origin's IndexedDB for saved sketch images. */
-  sketchStorage?: SketchStorage;
   /** Replaces the Local Font Access API for the font family list. */
   systemFonts?: SystemFontSource;
+  /** Pictures the visible tab for sketch screenshots without asking the user to share the screen. */
+  tabCapture?: TabCaptureSource;
   /** Skips the `<style>` policy probe and always uses constructable stylesheets. */
   adoptStylesheets?: boolean;
 }
@@ -83,14 +82,9 @@ async function collectSheet(sheet: CSSStyleSheet, index: number, base: string): 
   try {
     return { id, content: serializeRules(sheet) };
   } catch {
-    if (!sheet.href) return { id, readError: "stylesheet rules are not readable" };
-  }
-  try {
-    const response = await fetch(sheet.href, { mode: "cors", credentials: "omit" });
-    if (!response.ok) return { id, readError: `HTTP ${response.status}` };
-    return { id, content: await response.text() };
-  } catch {
-    return { id, readError: "cross-origin stylesheet without CORS access" };
+    // The rule collector reads the same fetch, so the cascade and tokens see one copy of the sheet.
+    const result = await stylesheetText(sheet, document);
+    return "text" in result ? { id, content: result.text } : { id, readError: result.error };
   }
 }
 
@@ -242,8 +236,8 @@ export async function startPageInspector(options: PageInspectorOptions = {}): Pr
     enablePerformanceDiagnostics: () => enableInspectionPerformanceDiagnostics(document),
   };
   if (options.storage) configureInspectorStorage(options.storage);
-  if (options.sketchStorage) configureSketchStorage(options.sketchStorage);
   if (options.systemFonts) configureSystemFontSource(options.systemFonts);
+  if (options.tabCapture) configureTabCaptureSource(options.tabCapture);
   if (options.adoptStylesheets) preferAdoptedStylesheets();
 
   // Tokens can wait on cross-origin stylesheet fetches, so the panel mounts first.

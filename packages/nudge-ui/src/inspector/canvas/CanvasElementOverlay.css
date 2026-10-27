@@ -28,7 +28,7 @@
 }
 
 @keyframes spacing-snap {
-  from { scale: 1.25; }
+  from { scale: 1.1; }
   to { scale: 1; }
 }
 
@@ -57,7 +57,11 @@
 
 .canvas-spacing-value-badge {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 3;
+  /* Placed with `translate` rather than left/top, so gliding between snaps stays off layout. */
+  translate: var(--badge-x, 0) var(--badge-y, 0);
   transform: translate(-50%, calc(-100% - var(--space-8)));
   padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-8);
@@ -75,7 +79,7 @@
 
 /* While snapping, the badge rides the snapped handle and glides between steps instead of tracking the raw pointer. */
 .canvas-spacing-value-badge[data-snapping] {
-  transition: left var(--spring-duration) var(--spring-ease), top var(--spring-duration) var(--spring-ease);
+  transition: translate var(--spring-duration) var(--spring-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {

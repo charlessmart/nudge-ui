@@ -32,22 +32,29 @@
 }
 
 /* Moving between tooltips in a group opens the next one instantly; replaying the entrance would read as a flicker. */
+/* Grows out of its trigger rather than its own center. */
 .tooltip__popup[data-open]:not([data-instant]) {
+  transform-origin: var(--transform-origin);
   animation: tooltip-enter calc(var(--spring-duration) * 0.7) var(--spring-ease);
 }
 
 @keyframes tooltip-enter {
   from {
-    transform: scale(0.9);
+    opacity: 0;
+    transform: scale(0.96);
   }
-  to {
-    transform: scale(1);
+}
+
+/* Without the movement, the fade alone still softens the arrival. */
+@keyframes tooltip-fade {
+  from {
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tooltip__popup[data-open] {
-    animation: none;
+  .tooltip__popup[data-open]:not([data-instant]) {
+    animation: tooltip-fade 120ms ease-out;
   }
 }
 

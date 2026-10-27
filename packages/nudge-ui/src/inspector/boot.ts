@@ -45,7 +45,6 @@ import {
 } from "./session/index.ts";
 import { cancelSketchInteraction, isSketchInteractionActive } from "./canvas/sketch/interaction.ts";
 import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
-import { initializeSketchStore } from "./canvas/sketch/store.ts";
 import { inspectorStorage } from "./runtime/inspectorStorage.ts";
 import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts";
 
@@ -187,8 +186,6 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
     lockedRoot.unmount();
     lockedRoot = null;
   }
-
-  void initializeSketchStore(getNudgeUiRuntimeConfig().projectId).catch(() => undefined);
 
   unsubscribeOwnership?.();
   unsubscribeOwnership = subscribeOwnership((hasLease) => {

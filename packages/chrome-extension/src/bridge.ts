@@ -1,5 +1,5 @@
 /**
- * One request/response channel over the page's DOM events. Every capability the extension bridges (storage, sketches,
+ * One request/response channel over the page's DOM events. Every capability the extension bridges (storage, screenshots,
  * fonts) is the same three things — an event pair, a way to encode each side, and a timeout — so they share one
  * implementation instead of three hand-rolled ones.
  */

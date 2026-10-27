@@ -222,7 +222,7 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
-export type KeyboardShortcutCode = "Backslash" | "Escape" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyS";
+export type KeyboardShortcutCode = "Backslash" | "Escape" | "KeyV" | "KeyC" | "KeyP" | "KeyD" | "KeyO" | "KeyX" | "KeyS";
 export type KeyboardShortcutPhase = "keydown" | "keyup";
 
 export interface KeyboardShortcutMessage extends RendererMessage {
@@ -545,6 +545,8 @@ export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcu
     || value === "KeyC"
     || value === "KeyP"
     || value === "KeyD"
+    || value === "KeyO"
+    || value === "KeyX"
     || value === "KeyS";
 }
 

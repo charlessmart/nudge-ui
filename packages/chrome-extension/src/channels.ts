@@ -3,24 +3,16 @@ import {
   FONT_LIST_REQUEST_EVENT,
   FONT_LIST_RESPONSE_EVENT,
   parseFontListResponse,
-  parseSketchRequest,
-  parseSketchResponse,
   parseStorageReadResponse,
-  SKETCH_REQUEST_EVENT,
-  SKETCH_RESPONSE_EVENT,
   STORAGE_READ_EVENT,
   STORAGE_READ_RESPONSE_EVENT,
+  TAB_CAPTURE_REQUEST_EVENT,
+  TAB_CAPTURE_RESPONSE_EVENT,
+  parseTabCaptureResponse,
   type FontListResponse,
-  type SketchRequest,
-  type SketchResponse,
   type StorageReadResponse,
+  type TabCaptureResponse,
 } from "./protocol.ts";
-
-// Distributive so each request keeps its own fields.
-type RequestBody<Request = SketchRequest> = Request extends unknown ? Omit<Request, "id"> : never;
-
-/** A sketch request without its channel id. */
-export type SketchRequestBody = RequestBody;
 
 type EmptyRequest = Record<never, never>;
 
@@ -44,18 +36,6 @@ export const storageReadChannel: ChannelProtocol<EmptyRequest, StorageReadRespon
   encodeFailure: (id, error) => ({ id, error: error.message }),
 };
 
-/** Recent sketch images, which are too large to travel with the rest of the inspector state. */
-export const sketchChannel: ChannelProtocol<RequestBody, SketchResponse> = {
-  name: "Sketch storage",
-  request: SKETCH_REQUEST_EVENT,
-  response: SKETCH_RESPONSE_EVENT,
-  encodeRequest: (request) => JSON.stringify(request),
-  decodeRequest: parseSketchRequest,
-  encodeReply: (reply) => JSON.stringify(reply),
-  decodeReply: parseSketchResponse,
-  encodeFailure: (id, error) => ({ id, ok: false, error: error.message }),
-};
-
 /** The installed font families, which only the service worker can list. */
 export const fontListChannel: ChannelProtocol<EmptyRequest, FontListResponse> = {
   name: "The font list",
@@ -65,5 +45,17 @@ export const fontListChannel: ChannelProtocol<EmptyRequest, FontListResponse> = 
   decodeRequest: decodeEmptyRequest,
   encodeReply: (reply) => JSON.stringify(reply),
   decodeReply: parseFontListResponse,
+  encodeFailure: (id, error) => ({ id, error: error.message }),
+};
+
+/** A picture of the visible tab for sketch screenshots, which only the service worker can take. */
+export const tabCaptureChannel: ChannelProtocol<EmptyRequest, TabCaptureResponse> = {
+  name: "Tab capture",
+  request: TAB_CAPTURE_REQUEST_EVENT,
+  response: TAB_CAPTURE_RESPONSE_EVENT,
+  encodeRequest: ({ id }) => id,
+  decodeRequest: decodeEmptyRequest,
+  encodeReply: (reply) => JSON.stringify(reply),
+  decodeReply: parseTabCaptureResponse,
   encodeFailure: (id, error) => ({ id, error: error.message }),
 };

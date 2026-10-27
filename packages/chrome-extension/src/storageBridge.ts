@@ -1,5 +1,5 @@
 import { serveChannel } from "./bridge.ts";
-import { fontListChannel, sketchChannel, storageReadChannel, type SketchRequestBody } from "./channels.ts";
+import { fontListChannel, storageReadChannel, tabCaptureChannel } from "./channels.ts";
 import {
   FONT_LIST_MESSAGE,
   INSPECTOR_ROOT_ID,
@@ -8,18 +8,20 @@ import {
   parsePanelSide,
   parseFontListResult,
   parseStorageWrite,
-  parseStoredSketchDocument,
+  parseTabCaptureResult,
   siteKeyPrefix,
-  sketchKeyPrefix,
   STORAGE_WRITE_EVENT,
+  TAB_CAPTURE_MESSAGE,
   type FontListMessage,
-  type StoredSketchRecords,
+  type TabCaptureMessage,
 } from "./protocol.ts";
 
 const BRIDGE_FLAG = "__nudgeUiStorageBridge";
 /** nudge-ui's "Show system fonts" row. */
 const SYSTEM_FONTS_REQUEST_SELECTOR = '[data-test="system-fonts-request"]';
 const GESTURE_EVENTS = ["pointerdown", "mousedown", "mouseup", "click", "keydown"];
+/** A screenshot waits for Nudge UI to hide itself first, so a click in Nudge UI stays good for this long. */
+const CAPTURE_GESTURE_WINDOW_MS = 10_000;
 
 interface InspectorGesture {
   asksForFonts: boolean;
@@ -41,41 +43,11 @@ function inspectorGesture(event: Event): InspectorGesture | null {
   return { asksForFonts: event.key === "Enter" && row !== null };
 }
 
-async function handleSketchRequest(prefix: string, request: SketchRequestBody): Promise<StoredSketchRecords | undefined> {
-  const documentKey = (id: string) => `${prefix}doc:${id}`;
-  if (request.op === "read") {
-    const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith(prefix));
-    const stored = keys.length === 0 ? {} : await chrome.storage.local.get(keys);
-    const records: StoredSketchRecords = { documents: [] };
-    const stale: string[] = [];
-    for (const [key, value] of Object.entries(stored)) {
-      if (key.startsWith(documentKey(""))) {
-        const document = parseStoredSketchDocument(value);
-        if (document) records.documents.push(document);
-        else stale.push(key);
-      } else if (key.startsWith(`${prefix}handoff:`)) {
-        // v1 dispatch metadata has no reader; drop it so it does not keep its quota.
-        stale.push(key);
-      }
-    }
-    if (stale.length > 0) await chrome.storage.local.remove(stale);
-    return records;
-  }
-  const removals = request.deleteDocumentIds.map(documentKey);
-  if (removals.length > 0) await chrome.storage.local.remove(removals);
-  const puts = Object.fromEntries(
-    request.put.documents.map((document) => [documentKey(document.id), document] as const),
-  );
-  if (Object.keys(puts).length > 0) await chrome.storage.local.set(puts);
-  return undefined;
-}
-
 // Runs in the isolated world, so the page can dispatch writes but cannot choose the origin they are stored under.
 const scope = globalThis as typeof globalThis & { [BRIDGE_FLAG]?: true };
 if (!scope[BRIDGE_FLAG]) {
   scope[BRIDGE_FLAG] = true;
   const prefix = siteKeyPrefix(location.origin);
-  const sketchPrefix = sketchKeyPrefix(location.origin);
 
   serveChannel(storageReadChannel, async () => {
     const keys = await chrome.storage.local.getKeys();
@@ -104,11 +76,6 @@ if (!scope[BRIDGE_FLAG]) {
       .catch((error: unknown) => console.warn("[nudge-ui] Could not save the panel side.", error));
   });
 
-  serveChannel(sketchChannel, async (request) => {
-    const records = await handleSketchRequest(sketchPrefix, request);
-    return records ? { ok: true, records } : { ok: true };
-  }, { target: document });
-
   // The inspector asks for fonts while handling the user's event, including its effects and microtasks; the gesture lasts until that task ends.
   let gesture: InspectorGesture | null = null;
   for (const type of GESTURE_EVENTS) {
@@ -121,6 +88,25 @@ if (!scope[BRIDGE_FLAG]) {
       });
     }, true);
   }
+  // A screenshot shows cross-origin frames the page cannot read, so the page alone cannot ask for one: each click or key
+  // press in Nudge UI allows one capture.
+  let captureGestureAt: number | null = null;
+  for (const type of GESTURE_EVENTS) {
+    window.addEventListener(type, (event) => {
+      if (inspectorGesture(event)) captureGestureAt = performance.now();
+    }, true);
+  }
+  serveChannel(tabCaptureChannel, async () => {
+    const gestureAt = captureGestureAt;
+    captureGestureAt = null;
+    if (gestureAt === null || performance.now() - gestureAt > CAPTURE_GESTURE_WINDOW_MS) {
+      return { error: "The tab is captured only after a click or key press in Nudge UI." };
+    }
+    const message: TabCaptureMessage = { type: TAB_CAPTURE_MESSAGE };
+    const reply: unknown = await chrome.runtime.sendMessage(message);
+    return parseTabCaptureResult(reply) ?? { error: "The tab could not be captured." };
+  }, { target: document });
+
   serveChannel(fontListChannel, async () => {
     if (!gesture) return { error: "The font list is available only during a click or key press in Nudge UI." };
     const message: FontListMessage = { type: FONT_LIST_MESSAGE, asked: gesture.asksForFonts };

@@ -561,6 +561,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       wallOvershoot: 0,
       elastic: createElasticDrag(
         handle.closest<HTMLElement>(".control-surface, .text-input, .token-chip") ?? handle.parentElement ?? handle,
+        handle,
         (offset) => dragNudgeRef.current?.pointerLock?.setCursorOffset(offset),
       ),
       deltaX: 0,

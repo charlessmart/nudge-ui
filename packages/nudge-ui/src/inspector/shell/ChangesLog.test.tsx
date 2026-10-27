@@ -4,8 +4,6 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
-import { resetSketchMemory } from "../canvas/sketch/persistence.ts";
 import { appendChange, clearActiveDraft } from "../drafts/store.ts";
 import {
   createStructuralDelete,
@@ -103,35 +101,6 @@ describe("ChangesLog", () => {
     expect(actions.previousElementSibling).toBe(root_);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--quiet");
-  });
-
-  it("does not list a kept sketch, which is a copy rather than a change", async () => {
-    resetSketchStore();
-    resetSketchMemory();
-    const image = new Blob(["png"], { type: "image/png" });
-    await initializeSketchStore();
-    await saveSketch({
-      url: window.location.href,
-      image,
-      imageWidth: 1,
-      imageHeight: 1,
-    });
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    try {
-      act(() => {
-        root = createRoot(container);
-        root.render(<ChangesLog />);
-      });
-
-      expect(getSketches()).toHaveLength(1);
-      expect(container.querySelector('[data-test="sketch-row"]')).toBeNull();
-      expect(container.querySelector('[data-test="changes-log"]')).toBeNull();
-      expect(container.textContent).toBe("");
-    } finally {
-      resetSketchStore();
-      resetSketchMemory();
-    }
   });
 
   it("presents and reverts canonical structural changes directly", () => {

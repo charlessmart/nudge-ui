@@ -45,7 +45,7 @@ optional, so you only need the tools your app uses.
 | --- | --- | --- |
 | Select | `V` | Select elements to inspect and edit. |
 | Comment | `C` | Attach a note to an element. |
-| Pencil | `P` | Draw, add shapes and text on the page, then save the sketch. |
+| Pencil | `P` | Draw, add shapes and text on the page, then take a screenshot. |
 | Use app normally | Hold `A` in Canvas | Interact with the app. You can also select this tool in the toolbar. |
 
 Hold `Space` to pan the canvas. Use undo and redo to revisit edits and frame

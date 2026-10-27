@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -7,7 +7,8 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 import { useSelectedElement } from "../selection/selectionStore.ts";
 import { ANIMATION_SPEEDS, AnimationSession, IDLE_ANIMATION_SNAPSHOT } from "./animationSession.ts";
 import { AnimationTimeline } from "./AnimationTimeline.tsx";
-import { setAnimationBusy, setAnimationSpeed, getAnimationSpeed, useAnimationSpeed } from "./debugViewStore.ts";
+import { warnAboutUnreadableStylesheets } from "./unreadableStylesheetWarning.ts";
+import { setAnimationBarHeight, setAnimationBusy, setAnimationSpeed, getAnimationSpeed, useAnimationSpeed } from "./debugViewStore.ts";
 
 const STATUS_LABEL = {
   idle: "",
@@ -26,12 +27,23 @@ const SPEED_OPTIONS = ANIMATION_SPEEDS.map((speed) => ({
 const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 const getIdleSnapshot = (): typeof IDLE_ANIMATION_SNAPSHOT => IDLE_ANIMATION_SNAPSHOT;
 
+/** The bar's height from its floating hint, which sits outside the bar's box, down to its bottom edge. */
+function measureBar(bar: HTMLElement): void {
+  const rect = bar.getBoundingClientRect();
+  const hint = bar.querySelector(".animation-bar__hint")?.getBoundingClientRect();
+  setAnimationBarHeight(Math.round(rect.bottom - Math.min(rect.top, hint?.top ?? rect.top)));
+}
+
 /** Floats above the canvas toolbar while the Animation tool is active. */
 export function AnimationBar(): ReactElement | null {
   const speed = useAnimationSpeed();
   const selected = useSelectedElement();
   const element = selected?.domElement ?? null;
   const session = useMemo(() => (element ? new AnimationSession(element) : null), [element]);
+  // The page's document: the selection's in a Canvas frame, and the inspector's own when it runs inside the page.
+  const pageDocument = element?.ownerDocument ?? document;
+
+  useEffect(() => warnAboutUnreadableStylesheets(pageDocument), [pageDocument]);
 
   useEffect(() => {
     if (!session) return;
@@ -60,18 +72,33 @@ export function AnimationBar(): ReactElement | null {
   const ready = session !== null && snapshot.status === "ready";
   const scrollDriven = snapshot.timeline === "scroll";
   const status = STATUS_LABEL[snapshot.status];
+  let hint: { readonly test: string; readonly text: string } | null = null;
+  if (!session) hint = { test: "animation-hint", text: "Select an element to inspect its animations" };
+  else if (entries?.length === 0) hint = { test: "animation-empty", text: "No animations on this element" };
+  else if (entries && status) hint = { test: "animation-status", text: status };
+  else if (entries && scrollDriven) hint = { test: "animation-scroll-hint", text: "Scroll-driven · scrub the timeline" };
+
+  // Toasts read the bar's height, from its floating hint down, to stay clear of it. Playback re-renders every frame, so
+  // this measures only when the hint changes or the bar resizes, never per render.
+  const barRef = useRef<HTMLDivElement>(null);
+  const hintText = hint?.text ?? null;
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (bar) measureBar(bar);
+  }, [hintText]);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const observer = bar && typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => measureBar(bar)) : null;
+    if (bar) observer?.observe(bar);
+    return () => {
+      observer?.disconnect();
+      setAnimationBarHeight(0);
+    };
+  }, []);
 
   return (
-    <div className="animation-bar" data-test="animation-bar" role="toolbar" aria-label="Animation controls">
-      {!session ? (
-        <span className="animation-bar__hint" data-test="animation-hint">Select an element to inspect its animations</span>
-      ) : entries === null ? null : entries.length === 0 ? (
-        <span className="animation-bar__hint" data-test="animation-empty">No animations on this element</span>
-      ) : status ? (
-        <span className="animation-bar__hint" data-test="animation-status">{status}</span>
-      ) : scrollDriven ? (
-        <span className="animation-bar__hint" data-test="animation-scroll-hint">Scroll-driven · scrub the timeline</span>
-      ) : null}
+    <div ref={barRef} className="animation-bar" data-test="animation-bar" role="toolbar" aria-label="Animation controls">
+      {hint ? <span className="animation-bar__hint" data-test={hint.test}>{hint.text}</span> : null}
       <div className="animation-bar__row">
         <AnimationTimeline
           progress={snapshot.progress}

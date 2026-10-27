@@ -26,7 +26,7 @@ import { portalContainer } from "../ui/portalContainer.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../canvas/sketch/interaction.ts";
-import { clearSketchesForProject } from "../canvas/sketch/store.ts";
+import { resetSketchMarks } from "../canvas/sketch/marksStore.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
 
@@ -102,7 +102,7 @@ export function SettingsDialog({
     cancelSketchInteraction();
     clearSession();
     clearRestoreCount();
-    void clearSketchesForProject(projectId).catch(() => undefined);
+    resetSketchMarks();
     onOpenChange(false);
   }
 

@@ -62,11 +62,13 @@ describe("keyboard shortcut schema", () => {
   it("accepts a supported shortcut for the matching card", () => {
     expect(isKeyboardShortcutMessage(message, identity)).toBe(true);
     expect(isKeyboardShortcutMessage({ ...message, code: "KeyS" }, identity)).toBe(true);
+    expect(isKeyboardShortcutMessage({ ...message, code: "KeyO" }, identity)).toBe(true);
+    expect(isKeyboardShortcutMessage({ ...message, code: "KeyX" }, identity)).toBe(true);
   });
 
   it.each([
     { phase: "keypress" },
-    { code: "KeyX" },
+    { code: "KeyZ" },
     { localId: "forbidden" },
     { cardId: "card-b" },
   ])("rejects malformed or wrong-card shortcuts: %o", (override) => {

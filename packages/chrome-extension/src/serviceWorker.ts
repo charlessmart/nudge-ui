@@ -5,11 +5,13 @@ import {
   PANEL_SIDE_KEY,
   parsePanelSide,
   parseFontListMessage,
+  parseTabCaptureMessage,
   PAGE_INSPECTOR_GLOBAL,
   siteKeyPrefix,
   systemFontsKey,
   type ExtensionBoot,
   type FontListResult,
+  type TabCaptureResult,
 } from "./protocol.ts";
 
 const INSPECTOR_BUNDLE = "nudge-ui.js";
@@ -161,8 +163,26 @@ async function readFontList(origin: string | undefined, asked: boolean): Promise
   }
 }
 
+/**
+ * Captures the sender's tab while it is the one on screen. `activeTab` covers this: the inspector exists only after the
+ * user invoked the extension on the tab, and a full navigation removes both.
+ */
+async function captureSenderTab(tab: chrome.tabs.Tab): Promise<TabCaptureResult> {
+  try {
+    const [active] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+    if (active?.id !== tab.id) return { error: "The tab is not the one on screen." };
+    return { dataUrl: await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (sender.tab?.id === undefined || sender.frameId !== 0) return;
+  if (parseTabCaptureMessage(message)) {
+    void captureSenderTab(sender.tab).then(sendResponse);
+    return true;
+  }
   const fontList = parseFontListMessage(message);
   if (!fontList) return;
   void readFontList(sender.origin, fontList.asked).then(sendResponse);

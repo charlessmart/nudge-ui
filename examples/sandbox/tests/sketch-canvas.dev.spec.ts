@@ -1,11 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
 import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
-
-async function grantClipboard(page: Page): Promise<void> {
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
-  await page.bringToFront();
-}
 
 test("a live sketch blocks canvas pan and zoom until it closes", async ({ page }) => {
   await openEditor(page, "/playground?nudge-ui=on");
@@ -119,31 +114,27 @@ test("the first stroke targets another frame without selecting an application el
   await page.mouse.up();
   await expect(page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path')).toHaveCount(1);
   await expect(page.locator('[data-test="selection"]')).toHaveCount(0);
-  await grantClipboard(page);
-  await page.locator('[data-test="sketch-copy"]').click();
-  // The copy was taken from the frame that was drawn on, not from the first one.
-  const recent = page.locator('[data-test="sketch-recent"]');
-  await expect(recent).toBeVisible({ timeout: 10_000 });
-  const id = await recent.getAttribute("data-sketch-id");
-  const capturedPath = await page.evaluate(async (sketchId) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("nudge-ui-sketches");
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const saved = await new Promise<{ url: string }>((resolve, reject) => {
-      const request = database.transaction("documents").objectStore("documents").get(sketchId!);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    database.close();
-    return new URL(saved.url).pathname;
-  }, id);
-  expect(capturedPath).toBe("/conformance");
 
-  // Nothing is left drawn on either frame, and the copied sketch is not listed as a change.
+  // Drawing on the first frame too keeps the second frame's marks; neither is limited to one frame per sketch.
+  const first = page.locator(".canvas-card__iframe").first();
+  const firstBounds = await first.boundingBox();
+  if (!firstBounds) throw new Error("The first frame is missing");
+  await page.mouse.move(firstBounds.x + firstBounds.width / 2, firstBounds.y + firstBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(firstBounds.x + firstBounds.width / 2 + 30, firstBounds.y + firstBounds.height / 2 + 20, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.locator('[data-test="sketch-marks"]')).toHaveCount(1);
+
+  // Leaving the sketch tool keeps every frame's marks on screen, and they let clicks through to the frames.
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-marks"]')).toHaveCount(2);
+  await expect(page.locator('[data-test="sketch-marks"]').first()).toHaveCSS("pointer-events", "none");
+
+  // Clear all removes the marks from every frame.
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  await page.locator('[data-test="sketch-clear"]').click();
   await expect(page.locator('.sketch__live-canvas [data-test="sketch-svg-layer"] path')).toHaveCount(0);
-  await expect(page.locator('[data-test="canvas-sketch-overlay"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="sketch-row"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="sketch-marks"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="sketch-clear"]')).toBeDisabled();
 });

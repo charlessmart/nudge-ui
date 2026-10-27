@@ -31,7 +31,6 @@ body { margin: 0; }
 .toolbar-stage[data-size="toolbar"] { height: 96px; }
 .toolbar-stage[data-size="sketch"] { height: 168px; }
 .toolbar-stage[data-size="palette"] { height: 252px; }
-.toolbar-stage[data-size="grid"] { height: 640px; }
 /* The fixture renders the bar as a sibling of the toolbar, as the live sketch session does; sit it above the toolbar. */
 .toolbar-stage > .sketch-options {
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-4) * 2 + var(--space-8));

@@ -1,5 +1,5 @@
 import { useLayoutEffect } from "react";
-import { collectRules, invalidateStyleResolutionCache, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
+import { collectRules, documentRevisions, invalidateStyleResolutionCache, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import { selectorPseudoClasses, splitSelectorAtTopLevel } from "../tokens/resolution/selectorSemantics.ts";
 import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet, STATE_PREVIEW_SHEET_ID } from "../runtime/ownedStylesheets.ts";
 import { INTERACTION_STATES, type InteractionState } from "./styleState.ts";
@@ -68,7 +68,13 @@ export function startInteractionStatePreview(
     (doc.head ?? doc.documentElement).appendChild(style);
   }
 
+  let builtRevision: number | null = null;
+  let builtCss: string | null = null;
   const refresh = (): void => {
+    // The copy follows the page's rules alone; a page that changes its DOM many times a second must not rebuild it each time.
+    const revision = documentRevisions(doc).stylesheet;
+    if (revision === builtRevision) return;
+    builtRevision = revision;
     const css = collectRules(doc).rules.map((rule) => {
       const selector = splitSelectorAtTopLevel(rule.selectorText, ",")
         .map((branch) => previewSelector(branch.trim())).join(", ");
@@ -81,6 +87,9 @@ export function startInteractionStatePreview(
       if (rule.layer) text = `@layer ${rule.layer} { ${text} }`;
       return text;
     }).join("\n");
+    // Rewriting an unchanged sheet still reparses it and restyles the whole page.
+    if (css === builtCss) return;
+    builtCss = css;
     if (style) style.textContent = css;
     else adoptStylesheet(doc, STATE_PREVIEW_SHEET_ID, css);
   };

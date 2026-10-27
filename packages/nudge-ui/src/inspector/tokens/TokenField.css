@@ -31,7 +31,6 @@
   cursor: var(--nudge-drag-cursor, ew-resize);
   touch-action: none;
   user-select: none;
-  transform: translateX(var(--nudge-shift, 0px));
 }
 
 /* The left edge follows the drag: a same-coloured offset shadow extends it outwards, a clip pulls it inwards. Both follow the corner radius. */

@@ -1,88 +1,118 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { cancelSketchInteraction, isSketchInteractionActive, openSketchInteraction, sketchOpenedByKeyboard } from "./interaction.ts";
 import {
-  beginSketchCapture,
-  cancelSketchInteraction,
-  completeSketchCapture,
-  isSketchInteractionActive,
-} from "./interaction.ts";
-import { captureViewport } from "../../sketch/capture.ts";
+  clearAllSketchMarks,
+  getSketchMarks,
+  hasSketchMarks,
+  resetSketchMarks,
+  setSketchEditingKey,
+  setSketchMarksCapturing,
+  showsPassiveMarks,
+  sketchMarksKey,
+  useSketchMarks,
+  type SketchMarksControls,
+} from "./marksStore.ts";
+import type { SketchStroke } from "../../sketch/model.ts";
 
-const captured = {
-  pageImage: new Blob(["png"], { type: "image/png" }),
-  imageWidth: 1,
-  imageHeight: 1,
-  capture: {
-    url: "http://localhost:5173/",
-    title: "Fixture",
-    timestamp: 1,
-    viewportWidth: 800,
-    viewportHeight: 600,
-    scrollX: 0,
-    scrollY: 0,
-    devicePixelRatio: 1,
-    host: "vite-react",
-    framework: "React",
-    imageWidth: 1,
-    imageHeight: 1,
-  },
-};
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const capture = vi.fn<typeof captureViewport>();
+function stroke(id: string): SketchStroke {
+  return { id, kind: "freehand", width: 6, color: "#0096ff", points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] };
+}
+
+const roots: Root[] = [];
+
+/** Renders the hook for one key and hands back its latest controls. */
+function renderMarks(key: string): () => SketchMarksControls {
+  let latest: SketchMarksControls | null = null;
+  function Probe(): null {
+    latest = useSketchMarks(key);
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  act(() => root.render(createElement(Probe)));
+  roots.push(root);
+  return () => latest!;
+}
+
+const home = sketchMarksKey("card-1", "http://localhost/");
+const pricing = sketchMarksKey("card-1", "http://localhost/pricing");
+const other = sketchMarksKey("card-2", "http://localhost/");
 
 describe("sketch interaction", () => {
   beforeEach(() => {
     cancelSketchInteraction();
-    capture.mockClear();
-    capture.mockResolvedValue(captured);
+    resetSketchMarks();
   });
 
-  it("opens the tool without capturing, and closes it again", () => {
-    beginSketchCapture();
+  afterEach(() => {
+    for (const root of roots.splice(0)) act(() => root.unmount());
+  });
+
+  it("opens and closes the tool, remembering only how it was first opened", () => {
+    openSketchInteraction({ viaKeyboard: true });
+    openSketchInteraction();
 
     expect(isSketchInteractionActive()).toBe(true);
-    expect(capture).not.toHaveBeenCalled();
+    expect(sketchOpenedByKeyboard()).toBe(true);
 
     cancelSketchInteraction();
 
     expect(isSketchInteractionActive()).toBe(false);
   });
 
-  it("hands the capture result back and keeps the tool open for the next sketch", async () => {
-    const hostElement = document.createElement("div");
-    beginSketchCapture();
+  it("keeps marks after the tool closes, apart for each frame and page", () => {
+    openSketchInteraction();
+    const homeMarks = renderMarks(home);
+    const otherMarks = renderMarks(other);
+    act(() => homeMarks().addStroke(stroke("a")));
+    act(() => otherMarks().addStroke(stroke("b")));
+    act(() => cancelSketchInteraction());
 
-    await expect(completeSketchCapture(hostElement, capture)).resolves.toBe(captured);
-    expect(capture).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
-    expect(isSketchInteractionActive()).toBe(true);
+    expect(getSketchMarks(home).strokes.map(({ id }) => id)).toEqual(["a"]);
+    expect(getSketchMarks(other).strokes.map(({ id }) => id)).toEqual(["b"]);
+    expect(getSketchMarks(pricing).strokes).toEqual([]);
   });
 
-  it("closes the tool when a capture is aborted", async () => {
-    const hostElement = document.createElement("div");
-    beginSketchCapture();
-    capture.mockImplementationOnce(({ signal }) => new Promise((_, reject) => {
-      signal?.addEventListener("abort", () => reject(new Error("aborted")));
-    }));
-    const pending = completeSketchCapture(hostElement, capture);
-    cancelSketchInteraction();
+  it("undoes only the frame being edited", () => {
+    const homeMarks = renderMarks(home);
+    const otherMarks = renderMarks(other);
+    act(() => homeMarks().addStroke(stroke("a")));
+    act(() => otherMarks().addStroke(stroke("b")));
 
-    await expect(pending).rejects.toThrow("aborted");
-    expect(isSketchInteractionActive()).toBe(false);
+    act(() => homeMarks().undo());
+
+    expect(getSketchMarks(home).strokes).toEqual([]);
+    expect(getSketchMarks(other).strokes.map(({ id }) => id)).toEqual(["b"]);
   });
 
-  it("stays open when the tool is reopened before an aborted capture settles", async () => {
-    const hostElement = document.createElement("div");
-    beginSketchCapture();
-    let rejectCapture: (error: Error) => void = () => undefined;
-    capture.mockImplementationOnce(() => new Promise((_, reject) => {
-      rejectCapture = reject;
-    }));
-    const pending = completeSketchCapture(hostElement, capture);
-    cancelSketchInteraction();
-    beginSketchCapture();
-    rejectCapture(new Error("aborted"));
+  it("clears every frame at once, and each frame can undo its own clear", () => {
+    const homeMarks = renderMarks(home);
+    const otherMarks = renderMarks(other);
+    act(() => homeMarks().addStroke(stroke("a")));
+    act(() => otherMarks().addStroke(stroke("b")));
 
-    await expect(pending).rejects.toThrow("aborted");
-    expect(isSketchInteractionActive()).toBe(true);
+    act(() => clearAllSketchMarks());
+
+    expect(hasSketchMarks()).toBe(false);
+
+    act(() => otherMarks().undo());
+
+    expect(getSketchMarks(other).strokes.map(({ id }) => id)).toEqual(["b"]);
+    expect(getSketchMarks(home).strokes).toEqual([]);
+  });
+
+  it("leaves the edited frame to the sketch surface, except while a screenshot is taken", () => {
+    setSketchEditingKey(home);
+
+    expect(showsPassiveMarks(home)).toBe(false);
+    expect(showsPassiveMarks(other)).toBe(true);
+
+    setSketchMarksCapturing(true);
+
+    expect(showsPassiveMarks(home)).toBe(true);
   });
 });

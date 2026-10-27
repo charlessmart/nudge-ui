@@ -3,8 +3,9 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { type CanvasCard } from "./canvasStore.ts";
 import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasPresentation } from "./viewStore.ts";
 
-const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 300, easing: "ease-out" };
-const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: "ease-out" };
+const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
+const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 250, easing: EASE_OUT };
+const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: EASE_OUT };
 
 export function useCanvasLayoutAnimation(
   boardRef: RefObject<HTMLDivElement | null>,
@@ -68,12 +69,13 @@ export function useCanvasLayoutAnimation(
         if (!old) {
           if (card.animateEntrance === false) continue;
           const slideRight = Boolean(card.entrance === "linked");
+          // Cards are placed with left/top but slide on transform, so the move stays on the compositor while the new iteration loads.
           animate(element, [
-            { left: `${card.x - (slideRight ? 200 : 0)}px`, top: `${card.y - (slideRight ? 0 : 200)}px`, opacity: 0 },
-            { left: `${card.x}px`, top: `${card.y}px`, opacity: 1 },
+            { transform: `translate(${slideRight ? -200 : 0}px, ${slideRight ? 0 : -200}px)`, opacity: 0 },
+            { transform: "none", opacity: 1 },
           ]);
         } else if (old.x !== card.x || old.y !== card.y) {
-          animate(element, [{ left: `${old.x}px`, top: `${old.y}px` }, { left: `${card.x}px`, top: `${card.y}px` }]);
+          animate(element, [{ transform: `translate(${old.x - card.x}px, ${old.y - card.y}px)` }, { transform: "none" }]);
         }
       }
       const content = board?.querySelector<HTMLElement>(".canvas-workspace__board-content");

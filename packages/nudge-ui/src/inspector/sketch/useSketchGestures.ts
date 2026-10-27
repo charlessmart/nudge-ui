@@ -3,7 +3,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import { getSketchViewport, type SketchViewport } from "./capture.ts";
+import { getSketchViewport, type SketchViewport } from "./viewport.ts";
 import {
   SKETCH_LIMITS,
   SKETCH_RECTANGLE_STROKE_WIDTH,
@@ -48,7 +48,7 @@ export interface SketchGestureOptions {
   readonly addStroke: (stroke: SketchStroke) => void;
   readonly eraseStrokes: (ids: readonly string[], gesture: number) => void;
   readonly transformStroke: (stroke: SketchStroke, gesture: number) => void;
-  readonly selectTarget?: (point: SketchPoint, lockedTarget: HTMLElement | null) => HTMLElement | null;
+  readonly selectTarget?: (point: SketchPoint) => HTMLElement | null;
   readonly svgRef: { readonly current: SVGSVGElement | null };
 }
 
@@ -212,10 +212,7 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
     }
     let drawingViewport = getSketchViewport(targetRef.current);
     if (selectTarget) {
-      const target = selectTarget(
-        { x: event.clientX, y: event.clientY },
-        history.undo.length > 0 || history.redo.length > 0 ? targetRef.current : null,
-      );
+      const target = selectTarget({ x: event.clientX, y: event.clientY });
       if (!target) return;
       if (target !== targetRef.current) {
         targetRef.current = target;

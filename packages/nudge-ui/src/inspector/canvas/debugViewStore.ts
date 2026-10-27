@@ -50,3 +50,9 @@ const animationBusy = createStore<boolean>(false);
 export const getAnimationBusy = animationBusy.get;
 export const setAnimationBusy = animationBusy.set;
 export const useAnimationBusy = animationBusy.use;
+
+/** Controller-only: the animation bar's rendered height, 0 while it is closed, so toasts rise above it rather than cover it. */
+const animationBarHeight = createStore<number>(0);
+
+export const setAnimationBarHeight = animationBarHeight.set;
+export const useAnimationBarHeight = animationBarHeight.use;

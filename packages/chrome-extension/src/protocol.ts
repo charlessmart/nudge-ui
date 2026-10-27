@@ -10,14 +10,16 @@ export const CURSOR_IMAGE_DIRECTORY = "cursors/";
 export const STORAGE_WRITE_EVENT = "nudge-ui:storage-write";
 export const STORAGE_READ_EVENT = "nudge-ui:storage-read";
 export const STORAGE_READ_RESPONSE_EVENT = "nudge-ui:storage-read-response";
-/** Dispatched on `document` by the main world; the isolated-world bridge answers each with a response. */
-export const SKETCH_REQUEST_EVENT = "nudge-ui:sketch-request";
-export const SKETCH_RESPONSE_EVENT = "nudge-ui:sketch-response";
 /** Dispatched on `document` by the main world with a request ID; the isolated-world bridge answers with the installed font families. */
 export const FONT_LIST_REQUEST_EVENT = "nudge-ui:font-list-request";
 export const FONT_LIST_RESPONSE_EVENT = "nudge-ui:font-list-response";
 /** Sent from the isolated-world bridge to the service worker, the only context that can call `chrome.fontSettings`. */
 export const FONT_LIST_MESSAGE = "nudge-ui:font-list";
+/** Dispatched on `document` by the main world with a request ID; the isolated-world bridge answers with a picture of the visible tab. */
+export const TAB_CAPTURE_REQUEST_EVENT = "nudge-ui:tab-capture-request";
+export const TAB_CAPTURE_RESPONSE_EVENT = "nudge-ui:tab-capture-response";
+/** Sent from the isolated-world bridge to the service worker, the only context that can call `chrome.tabs.captureVisibleTab`. */
+export const TAB_CAPTURE_MESSAGE = "nudge-ui:tab-capture";
 /** Dispatched on `document` by the main world with the side the panel was dropped on; the isolated-world bridge saves it. */
 export const PANEL_SIDE_WRITE_EVENT = "nudge-ui:panel-side-write";
 /** One preference for every site, so the panel opens where the user last left it. */
@@ -60,41 +62,6 @@ export function systemFontsKey(origin: string): string {
   return `system-fonts:${origin}`;
 }
 
-/** Sketches carry screenshots, so they live apart from the `site:` keys the service worker reads in full before every injection. */
-export function sketchKeyPrefix(origin: string): string {
-  return `sketch:${origin}|`;
-}
-
-/** A sketch PNG; `chrome.storage` holds only JSON values. */
-export interface StoredImage {
-  type: string;
-  base64: string;
-}
-
-/** A sketch document with its image encoded; other fields pass through unchanged. */
-export interface StoredSketchDocument {
-  id: string;
-  image: StoredImage;
-  [field: string]: unknown;
-}
-
-export interface StoredSketchRecords {
-  documents: StoredSketchDocument[];
-}
-
-export type SketchRequest =
-  | { id: number; op: "read" }
-  | {
-    id: number;
-    op: "update";
-    put: StoredSketchRecords;
-    deleteDocumentIds: string[];
-  };
-
-export type SketchResponse =
-  | { id: number; ok: true; records?: StoredSketchRecords }
-  | { id: number; ok: false; error: string };
-
 /** `asked` is true when the bridge saw a trusted click or Enter on the "Show system fonts" row, which records the user's consent for the sender's origin. */
 export interface FontListMessage {
   type: typeof FONT_LIST_MESSAGE;
@@ -110,6 +77,19 @@ export interface FontListResponse {
   error?: string;
 }
 
+export interface TabCaptureMessage {
+  type: typeof TAB_CAPTURE_MESSAGE;
+}
+
+/** The service worker's reply to `TAB_CAPTURE_MESSAGE`: the visible tab as a PNG data URL. */
+export type TabCaptureResult = { dataUrl: string } | { error: string };
+
+export interface TabCaptureResponse {
+  id: number;
+  dataUrl?: string;
+  error?: string;
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -122,11 +102,6 @@ export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
-function isStoredImage(value: unknown): value is StoredImage {
-  return isRecord(value) && typeof value.type === "string" && typeof value.base64 === "string";
-}
-
-/** Event details cross the page boundary as JSON strings. */
 function parseJsonRecord(detail: unknown): Record<string, unknown> | null {
   if (typeof detail !== "string") return null;
   try {
@@ -135,20 +110,6 @@ function parseJsonRecord(detail: unknown): Record<string, unknown> | null {
   } catch {
     return null;
   }
-}
-
-/** Parses one record at rest; anything else is dropped before it reaches the inspector. */
-export function parseStoredSketchDocument(value: unknown): StoredSketchDocument | null {
-  if (!isRecord(value) || typeof value.id !== "string") return null;
-  const { image } = value;
-  if (!isStoredImage(image)) return null;
-  return { ...value, id: value.id, image };
-}
-
-export function parseStoredSketchRecords(value: unknown): StoredSketchRecords | null {
-  if (!isRecord(value) || !Array.isArray(value.documents)) return null;
-  const documents = value.documents.map(parseStoredSketchDocument).filter((document) => document !== null);
-  return documents.length === value.documents.length ? { documents } : null;
 }
 
 export function parseStorageWrite(detail: unknown): StorageWrite | null {
@@ -188,25 +149,25 @@ export function parseFontListResponse(detail: unknown): FontListResponse | null 
   return { id: parsed.id, ...(families === undefined ? {} : { families }), ...(error === undefined ? {} : { error }) };
 }
 
-export function parseSketchRequest(detail: unknown): SketchRequest | null {
-  const parsed = parseJsonRecord(detail);
-  if (!parsed || typeof parsed.id !== "number" || !Number.isSafeInteger(parsed.id)) return null;
-  if (parsed.op === "read") return { id: parsed.id, op: "read" };
-  if (parsed.op !== "update") return null;
-  const put = parseStoredSketchRecords(parsed.put);
-  if (!put || !isStringArray(parsed.deleteDocumentIds)) return null;
-  return { id: parsed.id, op: "update", put, deleteDocumentIds: parsed.deleteDocumentIds };
+export function parseTabCaptureMessage(value: unknown): TabCaptureMessage | null {
+  return isRecord(value) && value.type === TAB_CAPTURE_MESSAGE ? { type: TAB_CAPTURE_MESSAGE } : null;
 }
 
-export function parseSketchResponse(detail: unknown): SketchResponse | null {
+function isPngDataUrl(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("data:image/png;base64,");
+}
+
+export function parseTabCaptureResult(value: unknown): TabCaptureResult | null {
+  if (!isRecord(value)) return null;
+  if (isPngDataUrl(value.dataUrl)) return { dataUrl: value.dataUrl };
+  return typeof value.error === "string" ? { error: value.error } : null;
+}
+
+export function parseTabCaptureResponse(detail: unknown): TabCaptureResponse | null {
   const parsed = parseJsonRecord(detail);
   if (!parsed || typeof parsed.id !== "number") return null;
-  if (parsed.ok === true) {
-    if (parsed.records === undefined) return { id: parsed.id, ok: true };
-    const records = parseStoredSketchRecords(parsed.records);
-    return records === null ? null : { id: parsed.id, ok: true, records };
-  }
-  return parsed.ok === false && typeof parsed.error === "string"
-    ? { id: parsed.id, ok: false, error: parsed.error }
-    : null;
+  const { dataUrl, error } = parsed;
+  if (dataUrl !== undefined && !isPngDataUrl(dataUrl)) return null;
+  if (error !== undefined && typeof error !== "string") return null;
+  return { id: parsed.id, ...(dataUrl === undefined ? {} : { dataUrl }), ...(error === undefined ? {} : { error }) };
 }

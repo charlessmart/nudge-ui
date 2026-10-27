@@ -1,7 +1,8 @@
 .toast__viewport {
   position: fixed;
   /* Sit just above the canvas toolbar: its bottom offset, its height (an xlarge control plus padding), then a small gap. */
-  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12));
+  /* `--toast-raise` adds the animation bar's height while it floats in that space. */
+  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-12) + var(--toast-raise, 0px));
   left: 50%;
   /* Above everything the inspector draws. Browsers clamp z-index at --z-index, so `+ 1` would only tie; instead the
      canvas toolbar and the sketch bar sit one layer below it. */
@@ -64,12 +65,30 @@
   color: var(--success);
 }
 
-.toast[data-tone="error"] {
+/* The copied screenshot, turned the way it landed on the screenshot button. */
+.toast__thumbnail {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 22px;
+  margin-right: calc(var(--space-4) * -1);
+  border-radius: var(--radius-4);
+  box-shadow: var(--shadow-control);
+  object-fit: cover;
+  object-position: top left;
+  rotate: -8deg;
+}
+
+/* A pill like every toast; only an error with a description, which can wrap, takes the tighter radius. */
+.toast[data-tone="error"]:has(.toast__description) {
   border-radius: var(--radius-12);
 }
 
 .toast[data-tone="error"] .toast__icon {
   color: var(--danger);
+}
+
+.toast[data-tone="warning"] .toast__icon {
+  color: var(--warning);
 }
 
 .toast__content {

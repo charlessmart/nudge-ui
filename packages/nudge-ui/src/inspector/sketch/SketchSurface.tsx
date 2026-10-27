@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import type { SketchViewport } from "./capture.ts";
 import {
   SKETCH_RECTANGLE_STROKE_WIDTH,
   SKETCH_STROKE_WIDTH,
@@ -16,6 +15,7 @@ import { SketchSvgLayer } from "./freehand.tsx";
 import { SketchTextEditor, type SketchTextEdit } from "./SketchTextEditor.tsx";
 import type { SketchDrawingTool } from "./drawingTools.ts";
 import { useSketchViewport } from "./useSketchViewport.ts";
+import { useScrollTransform } from "./useScrollTransform.ts";
 import { useSketchGestures } from "./useSketchGestures.ts";
 import { forwardSketchWheel } from "./forwardWheel.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
@@ -23,7 +23,7 @@ import { portalContainer } from "../ui/portalContainer.ts";
 export interface SketchSurfaceProps {
   readonly open: boolean;
   readonly hostElement: HTMLElement;
-  readonly selectTarget?: (point: SketchPoint, lockedTarget: HTMLElement | null) => HTMLElement | null;
+  readonly selectTarget?: (point: SketchPoint) => HTMLElement | null;
   readonly onCancel: () => void;
   readonly history: SketchHistory;
   readonly addStroke: (stroke: SketchStroke) => void;
@@ -38,16 +38,6 @@ export interface SketchSurfaceProps {
   readonly temporaryAppInteraction: boolean;
   /** Changes when the board pans or zooms under the surface, so the frame is measured again. */
   readonly layoutKey?: string;
-}
-
-function visibleStroke(stroke: SketchStroke, viewport: SketchViewport): SketchStroke {
-  return {
-    ...stroke,
-    points: stroke.points.map((point) => ({
-      x: point.x - viewport.scrollX,
-      y: point.y - viewport.scrollY,
-    })),
-  };
 }
 
 /** The drawing surface over the live frame. The session, toolbar and copy action live in `SketchWorkspace`. */
@@ -92,6 +82,14 @@ export function SketchSurface({
   const [popup, setPopup] = useState<HTMLElement | null>(null);
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+  const scrollGroup = useRef<SVGGElement>(null);
+  const applyScroll = useScrollTransform(open ? hostElement : null, scrollGroup);
+  // The layer being retyped is drawn by the editor instead.
+  const editingId = textEdit?.id;
+  const visibleStrokes = useMemo(
+    () => editingId ? history.strokes.filter((stroke) => stroke.id !== editingId) : history.strokes,
+    [editingId, history.strokes],
+  );
 
   useEffect(() => {
     if (open) svgRef.current?.focus();
@@ -104,18 +102,15 @@ export function SketchSurface({
       if (event.ctrlKey || event.metaKey) return;
       event.preventDefault();
       forwardSketchWheel(hostElement, viewportRef.current, event);
+      // Moved in the same task as the scroll, so the marks paint in the same frame as the page.
+      applyScroll();
     }
     popup.addEventListener("wheel", onWheel, { passive: false });
     return () => popup.removeEventListener("wheel", onWheel);
-  }, [hostElement, popup]);
+  }, [applyScroll, hostElement, popup]);
 
   if (!open) return null;
 
-  // The layer being retyped is drawn by the editor instead.
-  const visibleStrokes = history.strokes
-    .filter((stroke) => stroke.id !== textEdit?.id)
-    .map((stroke) => visibleStroke(stroke, viewport));
-  const visibleSelected = gestures.selected ? visibleStroke(gestures.selected, viewport) : null;
   const draftStroke: SketchStroke | null = gestures.draftPoints.length > 0 && tool !== "text" ? {
     id: "draft",
     kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
@@ -123,11 +118,7 @@ export function SketchSurface({
     color,
     points: (tool === "rectangle" && gestures.draftPoints.length > 1
       ? rectanglePoints(gestures.draftPoints[0]!, gestures.draftPoints.at(-1)!)
-      : gestures.draftPoints
-    ).map((point) => ({
-      x: point.x - viewport.scrollX,
-      y: point.y - viewport.scrollY,
-    })),
+      : gestures.draftPoints),
   } : null;
 
   return (
@@ -153,7 +144,7 @@ export function SketchSurface({
         >
           <Dialog.Title className="sketch__title sketch__sr-only">Sketch viewport</Dialog.Title>
           <Dialog.Description className="sketch__description sketch__sr-only">
-            Draw or type directly over the live interface, then save the sketch.
+            Draw or type directly over the live interface. Marks stay until you clear them.
           </Dialog.Description>
           {selectTarget ? (
             <svg
@@ -194,8 +185,11 @@ export function SketchSurface({
               onPointerCancel={gestures.onPointerUp}
               onDoubleClick={gestures.onDoubleClick}
             >
-              <SketchSvgLayer strokes={draftStroke ? [...visibleStrokes, draftStroke] : visibleStrokes} />
-              {visibleSelected && !draftStroke ? <SketchSelectionFrame stroke={visibleSelected} unit={unit} /> : null}
+              <g ref={scrollGroup}>
+                <SketchSvgLayer strokes={visibleStrokes} />
+                {draftStroke ? <SketchSvgLayer strokes={[draftStroke]} /> : null}
+                {gestures.selected && !draftStroke ? <SketchSelectionFrame stroke={gestures.selected} unit={unit} /> : null}
+              </g>
             </svg>
             {textEdit ? (
               <SketchTextEditor

@@ -1,4 +1,5 @@
 import { getStroke } from "perfect-freehand";
+import { memo } from "react";
 import type { ReactElement } from "react";
 import {
   SKETCH_RECTANGLE_FILL_OPACITY,
@@ -97,7 +98,11 @@ export interface SketchSvgLayerProps {
   readonly strokes: readonly SketchStroke[];
 }
 
-export function SketchSvgLayer({ strokes }: SketchSvgLayerProps): ReactElement {
+/**
+ * Memoized: strokes are kept in page coordinates and scrolled by a transform around this layer, so scrolling never
+ * re-runs the freehand outlines. Pass the same array while the marks are unchanged.
+ */
+export const SketchSvgLayer = memo(function SketchSvgLayer({ strokes }: SketchSvgLayerProps): ReactElement {
   return (
     <g data-test="sketch-svg-layer">
       {strokes.map((stroke) => {
@@ -121,4 +126,4 @@ export function SketchSvgLayer({ strokes }: SketchSvgLayerProps): ReactElement {
       })}
     </g>
   );
-}
+});

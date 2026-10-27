@@ -8,6 +8,7 @@ import { portalContainer } from "../ui/portalContainer.ts";
 import { ToolbarButton } from "./ToolbarButton.tsx";
 import { KeyframesFilledIcon } from "./CanvasToolIcons.tsx";
 import { setDebugViewMode, useDebugViewMode, type DebugViewMode } from "./debugViewStore.ts";
+import { VIEW_MODE_SHORTCUTS } from "./keyboardShortcuts.ts";
 
 const ICON_SIZE = "var(--icon-size-large)";
 
@@ -42,7 +43,7 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
       <ToolbarButton
         active={active}
         label={current.label}
-        shortcut="D"
+        shortcut={VIEW_MODE_SHORTCUTS[current.mode].label}
         icon={<current.Icon size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
         activeIcon={
           current.ActiveIcon ? (
@@ -91,7 +92,10 @@ export function ViewToolButton({ active, onActivate, onToggle }: ViewToolButtonP
                 >
                   <Icon size={16} stroke="var(--icon-stroke-width)" aria-hidden="true" />
                   <span className="view-tool-menu__label">{label}</span>
-                  {option === mode ? <IconCheck size={15} stroke={2.4} aria-hidden="true" /> : null}
+                  <span className="view-tool-menu__shortcut">{VIEW_MODE_SHORTCUTS[option].label}</span>
+                  <span className="view-tool-menu__check">
+                    {option === mode ? <IconCheck size={15} stroke={2.4} aria-hidden="true" /> : null}
+                  </span>
                 </button>
               ))}
             </BasePopover.Popup>

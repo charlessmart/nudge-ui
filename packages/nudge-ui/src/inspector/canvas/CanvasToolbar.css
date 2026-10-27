@@ -100,6 +100,20 @@
   flex: 1;
 }
 
+/* Fixed-width columns: the shortcuts share a left edge, and the check never shifts them. */
+.view-tool-menu__shortcut {
+  flex: 0 0 auto;
+  width: var(--space-16);
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.view-tool-menu__check {
+  display: flex;
+  flex: 0 0 auto;
+  width: 15px;
+}
+
 /* Hover and focus only: the check beside the current view marks it, without a second tint. */
 .view-tool-menu__item:hover,
 .view-tool-menu__item:focus-visible {
@@ -215,28 +229,31 @@
 }
 
 .animation-timeline__tick {
-  --tick-base: 4px;
-  /* Never rises into the labels along the top of the track (32px track, 10px label). */
-  --tick-max-height: 16px;
+  /* The resting height as a share of the full one: 4px of 16px. */
+  --tick-base: 0.25;
   /* Set inline for the marks near the playhead: 1 at the playhead, falling off exponentially. */
   --tick-proximity: 0;
   position: absolute;
   bottom: 0;
   left: calc(var(--tick-position) * (100% - 1px));
   width: 1px;
-  height: calc(var(--tick-base) + (var(--tick-max-height) - var(--tick-base)) * var(--tick-proximity));
+  /* Never rises into the labels along the top of the track (32px track, 10px label). Marks grow by scaling up from
+     the bottom, so following the playhead never touches layout. */
+  height: 16px;
+  transform: scaleY(calc(var(--tick-base) + (1 - var(--tick-base)) * var(--tick-proximity)));
+  transform-origin: bottom;
   background: var(--text-primary);
   /* Rising has no transition, so a mark grows the instant the playhead nears it. */
   opacity: calc(0.2 + 0.8 * var(--tick-proximity));
 }
 
 .animation-timeline__tick--major {
-  --tick-base: 8px;
+  --tick-base: 0.5;
 }
 
 /* Marks the playhead is leaving ease back down, trailing it briefly. */
 .animation-timeline__tick[data-falling] {
-  transition: height 160ms ease-out, opacity 160ms ease-out;
+  transition: transform 160ms ease-out, opacity 160ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

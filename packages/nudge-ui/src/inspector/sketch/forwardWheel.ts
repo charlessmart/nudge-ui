@@ -1,4 +1,4 @@
-import type { SketchViewport } from "./capture.ts";
+import type { SketchViewport } from "./viewport.ts";
 
 type WheelLike = Pick<WheelEvent, "clientX" | "clientY" | "deltaX" | "deltaY" | "deltaMode" | "shiftKey">;
 

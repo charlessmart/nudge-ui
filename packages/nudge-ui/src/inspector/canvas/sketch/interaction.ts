@@ -1,12 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { captureViewport, type CapturedSketch, type SketchCaptureOptions } from "../../sketch/capture.ts";
 
 /**
- * Whether the sketch tool is open. The tool has one mode — drawing over the live frame — so the only state anything
- * outside this module needs is "open or not"; the capture result goes straight back to the caller.
+ * Whether the sketch tool is open. Marks outlive it (they live in the marks store), so the only state anything outside
+ * this module needs is "open or not".
  */
 let active = false;
-let captureController: AbortController | null = null;
+/** Whether the open sketch came from its keyboard shortcut, which skips the bar's intro. */
+let openedByKeyboard = false;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -38,37 +38,16 @@ export function useSketchInteractionActive(): boolean {
   return useSyncExternalStore(subscribe, isSketchInteractionActive, isSketchInteractionActive);
 }
 
-export function beginSketchCapture(): void {
-  captureController?.abort();
-  captureController = null;
+export function sketchOpenedByKeyboard(): boolean {
+  return openedByKeyboard;
+}
+
+/** `viaKeyboard` only counts when this opens the sketch; an open one keeps how it was opened. */
+export function openSketchInteraction({ viaKeyboard = false }: { readonly viaKeyboard?: boolean } = {}): void {
+  if (!active) openedByKeyboard = viaKeyboard;
   setActive(true);
 }
 
-export function completeSketchCapture(
-  hostElement: HTMLElement,
-  capture: typeof captureViewport = captureViewport,
-): Promise<CapturedSketch> {
-  captureController?.abort();
-  const controller = new AbortController();
-  captureController = controller;
-  const options: SketchCaptureOptions = { hostElement, signal: controller.signal };
-  return capture(options).then(
-    (captured) => {
-      if (captureController === controller) captureController = null;
-      return captured;
-    },
-    (error: unknown) => {
-      // A superseded capture was aborted by whoever replaced it, which already owns the open state.
-      if (captureController !== controller) throw error;
-      captureController = null;
-      if (controller.signal.aborted) setActive(false);
-      throw error;
-    },
-  );
-}
-
 export function cancelSketchInteraction(): void {
-  captureController?.abort();
-  captureController = null;
   setActive(false);
 }

@@ -1,6 +1,6 @@
 /* The sketch bar sits above the canvas toolbar while the pencil is active: pen, eraser, rectangle, text, color,
-   then the save button. The bar slides up 16px as it fades in on the toolbar's surface, then each control rises 16px
-   and grows from 90% in turn. Saved sketches stack beside the save button and open into a grid above the bar on click. */
+   then screenshot and clear. The bar slides up 16px as it fades in on the toolbar's surface, then each control rises
+   16px and grows from 90% in turn. */
 
 .sketch-options {
   position: absolute;
@@ -16,8 +16,8 @@
   animation: sketch-options-bar-in 240ms cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
-/* The bar's surface is a layer of its own, behind its controls and in front of the saved sketches, which are tucked
-   behind it. (Its `translate` makes it a stacking context, so the sketches' negative layer stays inside it.) */
+/* The bar's surface is a layer of its own, behind its controls. (Its `translate` makes it a stacking context, so the
+   negative layer stays inside it.) */
 .sketch-options::before {
   content: "";
   position: absolute;
@@ -59,262 +59,9 @@
   animation: none;
 }
 
-/* Once the intro is over, anything that arrives later (the thumbnail after a copy) rises in at once rather than waiting its turn. */
+/* Once the intro is over, anything that arrives later rises in at once rather than waiting its turn. */
 .sketch-options[data-settled="true"] .sketch-options__item {
   animation-delay: 0s;
-}
-
-/* The saved sketches and the tick form one group, with a little room either side of it. */
-.sketch-options__copy-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding-inline: var(--space-4);
-}
-
-/* A copy that has just finished scales up from small and settles with a little overshoot. */
-@keyframes sketch-options-pop {
-  from {
-    opacity: 0;
-    scale: 0.4;
-  }
-}
-
-/* The saved sketches sit in the bar beside the save button, stacked almost on top of each other, the newest in front.
-   The stack always takes one tile of room, so opening it never shifts the bar. Clicking it grows the sketches into a
-   wrapping grid of large cards above the bar, where each can be previewed, clicked to copy or removed. */
-.sketch-recents-root {
-  display: contents;
-}
-
-.sketch-recents {
-  --tile: calc(var(--control-height-xlarge) * 0.975);
-  position: relative;
-  /* The thumbnails' stacking order stays inside the stack. */
-  isolation: isolate;
-  flex-shrink: 0;
-  width: var(--tile);
-  /* As tall as the bar, its padding included, so the sketches run past the bottom edge and are cut off there. */
-  height: calc(var(--control-height-xlarge) + var(--space-8));
-  margin-block: calc(var(--space-4) * -1);
-  /* The ones behind lean out past the tile, so the stack keeps room from the divider and the save button. */
-  margin-inline: var(--space-12);
-  clip-path: inset(-200px -200px 0 -200px);
-}
-
-.sketch-recent {
-  position: absolute;
-  /* The front sketch sits upright and centered; the ones behind lean out either side and sit a little lower. */
-  top: calc(50% + 6px);
-  left: 50%;
-  z-index: calc(10 - var(--slot));
-  width: var(--tile);
-  height: var(--tile);
-  transform: translate(-50%, -50%) translate(var(--stack-x, 0), var(--stack-y, 0)) rotate(var(--tilt));
-  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-/* A sketch saved while the bar is up scales in from small with a little overshoot. */
-.sketch-recent[data-enter="true"] {
-  animation: sketch-options-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-
-/* A sketch pushed out by newer ones fades where it is. */
-.sketch-recent[data-leaving="true"] {
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
-}
-
-.sketch-recent__toggle {
-  appearance: none;
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-4);
-  background: transparent;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.sketch-recent__toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.sketch-recent .sketch-thumbnail {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-4);
-  object-fit: cover;
-  /* A sketch is a picture of the page it sits on, so a hairline drawn over the picture gives it an edge. It fades in
-     as the stack comes back, so the edge does not snap on under the card that has just landed on it. */
-  outline: 0.5px solid rgba(0, 0, 0, 0.12);
-  outline-offset: -0.5px;
-  box-shadow: none;
-  transition: outline-color 140ms ease;
-}
-
-.sketch-recents[data-open="true"] .sketch-recent .sketch-thumbnail {
-  outline-color: transparent;
-}
-
-/* While the grid is up the sketches are out on the page, and the stack leaves an empty place in the bar. */
-.sketch-recents[data-open="true"] .sketch-recent {
-  opacity: 0;
-}
-
-/* The grid of large sketches, loose cards on the page with nothing behind them. Each card grows out of its own
-   thumbnail in the stack (see the card animation in SketchToolBar.tsx). There are never more than three, so they sit in
-   one row of up to 400px cards and 500px tall, and the whole grid is kept within the room above the bar by shrinking
-   the pictures, so it never scrolls. Sizes follow the sketch layer's width (which is narrower than the screen while the
-   panel is open), not the screen's. Narrow screens reflow it into one column. */
-.sketch-grid {
-  --gap: var(--space-8);
-  --pad: 0px;
-  /* The screen height left above the bar, less the bar's own offset and a margin. */
-  --room: calc(100dvh - var(--space-20) - var(--control-height-xlarge) * 2 - var(--space-4) * 4 - var(--space-8) * 3 - var(--space-12));
-  --card-width: min(400px, calc((min(1200px, 100cqw - var(--space-24)) - var(--pad) * 2 - var(--gap) * 2) / 3));
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + var(--space-8));
-  translate: -50% 0;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--gap);
-  box-sizing: border-box;
-  width: max-content;
-  max-width: min(1200px, calc(100cqw - var(--space-24)));
-  max-height: var(--room);
-  padding: var(--pad);
-  /* The gaps between cards belong to the page, so pressing there closes the grid. */
-  pointer-events: none;
-}
-
-.sketch-grid__card {
-  position: relative;
-  flex: 0 0 var(--card-width);
-  width: var(--card-width);
-  pointer-events: auto;
-}
-
-.sketch-grid__copy {
-  appearance: none;
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-8);
-  background: transparent;
-  cursor: pointer;
-}
-
-.sketch-grid__copy:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* A little cropping is fine: the sketch is already cut to the marked area, and the picture fills its card. */
-.sketch-grid__image {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: min(500px, calc((var(--room) - var(--pad) * 2 - var(--gap) * (var(--rows) - 1)) / var(--rows)));
-  border-radius: var(--radius-8);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-popup);
-  object-fit: cover;
-}
-
-/* A primary button over the middle of the sketch on hover or focus. The whole card is the real button; this is its label. */
-.sketch-grid__copy-action {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  translate: -50% -50%;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 120ms ease;
-  pointer-events: none;
-}
-
-.sketch-grid__copy:hover .sketch-grid__copy-action,
-.sketch-grid__copy:focus-visible .sketch-grid__copy-action {
-  opacity: 1;
-}
-
-/* A small black button at the sketch's top right, shown while the card is hovered or focused. */
-.sketch-grid__remove {
-  appearance: none;
-  position: absolute;
-  top: var(--space-8);
-  right: var(--space-8);
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--surface-inverse);
-  color: var(--text-inverse);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.sketch-grid__remove:hover {
-  background: var(--surface-inverse-hover);
-}
-
-.sketch-grid__remove:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.sketch-grid__card:is(:hover, :has(:focus-visible)) .sketch-grid__remove {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Touch screens cannot hover, so the remove button is always there. */
-@media (hover: none) {
-  .sketch-grid__remove {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
-/* In the sketch layer it is centered on the screen, just above the bar. */
-.sketch-bar-layer > .sketch-grid {
-  bottom: calc(var(--space-20) + var(--control-height-xlarge) * 2 + var(--space-4) * 4 + var(--space-8) * 2);
-}
-
-/* Narrow layers: one column, each picture shrunk so the whole column fits above the bar. */
-@container (max-width: 640px) {
-  .sketch-grid {
-    --card-width: min(400px, calc(100cqw - var(--space-24) - var(--pad) * 2));
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: center;
-    width: min(400px, calc(100cqw - var(--space-24)));
-  }
-
-  /* In a column the flex basis would be the card's height, so it is left to the picture. */
-  .sketch-grid__card {
-    flex: 0 0 auto;
-  }
-
-  .sketch-grid__image {
-    max-height: min(500px, calc((var(--room) - var(--pad) * 2 - var(--gap) * (var(--count) - 1)) / var(--count)));
-  }
 }
 
 @keyframes sketch-options-bar-in {
@@ -383,8 +130,10 @@
   --illustration-bleed: 11px;
 }
 
-.sketch-options__illustrated:hover .sketch-options__illustration {
-  transform: translate(-50%, calc(var(--space-4) * -1));
+@media (hover: hover) and (pointer: fine) {
+  .sketch-options__illustrated:hover .sketch-options__illustration {
+    transform: translate(-50%, calc(var(--space-4) * -1));
+  }
 }
 
 .sketch-options[data-settled="true"] .sketch-options__illustrated[data-active="true"] .sketch-options__illustration {
@@ -468,14 +217,28 @@
   cursor: pointer;
   translate: var(--swatch-x) var(--swatch-y);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  /* Transitions rather than keyframes, so closing before the fan-out finishes folds back from where the swatches are.
+     Hover grows with `transform`, apart from the staggered `scale`, so it never waits for a swatch's turn. */
   transition:
-    scale 120ms cubic-bezier(0.2, 0, 0, 1),
+    translate 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay, 0ms),
+    scale 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay, 0ms),
+    opacity 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay, 0ms),
+    transform 120ms cubic-bezier(0.2, 0, 0, 1),
     box-shadow 120ms ease;
-  animation: sketch-options-swatch-in 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay, 0ms) backwards;
 }
 
-.sketch-options__palette-option:hover {
-  scale: 1.05;
+@starting-style {
+  .sketch-options__palette-option {
+    opacity: 0;
+    scale: 0.4;
+    translate: 0 0;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sketch-options__palette-option:hover {
+    transform: scale(1.05);
+  }
 }
 
 /* The selected swatch sits above its neighbors, separated from them by a light rim. */
@@ -497,23 +260,10 @@
 
 /* Closing plays the fan-out in reverse, last swatch first. */
 .sketch-options__palette[data-state="closing"] .sketch-options__palette-option {
-  animation: sketch-options-swatch-out 180ms cubic-bezier(0.2, 0, 0, 1) var(--swatch-delay-out, 0ms) forwards;
-}
-
-@keyframes sketch-options-swatch-out {
-  to {
-    opacity: 0;
-    scale: 0.4;
-    translate: 0 0;
-  }
-}
-
-@keyframes sketch-options-swatch-in {
-  from {
-    opacity: 0;
-    scale: 0.4;
-    translate: 0 0;
-  }
+  opacity: 0;
+  scale: 0.4;
+  translate: 0 0;
+  transition-delay: var(--swatch-delay-out, 0ms), var(--swatch-delay-out, 0ms), var(--swatch-delay-out, 0ms), 0ms, 0ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -528,12 +278,8 @@
     transition: none;
   }
 
-  .sketch-options__palette-option {
-    animation: none;
-    transition: none;
-  }
-
-  .sketch-recent {
+  .sketch-options__palette-option,
+  .sketch-options__palette[data-state="closing"] .sketch-options__palette-option {
     animation: none;
     transition: none;
   }
@@ -544,10 +290,7 @@
 .sketch-bar-layer {
   position: fixed;
   inset: 0;
-  /* The saved-sketch grid sizes itself against this layer's width. */
-  container-type: inline-size;
-  /* One below the top layer, which belongs to toasts and tooltips: the saved sketches fanned out above the bar
-     must not cover a toast. */
+  /* One below the top layer, which belongs to toasts and tooltips. */
   z-index: calc(var(--z-index) - 1);
   pointer-events: none;
 }

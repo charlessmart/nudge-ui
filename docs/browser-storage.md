@@ -17,12 +17,9 @@ or untrusted scripts.
 | `nudge-ui:<project-id>:lease` | The current workspace owner ID and heartbeat timestamps. | The lease expires after 15 seconds without a heartbeat and is removed when released. |
 | `nudge-ui:<project-id>:prompt-settings` | Custom instructions used when generating prompts. | Until overwritten or site data is removed. |
 
-Sketches are stored separately from `localStorage`. The tick button in the sketch bar copies the
-sketch image to the clipboard and keeps the three most recent ones, so a copy can be
-copied again if it was never pasted. Those copies (the marked-up page images) live in
-IndexedDB under `nudge-ui-sketches`, in extension storage when running as the
-browser extension, and in memory only in demo builds. A fourth copy replaces the
-oldest.
+Sketch marks are not stored. They live in memory in the page and are lost on
+reload. The screenshot button copies the marked-up page to the clipboard and keeps
+no copy of it.
 
 The **Open app** action also sets `nudge-ui:direct-tab` in `sessionStorage`.
 This tab-scoped flag keeps application navigation and reloads outside the editor

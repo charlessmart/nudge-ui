@@ -46,8 +46,12 @@ function prefersReducedMotion(surface: HTMLElement): boolean {
   return surface.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-/** Shifts a field's icon and pulls its left edge along with the drag: in when dragging right, out when dragging left; by writing `--nudge-shift` / `--nudge-stretch` on `surface`. */
-export function createElasticDrag(surface: HTMLElement, onOffset: (offset: number) => void): ElasticDrag {
+/**
+ * Shifts a field's icon and pulls its left edge along with the drag: in when dragging right, out when dragging left.
+ * The icon's transform is set on the icon itself, so each frame restyles one element rather than the whole field; the
+ * edge is the surface's own, through `--nudge-stretch`.
+ */
+export function createElasticDrag(surface: HTMLElement, icon: HTMLElement, onOffset: (offset: number) => void): ElasticDrag {
   const win = surface.ownerDocument.defaultView;
   const reduced = prefersReducedMotion(surface);
   let offset = 0;
@@ -57,7 +61,7 @@ export function createElasticDrag(surface: HTMLElement, onOffset: (offset: numbe
 
   function apply(next: number): void {
     offset = next;
-    surface.style.setProperty("--nudge-shift", `${next * ICON_SHIFT_RATIO}px`);
+    icon.style.transform = `translateX(${next * ICON_SHIFT_RATIO}px)`;
     surface.style.setProperty("--nudge-stretch", `${Math.abs(next) * EDGE_STRETCH_RATIO * boost}px`);
     surface.setAttribute("data-nudge-elastic", next < 0 ? "out" : "in");
     onOffset(next * CURSOR_RATIO * boost);
@@ -69,7 +73,7 @@ export function createElasticDrag(surface: HTMLElement, onOffset: (offset: numbe
     velocity = 0;
     offset = 0;
     surface.removeAttribute("data-nudge-elastic");
-    surface.style.removeProperty("--nudge-shift");
+    icon.style.removeProperty("transform");
     surface.style.removeProperty("--nudge-stretch");
     onOffset(0);
   }

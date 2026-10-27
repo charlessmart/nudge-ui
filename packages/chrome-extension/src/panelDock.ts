@@ -132,6 +132,7 @@ export function installPanelDock(initialSide: PanelSide): void {
         document.dispatchEvent(new CustomEvent(PANEL_SIDE_WRITE_EVENT, { detail: side }));
       }
       const to = panel.getBoundingClientRect().left;
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
       panel.animate(
         [{ transform: `translateX(${from - to}px)` }, { transform: "translateX(0)" }],
         { duration: SNAP_DURATION_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" },

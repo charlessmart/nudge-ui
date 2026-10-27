@@ -55,8 +55,6 @@ import {
   getClipboardHandoffSnapshot,
   recordClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
-import { getSketches, initializeSketchStore, resetSketchStore, saveSketch } from "../canvas/sketch/store.ts";
-import { readSketchPersistence, resetSketchMemory } from "../canvas/sketch/persistence.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -473,31 +471,6 @@ describe("sessionStore hydration", () => {
 describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
-
-  it("keeps the last copied sketch when clearing changes, since it is not a change", async () => {
-    resetSketchStore();
-    resetSketchMemory();
-    const projectId = getNudgeUiRuntimeConfig().projectId;
-    const image = new Blob(["png"], { type: "image/png" });
-    await initializeSketchStore(projectId);
-    await saveSketch({
-      url: window.location.href,
-      image,
-      imageWidth: 1,
-      imageHeight: 1,
-    });
-    expect((await readSketchPersistence(projectId)).documents).toHaveLength(1);
-    try {
-      clearSelectedFrameChanges();
-      expect((await readSketchPersistence(projectId)).documents).toHaveLength(1);
-      resetSketchStore();
-      await initializeSketchStore(projectId);
-      expect(getSketches()).toHaveLength(1);
-    } finally {
-      resetSketchStore();
-      resetSketchMemory();
-    }
-  });
 
   it("clears only the selected draft and preserves canvas geometry and other frame edits", () => {
     resetDrafts();

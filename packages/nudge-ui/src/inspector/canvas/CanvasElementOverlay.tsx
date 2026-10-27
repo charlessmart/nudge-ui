@@ -880,7 +880,8 @@ export function CanvasElementOverlay(): ReactElement | null {
           )) : null}
         </>
       ) : null}
-      {projectedLinkedPeers.map(({ peer, rect }, index) => (
+      {/* A playing or scrubbed animation moves the element out from under its outline, so the selection chrome steps aside like the navigator. */}
+      {!animationBusy && projectedLinkedPeers.map(({ peer, rect }, index) => (
         <div
           key={`${peer.getAttribute("data-cid")}-${index}`}
           ref={outlineRef(peer)}
@@ -890,7 +891,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           aria-hidden="true"
         />
       ))}
-      {projectedSelectedGeometry.map(({ element, rect }, index) => (
+      {!animationBusy && projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
           key={`${element.cid}-${index}`}
           ref={outlineRef(element.domElement)}
@@ -909,7 +910,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           className="canvas-spacing-value-badge"
           data-snapping={spacingBadge.snapping ? "" : undefined}
           data-test="canvas-spacing-value-badge"
-          style={{ left: projectedSpacingBadge.x, top: projectedSpacingBadge.y }}
+          style={{ "--badge-x": `${projectedSpacingBadge.x}px`, "--badge-y": `${projectedSpacingBadge.y}px` } as CSSProperties}
           aria-hidden="true"
         >
           {spacingValueCss(spacingBadge.value)}
