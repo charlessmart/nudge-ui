@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedProperty } from "../../css/model/index.ts";
-import { projectSelectionProperty } from "./selectionProperty.ts";
+import { intersectTokenEntries, projectSelectionProperty } from "./selectionProperty.ts";
 
 function property(value: string, tokenName: string | null = null): ResolvedProperty {
   return {
@@ -66,5 +66,23 @@ describe("projectSelectionProperty", () => {
 
     expect(result?.value).toEqual({ kind: "common", value: "16px" });
     expect(result?.primaryRow).toBeNull();
+  });
+});
+
+describe("intersectTokenEntries", () => {
+  const entry = (name: string, value: string) => ({ name, value });
+
+  it("keeps one selection's tokens unchanged", () => {
+    const only = [entry("--a", "1"), entry("--b", "2")];
+    expect(intersectTokenEntries([only])).toEqual(only);
+  });
+
+  it("keeps only tokens that every selected element offers with the same value", () => {
+    expect(intersectTokenEntries([
+      [entry("--a", "1"), entry("--b", "2"), entry("--c", "3")],
+      [entry("--c", "3"), entry("--a", "1"), entry("--b", "other")],
+      [entry("--a", "1"), entry("--c", "3")],
+    ])).toEqual([entry("--a", "1"), entry("--c", "3")]);
+    expect(intersectTokenEntries([])).toEqual([]);
   });
 });

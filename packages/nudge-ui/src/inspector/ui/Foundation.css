@@ -6,10 +6,17 @@
   --surface-raised: #FAFAFA;
   --surface-raised-2x: #fff ;
   --surface-raised-hover: #F5F5F4;
-  --surface-well: hsla(0, 0%, 0%, 0.05);
+  --surface-well: hsla(0, 0%, 0%, 0.04);
   --surface-well-2x: hsla(0, 0%, 0%, 0.10);
   /* Inverse surfaces mirror the landing palette for dark, high-emphasis controls. */
   --surface-inverse: #1f201e;
+  /* The board behind canvas cards. */
+  --surface-canvas: #f7f7f7;
+  /* Nudge's own brand red, for primary actions. */
+  --brand-primary: #ff2600;
+  --brand-primary-hover: #e62200;
+  /* The low-opacity brand tint behind an active brand-coloured control. */
+  --brand-surface: rgba(255, 38, 0, 0.12);
   --surface-inverse-hover: #343532;
 
   --border-subtle: hsla(0, 0%, 0%, 0.1);

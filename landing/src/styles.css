@@ -5,8 +5,13 @@
   --surface-raised: #FAFAFA;
   --surface-raised-2x: #fff;
   --surface-raised-hover: #F5F5F4;
-  --surface-well: hsla(0, 0%, 0%, 0.05);
+  --surface-well: hsla(0, 0%, 0%, 0.04);
   --surface-well-2x: hsla(0, 0%, 0%, 0.10);
+  --surface-canvas: #f7f7f7;
+
+  --brand-primary: #ff2600;
+  --brand-primary-hover: #e62200;
+  --brand-surface: rgba(255, 38, 0, 0.12);
 
   --border-subtle: hsla(0, 0%, 0%, 0.1);
   --border-medium: hsla(0, 0%, 0%, 0.2);
@@ -210,7 +215,7 @@ a {
   padding-inline-end: var(--space-4);
   color: currentColor;
   line-height: 0;
-  vertical-align: -0.16em;
+  vertical-align: calc(-0.16em + 1px);
 }
 
 .landing-stack-icon {
@@ -580,7 +585,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   padding-inline: calc(var(--space-16) + 1px);
   background: var(--surface-inverse);
   color: var(--text-inverse);
-  box-shadow: inset 0 0 0 1px var(--surface-inverse), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 1px var(--surface-inverse);
 }
 
 .landing-button--secondary {
@@ -599,7 +604,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 .landing-button--primary:focus-visible,
 .landing a.landing-button--primary:focus-visible {
   background: var(--surface-inverse-hover);
-  box-shadow: inset 0 0 0 1px var(--surface-inverse-hover), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 1px var(--surface-inverse-hover);
 }
 
 .landing-button--secondary:hover,

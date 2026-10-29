@@ -1,4 +1,5 @@
 import { PromptActionButton, PromptActionRow } from "./PromptActionButton.tsx";
+import { ChangesMenu } from "./ChangesLog.tsx";
 import { Menu } from "@base-ui/react/menu";
 import { iterationId } from "../canvas/frameContent.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -45,6 +46,7 @@ import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { useFrameComments } from "../comments/store.ts";
 import { reconcileComments } from "../comments/verification.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
+import { claimShortcutKey } from "../canvas/keyboardShortcuts.ts";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -196,7 +198,7 @@ export function CopyPromptButton({
             ? "Connect agent"
             : canSend && !activeArtifactId
               ? "Send prompt"
-              : "Copy prompt";
+              : "Copy";
 
   const icon = showingNothing
     ? null
@@ -287,7 +289,7 @@ export function CopyPromptButton({
   useEffect(() => {
     function onKeydown(event: KeyboardEvent): void {
       if (!isSendPromptShortcut(event) || !canSend || !hasChanges || disabled) return;
-      event.preventDefault();
+      claimShortcutKey(event);
       void onClick();
     }
 
@@ -359,7 +361,7 @@ export function CopyPromptButton({
 
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      <PromptActionRow onClear={onClearChanges} hasChanges={changeCount > 0}>
+      <PromptActionRow changes={<ChangesMenu />} onClear={onClearChanges} hasChanges={changeCount > 0}>
       {hasMenu ? (
         <Menu.Root key={activeDraftCardId} modal={false}>
           <Menu.Trigger render={promptButton} />

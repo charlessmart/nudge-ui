@@ -1275,6 +1275,43 @@ describe("interaction-state resolution", () => {
   });
 });
 
+describe("painted-value probes", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.head.innerHTML = "";
+  });
+
+  it("appends every probe before reading any, so one refresh restyles the page once", () => {
+    const parent = document.createElement("section");
+    const box = document.createElement("div");
+    box.setAttribute("style", "color: var(--ink); background-color: var(--surface); border-color: var(--line)");
+    parent.appendChild(box);
+    document.body.appendChild(parent);
+    const table = makeTable([
+      { name: "--ink", value: "#111111", source: "styles.css:1" },
+      { name: "--surface", value: "#ffffff", source: "styles.css:2" },
+      { name: "--line", value: "#cccccc", source: "styles.css:3" },
+    ]);
+    const connectedAtRead: number[] = [];
+    const original = window.getComputedStyle.bind(window);
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((element: Element) => {
+      if (element.getAttribute("data-nudge-ui") === "attribution-probe") {
+        connectedAtRead.push(document.querySelectorAll('[data-nudge-ui="attribution-probe"]').length);
+      }
+      return original(element);
+    }) as typeof getComputedStyle;
+
+    try {
+      getResolvedProperties(box, table);
+    } finally {
+      (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = original;
+    }
+
+    expect(connectedAtRead).toEqual([3, 3, 3]);
+    expect(document.querySelectorAll('[data-nudge-ui="attribution-probe"]')).toHaveLength(0);
+  });
+});
+
 describe("computeSpecificity", () => {
   it.each([
     ["*", 0],

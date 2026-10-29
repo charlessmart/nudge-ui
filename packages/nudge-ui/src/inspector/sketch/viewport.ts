@@ -1,10 +1,3 @@
-function domContentWidth(hostElement: HTMLElement): number {
-  const panel = hostElement.shadowRoot?.querySelector<HTMLElement>('.panel[data-open="true"]');
-  const panelRect = panel?.getBoundingClientRect();
-  if (!panelRect || panelRect.width <= 0) return Math.max(1, Math.round(window.innerWidth));
-  return Math.max(1, Math.min(Math.round(window.innerWidth), Math.round(panelRect.left)));
-}
-
 export interface SketchViewport {
   readonly width: number;
   readonly height: number;
@@ -91,7 +84,9 @@ export function getSketchViewport(hostElement: HTMLElement): SketchViewport {
       displayHeight: Math.max(1, rect.height),
     };
   }
-  const width = domContentWidth(hostElement);
+  // The whole window, whichever side the panel docks to: marks are in the page's own coordinates and the panel covers
+  // them like any other overlay, so moving it never moves them.
+  const width = Math.max(1, Math.round(surface.window.innerWidth));
   const height = Math.max(1, Math.round(surface.window.innerHeight));
   return {
     width,

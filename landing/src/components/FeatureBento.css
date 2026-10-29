@@ -343,7 +343,7 @@
   left: calc(100% + 1px);
   width: 24px;
   height: 24px;
-  fill: var(--text-primary);
+  fill: var(--brand-primary);
   stroke: var(--surface-raised-2x);
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -669,8 +669,8 @@
 }
 
 .landing-bento-canvas-tool[data-active="true"] {
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--brand-surface);
+  color: var(--brand-primary);
 }
 
 .landing-bento-canvas-tool-pointer {

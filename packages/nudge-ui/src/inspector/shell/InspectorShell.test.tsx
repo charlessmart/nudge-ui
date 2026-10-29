@@ -215,7 +215,7 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("clears changes below the accordion without removing canvas frames", () => {
+  it("clears changes from the prompt row without removing canvas frames", () => {
     const card = addCanvasCard(window.location.href);
     act(() => {
       appendChange({
@@ -232,15 +232,16 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".changes")).toBe(true);
-    expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
-    expect(shadow.querySelector(".panel__session-actions")).toBeNull();
+    // The clear button is joined to the changes count, ahead of the copy button.
+    const clear = shadow.querySelector<HTMLButtonElement>('[data-test="clear-session"]')!;
+    expect(clear.getAttribute("aria-label")).toBe("Clear changes");
+    expect(clear.closest(".copy-prompt__changes")?.querySelector('[data-test="changes-toggle"]')?.textContent).toBe("1 Change");
 
     act(() => {
       (shadow.querySelector('[data-test="clear-session"]') as HTMLButtonElement).click();
     });
     expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
-    expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+    expect(host.shadowRoot?.querySelector<HTMLButtonElement>('[data-test="clear-session"]')?.disabled).toBe(true);
     expect(getCanvasCards().find((candidate) => candidate.id === card.id)).toEqual(card);
     removeCanvasCard(card.id);
   });
@@ -273,7 +274,7 @@ describe("InspectorShell", () => {
     expect(getComments()).toEqual([]);
     const key = Object.keys(localStorage).find((key) => key.endsWith(":comments:v1"))!;
     expect(JSON.parse(localStorage.getItem(key)!)).toEqual([]);
-    expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
+    expect(host.shadowRoot?.querySelector<HTMLButtonElement>('[data-test="clear-session"]')?.disabled).toBe(true);
   });
 
   it("announces an unsupported inline-text attempt and clears it after success", () => {
@@ -402,10 +403,7 @@ describe("InspectorShell", () => {
     });
     const shadow = host.shadowRoot!;
     act(() => {
-      (shadow.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
-    });
-    act(() => {
-      (shadow.querySelector('[data-test="settings-nav-tokens"]') as HTMLButtonElement).click();
+      (shadow.querySelector('[data-test="panel-view-tokens"]') as HTMLButtonElement).click();
     });
     const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
 
@@ -433,10 +431,9 @@ describe("InspectorShell", () => {
     document.body.append(selected);
     act(() => {
       setSelectedElement(resolveSelectionFromElement(selected));
-      (host.shadowRoot!.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
     });
     act(() => {
-      host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
+      host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="panel-view-tokens"]')!.click();
     });
     const input = host.shadowRoot!.querySelector('[data-test="token-search"]') as HTMLInputElement;
     const event = new KeyboardEvent("keydown", {
@@ -544,10 +541,7 @@ describe("InspectorShell", () => {
     expect(panel.getAttribute("data-open")).not.toBe(before);
 
     act(() => {
-      (shadow.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
-    });
-    act(() => {
-      shadow.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
+      shadow.querySelector<HTMLButtonElement>('[data-test="panel-view-tokens"]')!.click();
     });
     const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
     act(() => {

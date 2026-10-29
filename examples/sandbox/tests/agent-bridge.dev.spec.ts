@@ -94,7 +94,7 @@ test.describe("Nudge MCP browser bridge", () => {
     await page.locator('[data-test="mcp-connect"]').click();
     await expect.poll(() => bridge.getStatus().paired).toBe(true);
     expect(bridge.getStatus().listenerActive).toBe(false);
-    await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy prompt");
+    await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy");
     await expect(connectionStatus).toContainText("MCP Ready - Ask agent to listen");
 
     const listener = startPromptListener(bridge);
@@ -118,14 +118,16 @@ test.describe("Nudge MCP browser bridge", () => {
     });
     await openEditor(page, "/playground");
     const button = page.locator('[data-test="settings-button"]');
-    await expect(button.locator(".agent-status-button__avatar")).toHaveCount(3);
+    // Icon only until an agent connects.
+    await expect(button.locator(".agent-status-button__avatar")).toHaveCount(0);
+    await expect(button.locator(".tabler-icon-settings-2")).toBeVisible();
     const firstAbort = new AbortController();
     const first = bridge.waitForPrompt({ signal: firstAbort.signal, agentClientName: "codex-mcp-client" }).catch(() => null);
     const secondAbort = new AbortController();
     let second: Promise<PromptRequest | null> | undefined;
     try {
       await connectBrowser(page, bridge, { abort: firstAbort, promise: first });
-      await expect(button).toContainText("MCP");
+      await expect(button).toHaveAttribute("aria-label", /^MCP · /);
       await expect(button.locator(".agent-status-button__avatar")).toHaveCount(1);
       await expect(button.getByRole("img", { name: "Codex", exact: true })).toBeVisible();
 

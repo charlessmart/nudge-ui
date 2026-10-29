@@ -51,6 +51,12 @@ export function intersectTokenEntries<T extends { name: string; value: string }>
 ): T[] {
   const first = entries[0];
   if (!first) return [];
-  return first.filter((entry) => entries.every((candidateEntries) =>
-    candidateEntries.some((candidate) => candidate.name === entry.name && candidate.value === entry.value)));
+  if (entries.length === 1) return [...first];
+  // Pages with thousands of custom properties made the nested scan quadratic for every selection.
+  const keys = (list: readonly T[]): Set<string> => new Set(list.map((entry) => `${entry.name}\u0000${entry.value}`));
+  const others = entries.slice(1).map(keys);
+  return first.filter((entry) => {
+    const key = `${entry.name}\u0000${entry.value}`;
+    return others.every((candidateKeys) => candidateKeys.has(key));
+  });
 }

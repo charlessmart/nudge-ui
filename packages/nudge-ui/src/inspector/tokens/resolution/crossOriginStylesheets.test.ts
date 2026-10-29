@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { collectRules, documentRevisions, invalidateStyleResolutionCache } from "./cssomCollector.ts";
-import { readableStylesheet, stylesheetText, subscribeStylesheetCopies, unreadableStylesheetHosts } from "./crossOriginStylesheets.ts";
+import { readableStylesheet, stylesheetText, subscribeStylesheetCopies } from "./crossOriginStylesheets.ts";
 
 const CDN_CSS = ".cta { transition: color 200ms; } .cta:hover { color: red; } .logo { background: url(logo.svg); }";
 
@@ -128,18 +128,5 @@ describe("cross-origin stylesheets", () => {
       [".cta:hover", "https://cdn.example/site.css"],
       [".logo", "https://cdn.example/site.css"],
     ]);
-  });
-
-  it("names each host whose hidden sheets the fallback fetch cannot read either", async () => {
-    vi.spyOn(window, "fetch").mockImplementation(async (input) => String(input).includes("open.example")
-      ? new Response(CDN_CSS)
-      : Promise.reject(new TypeError("Failed to fetch")));
-    vi.spyOn(document, "styleSheets", "get").mockReturnValue(styleSheetList(
-      hiddenSheet("https://cdn.example/a.css"),
-      hiddenSheet("https://cdn.example/b.css"),
-      hiddenSheet("https://open.example/c.css"),
-    ));
-
-    await expect(unreadableStylesheetHosts(document)).resolves.toEqual(["cdn.example"]);
   });
 });

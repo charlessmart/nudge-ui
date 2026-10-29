@@ -1,8 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-/** What the view tool shows: the page's animations, element outlines, or the page's layers pulled apart. */
-export type DebugViewMode = "animation" | "outlines" | "explode";
-
 function createStore<T>(initial: T): {
   get: () => T;
   set: (next: T) => void;
@@ -29,30 +26,36 @@ function createStore<T>(initial: T): {
   };
 }
 
-// Which view the tool applies. Animation, Outline view and Explode view share one tool, so only one is ever active;
-// the tool selection lives with the canvas and this is just the view the tool will show when it is.
-const viewMode = createStore<DebugViewMode>("animation");
+// The Inspection tool's views. Each is switched on and off on its own and only applied while the tool is active.
+// Outlines and spacing are kept while the tool is put away; Explode is switched off and the speed set back to full.
+const outlinesView = createStore<boolean>(false);
 
-export const getDebugViewMode = viewMode.get;
-export const setDebugViewMode = viewMode.set;
-export const useDebugViewMode = viewMode.use;
+export const getOutlinesView = outlinesView.get;
+export const setOutlinesView = outlinesView.set;
+export const useOutlinesView = outlinesView.use;
 
-// Controller-only: the Animation tool reads the element selection directly, so renderers never see the speed.
-const animationSpeed = createStore<number>(1);
+const explodeView = createStore<boolean>(false);
+
+export const getExplodeView = explodeView.get;
+export const setExplodeView = explodeView.set;
+export const useExplodeView = explodeView.use;
+
+const spacingView = createStore<boolean>(false);
+
+export const getSpacingView = spacingView.get;
+export const setSpacingView = spacingView.set;
+export const useSpacingView = spacingView.use;
+
+/** The speed the Inspection tool slows the page to, applied only while the tool is active. */
+export const DEFAULT_ANIMATION_SPEED = 0.3;
+const animationSpeed = createStore<number>(DEFAULT_ANIMATION_SPEED);
 
 export const getAnimationSpeed = animationSpeed.get;
 export const setAnimationSpeed = animationSpeed.set;
 export const useAnimationSpeed = animationSpeed.use;
 
-/** Controller-only: the animation bar is playing or being scrubbed, so the page's markers and element label step aside. */
-const animationBusy = createStore<boolean>(false);
+/** Controller-only: the inspection bar's rendered height, 0 while it is closed, so toasts rise above it rather than cover it. */
+const inspectionBarHeight = createStore<number>(0);
 
-export const getAnimationBusy = animationBusy.get;
-export const setAnimationBusy = animationBusy.set;
-export const useAnimationBusy = animationBusy.use;
-
-/** Controller-only: the animation bar's rendered height, 0 while it is closed, so toasts rise above it rather than cover it. */
-const animationBarHeight = createStore<number>(0);
-
-export const setAnimationBarHeight = animationBarHeight.set;
-export const useAnimationBarHeight = animationBarHeight.use;
+export const setInspectionBarHeight = inspectionBarHeight.set;
+export const useInspectionBarHeight = inspectionBarHeight.use;

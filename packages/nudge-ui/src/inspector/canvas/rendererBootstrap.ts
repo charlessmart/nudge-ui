@@ -27,14 +27,14 @@ import type {
 import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
-import { installRendererElementSelector, selectRendererElement, setRendererSpacingHandlesEnabled } from "./rendererElementSelector.ts";
+import { installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
-import { createRendererAnimationMarkers } from "./rendererAnimationMarkers.ts";
+import { createPageAnimationSpeed } from "./pageAnimationSpeed.ts";
 import { createRendererDebugView } from "./rendererDebugView.ts";
 import { isDebugViewState } from "./debugView.ts";
 
@@ -369,9 +369,8 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const debugView = createRendererDebugView(document, selectRendererElement, reportExploded);
   owner.listenerRemovers.push(() => debugView.dispose());
-  const animationMarkers = createRendererAnimationMarkers(document, selectRendererElement);
-  owner.listenerRemovers.push(() => animationMarkers.dispose());
-  owner.listenerRemovers.push(() => setRendererSpacingHandlesEnabled(true));
+  const animationSpeed = createPageAnimationSpeed(document);
+  owner.listenerRemovers.push(() => animationSpeed.dispose());
 
   const onMessage = (event: MessageEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
@@ -382,9 +381,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
       const state = (event.data as DebugViewStateMessage).state;
       if (isDebugViewState(state)) {
         debugView.apply(state);
-        animationMarkers.apply(state.animations);
-        // The Animation tool inspects the app, so spacing handles stay out of the way of selecting.
-        setRendererSpacingHandlesEnabled(!state.animations);
+        animationSpeed.apply(state.animationSpeed);
       }
       return;
     }

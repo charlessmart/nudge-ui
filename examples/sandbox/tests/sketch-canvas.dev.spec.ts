@@ -56,7 +56,7 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
   await page.locator('[data-test="sketch-color-red"]').click();
   await drawAt(centerY + 40);
   await expect(marks).toHaveCount(2);
-  await expect(marks.nth(1)).toHaveAttribute("fill", "#f03e1e");
+  await expect(marks.nth(1)).toHaveAttribute("fill", "#ff2600");
 
   await page.keyboard.press("ControlOrMeta+z");
   await expect(marks).toHaveCount(1);
@@ -69,11 +69,11 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
   await page.mouse.move(centerX, centerY + 60, { steps: 6 });
   await page.mouse.up();
   await expect(marks).toHaveCount(1);
-  await expect(marks.first()).not.toHaveAttribute("fill", "#f03e1e");
+  await expect(marks.first()).not.toHaveAttribute("fill", "#ff2600");
 
   await page.keyboard.press("ControlOrMeta+z");
   await expect(marks).toHaveCount(2);
-  await expect(marks.nth(1)).toHaveAttribute("fill", "#f03e1e");
+  await expect(marks.nth(1)).toHaveAttribute("fill", "#ff2600");
   await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect(marks).toHaveCount(1);
 

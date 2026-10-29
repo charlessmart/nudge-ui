@@ -1,8 +1,10 @@
+import { useRef } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconLayoutSidebarRight } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { NudgeLogoIcon } from "./NudgeLogoIcon.tsx";
+import { PanelResizeHandle } from "./PanelResizeHandle.tsx";
 
 export interface InspectorPanelProps {
   readonly isOpen: boolean;
@@ -10,15 +12,18 @@ export interface InspectorPanelProps {
   readonly toggleShortcut?: string;
   readonly headerActions: ReactNode;
   readonly prompt: ReactNode;
+  /** Switches what the panel body shows, under the prompt row. */
+  readonly views?: ReactNode;
   readonly children: ReactNode;
   readonly onOpenChange: (open: boolean) => void;
 }
 
 /** Shared panel layout. The host supplies state, content, and commands. */
-export function InspectorPanel({ isOpen, collapseDisabled, toggleShortcut, headerActions, prompt, children, onOpenChange }: InspectorPanelProps): ReactElement {
+export function InspectorPanel({ isOpen, collapseDisabled, toggleShortcut, headerActions, prompt, views, children, onOpenChange }: InspectorPanelProps): ReactElement {
+  const panelRef = useRef<HTMLDivElement>(null);
   return (
     <>
-      <div className="panel" data-open={isOpen ? "true" : "false"}>
+      <div className="panel" data-open={isOpen ? "true" : "false"} ref={panelRef}>
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
             className="panel__header-row"
@@ -43,11 +48,13 @@ export function InspectorPanel({ isOpen, collapseDisabled, toggleShortcut, heade
           <div className="panel__copy-row">
             {prompt}
           </div>
+          {views ? <div className="panel__views">{views}</div> : null}
         </div>
         <div className="panel__body">
           {children}
         </div>
       </div>
+      {isOpen ? <PanelResizeHandle panelRef={panelRef} /> : null}
       {!isOpen ? (
         <div className="panel__restore">
           <Tooltip>

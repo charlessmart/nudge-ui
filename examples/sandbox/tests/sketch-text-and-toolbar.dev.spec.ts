@@ -104,7 +104,7 @@ test("the sketch tools sit in a bar above the toolbar with screenshot and clear 
   expect(sketchBar.y + sketchBar.height).toBeLessThanOrEqual(toolbar.y);
   expect(sketchBar.y + sketchBar.height).toBeGreaterThan(toolbar.y - 24);
 
-  const order = ["pen", "eraser", "rectangle", "text", "color"].map((tool) => `[data-test="sketch-tool-${tool}"]`);
+  const order = ["pen", "eraser", "text", "shape", "color"].map((tool) => `[data-test="sketch-tool-${tool}"]`);
   order.push('[data-test="sketch-screenshot"]', '[data-test="sketch-clear"]');
   const lefts = await Promise.all(order.map(async (selector) => (await box(page.locator(selector))).x));
   expect(lefts).toEqual([...lefts].sort((first, second) => first - second));
@@ -159,7 +159,39 @@ test("typed text becomes a layer that is framed, rotated and scaled like a strok
   await expect(frame).toHaveAttribute("transform", /rotate\(90\)/);
 });
 
-test("P, E, R and T pick the pen, eraser, rectangle and text tools, except while typing text", async ({ page }) => {
+test("the shape button opens a menu of rectangle, circle and arrow, and remembers the last one", async ({ page }) => {
+  const middle = await openSketch(page);
+  const shape = page.locator('[data-test="sketch-tool-shape"]');
+  await expect(shape).toHaveAttribute("data-shape", "rectangle");
+
+  await page.locator('[data-test="sketch-shape-menu"]').click();
+  await page.locator('[data-test="sketch-shape-ellipse"]').click();
+  await expect(shape).toHaveAttribute("data-active", "true");
+  await expect(shape).toHaveAttribute("data-shape", "ellipse");
+  await drag(page, { x: middle.x - 80, y: middle.y - 60 }, { x: middle.x + 40, y: middle.y + 20 });
+  await expect(page.locator(MARK)).toHaveCount(1);
+  await expect(page.locator(FRAME)).toBeVisible();
+
+  await page.locator('[data-test="sketch-tool-pen"]').click();
+  await expect(shape).toHaveAttribute("data-active", "false");
+  await expect(shape).toHaveAttribute("data-shape", "ellipse");
+
+  await page.locator('[data-test="sketch-shape-menu"]').click();
+  await page.locator('[data-test="sketch-shape-arrow"]').click();
+  await drag(page, { x: middle.x - 80, y: middle.y + 60 }, { x: middle.x + 80, y: middle.y + 90 });
+  await expect(page.locator(MARK)).toHaveCount(2);
+});
+
+test("typed text sits on a white note with a shadow", async ({ page }) => {
+  const middle = await openSketch(page);
+  await typeText(page, middle, "hello");
+  const note = page.locator('.sketch__live-canvas [data-test="sketch-text-note"]');
+  await expect(note).toHaveCount(1);
+  await expect(note).toHaveAttribute("fill", "#fff");
+  await expect(page.locator(MARK)).toHaveCount(0);
+});
+
+test("P, E, R, I, L and T pick the pen, eraser, rectangle, circle, arrow and text tools, except while typing text", async ({ page }) => {
   const middle = await openSketch(page);
   const isActive = (tool: string) => expect(page.locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
 
@@ -177,7 +209,12 @@ test("P, E, R and T pick the pen, eraser, rectangle and text tools, except while
   await page.keyboard.press("e");
   await isActive("eraser");
   await page.keyboard.press("r");
-  await isActive("rectangle");
+  await isActive("shape");
+  await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "rectangle");
+  await page.keyboard.press("i");
+  await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "ellipse");
+  await page.keyboard.press("l");
+  await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "arrow");
   await page.keyboard.press("t");
   await isActive("text");
 

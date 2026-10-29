@@ -9,7 +9,7 @@
   padding: 0;
   border: 2px solid var(--surface-raised-2x);
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--brand-primary);
   box-shadow: var(--shadow-popup);
   color: var(--text-primary);
   font: inherit;
@@ -74,9 +74,12 @@
   pointer-events: auto;
 }
 
-.comment-editor {
-  position: fixed;
+.comment-editor__positioner {
   z-index: 12;
+  pointer-events: auto;
+}
+
+.comment-editor {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -90,4 +93,21 @@
 }
 
 .comment-editor .text-input { flex: 1; min-width: 0; padding-inline: var(--space-8); }
-.comment-editor__error { position: absolute; top: 100%; left: 0; padding: var(--space-8); background: var(--surface-raised-2x); color: var(--text-primary); border-radius: var(--radius-control); }
+.comment-editor { flex-wrap: wrap; }
+
+/* The banner sits above the input row on the same surface, so the surface grows upward. */
+.comment-editor__banner {
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 0 0 100%;
+  padding: var(--space-4) var(--space-8) var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+}
+
+.comment-editor__banner svg { flex-shrink: 0; color: var(--warning); }

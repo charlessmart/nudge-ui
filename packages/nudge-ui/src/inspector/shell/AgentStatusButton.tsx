@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { IconRobot } from "@tabler/icons-react";
+import { IconRobot, IconSettings2 } from "@tabler/icons-react";
 import { useAgentClient, type AgentClientSnapshot } from "../agent/client.ts";
 import { useAgentConnectionStatus } from "../agent/connectionStatus.ts";
 import { isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
@@ -10,7 +10,7 @@ import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 
 export interface AgentStatusButtonProps {
   onOpenSettings: (section: SettingsSection) => void;
-  /** Shows the agent logos and opens the MCP section; hosts without MCP keep a plain Settings button. */
+  /** Opens the MCP section; hosts without MCP open the prompt instructions. */
   mcpEnabled?: boolean;
 }
 
@@ -92,12 +92,10 @@ export function AgentStatusButtonView({ agent, onOpenSettings, mcpEnabled = true
         data-mcp-listening={listening ? "true" : "false"}
         onClick={() => onOpenSettings(mcpEnabled ? "mcp" : "instructions")}
       >
-        {connected ? <ConnectedAgentAvatar name={agent.agentClientName} /> : mcpEnabled ? <span className="agent-status-button__avatars">
-          <CodexAvatar />
-          <ClaudeAvatar />
-          <CursorAvatar />
-        </span> : null}
-        <span className="agent-status-button__label">{connected ? "MCP" : "Settings"}</span>
+        {/* Icon only: the paired agent's logo while one is connected, the settings cog otherwise. */}
+        {connected
+          ? <ConnectedAgentAvatar name={agent.agentClientName} />
+          : <IconSettings2 size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />}
         {connected ? (
           <span
             className="agent-status-button__dot"

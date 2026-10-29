@@ -5,6 +5,7 @@ import { isTokenChange, type TokenChangeRecord } from "../changes/types.ts";
 import { useChanges } from "../drafts/store.ts";
 import { TextInput } from "../ui/TextInput.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { Select } from "../ui/Select.tsx";
 import { Disclosure } from "../ui/Disclosure.tsx";
 import { TokenValueField } from "./TokenField.tsx";
 import {
@@ -14,6 +15,9 @@ import {
   compatibleTokenNames,
   contextLabel,
   filterTokenRows,
+  scopeRowsToStylesheet,
+  tokenModes,
+  tokenStylesheets,
 } from "./catalog.ts";
 import type { TokenCatalogRow } from "./catalog.ts";
 import { setGlobalTokenValue } from "./tokenEdits.ts";
@@ -32,7 +36,20 @@ function rowChange(
 
 export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): ReactElement {
   const [query, setQuery] = useState("");
-  const visibleRows = useMemo(() => filterTokenRows(rows, query), [query, rows]);
+  const [chosenStylesheet, setChosenStylesheet] = useState<string | null>(null);
+  const [chosenMode, setChosenMode] = useState<string | null>(null);
+  const stylesheets = useMemo(() => tokenStylesheets(rows), [rows]);
+  const file = stylesheets.length === 0
+    ? null
+    : stylesheets.find((candidate) => candidate.file === chosenStylesheet)?.file ?? stylesheets[0]!.file;
+  const modes = useMemo(() => file === null ? [] : tokenModes(rows, file), [rows, file]);
+  // Nothing to choose between with one stylesheet, or with one context in it; otherwise tokens are listed for one at a time.
+  const mode = modes.length > 1 ? modes.find((candidate) => candidate.key === chosenMode)?.key ?? modes[0]!.key : null;
+  const scopedRows = useMemo(
+    () => file === null || (stylesheets.length <= 1 && mode === null) ? rows : scopeRowsToStylesheet(rows, file, mode),
+    [rows, file, mode, stylesheets.length],
+  );
+  const visibleRows = useMemo(() => filterTokenRows(scopedRows, query), [query, scopedRows]);
   const entries: TokenEntry[] = useMemo(() => rows.map((row) => ({
     name: row.definition.cssName,
     value: row.resolvedValue || row.authoredValue,
@@ -42,6 +59,35 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
   return (
     <section className="tokens-panel" data-test="tokens-panel">
       <div className="tokens-panel__tools">
+        {stylesheets.length > 1 || mode !== null ? (
+          <div className="tokens-panel__selects">
+            {stylesheets.length > 1 && file !== null ? (
+              <Select
+                className="tokens-panel__stylesheet"
+                value={file}
+                options={stylesheets.map((candidate) => ({
+                  value: candidate.file,
+                  label: `${candidate.file || "Unknown stylesheet"} (${candidate.count})`,
+                }))}
+                aria-label="Stylesheet"
+                data-test="token-stylesheet"
+                popupWidth="fit"
+                onValueChange={setChosenStylesheet}
+              />
+            ) : null}
+            {mode !== null ? (
+              <Select
+                className="tokens-panel__mode"
+                value={mode}
+                options={modes.map((candidate) => ({ value: candidate.key, label: candidate.key }))}
+                aria-label="Mode"
+                data-test="token-mode"
+                popupWidth="fit"
+                onValueChange={setChosenMode}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <TextInput
           type="search"
           value={query}

@@ -26,10 +26,8 @@ test("dev: inspector shell mounts in Shadow DOM and toggles from the keyboard", 
   const afterSecond = await getOpen();
   expect(afterSecond).toBe(before);
 
-  await page.locator('[data-test="settings-button"]').click();
-  await page.getByRole("button", { name: "Tokens", exact: true }).click();
-  await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
-  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+  await page.locator('[data-test="panel-view-tokens"]').click();
+  await expect(page.locator('[data-test="document-tokens"]')).toBeVisible();
   await expect(page.locator('[data-test="tokens-panel"]')).toBeVisible();
 });
 

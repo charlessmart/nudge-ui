@@ -9,7 +9,7 @@ import type { RendererCursor } from "../ui/customCursors.ts";
 import type { DebugViewState } from "./debugView.ts";
 
 // Bumped on every message-shape change; the controller and renderer must agree exactly.
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 26;
 
 export interface FrameMessage {
   type: string;
@@ -292,13 +292,13 @@ export interface InspectorInteractionStateMessage extends RendererMessage {
   commentCursor?: string;
 }
 
-/** Applies the view tools (outlines, explode view, animation markers) inside a renderer. */
+/** Applies the Inspection tool (outlines, explode view, animation speed) inside a renderer. */
 export interface DebugViewStateMessage extends RendererMessage {
   type: "debug-view-state";
   state: DebugViewState;
 }
 
-/** The view tool pulled a subtree apart in this renderer. The controller hides its own element chrome meanwhile, since a flat overlay cannot follow the exploded layers. */
+/** Explode view pulled a subtree apart in this renderer. The controller hides its own element chrome meanwhile, since a flat overlay cannot follow the exploded layers. */
 export interface DebugViewPhaseMessage extends RendererMessage {
   type: "debug-view-phase";
   /** True from the moment a subtree explodes until it has finished collapsing. */

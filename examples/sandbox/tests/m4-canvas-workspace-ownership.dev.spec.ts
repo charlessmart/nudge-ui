@@ -64,7 +64,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
     const lockedNotice = page2.locator('[data-test="locked-workspace-notice"]');
     await expect(lockedNotice).toBeVisible();
     const noticeText = await lockedNotice.textContent();
-    expect(noticeText).toContain("Nudge UI is open in another tab");
+    expect(noticeText).toContain("Nudge is open in another tab");
     expect(noticeText).not.toContain("Nudge UI writes are disabled");
     expect(noticeText).not.toContain("Active workspace");
     await expect(lockedNotice.locator(".locked-notice__detail")).toHaveCount(0);
@@ -183,9 +183,9 @@ test.describe("Canvas workspace — stale change detection", () => {
 
     const clearSession = page.locator('[data-test="clear-session"]');
     await expect(clearSession).toBeVisible();
-    await expect(clearSession.locator(".."))
-      .toHaveClass(/changes__session-action/);
+    await expect(clearSession).toBeEnabled();
 
+    await page.locator('[data-test="changes-toggle"]').click();
     const changeRows = page.locator('[data-test="change-row"]');
     await expect.poll(() => changeRows.count()).toBeGreaterThanOrEqual(1);
 

@@ -36,6 +36,7 @@ import {
   useCanvasLayoutTransitioning,
   useTemporaryAppInteraction,
   setTemporaryAppInteraction,
+  setAppToolActive,
 } from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PageCard } from "./PageCard.tsx";
@@ -88,12 +89,13 @@ import {
   CanvasToolbar,
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
-import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, viewModeForCode } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, claimShortcutKey, inspectionViewForCode } from "./keyboardShortcuts.ts";
 import { canvasToolEffects, type BoardPointerState } from "./toolEffects.ts";
-import { getDebugViewMode, setDebugViewMode, useAnimationBusy, useDebugViewMode } from "./debugViewStore.ts";
+import { getExplodeView, getOutlinesView, setAnimationSpeed, setExplodeView, setOutlinesView, useAnimationSpeed, useExplodeView, useOutlinesView, useSpacingView } from "./debugViewStore.ts";
+import { MAX_ANIMATION_SPEED } from "./animationSpeed.ts";
 import { rendererDesiredState, sendRendererState, sendRendererStateToAll } from "./rendererState.ts";
 import { clearFramesExploded, setFrameExploded } from "./frameViewState.ts";
-import { AnimationBar } from "./AnimationBar.tsx";
+import { InspectionBar } from "./InspectionBar.tsx";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import sketchToolBarStyles from "./sketch/SketchToolBar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
@@ -177,28 +179,32 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true ? "select" : "design");
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const layoutTransitioning = useCanvasLayoutTransitioning();
-  const debugViewMode = useDebugViewMode();
-  const animationBusy = useAnimationBusy();
+  const outlinesView = useOutlinesView();
+  const explodeView = useExplodeView();
+  const spacingView = useSpacingView();
+  const animationSpeed = useAnimationSpeed();
   const pointerState: BoardPointerState = boardCursorClass === "is-grabbing"
     ? "grabbing"
     : boardCursorClass !== "" ? "grabbable" : "idle";
   const toolEffects = useMemo(
     () => canvasToolEffects({
       tool: selectedTool,
-      debugView: debugViewMode,
-      animationBusy,
+      outlines: outlinesView,
+      explode: explodeView,
+      spacing: spacingView,
+      animationSpeed,
       presentation,
       layoutTransitioning,
       sketchActive,
       temporaryAppInteraction,
       pointer: pointerState,
     }),
-    [animationBusy, debugViewMode, layoutTransitioning, pointerState, presentation, selectedTool, sketchActive, temporaryAppInteraction],
+    [animationSpeed, explodeView, layoutTransitioning, outlinesView, pointerState, presentation, selectedTool, sketchActive, spacingView, temporaryAppInteraction],
   );
   const {
     tool: interactionTool,
     appInteractive,
-    animationViewActive,
+    inspectionBarActive,
     debugView: activeDebugView,
     rendererInteractionsEnabled,
     rendererCursor,
@@ -458,20 +464,34 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     stopPanMode();
   }, [selectedTool, sketchActive, sketchEnabled, stopPanMode]);
 
-  // A view key picks its view directly: pressing it while that view is showing puts the tool away, as the toolbar button does.
+  // O and X switch their view while the Inspection tool is up, and bring it up with that view on when it is not. D, like
+  // the toolbar button, toggles the tool.
   const handleToolShortcut = useCallback((code: string, nextTool: CanvasInteractionTool) => {
-    const view = viewModeForCode(code);
+    const view = inspectionViewForCode(code);
     if (view) {
-      if (selectedTool === "debug" && getDebugViewMode() !== view) {
-        setDebugViewMode(view);
-        return;
-      }
-      setDebugViewMode(view);
+      const [get, set] = view === "outlines" ? [getOutlinesView, setOutlinesView] : [getExplodeView, setExplodeView];
+      set(selectedTool === "debug" ? !get() : true);
+      if (selectedTool !== "debug") handleToolChange("debug", "keyboard");
+      return;
     }
     handleToolChange(nextTool, "keyboard");
   }, [handleToolChange, selectedTool]);
 
   useEffect(() => () => setCommentToolActive(false), []);
+
+  // Putting the Inspection tool away switches Explode off, since it takes over the page's clicks, and puts the speed back
+  // to full, so the panel opens again from a clean start.
+  useEffect(() => {
+    if (selectedTool === "debug") return;
+    setExplodeView(false);
+    setAnimationSpeed(MAX_ANIMATION_SPEED);
+  }, [selectedTool]);
+
+  // Key handlers read this to decide whether the page keeps the keys the inspector acts on.
+  useEffect(() => {
+    setAppToolActive(selectedTool === "select");
+    return () => setAppToolActive(false);
+  }, [selectedTool]);
 
   useEffect(() => {
     setCommentToolActive(commentToolActive);
@@ -515,7 +535,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a
       // copy that is still being captured.
       if (nextTool === "sketch" && sketchActive) return;
-      event.preventDefault();
+      claimShortcutKey(event);
       handleToolShortcut(event.code, nextTool);
     }
 
@@ -929,7 +949,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           >
             {cards.map(renderCard)}
           </div>
-          {!sketchActive && animationViewActive ? <AnimationBar /> : null}
         </div>
       </div>
       <div
@@ -938,6 +957,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         data-test="canvas-toolbar-portal"
         style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
       >
+        {/* Shares the toolbar's layer, above the page overlays, rather than the board's. */}
+        {!sketchActive && inspectionBarActive ? <InspectionBar /> : null}
         <CanvasToolbar
           tool={interactionTool}
           sketchEnabled={sketchAvailable}

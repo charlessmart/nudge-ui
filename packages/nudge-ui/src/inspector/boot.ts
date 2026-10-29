@@ -8,10 +8,12 @@ import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import {
   isInspectorToggleShortcut,
   isOriginalPreviewShortcut,
+  isolateTypingKeys,
   SEND_PROMPT_HOTKEY_EVENT,
 } from "./shell/shortcuts.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { isPageSurface } from "./canvas/pageSurface.ts";
+import { claimShortcutKey } from "./canvas/keyboardShortcuts.ts";
 import { isKeyboardShortcutMessage, type FrameIdentity } from "./canvas/frameProtocol.ts";
 import { subscribeCanvasRendererMessages } from "./canvas/rendererMessageRouter.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
@@ -66,13 +68,13 @@ function onKeydown(e: KeyboardEvent): void {
   if (isSketchInteractionActive()) return;
   if (isInspectorToggleShortcut(e)) {
     toggleInspector();
-    e.preventDefault();
+    claimShortcutKey(e, { always: true });
     return;
   }
   if (isOriginalPreviewShortcut(e)) {
     keyboardPeekHeld = true;
     setOriginalPreviewActive(true);
-    e.preventDefault();
+    claimShortcutKey(e);
   }
 }
 
@@ -215,6 +217,9 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
 
 function mountLockedNotice(host: HTMLElement, storageError = false): void {
   controllerStartId += 1;
+  // The page-surface renderer holds the Inspection tool's speed and views; with no toolbar left, they must not linger.
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;
@@ -262,8 +267,9 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
-    inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
-    inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown, true));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup, true));
+    inspectorSession.registerCleanup(isolateTypingKeys(shadow));
     inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {
       onRendererKeyboardShortcut(message, frame.identity);
     }));
@@ -272,8 +278,9 @@ export function mountInspector(host: HTMLElement): void {
       { inspector: inspectorSession, documentSession: null },
       createElement(inspectorShell),
     ));
-    window.addEventListener("keydown", onKeydown);
-    window.addEventListener("keyup", onKeyup);
+    // Captured on the window, ahead of the page's own shortcuts, so a page can't swallow them.
+    window.addEventListener("keydown", onKeydown, true);
+    window.addEventListener("keyup", onKeyup, true);
   }
   setInspectorOpen(true);
 }

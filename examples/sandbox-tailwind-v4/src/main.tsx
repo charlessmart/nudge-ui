@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { tokenCatalog, tokenDiagnostics, tokens } from "virtual:design-tokens";
 import { TailwindLandingPage } from "./TailwindLandingPage";
 import { ExamplesTailwindV4Page } from "./ExamplesTailwindV4Page";
+import { ThemeLandingPage } from "./ThemeLandingPage";
 import "./tailwind.css";
 
 const DevShadcnComponentsPage = import.meta.env.DEV
@@ -20,6 +21,7 @@ function Route() {
     return DevShadcnComponentsPage ? <Suspense fallback={<main className="min-h-screen bg-background p-10">Loading components…</main>}><DevShadcnComponentsPage /></Suspense> : <TailwindLandingPage />;
   }
   if (window.location.pathname === "/examples") return <ExamplesTailwindV4Page />;
+  if (window.location.pathname === "/theme") return <ThemeLandingPage />;
   return <TailwindLandingPage />;
 }
 

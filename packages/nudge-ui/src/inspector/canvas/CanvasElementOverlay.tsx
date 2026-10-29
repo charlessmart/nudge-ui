@@ -32,7 +32,6 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
-import { useAnimationBusy } from "./debugViewStore.ts";
 import { useFrameExploded } from "./frameViewState.ts";
 import { findCanvasCardIdByDocument, findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
 import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
@@ -362,7 +361,6 @@ export function CanvasElementOverlay(): ReactElement | null {
   const hierarchy = useHierarchy();
   const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
   const inlineTextSession = useInlineTextSession();
-  const animationBusy = useAnimationBusy();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
   const presentationTransitioning = useCanvasPresentationTransitioning();
@@ -880,8 +878,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           )) : null}
         </>
       ) : null}
-      {/* A playing or scrubbed animation moves the element out from under its outline, so the selection chrome steps aside like the navigator. */}
-      {!animationBusy && projectedLinkedPeers.map(({ peer, rect }, index) => (
+      {projectedLinkedPeers.map(({ peer, rect }, index) => (
         <div
           key={`${peer.getAttribute("data-cid")}-${index}`}
           ref={outlineRef(peer)}
@@ -891,7 +888,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           aria-hidden="true"
         />
       ))}
-      {!animationBusy && projectedSelectedGeometry.map(({ element, rect }, index) => (
+      {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
           key={`${element.cid}-${index}`}
           ref={outlineRef(element.domElement)}
@@ -916,7 +913,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           {spacingValueCss(spacingBadge.value)}
         </div>
       ) : null}
-      {domNavigationEnabled && !animationBusy && !selectedFrameExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
+      {domNavigationEnabled && !selectedFrameExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
         <DomNavigator
           selected={selected}
           hierarchy={hierarchy}

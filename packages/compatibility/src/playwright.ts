@@ -50,7 +50,7 @@ export function appLocator(page: Page, selector: string): Locator {
 /** Takes over a restored editor session when a previous browser page still owns it. */
 export async function ensureEditorOwnership(page: Page): Promise<void> {
   const workspace = page.locator('[data-test="canvas-workspace"]');
-  const takeover = page.getByRole("button", { name: "Take Over Here" });
+  const takeover = page.getByRole("button", { name: "Take over here" });
   await expect.poll(async () => (await workspace.count()) + (await takeover.count())).toBeGreaterThan(0);
   if (await takeover.isVisible()) await takeover.click();
   await expect(workspace).toBeVisible();

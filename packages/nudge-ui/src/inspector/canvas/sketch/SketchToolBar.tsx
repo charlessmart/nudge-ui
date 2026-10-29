@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
-import { IconCamera, IconCheck, IconTrash } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCamera, IconCheck, IconChevronDown, IconCircle, IconSquare, IconTrash } from "@tabler/icons-react";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
 import { SKETCH_TOOL_SHORTCUTS, sketchToolForEvent } from "./sketchShortcuts.ts";
-import type { SketchDrawingTool } from "../../sketch/drawingTools.ts";
+import { isSketchShapeTool, type SketchDrawingTool, type SketchShapeTool } from "../../sketch/drawingTools.ts";
 import { SKETCH_PEN_COLORS, SKETCH_RECTANGLE_FILL_OPACITY, type SketchPenColor } from "../../sketch/model.ts";
 
 /**
@@ -166,21 +166,82 @@ function EraserIllustration(): ReactElement {
   );
 }
 
-function RectangleIcon({ color }: { readonly color: SketchPenColor }): ReactElement {
+/** The sticky note the Text tool types onto, with its "T" in the chosen color. */
+function NoteIllustration({ color }: { readonly color: SketchPenColor }): ReactElement {
+  const id = useId();
   return (
-    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" aria-hidden="true">
-      <rect x={1} y={1} width={22} height={22} rx={4} fill={color.value} fillOpacity={SKETCH_RECTANGLE_FILL_OPACITY} stroke={color.value} strokeWidth={2} />
+    <svg className="sketch-options__illustration sketch-options__illustration--note" viewBox="0 0 40 43" width={40} height={43} fill="none" aria-hidden="true">
+      <path
+        d="M18.3472 8.09568L38.2543 13.1692L30.8454 42.2399L1.77464 34.831L7.33136 13.0279L18.3472 8.09568Z"
+        fill={`url(#${id}-paper)`}
+        stroke="black"
+        strokeOpacity={0.16}
+        strokeWidth={0.5}
+      />
+      <path
+        d="M14.4565 6H35V36H5V13.5L14.4565 6Z"
+        fill={`url(#${id}-paper)`}
+        stroke="black"
+        strokeOpacity={0.16}
+        strokeWidth={0.5}
+      />
+      <path d="M13.4961 12.5C12.0002 8.01224 14.4825 6.01074 14.4961 5.99989L4.84251 13.7433C4.84251 13.7433 7.49609 12.5 13.4961 12.5Z" fill="#fff" />
+      <path d="M14.7646 17.1133V15.6543H24.7139V17.1133H20.5742V28.75H18.9219V17.1133H14.7646Z" fill={color.value} />
+      <defs>
+        <linearGradient id={`${id}-paper`} x1="17" y1="16.5" x2="10.5" y2="9" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F5F5F5" />
+          <stop offset="1" stopColor="#DFDBD8" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
 
-/** A serif "T": bar, short serifs at its ends, stem, and a foot. */
-function TextIcon(): ReactElement {
+function RectangleIcon({ color }: { readonly color: string }): ReactElement {
   return (
-    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 7V5.5h12V7M12 5.5v13M9.5 18.5h5" />
+    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" aria-hidden="true">
+      <rect x={1} y={1} width={22} height={22} rx={4} fill={color} fillOpacity={SKETCH_RECTANGLE_FILL_OPACITY} stroke={color} strokeWidth={2} />
     </svg>
   );
+}
+
+function CircleIcon({ color }: { readonly color: string }): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" aria-hidden="true">
+      <circle cx={12} cy={12} r={11} fill={color} fillOpacity={SKETCH_RECTANGLE_FILL_OPACITY} stroke={color} strokeWidth={2} />
+    </svg>
+  );
+}
+
+function ArrowIcon({ color }: { readonly color: string }): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" stroke={color} strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20L20 4M10.5 4H20V13.5" />
+    </svg>
+  );
+}
+
+interface ShapeOption {
+  readonly tool: SketchShapeTool;
+  readonly label: string;
+  readonly shortcut: string;
+  /** The bar's button, drawn in the chosen color. */
+  readonly icon: (color: string) => ReactElement;
+  /** The menu row's plain outline icon, like the rest of the toolbar's. */
+  readonly menuIcon: ReactElement;
+}
+
+const MENU_ICON_PROPS = { size: "var(--icon-size-large)", stroke: "var(--icon-stroke-width)", "aria-hidden": true } as const;
+
+/** In the order the dropdown lists them; the first is what the bar starts on. */
+const SHAPE_OPTIONS: readonly ShapeOption[] = [
+  { tool: "rectangle", label: "Rectangle", shortcut: SKETCH_TOOL_SHORTCUTS.rectangle, icon: (color) => <RectangleIcon color={color} />, menuIcon: <IconSquare {...MENU_ICON_PROPS} /> },
+  { tool: "ellipse", label: "Circle", shortcut: SKETCH_TOOL_SHORTCUTS.ellipse, icon: (color) => <CircleIcon color={color} />, menuIcon: <IconCircle {...MENU_ICON_PROPS} /> },
+  { tool: "arrow", label: "Arrow", shortcut: SKETCH_TOOL_SHORTCUTS.arrow, icon: (color) => <ArrowIcon color={color} />, menuIcon: <IconArrowUpRight {...MENU_ICON_PROPS} /> },
+];
+
+function shapeOption(tool: SketchShapeTool): ShapeOption {
+  return SHAPE_OPTIONS.find((option) => option.tool === tool) ?? SHAPE_OPTIONS[0]!;
 }
 
 function IllustratedToolButton({
@@ -189,6 +250,7 @@ function IllustratedToolButton({
   label,
   shortcut,
   onSelect,
+  note = false,
   children,
 }: {
   readonly tool: SketchDrawingTool;
@@ -196,6 +258,8 @@ function IllustratedToolButton({
   readonly label: string;
   readonly shortcut?: string;
   readonly onSelect: (tool: SketchDrawingTool) => void;
+  /** A whole object that sits inside the bar, rather than a tool rising out of its bottom edge. */
+  readonly note?: boolean;
   readonly children: ReactElement;
 }): ReactElement {
   const active = tool === activeTool;
@@ -203,7 +267,7 @@ function IllustratedToolButton({
     <Tooltip content={label} shortcut={shortcut} stableTrigger>
       <button
         type="button"
-        className="sketch-options__illustrated"
+        className={`sketch-options__illustrated${note ? " sketch-options__illustrated--note" : ""}`}
         aria-label={label}
         aria-pressed={active}
         data-active={active ? "true" : "false"}
@@ -213,6 +277,85 @@ function IllustratedToolButton({
         {children}
       </button>
     </Tooltip>
+  );
+}
+
+/** The shape tool: a button for the last shape chosen, and a chevron that opens the other shapes. */
+function ShapePicker({ tool, lastShape, color, onToolChange }: {
+  readonly tool: SketchDrawingTool;
+  /** The shape the button stands for while another tool is active. */
+  readonly lastShape: SketchShapeTool;
+  readonly color: SketchPenColor;
+  readonly onToolChange: (tool: SketchDrawingTool) => void;
+}): ReactElement {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const checkedRef = useRef<HTMLButtonElement>(null);
+  const shape = isSketchShapeTool(tool) ? tool : lastShape;
+  const active = isSketchShapeTool(tool);
+  const current = shapeOption(shape);
+
+  useEffect(() => {
+    if (menuOpen) checkedRef.current?.focus({ preventScroll: true });
+  }, [menuOpen]);
+
+  useDismissablePopover(menuOpen, rootRef, () => setMenuOpen(false));
+
+  return (
+    <div className="sketch-options__shape" ref={rootRef}>
+      <Tooltip content={current.label} shortcut={current.shortcut} stableTrigger>
+        <IconButton
+          variant="quiet"
+          size="large"
+          className="canvas-toolbar__tool sketch-options__plain-tool"
+          label={current.label}
+          aria-pressed={active}
+          data-active={active ? "true" : "false"}
+          data-test="sketch-tool-shape"
+          data-shape={shape}
+          onClick={() => onToolChange(shape)}
+        >
+          {current.icon(color.value)}
+        </IconButton>
+      </Tooltip>
+      <Tooltip content="More shapes" disabled={menuOpen} stableTrigger>
+        <button
+          type="button"
+          className="sketch-options__chevron"
+          aria-label="Choose shape"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          data-open={menuOpen ? "true" : "false"}
+          data-test="sketch-shape-menu"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+        </button>
+      </Tooltip>
+      {menuOpen ? (
+        <div className="sketch-options__shape-menu" role="menu" aria-label="Shapes" data-test="sketch-shape-options">
+          {SHAPE_OPTIONS.map((option) => (
+            <button
+              key={option.tool}
+              ref={option.tool === shape ? checkedRef : undefined}
+              type="button"
+              role="menuitemradio"
+              aria-checked={option.tool === shape}
+              className="sketch-options__shape-option"
+              data-test={`sketch-shape-${option.tool}`}
+              onClick={() => {
+                setMenuOpen(false);
+                onToolChange(option.tool);
+              }}
+            >
+              <span className="sketch-options__shape-icon">{option.menuIcon}</span>
+              <span className="sketch-options__shape-label">{option.label}</span>
+              <kbd className="sketch-options__shape-shortcut">{option.shortcut}</kbd>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -385,6 +528,12 @@ export function SketchToolBar({
 }: SketchToolBarProps): ReactElement | null {
   const playsIntro = intro && !still;
   const [settled, setSettled] = useState(!playsIntro);
+  // Kept here, not in the picker, so the bar remembers its shape while it is closed.
+  const [lastShape, setLastShape] = useState<SketchShapeTool>("rectangle");
+
+  useEffect(() => {
+    if (isSketchShapeTool(tool)) setLastShape(tool);
+  }, [tool]);
 
   useEffect(() => {
     if (still) return;
@@ -435,36 +584,12 @@ export function SketchToolBar({
           </IllustratedToolButton>
         </BarItem>
         <BarItem index={2}>
-          <Tooltip content="Rectangle" shortcut={SKETCH_TOOL_SHORTCUTS.rectangle} stableTrigger>
-            <IconButton
-              variant="quiet"
-              size="large"
-              className="canvas-toolbar__tool sketch-options__plain-tool"
-              label="Rectangle"
-              aria-pressed={drawing.tool === "rectangle"}
-              data-active={drawing.tool === "rectangle" ? "true" : "false"}
-              data-test="sketch-tool-rectangle"
-                onClick={() => onToolChange("rectangle")}
-            >
-              <RectangleIcon color={drawing.color} />
-            </IconButton>
-          </Tooltip>
+          <IllustratedToolButton tool="text" activeTool={drawing.tool} label="Text" shortcut={SKETCH_TOOL_SHORTCUTS.text} onSelect={onToolChange} note>
+            <NoteIllustration color={drawing.color} />
+          </IllustratedToolButton>
         </BarItem>
         <BarItem index={3}>
-          <Tooltip content="Text" shortcut={SKETCH_TOOL_SHORTCUTS.text} stableTrigger>
-            <IconButton
-              variant="quiet"
-              size="large"
-              className="canvas-toolbar__tool sketch-options__plain-tool"
-              label="Text"
-              aria-pressed={drawing.tool === "text"}
-              data-active={drawing.tool === "text" ? "true" : "false"}
-              data-test="sketch-tool-text"
-                onClick={() => onToolChange("text")}
-            >
-              <TextIcon />
-            </IconButton>
-          </Tooltip>
+          <ShapePicker tool={drawing.tool} lastShape={lastShape} color={drawing.color} onToolChange={onToolChange} />
         </BarItem>
         <BarItem index={4}>
           <ColorPicker color={drawing.color} hidden={!settled} initiallyOpen={paletteOpen} onColorChange={onColorChange} />

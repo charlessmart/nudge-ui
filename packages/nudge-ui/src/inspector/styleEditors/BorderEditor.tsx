@@ -168,7 +168,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
 
   return (
     <div className={`editor`} data-test="border-editor">
-      <div className="editor__title-row">
+      <div className={`editor__title-row${showBorderControls ? "" : " editor__title-row--add"}`}>
         <div className="editor__title">Border</div>
         {showBorderControls ? (
           <Tooltip content={inlineStyleWarningContent(borderBlockedBy)}>
@@ -188,7 +188,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             variant="quiet"
             label="Add Border"
             data-test="add-border"
-            className="border__add"
+            className="border__add editor__add-trigger"
             disabled={borderBlockedBy !== null}
             onClick={handleAddBorder}
           >

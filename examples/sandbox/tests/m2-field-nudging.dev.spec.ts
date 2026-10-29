@@ -15,8 +15,8 @@ async function managedSheet(page: import("@playwright/test").Page): Promise<stri
 }
 
 async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('[data-test="tokens-button"]').click();
-  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+  await page.locator('[data-test="panel-view-tokens"]').click();
+  await expect(page.locator('[data-test="document-tokens"]')).toBeVisible();
 }
 
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {

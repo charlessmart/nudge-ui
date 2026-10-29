@@ -110,16 +110,14 @@
   border: 0;
 }
 
+/* Covers the whole window so frames are placed in window coordinates; the panel stays above it and keeps its clicks. */
 .sketch__live-popup {
+  inset: 0;
   overflow: visible;
   background: transparent;
   pointer-events: none;
   /* Let the live controls and CanvasToolbar participate in one layer stack. */
   z-index: auto;
-}
-
-.sketch__live-popup[data-inspector-open="false"] {
-  right: 0;
 }
 
 .sketch__canvas-frame {
@@ -178,12 +176,15 @@
   margin: 0;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 3px;
+  box-sizing: border-box;
+  /* The note the words will sit on once they are committed. */
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14), 0 4px 10px rgba(0, 0, 0, 0.12);
   resize: none;
   overflow: hidden;
   white-space: pre;
-  outline: 1px dashed var(--accent);
-  outline-offset: 3px;
+  outline: 0;
   caret-color: currentColor;
   pointer-events: auto;
   transform-origin: 0 0;

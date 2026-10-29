@@ -55,24 +55,69 @@ function canBecomeNumeric(value: string): boolean {
   return !/\b\d+(?:\.\d+)?(?:%|vw|vh|vmin|vmax|dvw|dvh|sv[lw]h|lv[lw]h|[ce]m|ex|ch)\b/i.test(withoutVars);
 }
 
-function normalizeInElementContext(el: HTMLElement, property: string, value: string): string {
-  const doc = el.ownerDocument;
-  const probe = doc.createElement(el.tagName.toLowerCase());
-  probe.setAttribute("data-nudge-ui", "attribution-probe");
-  probe.style.setProperty(property, value, "important");
-  probe.style.setProperty("position", "fixed", "important");
-  probe.style.setProperty("visibility", "hidden", "important");
-  // Appending leaves the element's following siblings untouched; inserting beside the element restyles whatever sibling and `:has()` selectors reach, which on a large page is a recalculation per probe.
-  el.parentElement?.appendChild(probe);
-  if (!probe.isConnected) doc.body.appendChild(probe);
-  const normalized = getElementComputedStyle(probe).getPropertyValue(property).trim();
-  probe.remove();
-  return normalized;
+interface PaintedCheck {
+  el: HTMLElement;
+  row: ResolvedProperty;
+  painted: string;
 }
 
-function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted: string): boolean {
-  if (!row.tokenName || !/^var\(\s*--[\w-]+\s*\)$/.test(row.declaredValue)) return false;
-  return normalizeInElementContext(el, row.property, row.declaredValue) === painted.trim();
+// A refresh resolves the same ancestor declarations in several passes; a microtask bounds how long an answer is trusted.
+let probeResults = new WeakMap<HTMLElement, Map<string, string>>();
+let probeResultsExpire = false;
+
+function probeKey(row: ResolvedProperty): string {
+  return `${row.property}\u0000${row.declaredValue}`;
+}
+
+function rememberProbeResults(): void {
+  if (probeResultsExpire) return;
+  probeResultsExpire = true;
+  queueMicrotask(() => {
+    probeResults = new WeakMap();
+    probeResultsExpire = false;
+  });
+}
+
+/**
+ * Whether each declared `var(--token)` paints as the given value in its element's context.
+ * Every probe is appended before any is read: each read restyles the page, and a probe per declaration cost a whole-document recalculation apiece on large sites.
+ */
+function candidatesMatchPainted(checks: readonly PaintedCheck[]): boolean[] {
+  rememberProbeResults();
+  const eligible = checks.map(({ row }) => Boolean(row.tokenName) && /^var\(\s*--[\w-]+\s*\)$/.test(row.declaredValue));
+  const requests = new Map<HTMLElement, Map<string, ResolvedProperty>>();
+  checks.forEach(({ el, row }, index) => {
+    const key = probeKey(row);
+    if (!eligible[index] || probeResults.get(el)?.has(key)) return;
+    const byKey = requests.get(el) ?? new Map<string, ResolvedProperty>();
+    byKey.set(key, row);
+    requests.set(el, byKey);
+  });
+
+  const probes: Array<{ el: HTMLElement; row: ResolvedProperty; probe: HTMLElement }> = [];
+  for (const [el, byKey] of requests) {
+    const doc = el.ownerDocument;
+    for (const row of byKey.values()) {
+      const probe = doc.createElement(el.tagName.toLowerCase());
+      probe.setAttribute("data-nudge-ui", "attribution-probe");
+      probe.style.setProperty(row.property, row.declaredValue, "important");
+      probe.style.setProperty("position", "fixed", "important");
+      probe.style.setProperty("visibility", "hidden", "important");
+      // Appending leaves the element's following siblings untouched; inserting beside the element restyles whatever sibling and `:has()` selectors reach.
+      el.parentElement?.appendChild(probe);
+      if (!probe.isConnected) doc.body.appendChild(probe);
+      probes.push({ el, row, probe });
+    }
+  }
+  for (const { el, row, probe } of probes) {
+    const normalized = getElementComputedStyle(probe).getPropertyValue(row.property).trim();
+    const results = probeResults.get(el) ?? new Map<string, string>();
+    results.set(probeKey(row), normalized);
+    probeResults.set(el, results);
+  }
+  for (const { probe } of probes) probe.remove();
+
+  return checks.map(({ el, row, painted }, index) => eligible[index]! && probeResults.get(el)?.get(probeKey(row)) === painted.trim());
 }
 
 function resolveTokenValue(
@@ -572,6 +617,8 @@ function resolveInheritedProperties(
 ): ResolvedProperty[] {
   const computed = getElementComputedStyle(el);
   const seenProperties = new Set(result.map((p) => p.property));
+  const traced: PaintedCheck[] = [];
+  const tracedRows: ResolvedProperty[] = [];
   let ancestor: HTMLElement | null = el.parentElement;
   while (ancestor) {
     const entry = lineage.byElement.get(ancestor);
@@ -584,18 +631,26 @@ function resolveInheritedProperties(
         const elVal = computed.getPropertyValue(candidate.property).trim();
         if (ancestorVal && ancestorVal === elVal) {
           hydratePropertyOpacity(candidate, ancestorVal);
-          result.push({
+          const row: ResolvedProperty = {
             ...candidate,
             resolvedValue: elVal,
-            confidence: candidate.tokenName && candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : candidate.tokenName ? "probable" : "unknown",
+            confidence: candidate.tokenName ? "probable" : "unknown",
             evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
-          });
+          };
+          result.push(row);
+          if (candidate.tokenName && !inaccessible && !candidate.evidence.layer) {
+            traced.push({ el: ancestor, row: candidate, painted: ancestorVal });
+            tracedRows.push(row);
+          }
           seenProperties.add(candidate.property);
         }
       }
     }
     ancestor = ancestor.parentElement;
   }
+  candidatesMatchPainted(traced).forEach((validated, index) => {
+    if (validated) tracedRows[index]!.confidence = "exact";
+  });
 
   return result;
 }
@@ -625,6 +680,7 @@ function annotatePaintedValues(
   inaccessible: boolean,
   mode: "live" | InteractionState,
 ): void {
+  const painted: ResolvedProperty[] = [];
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
     if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
@@ -632,14 +688,17 @@ function annotatePaintedValues(
       if (mode === "live" || mode === "base" || !prop.resolvedValue) prop.resolvedValue = cv;
       prop.computed = cv;
       if (mode === "live") hydratePropertyOpacity(prop, cv);
-      const validated = candidateMatchesPainted(el, prop, cv);
-      prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
-      prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
-      prop.evidence.reason = prop.tokenName
-        ? (validated ? "authored token declaration validated against computed style" : "authored token candidate could not be proven uniquely")
-        : "painted value has no attributable catalog token";
+      painted.push(prop);
     }
   }
+  candidatesMatchPainted(painted.map((prop) => ({ el, row: prop, painted: prop.computed ?? "" }))).forEach((validated, index) => {
+    const prop = painted[index]!;
+    prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
+    prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
+    prop.evidence.reason = prop.tokenName
+      ? (validated ? "authored token declaration validated against computed style" : "authored token candidate could not be proven uniquely")
+      : "painted value has no attributable catalog token";
+  });
 }
 
 export function getResolvedProperties(
@@ -665,6 +724,7 @@ function applyInlineDeclarations(
   const directionality = inlineProperties.some(isLogicalBoxProperty)
     ? directionalityFromComputed(el, computed)
     : undefined;
+  const validations: Array<{ check: PaintedCheck; row: ResolvedProperty }> = [];
   for (const property of inlineProperties) {
     const value = el.style.getPropertyValue(property);
     const declarations = resolveDeclaration({
@@ -694,15 +754,18 @@ function applyInlineDeclarations(
         confidence: "unknown",
         evidence: { selector: "[style]", specificity: 100000000, important: Boolean(declaration.important), inaccessibleStylesheet: inaccessible || undefined, reason: declaration.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
       };
-      if (declaration.tokenName && candidateMatchesPainted(el, row, painted)) {
-        row.confidence = inaccessible ? "probable" : "exact";
-        row.evidence.reason = "inline token declaration validated against computed style";
-      }
+      if (declaration.tokenName) validations.push({ check: { el, row, painted }, row });
       const index = result.findIndex((item) => item.property === declaration.property);
       if (index < 0) result.push(row);
       else if (compareCandidate(row, result[index]!) >= 0) result[index] = row;
     }
   }
+  candidatesMatchPainted(validations.map(({ check }) => check)).forEach((validated, index) => {
+    if (!validated) return;
+    const { row } = validations[index]!;
+    row.confidence = inaccessible ? "probable" : "exact";
+    row.evidence.reason = "inline token declaration validated against computed style";
+  });
 }
 
 function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTable): void {

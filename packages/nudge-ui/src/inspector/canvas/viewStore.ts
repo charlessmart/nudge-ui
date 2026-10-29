@@ -20,6 +20,7 @@ let presentationTransitioning = false;
 let presentationTransitionTimer: number | null = null;
 let layoutTransitioning = false;
 let temporaryAppInteraction = false;
+let appToolActive = false;
 let camera: CanvasCamera = { ...DEFAULT_CAMERA };
 let cameraPlaced = false;
 const listeners = new Set<() => void>();
@@ -67,6 +68,16 @@ export function setTemporaryAppInteraction(value: boolean): void {
   if (temporaryAppInteraction === value) return;
   temporaryAppInteraction = value;
   notify();
+}
+
+/** Whether "Use app normally" is the selected tool. Read by key handlers only, so it notifies no one. */
+export function setAppToolActive(value: boolean): void {
+  appToolActive = value;
+}
+
+/** The user is working the app itself: "Use app normally" is selected, or A is held to reach through. */
+export function isAppInUse(): boolean {
+  return appToolActive || temporaryAppInteraction;
 }
 
 /** Element interactions pause while frame and camera geometry are animated. */

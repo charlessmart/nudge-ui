@@ -1,5 +1,5 @@
 import { forwardRef, type ReactElement, type ReactNode } from "react";
-import { IconChevronDown, IconCopy, IconRestore } from "@tabler/icons-react";
+import { IconChevronDown, IconCopy, IconRefresh } from "@tabler/icons-react";
 import { Button, type ButtonProps } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -33,30 +33,36 @@ export const PromptActionButton = forwardRef<HTMLButtonElement, PromptActionButt
 
 export interface PromptActionRowProps {
   readonly children: ReactNode;
-  /** Clears the pending changes; the clear changes action stays beside the prompt action and disables without changes. */
+  /** The pending changes, joined to the clear button ahead of the prompt action. */
+  readonly changes?: ReactNode;
   readonly onClear?: () => void;
   readonly hasChanges?: boolean;
 }
 
-/** A prompt action with a matching clear changes action beside it, disabled until there are changes. */
-export function PromptActionRow({ children, onClear, hasChanges = false }: PromptActionRowProps): ReactElement {
+/** Pending changes and the button that clears them, then the prompt action. */
+export function PromptActionRow({ children, changes, onClear, hasChanges = false }: PromptActionRowProps): ReactElement {
   return (
     <div className="copy-prompt__row">
-      {children}
-      {onClear ? (
-        <Tooltip>
-          <IconButton
-            className="copy-prompt__clear-changes"
-            variant="secondary"
-            label="Clear changes"
-            data-test="copy-prompt-clear"
-            disabled={!hasChanges}
-            onClick={onClear}
-          >
-            <IconRestore size="var(--icon-size-small)" aria-hidden="true" />
-          </IconButton>
-        </Tooltip>
+      {changes || onClear ? (
+        <div className="copy-prompt__changes">
+          {changes}
+          {onClear ? (
+            <Tooltip content="Clear changes" stableTrigger>
+              <IconButton
+                className="copy-prompt__clear-changes"
+                variant="secondary"
+                label="Clear changes"
+                data-test="clear-session"
+                disabled={!hasChanges}
+                onClick={onClear}
+              >
+                <IconRefresh size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
+        </div>
       ) : null}
+      {children}
     </div>
   );
 }

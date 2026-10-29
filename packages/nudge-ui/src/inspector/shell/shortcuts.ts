@@ -16,6 +16,23 @@ export function isEditableEvent(event: KeyboardEvent): boolean {
   return event.composedPath().some(isEditableTarget) || isEditableTarget(deeplyFocusedElement());
 }
 
+const TYPING_EVENTS = ["keydown", "keypress", "keyup"] as const;
+
+/**
+ * Keeps keys typed into the inspector's own fields from reaching the page's shortcuts. Past the shadow root an event is
+ * retargeted to the host element, so a site's hotkeys (GitHub's `s` for search) can't tell the user is typing.
+ * Capture-phase listeners above, including the inspector's own, still see every key.
+ */
+export function isolateTypingKeys(root: ShadowRoot): () => void {
+  const stop = (event: Event): void => {
+    if (event.composedPath().some(isEditableTarget)) event.stopPropagation();
+  };
+  for (const type of TYPING_EVENTS) root.addEventListener(type, stop);
+  return () => {
+    for (const type of TYPING_EVENTS) root.removeEventListener(type, stop);
+  };
+}
+
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);

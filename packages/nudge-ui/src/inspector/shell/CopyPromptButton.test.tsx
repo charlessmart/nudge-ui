@@ -146,7 +146,7 @@ describe("CopyPromptButton agent handoff", () => {
 
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(button.textContent).toContain("Copy prompt");
+    expect(button.textContent).toContain("Copy");
     expect(status?.textContent).toContain("Project available · Connect this page");
     expect(status?.textContent).toContain("Connect");
     expect(status?.className).toContain("status-callout--accent");

@@ -2,13 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
-  IconColorSwatch,
   IconPlugConnected,
   IconSettings,
   IconX,
   IconTrash,
 } from "@tabler/icons-react";
-import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import {
   McpConnectionContent,
   type McpConnectionContentProps,
@@ -17,18 +15,13 @@ import {
   PromptSettingsFields,
 } from "../prompt/PromptSettingsDialog.tsx";
 import { getNudgeUiRuntimeConfig, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig.ts";
-import { TokensPanel } from "../tokens/TokensPanel.tsx";
-import { useSelectedElement } from "../selection/selectionStore.ts";
-import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
-import { getRegisteredFrames } from "../canvas/projection.ts";
-import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../canvas/sketch/interaction.ts";
 import { resetSketchMarks } from "../canvas/sketch/marksStore.ts";
 
-export type SettingsSection = "instructions" | "mcp" | "tokens";
+export type SettingsSection = "instructions" | "mcp";
 
 interface SettingsSectionDefinition {
   readonly id: SettingsSection;
@@ -46,11 +39,6 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     id: "mcp",
     label: "MCP",
     icon: <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
-  },
-  {
-    id: "tokens",
-    label: "Tokens",
-    icon: <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
 ];
 
@@ -79,16 +67,6 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const closeRef = useRef<HTMLButtonElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
-  const selectedElement = useSelectedElement();
-  const selectedCardId = useSelectedCardId();
-  const focusedCardId = useFocusedCardId();
-  const activeFrame = getRegisteredFrames().get(selectedCardId ?? focusedCardId ?? "");
-  const activeDocument = selectedElement?.domElement.ownerDocument ?? activeFrame?.contentDocument ?? document;
-  const tokenInspection = useBrowserCssInspection(null, "base", {
-    includeDocumentTokens: activeSection === "tokens",
-    session: getBrowserCssInspection(activeDocument),
-  });
-  const tokenRows = tokenInspection.documentTokens?.tokens ?? [];
   const mcpEnabled = isNudgeUiFeatureEnabled(getNudgeUiRuntimeConfig().features, "mcp");
   const sections = SETTINGS_SECTIONS.filter((section) => section.id !== "mcp" || mcpEnabled);
   const activeDefinition = sections.find((section) => section.id === activeSection) ?? sections[0]!;
@@ -194,15 +172,6 @@ export function SettingsDialog({
                 </section>
               ) : null}
 
-              {activeDefinition.id === "tokens" ? (
-                <section className="settings__section" data-test="settings-section-tokens">
-                  <h2 className="settings__section-title">{activeDefinition.label}</h2>
-                  <p className="settings__section-description">
-                    Inspect and edit the design tokens available in this page.
-                  </p>
-                  <TokensPanel rows={tokenRows} />
-                </section>
-              ) : null}
             </main>
           </div>
         </Dialog.Popup>

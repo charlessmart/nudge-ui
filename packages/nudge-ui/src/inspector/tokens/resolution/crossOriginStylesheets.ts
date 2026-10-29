@@ -86,14 +86,3 @@ export function subscribeStylesheetCopies(doc: Document, listener: () => void): 
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
-
-/** Hosts whose stylesheets stay unreadable: hidden from page scripts, and refused to the fallback fetch too. */
-export async function unreadableStylesheetHosts(doc: Document): Promise<string[]> {
-  const hidden = Array.from(doc.styleSheets).filter(hidesRules);
-  const results = await Promise.all(hidden.map(async (sheet) => ({ href: sheet.href, result: await stylesheetText(sheet, doc) })));
-  const hosts = new Set<string>();
-  for (const { href, result } of results) {
-    if (href && "error" in result) hosts.add(new URL(href, doc.baseURI).host);
-  }
-  return [...hosts];
-}

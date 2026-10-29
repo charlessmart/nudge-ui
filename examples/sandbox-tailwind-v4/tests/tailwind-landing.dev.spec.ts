@@ -119,3 +119,25 @@ test("dev: Tailwind side border utilities parse into independent inspector field
   await expect(page.locator('[data-test="border-style-top"]')).toHaveAttribute("aria-label", "Border style: Dashed");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-lime-300");
 });
+
+test("dev: the theme page switches between light and dark tokens", async ({ page }) => {
+  const app = await openEditor(page, "/theme");
+  const background = () => app.locator("main").evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  await expect(app.getByRole("heading", { name: /Design where code lives/i })).toBeVisible();
+  const light = await background();
+  // The page is only clickable while the app is in use, not while the inspector is selecting.
+  await page.locator('[data-test="canvas-tool-select"]').click();
+  await app.locator('[data-test="theme-toggle"]').click();
+  await expect(app.locator("html")).toHaveClass(/dark/);
+  expect(await background()).not.toBe(light);
+
+  // The dark values are `.dark` variants of the same token names, so they reach the token catalog.
+  await expect.poll(async () => app.locator("html").evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: { cssName: string; declarations: { context?: { selector?: string } }[] }[];
+    }).__designTokenCatalog ?? [];
+    const brand = catalog.find((entry) => entry.cssName === "--brand");
+    return brand?.declarations.map((declaration) => declaration.context?.selector).sort();
+  })).toEqual([".dark", ":root"]);
+});

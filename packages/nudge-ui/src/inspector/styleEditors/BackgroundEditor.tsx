@@ -61,10 +61,10 @@ export function BackgroundEditor(props: ColorPickerProps): ReactElement {
   }
 
   return <div className="editor background-editor" data-test="background-editor">
-    <div className="editor__title-row">
+    <div className={`editor__title-row${layers.length === 0 && !mixed ? " editor__title-row--add" : ""}`}>
       <div className="editor__title">Background</div>
       <InlineStyleWarning blockedBy={blockedBy} />
-      <IconButton variant="quiet" label="Add background layer" disabled={blockedBy !== null}
+      <IconButton variant="quiet" label="Add background layer" className="editor__add-trigger" disabled={blockedBy !== null}
         onClick={() => commit([{ ...newBackgroundLayer(), baseColor: mixed || layers.length === 0 }, ...(mixed ? [] : layers)])}>
         <IconPlus aria-hidden="true" />
       </IconButton>

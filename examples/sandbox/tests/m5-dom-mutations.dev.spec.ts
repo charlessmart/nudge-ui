@@ -317,7 +317,7 @@ test("dev: editing surface deletes the selected tracked element with the macOS B
   await page.locator('[data-test="clear-session"]').click();
   await expect(appLocator(page, "#hero-title")).toBeVisible();
   await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
-  await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
+  await expect(page.locator('[data-test="clear-session"]')).toBeDisabled();
 });
 
 test("dev: editing surface revert and undo/redo operate on canonical structural history", async ({ page }) => {

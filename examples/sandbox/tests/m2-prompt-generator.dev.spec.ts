@@ -66,12 +66,12 @@ async function changeCount(page: import("@playwright/test").Page): Promise<numbe
   });
 }
 
+/** Opens the changes list from its count beside the copy button. */
 async function openChangesLog(page: import("@playwright/test").Page): Promise<void> {
-  const changes = page.locator('[data-test="changes-log"]');
-  await expect(changes).toBeAttached();
-  const isOpen = await changes.evaluate((element) => element.querySelector('[data-test="changes-toggle"]')?.getAttribute("aria-expanded") === "true");
-  if (!isOpen) await changes.locator('[data-test="changes-toggle"]').click();
-  await expect.poll(() => changes.evaluate((element) => element.querySelector('[data-test="changes-toggle"]')?.getAttribute("aria-expanded"))).toBe("true");
+  const toggle = page.locator('[data-test="changes-toggle"]');
+  await expect(toggle).toBeEnabled();
+  if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
 }
 
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
@@ -79,10 +79,17 @@ async function revertChange(page: import("@playwright/test").Page, property: str
   const handle = await page.evaluateHandle((p) => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);
-    const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === p);
-    return row?.querySelector('[data-test="change-revert"]') as HTMLElement | null;
+    // "background" names the background-color row too.
+    const row = rows.find((r) => {
+      const property = r.getAttribute("data-property") ?? "";
+      return property === p || property.startsWith(`${p}-`);
+    });
+    return (row ?? null) as HTMLElement | null;
   }, property);
-  await handle.asElement()!.click();
+  // The revert button shows on its row's hover, as it does for a person.
+  const row = handle.asElement()!;
+  await row.hover();
+  await (await row.$('[data-test="change-revert"]'))!.click();
 }
 
 async function copyDisabled(page: import("@playwright/test").Page): Promise<boolean> {
@@ -202,8 +209,10 @@ test.describe("clipboard permissions", () => {
     await expect(page.locator('[data-test="settings-section-mcp"]')).toBeVisible();
     await expect(page.locator('[data-test="mcp-connection-timeline"] > li')).toHaveCount(3);
 
-    await page.locator('[data-test="settings-nav-tokens"]').click();
-    await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+    // Tokens live in the panel now, not in settings.
+    await expect(page.locator('[data-test="settings-nav-tokens"]')).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.locator('[data-test="panel-view-tokens"]').click();
     await expect(page.locator('[data-test="tokens-panel"]')).toBeVisible();
 
     await page.locator('[data-test="settings-nav-instructions"]').click();

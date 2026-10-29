@@ -5,7 +5,7 @@ import { IconAlertTriangleFilled, IconCircleCheckFilled } from "@tabler/icons-re
 import { portalContainer } from "./portalContainer.ts";
 import { useInspectorOpen } from "../shell/openStore.ts";
 import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
-import { useAnimationBarHeight } from "../canvas/debugViewStore.ts";
+import { useInspectionBarHeight } from "../canvas/debugViewStore.ts";
 
 /** `info` is a plain note with no icon, for things that are neither done nor wrong; `warning` flags a limit the user can't fix here. */
 export type ToastTone = "success" | "error" | "warning" | "info";
@@ -72,9 +72,9 @@ function ToastList(): ReactElement {
 export function ToastRegion(): ReactElement {
   const inspectorOpen = useInspectorOpen();
   const sketching = useSketchInteractionActive();
-  const animationBarHeight = useAnimationBarHeight();
+  const inspectionBarHeight = useInspectionBarHeight();
   // SAFETY: React passes custom properties through `style`; CSSProperties only lacks a key for them.
-  const raise = animationBarHeight > 0 ? { "--toast-raise": `${animationBarHeight}px` } as CSSProperties : undefined;
+  const raise = inspectionBarHeight > 0 ? { "--toast-raise": `${inspectionBarHeight}px` } as CSSProperties : undefined;
   return (
     <BaseToast.Provider toastManager={toastManager} limit={3}>
       <BaseToast.Portal container={portalContainer()}>

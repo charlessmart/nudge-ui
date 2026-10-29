@@ -38,7 +38,7 @@ test("HTML iteration DOM drags work and change counts describe final prompt inte
   await dragBefore("Second");
   await expect.poll(order).toEqual(["First", "Third", "Second"]);
   await expect(page.locator('[data-test="copy-prompt-change-count"]')).toHaveText("1");
-  await expect(page.locator('[data-test="changes-log"] .changes__count')).toHaveText("1");
+  await expect(page.locator('[data-test="changes-count"]')).toHaveText("1 Change");
   await page.keyboard.press("Control+z");
   await expect.poll(order).toEqual(["Third", "First", "Second"]);
   await page.keyboard.press("Control+z");

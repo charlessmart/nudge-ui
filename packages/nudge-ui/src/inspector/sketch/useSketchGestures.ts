@@ -14,7 +14,7 @@ import {
   type SketchStroke,
   type SketchStrokeColor,
 } from "./model.ts";
-import { findErasedSketchStrokeIds, findSketchElementAt, rectanglePoints } from "./geometry.ts";
+import { findErasedSketchStrokeIds, findSketchElementAt, shapePoints } from "./geometry.ts";
 import type { SketchHistory } from "./history.ts";
 import {
   frameHandleCursor,
@@ -24,7 +24,7 @@ import {
   type FrameHandle,
   type SketchRegion,
 } from "./selectionFrame.ts";
-import type { SketchDrawingTool } from "./drawingTools.ts";
+import { isSketchShapeTool, type SketchDrawingTool } from "./drawingTools.ts";
 import type { SketchTextEdit } from "./SketchTextEditor.tsx";
 import { createTextStroke, fitTextStroke, retypeTextStroke } from "./text.ts";
 import { ERASER_CURSOR, SKETCH_CURSOR } from "../ui/customCursors.ts";
@@ -113,7 +113,7 @@ function distance(left: SketchPoint, right: SketchPoint): number {
 
 function sketchCursor(tool: SketchDrawingTool): string {
   if (tool === "eraser") return ERASER_CURSOR;
-  if (tool === "rectangle") return "crosshair";
+  if (isSketchShapeTool(tool)) return "crosshair";
   if (tool === "text") return "text";
   return SKETCH_CURSOR;
 }
@@ -388,13 +388,11 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
       return;
     }
     // A click that draws nothing selects the stroke under it, or clears the selection.
-    if (previous.length < 2 || (tool === "rectangle" && distance(previous[0]!, previous.at(-1)!) < 1)) {
+    if (previous.length < 2 || (isSketchShapeTool(tool) && distance(previous[0]!, previous.at(-1)!) < 1)) {
       setSelectedId(findSketchElementAt(previous[0]!, strokes));
       return;
     }
-    const points = tool === "rectangle" && previous.length > 1
-      ? rectanglePoints(previous[0]!, previous.at(-1)!)
-      : previous;
+    const points = isSketchShapeTool(tool) ? shapePoints(tool, previous[0]!, previous.at(-1)!) : previous;
     const totalPoints = strokes.reduce((total, stroke) => total + stroke.points.length, 0) + points.length;
     if (strokes.length >= SKETCH_LIMITS.strokes || totalPoints > SKETCH_LIMITS.points) {
       showToast({ tone: "error", title: "Stroke not added", description: "The sketch has reached its limit. Erase a mark before drawing again." });
@@ -402,8 +400,8 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
     }
     const stroke: SketchStroke = {
       id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      kind: tool === "rectangle" ? "rectangle" : "freehand",
-      width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
+      kind: isSketchShapeTool(tool) ? tool : "freehand",
+      width: isSketchShapeTool(tool) ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
       color,
       points: points.map((point) => ({ ...point })),
     };

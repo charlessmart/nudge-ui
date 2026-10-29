@@ -83,10 +83,10 @@ it("opens a comment draft on the page surface without unmounting the overlay", (
     },
   })));
 
-  const editor = host.querySelector<HTMLElement>('[data-test="comment-editor"]');
-  expect(editor).not.toBeNull();
-  expect(editor?.style.top).toBe("30px");
-  expect(host.querySelector('[data-test="comment-input"]')).not.toBeNull();
+  // The editor is portaled out of the host, so it is positioned by Base UI rather than inline styles.
+  expect(document.querySelector('[data-test="comment-editor"]')).not.toBeNull();
+  expect(document.querySelector('.comment-editor__positioner')).not.toBeNull();
+  expect(document.querySelector('[data-test="comment-input"]')).not.toBeNull();
 });
 
 it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on visible surfaces: %s", (surface) => {
@@ -114,7 +114,7 @@ it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on v
   if (surface !== "hidden iframe") {
     expect(pins[0]?.querySelector(".comment-pin__note")?.textContent).toBe("Rename Save");
     act(() => pins[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(host.querySelector<HTMLInputElement>('[data-test="comment-input"]')?.value).toBe("Rename Save");
+    expect(document.querySelector<HTMLInputElement>('[data-test="comment-input"]')?.value).toBe("Rename Save");
   }
 });
 

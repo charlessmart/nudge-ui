@@ -1,0 +1,86 @@
+/* The rail is inset by half a thumb so the thumb's center reaches each end without overflowing its container. */
+.slider {
+  --slider-thumb-size: 16px;
+  position: relative;
+  height: 12px;
+  margin-inline: calc(var(--slider-thumb-size) / 2);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  outline: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.slider[aria-disabled="true"] {
+  cursor: default;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(var(--slider-thumb-size) / -2 - var(--stretch-end, 0px)) 0 calc(var(--slider-thumb-size) / -2 - var(--stretch-start, 0px));
+  border-radius: inherit;
+  background: var(--surface-well);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  transition: left var(--spring-duration) var(--spring-ease), right var(--spring-duration) var(--spring-ease);
+}
+
+.slider:focus-visible::before {
+  box-shadow: inset 0 0 0 1px var(--border-subtle), 0 0 0 2px var(--accent);
+}
+
+/* Runs from the rail's start to the thumb's center, so it stretches with the rail at either end. */
+.slider__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--slider-thumb-size) / -2 - var(--stretch-start, 0px));
+  width: calc(var(--slider-position) * 100% + var(--slider-thumb-size) / 2 + var(--stretch-end, 0px));
+  border-radius: inherit;
+  background: var(--surface-inverse);
+  pointer-events: none;
+  transition: left var(--spring-duration) var(--spring-ease), width var(--spring-duration) var(--spring-ease);
+}
+
+.slider__thumb {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: calc(var(--slider-position) * 100%);
+  box-sizing: border-box;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--thumb-color, #fff);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  translate: calc(var(--stretch-end, 0px) - var(--stretch-start, 0px)) 0;
+  /* Releases and arrow keys settle on the shared spring; `scale` and `translate` stay apart from the centering transform. */
+  transition: left var(--spring-duration) var(--spring-ease), scale var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
+}
+
+/* A grab goes in fast, like a button press. */
+.slider:active .slider__thumb {
+  scale: 1.15;
+  transition: scale var(--press-duration) ease-out, translate var(--spring-duration) var(--spring-ease);
+}
+
+/* While pressed the thumb and fill follow the pointer exactly; only the stretch past an end springs. */
+.slider:active .slider__fill {
+  transition: left var(--spring-duration) var(--spring-ease);
+}
+
+/* Dragging past an end pulls the rail, fill and thumb out with the pointer; letting go springs them back. */
+.slider[data-stretching]::before,
+.slider[data-stretching] .slider__fill,
+.slider[data-stretching] .slider__thumb {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slider:active .slider__thumb {
+    scale: none;
+  }
+}

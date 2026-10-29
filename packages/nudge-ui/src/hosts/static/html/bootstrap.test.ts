@@ -4,6 +4,7 @@ import {
   NUDGE_UI_MANIFEST_PATH,
 } from "../manifest.ts";
 import { injectStandaloneBootstrap } from "./bootstrap.ts";
+import { ANIMATION_CLOCK_SCRIPT } from "../../../inspector/canvas/animationClock.ts";
 
 describe("injectStandaloneBootstrap", () => {
   it("inserts an external mount and client before body close", () => {
@@ -22,6 +23,15 @@ describe("injectStandaloneBootstrap", () => {
     );
   });
 
+  it("puts the animation clock ahead of the page's own head scripts", () => {
+    const source = "<!doctype html><html><head><script src=\"/gsap.js\"></script></head><body></body></html>";
+    const { html } = injectStandaloneBootstrap(source);
+
+    expect(html.indexOf("<script")).toBe(html.indexOf(`<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`));
+    expect(html.indexOf("data-nudge-ui-clock")).toBeGreaterThan(html.indexOf("<head>"));
+    expect(html.match(/data-nudge-ui-clock/g)).toHaveLength(1);
+  });
+
   it("is idempotent when the response is transformed twice", () => {
     const source = "<html><body><button>Save</button></body></html>";
     const first = injectStandaloneBootstrap(source).html;
@@ -31,6 +41,7 @@ describe("injectStandaloneBootstrap", () => {
     expect(second.html).toBe(first);
     expect(first.match(/data-nudge-ui-mount/g)).toHaveLength(1);
     expect(first.match(/data-nudge-ui-client/g)).toHaveLength(1);
+    expect(first.match(/data-nudge-ui-clock/g)).toHaveLength(1);
   });
 
   it("adds only missing nodes and preserves an authored mount", () => {

@@ -45,20 +45,20 @@ describe("AgentStatusButtonView", () => {
     return { onOpenSettings };
   }
 
-  it("shows the agent logos and opens the MCP settings by default", () => {
+  it("shows only a settings icon and opens the MCP settings by default", () => {
     const { onOpenSettings } = render();
 
-    expect(host.querySelectorAll(".agent-status-button__avatar")).toHaveLength(3);
-    expect(host.querySelector(".agent-status-button__label")?.textContent).toBe("Settings");
-    act(() => host.querySelector<HTMLButtonElement>('[data-test="settings-button"]')?.click());
+    const button = host.querySelector<HTMLButtonElement>('[data-test="settings-button"]')!;
+    expect(button.getAttribute("aria-label")).toBe("Settings");
+    expect(button.textContent).toBe("");
+    expect(host.querySelector(".agent-status-button__avatar")).toBeNull();
+    act(() => button.click());
     expect(onOpenSettings).toHaveBeenCalledWith("mcp");
   });
 
-  it("keeps the Settings text without the logos when MCP is unavailable", () => {
+  it("opens the prompt instructions when MCP is unavailable", () => {
     const { onOpenSettings } = render(false);
 
-    expect(host.querySelector(".agent-status-button__avatars")).toBeNull();
-    expect(host.querySelector(".agent-status-button__label")?.textContent).toBe("Settings");
     act(() => host.querySelector<HTMLButtonElement>('[data-test="settings-button"]')?.click());
     expect(onOpenSettings).toHaveBeenCalledWith("instructions");
   });

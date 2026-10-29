@@ -5,8 +5,10 @@ import { DEBUG_VIEW_OFF } from "./debugView.ts";
 function input(overrides: Partial<CanvasToolInput> = {}): CanvasToolInput {
   return {
     tool: "design",
-    debugView: "animation",
-    animationBusy: false,
+    outlines: false,
+    explode: false,
+    spacing: false,
+    animationSpeed: 0.3,
     presentation: "canvas",
     layoutTransitioning: false,
     sketchActive: false,
@@ -46,44 +48,50 @@ describe("canvasToolEffects", () => {
     expect(effects.boardCursor).toBe("comment");
   });
 
-  it("applies no debug view outside the view tool", () => {
-    expect(canvasToolEffects(input({ debugView: "explode" })).debugView).toEqual(DEBUG_VIEW_OFF);
+  it("applies no debug view outside the Inspection tool", () => {
+    expect(canvasToolEffects(input({ outlines: true, explode: true })).debugView).toEqual(DEBUG_VIEW_OFF);
   });
 
-  it("keeps the app interactive for outline view and applies only outlines", () => {
-    const effects = canvasToolEffects(input({ tool: "debug", debugView: "outlines" }));
+  it("keeps the app interactive under the Inspection tool and slows the page with no views on", () => {
+    const effects = canvasToolEffects(input({ tool: "debug", animationSpeed: 0.1 }));
     expect(effects.appInteractive).toBe(true);
-    expect(effects.debugView).toEqual({ outlines: true, xray: false, animations: false });
+    expect(effects.inspectionBarActive).toBe(true);
+    expect(effects.debugView).toEqual({ outlines: false, xray: false, spacing: false, animationSpeed: 0.1 });
   });
 
-  it("keeps the app interactive for explode view and applies only the exploded flag", () => {
-    const effects = canvasToolEffects(input({ tool: "debug", debugView: "explode" }));
-    expect(effects.appInteractive).toBe(true);
-    expect(effects.debugView).toEqual({ outlines: false, xray: true, animations: false });
+  it("applies outlines and explode together, alongside the slowed speed", () => {
+    const effects = canvasToolEffects(input({ tool: "debug", outlines: true, explode: true, spacing: true, animationSpeed: 0.5 }));
+    expect(effects.debugView).toEqual({ outlines: true, xray: true, spacing: true, animationSpeed: 0.5 });
   });
 
-  it("selects elements in animation view and shows markers unless an animation is busy", () => {
-    const idle = canvasToolEffects(input({ tool: "debug", debugView: "animation" }));
-    expect(idle.appInteractive).toBe(false);
-    expect(idle.animationViewActive).toBe(true);
-    expect(idle.debugView.animations).toBe(true);
-
-    const busy = canvasToolEffects(input({ tool: "debug", debugView: "animation", animationBusy: true }));
-    expect(busy.debugView.animations).toBe(false);
+  it("runs the page at full speed while another tool is active", () => {
+    expect(canvasToolEffects(input({ tool: "select", animationSpeed: 0.1 })).debugView.animationSpeed).toBe(1);
   });
 
-  it("treats a held app-interaction key as the select tool without changing which view is armed", () => {
-    const effects = canvasToolEffects(input({ tool: "debug", debugView: "explode", temporaryAppInteraction: true }));
+  it("lets the Inspection tool select elements while outlines or spacing are drawn, but not while exploded", () => {
+    const speedOnly = canvasToolEffects(input({ tool: "debug" }));
+    expect(speedOnly.appInteractive).toBe(true);
+    expect(speedOnly.rendererInteractionsEnabled).toBe(false);
+
+    for (const views of [{ outlines: true }, { spacing: true }]) {
+      const effects = canvasToolEffects(input({ tool: "debug", ...views }));
+      expect(effects.appInteractive).toBe(false);
+      expect(effects.rendererInteractionsEnabled).toBe(true);
+      expect(effects.linksOpenInCards).toBe(false);
+    }
+
+    const exploded = canvasToolEffects(input({ tool: "debug", outlines: true, spacing: true, explode: true }));
+    expect(exploded.appInteractive).toBe(true);
+    expect(exploded.rendererInteractionsEnabled).toBe(false);
+  });
+
+  it("treats a held app-interaction key as the select tool but keeps the inspection bar and views up", () => {
+    const effects = canvasToolEffects(input({ tool: "debug", explode: true, temporaryAppInteraction: true }));
     expect(effects.tool).toBe("select");
     expect(effects.appInteractive).toBe(true);
     expect(effects.debugView.xray).toBe(true);
-    expect(effects.animationViewActive).toBe(false);
+    expect(effects.inspectionBarActive).toBe(true);
     expect(effects.commentToolActive).toBe(false);
-  });
-
-  it("keeps the animation bar up while the app-interaction key is held in animation view", () => {
-    expect(canvasToolEffects(input({ tool: "debug", debugView: "animation", temporaryAppInteraction: true })).animationViewActive)
-      .toBe(true);
   });
 
   it("stops the renderer taking pointer interactions while sketching or transitioning layout", () => {

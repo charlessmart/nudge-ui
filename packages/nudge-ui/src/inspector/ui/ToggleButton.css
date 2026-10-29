@@ -56,13 +56,13 @@
 }
 
 .toggle-button[data-pressed] {
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--brand-surface);
+  color: var(--brand-primary);
 }
 
 .toggle-button[data-pressed]:hover:not(:disabled) {
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--brand-surface);
+  color: var(--brand-primary);
 }
 
 .toggle-button:focus-visible {

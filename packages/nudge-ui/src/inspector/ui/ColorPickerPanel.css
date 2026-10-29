@@ -44,15 +44,13 @@
 }
 
 /* A grab goes in fast, like a button press. */
-.color-picker__surface:active .color-picker__thumb,
-.color-picker__slider:active .color-picker__thumb {
+.color-picker__surface:active .color-picker__thumb {
   scale: 1.15;
   transition: scale var(--press-duration) ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .color-picker__surface:active .color-picker__thumb,
-  .color-picker__slider:active .color-picker__thumb {
+  .color-picker__surface:active .color-picker__thumb {
     scale: none;
   }
 }
@@ -71,44 +69,9 @@
   gap: var(--space-8);
 }
 
-/* The rail is inset by half a thumb so the thumb's center reaches each end without overflowing the row. */
+/* The picker's thumbs share the surface thumb's size. */
 .color-picker__slider {
-  position: relative;
-  height: 12px;
-  margin-inline: calc(var(--color-picker-thumb-size) / 2);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  outline: 0;
-  touch-action: none;
-}
-
-.color-picker__slider::before {
-  content: "";
-  position: absolute;
-  inset: 0 calc(var(--color-picker-thumb-size) / -2 - var(--stretch-end, 0px)) 0 calc(var(--color-picker-thumb-size) / -2 - var(--stretch-start, 0px));
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
-  transition: left var(--spring-duration) var(--spring-ease), right var(--spring-duration) var(--spring-ease);
-}
-
-.color-picker__slider .color-picker__thumb {
-  z-index: 1;
-  translate: calc(var(--stretch-end, 0px) - var(--stretch-start, 0px)) 0;
-  transition: scale var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
-}
-
-.color-picker__slider:active .color-picker__thumb {
-  transition: scale var(--press-duration) ease-out, translate var(--spring-duration) var(--spring-ease);
-}
-
-/* Dragging past an end pulls the rail and thumb out with the pointer; letting go springs them back. */
-.color-picker__slider[data-stretching]::before,
-.color-picker__slider[data-stretching] .color-picker__thumb {
-  transition: none;
-}
-
-.color-picker__slider:focus-visible::before {
-  box-shadow: inset 0 0 0 1px var(--border-subtle), 0 0 0 2px var(--accent);
+  --slider-thumb-size: var(--color-picker-thumb-size);
 }
 
 .color-picker__slider--hue::before {
@@ -120,7 +83,7 @@
 }
 
 /* The opacity thumb shows its translucent color over the same checkerboard as the rail. */
-.color-picker__slider--alpha .color-picker__thumb {
+.color-picker__slider--alpha .slider__thumb {
   background: linear-gradient(var(--thumb-color), var(--thumb-color)), var(--color-picker-checker);
 }
 

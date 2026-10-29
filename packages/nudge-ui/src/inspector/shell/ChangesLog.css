@@ -1,20 +1,11 @@
-.changes {
-  margin-top: 0;
-  border-top: 0;
-  padding-top: 24px;
+/* The list of changes, opened from the count beside the copy button and as wide as that row. */
+.changes.inspector-popover__popup {
+  width: var(--anchor-width);
+  max-height: min(420px, calc(var(--available-height) - 16px));
+  overflow: auto;
+  padding: var(--space-4) var(--space-12);
 }
 
-.changes .disclosure__trigger {
-  padding: 10px 0;
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.changes .disclosure__trigger:hover {
-  color: var(--text-primary);
-}
-
-.changes__count,
 .copy-prompt__change-count {
   box-sizing: border-box;
   min-width: 18px;
@@ -30,22 +21,9 @@
 }
 
 .copy-prompt__main .copy-prompt__change-count {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.25);
   color: var(--text-inverse);
-}
-
-.changes__content {
-  padding-bottom: 4px;
-}
-
-.changes__session-action {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px 0 20px;
-}
-
-.changes__session-action .button {
-  width: 100%;
 }
 
 .changes__group {
@@ -68,10 +46,9 @@
   font-size: var(--font-size-base);
 }
 
+/* Rows under one element sit together, spaced rather than ruled. */
 .changes__row + .changes__row {
   margin-top: 0;
-  padding-top: var(--space-8);
-  border-top: 1px solid var(--border-subtle);
 }
 
 .changes__summary {
@@ -90,7 +67,6 @@
 
 .changes__target {
   color: var(--text-primary);
-  font-weight: var(--font-weight-label);
 }
 
 .changes__action {

@@ -1,4 +1,4 @@
-/** Extension-only panel docking; sets nudge-ui's `--panel-*` variables and targets its `.panel`, `.panel__header-row`, `.panel__restore`, `.locked-notice`, and collapse button. */
+/** Extension-only panel docking; sets nudge-ui's `--panel-*` variables and targets its `.panel`, `.panel__resize`, `.panel__header-row`, `.panel__restore`, `.locked-notice`, and collapse button. */
 import { INSPECTOR_ROOT_ID, PANEL_SIDE_WRITE_EVENT, type PanelSide } from "./protocol.ts";
 
 const SIDE_ATTRIBUTE = "data-nudge-panel-side";
@@ -25,6 +25,7 @@ ${DOCKED} .panel {
   box-shadow: var(--shadow-popup);
 }
 ${LEFT} .panel { inset: var(--panel-inset) auto var(--panel-inset) var(--panel-inset); }
+${LEFT} .panel__resize { right: auto; left: calc(var(--panel-inset) + min(var(--panel-width), 100vw - 2 * var(--panel-inset)) - var(--space-4)); }
 ${LEFT} [data-test="collapse-inspector"] svg { transform: scaleX(-1); }
 ${LEFT} .panel__restore,
 ${LEFT} .locked-notice { right: auto; left: max(12px, env(safe-area-inset-left)); }
@@ -32,6 +33,7 @@ ${LEFT} .locked-notice { right: auto; left: max(12px, env(safe-area-inset-left))
 ${DOCKED} ${DRAG_HANDLE_SELECTOR} { cursor: grab; }
 ${DOCKED} ${DRAG_HANDLE_SELECTOR} :is(${INTERACTIVE_SELECTOR}) { cursor: default; }
 :host([${DRAGGING_ATTRIBUTE}]) * { cursor: grabbing !important; user-select: none !important; }
+:host([${DRAGGING_ATTRIBUTE}]) .panel__resize { display: none; }
 :host([${DRAGGING_ATTRIBUTE}]) .panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.18); }
 
 .nudge-dock-target {
@@ -41,17 +43,29 @@ ${DOCKED} ${DRAG_HANDLE_SELECTOR} :is(${INTERACTIVE_SELECTOR}) { cursor: default
   z-index: 1;
   box-sizing: border-box;
   width: min(var(--panel-width), calc(100vw - 2 * var(--panel-inset)));
-  border: 2px solid var(--accent);
+  border: 2px dashed var(--accent);
   border-radius: var(--radius-12);
-  background: var(--accent-surface);
-  opacity: 0;
+  background: transparent;
+  opacity: 0.5;
   pointer-events: none;
-  transition: opacity 120ms ease-out;
+  transition: opacity 120ms ease-out, background-color 120ms ease-out;
+  @starting-style { opacity: 0; }
 }
 .nudge-dock-target[data-side="left"] { left: var(--panel-inset); }
 .nudge-dock-target[data-side="right"] { right: var(--panel-inset); }
-.nudge-dock-target[data-visible] { opacity: 1; }
+/* The side the panel will land on if let go now. */
+.nudge-dock-target[data-active] { border-style: solid; background: var(--accent-surface); opacity: 1; }
 `;
+
+/**
+ * Page-bound mouse and pointer events a panel drag keeps from the page, so the inspector's own hover outline and
+ * padding and gap handles, and the page's hover effects, sit out the drag. The drag's own `pointermove`, `pointerup`
+ * and `pointercancel` listeners share the window's capture phase, so stopping these never reaches them.
+ */
+const PAGE_POINTER_EVENTS = [
+  "pointermove", "pointerover", "pointerout", "pointerenter", "pointerleave", "pointerup",
+  "mousemove", "mouseover", "mouseout", "mouseenter", "mouseleave", "mouseup",
+] as const;
 
 function sideAt(clientX: number): PanelSide {
   return clientX < window.innerWidth / 2 ? "left" : "right";
@@ -83,27 +97,32 @@ export function installPanelDock(initialSide: PanelSide): void {
   };
 
   const startDrag = (host: HTMLElement, shadow: ShadowRoot, panel: HTMLElement, down: PointerEvent): void => {
-    let dropTarget: HTMLElement | null = null;
+    let dropTargets: HTMLElement[] | null = null;
     let nextSide = side;
+
+    const keepFromPage = (event: Event): void => event.stopPropagation();
+    for (const type of PAGE_POINTER_EVENTS) window.addEventListener(type, keepFromPage, true);
 
     const move = (event: PointerEvent): void => {
       if (event.pointerId !== down.pointerId) return;
       const offset = event.clientX - down.clientX;
-      if (!dropTarget) {
+      if (!dropTargets) {
         if (Math.abs(offset) < DRAG_THRESHOLD_PX) return;
-        // Created per drag: React clears its container on mount, so a node kept there could vanish.
-        dropTarget = document.createElement("div");
-        dropTarget.className = "nudge-dock-target";
-        shadow.append(dropTarget);
+        // Both sides show from the start, so the user sees where the panel can go. Created per drag: React clears its
+        // container on mount, so a node kept there could vanish.
+        dropTargets = (["left", "right"] as const).map((targetSide) => {
+          const target = document.createElement("div");
+          target.className = "nudge-dock-target";
+          target.dataset.side = targetSide;
+          return target;
+        });
+        shadow.append(...dropTargets);
         host.setAttribute(DRAGGING_ATTRIBUTE, "");
       }
-      // Keeps the page's hover handling, including nudge-ui's element highlight, out of the drag.
       event.preventDefault();
-      event.stopPropagation();
       panel.style.transform = `translateX(${offset}px)`;
       nextSide = sideAt(event.clientX);
-      dropTarget.dataset.side = nextSide;
-      dropTarget.toggleAttribute("data-visible", nextSide !== side);
+      for (const target of dropTargets) target.toggleAttribute("data-active", target.dataset.side === nextSide);
     };
 
     const end = (event: PointerEvent): void => {
@@ -111,8 +130,11 @@ export function installPanelDock(initialSide: PanelSide): void {
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", end, true);
       window.removeEventListener("pointercancel", end, true);
-      if (!dropTarget) return;
-      event.stopPropagation();
+      // The `mouseup` that follows this `pointerup` is still the drag's.
+      setTimeout(() => {
+        for (const type of PAGE_POINTER_EVENTS) window.removeEventListener(type, keepFromPage, true);
+      });
+      if (!dropTargets) return;
       // A release over the page would otherwise click, and select, the element under it.
       const swallowClick = (click: MouseEvent): void => {
         click.stopPropagation();
@@ -120,7 +142,7 @@ export function installPanelDock(initialSide: PanelSide): void {
       };
       window.addEventListener("click", swallowClick, { capture: true, once: true });
       setTimeout(() => window.removeEventListener("click", swallowClick, true));
-      dropTarget.remove();
+      for (const target of dropTargets) target.remove();
       host.removeAttribute(DRAGGING_ATTRIBUTE);
       if (event.type === "pointercancel") nextSide = side;
       // Animates from where the panel was let go to its docked place.

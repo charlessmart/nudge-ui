@@ -17,9 +17,12 @@ afterEach(() => {
 
 describe("debug view state", () => {
   it("accepts only bounded, complete state", () => {
-    expect(isDebugViewState({ outlines: true, xray: false, animations: false })).toBe(true);
-    expect(isDebugViewState({ outlines: true, xray: false })).toBe(false);
-    expect(isDebugViewState({ outlines: "yes", xray: false, animations: false })).toBe(false);
+    expect(isDebugViewState({ outlines: true, xray: false, spacing: true, animationSpeed: 0.25 })).toBe(true);
+    expect(isDebugViewState({ outlines: true, xray: false, animationSpeed: 0.25 })).toBe(false);
+    expect(isDebugViewState({ outlines: true, xray: false, spacing: false })).toBe(false);
+    expect(isDebugViewState({ outlines: "yes", xray: false, spacing: false, animationSpeed: 1 })).toBe(false);
+    expect(isDebugViewState({ outlines: true, xray: false, spacing: false, animationSpeed: 0 })).toBe(false);
+    expect(isDebugViewState({ outlines: true, xray: false, spacing: false, animationSpeed: 4 })).toBe(false);
   });
 });
 

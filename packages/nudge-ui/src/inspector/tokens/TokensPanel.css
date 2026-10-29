@@ -3,9 +3,33 @@
 }
 
 .tokens-panel__tools {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tokens-panel__selects {
+  display: flex;
+  gap: var(--space-8);
+}
+
+/* The stylesheet takes the room the mode leaves, and the mode never takes more than half. */
+.tokens-panel__selects .tokens-panel__stylesheet {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tokens-panel__selects .tokens-panel__mode {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 50%;
+  min-width: 0;
+}
+
+.tokens-panel__selects .tokens-panel__mode:only-child {
+  flex: 1 1 auto;
+  max-width: none;
 }
 
 .token-group {
@@ -22,17 +46,13 @@
 }
 
 .token-row {
-  padding: 10px 0 12px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.token-group__heading + .token-row {
-  border-top: 0;
+  padding: var(--space-4) 0;
 }
 
 .token-row__inline {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  /* The value field stops growing at a fixed width, so a wider panel gives the rest to the token name. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(256px, 60%));
   gap: var(--space-8);
   align-items: center;
 }

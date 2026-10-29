@@ -1,5 +1,6 @@
 import { distanceToSegment, pointInStrokeBox } from "./selectionFrame.ts";
 import type { SketchPoint, SketchStroke } from "./model.ts";
+import type { SketchShapeTool } from "./drawingTools.ts";
 
 function distance(left: SketchPoint, right: SketchPoint): number {
   return Math.hypot(left.x - right.x, left.y - right.y);
@@ -29,6 +30,11 @@ function distanceToStroke(point: SketchPoint, stroke: SketchStroke): number {
   return closest;
 }
 
+/** What a shape tool stores for a drag from `start` to `end`: a closed box for rectangles and circles, tail and head for an arrow. */
+export function shapePoints(tool: SketchShapeTool, start: SketchPoint, end: SketchPoint): SketchPoint[] {
+  return tool === "arrow" ? [{ ...start }, { ...end }] : rectanglePoints(start, end);
+}
+
 /** The topmost stroke under the point, or null. */
 export function findSketchElementAt(
   point: SketchPoint,
@@ -37,8 +43,8 @@ export function findSketchElementAt(
   for (let index = strokes.length - 1; index >= 0; index -= 1) {
     const stroke = strokes[index]!;
     const tolerance = Math.max(10, stroke.width / 2 + 6);
-    // Rectangles and text are hit anywhere in their (possibly rotated) box, not only along its outline.
-    const solid = stroke.kind === "rectangle" || stroke.kind === "text";
+    // Rectangles, circles and text are hit anywhere in their (possibly rotated) box, not only along its outline.
+    const solid = stroke.kind === "rectangle" || stroke.kind === "ellipse" || stroke.kind === "text";
     if ((solid && pointInStrokeBox(stroke, point, tolerance))
       || (stroke.kind !== "text" && distanceToStroke(point, stroke) <= tolerance)) {
       return stroke.id;
@@ -47,7 +53,7 @@ export function findSketchElementAt(
   return null;
 }
 
-/** Rectangles are hit on their outline only, so erasing inside a box leaves it in place; text is hit anywhere in its box. */
+/** Rectangles and circles are hit on their outline only (the circle's by its box), so erasing inside a box leaves it in place; text is hit anywhere in its box. */
 export function findErasedSketchStrokeIds(
   start: SketchPoint,
   end: SketchPoint,

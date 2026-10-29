@@ -172,9 +172,9 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
 
   return (
     <div className="editor box-shadow-editor" data-test="box-shadow-editor">
-      <div className="editor__title-row">
+      <div className={`editor__title-row${visibility.visible ? "" : " editor__title-row--add"}`}>
         <div className="editor__title">Box Shadow</div>
-        <IconButton variant="quiet" label="Add Box Shadow" data-test="add-shadow"
+        <IconButton variant="quiet" label="Add Box Shadow" data-test="add-shadow" className="editor__add-trigger"
           disabled={blockedBy !== null || layers === null} onClick={addShadow}>
           <IconPlus size={16} aria-hidden="true" />
         </IconButton>

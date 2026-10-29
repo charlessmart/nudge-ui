@@ -11,7 +11,7 @@ import { clearActiveDraft, useChanges } from "@inspector/drafts/store.ts";
 import { setStyle } from "@inspector/tokens/editActions.ts";
 import { setActiveStyleState } from "@inspector/shell/styleState.ts";
 import { PeekOriginalButton } from "@inspector/shell/PeekOriginalButton.tsx";
-import { ChangesLog } from "@inspector/shell/ChangesLog.tsx";
+import { ChangesMenu } from "@inspector/shell/ChangesLog.tsx";
 import { DRAG_CURSOR_STYLES } from "@inspector/ui/dragCursor.ts";
 import { TooltipGroup } from "@inspector/ui/Tooltip.tsx";
 import { StatusCallout } from "@inspector/ui/StatusCallout.tsx";
@@ -61,7 +61,7 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
       isOpen={isOpen} onOpenChange={setOpen}
       headerActions={<><PeekOriginalButton /><AgentStatusButtonView agent={agentFixture(scenario.connected ?? false)} onOpenSettings={() => setNotice("Fixture agent status. Use the outer inspector to configure your real connection.")} /></>}
       prompt={<div className="copy-prompt__stack" data-test="copy-prompt-control">
-        <PromptActionRow hasChanges={changes.length > 0} onClear={clearActiveDraft}>
+        <PromptActionRow changes={<ChangesMenu />} hasChanges={changes.length > 0} onClear={clearActiveDraft}>
           <PromptActionButton disabled={changes.length === 0} badgeCount={changes.length} onClick={() => setNotice("Fixture prompt action. Use the outer inspector’s Copy prompt button to export your design changes.")} />
         </PromptActionRow>
       </div>}
@@ -80,7 +80,6 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
             </InspectorSelection>
             <InspectorEditors selected={primary} styleSelection={selection} tokenEntries={entries} tokenRows={rows} styleState={styleState} showText={showText} backgroundTokenRow={findTokenRow(rows, "background-color")} />
           </> : <EmptyState />}
-      <ChangesLog />
     </InspectorPanel>
   </TooltipGroup>;
 }

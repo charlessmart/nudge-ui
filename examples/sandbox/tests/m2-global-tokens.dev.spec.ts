@@ -14,8 +14,8 @@ async function consumerBackgrounds(page: import("@playwright/test").Page): Promi
 }
 
 async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('[data-test="tokens-button"]').click();
-  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+  await page.locator('[data-test="panel-view-tokens"]').click();
+  await expect(page.locator('[data-test="document-tokens"]')).toBeVisible();
 }
 
 test("dev: Tokens settings edits only the active theme token and updates every consumer", async ({ page }) => {

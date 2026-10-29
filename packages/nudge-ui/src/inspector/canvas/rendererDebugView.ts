@@ -1,5 +1,6 @@
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
 import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
+import { createRendererSpacingView, SPACING_LAYER_ID } from "./rendererSpacing.ts";
 
 const OUTLINES_ATTRIBUTE = "data-nudge-ui-debug-outlines";
 const OUTLINES_STYLE_ID = "nudge-ui-debug-outlines";
@@ -24,7 +25,7 @@ const TEXT_LEVEL = "strong, b, em, i, small, code, kbd, mark, abbr, sub, sup, u,
 /** Draws a 1px outline on each box, leaving the page's own colors, fills and text as they are. */
 function outlinesCss(): string {
   const scope = `html[${OUTLINES_ATTRIBUTE}] body`;
-  const excluded = `:not(#${NUDGE_UI_MOUNT_ID}):not(#${HOVER_OUTLINE_ID})`;
+  const excluded = `:not(#${NUDGE_UI_MOUNT_ID}):not(#${HOVER_OUTLINE_ID}):not(#${SPACING_LAYER_ID}, #${SPACING_LAYER_ID} *)`;
   return `
 ${scope} *${excluded} {
   outline: 1px solid ${OUTLINE_COLOR} !important;
@@ -173,7 +174,7 @@ export interface RendererDebugView {
   dispose(): void;
 }
 
-/** Applies the view tool's outlines and explode view to an application document. */
+/** Applies the Inspection tool's outlines, spacing and explode views to an application document. */
 export function createRendererDebugView(
   document: Document = globalThis.document,
   /** Selects the element under a click on an exploded layer; false when nothing there can be selected. */
@@ -182,6 +183,7 @@ export function createRendererDebugView(
   onExplodedChange: (exploded: boolean) => void = () => undefined,
 ): RendererDebugView {
   const window = document.defaultView;
+  const spacing = createRendererSpacingView(document);
   let state: DebugViewState = DEBUG_VIEW_OFF;
 
   // Outlines ---------------------------------------------------------------
@@ -228,7 +230,7 @@ export function createRendererDebugView(
     hoverTarget = null;
   }
 
-  /** Shows the hovered element's bounds, since the inspector's own hover overlay is off while the view tool is active. */
+  /** Shows the hovered element's bounds, since the inspector's own hover overlay is off while the Inspection tool is active. */
   function showHoverOutline(target: Element): void {
     if (target === hoverTarget && hoverOutline?.isConnected) return;
     hoverTarget = target;
@@ -274,6 +276,8 @@ export function createRendererDebugView(
     overrides.set(root, "transform-origin", "50% 50%");
     // Commit the starting state so the transforms below transition from it.
     void root.getBoundingClientRect();
+    // The spacing view measures the layers while they still sit flat.
+    spacing.explode({ root, layers });
     overrides.set(root, "transform", XRAY_ROOT_TRANSFORM);
     // Transforms compound through preserve-3d, so a constant gap per level
     // stacks each layer above its parent.
@@ -293,6 +297,7 @@ export function createRendererDebugView(
     overrides.restoreAll();
     overrides = new InlineStyleOverrides();
     explodedRoot = null;
+    spacing.explode(null);
     setPhase("idle");
   }
 
@@ -447,6 +452,7 @@ export function createRendererDebugView(
     state = next;
     if (next.outlines !== previous.outlines) applyOutlines();
     if (next.xray !== previous.xray) applyXray();
+    if (next.spacing !== previous.spacing) spacing.apply(next.spacing);
   }
 
   return {

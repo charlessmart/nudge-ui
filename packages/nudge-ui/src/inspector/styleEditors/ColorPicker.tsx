@@ -64,7 +64,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
 
   return (
     <div className={`editor`} data-test="color-picker" data-property={property}>
-      <div className="editor__title-row">
+      <div className={`editor__title-row${showTokenField ? "" : " editor__title-row--add"}`}>
         <div className="editor__title">{colorSectionTitle(property)}</div>
         {showTokenField ? (
           <Tooltip content={inlineStyleWarningContent(blockedBy)}>
@@ -84,7 +84,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             variant="quiet"
             label={`Add ${colorSectionTitle(property)}`}
             data-test="add-color"
-            className="color__add"
+            className="color__add editor__add-trigger"
             onClick={visibility.show}
           >
             <IconPlus size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />

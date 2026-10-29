@@ -68,7 +68,6 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
-    await expect(page.locator('[data-test="session-actions"]')).toHaveClass(/changes__session-action/);
 
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
   });
@@ -88,7 +87,7 @@ test.describe("Canvas durable session", () => {
     await page.locator('[data-test="clear-session"]').click();
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 32px;");
     await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
-    await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
+    await expect(page.locator('[data-test="clear-session"]')).toBeDisabled();
   });
 
   test("dev: canvas mode and cards survive refresh", async ({ page }) => {
@@ -140,8 +139,8 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     const clearBtn = page.locator('[data-test="clear-session"]');
-    const clearVisible = await clearBtn.isVisible().catch(() => false);
-    if (clearVisible) {
+    const clearEnabled = await clearBtn.isEnabled().catch(() => false);
+    if (clearEnabled) {
       await clearBtn.click();
     }
 
@@ -157,8 +156,7 @@ test.describe("Canvas durable session", () => {
     await waitForCanvasTransition(page);
     await waitForInspector(page);
 
-    await page.locator('[data-test="settings-button"]').click();
-    await page.locator('[data-test="settings-nav-tokens"]').click();
+    await page.locator('[data-test=\"panel-view-tokens\"]').click();
     await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
 
     const row = page.locator(
@@ -175,8 +173,7 @@ test.describe("Canvas durable session", () => {
     await page.reload();
     await waitForInspector(page);
 
-    await page.locator('[data-test="settings-button"]').click();
-    await page.locator('[data-test="settings-nav-tokens"]').click();
+    await page.locator('[data-test=\"panel-view-tokens\"]').click();
     await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
   });
 

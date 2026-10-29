@@ -1,6 +1,7 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconArrowBackUp, IconRestore } from "@tabler/icons-react";
+import { Popover as BasePopover } from "@base-ui/react/popover";
+import { IconArrowBackUp, IconChevronDown } from "@tabler/icons-react";
 import {
   isComponentChange,
   isElementChange,
@@ -10,9 +11,8 @@ import {
 } from "../changes/types.ts";
 import { useChanges, revertChange } from "../drafts/store.ts";
 import { StaleChangeIndicator } from "../canvas/StaleChangeIndicator.tsx";
-import { Button } from "../ui/Button.tsx";
-import { Disclosure } from "../ui/Disclosure.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
+import { portalContainer } from "../ui/portalContainer.ts";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { presentChange, type ChangePresentation } from "../changes/presentation.ts";
 import {
@@ -35,17 +35,12 @@ import {
   getTextProjectionDiagnosticRevision,
   subscribeTextProjectionDiagnostics,
 } from "../projection/textProjection.ts";
-import { useFrameComments } from "../comments/store.ts";
 import { countPromptChanges } from "../prompt/generatePrompt.ts";
 
 interface Group {
   key: string;
   label: string;
   changes: ChangeRecord[];
-}
-
-interface ChangesLogProps {
-  onClearSession?: () => void;
 }
 
 function groupChanges(changes: ChangeRecord[]): Group[] {
@@ -148,9 +143,18 @@ function RevertButton({
   );
 }
 
-export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
+/** "No changes", "1 Change", "3 Changes". */
+export function changesLabel(total: number): string {
+  if (total === 0) return "No changes";
+  return `${total} ${total === 1 ? "Change" : "Changes"}`;
+}
+
+/**
+ * The count of pending changes beside the copy button; it opens a list of them, each with its own revert. The list
+ * spans the whole prompt row it sits in.
+ */
+export function ChangesMenu(): ReactElement {
   const changes = useChanges();
-  const comments = useFrameComments();
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -175,19 +179,35 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
   const groups = useMemo(() => groupChanges(changes), [changes]);
   const total = countPromptChanges(changes, structuralChanges);
 
-  const hasLoggedChanges = total > 0;
-  if (!hasLoggedChanges && comments.length === 0) return null;
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Reverting the last change leaves nothing to list.
+  useEffect(() => {
+    if (total === 0) setOpen(false);
+  }, [total]);
 
   return (
-    <>
-      {hasLoggedChanges ? <Disclosure
-        className="changes"
-        data-test="changes-log"
-        triggerDataTest="changes-toggle"
-        title="Changes"
-        badge={total > 0 ? <span className="changes__count">{total}</span> : null}
-        panelClassName="changes__content"
+    <BasePopover.Root open={open} onOpenChange={setOpen}>
+      <BasePopover.Trigger
+        ref={triggerRef}
+        className="changes-menu__trigger"
+        data-test="changes-toggle"
+        disabled={total === 0}
       >
+        <span className="changes-menu__label" data-test="changes-count">{changesLabel(total)}</span>
+        <IconChevronDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+      </BasePopover.Trigger>
+      {/* Kept mounted while closed, so the list (and what tests read of it) is there whenever there are changes. */}
+      {total > 0 ? <BasePopover.Portal container={portalContainer()} keepMounted>
+        <BasePopover.Positioner
+          className="inspector-popover__positioner"
+          anchor={() => triggerRef.current?.closest(".copy-prompt__row") ?? triggerRef.current}
+          side="bottom"
+          align="start"
+          sideOffset={6}
+        >
+          <BasePopover.Popup className="inspector-popover__popup changes" data-test="changes-log" aria-label="Changes">
           {groups.length === 0 && structuralChanges.length === 0 ? (
             <div className="changes__empty" data-test="changes-empty">
               No changes yet
@@ -318,20 +338,9 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
               ))}
             </>
           )}
-      </Disclosure> : null}
-      {onClearSession ? (
-        <div className="changes__session-action" data-test="session-actions">
-          <Button
-            variant="quiet"
-            type="button"
-            data-test="clear-session"
-            onClick={onClearSession}
-          >
-            <IconRestore size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-            Clear Changes
-          </Button>
-        </div>
-      ) : null}
-    </>
+          </BasePopover.Popup>
+        </BasePopover.Positioner>
+      </BasePopover.Portal> : null}
+    </BasePopover.Root>
   );
 }

@@ -16,6 +16,56 @@
   pointer-events: auto;
 }
 
+/* The toolbar is dragged by its handle alone; the offset is set on the host, so the bars above it follow. */
+.canvas-toolbar--movable {
+  translate: var(--canvas-toolbar-offset-x, 0px) var(--canvas-toolbar-offset-y, 0px);
+}
+
+.canvas-toolbar--movable[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+/* The handle appears under the toolbar on hover. Its pseudo-element widens the target and bridges to the toolbar so the
+   hover holds, and hovering where it will appear also shows it, since it is part of the toolbar. */
+.canvas-toolbar__grip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  width: 36px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  box-shadow: var(--shadow-popup);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  opacity: 0;
+  translate: -50% -4px;
+  transition: opacity 140ms ease, translate 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.canvas-toolbar--movable[data-dragging="true"] .canvas-toolbar__grip {
+  cursor: grabbing;
+}
+
+.canvas-toolbar__grip::after {
+  content: "";
+  position: absolute;
+  inset: -8px -12px -8px;
+}
+
+.canvas-toolbar--movable:hover .canvas-toolbar__grip,
+.canvas-toolbar--movable[data-dragging="true"] .canvas-toolbar__grip {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-toolbar__grip {
+    transition: none;
+  }
+}
+
 /* The live sketch surface is a separate stacking context. Keep the toolbar at
    the root layer so pointer events reach the controls instead of the
    full-screen SVG drawing surface. It is the only toolbar instance; the
@@ -42,84 +92,6 @@
   gap: var(--space-4);
 }
 
-/* The view tool and the button that swaps its view, side by side without overlapping. */
-.canvas-toolbar__split {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-/* A large icon button, narrowed so it reads as part of the tool beside it. */
-.icon-button.canvas-toolbar__chevron {
-  width: 16px;
-  color: var(--text-muted);
-}
-
-.icon-button.canvas-toolbar__chevron svg {
-  width: 12px;
-  height: 12px;
-}
-
-/* The portal layer ignores pointer events, so the menu has to take them back or clicks reach the page behind it. */
-.view-tool-menu__positioner {
-  z-index: var(--z-index);
-  pointer-events: auto;
-}
-
-.view-tool-menu {
-  display: grid;
-  min-width: 168px;
-  padding: var(--space-4);
-  gap: var(--space-4);
-  border-radius: var(--radius-8);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
-  pointer-events: auto;
-}
-
-.view-tool-menu__item {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  width: 100%;
-  min-height: var(--control-height-large);
-  padding: 0 var(--space-8);
-  border: 0;
-  border-radius: var(--radius-4);
-  background: transparent;
-  color: var(--text-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-base);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.view-tool-menu__label {
-  flex: 1;
-}
-
-/* Fixed-width columns: the shortcuts share a left edge, and the check never shifts them. */
-.view-tool-menu__shortcut {
-  flex: 0 0 auto;
-  width: var(--space-16);
-  color: var(--text-secondary);
-  text-align: left;
-}
-
-.view-tool-menu__check {
-  display: flex;
-  flex: 0 0 auto;
-  width: 15px;
-}
-
-/* Hover and focus only: the check beside the current view marks it, without a second tint. */
-.view-tool-menu__item:hover,
-.view-tool-menu__item:focus-visible {
-  background: var(--surface-well);
-}
-
 .canvas-toolbar__divider {
   flex-shrink: 0;
   width: 1px;
@@ -128,165 +100,169 @@
   background: var(--border-subtle);
 }
 
-.canvas-toolbar__tool[data-active="true"] {
-  background: var(--accent-surface);
-  color: var(--accent);
-}
-
-.animation-bar {
+/* The Inspection tool's panel: a title, the animation speed, the spacing and outlines switches, then Explode at the foot.
+   It renders in the toolbar's portal, so it shares the toolbar's layer above the page overlays, and floats one gap above
+   the toolbar, rising in like the sketch bar. */
+.inspection-bar {
   position: absolute;
   left: 50%;
   /* Sits one gap above the canvas toolbar (padding, 40px buttons, padding). */
   bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
-  z-index: calc(var(--z-index) - 2);
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  width: 344px;
+  gap: var(--space-12);
+  box-sizing: border-box;
+  width: 264px;
   max-width: calc(100% - var(--space-32));
-  padding: var(--space-4);
+  padding: var(--space-12);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
-  transform: translateX(-50%);
+  translate: calc(-50% + var(--canvas-toolbar-offset-x, 0px)) var(--canvas-toolbar-offset-y, 0px);
   pointer-events: auto;
+  animation: inspection-bar-in 240ms cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
-.animation-bar__row {
+@keyframes inspection-bar-in {
+  from {
+    opacity: 0;
+    /* The bar is centered with this property, so the slide has to carry the centering along. */
+    translate: calc(-50% + var(--canvas-toolbar-offset-x, 0px)) calc(16px + var(--canvas-toolbar-offset-y, 0px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspection-bar {
+    animation: none;
+  }
+}
+
+.inspection-bar__title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+  color: var(--text-primary);
+}
+
+.inspection-bar__speed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.inspection-bar__speed-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-/* Floats above the bar, which is already one gap above the canvas toolbar. */
-.animation-bar__hint {
-  position: absolute;
-  bottom: calc(100% + var(--space-8));
-  left: 50%;
-  padding: var(--space-4) var(--space-12);
-  border-radius: var(--radius-8);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
-  color: var(--text-muted);
   font-size: var(--font-size-base);
-  white-space: nowrap;
-  transform: translateX(-50%);
+  color: var(--text-secondary);
 }
 
-/* Half the bar, pushed to the right of the play button. */
-.segmented-control.animation-bar__speed {
-  flex: none;
-  width: 50%;
+.inspection-bar__value {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
-.segmented-control.animation-bar__speed .button.segmented-control__button {
-  padding-inline: 0;
+.inspection-bar__speed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
-.animation-timeline {
-  position: relative;
-  flex: 1 1 0;
+/* The slider sits in a control-height well, so it lines up with the buttons either side. */
+.inspection-bar__slider-well {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
   min-width: 0;
   height: var(--control-height-large);
-  cursor: default;
-  touch-action: none;
-  user-select: none;
+  padding-inline: var(--space-8);
+  border-radius: var(--radius-control);
+  background: var(--surface-control);
 }
 
-.animation-timeline:focus-visible {
+.inspection-bar__slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The fill deepens toward full speed. */
+.inspection-bar__slider .slider__fill {
+  background: linear-gradient(to right, var(--brand-surface), var(--brand-primary));
+}
+
+/* Each later group starts on a divider. */
+.inspection-bar__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.inspection-bar__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--control-height-large);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+}
+
+.inspection-bar__switch:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
-.animation-timeline[data-disabled] {
-  opacity: 0.4;
+.inspection-bar__track {
+  --switch-thumb: 16px;
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-well-2x);
+  transition: background-color 140ms ease;
 }
 
-/* Runs edge to edge; the playhead and ticks each leave room for their own width instead. */
-.animation-timeline__scale {
+.inspection-bar__track::after {
+  content: "";
   position: absolute;
-  inset: 0;
-  transform: scaleX(calc(1 + var(--timeline-stretch, 0)));
-  transform-origin: right center;
-  transition: transform var(--spring-duration) var(--spring-ease);
+  top: 2px;
+  left: 2px;
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: translate var(--spring-duration) var(--spring-ease);
 }
 
-/* Dragging past an end stretches the track away from the opposite end; letting go springs it back. */
-.animation-timeline__scale[data-stretching] {
-  transition: none;
+.inspection-bar__switch[data-on] .inspection-bar__track {
+  background: var(--brand-primary);
 }
 
-.animation-timeline__scale[data-stretch-side="end"] {
-  transform-origin: left center;
+.inspection-bar__switch[data-on] .inspection-bar__track::after {
+  translate: var(--switch-thumb) 0;
+}
+
+/* Explode spans the foot of the panel, as a button rather than a switch. */
+.toggle-button.inspection-bar__explode {
+  width: 100%;
+  gap: var(--space-8);
+  font-weight: var(--font-weight-base);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animation-timeline__scale {
+  .inspection-bar__track,
+  .inspection-bar__track::after {
     transition: none;
   }
-}
-
-.animation-timeline__tick {
-  /* The resting height as a share of the full one: 4px of 16px. */
-  --tick-base: 0.25;
-  /* Set inline for the marks near the playhead: 1 at the playhead, falling off exponentially. */
-  --tick-proximity: 0;
-  position: absolute;
-  bottom: 0;
-  left: calc(var(--tick-position) * (100% - 1px));
-  width: 1px;
-  /* Never rises into the labels along the top of the track (32px track, 10px label). Marks grow by scaling up from
-     the bottom, so following the playhead never touches layout. */
-  height: 16px;
-  transform: scaleY(calc(var(--tick-base) + (1 - var(--tick-base)) * var(--tick-proximity)));
-  transform-origin: bottom;
-  background: var(--text-primary);
-  /* Rising has no transition, so a mark grows the instant the playhead nears it. */
-  opacity: calc(0.2 + 0.8 * var(--tick-proximity));
-}
-
-.animation-timeline__tick--major {
-  --tick-base: 0.5;
-}
-
-/* Marks the playhead is leaving ease back down, trailing it briefly. */
-.animation-timeline__tick[data-falling] {
-  transition: transform 160ms ease-out, opacity 160ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animation-timeline__tick[data-falling] {
-    transition: none;
-  }
-}
-
-.animation-timeline__label {
-  position: absolute;
-  top: 0;
-  /* Centred over its mark, whose middle is half its 1px width in from its left edge. */
-  left: calc(var(--tick-position) * (100% - 1px) + 0.5px);
-  transform: translateX(-50%);
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.animation-timeline__label[data-start] {
-  left: 3px;
-  transform: none;
-}
-
-/* The playhead travels to a press frame by frame in script, so it needs no transition of its own. */
-.animation-timeline__playhead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--timeline-progress) * (100% - 2px));
-  width: 2px;
-  /* Half its width, rounding both ends into a pill. */
-  border-radius: 1px;
-  background: var(--accent);
 }

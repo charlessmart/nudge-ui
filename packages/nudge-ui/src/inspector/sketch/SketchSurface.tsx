@@ -9,11 +9,11 @@ import {
   type SketchStrokeColor,
 } from "./model.ts";
 import type { SketchHistory } from "./history.ts";
-import { rectanglePoints } from "./geometry.ts";
+import { shapePoints } from "./geometry.ts";
 import { SketchSelectionFrame } from "./SketchSelectionFrame.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
 import { SketchTextEditor, type SketchTextEdit } from "./SketchTextEditor.tsx";
-import type { SketchDrawingTool } from "./drawingTools.ts";
+import { isSketchShapeTool, type SketchDrawingTool } from "./drawingTools.ts";
 import { useSketchViewport } from "./useSketchViewport.ts";
 import { useScrollTransform } from "./useScrollTransform.ts";
 import { useSketchGestures } from "./useSketchGestures.ts";
@@ -113,11 +113,11 @@ export function SketchSurface({
 
   const draftStroke: SketchStroke | null = gestures.draftPoints.length > 0 && tool !== "text" ? {
     id: "draft",
-    kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
-    width: tool === "rectangle" ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
+    kind: isSketchShapeTool(tool) ? tool : "freehand" as const,
+    width: isSketchShapeTool(tool) ? SKETCH_RECTANGLE_STROKE_WIDTH : SKETCH_STROKE_WIDTH,
     color,
-    points: (tool === "rectangle" && gestures.draftPoints.length > 1
-      ? rectanglePoints(gestures.draftPoints[0]!, gestures.draftPoints.at(-1)!)
+    points: (isSketchShapeTool(tool) && gestures.draftPoints.length > 1
+      ? shapePoints(tool, gestures.draftPoints[0]!, gestures.draftPoints.at(-1)!)
       : gestures.draftPoints),
   } : null;
 
@@ -139,7 +139,6 @@ export function SketchSurface({
           ref={setPopup}
           style={{ visibility: temporaryAppInteraction ? "hidden" : undefined }}
           className="sketch__popup sketch__live-popup"
-          data-inspector-open={inspectorOpen ? "true" : "false"}
           data-test="sketch-live-editor"
         >
           <Dialog.Title className="sketch__title sketch__sr-only">Sketch viewport</Dialog.Title>

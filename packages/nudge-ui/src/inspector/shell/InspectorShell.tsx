@@ -27,7 +27,6 @@ import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
 import { AgentStatusButton } from "./AgentStatusButton.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
-import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForInstanceOverride, undo, redo } from "../drafts/store.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "../selection/editScope.ts";
 import { canEditStyles } from "../tokens/editActions.ts";
@@ -66,6 +65,8 @@ import { isDemoRuntime, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig
 import { SketchWorkspace } from "../canvas/sketch/SketchWorkspace.tsx";
 import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
+import { SegmentedControl, type SegmentedControlOption } from "../ui/SegmentedControl.tsx";
+import { DocumentTokensView } from "../tokens/DocumentTokensView.tsx";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -104,6 +105,14 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
   });
 }
 
+type PanelView = "styles" | "tokens";
+
+/** The panel shows the selection's styles, or the document's design tokens. */
+const PANEL_VIEWS: readonly SegmentedControlOption<PanelView>[] = [
+  { value: "styles", label: "Styles", testId: "panel-view-styles" },
+  { value: "tokens", label: "Tokens", testId: "panel-view-tokens" },
+];
+
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
@@ -118,6 +127,7 @@ export function InspectorShell(): ReactElement {
   const selectedElements = useSelectedElements();
   const componentProps = useComponentProps(selected);
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
+  const [panelView, setPanelView] = useState<PanelView>("styles");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
@@ -277,6 +287,14 @@ export function InspectorShell(): ReactElement {
           setInspectorOpen(open);
         }}
         headerActions={<><PeekOriginalButton /><AgentStatusButton onOpenSettings={openSettings} /></>}
+        views={<SegmentedControl
+          aria-label="Panel view"
+          data-test="panel-view"
+          className="panel__view-switch"
+          value={panelView}
+          options={PANEL_VIEWS}
+          onChange={setPanelView}
+        />}
         prompt={<CopyPromptButton
           settingsOpen={settingsOpen}
           settingsSection={settingsSection}
@@ -285,69 +303,70 @@ export function InspectorShell(): ReactElement {
           onClearChanges={clearInspectorSession}
         />}
       >
-        {inlineTextFeedback ? (
-          <StatusCallout
-            tone="danger"
-            className="inline-text-diagnostic"
-            data-test="inline-text-diagnostic"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <span>{inlineTextFeedback.message}</span>
-          </StatusCallout>
-        ) : null}
-        {selected ? (
+        {panelView === "tokens" ? <DocumentTokensView /> : (
           <>
-            <InspectorSelection
-              identity={selected}
-              count={selectedElements.length}
-              isComponent={!isMultiSelection && componentProps !== null}
-              name={selectionName}
-              editScope={editScope}
-              sourceSiteMatchCount={sourceSiteMatchCount}
-              styleState={styleState}
-              availableInteractionStates={availableInteractionStates}
-              onStyleStateChange={(state) => {
-                setActiveStyleState(state);
-                setStyleState(state);
-              }}
-              onRelink={() => {
-                const overrideId = relinkElement(selected.domElement);
-                if (overrideId) discardChangesForInstanceOverride(overrideId);
-                refreshScopeState();
-              }}
-              onUnlink={() => {
-                unlinkElement(selected.domElement);
-                refreshScopeState();
-              }}
+          {inlineTextFeedback ? (
+            <StatusCallout
+              tone="danger"
+              className="inline-text-diagnostic"
+              data-test="inline-text-diagnostic"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
             >
-              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
-            </InspectorSelection>
-
-            {selectionEditable ? (
-              <InspectorEditors
-                selected={selected}
-                styleSelection={styleSelection}
-                tokenEntries={tokenEntries}
-                tokenRows={tokenRows}
+              <span>{inlineTextFeedback.message}</span>
+            </StatusCallout>
+          ) : null}
+          {selected ? (
+            <>
+              <InspectorSelection
+                identity={selected}
+                count={selectedElements.length}
+                isComponent={!isMultiSelection && componentProps !== null}
+                name={selectionName}
+                editScope={editScope}
+                sourceSiteMatchCount={sourceSiteMatchCount}
                 styleState={styleState}
-                showText={showText}
-                pageTarget={!isMultiSelection && isPageTarget(selected.domElement)}
-                backgroundTokenRow={backgroundTokenRow}
-              />
-            ) : (
-              <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
-                These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
-              </StatusCallout>
-            )}
+                availableInteractionStates={availableInteractionStates}
+                onStyleStateChange={(state) => {
+                  setActiveStyleState(state);
+                  setStyleState(state);
+                }}
+                onRelink={() => {
+                  const overrideId = relinkElement(selected.domElement);
+                  if (overrideId) discardChangesForInstanceOverride(overrideId);
+                  refreshScopeState();
+                }}
+                onUnlink={() => {
+                  unlinkElement(selected.domElement);
+                  refreshScopeState();
+                }}
+              >
+                {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
+              </InspectorSelection>
+
+              {selectionEditable ? (
+                <InspectorEditors
+                  selected={selected}
+                  styleSelection={styleSelection}
+                  tokenEntries={tokenEntries}
+                  tokenRows={tokenRows}
+                  styleState={styleState}
+                  showText={showText}
+                  pageTarget={!isMultiSelection && isPageTarget(selected.domElement)}
+                  backgroundTokenRow={backgroundTokenRow}
+                />
+              ) : (
+                <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
+                  These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
+                </StatusCallout>
+              )}
+            </>
+          ) : (
+            <EmptyState />
+          )}
           </>
-        ) : (
-          <EmptyState />
         )}
-        <ChangesLog
-          onClearSession={clearInspectorSession}
-        />
       </InspectorPanel>
       {sketchEnabled ? (
         <SketchWorkspace hostElement={sketchHost} />

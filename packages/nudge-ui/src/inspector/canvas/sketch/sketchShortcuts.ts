@@ -1,13 +1,15 @@
 import { isEditableEvent } from "../../shell/shortcuts.ts";
 import type { SketchDrawingTool } from "../../sketch/drawingTools.ts";
 
-/** Single-key shortcuts for the tools, shown in their tooltips. P also opens the sketch tool from the canvas; once it is open, P picks the pen. */
-export const SKETCH_TOOL_SHORTCUTS = { pen: "P", eraser: "E", rectangle: "R", text: "T" } as const;
+/** Single-key shortcuts for the tools, shown in their tooltips. Circle is I, from ellIpse, and arrow is L, for line: O and X belong to the Inspection views, A to using the app and E to the eraser. P also opens the sketch tool from the canvas; once it is open, P picks the pen. */
+export const SKETCH_TOOL_SHORTCUTS = { pen: "P", eraser: "E", rectangle: "R", ellipse: "I", arrow: "L", text: "T" } as const;
 
 const SKETCH_TOOL_CODES: Readonly<Record<string, SketchDrawingTool>> = {
   KeyP: "pen",
   KeyE: "eraser",
   KeyR: "rectangle",
+  KeyI: "ellipse",
+  KeyL: "arrow",
   KeyT: "text",
 };
 

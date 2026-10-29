@@ -4,7 +4,7 @@ import {
   SKETCH_TEXT_FONT_WEIGHT,
   SKETCH_TEXT_LINE_HEIGHT,
   SKETCH_TEXT_MIN_FONT_SIZE,
-  SKETCH_TEXT_STROKE_WIDTH,
+  SKETCH_TEXT_PADDING_EM,
   type SketchPoint,
   type SketchStroke,
   type SketchStrokeColor,
@@ -52,6 +52,11 @@ export function measureSketchText(text: string, fontSize: number): SketchTextMet
     width = Math.max(width, context ? context.measureText(line).width : line.length * fontSize * FALLBACK_GLYPH_WIDTH_EM);
   }
   return { width: Math.max(width, fontSize * MIN_TEXT_WIDTH_EM), height: lines.length * lineHeight, lineHeight };
+}
+
+/** How far the white note behind the words reaches past them on every side, in drawing units. */
+export function sketchTextPadding(fontSize: number): number {
+  return fontSize * SKETCH_TEXT_PADDING_EM;
 }
 
 export interface SketchTextLayout {
@@ -117,7 +122,7 @@ export function createTextStroke({
   return {
     id,
     kind: "text",
-    width: SKETCH_TEXT_STROKE_WIDTH,
+    width: sketchTextPadding(fontSize) * 2,
     color,
     points: box.map((point) => {
       const placed = rotateAbout(point, rotation, { x: 0, y: 0 });

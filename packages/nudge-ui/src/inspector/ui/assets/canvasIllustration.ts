@@ -1,7 +1,7 @@
 /** Inline markup so pages whose `img-src` blocks `data:` images still render it. */
 export const CANVAS_ILLUSTRATION_SVG = `<svg width="182" height="104" viewBox="0 0 182 104" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="30" y="54" width="17" height="4" rx="2" fill="#0096FF"/>
-<path d="M62.5 32.5V79.5H15.5V32.5H62.5Z" stroke="#0096FF"/>
+<rect x="30" y="54" width="17" height="4" rx="2" fill="currentColor"/>
+<path d="M62.5 32.5V79.5H15.5V32.5H62.5Z" stroke="currentColor"/>
 <path opacity="0.3" d="M165.5 56.5V103.5H118.5V56.5H165.5Z" stroke="black"/>
 <rect opacity="0.3" x="102.5" y="0.5" width="47" height="47" stroke="black"/>
 <g clip-path="url(#clip0_1882_2967)">
@@ -11,8 +11,8 @@ export const CANVAS_ILLUSTRATION_SVG = `<svg width="182" height="104" viewBox="0
 <path d="M44.7499 63.625C44.7499 63.3266 44.8684 63.0405 45.0794 62.8295C45.2904 62.6185 45.5765 62.5 45.8749 62.5C46.1733 62.5 46.4594 62.6185 46.6704 62.8295C46.8814 63.0405 46.9999 63.3266 46.9999 63.625V67C46.9999 68.1935 46.5258 69.3381 45.6819 70.182C44.838 71.0259 43.6934 71.5 42.4999 71.5H40.9999H41.1559C40.4106 71.5001 39.677 71.3152 39.0209 70.9617C38.3648 70.6083 37.8068 70.0974 37.3969 69.475C37.3477 69.4001 37.2987 69.3251 37.2499 69.25C37.0159 68.8907 36.1946 67.459 34.7854 64.954C34.6417 64.6986 34.6034 64.3973 34.6784 64.1141C34.7535 63.8309 34.9361 63.5882 35.1874 63.4375C35.4551 63.2769 35.7687 63.2103 36.0785 63.2484C36.3883 63.2864 36.6765 63.4269 36.8974 63.6475L37.9999 64.75" stroke="black" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 <path d="M107 47.5V57.5C107 61.9183 110.582 65.5 115 65.5H117.5" stroke="#B2B2B2" stroke-dasharray="2 2"/>
-<path d="M49 55H58.4171H66.5H79C83.4183 55 87 51.4183 87 47V37.5C87 33.0817 90.5817 29.5 95 29.5H102" stroke="#0096FF" stroke-dasharray="2 2"/>
-<path d="M49 55H58.4171H66.5H79C83.4183 55 87 51.4183 87 47V37.5C87 33.0817 90.5817 29.5 95 29.5H102" stroke="#0096FF" stroke-dasharray="2 2"/>
+<path d="M49 55H58.4171H66.5H79C83.4183 55 87 51.4183 87 47V37.5C87 33.0817 90.5817 29.5 95 29.5H102" stroke="currentColor" stroke-dasharray="2 2"/>
+<path d="M49 55H58.4171H66.5H79C83.4183 55 87 51.4183 87 47V37.5C87 33.0817 90.5817 29.5 95 29.5H102" stroke="currentColor" stroke-dasharray="2 2"/>
 <defs>
 <clipPath id="clip0_1882_2967">
 <rect width="18" height="18" fill="white" transform="translate(32 55)"/>

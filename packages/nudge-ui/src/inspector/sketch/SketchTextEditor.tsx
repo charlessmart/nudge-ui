@@ -9,7 +9,7 @@ import {
   type SketchPoint,
   type SketchStrokeColor,
 } from "./model.ts";
-import { measureSketchText } from "./text.ts";
+import { measureSketchText, sketchTextPadding } from "./text.ts";
 
 /** A text layer being typed: where its box starts, how it is turned, and what it looked like before. */
 export interface SketchTextEdit {
@@ -42,6 +42,8 @@ export function SketchTextEditor({ edit, viewport, unit, onCommit, onCancel }: S
   // Blur follows Enter and Escape, so only the first way out of the editor counts.
   const finished = useRef(false);
   const metrics = measureSketchText(text, edit.fontSize);
+  // The note reaches past the words, which still start at the layer's corner.
+  const padding = sketchTextPadding(edit.fontSize);
 
   useLayoutEffect(() => {
     const element = input.current;
@@ -82,16 +84,18 @@ export function SketchTextEditor({ edit, viewport, unit, onCommit, onCancel }: S
       aria-label="Sketch text"
       data-test="sketch-text-editor"
       style={{
-        left: (edit.corner.x - viewport.scrollX) / unit,
-        top: (edit.corner.y - viewport.scrollY) / unit,
-        width: (metrics.width + edit.fontSize * CARET_ROOM_EM) / unit,
-        height: metrics.height / unit,
+        left: (edit.corner.x - viewport.scrollX - padding) / unit,
+        top: (edit.corner.y - viewport.scrollY - padding) / unit,
+        width: (metrics.width + edit.fontSize * CARET_ROOM_EM + padding * 2) / unit,
+        height: (metrics.height + padding * 2) / unit,
+        padding: padding / unit,
         color: edit.color,
         fontFamily: SKETCH_TEXT_FONT_FAMILY,
         fontWeight: SKETCH_TEXT_FONT_WEIGHT,
         fontSize: edit.fontSize / unit,
         lineHeight: SKETCH_TEXT_LINE_HEIGHT,
         transform: `rotate(${edit.rotation}rad)`,
+        transformOrigin: `${padding / unit}px ${padding / unit}px`,
       }}
       onChange={(event) => setText(event.target.value)}
       onKeyDown={onKeyDown}

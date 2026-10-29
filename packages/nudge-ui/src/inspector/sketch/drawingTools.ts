@@ -1,7 +1,12 @@
 import { useSyncExternalStore } from "react";
 import { SKETCH_PEN_COLORS, SKETCH_STROKE_COLOR, type SketchPenColor } from "./model.ts";
 
-export type SketchDrawingTool = "pen" | "eraser" | "rectangle" | "text";
+export type SketchShapeTool = "rectangle" | "ellipse" | "arrow";
+export type SketchDrawingTool = "pen" | "eraser" | SketchShapeTool | "text";
+
+export function isSketchShapeTool(tool: SketchDrawingTool): tool is SketchShapeTool {
+  return tool === "rectangle" || tool === "ellipse" || tool === "arrow";
+}
 
 export interface SketchDrawingToolsSnapshot {
   readonly tool: SketchDrawingTool;

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
-import { IconCheck, IconTrash } from "@tabler/icons-react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { Popover as BasePopover } from "@base-ui/react/popover";
+import { IconAlertTriangle, IconCheck, IconTrash } from "@tabler/icons-react";
 import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
@@ -9,6 +10,7 @@ import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
+import { portalContainer } from "../ui/portalContainer.ts";
 import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
 import { commentRoute, getCommentClearRevision, isCommentToolActive, removeComment, saveComment, subscribeComments, useComments, useCommentToolActive, type ElementComment } from "./store.ts";
 import { isReadingCommentSource, readCommentSource, reconcileComments } from "./verification.ts";
@@ -50,6 +52,31 @@ function anchorFor(iframe: CanvasFrame, element: HTMLElement): Anchor | null {
   const { x: left, y: top } = toViewportPoint(frame, { x: rect.right, y: rect.top });
   if (top < frame.top || top > frame.top + frame.height || left < frame.left || left > frame.left + frame.width) return null;
   return { left, top };
+}
+
+const EDITOR_MARGIN = 8;
+/** Gap between the commented element's edge and the editor. */
+const EDITOR_OFFSET = 12;
+
+/** Window space the open inspector panel takes from each side, in pixels. */
+function panelReserve(): { start: number; end: number } {
+  const container = portalContainer();
+  if (!container) return { start: 0, end: 0 };
+  const probes = (["start", "end"] as const).map((side) => {
+    const probe = document.createElement("div");
+    probe.style.cssText = `position:fixed;visibility:hidden;pointer-events:none;height:0;width:var(--panel-reserve-${side},0px)`;
+    container.append(probe);
+    return probe;
+  });
+  const [start = 0, end = 0] = probes.map((probe) => probe.getBoundingClientRect().width);
+  for (const probe of probes) probe.remove();
+  return { start, end };
+}
+
+/** The window minus the panel, so the editor flips or shifts away from the page edge and the panel instead of sliding under it. */
+function editorBoundary(): { x: number; y: number; width: number; height: number } {
+  const { start, end } = panelReserve();
+  return { x: start, y: 0, width: Math.max(0, window.innerWidth - start - end), height: window.innerHeight };
 }
 
 export function CommentsOverlay(): ReactElement | null {
@@ -241,6 +268,21 @@ export function CommentsOverlay(): ReactElement | null {
     };
   }, [comments]);
 
+  const editing = draft !== null && draftAnchor !== null;
+  const [boundary, setBoundary] = useState(editorBoundary);
+  useEffect(() => {
+    if (!editing) return;
+    const measure = (): void => setBoundary(editorBoundary());
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [editing]);
+  const anchorLeft = draftAnchor?.left ?? 0;
+  const anchorTop = draftAnchor?.top ?? 0;
+  const editorAnchor = useMemo(() => ({
+    getBoundingClientRect: () => new DOMRect(anchorLeft, anchorTop, 0, 0),
+  }), [anchorLeft, anchorTop]);
+
   async function confirm(): Promise<void> {
     if (!draft || saving || !note.trim()) return;
     const currentDraft = draft;
@@ -266,7 +308,7 @@ export function CommentsOverlay(): ReactElement | null {
       });
       if (getCommentClearRevision() !== clearRevision) return;
       if (!comment) {
-        setError("The element changed. Select it again to save your comment.");
+        setError("Element changed, try again or refresh the page.");
         return;
       }
       saveComment(comment);
@@ -293,16 +335,26 @@ export function CommentsOverlay(): ReactElement | null {
       </button>
     )))}
     {draft && draftAnchor ? <div className="comment-editor-backdrop" aria-hidden="true" onClick={() => setDraft(null)} /> : null}
-    {draft && draftAnchor ? <form className="comment-editor" data-test="comment-editor" role="dialog" aria-label="Element comment"
-      style={{ left: Math.max(8, Math.min(draftAnchor.left + 12, window.innerWidth - 400)), top: Math.max(8, Math.min(draftAnchor.top, window.innerHeight - 90)) }}
-      onSubmit={(event) => { event.preventDefault(); void confirm(); }}>
-      <TextInput appearance="embedded" autoFocus aria-label="Comment" data-test="comment-input" placeholder="Leave a comment" maxLength={2000}
-        value={note} disabled={saving} onChange={(event) => setNote(event.target.value)} />
-      <IconButton label="Confirm comment" variant="primary" type="submit" disabled={saving || !note.trim()} data-test="comment-confirm"><IconCheck size={18} /></IconButton>
-      {draft.existing ? <IconButton label="Delete comment" variant="quiet" disabled={saving} onClick={() => {
-        removeComment(draft.existing!.id); setDraft(null);
-      }}><IconTrash size={16} /></IconButton> : null}
-      {error ? <span className="comment-editor__error" role="alert">{error}</span> : null}
-    </form> : null}
+    {draft && draftAnchor ? <BasePopover.Root open onOpenChange={(open) => { if (!open) setDraft(null); }}>
+      <BasePopover.Portal container={portalContainer()}>
+        <BasePopover.Positioner className="comment-editor__positioner" anchor={editorAnchor} side="right" align="start"
+          sideOffset={EDITOR_OFFSET} collisionBoundary={boundary} collisionPadding={EDITOR_MARGIN}
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}>
+          <BasePopover.Popup className="comment-editor" data-test="comment-editor" aria-label="Element comment" initialFocus={false}
+            render={<form onSubmit={(event) => { event.preventDefault(); void confirm(); }} />}>
+            {error ? <div className="comment-editor__banner" role="alert">
+              <IconAlertTriangle size={14} aria-hidden="true" />
+              <span>{error}</span>
+            </div> : null}
+            <TextInput appearance="embedded" autoFocus aria-label="Comment" data-test="comment-input" placeholder="Leave a comment" maxLength={2000}
+              value={note} disabled={saving} onChange={(event) => setNote(event.target.value)} />
+            <IconButton label="Confirm comment" variant="primary" type="submit" disabled={saving || !note.trim()} data-test="comment-confirm"><IconCheck size={18} /></IconButton>
+            {draft.existing ? <IconButton label="Delete comment" variant="quiet" disabled={saving} onClick={() => {
+              removeComment(draft.existing!.id); setDraft(null);
+            }}><IconTrash size={16} /></IconButton> : null}
+          </BasePopover.Popup>
+        </BasePopover.Positioner>
+      </BasePopover.Portal>
+    </BasePopover.Root> : null}
   </>;
 }

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactElement } from "react";
 import { IconColorPicker } from "@tabler/icons-react";
-import { elasticOffset } from "../tokens/dragElastic.ts";
 import { IconButton } from "./IconButton.tsx";
 import { Select } from "./Select.tsx";
+import { Slider } from "./Slider.tsx";
 import {
   COLOR_FORMATS,
   channelLabels,
@@ -63,20 +63,6 @@ function fractionWithin(element: HTMLElement, clientX: number, clientY: number):
     x: bounds.width ? (clientX - bounds.left) / bounds.width : 0,
     y: bounds.height ? (clientY - bounds.top) / bounds.height : 0,
   };
-}
-
-/** Reuses the token fields' elastic curve, doubled since a slider rail is wider than a field icon's travel. */
-const SLIDER_STRETCH_RATIO = 2;
-
-/** Pulls the rail out past the end the pointer has overshot; null (a release) lets the CSS spring it back. */
-function stretchSlider(slider: HTMLElement, clientX: number | null): void {
-  const rect = slider.getBoundingClientRect();
-  const overshoot = clientX === null ? 0 : clientX < rect.left ? clientX - rect.left : Math.max(0, clientX - rect.right);
-  const reduced = slider.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  const stretch = overshoot === 0 || reduced ? 0 : Math.abs(elasticOffset(overshoot)) * SLIDER_STRETCH_RATIO;
-  slider.toggleAttribute("data-stretching", stretch > 0);
-  slider.style.setProperty("--stretch-start", `${overshoot < 0 ? stretch : 0}px`);
-  slider.style.setProperty("--stretch-end", `${overshoot > 0 ? stretch : 0}px`);
 }
 
 function arrowStep(event: KeyboardEvent): number {
@@ -141,18 +127,22 @@ export function ColorPickerPanel({ value, formatHint, disabled = false, onChange
     });
   }, [flush]);
 
-  function startDrag(event: PointerEvent<HTMLElement>, update: (x: number, y: number) => void, stretch = false): void {
+  function setDragging(dragging: boolean): void {
+    draggingRef.current = dragging;
+    if (!dragging) flush();
+    onDragStateChange?.(dragging);
+  }
+
+  function startDrag(event: PointerEvent<HTMLElement>, update: (x: number, y: number) => void): void {
     if (disabled || event.button !== 0) return;
     event.preventDefault();
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
     target.focus({ preventScroll: true });
-    draggingRef.current = true;
-    onDragStateChange?.(true);
+    setDragging(true);
     const move = (clientX: number, clientY: number): void => {
       const { x, y } = fractionWithin(target, clientX, clientY);
       update(x, y);
-      if (stretch) stretchSlider(target, clientX);
     };
     move(event.clientX, event.clientY);
     const handleMove = (moveEvent: globalThis.PointerEvent): void => move(moveEvent.clientX, moveEvent.clientY);
@@ -161,10 +151,7 @@ export function ColorPickerPanel({ value, formatHint, disabled = false, onChange
       target.removeEventListener("pointerup", finish);
       target.removeEventListener("pointercancel", finish);
       target.removeEventListener("lostpointercapture", finish);
-      if (stretch) stretchSlider(target, null);
-      draggingRef.current = false;
-      flush();
-      onDragStateChange?.(false);
+      setDragging(false);
     };
     target.addEventListener("pointermove", handleMove);
     target.addEventListener("pointerup", finish);
@@ -247,7 +234,8 @@ export function ColorPickerPanel({ value, formatHint, disabled = false, onChange
             max={360}
             thumbColor={hexFromHsva({ h: color.h, s: 1, v: 1, a: 1 }, false)}
             disabled={disabled}
-            onPointerDown={(event) => startDrag(event, (x) => apply({ ...colorRef.current, h: clamp(x, 0, 1) * 360 }), true)}
+            onDragStateChange={setDragging}
+            onChange={(x) => apply({ ...colorRef.current, h: x * 360 })}
             onStep={(delta) => apply({ ...colorRef.current, h: clamp(colorRef.current.h + delta, 0, 360) })}
           />
           <ColorSlider
@@ -260,7 +248,8 @@ export function ColorPickerPanel({ value, formatHint, disabled = false, onChange
             thumbColor={formatCssColor(color, "rgb")}
             trackColor={opaqueHex}
             disabled={disabled}
-            onPointerDown={(event) => startDrag(event, (x) => apply({ ...colorRef.current, a: Math.round(clamp(x, 0, 1) * 100) / 100 }), true)}
+            onDragStateChange={setDragging}
+            onChange={(x) => apply({ ...colorRef.current, a: Math.round(x * 100) / 100 })}
             onStep={(delta) => apply({ ...colorRef.current, a: clamp(Math.round(colorRef.current.a * 100) + delta, 0, 100) / 100 })}
           />
         </div>
@@ -319,8 +308,9 @@ function ColorSlider({
   thumbColor,
   trackColor,
   disabled,
-  onPointerDown,
+  onChange,
   onStep,
+  onDragStateChange,
 }: {
   label: string;
   dataTest: string;
@@ -331,42 +321,28 @@ function ColorSlider({
   thumbColor: string;
   trackColor?: string;
   disabled: boolean;
-  onPointerDown(event: PointerEvent<HTMLDivElement>): void;
+  /** A rail position from 0 to 1. */
+  onChange(position: number): void;
   onStep(delta: number): void;
+  onDragStateChange(dragging: boolean): void;
 }): ReactElement {
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (disabled) return;
-    const step = arrowStep(event);
-    const delta = event.key === "ArrowRight" || event.key === "ArrowUp" ? step
-      : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -step
-        : event.key === "Home" ? -max
-          : event.key === "End" ? max
-            : 0;
-    if (!delta) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onStep(delta);
-  }
-
   return (
-    <div
+    <Slider
+      label={label}
+      dataTest={dataTest}
       className={`color-picker__slider ${className}`}
-      data-test={dataTest}
-      role="slider"
-      tabIndex={disabled ? -1 : 0}
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuenow={value}
-      aria-valuetext={valueText}
-      aria-disabled={disabled || undefined}
+      position={value / max}
+      valueMin={0}
+      valueMax={max}
+      valueNow={value}
+      valueText={valueText}
+      disabled={disabled}
       // SAFETY: React CSSProperties permits custom properties through index signatures; only the slider colors are added.
       style={{ "--thumb-color": thumbColor, "--track-color": trackColor } as CSSProperties}
-      onPointerDown={onPointerDown}
-      onKeyDown={handleKeyDown}
-    >
-      <span className="color-picker__thumb" style={{ left: `${(value / max) * 100}%` }} />
-    </div>
+      onChange={onChange}
+      onStep={(direction, large) => onStep(direction * (large ? 10 : 1))}
+      onDragStateChange={onDragStateChange}
+    />
   );
 }
 

@@ -186,6 +186,103 @@ export function buildTokenCatalogRows(
     .sort((a, b) => a.definition.name.localeCompare(b.definition.name));
 }
 
+export interface TokenStylesheet {
+  /** The source file of the declarations; empty when a declaration carries no source. */
+  file: string;
+  /** How many tokens have a declaration in the file. */
+  count: number;
+}
+
+function declarationFile(declaration: TokenDeclaration): string {
+  return sourceParts(declaration.source).file;
+}
+
+/** The stylesheets that declare tokens, most populated first; ties keep the order they were first seen in. */
+export function tokenStylesheets(rows: readonly TokenCatalogRow[]): TokenStylesheet[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const file of new Set(row.definition.declarations.map(declarationFile))) {
+      counts.set(file, (counts.get(file) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .map(([file, count]) => ({ file, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function isDefaultContext(context: TokenContext): boolean {
+  return (!context.selector || context.selector === ":root") && (context.wrappers ?? []).length === 0;
+}
+
+export interface TokenMode {
+  /** The declarations' context label, `Default` for the unconditional one. */
+  key: string;
+  /** How many tokens declare a value in the mode. */
+  count: number;
+}
+
+/** The contexts a stylesheet's tokens are declared in, the unconditional one first, then the most populated. */
+export function tokenModes(rows: readonly TokenCatalogRow[], file: string): TokenMode[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const keys = row.definition.declarations
+      .filter((declaration) => declarationFile(declaration) === file)
+      .map((declaration) => contextLabel(declaration.context));
+    for (const key of new Set(keys)) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => Number(b.key === "Default") - Number(a.key === "Default") || b.count - a.count);
+}
+
+function rowWithDeclaration(row: TokenCatalogRow, definition: TokenDefinition, declaration: TokenDeclaration): TokenCatalogRow {
+  const parts = sourceParts(declaration.source);
+  return {
+    ...row,
+    definition,
+    activeDeclaration: declaration,
+    authoredValue: declaration.value,
+    resolvedValue: declaration === row.activeDeclaration ? row.resolvedValue : declaration.value,
+    selector: selectorForContext(declaration.context),
+    styleContext: styleContext(declaration.context),
+    contextLabel: contextLabel(declaration.context),
+    file: parts.file,
+    line: parts.line,
+  };
+}
+
+/**
+ * The tokens one stylesheet declares, each reduced to that stylesheet's own declarations.
+ * With a `mode`, only the tokens declared in that context, each showing that declaration, so it can be read and edited without being the one in effect.
+ * Without one, a token another stylesheet overrides shows this stylesheet's default declaration.
+ */
+export function scopeRowsToStylesheet(rows: readonly TokenCatalogRow[], file: string, mode: string | null = null): TokenCatalogRow[] {
+  return rows.flatMap((row) => {
+    const declarations = row.definition.declarations.filter((declaration) =>
+      declarationFile(declaration) === file && (mode === null || contextLabel(declaration.context) === mode));
+    if (declarations.length === 0) return [];
+    const definition = { ...row.definition, declarations };
+    if (mode !== null) return [rowWithDeclaration(row, definition, declarations[declarations.length - 1]!)];
+    if (!row.activeDeclaration || declarations.includes(row.activeDeclaration)) return [{ ...row, definition }];
+
+    const declaration = declarations.find((candidate) => isDefaultContext(candidate.context));
+    if (declaration) return [rowWithDeclaration(row, definition, declaration)];
+    const parts = sourceParts(declarations[0]!.source);
+    return [{
+      ...row,
+      definition,
+      activeDeclaration: null,
+      authoredValue: "",
+      resolvedValue: "",
+      selector: ":root",
+      styleContext: {},
+      contextLabel: "Inactive in current theme",
+      file: parts.file,
+      line: parts.line,
+    }];
+  });
+}
+
 export function filterTokenRows(rows: readonly TokenCatalogRow[], query: string): TokenCatalogRow[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [...rows];

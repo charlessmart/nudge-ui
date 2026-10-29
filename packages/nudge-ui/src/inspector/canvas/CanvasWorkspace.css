@@ -11,22 +11,48 @@
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: var(--surface-panel);
+  background: var(--surface-canvas);
 }
 
+/* A tab hanging from the top edge, centred on the frame. The pseudo-elements draw the concave feet where the tab meets the edge, with the border ring following the curve into the tab's side borders. */
 .canvas-workspace__focus-action {
+  --focus-action-foot: var(--radius-12);
+  /* Opaque, so the border ring and the side borders cannot stack where they overlap. */
+  --focus-action-edge: var(--border-strong);
   position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left));
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: calc(var(--z-index) - 1);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  border-radius: var(--radius-12);
-  background: var(--surface-raised-2x);
-  box-shadow: var(--shadow-popup);
+  border: 1px solid var(--focus-action-edge);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-12) var(--radius-12);
+  background: var(--surface-canvas);
   pointer-events: auto;
+}
+
+.canvas-workspace__focus-action::before,
+.canvas-workspace__focus-action::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--focus-action-foot);
+  height: var(--focus-action-foot);
+  pointer-events: none;
+}
+
+.canvas-workspace__focus-action::before {
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--focus-action-foot) - 1px), var(--focus-action-edge) calc(var(--focus-action-foot) - 1px) var(--focus-action-foot), var(--surface-canvas) var(--focus-action-foot));
+}
+
+.canvas-workspace__focus-action::after {
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--focus-action-foot) - 1px), var(--focus-action-edge) calc(var(--focus-action-foot) - 1px) var(--focus-action-foot), var(--surface-canvas) var(--focus-action-foot));
 }
 
 .canvas-workspace__board.is-grabbable {

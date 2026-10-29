@@ -49,6 +49,7 @@ import {
   type RendererCursor,
 } from "../ui/customCursors.ts";
 import { isInspectorUiEvent, isPageSurface } from "./pageSurface.ts";
+import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -127,13 +128,6 @@ let sendProgrammaticClick: ((target: Element) => boolean) | null = null;
 /** Selects the deepest identified element at `target` as if it were clicked; false when none applies. */
 export function selectRendererElement(target: Element): boolean {
   return sendProgrammaticClick?.(target) ?? false;
-}
-
-let spacingHandlesEnabled = true;
-
-/** Gap, padding and margin handles, their hover fill and their drag cursor; selection is unaffected. */
-export function setRendererSpacingHandlesEnabled(enabled: boolean): void {
-  spacingHandlesEnabled = enabled;
 }
 
 const noopDisposal = (): void => undefined;
@@ -304,7 +298,7 @@ export function installRendererElementSelector(
     if (!identity) return;
 
     // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
-    const elementSpacing = !commentMode && spacingHandlesEnabled && !clear && pending.point
+    const elementSpacing = !commentMode && !clear && pending.point
       ? getElementSpacingAtPoint(document, pending.element, pending.point.x, pending.point.y)
       : null;
     // A margin belongs to a child of the hovered element; hovering it reports that child.
@@ -552,9 +546,7 @@ export function installRendererElementSelector(
     if (event.button !== 0 || commentMode) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
-    const spacingAffordance = spacingHandlesEnabled
-      ? getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY)
-      : null;
+    const spacingAffordance = getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY);
     const spacing = spacingAffordance ? toSpacingDescriptor(spacingAffordance) : null;
     if (spacing) {
       suppressHoverDuringSpacingDrag = true;
@@ -681,14 +673,40 @@ export function installRendererElementSelector(
     return phase === "keydown";
   }
 
+  /**
+   * Marks a tool or visibility shortcut as handled and keeps it from the app's own shortcuts, unless the app is in use
+   * (the tools that leave it interactive suspend the renderer). `always` is for the chord that shows and hides the
+   * inspector, which wins in every mode. Editing keys (arrows, Delete, Escape, undo) are only prevented, since the
+   * renderer's own document-level listeners act on them too and a window-level stop would cut them off.
+   */
+  function claimKey(event: KeyboardEvent, always = false): void {
+    event.preventDefault();
+    if (always || !interactionsSuspended) event.stopPropagation();
+  }
+
   // Must run before application capture handlers on the iframe document, which can stop the event.
   trackListener<KeyboardEvent>(window, "keydown", (event: KeyboardEvent) => {
     if (isEditableEvent(event)) return;
-    if (forwardKeyboardShortcut(event, "keydown")) event.preventDefault();
+    // Escape is left to travel on: the renderer's own document listeners (Explode view's, say) act on it too.
+    if (forwardKeyboardShortcut(event, "keydown")) {
+      if (event.code === "Escape") event.preventDefault();
+      else claimKey(event);
+    }
+    // On the page surface the controller's own window listeners already act on these keys; a message as well would
+    // apply each one twice, so the hide shortcut toggled the panel shut and straight back open.
+    if (isPageSurface()) {
+      if (event.key === "Alt" && !interactionsSuspended) updateMeasureState(true, measurePointerOverPage);
+      if (event.key === "Escape" || event.key === "Esc") {
+        cancelActiveDrag();
+        clearSpacingCursor();
+        lastSelected = null;
+      }
+      return;
+    }
     if (isInspectorToggleShortcut(event)) {
       const identity = getRendererIdentity();
       if (!identity) return;
-      event.preventDefault();
+      claimKey(event, true);
       const msg: InspectorToggleRequestMessage = {
         type: "inspector-toggle-request",
         protocolVersion: PROTOCOL_VERSION,
@@ -784,7 +802,9 @@ export function installRendererElementSelector(
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
 
-      if (resolveSelectionTarget(related, selectionTargetMode(event))) return;
+      // The inspector's mount sits in the page's body, but moving onto it, such as to grab the panel, leaves the page.
+      const intoInspector = related instanceof Element && related.id === NUDGE_UI_MOUNT_ID;
+      if (!intoInspector && resolveSelectionTarget(related, selectionTargetMode(event))) return;
 
       clearSpacingCursor();
       hoverUpdate.schedule({ element: el, clear: true, point: null });

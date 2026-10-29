@@ -14,10 +14,9 @@ test("dev: the DOM navigator steps aside while Explode view holds a subtree apar
   const navigator = page.locator('[data-test="dom-navigator"]');
   await expect(navigator).toBeVisible();
 
-  // The view tool starts on Animation, so pick Explode view from its menu.
+  // The Inspection tool starts with its views off, so switch Explode on from its bar.
   await page.locator('[data-test="canvas-tool-debug"]').click();
-  await page.locator('[data-test="canvas-tool-debug-menu"]').click();
-  await page.locator('[data-test="debug-view-explode"]').click();
+  await page.locator('[data-test="inspection-explode"]').click();
   // The page is still whole, so the chip has nothing to get in the way of yet.
   await expect(navigator).toBeVisible();
 

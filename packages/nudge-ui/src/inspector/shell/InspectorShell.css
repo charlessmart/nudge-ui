@@ -31,6 +31,37 @@
   scrollbar-width: thin;
 }
 
+/* A strip straddling the panel's page-facing edge; outside `.panel` so it stays put while the panel scrolls. */
+.panel__resize {
+  position: fixed;
+  top: var(--panel-inset);
+  bottom: var(--panel-inset);
+  right: calc(var(--panel-inset) + min(var(--panel-width), 100vw - 2 * var(--panel-inset)) - var(--space-4));
+  z-index: 14;
+  width: var(--space-8);
+  /* The shell's root ignores the pointer so the page stays clickable; the panel opts back in, and so must this. */
+  pointer-events: auto;
+  cursor: col-resize;
+  outline: 0;
+  touch-action: none;
+}
+
+.panel__resize::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: calc(50% - 1px);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.panel__resize:hover::after,
+.panel__resize:focus-visible::after,
+.panel__resize[data-resizing="true"]::after {
+  opacity: 1;
+}
+
 .panel[data-open="false"] {
   display: none;
 }
@@ -69,6 +100,7 @@
   gap: var(--space-8);
   padding-block: var(--space-12);
   padding-inline: var(--space-16);
+  /* On the container rather than the switch, so it runs the full panel width. */
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -96,6 +128,10 @@
   width: 100%;
 }
 
+.panel__view-switch.segmented-control {
+  width: 100%;
+}
+
 .copy-prompt__stack {
   width: 100%;
   min-width: 0;
@@ -108,14 +144,69 @@
   width: 100%;
 }
 
+/* The changes count and its clear button read as one control: two segments on one well, split by a hairline. */
+.copy-prompt__changes {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+}
+
+.changes-menu__trigger {
+  appearance: none;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-width: 0;
+  height: var(--control-height-large);
+  padding: 0 var(--space-8) 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  background: var(--surface-control);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-base);
+  transition: background-color 120ms ease;
+}
+
+.changes-menu__trigger:hover:not(:disabled),
+.changes-menu__trigger[data-popup-open] {
+  background: var(--surface-control-hover);
+}
+
+.changes-menu__trigger:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.changes-menu__trigger:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.changes-menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .copy-prompt__clear-changes.icon-button {
   flex: 0 0 auto;
   width: var(--control-height-large);
   height: var(--control-height-large);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+/* The icon button's own hover is the control's resting colour, which would show no change. */
+.copy-prompt__clear-changes.icon-button:hover:not(:disabled) {
+  background: var(--surface-control-hover);
 }
 
 .copy-prompt__main.button {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   position: relative;
 }
@@ -177,8 +268,11 @@
   font-family: var(--font-mono);
 }
 
-.agent-status-button {
+/* Icon only, square like the header's other icon buttons. */
+.agent-status-button.button {
   position: relative;
+  width: var(--control-height-large);
+  padding: 0;
 }
 
 .agent-status-button__avatars {
@@ -206,13 +300,14 @@
   margin-left: calc(var(--space-4) * -1);
 }
 
+/* On the logo's top-right shoulder, so it reads as the agent's status. */
 .agent-status-button__dot {
   position: absolute;
-  top: 50%;
-  right: 3px;
+  top: 5px;
+  right: 5px;
   width: 6px;
   height: 6px;
-  transform: translateY(-50%);
+  box-shadow: 0 0 0 1.5px var(--surface-panel);
   border-radius: 50%;
   background: var(--text-muted);
 }
@@ -454,4 +549,29 @@
 
 .editor__title-row .editor__title {
   margin-bottom: 0;
+}
+
+/* With nothing set, the whole title row adds one: the add button's hit area stretches over the row, and the row's hover lights the button. */
+.editor__title-row--add {
+  position: relative;
+  cursor: pointer;
+}
+
+.editor__title-row--add .editor__add-trigger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* A pressed icon button scales, and a transformed button becomes the containing block of its stretched hit area, shrinking it mid-click. */
+.editor__title-row--add .icon-button.editor__add-trigger:active:not(:disabled) {
+  transform: none;
+}
+
+.editor__title-row--add .editor__add-trigger:disabled::after {
+  display: none;
+}
+
+.editor__title-row--add:hover .editor__add-trigger:not(:disabled) {
+  background: var(--surface-well);
 }

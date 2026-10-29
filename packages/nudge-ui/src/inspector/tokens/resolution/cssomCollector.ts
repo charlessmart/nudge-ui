@@ -36,12 +36,6 @@ const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 /** Bumped when a page-owned stylesheet's walk could change without replacing its CSSStyleSheet object; inspector-owned writes leave it alone. */
 const pageSheetEpochs = new WeakMap<Document, number>();
 
-/** Changes whenever a page-owned stylesheet may have changed; unlike the stylesheet revision, the inspector's own previews leave it alone. */
-export function pageStylesheetEpoch(doc: Document): number {
-  documentRevisions(doc);
-  return pageSheetEpochs.get(doc) ?? 0;
-}
-
 function bumpPageSheetEpoch(doc: Document): void {
   pageSheetEpochs.set(doc, (pageSheetEpochs.get(doc) ?? 0) + 1);
 }

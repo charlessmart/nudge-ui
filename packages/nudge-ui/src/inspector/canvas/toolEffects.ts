@@ -1,6 +1,5 @@
 import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 import { DEBUG_VIEW_OFF, type DebugViewState } from "./debugView.ts";
-import type { DebugViewMode } from "./debugViewStore.ts";
 import type { CanvasPresentation } from "./viewStore.ts";
 import type { RendererCursor } from "../ui/customCursors.ts";
 
@@ -13,8 +12,12 @@ export type BoardCursorKind = "grabbing" | "pan" | "comment" | "design" | null;
 export interface CanvasToolInput {
   /** The tool the user selected. Holding the app-interaction key does not change it. */
   readonly tool: CanvasInteractionTool;
-  readonly debugView: DebugViewMode;
-  readonly animationBusy: boolean;
+  /** The Inspection tool's views, applied only while that tool is active. */
+  readonly outlines: boolean;
+  readonly explode: boolean;
+  readonly spacing: boolean;
+  /** The Inspection tool's animation speed, applied to the page only while that tool is active. */
+  readonly animationSpeed: number;
   readonly presentation: CanvasPresentation;
   readonly layoutTransitioning: boolean;
   readonly sketchActive: boolean;
@@ -31,8 +34,8 @@ export interface CanvasToolEffects {
   /** The effective tool, with a held app-interaction key standing in for `select`. */
   readonly tool: CanvasInteractionTool;
   readonly appInteractive: boolean;
-  /** The animation bar is up and the renderer's markers step aside while it plays. */
-  readonly animationViewActive: boolean;
+  /** The inspection bar is up. */
+  readonly inspectionBarActive: boolean;
   readonly debugView: DebugViewState;
   readonly rendererInteractionsEnabled: boolean;
   readonly rendererCursor: RendererCursor;
@@ -41,16 +44,10 @@ export interface CanvasToolEffects {
   readonly commentToolActive: boolean;
 }
 
-/** The animation bar stays up while the app-interaction key is held, so it follows the selected tool. */
-function animationViewActive(tool: CanvasInteractionTool, debugView: DebugViewMode): boolean {
-  return tool === "debug" && debugView === "animation";
-}
-
-function debugViewState(tool: CanvasInteractionTool, debugView: DebugViewMode, animationBusy: boolean): DebugViewState {
-  if (tool !== "debug") return DEBUG_VIEW_OFF;
-  // Markers step aside while the animation moves.
-  if (debugView === "animation") return { ...DEBUG_VIEW_OFF, animations: !animationBusy };
-  return { outlines: debugView === "outlines", xray: debugView === "explode", animations: false };
+/** The Inspection tool slows the page and applies whichever views are on, together. */
+function debugViewState(input: CanvasToolInput): DebugViewState {
+  if (input.tool !== "debug") return DEBUG_VIEW_OFF;
+  return { outlines: input.outlines, xray: input.explode, spacing: input.spacing, animationSpeed: input.animationSpeed };
 }
 
 function boardCursor(tool: CanvasInteractionTool, pointer: BoardPointerState): BoardCursorKind {
@@ -63,14 +60,17 @@ function boardCursor(tool: CanvasInteractionTool, pointer: BoardPointerState): B
 
 export function canvasToolEffects(input: CanvasToolInput): CanvasToolEffects {
   const tool = input.temporaryAppInteraction ? "select" : input.tool;
-  // Outline view and Explode view inspect the running app, so it stays interactive like the play tool;
-  // Animation view selects elements instead.
-  const appInteractive = tool === "select" || (tool === "debug" && input.debugView !== "animation");
+  // The Inspection tool inspects the running app, so it stays interactive like the play tool: the slowed animations
+  // are the ones the user triggers by hovering and clicking. With outlines or spacing drawn, clicks select elements as
+  // the design tool's do; Explode keeps the pointer either way, since its own clicks pull layers apart and pick them.
+  const inspectionSelects = tool === "debug" && !input.explode && (input.outlines || input.spacing);
+  const appInteractive = tool === "select" || (tool === "debug" && !inspectionSelects);
   return {
     tool,
     appInteractive,
-    animationViewActive: animationViewActive(input.tool, input.debugView),
-    debugView: debugViewState(input.tool, input.debugView, input.animationBusy),
+    // Follows the selected tool, so the bar stays up while the app-interaction key is held.
+    inspectionBarActive: input.tool === "debug",
+    debugView: debugViewState(input),
     rendererInteractionsEnabled: !appInteractive && !input.layoutTransitioning && !input.sketchActive,
     rendererCursor: tool === "comment" ? "comment" : "design",
     boardCursor: boardCursor(tool, input.pointer),

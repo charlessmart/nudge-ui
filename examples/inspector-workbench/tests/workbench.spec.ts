@@ -62,7 +62,7 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
   await page.goto("/?nudge-ui=off&scenario=toolbar");
   const gallery = page.locator('[data-test="toolbar-gallery"]');
   await expect(gallery.locator('[data-test^="canvas-toolbar-"]')).toHaveCount(4);
-  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(8);
+  await expect(gallery.locator('[data-test^="sketch-bar-"]')).toHaveCount(10);
 
   // Each interaction tool is active in its own toolbar, and only the Pencil opens the sketch bar.
   for (const tool of ["design", "comment", "sketch", "select"]) {
@@ -73,9 +73,11 @@ test("shows the real canvas toolbar and the sketch bar in every state on one pag
 
   // Each sketch bar holds its own state.
   const bar = (id: string) => gallery.locator(`[data-test="sketch-bar-${id}"]`);
-  for (const tool of ["eraser", "rectangle", "text"]) {
-    await expect(bar(tool).locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
+  for (const [barId, tool] of [["eraser", "eraser"], ["rectangle", "shape"], ["ellipse", "shape"], ["arrow", "shape"], ["text", "text"]] as const) {
+    await expect(bar(barId).locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
   }
+  await expect(bar("ellipse").locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "ellipse");
+  await expect(bar("arrow").locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "arrow");
   await expect(bar("palette").locator('[data-test="sketch-color-palette"]')).toHaveCount(1);
   await expect(bar("palette").locator('[data-test="sketch-color-red"]')).toBeVisible();
   await expect(bar("capturing").locator('[data-test="sketch-screenshot"]')).toBeDisabled();
@@ -96,7 +98,8 @@ test("seeds and clears fixture changes without persistence", async ({ page }) =>
   const fixture = page.locator(".workbench-preview");
   await expect(fixture.locator('[data-test="copy-prompt-change-count"]')).toHaveText("2");
   await fixture.locator('[data-test="changes-toggle"]').click();
-  await expect(fixture.locator('[data-test="change-row"]')).toHaveCount(2);
+  // The list is a popover, portalled out of the fixture.
+  await expect(page.locator('[data-test="changes-log"] [data-test="change-row"]')).toHaveCount(2);
   await page.getByRole("button", { name: "Typography", exact: true }).click();
   await expect(fixture.locator('[data-test="copy-prompt"]')).toBeDisabled();
   await expect(fixture.locator('[data-test="typography"]')).toBeVisible();

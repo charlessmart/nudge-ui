@@ -28,14 +28,15 @@ export function LockedWorkspaceNotice({ onTakeover, storageError = false }: Lock
       <InspectorStyle testId="locked-workspace-styles" css={`${UI_STYLES}\n${lockedWorkspaceStyles}`} />
       <aside className="locked-notice" data-test="locked-workspace-notice" aria-live="polite">
         <div className="locked-notice__message">
-          {storageError ? "Can’t load saved changes. Try again." : "Nudge UI is open in another tab"}
+          {storageError ? "Can’t load saved changes. Try again." : "Nudge is open in another tab"}
         </div>
         <Button
+          variant="primary"
           data-test="takeover-here"
           disabled={takingOver}
           onClick={handleTakeover}
         >
-          {takingOver ? "Taking over..." : "Take Over Here"}
+          {takingOver ? "Taking over…" : "Take over here"}
         </Button>
       </aside>
     </>

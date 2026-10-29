@@ -148,8 +148,7 @@ test("dev: repeated Canvas flex gap nudges survive projection acknowledgement an
 test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.locator('[data-test="tokens-button"]').click();
-  await page.locator('[data-test="settings-nav-tokens"]').click();
+  await page.locator('[data-test=\"panel-view-tokens\"]').click();
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
 
   const row = page.locator(

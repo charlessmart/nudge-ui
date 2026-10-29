@@ -18,7 +18,7 @@ async function openRectangleSketch(page: Page): Promise<Point> {
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await page.locator('[data-test="canvas-tool-sketch"]').click();
   await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
-  await page.locator('[data-test="sketch-tool-rectangle"]').click();
+  await page.locator('[data-test="sketch-tool-shape"]').click();
   const canvas = await box(page.locator(".sketch__live-canvas"));
   return { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 };
 }

@@ -4,11 +4,13 @@
 export interface DebugViewState {
   readonly outlines: boolean;
   readonly xray: boolean;
-  /** Labels every element that animates on its own. */
-  readonly animations: boolean;
+  /** Fills each visible element's margin and padding, and the gaps between flex and grid items. */
+  readonly spacing: boolean;
+  /** How fast every animation on the page runs; 1 leaves them alone. */
+  readonly animationSpeed: number;
 }
 
-export const DEBUG_VIEW_OFF: DebugViewState = { outlines: false, xray: false, animations: false };
+export const DEBUG_VIEW_OFF: DebugViewState = { outlines: false, xray: false, spacing: false, animationSpeed: 1 };
 
 /** Strict JSON-only check for debug view state received over postMessage. */
 export function isDebugViewState(value: unknown): value is DebugViewState {
@@ -16,5 +18,8 @@ export function isDebugViewState(value: unknown): value is DebugViewState {
   const candidate = value as Record<string, unknown>;
   return typeof candidate.outlines === "boolean"
     && typeof candidate.xray === "boolean"
-    && typeof candidate.animations === "boolean";
+    && typeof candidate.spacing === "boolean"
+    && typeof candidate.animationSpeed === "number"
+    && candidate.animationSpeed > 0
+    && candidate.animationSpeed <= 1;
 }

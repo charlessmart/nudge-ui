@@ -52,6 +52,7 @@ import {
   type ProjectBridgeBrowserConfig,
 } from "../projectBridge.ts";
 import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
+import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -175,7 +176,9 @@ export function transformIndexHtmlHtml(
   if (html.includes("data-nudge-ui-client")) return null;
   const script = demo || demoBuild ? LEGACY_INSPECTOR_SCRIPT : INSPECTOR_SCRIPT;
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
-  const withHead = headScript ? prependToHead(html, `<script data-nudge-ui-head>${headScript}</script>`) : html;
+  const withFramework = headScript ? prependToHead(html, `<script data-nudge-ui-head>${headScript}</script>`) : html;
+  // First of all, so animation libraries read the clock the Inspection tool can slow.
+  const withHead = prependToHead(withFramework, `<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`);
   if (withHead.includes("</body>")) {
     return withHead.replace("</body>", `${inject}</body>`);
   }

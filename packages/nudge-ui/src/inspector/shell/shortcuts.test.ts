@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getInspectorToggleShortcutLabel, isEditableEvent, isSendPromptShortcut } from "./shortcuts.ts";
+import { getInspectorToggleShortcutLabel, isEditableEvent, isolateTypingKeys, isSendPromptShortcut } from "./shortcuts.ts";
 
 describe("shortcut editable-target detection", () => {
   afterEach(() => {
@@ -53,5 +53,32 @@ describe("shortcut editable-target detection", () => {
       code: "KeyS",
       metaKey: true,
     }))).toBe(false);
+  });
+});
+
+describe("typing-key isolation", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("keeps keys typed in an inspector field from reaching the page, and lets other keys through", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const input = document.createElement("input");
+    const button = document.createElement("button");
+    shadow.append(input, button);
+    const release = isolateTypingKeys(shadow);
+    const pageKeys: string[] = [];
+    const captured: string[] = [];
+    document.addEventListener("keydown", (event) => pageKeys.push(event.key));
+    window.addEventListener("keydown", (event) => captured.push(event.key), true);
+
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true, composed: true }));
+    button.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+    release();
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "t", bubbles: true, composed: true }));
+
+    expect({ pageKeys, captured }).toEqual({ pageKeys: ["Escape", "t"], captured: ["s", "Escape", "t"] });
   });
 });

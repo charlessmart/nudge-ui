@@ -261,7 +261,7 @@ export function resizeStroke(
     const factorY = 1 + (scaleY - 1) * strength;
     return {
       ...start,
-      ...(text ? { fontSize: fontSize * factorX } : {}),
+      ...(text ? { fontSize: fontSize * factorX, width: start.width * factorX } : {}),
       points: start.points.map((point) => {
         const local = toLocal(frame, point);
         return toWorld(frame, {

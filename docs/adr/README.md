@@ -46,3 +46,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0040: Sketches are recent copied images](./0040-sketches-are-recent-copied-images.md) (supersedes ADR-0030's sketch ownership and ADR-0033's sketch storage notes as retained by ADR-0037)
 - [ADR-0041: Sketch screenshots come from the browser](./0041-sketch-screenshots-from-the-browser.md) (supersedes ADR-0037's note that sketch capture renders through a `data:` image)
 - [ADR-0042: Sketch marks stay on the page, and screenshots copy the tab](./0042-sketch-marks-stay-and-screenshots-copy-the-tab.md) (supersedes ADR-0040, and ADR-0041's capture flow and DOM fallback)
+- [ADR-0043: The Inspection tool slows the whole page](./0043-page-wide-animation-speed.md) (supersedes ADR-0039's animation timeline and markers, and its one-view-at-a-time view tool)

@@ -14,6 +14,7 @@ import {
 } from "./index.ts";
 import { interpretDialects } from "../../css/dialects/index.ts";
 import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
+import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -106,11 +107,13 @@ describe("transformIndexHtmlHtml", () => {
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
   });
 
-  it("places a head script ahead of every other script", () => {
+  it("places the animation clock, then a head script, ahead of every other script", () => {
     const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { headScript: "window.early = true;" })!;
+    const clock = out.indexOf(`<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`);
     const head = out.indexOf("<script data-nudge-ui-head>window.early = true;</script>");
-    expect(head).toBeGreaterThan(out.indexOf("<head"));
-    expect(out.indexOf("<script")).toBe(head);
+    expect(clock).toBeGreaterThan(out.indexOf("<head"));
+    expect(out.indexOf("<script")).toBe(clock);
+    expect(out.indexOf("<script", clock + 1)).toBe(head);
   });
 
   it("marks the mount for debug-only Inspector features when requested", () => {
@@ -133,7 +136,8 @@ describe("transformIndexHtmlHtml", () => {
     const out = plugin.transformIndexHtml?.(SAMPLE_HTML) ?? "";
     const capture = out.indexOf(`<script data-nudge-ui-head>${REACT_RENDERER_CAPTURE_SCRIPT}</script>`);
     expect(capture).toBeGreaterThan(-1);
-    expect(out.indexOf("<script")).toBe(capture);
+    // Only the animation clock runs before it.
+    expect(out.indexOf("<script", out.indexOf("<script data-nudge-ui-clock>") + 1)).toBe(capture);
   });
 
   it("returns null in build mode (ADR-0002)", () => {
