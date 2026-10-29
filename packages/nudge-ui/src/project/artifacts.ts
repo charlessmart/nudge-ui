@@ -1,19 +1,20 @@
-import { HTML_ARTIFACT_REVISION_ATTRIBUTE, HTML_ITERATION_CONFLICT, isHtmlArtifactRevision, type HtmlArtifactRevision } from "../transport/artifacts.ts";
+import {
+  HTML_ARTIFACT_REVISION_ATTRIBUTE,
+  HTML_ITERATION_CONFLICT,
+  isHtmlArtifactMetadata,
+  isHtmlArtifactRevision,
+  type HtmlArtifactMetadata,
+  type HtmlArtifactRevision,
+} from "../transport/artifacts.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
-import { mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../transport/routes.ts";
 import { injectStandaloneBootstrap } from "../hosts/static/html/bootstrap.ts";
 
-export interface HtmlArtifactMetadata {
-  id: string;
-  sourceUrl: string;
-  title: string;
-  capturedAt: number;
-  viewport: { width: number; height: number };
-}
+export type { HtmlArtifactMetadata };
 
 const artifactOperations = new Map<string, Promise<unknown>>();
 
@@ -49,16 +50,20 @@ document.addEventListener("click", event => {
 }, true);
 </script>`;
 
-async function directory(root: string, id: string): Promise<string> {
+async function artifactsDirectory(root: string, create: boolean): Promise<string> {
   const project = await realpath(root);
   const artifacts = join(project, ".nudge", "artifacts");
-  await mkdir(artifacts, { recursive: true });
+  if (create) await mkdir(artifacts, { recursive: true });
   const actual = await realpath(artifacts);
   const pathFromRoot = relative(project, actual);
   if (pathFromRoot === ".." || pathFromRoot.startsWith(`..${sep}`) || isAbsolute(pathFromRoot)) {
     throw new Error("Artifact storage must remain inside the project root");
   }
-  return join(actual, id);
+  return actual;
+}
+
+async function directory(root: string, id: string, create: boolean): Promise<string> {
+  return join(await artifactsDirectory(root, create), id);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,7 +126,7 @@ export async function handleHtmlArtifactRequest(
     if (request.method === "POST" && parts.length === 0) {
       const input = await body(request);
       if (!input || !validArtifact(input)) { respond(response, 400, "Invalid artifact"); return true; }
-      const target = await directory(root, input.id);
+      const target = await directory(root, input.id, true);
       const temporary = `${target}.create-${crypto.randomUUID()}`;
       const metadata: HtmlArtifactMetadata = {
         id: input.id,
@@ -144,8 +149,12 @@ export async function handleHtmlArtifactRequest(
       respond(response, 201, JSON.stringify(metadata), "application/json; charset=utf-8");
       return true;
     }
-    if (!id) { respond(response, 405, "Method Not Allowed"); return true; }
-    const target = await directory(root, id);
+    if (!id) {
+      if (request.method !== "GET") { respond(response, 405, "Method Not Allowed"); return true; }
+      respond(response, 200, JSON.stringify(await listArtifacts(root)), "application/json; charset=utf-8");
+      return true;
+    }
+    const target = await directory(root, id, false);
     return await withArtifactLock(target, async () => {
       if (request.method !== "DELETE") {
         const actual = await realpath(target);
@@ -240,7 +249,45 @@ export async function handleHtmlArtifactRequest(
   return true;
 }
 
-function validArtifact(value: unknown): value is HtmlArtifactMetadata & { html: string } {
+/** Newest first and bounded; one unreadable artifact must not hide the rest. */
+async function listArtifacts(root: string): Promise<HtmlArtifactMetadata[]> {
+  let artifacts: string;
+  try {
+    artifacts = await artifactsDirectory(root, false);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  let entries;
+  try {
+    entries = await readdir(artifacts, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const found: HtmlArtifactMetadata[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !ID.test(entry.name)) continue;
+    try {
+      const value: unknown = JSON.parse(await readFile(join(artifacts, entry.name, "metadata.json"), "utf8"));
+      if (isHtmlArtifactMetadata(value) && value.id === entry.name) found.push(value);
+    } catch {
+      /* An artifact without readable metadata is not offered. */
+    }
+  }
+  return found.sort((left, right) => right.capturedAt - left.capturedAt).slice(0, 200);
+}
+
+interface NewArtifact {
+  readonly id: string;
+  readonly sourceUrl: string;
+  readonly title: string;
+  readonly viewport: { readonly width: number; readonly height: number };
+  readonly html: string;
+}
+
+/** Creation input has no capturedAt; the host stamps it. */
+function validArtifact(value: unknown): value is NewArtifact {
   if (!isRecord(value)) return false;
   const viewport = value.viewport;
   return typeof value.id === "string" && ID.test(value.id)

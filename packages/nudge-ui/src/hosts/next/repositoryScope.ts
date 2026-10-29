@@ -1,10 +1,8 @@
 /** Shared by the Turbopack rule condition and the loader's runtime scope check so the two cannot drift apart. */
 export const NUDGE_UI_PACKAGE_DIRECTORIES = [
-  "agent-protocol",
   "chrome-extension",
   "compatibility",
   "create-nudge-ui",
-  "mcp",
   "nudge-ui",
   "package-css-fixture",
 ] as const;

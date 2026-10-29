@@ -184,7 +184,7 @@ describe("CanvasCard renderer handshake", () => {
     expect(posted).toHaveLength(0);
   });
 
-  it("labels a frame with its route instead of dimensions", () => {
+  it("shows the frame URL in the header instead of its dimensions", () => {
     const card: CanvasCardData = {
       id: "card-dimensions",
       content: { kind: "route", url: window.location.href },
@@ -200,15 +200,44 @@ describe("CanvasCard renderer handshake", () => {
       root!.render(createElement(StoreBackedCard));
     });
 
-    const dimensions = () => host.querySelector(
-      `[data-test="canvas-card-dimensions-${card.id}"]`,
-    )?.textContent;
+    const url = () => host.querySelector<HTMLInputElement>(
+      `[data-test="canvas-card-url-${card.id}"]`,
+    )?.value;
+    const expectedPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-    expect(dimensions()).toBe(new URL(window.location.href).pathname);
+    expect(url()).toBe(expectedPath);
 
     act(() => resizeCard(card.id, 1024, 768));
 
-    expect(dimensions()).toBe(new URL(window.location.href).pathname);
+    expect(url()).toBe(expectedPath);
+  });
+
+  it("shows the full URL only while the URL field is being edited", () => {
+    const card: CanvasCardData = {
+      id: "card-url-editing",
+      content: { kind: "route", url: new URL("/playground?tab=canvas", window.location.href).href },
+      title: null,
+      x: 20,
+      y: 30,
+      width: 1440,
+      height: 900,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(StoreBackedCard));
+    });
+
+    const input = host.querySelector<HTMLInputElement>(`[data-test="canvas-card-url-${card.id}"]`);
+    if (!input) throw new Error("URL field did not mount");
+
+    expect(input.value).toBe("/playground?tab=canvas");
+
+    act(() => input.focus());
+    expect(input.value).toBe(new URL("/playground?tab=canvas", window.location.href).href);
+
+    act(() => input.blur());
+    expect(input.value).toBe("/playground?tab=canvas");
   });
 
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
@@ -259,7 +288,7 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Focus");
+    expect(control.getAttribute("aria-label")).toBe("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
@@ -283,7 +312,7 @@ describe("CanvasCard renderer handshake", () => {
     if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Focus");
+    expect(control.getAttribute("aria-label")).toBe("Focus");
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
@@ -320,7 +349,7 @@ describe("CanvasCard renderer handshake", () => {
 
   it("moves only the dragged linked frame at canvas zoom", () => {
     const source: CanvasCardData = {
-      id: "linked-source", groupId: "breakpoints",
+      id: "linked-source",
       content: { kind: "route", url: window.location.href }, title: null,
       x: 40, y: 60, width: 800, height: 600,
     };

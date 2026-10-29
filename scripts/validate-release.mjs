@@ -5,7 +5,6 @@ const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "create-nudge-ui",
   "nudge-ui",
-  "mcp",
 ];
 const releaseTag = process.argv.slice(2).find((argument) => argument !== "--");
 

@@ -28,7 +28,6 @@ import {
 } from "./manifest.ts";
 import { isReservedNudgeUiRoute } from "../../transport/index.ts";
 export { isReservedNudgeUiRoute };
-import { startOptionalProjectBridge } from "../projectBridge.ts";
 import { createProjectTokenSnapshot, EMPTY_PROJECT_TOKEN_SNAPSHOT } from "../../project/tokens.ts";
 import {
   createProjectFileWatcher,
@@ -91,7 +90,6 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
     EMPTY_PROJECT_TOKEN_SNAPSHOT,
     revision,
   );
-  let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
   // start() awaits the initial scan so the first request observes complete token knowledge.
   const initialTokens = createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" }).then((tokens) => {
     manifest = createStandaloneRuntimeManifest(projectId, tokens, revision);
@@ -129,10 +127,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
     changeQueue = changeQueue.then(async () => {
       // fs.watch can omit a filename, so CSS changes cannot be identified by extension: rebuild once per settled batch to keep the manifest coherent before reload.
       const tokens = await createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" });
-      manifest = {
-        ...createStandaloneRuntimeManifest(projectId, tokens, revision + 1),
-        ...(projectBridge ? { agentBridge: projectBridge.browser } : {}),
-      };
+      manifest = createStandaloneRuntimeManifest(projectId, tokens, revision + 1);
       revision += 1;
       notifyReload();
     }).catch((error: unknown) => {
@@ -203,21 +198,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
                 return;
               }
               const address = readAddress(httpServer, host);
-              void startOptionalProjectBridge({
-                appRoot: rootDirectory,
-                projectId,
-                origin: address.url.replace(/\/$/, ""),
-                info: (message) => console.info(message),
-                warn: (message) => console.warn(message),
-              }).then((bridge) => {
-                projectBridge = bridge;
-                if (bridge) manifest = { ...manifest, agentBridge: bridge.browser };
-                if (closeRequested) {
-                  rejectStart(new Error("Standalone server closed during startup."));
-                  return;
-                }
-                resolveStart(address);
-              });
+              resolveStart(address);
             });
           };
           httpServer.once("error", onError);
@@ -236,10 +217,6 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       closeReloadClients();
       const closing = closeWatcher
         .then(() => pendingStart?.catch(() => undefined))
-        .then(async () => {
-          await projectBridge?.close();
-          projectBridge = null;
-        })
         .then(() => changeQueue)
         .then(() => {
           if (!httpServer.listening) return;

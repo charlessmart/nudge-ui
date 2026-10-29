@@ -2,17 +2,6 @@
   position: relative;
 }
 
-/* Extend the card's hover region to the toolbar above the iframe. */
-.canvas-card::before {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  left: 0;
-  height: calc((var(--control-height-large) + var(--space-16)) * var(--canvas-toolbar-scale, 1));
-  pointer-events: auto;
-}
-
 .canvas-card__frame {
   position: relative;
   width: 100%;
@@ -47,150 +36,138 @@
 }
 
 .canvas-card__header {
-  display: flex;
-  align-items: center;
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + var(--space-8));
-  justify-content: flex-end;
+  bottom: calc(100% + (var(--space-8) * var(--canvas-toolbar-scale, 1)));
+  height: calc((var(--control-height-large) + var(--space-8)) * var(--canvas-toolbar-scale, 1));
+  container-type: inline-size;
   z-index: 3;
-  opacity: 1;
-  visibility: visible;
   pointer-events: auto;
 }
 
-.canvas-card__drag-surface {
-  position: relative;
-  display: flex;
+.canvas-card__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(280px, 45%)) minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-8);
-  flex: 0 1 auto;
-  margin-right: auto;
-  min-width: 0;
-  min-height: var(--control-height-large);
-  padding: 0;
+  gap: var(--space-4);
+  width: calc(100% * var(--canvas-toolbar-inverse-scale, 1));
+  height: calc(var(--control-height-large) + var(--space-8));
+  padding: calc(var(--space-4) - 1px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: none;
+  transform: scale(var(--canvas-toolbar-scale, 1));
+  transform-origin: left top;
   cursor: grab;
   user-select: none;
   touch-action: none;
 }
 
-.canvas-card.is-dragging .canvas-card__drag-surface {
+.canvas-card.is-dragging .canvas-card__bar {
   cursor: grabbing;
 }
 
-.canvas-card__identity {
+/* Iteration frames have no bar chrome, so the actions sit flush with the frame instead of inside its inset. */
+.canvas-card__header[data-kind="iteration"] .canvas-card__bar {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.canvas-card__header[data-kind="iteration"] .icon-button {
+  background: var(--surface-control);
+}
+
+.canvas-card__start {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  justify-self: start;
+  gap: var(--space-4);
   min-width: 0;
 }
 
-.canvas-card__dimensions {
+.canvas-card__center {
+  position: relative;
+  min-width: 0;
+}
+
+.canvas-card__live {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + var(--space-4));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--space-24);
+  height: var(--space-24);
+  border-radius: var(--radius-6);
+  background: var(--accent-surface);
+  color: var(--accent);
+  cursor: grab;
+  transform: translateY(-50%);
+}
+
+.canvas-card.is-dragging .canvas-card__live {
+  cursor: grabbing;
+}
+
+.canvas-card__url {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface-well-2x);
+}
+
+.canvas-card__url[data-invalid="true"] {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.canvas-card__url-space {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  position: relative;
-  flex: 0 1 auto;
+  justify-content: center;
+  width: 100%;
   min-width: 0;
-  max-width: 260px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  padding-inline: var(--space-4);
 }
 
 .canvas-card__title {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   text-overflow: ellipsis;
-}
-
-.canvas-card__live-badge,
-.canvas-card__iteration-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 20px;
-  height: 20px;
-  background: var(--accent-surface);
-  color: var(--accent);
-  border-radius: var(--radius-4);
-  pointer-events: auto;
-}
-
-.canvas-card__floating-toolbar {
-  position: absolute;
-  left: 50%;
-  flex-shrink: 0;
-  width: max-content;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translate(-50%, -24px);
-  transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1), visibility 140ms;
-}
-
-/* Only a real pointer gets the small rise; a tap just fades it in. */
-@media (hover: hover) and (pointer: fine) {
-  .canvas-card__floating-toolbar {
-    transform: translate(-50%, calc(-24px + var(--space-4)));
-  }
-}
-
-.canvas-card:hover .canvas-card__floating-toolbar,
-.canvas-card:focus-within .canvas-card__floating-toolbar,
-.canvas-card__floating-toolbar[data-busy="true"] {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translate(-50%, -24px);
-}
-
-.canvas-card__actions.canvas-toolbar {
-  position: static;
-  width: max-content;
-  transform: none;
   white-space: nowrap;
+  cursor: grab;
+  user-select: none;
 }
 
-.canvas-card__actions .canvas-toolbar__divider {
-  margin-inline: 0;
+.canvas-card.is-dragging .canvas-card__title {
+  cursor: grabbing;
 }
 
-@media (hover: none) {
-  .canvas-card.is-selected .canvas-card__floating-toolbar {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translate(-50%, -24px);
-  }
+.canvas-card__actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
-.canvas-card.is-dragging .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-grabbable .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-grabbing .canvas-card__floating-toolbar,
-.canvas-workspace.is-presentation-transitioning .canvas-card__floating-toolbar,
-.canvas-workspace__board.is-layout-transitioning .canvas-card__floating-toolbar {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas-card__floating-toolbar { transition: none; }
+.canvas-card__header[data-kind="iteration"] .canvas-card__delete {
+  background: transparent;
 }
 
 .canvas-card__iteration-error {
   position: absolute;
   right: 0;
-  bottom: calc(100% + var(--space-8));
-  color: var(--text-danger, #b42318);
-  font-size: 12px;
+  bottom: calc(100% + var(--space-4));
+  color: var(--danger);
+  font-size: var(--font-size-small);
   white-space: nowrap;
 }
 
@@ -339,4 +316,30 @@
 .canvas-card__iteration-badge {
   color: var(--text-secondary);
   background: var(--surface-raised-2x);
+}
+
+@container (min-width: 720px) {
+  .canvas-card__bar:has(.canvas-card__url:focus) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 50%)) minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 620px) {
+  .canvas-card__bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40%) minmax(0, 1fr);
+  }
+
+  .canvas-card__iteration-label {
+    display: none;
+  }
+
+  .button.canvas-card__iteration-button {
+    padding: 0 var(--space-8);
+  }
+
+  .icon-button.canvas-card__action-icon {
+    width: var(--control-height-small);
+    height: var(--control-height-small);
+    border-radius: var(--radius-4);
+  }
 }

@@ -1,10 +1,24 @@
 import type { CanvasFrame } from "../canvas/canvasFrame.ts";
-import { isHtmlArtifactRevision, HTML_ITERATION_CONFLICT, type HtmlArtifactRevision } from "../../transport/artifacts.ts";
+import {
+  isHtmlArtifactMetadata,
+  isHtmlArtifactRevision,
+  HTML_ITERATION_CONFLICT,
+  type HtmlArtifactMetadata,
+  type HtmlArtifactRevision,
+} from "../../transport/artifacts.ts";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../../transport/routes.ts";
 import { captureHtmlIteration } from "./capture.ts";
 
 export function artifactDocumentUrl(id: string): string {
   return `${NUDGE_UI_ARTIFACTS_PATH}/${id}/preview`;
+}
+
+export async function listHtmlArtifacts(): Promise<HtmlArtifactMetadata[]> {
+  const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error("HTML iterations could not be listed.");
+  const value: unknown = await response.json();
+  if (!Array.isArray(value)) throw new Error("HTML iterations returned an invalid list.");
+  return value.filter(isHtmlArtifactMetadata).slice(0, 200);
 }
 
 export async function readHtmlArtifactRevision(id: string): Promise<HtmlArtifactRevision> {

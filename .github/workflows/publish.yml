@@ -81,8 +81,6 @@ jobs:
         include:
           - name: "nudge-ui"
             archive: nudge-ui
-          - name: "@nudge-ui/mcp"
-            archive: nudge-ui-mcp
           - name: "create-nudge-ui"
             archive: create-nudge-ui
     permissions:

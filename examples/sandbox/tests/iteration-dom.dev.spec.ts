@@ -54,6 +54,7 @@ test("HTML iteration DOM drags work and change counts describe final prompt inte
   await expect.poll(order).toEqual(["First", "Third", "Second"]);
   await expect(page.locator('[data-test="copy-prompt-change-count"]')).toHaveText("1");
   await page.locator('[data-test="copy-prompt"]').click();
+  await page.locator('[data-test="copy-iteration-prompt"]').click();
   await expect.poll(async () => {
     const prompt = await page.evaluate(() => navigator.clipboard.readText());
     return prompt.split("\n").filter((line) => line.startsWith("- Move ")).length;
@@ -158,14 +159,15 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
   await expect(cards).toHaveCount(2);
   await waitForCanvasTransition(page);
   await cards.first().focus();
-  await expect(cards.first().locator(".canvas-card__floating-toolbar")).toHaveCSS("opacity", "1");
+  await expect(cards.first().locator(".canvas-card__bar")).toBeVisible();
   const content = page.locator('[data-test="canvas-board-content"]');
   const dimensions = () => content.evaluate((element) => {
     const card = element.querySelector<HTMLElement>(".canvas-card")!;
     const rect = card.getBoundingClientRect();
+    const bar = card.querySelector<HTMLElement>(".canvas-card__bar")!;
     const button = card.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
     const action = card.querySelector<HTMLElement>('[data-test^="canvas-card-duplicate-"]')!;
-    const badge = card.querySelector<HTMLElement>(".canvas-card__live-badge")!;
+    const url = card.querySelector<HTMLElement>('[data-test^="canvas-card-url-"]')!;
     const frames = [...element.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
     const zoom = new DOMMatrixReadOnly(getComputedStyle(element).transform).a;
     return {
@@ -173,10 +175,12 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
       width: rect.width / zoom,
       height: rect.height / zoom,
       gap: (frames[1]!.left - frames[0]!.right) / zoom,
+      barHeight: bar.getBoundingClientRect().height,
+      barWidthRatio: bar.getBoundingClientRect().width / rect.width,
       buttonHeight: button.getBoundingClientRect().height,
       actionHeight: action.getBoundingClientRect().height,
-      badgeHeight: badge.getBoundingClientRect().height,
-      frameGap: rect.top - button.getBoundingClientRect().bottom,
+      urlHeight: url.getBoundingClientRect().height,
+      frameGap: rect.top - bar.getBoundingClientRect().bottom,
       borders: [...element.querySelectorAll(".canvas-card__frame")].map((frame) => ({
         width: getComputedStyle(frame).outlineWidth, color: getComputedStyle(frame).outlineColor,
       })),
@@ -193,10 +197,12 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
     const actual = await dimensions();
     expect(Math.abs(actual.zoom - initial.zoom)).toBeGreaterThan(0.1);
     const screenScale = Math.min(1, actual.zoom * 2);
+    expect(actual.barHeight / screenScale).toBeCloseTo(40, 1);
+    expect(actual.barWidthRatio).toBeCloseTo(1, 1);
     expect(actual.buttonHeight / screenScale).toBeCloseTo(32, 1);
     expect(actual.actionHeight / screenScale).toBeCloseTo(32, 1);
-    expect(actual.badgeHeight / screenScale).toBeCloseTo(20, 1);
-    expect(actual.frameGap / screenScale).toBeCloseTo(12, 1);
+    expect(actual.urlHeight / screenScale).toBeCloseTo(24, 1);
+    expect(actual.frameGap / screenScale).toBeCloseTo(8, 1);
     expect(actual.width).toBeCloseTo(initial.width, 1);
     expect(actual.height).toBeCloseTo(initial.height, 1);
     expect(actual.gap).toBeCloseTo(initial.gap, 1);

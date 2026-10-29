@@ -24,6 +24,7 @@ import inlineStyleWarningStyles from "./InlineStyleWarning.css?inline";
 import inspectorShellStyles from "../shell/InspectorShell.css?inline";
 import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import emptyStateStyles from "../shell/EmptyState.css?inline";
+import addPageMenuStyles from "../canvas/AddPageMenu.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import backgroundEditorStyles from "../styleEditors/BackgroundEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
@@ -36,7 +37,6 @@ import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
-import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
 import settingsStyles from "../settings/SettingsDialog.css?inline";
 import sketchStyles from "../sketch/Sketch.css?inline";
 
@@ -67,6 +67,7 @@ export const UI_STYLES = [
   inspectorShellStyles,
   inspectorOverlayStyles,
   emptyStateStyles,
+  addPageMenuStyles,
   styleEditorStyles,
   backgroundEditorStyles,
   borderEditorStyles,
@@ -79,7 +80,6 @@ export const UI_STYLES = [
   tokensPanelStyles,
   changesLogStyles,
   promptSettingsStyles,
-  mcpConnectionStyles,
   settingsStyles,
   sketchStyles,
 ].join("\n");

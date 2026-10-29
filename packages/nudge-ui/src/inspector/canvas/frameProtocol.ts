@@ -103,13 +103,20 @@ export interface TextProjectionReportMessage extends RendererMessage {
 export interface NavigationIntentMessage extends RendererMessage {
   type: "navigation-intent";
   url: string;
-  /** The renderer kept its own route and asks the controller for a card instead. */
-  openInCard?: boolean;
 }
 
-export interface LinkTargetStateMessage extends RendererMessage {
-  type: "link-target-state";
-  openInCard: boolean;
+/** The link under the pointer, or a clear when the pointer leaves it. */
+export interface LinkPreviewMessage extends RendererMessage {
+  type: "link-preview";
+  url: string | null;
+  rect: { left: number; top: number; width: number; height: number } | null;
+  /** Last pointer position, in renderer viewport coordinates. */
+  point?: { x: number; y: number } | null;
+}
+
+export interface LinkPreviewStateMessage extends RendererMessage {
+  type: "link-preview-state";
+  enabled: boolean;
 }
 
 export interface ElementHoverMessage extends RendererMessage {
@@ -263,6 +270,8 @@ export interface BoardGestureStateMessage extends RendererMessage {
   enabled: boolean;
   /** Ordinary wheel gestures pan the board instead of scrolling the app. */
   panScroll?: boolean;
+  /** Holding Space turns a drag into a board pan while the app keeps native wheel input. */
+  spacePan?: boolean;
 }
 
 export interface ZoomMessage extends RendererMessage {
@@ -316,6 +325,7 @@ export type RendererToControllerMessage =
   | RenderedInstanceProjectionReportMessage
   | TextProjectionReportMessage
   | NavigationIntentMessage
+  | LinkPreviewMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
   | ElementClickMessage
@@ -342,7 +352,7 @@ export type RendererToControllerMessage =
 export type ControllerToRendererMessage =
   | ParentReadyMessage
   | ReplaceStylesMessage
-  | LinkTargetStateMessage
+  | LinkPreviewStateMessage
   | PanModifierMessage
   | MeasureModifierMessage
   | BoardGestureStateMessage
@@ -392,6 +402,7 @@ const RENDERER_SCHEMAS = {
     validate: (value) => isRevision(value) && isReportList(value, isTextProjectionReport),
   },
   "navigation-intent": { fields: null },
+  "link-preview": { fields: null },
   "element-hover": { fields: null },
   "element-measure-state": { fields: null },
   "element-click": {
@@ -484,7 +495,8 @@ export type FrameProtocolMessage =
   | RenderedInstanceProjectionReportMessage
   | TextProjectionReportMessage
   | NavigationIntentMessage
-  | LinkTargetStateMessage
+  | LinkPreviewMessage
+  | LinkPreviewStateMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
   | ElementClickMessage

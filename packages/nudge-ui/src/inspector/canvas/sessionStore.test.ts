@@ -24,9 +24,6 @@ import {
   addCanvasIteration,
   duplicateCard,
   hydrateCanvasStore,
-  appendAgentRouteCards,
-  setFrameGroup,
-  getFrameGroups,
   removeCanvasCard as removeCanvasCardStore,
   focusCard,
   getFocusedCardId,
@@ -113,7 +110,6 @@ describe("sessionStore persistence", () => {
     expect(hydrateSession().restored).toBe(true);
     const restored = getCanvasCards();
     expect(restored.map((card) => card.id)).toEqual([original.id, copy.id]);
-    expect(restored.map((card) => card.groupId)).toEqual([undefined, undefined]);
     expect(restored[1]!.x).toBeGreaterThan(restored[0]!.x + restored[0]!.width);
   });
 
@@ -131,10 +127,9 @@ describe("sessionStore persistence", () => {
 
     expect(hydrateSession().restored).toBe(true);
     expect(getCanvasCards()).toMatchObject([
-      { id: original.id, x: original.x, y: original.y, groupId: undefined },
-      { id: copy.id, x: 850, y: 650, groupId: undefined },
+      { id: original.id, x: original.x, y: original.y },
+      { id: copy.id, x: 850, y: 650 },
     ]);
-    expect(getFrameGroups()).toEqual([]);
   });
 
   it("persists geometry and handoff metadata without duplicating draft intent", () => {
@@ -446,26 +441,6 @@ describe("sessionStore hydration", () => {
     expect(cards[0]!.title).toBeNull();
   });
 
-  it("round-trips agent-presented linked frames through the session", () => {
-    setCanvasMode("canvas");
-    setFrameGroup({ id: "agent-landing-iterations", kind: "agent", label: "Landing alternatives", agentId: "agent", routes: [{ url: localUrl("/landing-a") }, { url: localUrl("/landing-b") }] });
-    appendAgentRouteCards("agent-landing-iterations", [
-      { url: localUrl("/landing-a"), title: "A" },
-      { url: localUrl("/landing-b"), title: "B" },
-    ]);
-    persistSession();
-
-    for (const card of getCanvasCards()) removeCanvasCardStore(card.id);
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
-    hydrateSession();
-    expect(getFrameGroups()).toMatchObject([{ id: "agent-landing-iterations", kind: "agent", label: "Landing alternatives", agentId: "agent" }]);
-
-    expect(getCanvasCards().map((card) => ({ url: contentSourceUrl(card.content), title: card.title, groupId: card.groupId })))
-      .toEqual([
-        { url: localUrl("/landing-a"), title: "A", groupId: "agent-landing-iterations" },
-        { url: localUrl("/landing-b"), title: "B", groupId: "agent-landing-iterations" },
-      ]);
-  });
 });
 
 describe("sessionStore clear session", () => {

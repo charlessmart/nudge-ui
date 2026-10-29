@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
 import { useCanvasPresentation } from "../canvas/viewStore.ts";
+import { revealCanvasCard } from "../canvas/canvasStore.ts";
+import { AddPageMenu } from "../canvas/AddPageMenu.tsx";
 import { CANVAS_ILLUSTRATION_SVG } from "../ui/assets/canvasIllustration.ts";
 import { GRID_ILLUSTRATION_SVG } from "../ui/assets/gridIllustration.ts";
 import { getPlatformModifierKey, isMacPlatform } from "./shortcuts.ts";
@@ -18,7 +20,7 @@ export function EmptyState(): ReactElement {
       {canvas ? (
         <>
           <span className="empty-state__icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CANVAS_ILLUSTRATION_SVG }} />
-          <p className="empty-state__hint" data-test="canvas-intro">Hold <kbd>A</kbd> to click links and open them as new pages on the canvas.</p>
+          <p className="empty-state__hint" data-test="canvas-intro">Hold <kbd>A</kbd> to use the app normally. Hover a link to open it in a new frame.</p>
         </>
       ) : (
         <>
@@ -26,6 +28,11 @@ export function EmptyState(): ReactElement {
           <h2 className="empty-state__title">Select an element to edit</h2>
         </>
       )}
+      {canvas ? (
+        <div className="empty-state__add-page">
+          <AddPageMenu onAdded={revealCanvasCard} />
+        </div>
+      ) : null}
       <ul className="empty-state__shortcut-list" aria-label="Keyboard shortcuts">
         <li className="empty-state__shortcut" data-test="empty-state-shortcut"><span>Nudge</span><span className="empty-state__shortcut-keys" aria-label="Arrow keys"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></span></li>
         <li className="empty-state__shortcut" data-test="empty-state-shortcut"><span>Big Nudge (8px)</span><span className="empty-state__shortcut-keys" aria-label="Shift plus arrow keys"><kbd>Shift</kbd><span aria-hidden="true">+</span><kbd>Arrow</kbd></span></li>

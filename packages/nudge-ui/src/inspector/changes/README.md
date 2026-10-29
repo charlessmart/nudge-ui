@@ -109,7 +109,7 @@ These are different facts and must not be represented by one universal status.
 - Rendered-instance, text, and structural document reports use
   `applied`, `missing`, `ambiguous`, or `overridden`. These reports are scoped
   to a document or Canvas card and do not change canonical intent.
-- [`agent/verification.ts`](../agent/verification.ts) performs a separate
+- [`prompt/handoffVerification.ts`](../prompt/handoffVerification.ts) performs a separate
   positive source verification after the inspector preview is removed. It can
   reconcile style, text, and structural records when the source result is
   observable. Component prop records remain unresolved because rendered output
@@ -141,7 +141,7 @@ unsent intent remains in the workspace.
 | Component intent and runtime override | `componentSemantics/changeModel.ts`, `componentSemantics/textBinding.ts` | A rendered-instance component record is not converted into a callsite-wide override. Repeated expression and spread props are not broadened without proof. |
 | Text target resolution and projection | `changes/editModel.ts`, `projection/textProjection.ts` | Before text is part of identity. Text-node paths are bounded document evidence. Projection restores only its own marker and value. |
 | Structural capture and projection | `projection/structuralProjection.ts`, `projection/structuralProjectionBoundary.ts` | Every target, parent, and anchor must resolve exactly and satisfy the shared containment rules. DOM placeholders, observers, and applied nodes remain document-local. |
-| Persistence and handoff | `canvas/sessionStore.ts`, `changes/codecs.ts`, `prompt/generatePrompt.ts`, `agent/verification.ts`, `changes/previewDiagnostics.ts` | The codec handles change values; the session store assembles the durable session, validates storage-owned fields, and applies hydration side effects. Session data and handoff fingerprints carry durable intent, not preview diagnostics or DOM artifacts. Handoff reconciliation preserves newer unsent edits. |
+| Persistence and handoff | `canvas/sessionStore.ts`, `changes/codecs.ts`, `prompt/generatePrompt.ts`, `prompt/handoffVerification.ts`, `changes/previewDiagnostics.ts` | The codec handles change values; the session store assembles the durable session, validates storage-owned fields, and applies hydration side effects. Session data and handoff fingerprints carry durable intent, not preview diagnostics or DOM artifacts. Handoff reconciliation preserves newer unsent edits. |
 
 ## Ownership and disposal contract
 
@@ -182,7 +182,7 @@ Current coverage includes:
   `canvas/rendererStylesheet.test.ts`.
 - Persistence exclusions, prompt handoff, newer unsent values, source
   verification, and stale detection in `canvas/sessionStore.test.ts`,
-  `prompt/clipboardHandoff.test.ts`, `agent/verification.test.ts`, and
+  `prompt/clipboardHandoff.test.ts`, `prompt/handoffVerification.test.ts`, and
   `canvas/staleChangeDetector.test.ts`.
 - CSS preview diagnostic ownership and freshness rules in
   [`previewDiagnostics.test.ts`](./previewDiagnostics.test.ts), including

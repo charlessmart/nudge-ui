@@ -8,7 +8,7 @@ import {
 describe("repository package scope", () => {
   it("matches Nudge UI packages on either path separator", () => {
     expect(nudgeUiRepositoryPackagePattern.test("/repo/packages/nudge-ui/src/App.tsx")).toBe(true);
-    expect(nudgeUiRepositoryPackagePattern.test("C:\\repo\\packages\\agent-protocol\\src\\App.tsx")).toBe(true);
+    expect(nudgeUiRepositoryPackagePattern.test("C:\\repo\\packages\\chrome-extension\\src\\App.tsx")).toBe(true);
     expect(nudgeUiRepositoryPackagePattern.test("/repo/packages/ui/src/App.tsx")).toBe(false);
     expect(nudgeUiRepositoryPackagePattern.test("/repo/packages/nudge-ui-extra/App.tsx")).toBe(false);
   });

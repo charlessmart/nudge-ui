@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   findClosestAnchor,
   isEligibleNavigation,
+  isLinkPreviewTarget,
   hasDifferentRoute,
 } from "./linkEligibility.ts";
 
@@ -114,6 +115,23 @@ describe("isEligibleNavigation", () => {
   it("rejects cross-origin links", () => {
     const a = createAnchor("https://example.com/about");
     expect(isEligibleNavigation(a, createEvent())).toBe(false);
+  });
+});
+
+describe("isLinkPreviewTarget", () => {
+  it("allows same-origin links that change the frame's route", () => {
+    const a = createAnchor(sameOriginUrl("/about"));
+    expect(isLinkPreviewTarget(a)).toBe(true);
+  });
+
+  it("rejects links that only change the hash", () => {
+    const a = createAnchor(window.location.origin + window.location.pathname + "#section");
+    expect(isLinkPreviewTarget(a)).toBe(false);
+  });
+
+  it("rejects cross-origin links", () => {
+    const a = createAnchor("https://example.com/about");
+    expect(isLinkPreviewTarget(a)).toBe(false);
   });
 });
 

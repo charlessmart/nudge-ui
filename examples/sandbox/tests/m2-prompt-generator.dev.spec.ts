@@ -199,15 +199,13 @@ test.describe("clipboard permissions", () => {
     expect(prompt).not.toContain("existing design tokens and logical properties");
   });
 
-  test("dev: general settings navigates between prompt, MCP, and token sections", async ({ page }) => {
+  test("dev: general settings navigates between prompt and token sections", async ({ page }) => {
     await openEditor(page, "/playground");
 
     await page.locator('[data-test="settings-button"]').click();
 
     await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
-    await page.locator('[data-test="settings-nav-mcp"]').click();
-    await expect(page.locator('[data-test="settings-section-mcp"]')).toBeVisible();
-    await expect(page.locator('[data-test="mcp-connection-timeline"] > li')).toHaveCount(3);
+    await expect(page.locator('[data-test="settings-nav-mcp"]')).toHaveCount(0);
 
     // Tokens live in the panel now, not in settings.
     await expect(page.locator('[data-test="settings-nav-tokens"]')).toHaveCount(0);

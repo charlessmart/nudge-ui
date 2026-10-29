@@ -269,51 +269,10 @@
 }
 
 /* Icon only, square like the header's other icon buttons. */
-.agent-status-button.button {
+.inspector-settings-button.button {
   position: relative;
   width: var(--control-height-large);
   padding: 0;
-}
-
-.agent-status-button__avatars {
-  display: inline-flex;
-  align-items: center;
-}
-
-.agent-status-button__avatar {
-  width: 20px;
-  height: 20px;
-  display: block;
-  background: var(--surface-raised-2x);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--border-subtle);
-  padding: 2px;
-}
-
-.agent-status-button__avatar svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.agent-status-button__avatar + .agent-status-button__avatar {
-  margin-left: calc(var(--space-4) * -1);
-}
-
-/* On the logo's top-right shoulder, so it reads as the agent's status. */
-.agent-status-button__dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
-  box-shadow: 0 0 0 1.5px var(--surface-panel);
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.agent-status-button[data-mcp-listening="true"] .agent-status-button__dot {
-  background: var(--success);
 }
 
 .copy-prompt__hint {
@@ -354,26 +313,6 @@
 
 .copy-prompt__hint code {
   font-family: var(--font-mono);
-}
-
-.copy-prompt__agent-status {
-  margin-top: var(--space-8);
-}
-
-.copy-prompt__agent-status-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-}
-
-.copy-prompt__agent-status-content > span {
-  min-width: 0;
-}
-
-.copy-prompt__agent-status-content .button--quiet {
-  flex: 0 0 auto;
-  color: inherit;
 }
 
 .panel__body {

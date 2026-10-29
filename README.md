@@ -3,7 +3,7 @@
 A design panel for your codebase. 
 Nudge is a development-only visual inspector that turns browser edits into
 prompts for your coding agent. Inspect a running app, preview design changes,
-add comments, sketch over the page, and copy a structured prompt or send it through MCP.
+add comments, sketch over the page, and copy a structured prompt for your coding agent.
 
 <img width="1706" height="1181" alt="Nudge" src="https://github.com/user-attachments/assets/aae1df09-a2cc-4a59-a52a-8063418b2891" />
 
@@ -39,15 +39,14 @@ The canvas allows you to open multiple pages of you app to compare flows, respon
 
 **Duplicate** creates a live frame, a view into your running app.
 
-**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`. 
+**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`.
 
 You can ask an agent to refine an iteration, then use **Copy prompt for live app** to implement that design in application source. 
 
 ## Install
 
 The initializer detects Next.js, Astro, Vite with React, or static HTML,
-installs `nudge-ui`, and configures the integration. It also offers to connect
-a coding agent.
+installs `nudge-ui`, and configures the integration.
 
 Start your app with its usual development command and open the local URL.
 For static HTML, use the `nudge-ui serve` command printed by setup.
@@ -69,32 +68,16 @@ use the host subpath: `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, or
 `nudge-ui/static`. 
 See the [package README](packages/nudge-ui/README.md#manual-installation) for configuration examples and supported versions.
 
-## Connect a coding agent
+## Hand off to a coding agent
 
-Agent setup is offered during initialization. To add or repair it later, run
-this from the app directory:
+Edit in the browser, then press **Copy prompt** and paste the prompt into your
+agent. The prompt names each changed source location, the tokens involved, and
+any comments, so the agent can implement the design in application code. Nudge
+reconciles edits it can verify against the running page and keeps anything it
+cannot prove.
 
-```sh
-npx nudge-ui agent setup
-```
-
-Setup installs the project bridge dependency and a reusable adapter outside
-your repositories, then registers the adapter globally for your selected agents.
-Fully restart your agent host, start the app, and ask the agent
-to **listen to Nudge in this workspace**. Keep that turn active while sending
-changes.
-
-The agent can receive edits and comments, report progress, and
-present same-origin routes as Canvas comparison groups. Copied prompts work
-without MCP. The MCP integration is early alpha; see the
-[coding-agent guide](docs/agent-integration.md) for setup details, session scope,
-host limitations, and custom integrations.
-
-For diagnostics, run:
-
-```sh
-npx nudge-ui agent doctor
-```
+This release removes the optional MCP integration; copying prompts is the only
+handoff.
 
 ## Development and automated tests
 

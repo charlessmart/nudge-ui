@@ -4,12 +4,7 @@ export function findClosestAnchor(target: EventTarget | null): HTMLAnchorElement
   return target.closest("a");
 }
 
-export function isEligibleNavigation(
-  anchor: HTMLAnchorElement,
-  event: MouseEvent,
-): boolean {
-  if (event.ctrlKey || event.metaKey || event.shiftKey) return false;
-
+export function isEligibleLink(anchor: HTMLAnchorElement): boolean {
   if (anchor.hasAttribute("download")) return false;
 
   if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return false;
@@ -24,6 +19,20 @@ export function isEligibleNavigation(
   }
 
   return true;
+}
+
+export function isEligibleNavigation(
+  anchor: HTMLAnchorElement,
+  event: MouseEvent,
+): boolean {
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return false;
+
+  return isEligibleLink(anchor);
+}
+
+/** Hover previews only offer routes that would actually change the frame's page. */
+export function isLinkPreviewTarget(anchor: HTMLAnchorElement): boolean {
+  return isEligibleLink(anchor) && hasDifferentRoute(anchor);
 }
 
 export function hasDifferentRoute(anchor: HTMLAnchorElement): boolean {

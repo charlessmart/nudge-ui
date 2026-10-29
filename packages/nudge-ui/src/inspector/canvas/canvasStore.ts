@@ -1,4 +1,5 @@
 import type { FrameContent } from "./frameContent.ts";
+import type { HtmlArtifactMetadata } from "../../transport/artifacts.ts";
 import { iterationId, contentSourceUrl } from "./frameContent.ts";
 import { frameLifecycle } from "./frameLifecycle.ts";
 import { recordCanvasChange, discardCanvasHistory } from "../workspace/timeline.ts";
@@ -40,34 +41,7 @@ export interface CanvasCard extends FrameGeometry {
   entrance?: "linked" | "iteration";
   /** Directly placed iterations skip entrance animation, including on redo. */
   animateEntrance?: boolean;
-  groupId?: string;
   title: string | null;
-}
-
-export interface FrameGroup {
-  readonly id: string;
-  readonly kind: "agent";
-  readonly label: string;
-  readonly agentId: string;
-  readonly routes: readonly { url: string; title?: string; label?: string }[];
-}
-
-const frameGroups = new Map<string, FrameGroup>();
-export function setFrameGroup(group: FrameGroup): void { frameGroups.set(group.id, group); }
-export function getFrameGroup(id: string): FrameGroup | undefined { return frameGroups.get(id); }
-export function removeFrameGroup(id: string): void { frameGroups.delete(id); }
-export function getFrameGroups(): readonly FrameGroup[] {
-  return [...frameGroups.values()].filter((group) => cards.some((card) => card.groupId === group.id));
-}
-
-export function isFrameGroup(value: unknown): value is FrameGroup {
-  if (!value || typeof value !== "object") return false;
-  const group = value as FrameGroup;
-  if (typeof group.id !== "string" || group.id.length > 256) return false;
-  return group.kind === "agent" && typeof group.label === "string" && typeof group.agentId === "string"
-    && Array.isArray(group.routes) && group.routes.every((route: { url?: unknown }) => {
-      try { return typeof route.url === "string" && new URL(route.url).origin === window.location.origin; } catch { return false; }
-    });
 }
 
 export const CARD_GAP = 40;
@@ -136,38 +110,6 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
   return card;
 }
 
-export function appendAgentRouteCards(
-  groupId: string,
-  routes: readonly { url: string; title?: string | null }[],
-): CanvasCard[] {
-  if (!groupId || routes.length === 0) return [];
-
-  const before = cards;
-  const nextCards: CanvasCard[] = [];
-  let nextCardsSnapshot = cards;
-  for (const route of routes) {
-    const size = lastUsedCardSize ?? defaultViewportSize();
-    const pos = nextCardPosition(nextCardsSnapshot, CARD_GAP);
-    const card: CanvasCard = {
-      id: `card-${++cardIdCounter}`,
-      content: { kind: "route", url: route.url },
-      title: route.title ?? null,
-      x: pos.x,
-      y: pos.y,
-      width: size.width,
-      height: size.height,
-      groupId: groupId,
-    };
-    nextCards.push(card);
-    nextCardsSnapshot = [...nextCardsSnapshot, card];
-    lastUsedCardSize = { width: size.width, height: size.height };
-  }
-  cards = [...cards, ...nextCards];
-  recordCreation(before, nextCards);
-  notify();
-  return nextCards;
-}
-
 let activateHistoryCard: (cardId: string) => void = () => undefined;
 
 /** Connects canvas replay to the draft controller without coupling the stores. */
@@ -175,13 +117,21 @@ export function setCanvasHistoryActivator(activate: (cardId: string) => void): v
   activateHistoryCard = activate;
 }
 
+let revealCardInView: (cardId: string) => void = () => undefined;
+
+/** Lets the panel reveal a card in the Canvas without knowing the board geometry. */
+export function setCanvasCardRevealer(reveal: (cardId: string) => void): void {
+  revealCardInView = reveal;
+}
+
+export function revealCanvasCard(cardId: string): void {
+  selectCard(cardId);
+  revealCardInView(cardId);
+}
+
 function recordCreation(before: readonly CanvasCard[], created: readonly CanvasCard[]): void {
   const createdIds = new Set(created.map((card) => card.id));
   const after = cards.map((card) => ({ ...card }));
-  const createdGroups = new Map(created.flatMap((card) => {
-    const group = card.groupId ? getFrameGroup(card.groupId) : undefined;
-    return group ? [[group.id, group] as const] : [];
-  }));
   const oldFocus = selectedCardId ?? focusedCardId ?? before[0]?.id;
   const shifts = layoutShifts(before, cards);
   const restore = (redo: boolean) => {
@@ -194,10 +144,6 @@ function recordCreation(before: readonly CanvasCard[], created: readonly CanvasC
     }
     cards = applyLayoutShifts(cards.filter((card) => !createdIds.has(card.id)), shifts, redo);
     if (redo) cards = reinsertInRecordedOrder(cards, after, createdIds);
-    for (const [id, group] of createdGroups) {
-      if (!cards.some((card) => card.groupId === id)) removeFrameGroup(id);
-      else if (!getFrameGroup(id)) setFrameGroup(group);
-    }
     const focus = redo ? created[0]?.id : oldFocus;
     const target = cards.find((card) => card.id === focus) ?? cards[0];
     focusedCardId = target?.id ?? null;
@@ -232,12 +178,10 @@ function releaseUnusedIteration(card: CanvasCard, remaining: readonly CanvasCard
 
 function recordRemoval(before: readonly CanvasCard[], removed: CanvasCard): void {
   let snapshot = removed;
-  const group = removed.groupId ? getFrameGroup(removed.groupId) : undefined;
   recordCanvasChange({
     cardIds: [removed.id],
     undo: () => {
       cards = reinsertInRecordedOrder(cards, before.map((card) => card.id === removed.id ? snapshot : card), new Set([removed.id]));
-      if (group) setFrameGroup(group);
       selectCard(removed.id);
       activateHistoryCard(removed.id);
       focusCanvasCards([removed.id]);
@@ -292,7 +236,7 @@ export function activateIframeWorkspace(
     const next = {
       ...active,
       content: { kind: "route" as const, url: targetHref, ...(contentSourceUrl(active.content) !== targetHref ? { navigationUrl: targetHref } : {}) },
-      ...(changedRoute ? { title: null, groupId: undefined, entrance: undefined } : {}),
+      ...(changedRoute ? { title: null, entrance: undefined } : {}),
     };
     cards = cards.map((card) => card.id === active.id ? next : card);
     focusedCardId = active.id;
@@ -356,6 +300,14 @@ export function updateCardUrl(id: string, url: string): void {
   notify();
 }
 
+/** Navigates a live card to a new same-origin route. */
+export function navigateCard(id: string, url: string): void {
+  cards = cards.map((c) => c.id === id && c.content.kind === "route"
+    ? { ...c, title: null, content: { kind: "route", url, navigationUrl: url } }
+    : c);
+  notify();
+}
+
 export function duplicateCard(sourceId: string): CanvasCard | null {
   const before = cards;
   const source = cards.find((c) => c.id === sourceId);
@@ -378,6 +330,34 @@ export function duplicateCard(sourceId: string): CanvasCard | null {
   recordCreation(before, [card]);
   notify();
   return cards.find((c) => c.id === card.id)!;
+}
+
+export function findCardByArtifactId(artifactId: string): CanvasCard | undefined {
+  return cards.find((card) => card.content.kind === "iteration" && card.content.artifactId === artifactId);
+}
+
+/** Adds an existing HTML iteration as its own card, or returns the frame already showing it. */
+export function addCanvasArtifact(artifact: HtmlArtifactMetadata): CanvasCard {
+  const existing = findCardByArtifactId(artifact.id);
+  if (existing) return existing;
+  const before = cards;
+  const pos = nextCardPosition(cards, CARD_GAP);
+  const card: CanvasCard = {
+    id: `card-${++cardIdCounter}`,
+    content: { kind: "iteration", artifactId: artifact.id, sourceUrl: artifact.sourceUrl },
+    title: artifact.title || null,
+    x: pos.x,
+    y: pos.y,
+    width: Math.max(320, Math.round(artifact.viewport.width)),
+    height: Math.max(240, Math.round(artifact.viewport.height)),
+    entrance: "iteration",
+    animateEntrance: false,
+  };
+  cards = [...cards, card];
+  lastUsedCardSize = { width: card.width, height: card.height };
+  recordCreation(before, [card]);
+  notify();
+  return card;
 }
 
 export function addCanvasIteration(sourceId: string, artifactId: string, position?: { x: number; y: number }, animateEntrance = true): CanvasCard | null {
@@ -519,14 +499,8 @@ export function hydrateCanvasStore(
   newCamera: CanvasCamera,
   restoredFocusedCardId: string | null = null,
   restoredPresentation: CanvasPresentation = "focus",
-  restoredGroups: readonly FrameGroup[] = [],
 ): void {
-  frameGroups.clear();
-  for (const group of restoredGroups) frameGroups.set(group.id, group);
-  cards = newCards.map((card) => ({
-    ...card,
-    groupId: card.content.kind === "route" && card.groupId && frameGroups.has(card.groupId) ? card.groupId : undefined,
-  }));
+  cards = newCards;
   focusedCardId = newCards.some((card) => card.id === restoredFocusedCardId)
     ? restoredFocusedCardId
     : null;

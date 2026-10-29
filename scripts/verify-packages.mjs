@@ -8,7 +8,6 @@ const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "create-nudge-ui",
   "nudge-ui",
-  "mcp",
 ];
 const outputArgument = process.argv.indexOf("--output-directory");
 const retainedOutput = outputArgument !== -1;
@@ -69,26 +68,6 @@ function verifyPackage(packageRoot) {
   assert(packageJson.publishConfig?.access === "public", `${packageJson.name} must publish with public access.`);
   assert(packageJson.engines?.node, `${packageJson.name} must declare a Node engine.`);
   assert(!JSON.stringify(packageJson).includes("workspace:"), `${packageJson.name} retains a workspace dependency.`);
-
-  if (packageJson.name === "nudge-ui" || packageJson.name === "@nudge-ui/mcp") {
-    assert(
-      !packageJson.dependencies?.["@nudge-ui/agent-protocol"],
-      `${packageJson.name} has a runtime dependency on the private agent protocol.`,
-    );
-    assert(
-      entries.includes("package/dist/internal/agent-protocol.js")
-        && entries.includes("package/dist/internal/agent-protocol.d.ts"),
-      `${packageJson.name} does not include the private agent protocol.`,
-    );
-    const leakedImports = entries.filter((entry) =>
-      entry.startsWith("package/dist/") && /\.(?:[cm]?js|d\.ts)$/.test(entry)
-        && /["']@nudge-ui\/agent-protocol["']/.test(tarFile(tarball, entry)),
-    );
-    assert(
-      leakedImports.length === 0,
-      `${packageJson.name} imports the unpublished agent protocol from ${leakedImports.join(", ")}.`,
-    );
-  }
 
   assertPackageTarget(entries, packageJson.main, `${packageJson.name} main`);
   assertPackageTarget(entries, packageJson.types, `${packageJson.name} types`);
@@ -152,23 +131,6 @@ function verifyPackage(packageRoot) {
       "nudge-ui contains a dead client declaration emit alongside the bundled client.",
     );
   }
-  if (packageJson.name === "@nudge-ui/mcp") {
-    const expectedExports = [".", "./project"];
-    const actualExports = Object.keys(packageJson.exports ?? {});
-    assert(
-      actualExports.length === expectedExports.length
-        && expectedExports.every((subpath) => actualExports.includes(subpath)),
-      `@nudge-ui/mcp export surface changed: ${actualExports.join(", ")}.`,
-    );
-    assert(
-      tarFile(tarball, "package/dist/cli.mjs").startsWith("#!/usr/bin/env node\n"),
-      "@nudge-ui/mcp bin entry is missing its node shebang.",
-    );
-    assert(!entries.includes("package/scripts/postinstall.mjs"), "MCP package must not ship an install-time postinstall script.");
-    assert(!entries.some((entry) => entry === "package/dist/registrar.mjs"), "MCP package must not ship the obsolete registrar artifact.");
-    assert(!Object.prototype.hasOwnProperty.call(packageJson.exports ?? {}, "./registrar"), "MCP package must not export the obsolete registrar API.");
-  }
-
   console.log(`  ${packageJson.name}@${packageJson.version}: ${entries.length} files`);
 }
 

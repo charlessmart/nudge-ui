@@ -23,7 +23,6 @@ import {
   createNudgeUiEditorDocument,
   isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
-import { startOptionalProjectBridge } from "../projectBridge.ts";
 import { automationManifestFields } from "../environment.ts";
 
 const STATE_DIR_SEGMENT = ".next";
@@ -200,10 +199,6 @@ export interface SidecarOptions {
   /** Authored workspace roots included in the token inventory and watcher. */
   sourceRoots?: readonly string[];
   tokens?: boolean;
-  /** Trusted browser origin established by the Next development process. */
-  projectBridgeOrigin?: string;
-  /** Canonical loopback aliases for the known development port. */
-  projectBridgeAllowedOrigins?: readonly string[];
 }
 
 export async function ensureSidecar(
@@ -214,7 +209,7 @@ export async function ensureSidecar(
   const fsRoot = await realpath(root).catch(() => root);
   const scanRoots = await tokenScanRoots(fsRoot, options.sourceRoots);
   const state = globalState(
-    `${options.tokens ? "tokens" : "manifest"}:${options.projectBridgeOrigin ?? "plain"}:${fsRoot}:${scanRoots.join("|")}`,
+    `${options.tokens ? "tokens" : "manifest"}:${fsRoot}:${scanRoots.join("|")}`,
   );
   // The settled promise doubles as the handle cache: awaiting it replays the same handle for every caller until close/failure clears the slot.
   if (state.starting) return state.starting;
@@ -238,35 +233,7 @@ export async function ensureSidecar(
     };
 
     let manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
-    let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
-    let projectBridgeStart: Promise<void> | null = null;
 
-    const ensureProjectBridge = (): Promise<void> => {
-      if (!options.projectBridgeOrigin || projectBridge || projectBridgeStart) {
-        return projectBridgeStart ?? Promise.resolve();
-      }
-      projectBridgeStart = startOptionalProjectBridge({
-        appRoot: fsRoot,
-        projectId: manifest.runtime.projectId,
-        origin: options.projectBridgeOrigin,
-        ...(options.projectBridgeAllowedOrigins
-          ? { allowedOrigins: options.projectBridgeAllowedOrigins }
-          : {}),
-        info: (message) => console.info(message),
-        warn: (message) => console.warn(message),
-      }).then((bridge) => {
-        projectBridge = bridge;
-        if (bridge) manifest = { ...manifest, agentBridge: bridge.browser };
-      });
-      return projectBridgeStart;
-    };
-    const closeProjectBridge = async (): Promise<void> => {
-      await projectBridgeStart;
-      const bridge = projectBridge;
-      projectBridge = null;
-      projectBridgeStart = null;
-      await bridge?.close();
-    };
     const additionalTokenRoots = scanRoots.filter((scanRoot) => scanRoot !== fsRoot);
     const tokenSnapshotOptions = {
       rootDirectory: fsRoot,
@@ -308,7 +275,6 @@ export async function ensureSidecar(
     } catch {
       // The port file is diagnostics-only; an unwritable .next must not break instrumentation.
     }
-    await ensureProjectBridge();
 
     const watchers: Array<{ close: () => Promise<void> }> = [];
     // Runs even without the token lifecycle so a restarted sidecar republishes contracts.
@@ -429,7 +395,7 @@ export async function ensureSidecar(
         // Idempotent: the singleton can be closed twice (tests, shutdown race) without throwing.
         if (!server.listening) {
           state.starting = undefined;
-          return closeProjectBridge();
+          return Promise.resolve();
         }
         for (const stream of streams) stream.end();
         streams.clear();
@@ -439,10 +405,7 @@ export async function ensureSidecar(
         const closeServer = new Promise<void>((resolveClose, rejectClose) => {
           server.close((error) => (error ? rejectClose(error) : resolveClose()));
         });
-        return Promise.all([
-          closeServer,
-          closeProjectBridge(),
-        ]).then(() => undefined);
+        return closeServer.then(() => undefined);
       },
     };
 

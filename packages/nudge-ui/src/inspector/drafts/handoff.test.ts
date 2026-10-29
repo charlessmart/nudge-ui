@@ -3,7 +3,7 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { activateIframeWorkspace, addCanvasIteration, hydrateCanvasStore, selectCard } from "../canvas/canvasStore.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { activateDraftForCard, appendChanges, getActiveDraftChanges, getChangesList, getDraftContentsForCard, loadDrafts, resetDrafts, undo, redo } from "./store.ts";
-import { recordAgentDispatch, resetAgentVerification, verifyAndReconcileAgentDispatch } from "../agent/verification.ts";
+import { captureHandoffOwner, verifyAndReconcileHandoff } from "../prompt/handoffVerification.ts";
 import { clearClipboardHandoff, getClipboardHandoffSnapshot, recordClipboardHandoff, startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { PROMPT_INTRO } from "../prompt/promptDocument.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -24,25 +24,25 @@ beforeEach(() => {
   setNudgeUiHostDevFlag(true);
   runtime = getNudgeUiRuntimeConfig();
   configureNudgeUiRuntime({ ...runtime, demo: true });
-  resetDrafts(); resetAgentVerification(); clearClipboardHandoff();
+  resetDrafts(); clearClipboardHandoff();
   hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
   localStorage.clear();
   document.documentElement.removeAttribute("data-nudge-ui-editor");
   document.head.innerHTML = '<style>[data-cid="Heading"] { color: rgb(255, 0, 0); }</style>';
   document.body.innerHTML = '<h1 data-cid="Heading">Heading</h1>';
 });
-afterEach(() => { configureNudgeUiRuntime(runtime); stop?.(); stop=undefined; resetDrafts(); resetAgentVerification(); clearClipboardHandoff(); });
+afterEach(() => { configureNudgeUiRuntime(runtime); stop?.(); stop=undefined; resetDrafts(); clearClipboardHandoff(); });
 
 it("reconciles the sent draft after switching to an independent draft with identical intent", async () => {
   const original = activateIframeWorkspace(window.location.href, {width:800,height:600})!;
   loadDrafts("completion-switch", {persistent:false});
   activateDraftForCard(original.id);
   appendChanges([edit]);
-  recordAgentDispatch(123, [edit]);
+  const handoff = { owner: captureHandoffOwner(), changes: [edit], structuralChanges: [] };
   const iteration = addCanvasIteration(original.id, "11111111-1111-1111-1111-111111111111")!;
   selectCard(iteration.id); activateDraftForCard(iteration.id);
   appendChanges([edit]);
-  await verifyAndReconcileAgentDispatch(123);
+  await verifyAndReconcileHandoff(handoff);
   expect.soft(getDraftContentsForCard(original.id)?.changes, "The sent live draft should reconcile").toHaveLength(0);
   expect.soft(getDraftContentsForCard(iteration.id)?.changes, "The independent iteration should retain its identical intent").toHaveLength(1);
 });

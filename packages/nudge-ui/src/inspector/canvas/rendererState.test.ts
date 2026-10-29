@@ -12,7 +12,7 @@ function input(overrides: Partial<RendererDesiredStateInput> = {}): RendererDesi
     spaceHeld: false,
     boardGestures: true,
     appInteractive: false,
-    openLinksInCard: false,
+    linkPreviews: false,
     debugView: DEBUG_VIEW_OFF,
     ...overrides,
   };
@@ -43,8 +43,8 @@ describe("sendRendererState", () => {
     expect(messages).toEqual([
       { type: "pan-modifier", spaceHeld: false },
       { type: "inspector-interaction-state", open: true, interactionsEnabled: true, cursor: "design" },
-      { type: "board-gesture-state", enabled: true, panScroll: true },
-      { type: "link-target-state", openInCard: false },
+      { type: "board-gesture-state", enabled: true, panScroll: true, spacePan: true },
+      { type: "link-preview-state", enabled: false },
       { type: "debug-view-state", state: DEBUG_VIEW_OFF },
     ]);
   });

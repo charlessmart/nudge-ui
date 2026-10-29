@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { attributeActivity } from "./AgentActivityOverlay.tsx";
-import type { ActivityFile } from "../agent/activity.ts";
-const edit = (file: string, line?: number, endLine?: number): ActivityFile => ({ requestId: "request", operation: "edit", file, ...(line ? { line } : {}), ...(endLine ? { endLine } : {}), expiresAt: 12_000 });
+import type { ActivityFile } from "./agentActivity.ts";
+const edit = (file: string, line?: number, endLine?: number): ActivityFile => ({ operation: "edit", file, ...(line ? { line } : {}), ...(endLine ? { endLine } : {}), expiresAt: 12_000 });
 
 describe("rendered source activity attribution", () => {
   it("decorates every matching frame and narrows shimmer to the edited source range", () => {

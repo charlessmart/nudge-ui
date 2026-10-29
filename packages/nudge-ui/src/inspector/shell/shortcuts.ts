@@ -46,9 +46,9 @@ export function getInspectorToggleShortcutLabel(): string {
   return `${getPlatformModifierKey()}\\`;
 }
 
-export const SEND_PROMPT_HOTKEY_EVENT = "nudge-ui-send-prompt-hotkey";
+export const COPY_PROMPT_HOTKEY_EVENT = "nudge-ui-copy-prompt-hotkey";
 
-export function isSendPromptShortcut(event: KeyboardEvent): boolean {
+export function isCopyPromptShortcut(event: KeyboardEvent): boolean {
   if (event.repeat || event.altKey || isEditableEvent(event)) return false;
   return event.shiftKey && !event.metaKey && !event.ctrlKey && event.code === "KeyS";
 }

@@ -151,16 +151,8 @@
   font-weight: var(--font-weight-label);
 }
 
-.settings__section > .prompt-settings__field,
-.settings__section > .tokens-panel,
-.settings__section > [data-test="mcp-connection-dialog"] {
+.settings__section > .prompt-settings__field {
   margin-top: var(--space-20);
-}
-
-.settings__section > [data-test="mcp-connection-dialog"] {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-16);
 }
 
 @media (max-width: 560px) {

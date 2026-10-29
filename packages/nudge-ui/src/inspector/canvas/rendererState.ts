@@ -17,7 +17,10 @@ export interface RendererDesiredState {
   readonly boardGestures: boolean;
   /** Ordinary wheel gestures pan the board instead of scrolling the app. */
   readonly panScroll: boolean;
-  readonly openLinksInCard: boolean;
+  /** Space turns a drag into a board pan even while the app takes native wheel input. */
+  readonly spacePan: boolean;
+  /** Hovering a link offers opening it in a new canvas frame. */
+  readonly linkPreviews: boolean;
   readonly debugView: DebugViewState;
 }
 
@@ -29,7 +32,7 @@ export interface RendererDesiredStateInput {
   readonly spaceHeld: boolean;
   readonly boardGestures: boolean;
   readonly appInteractive: boolean;
-  readonly openLinksInCard: boolean;
+  readonly linkPreviews: boolean;
   readonly debugView: DebugViewState;
 }
 
@@ -42,7 +45,8 @@ export function rendererDesiredState(input: RendererDesiredStateInput): Renderer
     spaceHeld: input.spaceHeld,
     boardGestures: input.boardGestures,
     panScroll: input.boardGestures && !input.appInteractive,
-    openLinksInCard: input.openLinksInCard,
+    spacePan: input.boardGestures,
+    linkPreviews: input.linkPreviews,
     debugView: input.debugView,
   };
 }
@@ -61,8 +65,8 @@ export function sendRendererState(frame: FrameConnection, state: RendererDesired
     cursor: state.cursor,
     ...(state.cursor === "comment" && state.commentCursor ? { commentCursor: state.commentCursor } : {}),
   });
-  frame.post({ type: "board-gesture-state", enabled: state.boardGestures, panScroll: state.panScroll });
-  frame.post({ type: "link-target-state", openInCard: state.openLinksInCard });
+  frame.post({ type: "board-gesture-state", enabled: state.boardGestures, panScroll: state.panScroll, spacePan: state.spacePan });
+  frame.post({ type: "link-preview-state", enabled: state.linkPreviews });
   frame.post({ type: "debug-view-state", state: state.debugView });
 }
 

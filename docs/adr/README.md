@@ -47,3 +47,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0041: Sketch screenshots come from the browser](./0041-sketch-screenshots-from-the-browser.md) (supersedes ADR-0037's note that sketch capture renders through a `data:` image)
 - [ADR-0042: Sketch marks stay on the page, and screenshots copy the tab](./0042-sketch-marks-stay-and-screenshots-copy-the-tab.md) (supersedes ADR-0040, and ADR-0041's capture flow and DOM fallback)
 - [ADR-0043: The Inspection tool slows the whole page](./0043-page-wide-animation-speed.md) (supersedes ADR-0039's animation timeline and markers, and its one-view-at-a-time view tool)
+- [ADR-0044: Remove the MCP integration and add pages from the Canvas](./0044-remove-the-mcp-integration.md) (supersedes ADR-0013, ADR-0015, ADR-0026, ADR-0028, and ADR-0032)

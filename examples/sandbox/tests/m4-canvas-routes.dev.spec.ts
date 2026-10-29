@@ -1,4 +1,4 @@
-import { clickFrameAction } from "./canvasTransition.ts";
+import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test("dev: clicking a same-origin link navigates the focused card", async ({ page }) => {
@@ -92,8 +92,6 @@ test("dev: delete key removes a comparison card and recovers the final editing s
   await page.keyboard.press("Delete");
 
   await expect(board.locator(".canvas-card")).toHaveCount(1);
-
-  await board.locator('[data-test^="canvas-card-reload-"]').click();
   await page.keyboard.press("Delete");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -103,10 +101,13 @@ test("dev: delete key removes a comparison card and recovers the final editing s
 test("dev: deleting the active route does not recreate it after reload", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await page.locator('[data-test="canvas-tool-select"]').click();
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   const cards = page.locator(".canvas-card");
   const frames = page.frameLocator(".canvas-card__iframe");
   await expect(cards).toHaveCount(2);
+  await waitForCanvasTransition(page);
 
   await frames.nth(1).locator('a[href="/conformance"]').click();
   await expect.poll(() => frames.nth(1).locator("body").evaluate(() => location.pathname)).toBe("/conformance");
@@ -114,7 +115,8 @@ test("dev: deleting the active route does not recreate it after reload", async (
   await expect(cards.nth(1)).toHaveClass(/is-selected/);
   await expect.poll(() => new URL(page.url()).pathname).toBe("/conformance");
 
-  await page.locator('[data-test="presentation-focus"]').focus();
+  await page.locator('[data-test="canvas-tool-design"]').click();
+  await cards.nth(1).focus();
   await page.keyboard.press("Delete");
 
   await expect(cards).toHaveCount(1);
@@ -125,49 +127,60 @@ test("dev: deleting the active route does not recreate it after reload", async (
     .toBe("/playground");
 });
 
-test("dev: open app escapes the editor to the plain application route", async ({ page }) => {
+test("dev: Use app normally navigates links inside the frame without adding cards", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await page.locator('[data-test="canvas-tool-select"]').click();
 
-  const popupPromise = page.waitForEvent("popup");
-  await page.locator('[data-test^="canvas-card-open-app-"]').first().click();
-  const application = await popupPromise;
-  await expect(application.locator("#root")).toBeVisible();
-  await expect(application.locator('[data-test="canvas-workspace"]')).toHaveCount(0);
-  await application.locator('a[href="/conformance"]').click();
-  await expect(application).toHaveURL(/\/conformance$/);
-  await expect(application.locator("#root")).toBeVisible();
-  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
-  await application.reload();
-  await expect(application).toHaveURL(/\/conformance$/);
-  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
+  const cards = page.locator(".canvas-card");
+  await expect(cards).toHaveCount(1);
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  const link = frame.locator('a[href="/conformance"]').first();
+  await expect(link).toBeVisible({ timeout: 20000 });
+  await link.click();
+
+  await expect(cards).toHaveCount(1);
+  await expect.poll(() => frame.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
 });
 
-
-
-test("dev: canvas card toolbar has open-app, duplicate, and refresh controls", async ({ page }) => {
+test("dev: hovering a link offers opening it in a new canvas frame", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.locator('[data-test="canvas-show-canvas"]').click();
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
+  await waitForCanvasTransition(page);
+  await page.locator('[data-test="canvas-tool-select"]').click();
 
-  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
-  const openApp = page.locator('[data-test^="canvas-card-open-app-"]');
-  await expect(openApp).toHaveText("Open app");
-  await expect(openApp).toHaveClass(/button--secondary/);
-  await expect(openApp).toHaveClass(/button--default/);
-  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
-  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/icon-button--secondary/);
-  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/icon-button--secondary/);
-  await expect(page.locator('[data-test^="canvas-card-remove-"]')).toHaveCount(0);
+  const cards = page.locator(".canvas-card");
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  const link = frame.locator('a[href="/conformance"]').first();
+  await expect(link).toBeVisible({ timeout: 20000 });
 
-  const card = page.locator(".canvas-card").first();
-  const toolbar = card.locator(".canvas-card__toolbar");
-  const frame = card.locator(".canvas-card__frame");
-  const toolbarBox = await toolbar.boundingBox();
-  const frameBox = await frame.boundingBox();
-  expect(toolbarBox).not.toBeNull();
-  expect(frameBox).not.toBeNull();
-  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThan(frameBox!.y);
+  await link.hover();
+  const popover = page.locator('[data-test="canvas-link-popover"]');
+  await expect(popover).toBeVisible();
+  await expect(popover).toHaveText("Open in new frame");
+
+  const linkBox = await link.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  expect(linkBox).not.toBeNull();
+  expect(popoverBox).not.toBeNull();
+  // The action sits centered on its link, just above it unless the frame top is close.
+  const centerOffset = Math.abs((popoverBox!.x + popoverBox!.width / 2) - (linkBox!.x + linkBox!.width / 2));
+  const gapAbove = linkBox!.y - (popoverBox!.y + popoverBox!.height);
+  const gapBelow = popoverBox!.y - (linkBox!.y + linkBox!.height);
+  expect(centerOffset).toBeLessThan(1);
+  expect(Math.min(Math.abs(gapAbove - 8), Math.abs(gapBelow - 8))).toBeLessThan(1);
+
+  await page.mouse.move(20, 20);
+  await expect(popover).toHaveCount(0);
+
+  await link.hover();
+  await expect(popover).toBeVisible();
+  await popover.click();
+
+  await expect(cards).toHaveCount(2);
+  const opened = page.frameLocator(".canvas-card__iframe").nth(1);
+  await expect.poll(() => opened.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
 });

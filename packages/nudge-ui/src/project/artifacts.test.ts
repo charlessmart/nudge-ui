@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -125,6 +126,49 @@ describe("HTML artifact route", () => {
     expect((await request("POST", `${path}/commit`)).status).toBe(428);
     const expected = JSON.parse((await request("GET", `${path}/revision`)).body);
     expect((await request("GET", `${path}/preview`)).body).toContain(`data-nudge-artifact-revision="${expected.preview}"`);
+  });
+
+  it("lists an empty project without creating artifact storage", async () => {
+    root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
+    const response = await request("GET", "/__nudge_ui__/artifacts");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toEqual([]);
+    expect(existsSync(join(root, ".nudge", "artifacts"))).toBe(false);
+  });
+
+  it("lists iterations newest first and ignores directories without valid metadata", async () => {
+    root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
+    const path = "/__nudge_ui__/artifacts";
+    const older = "550e8400-e29b-41d4-a716-446655440000";
+    const newer = "550e8400-e29b-41d4-a716-446655440001";
+    await request("POST", path, {
+      id: older, html: "<html></html>", sourceUrl: "http://localhost/one", title: "One",
+      viewport: { width: 800, height: 600 },
+    });
+    await request("POST", path, {
+      id: newer, html: "<html></html>", sourceUrl: "http://localhost/two", title: "Two",
+      viewport: { width: 1024, height: 768 },
+    });
+    const olderMetadata = join(root, ".nudge", "artifacts", older, "metadata.json");
+    await writeFile(olderMetadata, JSON.stringify({
+      id: older, sourceUrl: "http://localhost/one", title: "One", capturedAt: 10,
+      viewport: { width: 800, height: 600 },
+    }));
+    const newerMetadata = join(root, ".nudge", "artifacts", newer, "metadata.json");
+    await writeFile(newerMetadata, JSON.stringify({
+      id: newer, sourceUrl: "http://localhost/two", title: "Two", capturedAt: 20,
+      viewport: { width: 1024, height: 768 },
+    }));
+    await writeFile(join(root, ".nudge", "artifacts", newer, "baseline.html"), "<html></html>");
+    await writeFile(join(root, ".nudge", "artifacts", "not-an-artifact"), "x");
+
+    const response = await request("GET", path);
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject([
+      { id: newer, title: "Two", capturedAt: 20 },
+      { id: older, title: "One", capturedAt: 10, viewport: { width: 800, height: 600 } },
+    ]);
+    expect((await request("DELETE", path)).status).toBe(405);
   });
 
 });

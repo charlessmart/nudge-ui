@@ -25,14 +25,15 @@ declare global {
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
-import { AgentStatusButton } from "./AgentStatusButton.tsx";
+import { IconSettings } from "@tabler/icons-react";
+import { Button } from "../ui/Button.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
 import { discardChangesForInstanceOverride, undo, redo } from "../drafts/store.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "../selection/editScope.ts";
 import { canEditStyles } from "../tokens/editActions.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
-import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
@@ -129,7 +130,6 @@ export function InspectorShell(): ReactElement {
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
   const [panelView, setPanelView] = useState<PanelView>("styles");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   useInteractionStatePreview(selectedElements.length === 1 ? selectedElements[0]!.domElement : null, styleState);
@@ -266,8 +266,7 @@ export function InspectorShell(): ReactElement {
     refreshScope((revision) => revision + 1);
   }
 
-  function openSettings(section: SettingsSection): void {
-    setSettingsSection(section);
+  function openSettings(): void {
     setSettingsOpen(true);
   }
 
@@ -286,7 +285,20 @@ export function InspectorShell(): ReactElement {
           if (!open) cancelInlineTextEdit();
           setInspectorOpen(open);
         }}
-        headerActions={<><PeekOriginalButton /><AgentStatusButton onOpenSettings={openSettings} /></>}
+        headerActions={<>
+          <PeekOriginalButton />
+          <Tooltip content="Settings" stableTrigger>
+            <Button
+              variant="quiet"
+              className="inspector-settings-button"
+              aria-label="Settings"
+              data-test="settings-button"
+              onClick={openSettings}
+            >
+              <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+        </>}
         views={<SegmentedControl
           aria-label="Panel view"
           data-test="panel-view"
@@ -297,8 +309,6 @@ export function InspectorShell(): ReactElement {
         />}
         prompt={<CopyPromptButton
           settingsOpen={settingsOpen}
-          settingsSection={settingsSection}
-          onOpenSettings={openSettings}
           onSettingsOpenChange={setSettingsOpen}
           onClearChanges={clearInspectorSession}
         />}

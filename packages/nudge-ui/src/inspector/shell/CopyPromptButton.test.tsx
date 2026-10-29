@@ -3,39 +3,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
-import { configureAgentBridgeTransport, resetAgentClients } from "../agent/client.ts";
-import type {
-  AgentBridgeTransport,
-  AgentEventHandlers,
-  AgentPromptDispatch,
-  AgentStatusSnapshot,
-  PairingResponse,
-  PromptDispatchResponse,
-} from "../agent/protocol.ts";
-import { clearActiveDraft, getChangesList, undo } from "../drafts/store.ts";
+import { clearActiveDraft, getChangesList } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { replaceActiveDraft } from "../changes/_testUtils.ts";
-import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
-import {
-  clearClipboardHandoff,
-  getClipboardHandoffSnapshot,
-} from "../prompt/clipboardHandoff.ts";
+import { clearClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-function listeningStatus(overrides: Partial<AgentStatusSnapshot> = {}): AgentStatusSnapshot {
-  return {
-    protocolVersion: 3,
-    projectId: "handoff-project",
-    connection: "listening",
-    listenerActive: true,
-    paired: false,
-    request: null,
-    ...overrides,
-  };
-}
 
 function change(): ElementChangeRecord {
   return {
@@ -52,73 +27,39 @@ function change(): ElementChangeRecord {
   };
 }
 
-class ButtonTransport implements AgentBridgeTransport {
-  eventHandlers: AgentEventHandlers | null = null;
-  dispatches: AgentPromptDispatch[] = [];
-  rejectDispatch = false;
-  discoveredStatus: AgentStatusSnapshot | null = listeningStatus();
-  pairingStatus: AgentStatusSnapshot = listeningStatus({ connection: "paired", paired: true });
-  takeOvers = 0;
-
-  async discover(): Promise<AgentStatusSnapshot | null> { return this.discoveredStatus; }
-
-  async pair(): Promise<PairingResponse> {
-    return {
-      protocolVersion: 3,
-      projectId: "handoff-project",
-      origin: window.location.origin,
-      sessionToken: "button-session",
-      status: this.pairingStatus,
-    };
-  }
-
-  async takeOver(): Promise<PairingResponse> {
-    this.takeOvers += 1;
-    return {
-      protocolVersion: 3,
-      projectId: "handoff-project",
-      origin: window.location.origin,
-      sessionToken: "replacement-session",
-      status: this.pairingStatus,
-    };
-  }
-
-  openEvents(_request: unknown, handlers: AgentEventHandlers) {
-    this.eventHandlers = handlers;
-    return { close() {} };
-  }
-
-  async dispatch(request: AgentPromptDispatch): Promise<PromptDispatchResponse> {
-    this.dispatches.push(request);
-    if (this.rejectDispatch) throw new Error("listener disappeared");
-    return {
-      request: {
-        requestId: "button-request",
-        projectId: request.projectId,
-        prompt: request.prompt,
-        changeRevision: request.changeRevision,
-      },
-      status: "delivered",
-    };
-  }
-}
-
 async function flush(): Promise<void> {
   await act(async () => { await Promise.resolve(); });
 }
 
-describe("CopyPromptButton agent handoff", () => {
+async function copyFromShiftS(): Promise<KeyboardEvent> {
+  const event = new KeyboardEvent("keydown", {
+    bubbles: true,
+    cancelable: true,
+    code: "KeyS",
+    key: "s",
+    shiftKey: true,
+  });
+  await act(async () => {
+    window.dispatchEvent(event);
+    await Promise.resolve();
+  });
+  return event;
+}
+
+describe("CopyPromptButton handoff", () => {
   let container: HTMLDivElement;
   let root: Root;
   let previousConfig: ReturnType<typeof getNudgeUiRuntimeConfig>;
+  let writeText: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     localStorage.clear();
     clearClipboardHandoff();
-    resetAgentVerification();
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({ ...previousConfig, projectId: "handoff-project" });
+    writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -126,69 +67,15 @@ describe("CopyPromptButton agent handoff", () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    configureAgentBridgeTransport(undefined);
-    resetAgentClients();
     clearActiveDraft();
     clearClipboardHandoff();
-    resetAgentVerification();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("shows a connection action when the companion is ready but no agent listener is active", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(button.textContent).toContain("Copy");
-    expect(status?.textContent).toContain("Project available · Connect this page");
-    expect(status?.textContent).toContain("Connect");
-    expect(status?.className).toContain("status-callout--accent");
-
-    act(() => status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click());
-    expect(document.body.querySelector('[data-test="mcp-connection-dialog"]')?.textContent)
-      .toContain("Project available · Connect this page");
-  });
-
-  it("shows no connection status when the companion is not found", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = null;
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
-  });
-
-  it("offers takeover inline when another browser owns the MCP pairing", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = listeningStatus({ connection: "paired", paired: true });
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(status?.textContent).toContain("MCP active in another tab or window");
-    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.textContent)
-      .toContain("Take over");
-
-    await act(async () => {
-      status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click();
-    });
-    expect(transport.takeOvers).toBe(1);
-    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
-  });
-
   it("shows the current change count on the prompt button", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = null;
-    configureAgentBridgeTransport(transport);
     act(() => {
       replaceActiveDraft([change(), { ...change(), property: "background-color" }]);
       root.render(<CopyPromptButton />);
@@ -204,283 +91,50 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
-  it("shows the connected status without a setup action when the agent is not listening", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
-    transport.pairingStatus = listeningStatus({ connection: "paired", listenerActive: false, paired: true });
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    act(() => container
-      .querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')
-      ?.click());
-    const connect = document.body.querySelector<HTMLButtonElement>('[data-test="mcp-connect"]')!;
-    await act(async () => { connect.click(); });
-
-    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(status?.textContent).toContain("MCP Ready - Ask agent to listen");
-    expect(status?.textContent).not.toContain("Set up");
-    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')).toBeNull();
-  });
-
-  it("disables sending until the delivered prompt is acknowledged, then shows agent work", async () => {
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    expect(button.textContent).toContain("Connect agent");
-
-    await act(async () => { button.click(); });
-    expect(button.textContent).toContain("Send prompt");
-    expect(button.disabled).toBe(false);
-    await act(async () => { button.click(); });
-    expect(button.textContent).toContain("Nothing to copy");
-    expect(transport.dispatches).toHaveLength(0);
-
-    act(() => replaceActiveDraft([change()]));
-    expect(button.disabled).toBe(false);
-    await act(async () => { button.click(); });
-
-    expect(transport.dispatches).toHaveLength(1);
-    expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
-    expect(button.textContent).toContain("Awaiting agent");
-    expect(button.disabled).toBe(true);
-    act(() => transport.eventHandlers?.onEvent({ type: "status", status: listeningStatus({
-      connection: "working", paired: true, listenerActive: false,
-      request: { requestId: "button-request", projectId: "handoff-project", prompt: transport.dispatches[0]!.prompt, status: "working" },
-    }) }));
-    expect(button.textContent).toContain("Agent working");
-    expect(button.disabled).toBe(true);
-  });
-
-  it("sends the available prompt from Shift+S", async () => {
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
-    act(() => replaceActiveDraft([change()]));
-
-    const event = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      code: "KeyS",
-      key: "s",
-      shiftKey: true,
-    });
-    await act(async () => {
-      window.dispatchEvent(event);
-      await Promise.resolve();
-    });
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(transport.dispatches).toHaveLength(1);
-    expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
-  });
-
-  it("leaves Shift+S available to focused text inputs", async () => {
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-
-    const input = document.createElement("input");
-    document.body.append(input);
-    input.focus();
-    const event = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      code: "KeyS",
-      key: "s",
-      shiftKey: true,
-    });
-    window.dispatchEvent(event);
-
-    expect(event.defaultPrevented).toBe(false);
-    expect(transport.dispatches).toHaveLength(0);
-    input.remove();
-  });
-
-  it("distinguishes verified agent completion from the still-pending preview", async () => {
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
-
-    const target = document.createElement("h1");
-    target.dataset.cid = "Heading";
-    document.body.append(target);
-    const authored = document.createElement("style");
-    authored.textContent = '[data-cid="Heading"] { color: red; }';
-    document.head.append(authored);
-
-    act(() => replaceActiveDraft([change()]));
-    await act(async () => { button.click(); });
-    const revision = transport.dispatches[0]?.changeRevision;
-    expect(revision).toBeDefined();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
-
-    act(() => {
-      transport.eventHandlers?.onEvent({
-        type: "status",
-        status: listeningStatus({
-          connection: "paired",
-          paired: true,
-          request: {
-            requestId: "button-request",
-            projectId: "handoff-project",
-            prompt: "Change the heading",
-            changeRevision: revision,
-            status: "completed",
-          },
-        }),
-      });
-    });
-    expect(transport.eventHandlers).not.toBeNull();
-    expect(button.dataset.agentState).toBe("completed");
-    await flush();
-    await flush();
-
-    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
-      .toBe("Changes implemented.");
-    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
-  });
-
-  it("clears completed-but-unverified edits without offering undo", async () => {
-    document.head.querySelectorAll("style").forEach((el) => el.remove());
-    document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
-
-    const target = document.createElement("h1");
-    target.dataset.cid = "Heading";
-    document.body.append(target);
-
-    act(() => replaceActiveDraft([change()]));
-    await act(async () => { button.click(); });
-    const revision = transport.dispatches[0]?.changeRevision;
-    expect(revision).toBeDefined();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
-
-    act(() => {
-      transport.eventHandlers?.onEvent({
-        type: "status",
-        status: listeningStatus({
-          connection: "paired",
-          paired: true,
-          request: {
-            requestId: "button-request",
-            projectId: "handoff-project",
-            prompt: "Change the heading",
-            changeRevision: revision,
-            status: "completed",
-          },
-        }),
-      });
-    });
-    expect(button.dataset.agentState).toBe("completed");
-    await flush();
-    await flush();
-
-    expect(container.querySelector('[data-test="handoff-implemented-hint"]')?.textContent)
-      .toBe("Changes implemented. Clear stale edits");
-    expect(getChangesList()).toHaveLength(1);
-
-    act(() => container.querySelector<HTMLButtonElement>('[data-test="handoff-clear-remaining"]')!.click());
-    expect(getChangesList()).toEqual([]);
-    expect(container.querySelector('[data-test="handoff-cleared-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="handoff-undo-clear"]')).toBeNull();
-    expect(container.querySelector('[data-test="handoff-clear-remaining"]')).toBeNull();
-
-    act(() => { undo(); });
-    expect(getChangesList()).toEqual([]);
-  });
-
-  it("shows plain completion when nothing was in flight", async () => {
-    document.head.querySelectorAll("style").forEach((el) => el.remove());
-    document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
-    const transport = new ButtonTransport();
-    configureAgentBridgeTransport(transport);
-    act(() => root.render(<CopyPromptButton />));
-    await flush();
-    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
-    expect(transport.eventHandlers).not.toBeNull();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
-
-    const revision = 987_654;
-    act(() => replaceActiveDraft([]));
-    recordAgentDispatch(revision, []);
-    act(() => {
-      transport.eventHandlers?.onEvent({
-        type: "status",
-        status: listeningStatus({
-          connection: "paired",
-          paired: true,
-          request: {
-            requestId: "empty-request",
-            projectId: "handoff-project",
-            prompt: "No edits",
-            changeRevision: revision,
-            status: "completed",
-          },
-        }),
-      });
-    });
-    await flush();
-    await flush();
-
-    expect(container.querySelector('[data-test="handoff-implemented-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
-  });
-
-  it("falls back to the clipboard when the paired listener rejects dispatch", async () => {
-    const transport = new ButtonTransport();
-    transport.rejectDispatch = true;
-    configureAgentBridgeTransport(transport);
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  it("copies the prompt and confirms it on the button", async () => {
     act(() => {
       replaceActiveDraft([change()]);
       root.render(<CopyPromptButton />);
     });
     await flush();
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    await act(async () => { button.click(); });
+
     await act(async () => { button.click(); });
 
-    expect(writeText).toHaveBeenCalledOnce();
-    expect(button.textContent).toContain("Copied");
-    expect(getClipboardHandoffSnapshot()).toMatchObject({
-      drafts: [{ changes: [{ key: expect.any(String), fingerprint: expect.any(String) }], structuralChanges: [] }],
-    });
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0]?.[0]).toContain("src/Heading.tsx");
+    expect(button.textContent).toContain("Copied!");
+    expect(getChangesList()).toEqual([change()]);
+  });
+
+  it("copies the available prompt from Shift+S", async () => {
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    act(() => replaceActiveDraft([change()]));
+
+    const event = await copyFromShiftS();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0]?.[0]).toContain("src/Heading.tsx");
+  });
+
+  it("leaves Shift+S available to focused text inputs", async () => {
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    act(() => replaceActiveDraft([change()]));
+
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+    const event = await copyFromShiftS();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+    input.remove();
   });
 
   it("keeps copied edits pending when the user returns without implementation evidence", async () => {
-    const transport = new ButtonTransport();
-    transport.discoveredStatus = null;
-    configureAgentBridgeTransport(transport);
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(async () => undefined) } });
     act(() => {
       replaceActiveDraft([change()]);
       root.render(<CopyPromptButton />);
@@ -496,5 +150,4 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="handoff-clear-remaining"]')).toBeNull();
     expect(getChangesList()).toEqual([change()]);
   });
-
 });

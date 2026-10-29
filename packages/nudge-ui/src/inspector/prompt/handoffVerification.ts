@@ -1,0 +1,315 @@
+import { draftIdForCard, getActiveDraftChanges, getDraftChanges, reconcileDraftChanges } from "../drafts/store.ts";
+import { getCanvasCards } from "../canvas/canvasStore.ts";
+import { getRegisteredFrames, getCanvasCardIdForDocument } from "../canvas/projection.ts";
+import { applicationTarget, targetFromKey, targetKey, type DraftTarget } from "../drafts/model.ts";
+import { changeKey, tokenReference } from "../changes/model.ts";
+import { selectorForManagedChange } from "../changes/managedStyleProjection.ts";
+import {
+  isComponentChange,
+  isTextContentChange,
+  isTokenChange,
+  type ChangeRecord,
+  type PreviewableChangeRecord,
+} from "../changes/types.ts";
+import { verifyPreview } from "../projection/managedStylesheet.ts";
+import { resolveMovedRenderedInstance } from "../projection/renderedInstance.ts";
+import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
+import { boundRuntimeEvidence, normalizeRuntimeTag } from "../runtime/staticHtmlRuntimeIdentity.ts";
+import {
+  documentStateKey,
+  type StructuralChange,
+  type StructuralDelete,
+  type StructuralMove,
+} from "../projection/structuralProjection.ts";
+import {
+  resolveTextProjectionTarget,
+  resolveTextProjectionTextNode,
+} from "../projection/textProjection.ts";
+import {
+  applyHostDraftProjection,
+  compileDraftProjection,
+} from "../projection/draftProjection.ts";
+import {
+  isCanvasProjectionRevisionCurrent,
+  restoreCanonicalFrameProjection,
+  projectDraftToDocument,
+} from "../canvas/projection.ts";
+import { isEditorShellDocument } from "../runtime/editorShell.ts";
+
+export interface HandoffOwner {
+  readonly draftId: string;
+  readonly draftRevision: number;
+  readonly target: DraftTarget;
+  readonly frameIds: readonly string[];
+}
+
+export function captureHandoffOwner(cardId?: string | null): HandoffOwner {
+  const draftId = (cardId && draftIdForCard(cardId)) || getActiveDraftChanges().draftId;
+  const workspace = getDraftChanges(draftId);
+  return { draftId, draftRevision: workspace.revision, target: targetFromKey(draftId) ?? applicationTarget(),
+    frameIds: getCanvasCards().filter((card) => draftIdForCard(card.id) === workspace.draftId).map((card) => card.id) };
+}
+
+export interface HandoffSnapshot {
+  readonly owner: HandoffOwner;
+  readonly changes: readonly ChangeRecord[];
+  readonly structuralChanges: readonly StructuralChange[];
+}
+
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableJsonValue(entry)]),
+  );
+}
+
+function stableSerialized(value: unknown): string {
+  return JSON.stringify(stableJsonValue(value));
+}
+
+export function handoffChangeFingerprint(change: ChangeRecord): string {
+  return stableSerialized(change);
+}
+
+export function handoffStructuralFingerprint(change: StructuralChange): string {
+  return stableSerialized(change);
+}
+
+function requestedStyleValue(change: PreviewableChangeRecord): string {
+  if (isTokenChange(change)) return change.rawValue;
+  if (change.newToken) return tokenReference(change.newToken);
+  return change.rawValue ?? "";
+}
+
+function queryTargets(doc: Document, selector: string | null): HTMLElement[] {
+  if (!selector) return [];
+  try {
+    return Array.from(doc.querySelectorAll<HTMLElement>(selector));
+  } catch {
+    return [];
+  }
+}
+
+/** Falls back to relocating a shifted source site. */
+function styleTargets(change: PreviewableChangeRecord, doc: Document): HTMLElement[] {
+  if (isTokenChange(change)) return queryTargets(doc, change.selector);
+  // The projection marker is lifted for verification; evidence names the instance.
+  if (change.scope === "rendered-instance") {
+    const resolved = change.instanceOverride
+      ? resolveMovedRenderedInstance(doc, change.instanceOverride.target)
+      : null;
+    return resolved?.status === "resolved" ? [resolved.element] : [];
+  }
+  const targets = queryTargets(doc, selectorForManagedChange(change));
+  const evidence = change.sourceEvidence;
+  if (targets.length > 0 || !evidence || change.column === undefined) return targets;
+  const site = relocateSourceSite(doc, { cid: change.cid, src: `${change.file}:${change.line}:${change.column}` }, (element) =>
+    normalizeRuntimeTag(element.tagName) === evidence.tagName
+    && boundRuntimeEvidence(element.getAttribute("data-cprops")) === evidence.props);
+  return site ? queryTargets(doc, sourceSiteSelector(site.cid, site.src)) : [];
+}
+
+function verifyStyle(change: PreviewableChangeRecord, doc: Document): boolean {
+  if (!isTokenChange(change) && (change.state ?? "base") !== "base") return false;
+  const targets = styleTargets(change, doc);
+  const requested = requestedStyleValue(change);
+  return requested.length > 0
+    && targets.length > 0
+    && targets.every((target) => verifyPreview(target, change.property, requested).status === "applied");
+}
+
+function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc: Document): boolean {
+  let target = change.target;
+  let resolved = resolveTextProjectionTarget(doc, target, change.after);
+  if (resolved.status === "missing") {
+    const sourceSite = relocateSourceSite(doc, target.sourceSite, (element) =>
+      element.getAttribute("data-cprops") === target.props && element.getAttribute("aria-label") === target.ariaLabel);
+    if (sourceSite) {
+      target = { ...target, sourceSite };
+      resolved = resolveTextProjectionTarget(doc, target, change.after);
+    }
+  }
+  if (resolved.status !== "resolved") return false;
+  const node = resolveTextProjectionTextNode(resolved.element, target, change.after);
+  if (node) return node.nodeValue === change.after;
+  return target.textNodePath === undefined
+    && change.after.length === 0
+    && (resolved.element.textContent ?? "") === "";
+}
+
+/** Only a definitive miss verifies; ambiguous evidence still means identical elements are present. */
+function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolean {
+  if (!change.route || !change.state || !doc.location) return false;
+  let currentRoute: string;
+  try {
+    const url = new URL(doc.location.href);
+    url.hash = "";
+    currentRoute = url.href;
+  } catch {
+    return false;
+  }
+  return currentRoute === change.route
+    && documentStateKey(doc) === change.state
+    && resolveMovedRenderedInstance(doc, change.target).status === "missing";
+}
+
+/** A cleanly applied preview returns to its captured origin, so only a move that stays at its recorded destination verifies. */
+function verifyStructuralMove(change: StructuralMove, doc: Document): boolean {
+  const target = resolveMovedRenderedInstance(doc, change.target);
+  if (target.status !== "resolved") return false;
+  const parent = resolveMovedRenderedInstance(doc, change.destination.parent);
+  if (parent.status !== "resolved") return false;
+  if (target.element.parentElement !== parent.element) return false;
+  if (!change.destination.before) return target.element.nextElementSibling === null;
+  const before = resolveMovedRenderedInstance(doc, change.destination.before);
+  return before.status === "resolved" && target.element.nextElementSibling === before.element;
+}
+
+function verifiedStructuralChangeIds(
+  eligible: readonly StructuralChange[],
+  doc: Document,
+): Set<string> {
+  const verified = new Set<string>();
+  for (const change of eligible) {
+    const applied = change.kind === "delete"
+      ? verifyStructuralDelete(change, doc)
+      : verifyStructuralMove(change, doc);
+    if (applied) verified.add(change.id);
+  }
+  return verified;
+}
+
+/** Component props and interaction states stay unresolved: rendered output alone cannot prove their source changed. */
+export function verifiedChangeKeys(
+  sentChanges: readonly ChangeRecord[],
+  doc: Document = document,
+): Set<string> {
+  const verified = new Set<string>();
+  for (const change of sentChanges) {
+    if (isComponentChange(change)) continue;
+    const applied = isTextContentChange(change)
+      ? verifyText(change, doc)
+      : verifyStyle(change, doc);
+    if (applied) verified.add(changeKey(change));
+  }
+  return verified;
+}
+
+function afterBrowserPaint(doc: Document): Promise<void> {
+  const ownerWindow = doc.defaultView;
+  const requestFrame = ownerWindow?.requestAnimationFrame.bind(ownerWindow);
+  if (!ownerWindow || !requestFrame) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(finish, 250);
+    requestFrame(() => {
+      if (doc.defaultView !== ownerWindow) return finish();
+      requestFrame(finish);
+    });
+  });
+}
+
+/** Newer edits and ambiguous records are preserved. */
+export async function verifyAndReconcileHandoff(
+  snapshot: HandoffSnapshot,
+  doc: Document | null = handoffDocument(snapshot.owner),
+): Promise<number> {
+  if (!doc || !documentBelongsToHandoff(doc, snapshot.owner)) return 0;
+  const applyProjection = async (
+    snapshot: Parameters<typeof compileDraftProjection>[0],
+  ): Promise<number | "host" | null> => {
+    if (doc === document && !isEditorShellDocument(doc)) {
+      applyHostDraftProjection(compileDraftProjection(snapshot));
+      return "host";
+    }
+    if (doc === document) return null;
+    return projectDraftToDocument(doc, snapshot);
+  };
+  const sentByKey = new Map(
+    snapshot.changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
+  );
+  const current = getDraftChanges(snapshot.owner.draftId).changes;
+  const eligible = current.filter(
+    (change) => sentByKey.get(changeKey(change)) === handoffChangeFingerprint(change),
+  );
+  const eligibleKeys = new Set(eligible.map(changeKey));
+  const remaining = current.filter((change) => !eligibleKeys.has(changeKey(change)));
+
+  const sentStructural = new Map(
+    snapshot.structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
+  );
+  const currentStructural = getDraftChanges(snapshot.owner.draftId).structuralChanges;
+  const eligibleStructural = currentStructural.filter(
+    (change) => sentStructural.get(change.id) === handoffStructuralFingerprint(change),
+  );
+  const eligibleStructuralIds = new Set(eligibleStructural.map((change) => change.id));
+  const remainingStructural = currentStructural.filter((change) => !eligibleStructuralIds.has(change.id));
+
+  try {
+    const currentWorkspace = getDraftChanges(snapshot.owner.draftId);
+    const previewRevision = await applyProjection({
+      revision: currentWorkspace.revision,
+      changes: remaining,
+      structuralChanges: remainingStructural,
+    });
+    if (previewRevision === null) return 0;
+    await afterBrowserPaint(doc);
+    if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
+    if (typeof previewRevision === "number"
+      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
+    const verified = verifiedChangeKeys(eligible, doc);
+    const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, doc);
+    // Recheck byte identity before reconciling; a user edit can land while the two-frame window is open.
+    const currentByKey = new Map(
+      getDraftChanges(snapshot.owner.draftId).changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
+    );
+    const stillVerified = new Set(
+      [...verified].filter((key) => currentByKey.get(key) === sentByKey.get(key)),
+    );
+    const currentStructuralById = new Map(
+      getDraftChanges(snapshot.owner.draftId).structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
+    );
+    const stillVerifiedStructural = new Set(
+      [...verifiedStructural].filter(
+        (id) => currentStructuralById.get(id) === sentStructural.get(id),
+      ),
+    );
+    if (typeof previewRevision === "number"
+      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
+    if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
+    return reconcileDraftChanges(snapshot.owner.draftId, stillVerified, stillVerifiedStructural);
+  } finally {
+    // If reconciliation could not write (read-only Canvas lease), restore the untouched set; a Canvas restore settles on the renderer's acknowledgement.
+    if (doc === document) await applyProjection(getActiveDraftChanges());
+    else await restoreCanonicalFrameProjection(doc);
+  }
+}
+
+export function documentBelongsToHandoff(doc: Document, owner: HandoffOwner): boolean {
+  if (owner.target.kind === "application"
+    && targetKey(applicationTarget(doc.location.href)) !== targetKey(owner.target)) return false;
+  if (doc === document) return owner.target.kind === "application" && !isEditorShellDocument(doc);
+  const id = getCanvasCardIdForDocument(doc);
+  return !!id && draftIdForCard(id) === owner.draftId;
+}
+
+function handoffDocument(owner: HandoffOwner): Document | null {
+  for (const [id, frame] of getRegisteredFrames()) {
+    if (draftIdForCard(id) !== owner.draftId) continue;
+    const doc = frame.contentDocument;
+    if (doc && documentBelongsToHandoff(doc, owner)) return doc;
+  }
+  return owner.target.kind === "application" && !isEditorShellDocument() ? document : null;
+}
+
+

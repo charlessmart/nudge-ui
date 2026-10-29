@@ -1,19 +1,9 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { verifyAgentServer } from "./agent-verification.ts";
+import { rmSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { basename, relative } from "node:path";
-import {
-  configureProjectAgents,
-  detectProjectAgentCandidates,
-  initializerVersion,
-  isAgentServerAvailable,
-  manualAgentConfiguration,
-  planAgentSetup,
-  projectAgentChoices,
-  type AgentSetupPlan,
-} from "./agent-setup.ts";
 import { parseArguments, helpText } from "./arguments.ts";
+import { initializerVersion } from "./version.ts";
 import { planConfiguration } from "./configuration.ts";
 import {
   detectFrameworks,
@@ -30,16 +20,6 @@ import {
   type PackageManager,
 } from "./types.ts";
 
-export interface RunAgentSetupOptions {
-  readonly agents?: readonly string[];
-  /** Package specifier or tarball used for both the bridge and adapter installs. */
-  readonly mcpPackageSpecifier?: string;
-  readonly dryRun?: boolean;
-  readonly nudgeUiVersion?: string;
-  readonly packageManager?: PackageManager;
-  readonly yes?: boolean;
-}
-
 export async function runCli(args = process.argv.slice(2), projectRoot = process.cwd()): Promise<void> {
   const options = parseArguments(args);
   if (options.help) {
@@ -49,16 +29,6 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
 
   const manifest = readProjectManifest(projectRoot);
   const packageManager = options.packageManager ?? detectPackageManager(projectRoot, manifest);
-  if (options.agentOnly) {
-    await runAgentSetup(projectRoot, {
-      agents: options.agents,
-      mcpPackageSpecifier: options.mcpPackageSpecifier,
-      dryRun: options.dryRun,
-      packageManager,
-      yes: options.yes,
-    });
-    return;
-  }
 
   const detected = detectFrameworks(projectRoot, manifest);
   const framework = options.framework ?? await selectFramework(detected);
@@ -73,16 +43,6 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
     stdout.write(`Would run: ${formatCommand(command)}\n`);
     if (change) stdout.write(`Would ${change.created ? "create" : "update"}: ${change.path}\n`);
     if (framework === "standalone") stdout.write(`After installation, run: nudge-ui serve ${serveDirectory}\n`);
-    if (await shouldConfigureAgent(options.mcp, options.agents.length > 0, options.yes)) {
-      await runAgentSetup(projectRoot, {
-        agents: options.agents,
-        mcpPackageSpecifier: options.mcpPackageSpecifier,
-        dryRun: true,
-        nudgeUiVersion: initializerVersion(),
-        packageManager,
-        yes: options.yes,
-      });
-    }
     return;
   }
 
@@ -102,161 +62,6 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
     stdout.write(`Run \`nudge-ui serve ${serveDirectory}\` to start the instrumented development server.\n`);
   }
   stdout.write(`Nudge UI is configured for ${frameworkDisplayName(framework)}.\n`);
-  if (await shouldConfigureAgent(options.mcp, options.agents.length > 0, options.yes)) {
-    await runAgentSetup(projectRoot, {
-      agents: options.agents,
-      mcpPackageSpecifier: options.mcpPackageSpecifier,
-      nudgeUiVersion: initializerVersion(),
-      packageManager,
-      yes: options.yes,
-    });
-  }
-}
-
-/** Safe to rerun to repair an existing setup. */
-export async function runAgentSetup(
-  projectRoot = process.cwd(),
-  options: RunAgentSetupOptions = {},
-): Promise<void> {
-  const manifest = readProjectManifest(projectRoot);
-  const packageManager = options.packageManager ?? detectPackageManager(projectRoot, manifest);
-  const plan = planAgentSetup(projectRoot, packageManager, options.nudgeUiVersion, undefined, options.mcpPackageSpecifier);
-  const detected = await detectProjectAgentCandidates(plan.projectRoot);
-  const selected = options.agents && options.agents.length > 0
-    ? options.agents
-    : options.yes || !stdin.isTTY || !stdout.isTTY
-      ? detected
-      : await selectAgents(detected);
-
-  if (options.dryRun) {
-    stdout.write(`Would run: ${formatCommand(plan.installCommand)}\n`);
-    stdout.write(`Would run: ${formatCommand(plan.adapterInstallCommand)}\n`);
-    if (selected.length > 0) {
-      stdout.write(`Would configure global MCP and migrate this project override for: ${selected.join(", ")}\n`);
-    } else {
-      stdout.write("No coding agent was detected. Use --agent <id> or add the configuration below manually.\n");
-      writeManualInstructions(plan);
-    }
-    return;
-  }
-
-  installPackage(plan.installCommand, plan.projectRoot);
-  try {
-    mkdirSync(plan.adapterRoot, { recursive: true });
-    installPackage(plan.adapterInstallCommand, plan.adapterRoot);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    stdout.write(`Could not install the reusable MCP adapter: ${message}\n`);
-    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
-    stdout.write("The coding-agent configuration was not changed. After the adapter install succeeds, rerun with --agent-only.\n");
-    return;
-  }
-  if (!isAgentServerAvailable(plan)) {
-    stdout.write(`Installed ${plan.packageSpecifier}, but its reusable MCP executable was not found at ${plan.serverEntry}.\n`);
-    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
-    stdout.write("The coding-agent configuration was not changed. Check the package-manager install output, then rerun with --agent-only.\n");
-    return;
-  }
-  try {
-    await verifyAgentServer(plan.serverConfig);
-    stdout.write("Verified MCP initialization and tool discovery with a fresh client.\n");
-  } catch (error) {
-    stdout.write(`MCP verification failed: ${error instanceof Error ? error.message : String(error)}\n`);
-    stdout.write(`Retry with: ${formatCommand(plan.adapterInstallCommand)}\n`);
-    stdout.write("The coding-agent configuration was not changed. After repairing the adapter install, rerun with --agent-only.\n");
-    return;
-  }
-  if (selected.length === 0) {
-    stdout.write(`Installed ${plan.packageSpecifier}, but no coding agent was detected.\n`);
-    writeManualInstructions(plan);
-    return;
-  }
-
-  let outcomes;
-  try {
-    outcomes = await configureProjectAgents(plan, selected);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    stdout.write(`Could not update the coding-agent configuration: ${message}\n`);
-    writeManualInstructions(plan);
-    return;
-  }
-
-  let configured = 0;
-  for (const outcome of outcomes) {
-    if (outcome.unsupported) {
-      stdout.write(`${outcome.displayName} is not supported for automatic global setup.\n`);
-      continue;
-    }
-    for (const backup of outcome.backups ?? []) stdout.write(`Saved previous MCP configuration: ${backup}\n`);
-    if (outcome.migrationError) {
-      stdout.write(`Global adapter configured, but project override migration failed: ${outcome.migrationError}\n`);
-      continue;
-    }
-    if (outcome.result?.success) {
-      configured += 1;
-      stdout.write(`Configured ${outcome.displayName}: ${outcome.result.path}\n`);
-      continue;
-    }
-    stdout.write(`Could not configure ${outcome.displayName}: ${outcome.result?.error ?? "unknown error"}\n`);
-  }
-  if (configured !== outcomes.length) writeManualInstructions(plan);
-  if (configured > 0) {
-    stdout.write("Adapter configuration is ready. Fully restart the agent host to load it, then ask it to listen to Nudge in the current workspace. Existing overrides in other projects require one setup rerun there.\n");
-  }
-}
-
-async function shouldConfigureAgent(
-  preference: boolean | undefined,
-  hasExplicitAgents: boolean,
-  yes: boolean,
-): Promise<boolean> {
-  if (preference !== undefined) return preference;
-  if (hasExplicitAgents || yes) return true;
-  if (!stdin.isTTY || !stdout.isTTY) return false;
-  return promptYesNo("Connect a coding agent?", true);
-}
-
-async function promptYesNo(message: string, defaultValue: boolean): Promise<boolean> {
-  const reader = createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = (await reader.question(`${message} ${defaultValue ? "[Y/n]" : "[y/N]"} `)).trim().toLowerCase();
-    if (!answer) return defaultValue;
-    return answer === "y" || answer === "yes";
-  } finally {
-    reader.close();
-  }
-}
-
-async function selectAgents(detected: Awaited<ReturnType<typeof detectProjectAgentCandidates>>): Promise<string[]> {
-  const choices = projectAgentChoices(detected);
-  stdout.write("Select coding agents (comma-separated):\n");
-  choices.forEach((choice, index) => {
-    stdout.write(`  ${index + 1}. ${choice.label}${choice.detected ? " (detected)" : ""}\n`);
-  });
-  const defaults = choices
-    .map((choice, index) => choice.detected ? String(index + 1) : undefined)
-    .filter((value): value is string => value !== undefined)
-    .join(",");
-  const reader = createInterface({ input: stdin, output: stdout });
-  try {
-    while (true) {
-      const suffix = defaults ? ` [${defaults}]` : "";
-      const answer = (await reader.question(`Agents${suffix}: `)).trim() || defaults;
-      const indexes = answer.split(",").map((value) => Number(value.trim()) - 1);
-      if (indexes.length > 0 && indexes.every((index) => choices[index])) {
-        return [...new Set(indexes.map((index) => choices[index]!.id))];
-      }
-      stdout.write(`Enter one or more numbers from 1 to ${choices.length}.\n`);
-    }
-  } finally {
-    reader.close();
-  }
-}
-
-function writeManualInstructions(plan: AgentSetupPlan): void {
-  stdout.write("Add this global stdio server to your agent's MCP settings:\n");
-  stdout.write(`${manualAgentConfiguration(plan)}\n`);
 }
 
 async function selectFramework(detected: readonly Framework[]): Promise<Framework> {

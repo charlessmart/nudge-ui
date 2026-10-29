@@ -156,6 +156,37 @@ describe("bootstrapRenderer teardown", () => {
     expect(focus.defaultPrevented).toBe(false);
   });
 
+  it("keeps Space-drag panning while the app takes native wheel input", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRendererForTest();
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: true, panScroll: false, spacePan: true, ...identity },
+    }));
+
+    const space = new KeyboardEvent("keydown", { code: "Space", cancelable: true });
+    window.dispatchEvent(space);
+    expect(space.defaultPrevented).toBe(true);
+
+    const wheel = new WheelEvent("wheel", { deltaY: 40, cancelable: true });
+    window.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(false);
+
+    document.body.dispatchEvent(new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 10,
+      clientY: 20,
+    }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({
+      type: "pan-start",
+      point: { x: 10, y: 20 },
+    }));
+  });
+
   it("cancels a pending pan frame and removes pan listeners", () => {
     const scheduled: FrameRequestCallback[] = [];
     const originalRequestAnimationFrame = window.requestAnimationFrame;
@@ -286,9 +317,9 @@ describe("bootstrapRenderer app interaction", () => {
     expect(receivedShift).toBe(true);
   });
 
-  function sendLinkTargetState(openInCard: boolean): void {
+  function sendLinkPreviewState(enabled: boolean): void {
     window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "link-target-state", protocolVersion: PROTOCOL_VERSION, openInCard, ...identity },
+      data: { type: "link-preview-state", protocolVersion: PROTOCOL_VERSION, enabled, ...identity },
       origin: window.location.origin,
       source: window,
     }));
@@ -311,22 +342,54 @@ describe("bootstrapRenderer app interaction", () => {
     return { reachedApp, defaultPrevented: reachedApp ? defaultPreventedBeforeApp : click.defaultPrevented };
   }
 
-  it("keeps the card's route and asks for a new card while links open in cards", () => {
+  it("leaves ordinary link navigation to the application", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
     handle = bootstrapRendererForTest();
     dispatchParentReady();
 
-    sendLinkTargetState(true);
-    const cardClick = clickLink();
-    sendLinkTargetState(false);
-    const frameClick = clickLink();
+    sendLinkPreviewState(true);
+    const click = clickLink();
 
     const intents = messages(postMessage).filter((message) => message.type === "navigation-intent");
-    expect(cardClick).toEqual({ reachedApp: false, defaultPrevented: true });
-    expect(frameClick).toEqual({ reachedApp: true, defaultPrevented: false });
+    expect(click).toEqual({ reachedApp: true, defaultPrevented: false });
     expect(intents).toEqual([
-      expect.objectContaining({ url: `${window.location.origin}/pricing`, openInCard: true }),
-      expect.not.objectContaining({ openInCard: true }),
+      expect.objectContaining({ url: `${window.location.origin}/pricing` }),
     ]);
+    expect(intents[0]).not.toHaveProperty("openInCard");
+  });
+
+  it("previews hovered links only while link previews are enabled", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRendererForTest();
+    dispatchParentReady();
+
+    const link = document.createElement("a");
+    link.href = "/pricing";
+    const child = document.createElement("span");
+    link.append(child);
+    document.body.append(link);
+    vi.spyOn(link, "getBoundingClientRect").mockReturnValue({
+      left: 10, top: 20, width: 80, height: 16, right: 90, bottom: 36, x: 10, y: 20, toJSON: () => ({}),
+    } as DOMRect);
+
+    child.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body }));
+    expect(messages(postMessage).filter((message) => message.type === "link-preview")).toHaveLength(0);
+
+    sendLinkPreviewState(true);
+    child.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({
+      type: "link-preview",
+      url: `${window.location.origin}/pricing`,
+      rect: { left: 10, top: 20, width: 80, height: 16 },
+    }));
+
+    child.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    expect(messages(postMessage).filter((message) => message.type === "link-preview").at(-1))
+      .toEqual(expect.objectContaining({ type: "link-preview", url: null, rect: null }));
+
+    child.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    sendLinkPreviewState(false);
+    expect(messages(postMessage).filter((message) => message.type === "link-preview").at(-1))
+      .toEqual(expect.objectContaining({ type: "link-preview", url: null, rect: null }));
   });
 });

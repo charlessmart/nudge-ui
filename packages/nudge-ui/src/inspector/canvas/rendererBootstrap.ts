@@ -14,7 +14,8 @@ import type {
   FrameMetadataMessage,
   FrameReadyMessage,
   FrameRuntimeMessage,
-  LinkTargetStateMessage,
+  LinkPreviewMessage,
+  LinkPreviewStateMessage,
   NavigationIntentMessage,
   PanEndMessage,
   PanModifierMessage,
@@ -26,7 +27,7 @@ import type {
 } from "./frameProtocol.ts";
 import { wheelPanDelta } from "./wheelPan.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
-import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import { findClosestAnchor, isEligibleNavigation, isLinkPreviewTarget } from "./linkEligibility.ts";
 import { installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
@@ -224,27 +225,78 @@ export function bootstrapRenderer(resources: RendererBootstrapResources = {}): R
     if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
     installRendererPanProxy(owner);
 
-    let openLinksInCards = false;
+    let linkPreviewsEnabled = false;
+    let previewedLink: HTMLAnchorElement | null = null;
+
+    const sendLinkPreview = (anchor: HTMLAnchorElement | null, point: { x: number; y: number } | null): void => {
+      if (!ownsRendererBootstrap(owner)) return;
+      const identity = getRendererIdentity();
+      if (!identity) return;
+      const rect = anchor?.getBoundingClientRect() ?? null;
+      const msg: LinkPreviewMessage = {
+        type: "link-preview",
+        protocolVersion: PROTOCOL_VERSION,
+        url: anchor?.href ?? null,
+        rect: rect
+          ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+          : null,
+        point,
+        ...identity,
+      };
+      sendToParent(msg);
+    };
+
+    const reportLinkPreview = (anchor: HTMLAnchorElement | null, point: { x: number; y: number } | null): void => {
+      if (anchor === previewedLink) return;
+      previewedLink = anchor;
+      sendLinkPreview(anchor, point);
+    };
+
+    const clearLinkPreview = (): void => {
+      if (previewedLink) reportLinkPreview(null, null);
+    };
+
+    const onLinkMouseOver = (event: MouseEvent): void => {
+      if (!linkPreviewsEnabled) return;
+      const anchor = findClosestAnchor(event.target);
+      reportLinkPreview(
+        anchor && isLinkPreviewTarget(anchor) ? anchor : null,
+        { x: event.clientX, y: event.clientY },
+      );
+    };
+
+    const onLinkMouseOut = (event: MouseEvent): void => {
+      if (!linkPreviewsEnabled || !previewedLink) return;
+      const next = event.relatedTarget instanceof Element ? findClosestAnchor(event.relatedTarget) : null;
+      if (next === previewedLink) return;
+      reportLinkPreview(null, null);
+    };
+
+    document.addEventListener("mouseover", onLinkMouseOver, true);
+    document.addEventListener("mouseout", onLinkMouseOut, true);
+    document.addEventListener("scroll", clearLinkPreview, true);
+    window.addEventListener("resize", clearLinkPreview);
+    owner.listenerRemovers.push(
+      () => document.removeEventListener("mouseover", onLinkMouseOver, true),
+      () => document.removeEventListener("mouseout", onLinkMouseOut, true),
+      () => document.removeEventListener("scroll", clearLinkPreview, true),
+      () => window.removeEventListener("resize", clearLinkPreview),
+    );
+
     const onClick = (event: MouseEvent): void => {
       if (!ownsRendererBootstrap(owner)) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
       if (!isEligibleNavigation(anchor, event)) return;
-      if (!hasDifferentRoute(anchor)) return;
+      if (!isLinkPreviewTarget(anchor)) return;
 
       const identity = getRendererIdentity();
       if (!identity) return;
 
-      if (openLinksInCards) {
-        // Capture on document runs before framework routers, so the card keeps its route.
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
       const msg: NavigationIntentMessage = {
         type: "navigation-intent",
         protocolVersion: PROTOCOL_VERSION,
         url: anchor.href,
-        ...(openLinksInCards ? { openInCard: true } : {}),
         ...identity,
       };
       sendToParent(msg);
@@ -271,9 +323,10 @@ export function bootstrapRenderer(resources: RendererBootstrapResources = {}): R
       }
 
       const frameIdentity = getRendererIdentity();
-      if (frameIdentity && isRendererMessageFor(msg, frameIdentity) && msg.type === "link-target-state") {
+      if (frameIdentity && isRendererMessageFor(msg, frameIdentity) && msg.type === "link-preview-state") {
         // SAFETY: the identity check proves a protocol message; the discriminator selects this shape.
-        openLinksInCards = (msg as LinkTargetStateMessage).openInCard === true;
+        linkPreviewsEnabled = (msg as LinkPreviewStateMessage).enabled === true;
+        if (!linkPreviewsEnabled) clearLinkPreview();
         return;
       }
 
@@ -321,6 +374,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let panning = false;
   let boardGesturesEnabled = false;
   let boardScrollPans = false;
+  let spacePans = false;
   let nativeAppInteraction = false;
 
   const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
@@ -392,7 +446,9 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
       boardGesturesEnabled = (event.data as BoardGestureStateMessage).enabled;
       boardScrollPans = (event.data as BoardGestureStateMessage).panScroll === true;
       nativeAppInteraction = (event.data as BoardGestureStateMessage).panScroll === false;
-      if (!boardGesturesEnabled || nativeAppInteraction) {
+      spacePans = boardGesturesEnabled
+        && ((event.data as BoardGestureStateMessage).spacePan ?? !nativeAppInteraction);
+      if (!boardGesturesEnabled || !spacePans) {
         spaceHeld = false;
         endPan();
       }
@@ -410,7 +466,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner) || isInspectorUiEvent(event)) return;
     if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
-    if (boardGesturesEnabled && !nativeAppInteraction && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
+    if (spacePans && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();
       sendSpaceState();
@@ -455,7 +511,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onPointerDown = (event: PointerEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (!boardGesturesEnabled || nativeAppInteraction || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
+    if (!spacePans || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     panning = true;

@@ -5,7 +5,6 @@ import { describeElement } from "@inspector/shell/elementName.ts";
 import { InspectorEditors } from "@inspector/shell/InspectorEditors.tsx";
 import { ComponentPropsSection, useComponentProps } from "@inspector/componentSemantics/ComponentPropsSection.tsx";
 import { EmptyState } from "@inspector/shell/EmptyState.tsx";
-import { AgentStatusButtonView } from "@inspector/shell/AgentStatusButton.tsx";
 import { PromptActionButton, PromptActionRow } from "@inspector/shell/PromptActionButton.tsx";
 import { clearActiveDraft, useChanges } from "@inspector/drafts/store.ts";
 import { setStyle } from "@inspector/tokens/editActions.ts";
@@ -14,6 +13,7 @@ import { PeekOriginalButton } from "@inspector/shell/PeekOriginalButton.tsx";
 import { ChangesMenu } from "@inspector/shell/ChangesLog.tsx";
 import { DRAG_CURSOR_STYLES } from "@inspector/ui/dragCursor.ts";
 import { TooltipGroup } from "@inspector/ui/Tooltip.tsx";
+import { Button } from "@inspector/ui/Button.tsx";
 import { StatusCallout } from "@inspector/ui/StatusCallout.tsx";
 import { useBrowserCssInspection } from "@inspector/inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "@inspector/selection/resolveSelection.ts";
@@ -26,7 +26,7 @@ import type { InteractionState } from "@inspector/shell/styleState.ts";
 import { ComponentExamples, FixtureTargets } from "./FixtureTargets.tsx";
 import { ControlledFields } from "./ControlledFields.tsx";
 import { ToolbarGallery } from "./ToolbarGallery.tsx";
-import { agentFixture, scenarios, type Scenario } from "./scenarios.ts";
+import { scenarios, type Scenario } from "./scenarios.ts";
 
 function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
   const [isOpen, setOpen] = useState(true);
@@ -59,7 +59,7 @@ function FixturePanel({ scenario }: { scenario: Scenario }): ReactElement {
   return <TooltipGroup>
     <InspectorPanel
       isOpen={isOpen} onOpenChange={setOpen}
-      headerActions={<><PeekOriginalButton /><AgentStatusButtonView agent={agentFixture(scenario.connected ?? false)} onOpenSettings={() => setNotice("Fixture agent status. Use the outer inspector to configure your real connection.")} /></>}
+      headerActions={<><PeekOriginalButton /><Button variant="quiet" aria-label="Settings" onClick={() => setNotice("Fixture settings action.")}><span>Settings</span></Button></>}
       prompt={<div className="copy-prompt__stack" data-test="copy-prompt-control">
         <PromptActionRow changes={<ChangesMenu />} hasChanges={changes.length > 0} onClear={clearActiveDraft}>
           <PromptActionButton disabled={changes.length === 0} badgeCount={changes.length} onClick={() => setNotice("Fixture prompt action. Use the outer inspector’s Copy prompt button to export your design changes.")} />
