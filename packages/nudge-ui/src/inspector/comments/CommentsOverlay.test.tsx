@@ -89,6 +89,60 @@ it("opens a comment draft on the page surface without unmounting the overlay", (
   expect(document.querySelector('[data-test="comment-input"]')).not.toBeNull();
 });
 
+function clickTarget(frame: CanvasFrame): void {
+  act(() => window.dispatchEvent(new MessageEvent("message", {
+    origin: window.location.origin,
+    source: window,
+    data: {
+      ...connectFrame("comment-card", frame).identity,
+      protocolVersion: PROTOCOL_VERSION,
+      type: "element-click",
+      elementId: "r1",
+      cid: "SaveButton",
+      src: "src/App.tsx:10:3",
+    },
+  })));
+}
+
+it("opens the editor and shows the pin for an element whose top-right corner is outside the frame", () => {
+  const frame = getPageFrame();
+  const element = target(frame);
+  element.getBoundingClientRect = () => new DOMRect(-356, -144, 1736, 320);
+  act(() => root.render(<CommentsOverlay />));
+
+  clickTarget(frame);
+  expect(document.querySelector('[data-test="comment-input"]')).not.toBeNull();
+
+  const ref = captureRenderedInstance(element);
+  expect(ref).not.toBeNull();
+  act(() => saveComment({
+    id: "wide-note", route: commentRoute(element.ownerDocument), target: ref!,
+    tag: "button", note: "Tighten the grid", baseline: commentFingerprint(element),
+    viewport: commentViewport(element.ownerDocument), handedOff: false,
+  }));
+
+  const pin = host.querySelector<HTMLElement>('[data-test="comment-pin"]');
+  expect(pin?.style.top).toBe("0px");
+  expect(pin?.style.left).toBe("776px");
+});
+
+it("hides the pin of an element entirely outside the frame", () => {
+  const frame = getPageFrame();
+  const element = target(frame);
+  element.getBoundingClientRect = () => new DOMRect(20, -200, 80, 40);
+  const ref = captureRenderedInstance(element);
+  expect(ref).not.toBeNull();
+  saveComment({
+    id: "offscreen-note", route: commentRoute(element.ownerDocument), target: ref!,
+    tag: "button", note: "Rename Save", baseline: commentFingerprint(element),
+    viewport: commentViewport(element.ownerDocument), handedOff: false,
+  });
+
+  act(() => root.render(<CommentsOverlay />));
+
+  expect(host.querySelector('[data-test="comment-pin"]')).toBeNull();
+});
+
 it.each(["page", "visible iframe", "hidden iframe"])("shows saved pins only on visible surfaces: %s", (surface) => {
   let frame = getPageFrame();
   if (surface !== "page") {

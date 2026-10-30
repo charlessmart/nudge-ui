@@ -1,5 +1,6 @@
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
 import { installAnimationClock, type AnimationClock } from "./animationClock.ts";
+import { MIN_ANIMATION_SPEED } from "./animationSpeed.ts";
 import { dilatePageTimers } from "./pageTimers.ts";
 
 /** How often a slowed page looks for a GSAP that registered itself after the speed was set. */
@@ -148,7 +149,8 @@ export function createPageAnimationSpeed(document: Document = globalThis.documen
     gsapPoll = setInterval(() => {
       if (gsapTimeline(win) !== gsap?.timeline) retimeGsap();
     }, GSAP_POLL_MS);
-    restoreTimers = dilatePageTimers(win, () => speed);
+    // Paused animations run at a hair above zero, which would push a 300ms timer out by minutes; timers stretch no further than the slowest speed.
+    restoreTimers = dilatePageTimers(win, () => Math.max(speed, MIN_ANIMATION_SPEED));
   };
 
   const stopListening = (): void => {

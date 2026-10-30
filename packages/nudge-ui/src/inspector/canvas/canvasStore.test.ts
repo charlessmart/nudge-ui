@@ -40,6 +40,7 @@ import {
   type CanvasMode,
 } from "./viewStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
+import { clearSessionUndoHistory, sessionTimeline } from "../workspace/timeline.ts";
 
 function resetAllCards(): void {
   setCanvasMode("inspect");
@@ -230,6 +231,16 @@ describe("iframe workspace startup", () => {
     expect(getCanvasCards()[0]).toMatchObject({ width: 713, height: 509 });
     expect(getBoardCamera()).toEqual({ x: -91, y: 37, zoom: 0.75 });
     expect(getFocusedCardId()).toBe("card-42");
+  });
+
+  it("keeps a non-undoable activated card out of session history", () => {
+    activateIframeWorkspace(new URL("/playground", window.location.href).href, { width: 1200, height: 800 });
+    clearSessionUndoHistory();
+
+    const seeded = activateIframeWorkspace(new URL("/seeded", window.location.href).href, { width: 1200, height: 800 }, { undoable: false });
+
+    expect(getCanvasCards().map((card) => card.id)).toContain(seeded?.id);
+    expect(sessionTimeline.status().canUndo).toBe(false);
   });
 
   it("applies an explicit entry fragment to a restored route without duplicating it", () => {

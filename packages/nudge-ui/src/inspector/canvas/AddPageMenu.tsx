@@ -6,6 +6,8 @@ import { listHtmlArtifacts } from "../iterations/client.ts";
 import { artifactAgentInstructions } from "../iterations/agentInstructions.ts";
 import type { HtmlArtifactMetadata } from "../../transport/artifacts.ts";
 import { Button } from "../ui/Button.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { showToast } from "../ui/Toast.tsx";
@@ -13,11 +15,12 @@ import { showToast } from "../ui/Toast.tsx";
 export interface AddPageMenuProps {
   /** Selects and reveals the frame that was added or already showing the page. */
   readonly onAdded: (cardId: string) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }
 
 /** Adds an existing HTML iteration to the Canvas. */
-export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
-  const [open, setOpen] = useState(false);
+export function AddPageMenu({ onAdded, open, onOpenChange }: AddPageMenuProps): ReactElement {
   const [artifacts, setArtifacts] = useState<HtmlArtifactMetadata[] | null>(null);
   const [artifactsError, setArtifactsError] = useState<string | null>(null);
 
@@ -38,7 +41,7 @@ export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
 
   function addArtifact(artifact: HtmlArtifactMetadata): void {
     const card = addCanvasArtifact(artifact);
-    setOpen(false);
+    onOpenChange(false);
     onAdded(card.id);
   }
 
@@ -55,24 +58,30 @@ export function AddPageMenu({ onAdded }: AddPageMenuProps): ReactElement {
   }
 
   return (
-    <BasePopover.Root open={open} onOpenChange={setOpen}>
-      <BasePopover.Trigger
-        render={
-          <Button
-            variant="secondary"
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={open}
-            data-test="canvas-add-page"
-          />
-        }
-      >
-        <IconPlus size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-        <span>Add page</span>
-      </BasePopover.Trigger>
+    <BasePopover.Root open={open} onOpenChange={onOpenChange}>
+      {/* Stays mounted while the menu is open: swapping the tooltip's wrapper away would remount the trigger the popover anchors to. */}
+      <Tooltip content="Add page" stableTrigger>
+        <BasePopover.Trigger
+          render={
+            <IconButton
+              variant="quiet"
+              size="large"
+              activeStyle="well"
+              label="Add page"
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              data-active={open ? "true" : "false"}
+              data-test="canvas-add-page"
+            />
+          }
+        >
+          <IconPlus size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+        </BasePopover.Trigger>
+      </Tooltip>
       <BasePopover.Portal container={portalContainer()}>
-        <BasePopover.Positioner className="add-page-menu__positioner" side="bottom" align="start" sideOffset={6}>
-          <BasePopover.Popup className="add-page-menu" aria-label="Add page" data-test="canvas-add-page-menu">
+        <BasePopover.Positioner className="add-page-menu__positioner" side="top" align="center" sideOffset={12}>
+          {/* Focus would otherwise land on the footer button while the list is still loading, scrolling the menu to its end. */}
+          <BasePopover.Popup className="add-page-menu" aria-label="Add page" data-test="canvas-add-page-menu" initialFocus={false}>
             {artifacts === null ? (
               <p className="add-page-menu__muted" role="status">Reading iterations…</p>
             ) : artifactsError !== null ? (

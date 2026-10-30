@@ -171,7 +171,7 @@ test("dev: hovering a link offers opening it in a new canvas frame", async ({ pa
   const gapAbove = linkBox!.y - (popoverBox!.y + popoverBox!.height);
   const gapBelow = popoverBox!.y - (linkBox!.y + linkBox!.height);
   expect(centerOffset).toBeLessThan(1);
-  expect(Math.min(Math.abs(gapAbove - 8), Math.abs(gapBelow - 8))).toBeLessThan(1);
+  expect(Math.min(Math.abs(gapAbove), Math.abs(gapBelow))).toBeLessThan(1);
 
   await page.mouse.move(20, 20);
   await expect(popover).toHaveCount(0);

@@ -307,6 +307,11 @@ export interface DebugViewStateMessage extends RendererMessage {
   state: DebugViewState;
 }
 
+/** Plays every animation on the page again from its start. */
+export interface AnimationReplayMessage extends RendererMessage {
+  type: "animation-replay";
+}
+
 /** Explode view pulled a subtree apart in this renderer. The controller hides its own element chrome meanwhile, since a flat overlay cannot follow the exploded layers. */
 export interface DebugViewPhaseMessage extends RendererMessage {
   type: "debug-view-phase";
@@ -357,7 +362,8 @@ export type ControllerToRendererMessage =
   | MeasureModifierMessage
   | BoardGestureStateMessage
   | InspectorInteractionStateMessage
-  | DebugViewStateMessage;
+  | DebugViewStateMessage
+  | AnimationReplayMessage;
 
 /** One message's payload rule: the keys it may carry beyond the shared envelope, and how to check them. */
 interface MessageSchema {
@@ -522,7 +528,8 @@ export type FrameProtocolMessage =
   | AppInteractionModifierMessage
   | InspectorInteractionStateMessage
   | DebugViewPhaseMessage
-  | DebugViewStateMessage;
+  | DebugViewStateMessage
+  | AnimationReplayMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
 

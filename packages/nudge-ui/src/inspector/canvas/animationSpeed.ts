@@ -3,6 +3,12 @@ export const MAX_ANIMATION_SPEED = 1;
 /** The speed only moves in these steps: every tenth from 0.1× to full speed. */
 export const ANIMATION_SPEED_STEP = 0.1;
 
+/**
+ * What the page runs at while animations are paused: a hair above zero, because the page's clock and timers need a
+ * positive rate, and a thousandth of real speed is indistinguishable from stopped.
+ */
+export const PAUSED_ANIMATION_SPEED = 0.001;
+
 /** Rounded so floating-point steps read as 0.3, not 0.30000000000000004. */
 export function snapAnimationSpeed(speed: number): number {
   const snapped = Math.round(speed / ANIMATION_SPEED_STEP) * ANIMATION_SPEED_STEP;

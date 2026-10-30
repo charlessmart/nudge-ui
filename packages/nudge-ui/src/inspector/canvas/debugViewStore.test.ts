@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_ANIMATION_SPEED,
   getAnimationSpeed,
+  getAnimationsPaused,
   getExplodeView,
   getOutlinesView,
   setAnimationSpeed,
+  setAnimationsPaused,
   setExplodeView,
   setOutlinesView,
 } from "./debugViewStore.ts";
@@ -13,6 +15,7 @@ afterEach(() => {
   setOutlinesView(false);
   setExplodeView(false);
   setAnimationSpeed(DEFAULT_ANIMATION_SPEED);
+  setAnimationsPaused(false);
 });
 
 describe("debug view store", () => {
@@ -29,5 +32,14 @@ describe("debug view store", () => {
     setAnimationSpeed(0.5);
     setExplodeView(true);
     expect([getAnimationSpeed(), getExplodeView()]).toEqual([0.5, true]);
+  });
+
+  it("pauses animations without losing the speed the slider is set to", () => {
+    expect(getAnimationsPaused()).toBe(false);
+    setAnimationSpeed(0.6);
+    setAnimationsPaused(true);
+    expect([getAnimationsPaused(), getAnimationSpeed()]).toEqual([true, 0.6]);
+    setAnimationsPaused(false);
+    expect([getAnimationsPaused(), getAnimationSpeed()]).toEqual([false, 0.6]);
   });
 });

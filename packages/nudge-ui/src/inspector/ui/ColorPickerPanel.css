@@ -36,7 +36,7 @@
   border: 3px solid #fff;
   border-radius: 50%;
   background: var(--thumb-color);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
   pointer-events: none;
   transform: translate(-50%, -50%);
   /* Releases settle on the shared spring; `scale` stays apart from the centering transform. */
@@ -67,11 +67,6 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-8);
-}
-
-/* The picker's thumbs share the surface thumb's size. */
-.color-picker__slider {
-  --slider-thumb-size: var(--color-picker-thumb-size);
 }
 
 .color-picker__slider--hue::before {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent, ReactElement } from "react";
 import {
   IconAdjustmentsHorizontal,
@@ -8,6 +8,7 @@ import {
   IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
+import { AddPageMenu } from "./AddPageMenu.tsx";
 import { ToolbarButton } from "./ToolbarButton.tsx";
 import {
   DesignPointerFilledIcon,
@@ -47,6 +48,9 @@ export function adjacentCanvasZoomLevel(zoom: number, direction: -1 | 1): number
 export interface CanvasToolbarProps {
   readonly tool: CanvasInteractionTool;
   readonly sketchEnabled: boolean;
+  /** The Add page button slides in beside Inspection while the Canvas is showing, and out again in Focus view. */
+  readonly addPageVisible: boolean;
+  readonly onPageAdded: (cardId: string) => void;
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
 }
 
@@ -151,9 +155,24 @@ function useDraggableToolbar() {
 export function CanvasToolbar({
   tool,
   sketchEnabled,
+  addPageVisible,
+  onPageAdded,
   onToolChange,
 }: CanvasToolbarProps): ReactElement {
   const { ref, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } = useDraggableToolbar();
+  const [addPageOpen, setAddPageOpen] = useState(false);
+
+  // The Inspection panel and the Add page menu float over the same spot, so only one is open at a time.
+  useEffect(() => {
+    if (tool === "debug") setAddPageOpen(false);
+  }, [tool]);
+
+  function changeAddPageOpen(open: boolean): void {
+    setAddPageOpen(open);
+    // Selecting the active Inspection tool again puts it away.
+    if (open && tool === "debug") onToolChange("debug");
+  }
+
   return (
     <div
       className="canvas-toolbar canvas-toolbar--movable"
@@ -169,6 +188,18 @@ export function CanvasToolbar({
       onDoubleClick={onDoubleClick}
     >
       <div className="canvas-toolbar__grip" aria-hidden="true" />
+      <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
+        <ToolbarButton
+          active={tool === "select"}
+          label="Use app normally"
+          shortcut="Hold A"
+          icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
+          activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          dataTest="canvas-tool-select"
+          onClick={() => onToolChange("select")}
+        />
+      </div>
+      <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Interaction tools">
         <ToolbarButton
           active={tool === "design"}
@@ -207,18 +238,12 @@ export function CanvasToolbar({
           dataTest="canvas-tool-debug"
           onClick={() => onToolChange("debug")}
         />
-      </div>
-      <div className="canvas-toolbar__divider" aria-hidden="true" />
-      <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
-        <ToolbarButton
-          active={tool === "select"}
-          label="Use app normally"
-          shortcut="Hold A"
-          icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
-          activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
-          dataTest="canvas-tool-select"
-          onClick={() => onToolChange("select")}
-        />
+        <div className="canvas-toolbar__add" data-visible={addPageVisible ? "true" : "false"} data-test="canvas-toolbar-add-page">
+          <div className="canvas-toolbar__add-inner">
+            <div className="canvas-toolbar__divider" aria-hidden="true" />
+            <AddPageMenu onAdded={onPageAdded} open={addPageOpen} onOpenChange={changeAddPageOpen} />
+          </div>
+        </div>
       </div>
     </div>
   );

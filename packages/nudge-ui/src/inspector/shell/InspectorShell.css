@@ -239,7 +239,7 @@
 }
 
 .copy-prompt__menu-icon--live {
-  color: var(--accent);
+  color: var(--brand-primary);
 }
 
 .copy-prompt__menu-content {

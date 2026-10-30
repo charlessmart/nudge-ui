@@ -73,3 +73,8 @@ export function sendRendererState(frame: FrameConnection, state: RendererDesired
 export function sendRendererStateToAll(state: RendererDesiredState): void {
   for (const [cardId, iframe] of getRegisteredFrames()) sendRendererState(connectFrame(cardId, iframe), state);
 }
+
+/** Plays every animation on every card's page again from its start. */
+export function sendAnimationReplayToAll(): void {
+  for (const [cardId, iframe] of getRegisteredFrames()) connectFrame(cardId, iframe).post({ type: "animation-replay" });
+}

@@ -20,6 +20,7 @@ import { backgroundDeclarations, backgroundMode, BACKGROUND_BLEND_MODES, newBack
 import type { BackgroundLayer, BackgroundMode } from "./backgroundLayers.ts";
 import type { ColorPickerProps } from "./ColorPicker.tsx";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
+import { stretchSlider } from "../ui/sliderStretch.ts";
 import { defaultGradient, parseGradient, serializeGradient } from "./gradientValue.ts";
 import type { GradientStop, GradientType, GradientValue } from "./gradientValue.ts";
 
@@ -138,6 +139,12 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
     const result = replaceColorPreservingOpacity(stop.color, color, { tokenTable });
     if (result.ok) updateStop(index, { color: result.value });
   }
+  /** Lets go of the dragged stop, and the track springs back from any stretch past an end. */
+  function endStopDrag(stopElement: HTMLElement): void {
+    dragCommit.current = null;
+    stopElement.toggleAttribute("data-dragging", false);
+    if (stopElement.parentElement) stretchSlider(stopElement.parentElement, null);
+  }
   function percentAt(track: HTMLElement, clientX: number): number {
     const rect = track.getBoundingClientRect();
     return rect.width > 0 ? Math.round(Math.max(0, Math.min(100, (clientX - rect.left) / rect.width * 100))) : 50;
@@ -195,32 +202,36 @@ function BackgroundLayerEditor(props: BackgroundLayerEditorProps): ReactElement 
       onSizing={(declarations) => commit(value, "image", undefined, declarations)} /> : gradient && mode === "gradient" ? <div className="background-editor__gradient">
       <div className="background-editor__track-row">
         <div className="background-editor__track" data-test="gradient-track" aria-label="Gradient stops"
-          style={{ backgroundImage: serializeGradient({ ...gradient, type: "linear", angle: 90, prelude: "", repeating: false,
-            stops: gradient.stops.map((stop) => ({ ...stop, color: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) })) }) }}
+          // SAFETY: React CSSProperties permits custom properties through index signatures; only --track-gradient is added.
+          style={{ "--track-gradient": serializeGradient({ ...gradient, type: "linear", angle: 90, prelude: "", repeating: false,
+            stops: gradient.stops.map((stop) => ({ ...stop, color: previewColor(interpretTokenValue(stop.color, { table: tokenTable })) })) }) } as CSSProperties}
           onPointerDown={(event) => { if (event.target === event.currentTarget && event.button === 0) addStop(percentAt(event.currentTarget, event.clientX)); }}>
           {gradient.stops.map((stop, index) => <button type="button" key={index}
             className="background-editor__stop" aria-label={`Gradient stop ${index + 1}`}
             disabled={blockedBy !== null}
             // SAFETY: React CSSProperties permits custom properties through index signatures; only --stop-color is added.
-            style={{ left: `clamp(8px, ${stop.position}%, calc(100% - 8px))`, "--stop-color": previewColor(interpretTokenValue(stop.color, { table: tokenTable })) } as CSSProperties}
+            style={{ left: `clamp(var(--stop-edge), ${stop.position}%, calc(100% - var(--stop-edge)))`, "--stop-color": previewColor(interpretTokenValue(stop.color, { table: tokenTable })) } as CSSProperties}
             onPointerDown={(event) => {
               if (event.button !== 0) return;
               event.stopPropagation();
               dragCommit.current = createChangeHistoryGroup();
               event.currentTarget.setPointerCapture(event.pointerId);
+              event.currentTarget.toggleAttribute("data-dragging", true);
             }}
             onPointerMove={(event) => {
               if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                const position = percentAt(event.currentTarget.parentElement!, event.clientX);
+                const track = event.currentTarget.parentElement!;
+                const position = percentAt(track, event.clientX);
                 if (position !== stop.position) dragCommit.current?.(() => updateStop(index, { position }));
+                stretchSlider(track, event.clientX);
               }
             }}
             onPointerUp={(event) => {
-              dragCommit.current = null;
+              endStopDrag(event.currentTarget);
               if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
             }}
-            onPointerCancel={() => { dragCommit.current = null; }}
-            onLostPointerCapture={() => { dragCommit.current = null; }}
+            onPointerCancel={(event) => endStopDrag(event.currentTarget)}
+            onLostPointerCapture={(event) => endStopDrag(event.currentTarget)}
             onDoubleClick={() => removeStop(index)}
             onKeyDown={(event) => {
               if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); event.stopPropagation(); removeStop(index); }

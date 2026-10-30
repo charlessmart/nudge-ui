@@ -196,6 +196,27 @@ describe("renderer hover scheduling", () => {
     expect(click).toMatchObject({ type: "element-click", additive: true });
   });
 
+  it("adds the deepest identified element on Command+Shift-click", () => {
+    const outer = trackedElement("outer");
+    const inner = document.createElement("span");
+    inner.dataset.cid = "inner";
+    inner.dataset.src = "src/inner.tsx:1:1";
+    outer.append(inner);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    inner.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      metaKey: true,
+      shiftKey: true,
+    }));
+
+    const click = postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
+    expect(click).toMatchObject({ type: "element-click", cid: "inner", additive: true });
+  });
+
   it("selects the deepest identified element for a programmatic pick", () => {
     const outer = trackedElement("outer");
     const inner = document.createElement("span");

@@ -99,6 +99,12 @@ export function CanvasCardHeader({
         aria-label="Frame actions"
         aria-busy={iterationBusy || undefined}
         onPointerDown={onPointerDown}
+        onDoubleClick={(event) => {
+          // SAFETY: double-click targets inside the header are HTMLElements in this DOM context.
+          const target = event.target as HTMLElement;
+          if (!onShowFocus || target.closest("button, input, a, select, textarea, [contenteditable='true']")) return;
+          onShowFocus();
+        }}
       >
         <div className="canvas-card__start">
           {onShowFocus ? (
@@ -188,7 +194,7 @@ export function CanvasCardHeader({
             </Tooltip>
           ) : null}
           {onDuplicate && !iteration ? (
-            <Tooltip content="Create a linked copy of this frame">
+            <Tooltip content="Duplicate">
               <IconButton variant="quiet" className="canvas-card__action-icon" label="Duplicate" data-test={`canvas-card-duplicate-${card.id}`} onClick={onDuplicate}>
                 <IconCopy aria-hidden="true" />
               </IconButton>

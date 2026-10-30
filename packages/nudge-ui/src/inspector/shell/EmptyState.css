@@ -34,7 +34,6 @@
   font-size: var(--font-size-small);
   box-shadow: var(--shadow-control);
 }
-.empty-state__add-page { margin-top: var(--space-16); }
 .empty-state__shortcut-list { display: grid; gap: var(--space-8); width: 100%; max-width: 248px; margin: var(--space-32) auto var(--space-0); padding: var(--space-0); list-style: none; text-align: left; }
 .empty-state__shortcut { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--control-height-small); color: var(--text-secondary); }
 .empty-state__shortcut-keys { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--text-muted); }

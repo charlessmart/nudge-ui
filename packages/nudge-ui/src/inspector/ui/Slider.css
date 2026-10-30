@@ -1,10 +1,17 @@
-/* The rail is inset by half a thumb so the thumb's center reaches each end without overflowing its container. */
+/* A rounded-square rail with a portrait thumb that sits fully inside it, inset on every side like the switch's. The
+   element itself is the thumb's travel, so the rail is inset by an edge (the inset plus half a thumb) and the thumb's
+   center reaches each end without the thumb leaving the rail or overflowing its container. */
 .slider {
-  --slider-thumb-size: 16px;
+  --slider-height: var(--control-height-small);
+  --slider-inset: 2px;
+  --slider-thumb-width: 15px;
+  --slider-radius: var(--radius-6);
+  --slider-thumb-radius: var(--radius-4);
+  --slider-edge: calc(var(--slider-inset) + var(--slider-thumb-width) / 2);
   position: relative;
-  height: 12px;
-  margin-inline: calc(var(--slider-thumb-size) / 2);
-  border-radius: var(--radius-pill);
+  height: var(--slider-height);
+  margin-inline: var(--slider-edge);
+  border-radius: var(--slider-radius);
   cursor: pointer;
   outline: 0;
   touch-action: none;
@@ -18,26 +25,28 @@
 .slider::before {
   content: "";
   position: absolute;
-  inset: 0 calc(var(--slider-thumb-size) / -2 - var(--stretch-end, 0px)) 0 calc(var(--slider-thumb-size) / -2 - var(--stretch-start, 0px));
+  inset: 0 calc(var(--slider-edge) * -1 - var(--stretch-end, 0px)) 0 calc(var(--slider-edge) * -1 - var(--stretch-start, 0px));
   border-radius: inherit;
   background: var(--surface-well);
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  box-shadow: inset 0 0 0 0.5px var(--border-subtle);
   transition: left var(--spring-duration) var(--spring-ease), right var(--spring-duration) var(--spring-ease);
 }
 
 .slider:focus-visible::before {
-  box-shadow: inset 0 0 0 1px var(--border-subtle), 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 0.5px var(--border-subtle), 0 0 0 2px var(--accent);
 }
 
-/* Runs from the rail's start to the thumb's center, so it stretches with the rail at either end. */
+/* Runs from the rail's start to just past the thumb, so it wraps the thumb's far side and stretches with the rail at either end. */
 .slider__fill {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--slider-thumb-size) / -2 - var(--stretch-start, 0px));
-  width: calc(var(--slider-position) * 100% + var(--slider-thumb-size) / 2 + var(--stretch-end, 0px));
+  left: calc(var(--slider-edge) * -1 - var(--stretch-start, 0px));
+  width: calc(var(--slider-position) * 100% + var(--slider-edge) * 2 + var(--stretch-end, 0px));
   border-radius: inherit;
   background: var(--surface-inverse);
+  /* The fill covers the rail's edge, so it carries the same hairline. */
+  box-shadow: inset 0 0 0 0.5px var(--border-subtle);
   pointer-events: none;
   transition: left var(--spring-duration) var(--spring-ease), width var(--spring-duration) var(--spring-ease);
 }
@@ -48,22 +57,36 @@
   top: 50%;
   left: calc(var(--slider-position) * 100%);
   box-sizing: border-box;
-  width: var(--slider-thumb-size);
-  height: var(--slider-thumb-size);
-  border: 3px solid #fff;
-  border-radius: 50%;
+  width: var(--slider-thumb-width);
+  height: calc(var(--slider-height) - var(--slider-inset) * 2);
+  border: 2px solid #fff;
+  border-radius: var(--slider-thumb-radius);
   background: var(--thumb-color, #fff);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
   pointer-events: none;
-  transform: translate(-50%, -50%);
-  translate: calc(var(--stretch-end, 0px) - var(--stretch-start, 0px)) 0;
-  /* Releases and arrow keys settle on the shared spring; `scale` and `translate` stay apart from the centering transform. */
+  /* Centered through `translate`, which applies outside `scale`; a centering `transform` would be scaled with the thumb and shift it. */
+  translate: calc(-50% + var(--stretch-end, 0px) - var(--stretch-start, 0px)) -50%;
+  /* Releases and arrow keys settle on the shared spring. */
   transition: left var(--spring-duration) var(--spring-ease), scale var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
+}
+
+/* The current value rides just above the thumb and follows it, spring and stretch included. */
+.slider__value {
+  --rolling-line-height: 16px;
+  position: absolute;
+  bottom: calc(100% + var(--space-4));
+  left: calc(var(--slider-position) * 100%);
+  translate: calc(-50% + var(--stretch-end, 0px) - var(--stretch-start, 0px)) 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+  pointer-events: none;
+  transition: left var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
 }
 
 /* A grab goes in fast, like a button press. */
 .slider:active .slider__thumb {
-  scale: 1.15;
+  scale: 1.08;
   transition: scale var(--press-duration) ease-out, translate var(--spring-duration) var(--spring-ease);
 }
 
@@ -75,7 +98,8 @@
 /* Dragging past an end pulls the rail, fill and thumb out with the pointer; letting go springs them back. */
 .slider[data-stretching]::before,
 .slider[data-stretching] .slider__fill,
-.slider[data-stretching] .slider__thumb {
+.slider[data-stretching] .slider__thumb,
+.slider[data-stretching] .slider__value {
   transition: none;
 }
 

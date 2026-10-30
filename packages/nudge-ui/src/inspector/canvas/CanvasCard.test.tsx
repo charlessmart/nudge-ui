@@ -316,6 +316,33 @@ describe("CanvasCard renderer handshake", () => {
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
+  it("opens focus view when the header is double-clicked, but not the URL field", () => {
+    const card: CanvasCardData = {
+      id: "card-focus-double-click",
+      content: { kind: "route", url: window.location.href },
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onShowFocus = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onShowFocus }));
+    });
+
+    const bar = host.querySelector(`[data-test="canvas-card-drag-${card.id}"]`);
+    const url = host.querySelector(`[data-test="canvas-card-url-${card.id}"]`);
+    if (!bar || !url) throw new Error("Card header did not mount");
+
+    act(() => url.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(onShowFocus).not.toHaveBeenCalled();
+
+    act(() => bar.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(onShowFocus).toHaveBeenCalledWith(card.id);
+  });
+
   it("moves the card when dragging from the dimension surface", () => {
     const card: CanvasCardData = {
       id: "card-drag-surface",

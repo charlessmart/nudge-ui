@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import type { ReactElement } from "react";
-import { IconCube3dSphere, IconMinus, IconPlus } from "@tabler/icons-react";
+import { IconPlayerPauseFilled, IconReload } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
+import { RollingText } from "../ui/RollingText.tsx";
 import { Slider } from "../ui/Slider.tsx";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
@@ -14,18 +15,20 @@ import {
   MIN_ANIMATION_SPEED,
   snapAnimationSpeed,
 } from "./animationSpeed.ts";
-import { INSPECTION_SHORTCUTS } from "./keyboardShortcuts.ts";
 import {
   setAnimationSpeed,
+  setAnimationsPaused,
   setExplodeView,
   setInspectionBarHeight,
   setOutlinesView,
   setSpacingView,
   useAnimationSpeed,
+  useAnimationsPaused,
   useExplodeView,
   useOutlinesView,
   useSpacingView,
 } from "./debugViewStore.ts";
+import { sendAnimationReplayToAll } from "./rendererState.ts";
 
 const ICON_SIZE = "var(--icon-size-small)";
 /** Shift with an arrow key moves the speed by this many tenths. */
@@ -58,11 +61,11 @@ function SwitchRow({ label, pressed, dataTest, onPressedChange }: SwitchRowProps
 
 /**
  * The Inspection tool's panel, floating above the canvas toolbar while the tool is active: every animation on the page
- * runs at the speed set here, the switches draw the page's spacing and outlines, and
- * Explode sits at the foot.
+ * runs at the speed set here, and the switches draw the page's spacing and outlines or pull a clicked subtree apart.
  */
 export function InspectionBar(): ReactElement {
   const speed = useAnimationSpeed();
+  const paused = useAnimationsPaused();
   const explode = useExplodeView();
   const outlines = useOutlinesView();
   const spacing = useSpacingView();
@@ -88,60 +91,50 @@ export function InspectionBar(): ReactElement {
       <section className="inspection-bar__speed" aria-labelledby="inspection-speed-label">
         <div className="inspection-bar__speed-head">
           <span id="inspection-speed-label">Animation speed</span>
-          <span className="inspection-bar__value" data-test="animation-speed-readout">{formatAnimationSpeed(speed)}</span>
+          <span className="inspection-bar__speed-value" aria-hidden="true"><RollingText value={formatAnimationSpeed(speed)} /></span>
         </div>
         <div className="inspection-bar__speed-row">
-          <IconButton
-            label="Slow down"
-            data-test="animation-speed-slower"
-            disabled={speed <= MIN_ANIMATION_SPEED}
-            onClick={() => setAnimationSpeed(snapAnimationSpeed(speed - ANIMATION_SPEED_STEP))}
-          >
-            <IconMinus size={ICON_SIZE} aria-hidden="true" />
-          </IconButton>
-          <div className="inspection-bar__slider-well">
-            <Slider
-              label="Animation speed"
-              dataTest="animation-speed"
-              className="inspection-bar__slider"
-              filled
-              position={animationSpeedToPosition(speed)}
-              valueMin={MIN_ANIMATION_SPEED}
-              valueMax={MAX_ANIMATION_SPEED}
-              valueNow={speed}
-              valueText={formatAnimationSpeed(speed)}
-              onChange={(position) => setAnimationSpeed(animationSpeedAtPosition(position))}
-              onStep={(direction, large) => setAnimationSpeed(snapAnimationSpeed(speed + direction * (large ? LARGE_STEP_TENTHS : 1) * ANIMATION_SPEED_STEP))}
-            />
-          </div>
-          <IconButton
-            label="Speed up"
-            data-test="animation-speed-faster"
-            disabled={speed >= MAX_ANIMATION_SPEED}
-            onClick={() => setAnimationSpeed(snapAnimationSpeed(speed + ANIMATION_SPEED_STEP))}
-          >
-            <IconPlus size={ICON_SIZE} aria-hidden="true" />
-          </IconButton>
+          <Tooltip content="Pause animations" stableTrigger>
+            <ToggleButton
+              label="Pause animations"
+              size="compact"
+              pressed={paused}
+              onPressedChange={setAnimationsPaused}
+              data-test="animation-pause"
+            >
+              <IconPlayerPauseFilled size={ICON_SIZE} aria-hidden="true" />
+            </ToggleButton>
+          </Tooltip>
+          <Tooltip content="Replay animations" stableTrigger>
+            <IconButton
+              label="Replay animations"
+              size="compact"
+              onClick={sendAnimationReplayToAll}
+              data-test="animation-replay"
+            >
+              <IconReload size={ICON_SIZE} aria-hidden="true" />
+            </IconButton>
+          </Tooltip>
+          <Slider
+            label="Animation speed"
+            dataTest="animation-speed"
+            className="inspection-bar__slider"
+            filled
+            position={animationSpeedToPosition(speed)}
+            valueMin={MIN_ANIMATION_SPEED}
+            valueMax={MAX_ANIMATION_SPEED}
+            valueNow={speed}
+            valueText={formatAnimationSpeed(speed)}
+            onChange={(position) => setAnimationSpeed(animationSpeedAtPosition(position))}
+            onStep={(direction, large) => setAnimationSpeed(snapAnimationSpeed(speed + direction * (large ? LARGE_STEP_TENTHS : 1) * ANIMATION_SPEED_STEP))}
+          />
         </div>
       </section>
       <section className="inspection-bar__section" aria-label="Overlays">
         <SwitchRow label="Spacing" pressed={spacing} dataTest="inspection-spacing" onPressedChange={setSpacingView} />
         <SwitchRow label="Outlines" pressed={outlines} dataTest="inspection-outlines" onPressedChange={setOutlinesView} />
+        <SwitchRow label="Explode on click" pressed={explode} dataTest="inspection-explode" onPressedChange={setExplodeView} />
       </section>
-      <div className="inspection-bar__section">
-        <Tooltip content="Pull the page's layers apart" shortcut={INSPECTION_SHORTCUTS.explode.label} stableTrigger>
-          <ToggleButton
-            className="inspection-bar__explode"
-            label="Explode tool"
-            pressed={explode}
-            onPressedChange={setExplodeView}
-            data-test="inspection-explode"
-          >
-            <IconCube3dSphere size={ICON_SIZE} aria-hidden="true" />
-            <span>Explode tool</span>
-          </ToggleButton>
-        </Tooltip>
-      </div>
     </div>
   );
 }

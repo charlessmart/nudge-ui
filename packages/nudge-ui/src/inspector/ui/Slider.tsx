@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactElement } from "react";
-import { elasticOffset } from "../tokens/dragElastic.ts";
+import { RollingText } from "./RollingText.tsx";
+import { stretchSlider } from "./sliderStretch.ts";
 
 export interface SliderProps {
   label: string;
@@ -10,6 +11,8 @@ export interface SliderProps {
   valueMax: number;
   valueNow: number;
   valueText?: string;
+  /** Shown just above the thumb, rolling up to each new value; leave out for no label. */
+  valueLabel?: string;
   className?: string;
   dataTest?: string;
   /** Fills the rail from its start up to the thumb. */
@@ -25,22 +28,8 @@ export interface SliderProps {
   onDragStateChange?(dragging: boolean): void;
 }
 
-/** Reuses the token fields' elastic curve as is, so an overshoot pulls the rail out by at most 8px. */
-const STRETCH_RATIO = 1;
-
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
-}
-
-/** Pulls the rail out past the end the pointer has overshot; null (a release) lets the CSS spring it back. */
-function stretchSlider(slider: HTMLElement, clientX: number | null): void {
-  const rect = slider.getBoundingClientRect();
-  const overshoot = clientX === null ? 0 : clientX < rect.left ? clientX - rect.left : Math.max(0, clientX - rect.right);
-  const reduced = slider.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  const stretch = overshoot === 0 || reduced ? 0 : Math.abs(elasticOffset(overshoot)) * STRETCH_RATIO;
-  slider.toggleAttribute("data-stretching", stretch > 0);
-  slider.style.setProperty("--stretch-start", `${overshoot < 0 ? stretch : 0}px`);
-  slider.style.setProperty("--stretch-end", `${overshoot > 0 ? stretch : 0}px`);
 }
 
 /** A thick pill rail with a round thumb; dragging past an end stretches the rail elastically and springs back on release. */
@@ -51,6 +40,7 @@ export function Slider({
   valueMax,
   valueNow,
   valueText,
+  valueLabel,
   className,
   dataTest,
   filled = false,
@@ -124,6 +114,9 @@ export function Slider({
     >
       {filled ? <span className="slider__fill" aria-hidden="true" /> : null}
       <span className="slider__thumb" aria-hidden="true" />
+      {valueLabel === undefined ? null : (
+        <span className="slider__value" aria-hidden="true"><RollingText value={valueLabel} /></span>
+      )}
     </div>
   );
 }

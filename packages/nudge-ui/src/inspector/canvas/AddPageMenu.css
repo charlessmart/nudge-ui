@@ -10,7 +10,7 @@
   overflow-y: auto;
   padding: var(--space-8);
   gap: var(--space-8);
-  border-radius: var(--radius-8);
+  border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
   pointer-events: auto;

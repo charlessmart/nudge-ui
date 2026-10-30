@@ -74,7 +74,7 @@ export function ToastRegion(): ReactElement {
   const sketching = useSketchInteractionActive();
   const inspectionBarHeight = useInspectionBarHeight();
   // SAFETY: React passes custom properties through `style`; CSSProperties only lacks a key for them.
-  const raise = inspectionBarHeight > 0 ? { "--toast-raise": `${inspectionBarHeight}px` } as CSSProperties : undefined;
+  const raise = inspectorOpen && inspectionBarHeight > 0 ? { "--toast-raise": `${inspectionBarHeight}px` } as CSSProperties : undefined;
   return (
     <BaseToast.Provider toastManager={toastManager} limit={3}>
       <BaseToast.Portal container={portalContainer()}>

@@ -1,4 +1,4 @@
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("scrolling pans the canvas and Use app normally restores nested iframe scrolling", async ({ page }) => {
@@ -120,4 +120,21 @@ test("Holding A clicks links inside the frame without opening a browser tab", as
   await expect.poll(() => frame.locator("body").evaluate(() => location.pathname + location.hash)).toBe("/#app-interaction-destination");
   await page.keyboard.up("A");
   expect(context.pages()).toHaveLength(initialPages);
+});
+
+test("Canvas stops horizontal overscroll from navigating back and restores the page root on leaving", async ({ page }) => {
+  await page.goto("/playground");
+  const overscroll = (element: Element) => getComputedStyle(element).overscrollBehaviorX;
+  const root = page.locator("html");
+  await expect.poll(() => root.evaluate(overscroll)).toBe("auto");
+
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await waitForCanvasTransition(page);
+  await expect.poll(() => root.evaluate(overscroll)).toBe("none");
+  const iframe = page.locator(".canvas-card__iframe").first();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  await expect.poll(() => iframe.contentFrame().locator("html").evaluate(overscroll)).toBe("none");
+
+  await clickFrameAction(page, page.locator('[data-test^="canvas-card-focus-"]').first());
+  await expect.poll(() => root.evaluate(overscroll)).toBe("auto");
 });

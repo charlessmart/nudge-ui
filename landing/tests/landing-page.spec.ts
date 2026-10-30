@@ -80,6 +80,21 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   expect(demoStorage).toEqual({ local: [], session: [], indexedDb: [] });
 });
 
+test("does not undo the seeded landing versions", async ({ page }) => {
+  await page.goto("/");
+  const inspectorHost = page.locator("#nudge-ui-root");
+  await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
+  await inspectorHost.locator('[data-test="show-inspector"]').click();
+  const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
+  await expect(frames).toHaveCount(3);
+
+  await page.locator("html").press("ControlOrMeta+z");
+
+  await expect(frames).toHaveCount(3);
+  expect(new URL(page.url()).searchParams.get("landing-version")).toBeNull();
+  await expect(frames.first()).toBeVisible();
+});
+
 test("keeps the final landing card after refreshing a focused historical version", async ({ page }) => {
   await page.goto("/");
   const inspectorHost = page.locator("#nudge-ui-root");

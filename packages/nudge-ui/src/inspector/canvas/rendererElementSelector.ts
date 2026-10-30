@@ -859,7 +859,7 @@ export function installRendererElementSelector(
         return;
       }
       blockApplicationClick(event);
-      sendElementClick(el, event.shiftKey && !event.ctrlKey && !event.metaKey);
+      sendElementClick(el, event.shiftKey);
     },
     true,
   );

@@ -37,6 +37,7 @@ interface Observation {
 
 const CHECK_DELAY_MS = 450;
 const MAX_CHECK_DELAY_MS = 8_000;
+const PIN_EDGE_INSET = 24;
 
 function sameAnchor(left: Anchor | null | undefined, right: Anchor | null | undefined): boolean {
   return left?.left === right?.left && left?.top === right?.top;
@@ -49,9 +50,16 @@ function anchorFor(iframe: CanvasFrame, element: HTMLElement): Anchor | null {
   if (frameElement && getElementComputedStyle(frameElement).visibility !== "visible") return null;
   const frame = measureFrameViewport(iframe);
   const rect = element.getBoundingClientRect();
-  const { x: left, y: top } = toViewportPoint(frame, { x: rect.right, y: rect.top });
-  if (top < frame.top || top > frame.top + frame.height || left < frame.left || left > frame.left + frame.width) return null;
-  return { left, top };
+  const topRight = toViewportPoint(frame, { x: rect.right, y: rect.top });
+  const bottomLeft = toViewportPoint(frame, { x: rect.left, y: rect.bottom });
+  const frameRight = frame.left + frame.width;
+  const frameBottom = frame.top + frame.height;
+  if (bottomLeft.y < frame.top || topRight.y > frameBottom || bottomLeft.x > frameRight || topRight.x < frame.left) return null;
+  // An element larger than the frame still anchors to its visible part, keeping the pin inside the frame.
+  return {
+    left: Math.max(frame.left, Math.min(topRight.x, frameRight - PIN_EDGE_INSET)),
+    top: Math.max(frame.top, topRight.y),
+  };
 }
 
 const EDITOR_MARGIN = 8;

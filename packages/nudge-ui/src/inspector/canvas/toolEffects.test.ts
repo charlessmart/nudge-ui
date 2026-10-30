@@ -68,21 +68,17 @@ describe("canvasToolEffects", () => {
     expect(canvasToolEffects(input({ tool: "select", animationSpeed: 0.1 })).debugView.animationSpeed).toBe(1);
   });
 
-  it("lets the Inspection tool select elements while outlines or spacing are drawn, but not while exploded", () => {
+  it("lets the Inspection tool select elements while outlines, spacing or Explode on click is on", () => {
     const speedOnly = canvasToolEffects(input({ tool: "debug" }));
     expect(speedOnly.appInteractive).toBe(true);
     expect(speedOnly.rendererInteractionsEnabled).toBe(false);
 
-    for (const views of [{ outlines: true }, { spacing: true }]) {
+    for (const views of [{ outlines: true }, { spacing: true }, { explode: true }]) {
       const effects = canvasToolEffects(input({ tool: "debug", ...views }));
       expect(effects.appInteractive).toBe(false);
       expect(effects.rendererInteractionsEnabled).toBe(true);
       expect(effects.linksOpenInCards).toBe(false);
     }
-
-    const exploded = canvasToolEffects(input({ tool: "debug", outlines: true, spacing: true, explode: true }));
-    expect(exploded.appInteractive).toBe(true);
-    expect(exploded.rendererInteractionsEnabled).toBe(false);
   });
 
   it("treats a held app-interaction key as the select tool but keeps the inspection bar and views up", () => {

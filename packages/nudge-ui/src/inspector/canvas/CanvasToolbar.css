@@ -86,10 +86,65 @@
   pointer-events: auto;
 }
 
+/* Hiding the UI only hides the toolbar and inspection bar. They stay mounted, so the active tool, its shortcuts and any
+   inspection views keep working. */
+.canvas-toolbar__portal[data-ui-hidden="true"],
+.canvas-toolbar__portal[data-ui-hidden="true"] * {
+  /* Parts such as the add-page group set their own visibility, which would otherwise show through. */
+  visibility: hidden !important;
+}
+
 .canvas-toolbar__tools {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+/* Slides in beside the Inspection tool, along with the divider that precedes it, by growing from zero width, so the centered
+   toolbar widens smoothly. The negative margin cancels the group's gap while it is collapsed, and the timing matches the card morph between Canvas and Focus. */
+.canvas-toolbar__add {
+  display: grid;
+  grid-template-columns: 0fr;
+  margin-inline-start: calc(var(--space-4) * -1);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-columns 200ms cubic-bezier(0.77, 0, 0.175, 1),
+    margin-inline-start 200ms cubic-bezier(0.77, 0, 0.175, 1),
+    opacity 200ms ease,
+    visibility 0s linear 200ms;
+}
+
+.canvas-toolbar__add[data-visible="true"] {
+  grid-template-columns: 1fr;
+  margin-inline-start: 0;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-columns 200ms cubic-bezier(0.77, 0, 0.175, 1),
+    margin-inline-start 200ms cubic-bezier(0.77, 0, 0.175, 1),
+    opacity 200ms ease 60ms,
+    visibility 0s;
+}
+
+.canvas-toolbar__add-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow: clip;
+  overflow-clip-margin: 3px;
+}
+
+.canvas-toolbar__add-inner > * {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-toolbar__add,
+  .canvas-toolbar__add[data-visible="true"] {
+    transition: none;
+  }
 }
 
 .canvas-toolbar__divider {
@@ -154,30 +209,19 @@
   align-items: center;
   justify-content: space-between;
   font-size: var(--font-size-base);
-  color: var(--text-secondary);
+  font-weight: var(--font-weight-base);
+  color: var(--text-primary);
 }
 
-.inspection-bar__value {
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
+/* The value stays at the row's right edge rather than following the thumb. */
+.inspection-bar__speed-value {
+  --rolling-line-height: 16px;
 }
 
 .inspection-bar__speed-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-}
-
-/* The slider sits in a control-height well, so it lines up with the buttons either side. */
-.inspection-bar__slider-well {
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: var(--control-height-large);
-  padding-inline: var(--space-8);
-  border-radius: var(--radius-control);
-  background: var(--surface-control);
 }
 
 .inspection-bar__slider {
@@ -221,27 +265,31 @@
   outline-offset: 2px;
 }
 
+/* The switch shares the slider's shape: a rounded-square track with a portrait thumb inset 2px on every side. */
 .inspection-bar__track {
-  --switch-thumb: 16px;
+  --switch-width: 32px;
+  --switch-inset: 2px;
+  --switch-thumb-width: 12px;
   position: relative;
   flex: 0 0 auto;
-  width: 36px;
+  width: var(--switch-width);
   height: 20px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-well-2x);
+  border-radius: var(--radius-6);
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 0.5px var(--border-subtle);
   transition: background-color 140ms ease;
 }
 
 .inspection-bar__track::after {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: var(--switch-thumb);
-  height: var(--switch-thumb);
-  border-radius: 50%;
+  top: var(--switch-inset);
+  left: var(--switch-inset);
+  width: var(--switch-thumb-width);
+  height: calc(100% - var(--switch-inset) * 2);
+  border-radius: var(--radius-4);
   background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: translate var(--spring-duration) var(--spring-ease);
 }
 
@@ -249,15 +297,9 @@
   background: var(--brand-primary);
 }
 
+/* The thumb travels the track's width less its own width and both insets. */
 .inspection-bar__switch[data-on] .inspection-bar__track::after {
-  translate: var(--switch-thumb) 0;
-}
-
-/* Explode spans the foot of the panel, as a button rather than a switch. */
-.toggle-button.inspection-bar__explode {
-  width: 100%;
-  gap: var(--space-8);
-  font-weight: var(--font-weight-base);
+  translate: calc(var(--switch-width) - var(--switch-thumb-width) - var(--switch-inset) * 2) 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

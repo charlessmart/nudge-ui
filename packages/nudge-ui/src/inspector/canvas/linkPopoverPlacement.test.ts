@@ -9,7 +9,7 @@ describe("placeLinkPopover", () => {
     const link = { left: 500, top: 300, width: 200, height: 40 };
     expect(placeLinkPopover({ kind: "rect", rect: link }, size, board)).toEqual({
       left: 530,
-      top: 264,
+      top: 272,
     });
   });
 
@@ -17,7 +17,7 @@ describe("placeLinkPopover", () => {
     const link = { left: 500, top: 20, width: 200, height: 40 };
     expect(placeLinkPopover({ kind: "rect", rect: link }, size, board)).toEqual({
       left: 530,
-      top: 68,
+      top: 60,
     });
   });
 

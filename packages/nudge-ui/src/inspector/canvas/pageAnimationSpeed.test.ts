@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NUDGE_UI_MOUNT_ID } from "../../transport/routes.ts";
+import { PAUSED_ANIMATION_SPEED } from "./animationSpeed.ts";
 import { createPageAnimationSpeed, type PageAnimationSpeed } from "./pageAnimationSpeed.ts";
 
 /** jsdom has no Web Animations; the controller only reads a target, a timeline and the playback rate. */
@@ -169,5 +170,26 @@ describe("page animation speed", () => {
     expect(performance.now()).toBeGreaterThanOrEqual(start);
     speed.apply(1);
     expect(clock?.rate).toBe(1);
+  });
+
+  it("holds animations at a hair above zero while paused, without stretching timers past the slowest speed", () => {
+    const animation = fakeAnimation(document.body);
+    running.push(animation);
+    vi.useFakeTimers();
+    try {
+      speed.apply(PAUSED_ANIMATION_SPEED);
+      expect(animation.playbackRate).toBe(PAUSED_ANIMATION_SPEED);
+      const fired = vi.fn();
+      window.setTimeout(fired, 100);
+      // A 100ms timer waits ten times as long, as it would at the slowest speed, not a thousand times.
+      vi.advanceTimersByTime(999);
+      expect(fired).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(fired).toHaveBeenCalledTimes(1);
+      speed.apply(1);
+      expect(animation.playbackRate).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

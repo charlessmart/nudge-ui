@@ -1,0 +1,61 @@
+.rolling-text {
+  --rolling-text-out-duration: 120ms;
+  --rolling-text-in-duration: 160ms;
+  /* The new character waits this long, so the old one has all but gone before it starts to appear. */
+  --rolling-text-in-delay: 110ms;
+  display: inline-flex;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The new character sizes the slot; the old one is laid over it and leaves from the same spot. */
+.rolling-text__glyph {
+  position: relative;
+  display: inline-block;
+  height: var(--rolling-line-height, 1.2em);
+  line-height: var(--rolling-line-height, 1.2em);
+}
+
+.rolling-text__in,
+.rolling-text__out {
+  display: inline-block;
+}
+
+.rolling-text__out {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  animation: rolling-text-out var(--rolling-text-out-duration) cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.rolling-text__in[data-rolling] {
+  animation: rolling-text-in var(--rolling-text-in-duration) cubic-bezier(0, 0, 0.2, 1) var(--rolling-text-in-delay) both;
+}
+
+/* A quarter of its own height each way, so the character shifts rather than travels, and the exit and entrance mirror
+   each other in distance and fade. */
+@keyframes rolling-text-out {
+  to {
+    translate: 0 -25%;
+    opacity: 0;
+  }
+}
+
+@keyframes rolling-text-in {
+  from {
+    translate: 0 25%;
+    opacity: 0;
+  }
+}
+
+/* Without the motion, the new character simply replaces the old one. */
+@media (prefers-reduced-motion: reduce) {
+  .rolling-text__in[data-rolling] {
+    animation: none;
+  }
+
+  .rolling-text__out {
+    display: none;
+  }
+}

@@ -24,6 +24,7 @@ import {
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
+  revealCanvasCard,
 } from "./canvasStore.ts";
 import {
   setBoardCamera,
@@ -63,7 +64,7 @@ import {
 import { connectFrame, toViewportPoint, toViewportRect, type FrameConnection, type FrameViewport } from "./frameConnection.ts";
 import { LINK_POPOVER_HEIGHT, LINK_POPOVER_WIDTH, placeLinkPopover, type LinkPopoverAnchor } from "./linkPopoverPlacement.ts";
 import { normalizeUrl, normalizedUrlKey } from "./normalizeUrl.ts";
-import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
+import { mirrorEditorAddress } from "./editorAddress.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
   isDebugViewPhaseMessage,
@@ -91,8 +92,8 @@ import {
 } from "./CanvasToolbar.tsx";
 import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, claimShortcutKey, inspectionViewForCode } from "./keyboardShortcuts.ts";
 import { canvasToolEffects, type BoardPointerState } from "./toolEffects.ts";
-import { getExplodeView, getOutlinesView, setAnimationSpeed, setExplodeView, setOutlinesView, useAnimationSpeed, useExplodeView, useOutlinesView, useSpacingView } from "./debugViewStore.ts";
-import { MAX_ANIMATION_SPEED } from "./animationSpeed.ts";
+import { getExplodeView, getOutlinesView, setAnimationSpeed, setAnimationsPaused, setExplodeView, setOutlinesView, useAnimationSpeed, useAnimationsPaused, useExplodeView, useOutlinesView, useSpacingView } from "./debugViewStore.ts";
+import { MAX_ANIMATION_SPEED, PAUSED_ANIMATION_SPEED } from "./animationSpeed.ts";
 import { rendererDesiredState, sendRendererState, sendRendererStateToAll } from "./rendererState.ts";
 import { clearFramesExploded, setFrameExploded } from "./frameViewState.ts";
 import { InspectionBar } from "./InspectionBar.tsx";
@@ -102,6 +103,7 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketch } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isAddPageEnabled } from "../runtime/features.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
@@ -173,6 +175,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const spaceHeldRef = useRef(false);
   // Mirrored into state so the desired renderer state can carry it; the ref stays for synchronous event handlers.
   const [spaceHeld, setSpaceHeld] = useState(false);
+  const [addPageEnabled] = useState(isAddPageEnabled);
   const updateSpaceHeld = useCallback((held: boolean): void => {
     spaceHeldRef.current = held;
     setSpaceHeld(held);
@@ -192,6 +195,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const explodeView = useExplodeView();
   const spacingView = useSpacingView();
   const animationSpeed = useAnimationSpeed();
+  const animationsPaused = useAnimationsPaused();
   const pointerState: BoardPointerState = boardCursorClass === "is-grabbing"
     ? "grabbing"
     : boardCursorClass !== "" ? "grabbable" : "idle";
@@ -201,14 +205,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       outlines: outlinesView,
       explode: explodeView,
       spacing: spacingView,
-      animationSpeed,
+      animationSpeed: animationsPaused ? PAUSED_ANIMATION_SPEED : animationSpeed,
       presentation,
       layoutTransitioning,
       sketchActive,
       temporaryAppInteraction,
       pointer: pointerState,
     }),
-    [animationSpeed, explodeView, layoutTransitioning, outlinesView, pointerState, presentation, selectedTool, sketchActive, spacingView, temporaryAppInteraction],
+    [animationSpeed, animationsPaused, explodeView, layoutTransitioning, outlinesView, pointerState, presentation, selectedTool, sketchActive, spacingView, temporaryAppInteraction],
   );
   const {
     tool: interactionTool,
@@ -387,7 +391,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       for (const [index, route] of demoPages.entries()) {
         const url = new URL(route, primaryUrl);
         if (url.origin !== window.location.origin) continue;
-        const card = activateIframeWorkspace(url.href, viewport);
+        // Seeded frames are the demo's starting state, not an edit the visitor can undo.
+        const card = activateIframeWorkspace(url.href, viewport, { undoable: false });
         if (!card) continue;
         resizeCard(card.id, demoCardWidth, 900);
         seededCards.push(card);
@@ -423,10 +428,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
     if (!activeCard) return;
-    const editorUrl = createNudgeUiEditorUrl(contentSourceUrl(activeCard.content));
-    if (window.location.href !== editorUrl) {
-      window.history.replaceState(window.history.state, "", editorUrl);
-    }
+    mirrorEditorAddress(contentSourceUrl(activeCard.content));
   }, [cards, focusedCardId, primaryUrl, selectedCardId]);
 
   // One object describing what every renderer should currently show. Sending it whole means a frame that just loaded
@@ -559,12 +561,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => () => setCommentToolActive(false), []);
 
-  // Putting the Inspection tool away switches Explode off, since it takes over the page's clicks, and puts the speed back
-  // to full, so the panel opens again from a clean start.
+  // Putting the Inspection tool away switches Explode off, since it pulls the page apart on click, and puts the speed back
+  // to full with animations running, so the panel opens again from a clean start.
   useEffect(() => {
     if (selectedTool === "debug") return;
     setExplodeView(false);
     setAnimationSpeed(MAX_ANIMATION_SPEED);
+    setAnimationsPaused(false);
   }, [selectedTool]);
 
   // Key handlers read this to decide whether the page keeps the keys the inspector acts on.
@@ -744,7 +747,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
-          window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
+          mirrorEditorAddress(url);
         }
         updateCardUrl(frame.cardId, url);
       };
@@ -963,6 +966,20 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
 
+  // Swipes that start over the toolbar or panels never reach the wheel handler, and the browser
+  // latches a gesture to where it began, so only the root can stop them navigating back.
+  useEffect(() => {
+    if (mode !== "canvas" || presentation !== "canvas") return;
+    const rootStyle = document.documentElement.style;
+    const value = rootStyle.getPropertyValue("overscroll-behavior-x");
+    const priority = rootStyle.getPropertyPriority("overscroll-behavior-x");
+    rootStyle.setProperty("overscroll-behavior-x", "none");
+    return () => {
+      if (value) rootStyle.setProperty("overscroll-behavior-x", value, priority);
+      else rootStyle.removeProperty("overscroll-behavior-x");
+    };
+  }, [mode, presentation]);
+
   // Every page card would share the one page renderer, so extra restored cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (
     card.id === presentationCardId ? <PageCard key={card.id} card={card} documentOwner={inspectorSession} /> : null
@@ -1064,6 +1081,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       <div
         className="canvas-toolbar__portal"
         data-sketching={sketchActive ? "true" : "false"}
+        data-ui-hidden={inspectorOpen ? "false" : "true"}
         data-test="canvas-toolbar-portal"
         style={inspectorOpen ? PANEL_RESERVED_INSET : undefined}
       >
@@ -1072,6 +1090,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         <CanvasToolbar
           tool={interactionTool}
           sketchEnabled={sketchAvailable}
+          addPageVisible={addPageEnabled && presentation === "canvas"}
+          onPageAdded={revealCanvasCard}
           onToolChange={handleToolChange}
         />
       </div>

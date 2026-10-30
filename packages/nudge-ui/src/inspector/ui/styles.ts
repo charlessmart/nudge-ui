@@ -16,6 +16,7 @@ import popoverListboxStyles from "./PopoverListbox.css?inline";
 import menuScrollbarStyles from "./MenuScrollbar.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import sliderStyles from "./Slider.css?inline";
+import rollingTextStyles from "./RollingText.css?inline";
 import colorPickerPanelStyles from "./ColorPickerPanel.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import tooltipStyles from "./Tooltip.css?inline";
@@ -59,6 +60,7 @@ export const UI_STYLES = [
   menuScrollbarStyles,
   inspectorPopoverStyles,
   sliderStyles,
+  rollingTextStyles,
   colorPickerPanelStyles,
   sideValuesFieldStyles,
   tooltipStyles,

@@ -4,6 +4,8 @@ export const FRAME_SCROLLBAR_STYLE_ID = "nudge-ui-frame-scrollbar-styles";
 const FRAME_SCROLLBAR_CSS = `
   :where(html) {
     scrollbar-color: rgba(128, 128, 128, 0.5) transparent;
+    /* A horizontal swipe past a frame's edge would otherwise chain up into browser back navigation. */
+    overscroll-behavior-x: none;
   }
 
   :where(*) {

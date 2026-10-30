@@ -38,9 +38,9 @@ describe("selection target resolution", () => {
     expect(resolveSelectionTarget(label, "deep")).toBe(label);
   });
 
-  it("keeps Command/Ctrl+Shift-click on the primary target for activation", () => {
-    expect(selectionTargetMode({ ctrlKey: true, metaKey: false, shiftKey: true })).toBe("primary");
-    expect(selectionTargetMode({ ctrlKey: false, metaKey: true, shiftKey: true })).toBe("primary");
+  it("keeps Command/Ctrl+Shift-click deep so deep elements can join a multi-selection", () => {
+    expect(selectionTargetMode({ ctrlKey: true, metaKey: false, shiftKey: true })).toBe("deep");
+    expect(selectionTargetMode({ ctrlKey: false, metaKey: true, shiftKey: true })).toBe("deep");
   });
 
   it("falls back to the deepest tracked element without an interactive parent", () => {

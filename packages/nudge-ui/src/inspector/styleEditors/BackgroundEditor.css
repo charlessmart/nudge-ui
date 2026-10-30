@@ -12,48 +12,75 @@
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  margin-block: var(--space-8) var(--space-12);
+  margin-block: var(--space-8);
 }
 
+/* Shares the slider's shape, sized up to a large control's 32px: a rounded-square bar with a hairline edge, and stops
+   that sit fully inside it, inset 2px on every side, in the slider thumb's 3:4 shape. The gradient and hairline live on `::before`, so dragging a stop past
+   either end can pull the bar out like the slider's rail without moving the stops' own positions. */
 .background-editor__track {
+  --stop-inset: 2px;
+  --stop-width: 21px;
+  /* Where a stop's center sits at either end: the inset plus half the stop. */
+  --stop-edge: calc(var(--stop-inset) + var(--stop-width) / 2);
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
-  height: 28px;
-  border: 1px solid var(--border-subtle);
-  background-clip: padding-box;
-  border-radius: var(--radius-4);
+  height: var(--control-height-large);
+  border-radius: var(--radius-8);
   cursor: crosshair;
   touch-action: none;
 }
 
+.background-editor__track::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(var(--stretch-end, 0px) * -1) 0 calc(var(--stretch-start, 0px) * -1);
+  border-radius: inherit;
+  background-image: var(--track-gradient);
+  box-shadow: inset 0 0 0 0.5px var(--border-subtle);
+  transition: left var(--spring-duration) var(--spring-ease), right var(--spring-duration) var(--spring-ease);
+}
+
 .background-editor__stop {
   position: absolute;
-  /* The handle starts at the bar's midline and hangs below it. */
   top: 50%;
-  width: 16px;
-  height: 20px;
+  box-sizing: border-box;
+  width: var(--stop-width);
+  height: calc(100% - var(--stop-inset) * 2);
   padding: 0;
-  transform: translateX(-50%);
+  /* Centered through `translate`, which applies outside `scale`, so a pressed stop grows around its own center. */
+  translate: -50% -50%;
   border: 2px solid var(--surface-raised-2x);
-  border-radius: var(--radius-4);
+  border-radius: var(--radius-6);
   /* A checkerboard shows through translucent stop colors instead of the track. */
   background:
     linear-gradient(var(--stop-color), var(--stop-color)),
     repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
-  box-shadow: var(--shadow-outline), 0 2px 4px var(--border-medium);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
   outline: none;
   cursor: grab;
   touch-action: none;
-  /* Releases settle on the shared spring; `scale` stays apart from the centering transform. */
-  transition: scale var(--spring-duration) var(--spring-ease);
+  /* Releases settle on the shared spring. */
+  transition: scale var(--spring-duration) var(--spring-ease), translate var(--spring-duration) var(--spring-ease);
+}
+
+/* Only the stop being dragged goes out with the pull; the others stay where they are. */
+.background-editor__stop[data-dragging] {
+  translate: calc(-50% + var(--stretch-end, 0px) - var(--stretch-start, 0px)) -50%;
+}
+
+/* While pulled, the bar and stop follow the pointer exactly; letting go springs them back. */
+.background-editor__track[data-stretching]::before,
+.background-editor__track[data-stretching] .background-editor__stop[data-dragging] {
+  transition: none;
 }
 
 /* A grab goes in fast, like a button press. */
 .background-editor__stop:active:not(:disabled) {
-  scale: 1.15;
+  scale: 1.08;
   cursor: grabbing;
-  transition: scale var(--press-duration) ease-out;
+  transition: scale var(--press-duration) ease-out, translate var(--spring-duration) var(--spring-ease);
 }
 
 .background-editor__stop:disabled { cursor: default; }

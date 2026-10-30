@@ -169,6 +169,13 @@ function collectXrayLayers(root: Element): XrayLayer[] {
   return layers;
 }
 
+const explodedDocuments = new WeakSet<Document>();
+
+/** True from the moment `document` has a subtree pulled apart until it has finished collapsing. */
+export function isDocumentExploded(document: Document): boolean {
+  return explodedDocuments.has(document);
+}
+
 export interface RendererDebugView {
   apply(state: DebugViewState): void;
   dispose(): void;
@@ -212,6 +219,8 @@ export function createRendererDebugView(
   function setPhase(next: XrayPhase): void {
     const wasExploded = phase !== "idle";
     phase = next;
+    if (next === "idle") explodedDocuments.delete(document);
+    else explodedDocuments.add(document);
     if ((next !== "idle") !== wasExploded) onExplodedChange(next !== "idle");
   }
   let overrides = new InlineStyleOverrides();

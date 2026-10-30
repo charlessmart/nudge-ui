@@ -9,6 +9,7 @@ import {
   type BoardGestureStateMessage,
   type DebugViewPhaseMessage,
   type DebugViewStateMessage,
+  type AnimationReplayMessage,
 } from "./frameProtocol.ts";
 import type {
   FrameMetadataMessage,
@@ -30,13 +31,15 @@ import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rende
 import { findClosestAnchor, isEligibleNavigation, isLinkPreviewTarget } from "./linkEligibility.ts";
 import { installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
+import { isUserClick } from "../overlay/clickPolicy.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { createPageAnimationSpeed } from "./pageAnimationSpeed.ts";
-import { createRendererDebugView } from "./rendererDebugView.ts";
+import { replayPageAnimations } from "./pageAnimationReplay.ts";
+import { createRendererDebugView, isDocumentExploded } from "./rendererDebugView.ts";
 import { isDebugViewState } from "./debugView.ts";
 
 export interface RendererBootstrapHandle {
@@ -221,7 +224,10 @@ export function bootstrapRenderer(resources: RendererBootstrapResources = {}): R
     owner.resourceDisposers.push(subscribeNudgeUiRuntime(() => sendFrameRuntime(owner)));
     const disposeDiagnostics = (resources.startProjectionDiagnostics ?? startRendererProjectionDiagnostics)();
     if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
-    const disposeSelector = (resources.installElementSelector ?? installRendererElementSelector)();
+    const disposeSelector = (resources.installElementSelector ?? installRendererElementSelector)(
+      // While a subtree is pulled apart, Explode on click picks the layer under the pointer itself.
+      (event) => isUserClick(event) && !isDocumentExploded(document),
+    );
     if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
     installRendererPanProxy(owner);
 
@@ -437,6 +443,10 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
         debugView.apply(state);
         animationSpeed.apply(state.animationSpeed);
       }
+      return;
+    }
+    if ((event.data as AnimationReplayMessage).type === "animation-replay") {
+      replayPageAnimations(document);
       return;
     }
     if ((event.data as PanModifierMessage).type === "pan-modifier") {

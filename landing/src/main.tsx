@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { LandingVersionPage } from "./LandingVersionPage";
+import { HeroVariantsPage } from "./hero/HeroVariantsPage";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -16,9 +17,12 @@ const demoControllerDocument = !directApplication
   && window.self === window.top
   && (landingDemoBuild || (import.meta.env.DEV && window.location.pathname === "/"));
 const landingVersion = params.get("landing-version");
-const page = landingVersion === "1" || landingVersion === "2"
-  ? <LandingVersionPage version={landingVersion} />
-  : <App />;
+const heroRoute = window.location.pathname.match(/^\/hero(?:\/([a-z0-9-]+))?\/?$/);
+const page = heroRoute
+  ? <HeroVariantsPage slug={heroRoute[1] ?? null} />
+  : landingVersion === "1" || landingVersion === "2"
+    ? <LandingVersionPage version={landingVersion} />
+    : <App />;
 
 if (landingDemoBuild && !import.meta.env.DEV) {
   const inspectorRoot = document.createElement("div");

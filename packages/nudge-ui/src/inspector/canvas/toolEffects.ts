@@ -61,9 +61,9 @@ function boardCursor(tool: CanvasInteractionTool, pointer: BoardPointerState): B
 export function canvasToolEffects(input: CanvasToolInput): CanvasToolEffects {
   const tool = input.temporaryAppInteraction ? "select" : input.tool;
   // The Inspection tool inspects the running app, so it stays interactive like the play tool: the slowed animations
-  // are the ones the user triggers by hovering and clicking. With outlines or spacing drawn, clicks select elements as
-  // the design tool's do; Explode keeps the pointer either way, since its own clicks pull layers apart and pick them.
-  const inspectionSelects = tool === "debug" && !input.explode && (input.outlines || input.spacing);
+  // are the ones the user triggers by hovering and clicking. With a view switched on, clicks select elements as the
+  // design tool's do; Explode on click adds to that, pulling the clicked subtree's layers apart.
+  const inspectionSelects = tool === "debug" && (input.outlines || input.spacing || input.explode);
   const appInteractive = tool === "select" || (tool === "debug" && !inspectionSelects);
   return {
     tool,

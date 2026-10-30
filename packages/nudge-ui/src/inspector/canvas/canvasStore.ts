@@ -90,7 +90,7 @@ function notify(): void {
 }
 
 /** Adds one card to the end of the row. */
-export function addCanvasCard(url: string, title?: string): CanvasCard {
+export function addCanvasCard(url: string, title?: string, { undoable = true }: { undoable?: boolean } = {}): CanvasCard {
   const before = cards;
   const size = lastUsedCardSize ?? defaultViewportSize();
   const pos = nextCardPosition(cards, CARD_GAP);
@@ -105,7 +105,7 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
   };
   cards = [...cards, card];
   lastUsedCardSize = { width: size.width, height: size.height };
-  recordCreation(before, [card]);
+  if (undoable) recordCreation(before, [card]);
   notify();
   return card;
 }
@@ -213,7 +213,7 @@ export function removeCanvasCard(id: string, { undoable = false }: { undoable?: 
 export function activateIframeWorkspace(
   url: string,
   viewport: { width: number; height: number },
-  options: { replaceActiveCard?: boolean; preserveIterationFocus?: boolean } = {},
+  options: { replaceActiveCard?: boolean; preserveIterationFocus?: boolean; undoable?: boolean } = {},
 ): CanvasCard | null {
   const normalized = normalizeUrl(url);
   if (!normalized || normalized.origin !== window.location.origin) return null;
@@ -283,7 +283,7 @@ export function activateIframeWorkspace(
     return card;
   }
 
-  const card = addCanvasCard(targetHref);
+  const card = addCanvasCard(targetHref, undefined, { undoable: options.undoable });
   focusedCardId = card.id;
   selectedCardId = card.id;
   focusCanvasCards([card.id], viewport);

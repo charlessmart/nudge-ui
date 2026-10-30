@@ -105,8 +105,8 @@
   width: var(--space-24);
   height: var(--space-24);
   border-radius: var(--radius-6);
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--brand-surface);
+  color: var(--brand-primary);
   cursor: grab;
   transform: translateY(-50%);
 }
@@ -118,6 +118,7 @@
 .canvas-card__url {
   width: 100%;
   min-width: 0;
+  border-radius: var(--radius-6);
   background: var(--surface-well-2x);
 }
 

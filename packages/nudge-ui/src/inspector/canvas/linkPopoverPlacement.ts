@@ -35,9 +35,9 @@ const POINTER_LEFT_OFFSET = 14;
 const POINTER_TOP_OFFSET = 18;
 
 /**
- * Centers the action immediately above its link, the way the DOM navigator chip hugs its element,
- * and keeps it inside the board. The action drops below the link when the top edge is close, and
- * falls back to the pointer when the frame reports no link rect.
+ * Centers the action flush above its link, leaving no gap where the pointer could hover something
+ * else on its way across, and keeps it inside the board. The action drops below the link when the
+ * top edge is close, and falls back to the pointer when the frame reports no link rect.
  */
 export function placeLinkPopover(
   anchor: LinkPopoverAnchor | null,
@@ -55,10 +55,10 @@ export function placeLinkPopover(
   const clampTop = (value: number): number => Math.max(minTop, Math.min(value, maxTop));
   if (anchor.kind === "rect") {
     const { rect } = anchor;
-    const above = rect.top - size.height - LINK_POPOVER_MARGIN;
+    const above = rect.top - size.height;
     return {
       left: clampLeft(rect.left + rect.width / 2 - size.width / 2),
-      top: clampTop(above >= minTop ? above : rect.top + rect.height + LINK_POPOVER_MARGIN),
+      top: clampTop(above >= minTop ? above : rect.top + rect.height),
     };
   }
   const left = anchor.x + POINTER_LEFT_OFFSET;

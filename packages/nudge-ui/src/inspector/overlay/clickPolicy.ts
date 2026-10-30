@@ -12,9 +12,9 @@ export const APPLICATION_GESTURE_EVENTS = [
   "contextmenu",
 ] as const;
 
-/** Command/Ctrl-click selects the deepest tracked element unless Shift is held. */
+/** Command/Ctrl-click selects the deepest tracked element; Shift independently adds to the selection. */
 export function isDeepSelectionClick(event: ClickModifiers): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.shiftKey;
+  return event.ctrlKey || event.metaKey;
 }
 
 /** Synthetic events like `element.click()` keep reaching the application. */
