@@ -385,7 +385,8 @@ describe("createStandaloneServer", () => {
       rootDirectory: root,
       port: 0,
       clientPath,
-      watchDebounceMs: 40,
+      // Wide enough that a stalled CI event loop cannot split the two writes across settled batches, which would rebuild while the second truncating write is in flight.
+      watchDebounceMs: 250,
     });
     const address = await runningServer.start();
     const streamResponse = await fetch(address.url + NUDGE_UI_RELOAD_PATH.slice(1));
