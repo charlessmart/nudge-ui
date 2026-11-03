@@ -70,11 +70,11 @@ describe("sketch tool shortcuts", () => {
     return new KeyboardEvent("keydown", { code, bubbles: true, composed: true, ...init });
   }
 
-  it("picks the pen, eraser, rectangle, circle, arrow and text tools from P, E, R, I, L and T", () => {
+  it("picks the pen, eraser, rectangle, circle, arrow and text tools from P, E, R, O, L and T", () => {
     expect(sketchToolForEvent(press("KeyP"))).toBe("pen");
     expect(sketchToolForEvent(press("KeyE"))).toBe("eraser");
     expect(sketchToolForEvent(press("KeyR"))).toBe("rectangle");
-    expect(sketchToolForEvent(press("KeyI"))).toBe("ellipse");
+    expect(sketchToolForEvent(press("KeyO"))).toBe("ellipse");
     expect(sketchToolForEvent(press("KeyL"))).toBe("arrow");
     expect(sketchToolForEvent(press("KeyT"))).toBe("text");
   });

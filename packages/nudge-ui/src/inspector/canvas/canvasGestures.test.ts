@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { zoomCameraAtPointer } from "./canvasGestures.ts";
+import { ZOOM_WHEEL_FACTOR, zoomCameraAtPointer } from "./canvasGestures.ts";
 
 describe("canvas gesture coordinate conversion", () => {
+  const camera = { x: 0, y: 0, zoom: 1 };
+  const at = { x: 0, y: 0 };
+  const rect = { left: 0, top: 0 };
+
+  it("scales a wheel zoom step by the size of the delta", () => {
+    expect(zoomCameraAtPointer(camera, at, rect, -100).zoom).toBeCloseTo(ZOOM_WHEEL_FACTOR);
+    expect(zoomCameraAtPointer(camera, at, rect, 100).zoom).toBeCloseTo(1 / ZOOM_WHEEL_FACTOR);
+    expect(zoomCameraAtPointer(camera, at, rect, -5).zoom).toBeCloseTo(ZOOM_WHEEL_FACTOR ** 0.05);
+  });
+
+  it("caps one event at a full notch", () => {
+    expect(zoomCameraAtPointer(camera, at, rect, -1000).zoom).toBeCloseTo(ZOOM_WHEEL_FACTOR);
+    expect(zoomCameraAtPointer(camera, at, rect, 1000).zoom).toBeCloseTo(1 / ZOOM_WHEEL_FACTOR);
+  });
+
   it("keeps the world point under the pointer fixed while zooming", () => {
     const next = zoomCameraAtPointer(
       { x: 10, y: 20, zoom: 1 },
@@ -10,8 +25,8 @@ describe("canvas gesture coordinate conversion", () => {
       -100,
     );
 
-    expect(next.zoom).toBeCloseTo(1.02);
-    expect(next.x).toBeCloseTo(8.2);
-    expect(next.y).toBeCloseTo(18.4);
+    expect(next.zoom).toBeCloseTo(ZOOM_WHEEL_FACTOR);
+    expect(next.x).toBeCloseTo(100 - 90 * ZOOM_WHEEL_FACTOR);
+    expect(next.y).toBeCloseTo(100 - 80 * ZOOM_WHEEL_FACTOR);
   });
 });

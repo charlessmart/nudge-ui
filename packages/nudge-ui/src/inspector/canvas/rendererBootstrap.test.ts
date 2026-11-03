@@ -135,9 +135,9 @@ describe("bootstrapRenderer teardown", () => {
     const wheel = new WheelEvent("wheel", { deltaX: 2, deltaY: 3, deltaMode: 1, cancelable: true });
     window.dispatchEvent(wheel);
     expect(wheel.defaultPrevented).toBe(true);
-    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 32, deltaY: 48 }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 48, deltaY: 72 }));
     window.dispatchEvent(new WheelEvent("wheel", { deltaY: 2, shiftKey: true, deltaMode: 1, cancelable: true }));
-    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 32, deltaY: 0 }));
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "wheel-pan", deltaX: 48, deltaY: 0 }));
 
     setGestures(true, false);
     const native = new WheelEvent("wheel", { deltaY: 50, cancelable: true });

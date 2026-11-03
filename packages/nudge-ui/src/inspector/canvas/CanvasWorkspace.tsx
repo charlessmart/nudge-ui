@@ -618,6 +618,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       // While sketching, P belongs to the sketch bar (it picks the pen). Starting the sketch again would also abort a
       // copy that is still being captured.
       if (nextTool === "sketch" && sketchActive) return;
+      // Likewise O: it picks the circle while sketching, rather than switching on the Inspection outlines.
+      if (sketchActive && inspectionViewForCode(event.code) === "outlines") return;
       claimShortcutKey(event);
       handleToolShortcut(event.code, nextTool);
     }
@@ -734,7 +736,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             return;
           }
           const nextTool = canvasToolForCode(msg.code);
-          if (nextTool && (nextTool !== "sketch" || (sketchAvailable && !sketchActive))) handleToolShortcut(msg.code, nextTool);
+          const sketchOwnsKey = sketchActive && (nextTool === "sketch" || inspectionViewForCode(msg.code) === "outlines");
+          if (nextTool && (nextTool !== "sketch" || sketchAvailable) && !sketchOwnsKey) handleToolShortcut(msg.code, nextTool);
         }
         return;
       }
