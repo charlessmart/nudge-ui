@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@nudge-ui/compatibility": "workspace:*",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "1.64.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^4.7.0",

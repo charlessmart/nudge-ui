@@ -10,11 +10,19 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
   workers: 1,
-  use: { trace: "on-first-retry", permissions: ["clipboard-read", "clipboard-write"] },
+  use: {
+    trace: "on-first-retry",
+    permissions: ["clipboard-read", "clipboard-write"],
+  },
   projects: [
     {
       name: "dev",
-      use: { ...devices["Desktop Chrome"], baseURL: DEV_URL },
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: DEV_URL,
+      },
       testMatch: /.*\.dev\.spec\.ts/,
     },
   ],

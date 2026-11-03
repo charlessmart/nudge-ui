@@ -9,6 +9,8 @@ export default defineConfig({
   timeout: 45_000,
   use: {
     ...devices["Desktop Chrome"],
+    channel: "chrome",
+    launchOptions: { chromiumSandbox: true },
     trace: "retain-on-failure",
   },
 });

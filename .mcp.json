@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "untrusted-browser": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/Documents/Personal/browser-security/untrusted-browser\""
+      ]
+    }
+  }
+}

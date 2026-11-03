@@ -12,7 +12,7 @@ function assert(condition, name, detail) {
   record(name, detail);
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: "chrome", chromiumSandbox: true });
 try {
   const page = await browser.newPage();
   // Automated browsers get the plain app unless the URL turns the editor on.

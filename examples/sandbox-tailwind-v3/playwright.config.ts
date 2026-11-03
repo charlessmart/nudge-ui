@@ -11,17 +11,68 @@ const PROD_URL = `http://127.0.0.1:${PROD_PORT}`;
 export default defineConfig({
   testDir: "./tests",
   workers: 1,
-  use: { ...devices["Desktop Chrome"], baseURL: DEV_URL, trace: "on-first-retry" },
+  use: {
+    ...devices["Desktop Chrome"],
+    channel: "chrome",
+    launchOptions: { chromiumSandbox: true },
+    baseURL: DEV_URL,
+    trace: "on-first-retry",
+  },
   projects: [
-    { name: "compat-chromium", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
-    { name: "compat-firefox", use: { ...devices["Desktop Firefox"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
-    { name: "compat-webkit", use: { ...devices["Desktop Safari"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
-    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /(?:isolation|conformance|components)\.dev\.spec\.ts/ },
-    { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /nudge-ui\.prod\.spec\.ts/ },
+    {
+      name: "compat-chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: DEV_URL,
+      },
+      testMatch: /compatibility\.dev\.spec\.ts/,
+    },
+    {
+      name: "compat-firefox",
+      use: { ...devices["Desktop Firefox"], channel: undefined, launchOptions: {}, baseURL: DEV_URL },
+      testMatch: /compatibility\.dev\.spec\.ts/,
+    },
+    {
+      name: "compat-webkit",
+      use: { ...devices["Desktop Safari"], channel: undefined, launchOptions: {}, baseURL: DEV_URL },
+      testMatch: /compatibility\.dev\.spec\.ts/,
+    },
+    {
+      name: "dev",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: DEV_URL,
+      },
+      testMatch: /(?:isolation|conformance|components)\.dev\.spec\.ts/,
+    },
+    {
+      name: "prod",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: PROD_URL,
+      },
+      testMatch: /nudge-ui\.prod\.spec\.ts/,
+    },
   ],
   webServer: [
-    { command: `pnpm dev --port ${DEV_PORT} --strictPort`, url: DEV_URL, reuseExistingServer: !process.env.CI, timeout: 90_000 },
-    { command: `pnpm build && pnpm preview --port ${PROD_PORT} --strictPort`, url: PROD_URL, reuseExistingServer: !process.env.CI, timeout: 120_000, env: { NODE_ENV: "production" } },
+    {
+      command: `pnpm dev --port ${DEV_PORT} --strictPort`,
+      url: DEV_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 90_000,
+    },
+    {
+      command: `pnpm build && pnpm preview --port ${PROD_PORT} --strictPort`,
+      url: PROD_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: { NODE_ENV: "production" },
+    },
   ],
 });
-

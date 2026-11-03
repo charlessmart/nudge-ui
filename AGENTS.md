@@ -59,3 +59,7 @@ and local tool configuration are ignored by the repository.
 ADRs in `docs/adr/` are immutable once merged. To change a decision, write a
 new ADR that supersedes it and update `docs/adr/README.md`. Never edit an
 existing ADR.
+
+## Browser security
+
+Use patched Google Chrome with `chromiumSandbox: true` for trusted local browser tests. Use the `untrusted-browser` MCP server for external websites and untrusted HTML, PDF, or media. Keep persistent work profiles out of that disposable environment. Extension tests require patched Chrome for Testing; run `pnpm browser:install` in Design Tool to install it.

@@ -35,18 +35,29 @@ export default defineConfig({
   projects: [
     {
       name: "dev",
-      use: { ...devices["Desktop Chrome"], baseURL: DEV_URL },
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: DEV_URL,
+      },
       testMatch: /.*\.dev\.spec\.ts/,
     },
     {
       name: "prod",
-      use: { ...devices["Desktop Chrome"], baseURL: PROD_URL },
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        launchOptions: { chromiumSandbox: true },
+        baseURL: PROD_URL,
+      },
       testMatch: /.*\.prod\.spec\.ts/,
     },
   ],
-  webServer: SERVER_MODE === "dev"
-    ? devServer
-    : SERVER_MODE === "prod"
-      ? prodServer
-      : [devServer, prodServer],
+  webServer:
+    SERVER_MODE === "dev"
+      ? devServer
+      : SERVER_MODE === "prod"
+        ? prodServer
+        : [devServer, prodServer],
 });

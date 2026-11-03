@@ -39,7 +39,8 @@
     "release:validate": "node scripts/validate-release.mjs",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote",
-    "dev:workbench": "pnpm --filter inspector-workbench dev"
+    "dev:workbench": "pnpm --filter inspector-workbench dev",
+    "browser:install": "node scripts/install-test-chrome.mjs"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.78.0",

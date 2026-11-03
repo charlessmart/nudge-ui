@@ -20,6 +20,8 @@ export default defineConfig({
   globalTeardown: "./scripts/cleanup-fixture.mjs",
   use: {
     ...devices["Desktop Chrome"],
+    channel: "chrome",
+    launchOptions: { chromiumSandbox: true },
     baseURL,
     permissions: ["clipboard-read", "clipboard-write"],
     trace: "on-first-retry",
