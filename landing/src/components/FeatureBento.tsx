@@ -13,7 +13,9 @@ function PointerGlyph({ className }: { className: string }): ReactNode {
   );
 }
 
-function useRevealOnce(): { ref: RefObject<HTMLDivElement | null>; isVisible: boolean } {
+export type RevealOnce = { ref: RefObject<HTMLDivElement | null>; isVisible: boolean };
+
+export function useRevealOnce(): RevealOnce {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -64,7 +66,7 @@ function BentoCard({
   );
 }
 
-function TextStage(): ReactNode {
+export function TextStage(): ReactNode {
   return (
     <div className="landing-bento-text">
       <div className="landing-bento-text-target">
@@ -77,7 +79,7 @@ function TextStage(): ReactNode {
   );
 }
 
-function TokenStage(): ReactNode {
+export function TokenStage(): ReactNode {
   return (
     <div className="landing-bento-tokens">
       <LandingButton type="button" variant="secondary">
@@ -100,10 +102,10 @@ function TokenStage(): ReactNode {
   );
 }
 
-function SpacingStage(): ReactNode {
+export function SpacingStage({ tiles = 8 }: { tiles?: number } = {}): ReactNode {
   return (
     <div className="landing-bento-layout">
-      {Array.from({ length: 8 }, (_, index) => (
+      {Array.from({ length: tiles }, (_, index) => (
         <div className="landing-bento-layout-tile" key={index}>
           <span className="landing-bento-layout-avatar" />
           <span className="landing-bento-layout-line" />
@@ -156,7 +158,7 @@ function CommentCursor(): ReactNode {
   );
 }
 
-function CommentStage({ isVisible }: { isVisible: boolean }): ReactNode {
+export function CommentStage({ isVisible }: { isVisible: boolean }): ReactNode {
   const typed = useTypedText(commentNote, isVisible);
   const isTyping = typed.length < commentNote.length;
 
@@ -181,7 +183,7 @@ function CommentStage({ isVisible }: { isVisible: boolean }): ReactNode {
   );
 }
 
-function SketchStage(): ReactNode {
+export function SketchStage(): ReactNode {
   return (
     <div className="landing-bento-sketch" aria-hidden="true">
       <div className="landing-bento-wire landing-bento-sketch-page">
@@ -231,7 +233,7 @@ function CanvasFrame({ label, variant, selected = false }: { label: string; vari
   );
 }
 
-function CanvasStage(): ReactNode {
+export function CanvasStage(): ReactNode {
   return (
     <div className="landing-bento-canvas" aria-hidden="true">
       <div className="landing-bento-canvas-frames">

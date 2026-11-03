@@ -1,0 +1,692 @@
+/*
+ * Layout variants. Rails, but the angled hatching in the margins is replaced
+ * with layout-guide lines: everything here is axis-aligned.
+ */
+.landing.lv {
+  --accent: var(--brand-primary);
+  --accent-surface-subtle: rgba(255, 38, 0, 0.1);
+  --lv-w: 1160px;
+  --lv-line: rgba(0, 0, 0, 0.09);
+  --lv-guide: rgba(0, 0, 0, 0.065);
+  --lv-tick: rgba(0, 0, 0, 0.22);
+  --lv-plus: rgba(0, 0, 0, 0.34);
+  --lv-red: var(--brand-primary);
+  position: relative;
+  /* The margins read as the canvas around a white page. */
+  background: var(--surface-raised);
+  background-image: none;
+}
+
+.lv-main {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+}
+
+.lv-frame {
+  position: relative;
+  width: min(var(--lv-w), 100%);
+  margin: 0 auto;
+  border-inline: 1px solid var(--lv-line);
+  background: var(--surface-raised-2x);
+}
+
+/* Room at the foot of every page so the bottom edge reads as a margin. */
+.lv-frame::after {
+  content: "";
+  display: block;
+  height: var(--space-128);
+  border-top: 1px solid var(--lv-line);
+}
+
+/* ───────── typography ───────── */
+
+.lv-title {
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: clamp(24px, 3.5vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.lv-intro {
+  max-width: 480px;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.lv-eyebrow,
+.lv-cell-label {
+  color: var(--text-muted-subtle);
+  font-family: var(--landing-mono);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+/* ───────── guides in the margins ───────── */
+
+.lv-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lv-guides-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc((100% - var(--lv-w)) / 2);
+}
+
+.lv-guides-side--left { left: 0; }
+.lv-guides-side--right { right: 0; }
+
+/* columns: a vertical guide every 40px, fading away from the rail */
+.lv-guides[data-kind="columns"] .lv-guides-side::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(to left, var(--lv-guide) 0 1px, transparent 1px 40px);
+  mask-image: linear-gradient(to left, #000 0, transparent 100%);
+}
+
+.lv-guides[data-kind="columns"] .lv-guides-side--right::after {
+  background-image: repeating-linear-gradient(to right, var(--lv-guide) 0 1px, transparent 1px 40px);
+  mask-image: linear-gradient(to right, #000 0, transparent 100%);
+}
+
+/* The one guide that gets a name, the way a pinned guide would in a design tool. */
+.lv-guides[data-kind="columns"] .lv-guides-side::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 1px;
+  background: var(--lv-red);
+  opacity: 0.5;
+}
+
+.lv-guides[data-kind="columns"] .lv-guides-side--left::before { right: 120px; }
+.lv-guides[data-kind="columns"] .lv-guides-side--right::before { left: 120px; }
+
+.lv-guides-tag {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-24);
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--lv-red);
+  color: #fff;
+  font-family: var(--landing-mono);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.lv-guides-side--left .lv-guides-tag { right: 120px; transform: translateX(50%); }
+.lv-guides-side--right .lv-guides-tag { left: 120px; transform: translateX(-50%); }
+
+/* ruler: tick marks that count down the rail */
+.lv-guides[data-kind="ruler"] .lv-guides-side::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  background-repeat: no-repeat;
+  background-size: 16px 100%, 10px 100%, 5px 100%;
+}
+
+.lv-guides[data-kind="ruler"] .lv-guides-side--left::before {
+  right: 0;
+  background-image:
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 8px);
+  background-position: right top, right top, right top;
+}
+
+.lv-guides[data-kind="ruler"] .lv-guides-side--right::before {
+  left: 0;
+  background-image:
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(to bottom, var(--lv-tick) 0 1px, transparent 1px 8px);
+  background-position: left top, left top, left top;
+}
+
+.lv-guides-number {
+  position: absolute;
+  margin-top: -5px;
+  color: var(--text-muted-subtle);
+  font-family: var(--landing-mono);
+  font-size: 9px;
+  line-height: 10px;
+}
+
+.lv-guides-side--left .lv-guides-number { right: 24px; }
+.lv-guides-side--right .lv-guides-number { left: 24px; }
+
+/* margins: two quiet margin guides per side; the callouts do the talking */
+.lv-guides[data-kind="margins"] .lv-guides-side {
+  background-repeat: no-repeat;
+  background-size: 1px 100%, 1px 100%;
+}
+
+.lv-guides[data-kind="margins"] .lv-guides-side--left {
+  background-image: linear-gradient(var(--lv-guide), var(--lv-guide)), linear-gradient(var(--lv-guide), var(--lv-guide));
+  background-position: right 28px top, right 56px top;
+}
+
+.lv-guides[data-kind="margins"] .lv-guides-side--right {
+  background-image: linear-gradient(var(--lv-guide), var(--lv-guide)), linear-gradient(var(--lv-guide), var(--lv-guide));
+  background-position: left 28px top, left 56px top;
+}
+
+/* sparse: a single dashed guide per side */
+.lv-guides[data-kind="sparse"] .lv-guides-side {
+  background-repeat: no-repeat;
+  background-size: 1px 100%;
+}
+
+.lv-guides[data-kind="sparse"] .lv-guides-side--left {
+  background-image: repeating-linear-gradient(to bottom, var(--lv-tick) 0 4px, transparent 4px 8px);
+  background-position: right 64px top;
+}
+
+.lv-guides[data-kind="sparse"] .lv-guides-side--right {
+  background-image: repeating-linear-gradient(to bottom, var(--lv-tick) 0 4px, transparent 4px 8px);
+  background-position: left 64px top;
+}
+
+/* hlines: guides that cross the rails and run off both edges of the page */
+.lv-hline {
+  position: absolute;
+  right: -100vw;
+  left: -100vw;
+  z-index: 0;
+  height: 1px;
+  background: var(--lv-guide);
+  pointer-events: none;
+}
+
+.lv-hline::before,
+.lv-hline::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  width: 11px;
+  height: 11px;
+  background:
+    linear-gradient(var(--lv-plus), var(--lv-plus)) center / 1px 100% no-repeat,
+    linear-gradient(var(--lv-plus), var(--lv-plus)) center / 100% 1px no-repeat;
+}
+
+.lv-hline::before { left: calc(100vw - 5px); }
+.lv-hline::after { right: calc(100vw - 5px); }
+
+/* ───────── red measurement callouts ───────── */
+
+.lv-measure {
+  position: absolute;
+  z-index: 3;
+  width: 1px;
+  background: var(--lv-red);
+  pointer-events: none;
+}
+
+.lv-measure--left { right: calc(100% + 40px); }
+.lv-measure--right { left: calc(100% + 40px); }
+
+.lv-measure::before,
+.lv-measure::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  width: 7px;
+  height: 1px;
+  background: var(--lv-red);
+}
+
+.lv-measure::before { top: 0; }
+.lv-measure::after { bottom: 0; }
+
+.lv-measure-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--lv-red);
+  color: #fff;
+  font-family: var(--landing-mono);
+  font-size: 10px;
+  line-height: 12px;
+  transform: translate(-50%, -50%);
+}
+
+/* ───────── hero ───────── */
+
+.lv-hero {
+  position: relative;
+}
+
+.lv-hero--centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  padding: 176px var(--space-24) 136px;
+  text-align: center;
+}
+
+.lv-hero--centered .lv-intro { max-width: 460px; }
+
+.lv-hero--split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-64);
+  align-items: end;
+  padding: 160px var(--space-48) 112px;
+}
+
+.lv-hero--split .lv-title { max-width: 20ch; }
+
+.lv-hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  align-items: flex-start;
+}
+
+.lv-hero--blueprint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  padding: 208px var(--space-24) 128px;
+  text-align: center;
+}
+
+.lv-hero--blueprint .lv-intro { max-width: 440px; }
+.lv-hero--blueprint .landing-install-actions { justify-content: center; margin-top: var(--space-16); }
+
+.lv-hero-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  align-items: flex-start;
+}
+
+.lv-hero-top .landing-install-actions { margin-top: var(--space-8); }
+
+/* ───────── install strip ───────── */
+
+.lv-strip {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 1px;
+  border-block: 1px solid var(--lv-line);
+  background: var(--lv-line);
+}
+
+.lv-strip-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-32);
+  background: var(--surface-raised-2x);
+}
+
+.lv-strip-cell--try { background: var(--surface-raised); }
+
+.lv-strip-title {
+  margin: var(--space-8) 0 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.lv-strip-copy {
+  max-width: 34ch;
+  margin: 0 0 var(--space-20);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.lv-strip-cell .landing-button { margin-top: auto; }
+
+/* ───────── bento ───────── */
+
+.lv .lv-bento.landing-bento {
+  display: grid;
+  margin: 0;
+  gap: 1px;
+  grid-template-areas: none;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  border-block: 1px solid var(--lv-line);
+  background: var(--lv-line);
+}
+
+.lv-cell {
+  --landing-bento-delay: calc(var(--landing-bento-index, 0) * 80ms + 360ms);
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-28);
+  padding: var(--space-48) var(--space-32) var(--space-32);
+  background: var(--surface-raised-2x);
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity var(--landing-reveal-fade-duration) ease,
+    transform var(--landing-reveal-move-duration) var(--landing-reveal-ease);
+  transition-delay: calc(var(--landing-bento-index, 0) * 80ms);
+}
+
+.lv-bento[data-visible="true"] .lv-cell {
+  opacity: 1;
+  transform: none;
+}
+
+.lv-cell-label {
+  position: absolute;
+  top: var(--space-20);
+  left: var(--space-32);
+}
+
+.lv-cell-stage {
+  display: flex;
+  min-height: 188px;
+  flex: 1;
+}
+
+.lv-cell-stage .landing-bento-stage {
+  width: 100%;
+}
+
+.lv-fit {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.lv-fit-inner {
+  width: max-content;
+}
+
+.lv-fit--fill {
+  display: block;
+}
+
+/* The canvas frames flex to fill, so they need a width to scale down from. */
+.lv-cell--canvas .lv-fit-inner {
+  width: 520px;
+}
+
+.lv-cell--spacing .landing-bento-layout {
+  height: 232px;
+  min-height: 0;
+  margin-inline: auto;
+}
+
+.lv-cell-caption {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.lv-cell-caption strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* centered: the original Rails arrangement, 2/1/1 over 1/1/2 */
+.lv-bento--classic .lv-cell--wide { grid-column: span 2; }
+
+/* split: even 3x2 */
+.lv .lv-bento--even.landing-bento { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lv-bento--even .lv-cell { min-height: 400px; padding-top: var(--space-56); }
+
+/* sidebar: sticky hero rail beside a two-column bento */
+.lv-sidebar-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  align-items: start;
+}
+
+.lv-hero--sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 600px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 128px var(--space-36) var(--space-40);
+}
+
+.lv-hero--sidebar .lv-title { font-size: 28px; }
+
+.lv .lv-hero-foot {
+  color: var(--text-muted-subtle);
+  font-family: var(--landing-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.lv .lv-hero-foot:hover { color: var(--text-primary); }
+
+.lv .lv-bento--pair.landing-bento {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 0;
+  border-left: 1px solid var(--lv-line);
+}
+
+.lv-bento--pair .lv-cell--wide { grid-column: span 2; }
+.lv-bento--pair .lv-cell { min-height: 380px; }
+
+/* interlocked: the hero is a cell, three fixed rows */
+.lv .lv-bento--interlocked.landing-bento {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, 380px);
+}
+
+.lv-bento--interlocked .lv-cell--wide { grid-column: span 2; }
+.lv-bento--interlocked .lv-cell--hero { grid-row: span 2; justify-content: space-between; padding: var(--space-40); }
+.lv-bento--interlocked .lv-cell--hero .lv-hero-top { max-width: 440px; }
+.lv-bento--interlocked .lv-cell { min-height: 0; padding-inline: var(--space-28); }
+.lv-bento--interlocked .lv-cell-stage { min-height: 0; }
+
+.lv-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--text-primary);
+  font-family: var(--landing-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.lv-wordmark i {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: var(--lv-red);
+}
+
+/* blueprint: no borders, 12 columns, registration marks at the corners */
+.lv .lv-bento--blueprint.landing-bento {
+  position: relative;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lv-bento--blueprint .lv-cell { min-height: 380px; padding: var(--space-64) var(--space-48) var(--space-48); }
+.lv-span-7 { grid-column: span 7; }
+.lv-span-6 { grid-column: span 6; }
+.lv-span-5 { grid-column: span 5; }
+
+.lv-bento--blueprint .lv-cell::before,
+.lv-bento--blueprint .lv-cell.lv-edge::after,
+.lv-bento--blueprint::before,
+.lv-bento--blueprint::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  background:
+    linear-gradient(var(--lv-plus), var(--lv-plus)) center / 1px 100% no-repeat,
+    linear-gradient(var(--lv-plus), var(--lv-plus)) center / 100% 1px no-repeat;
+  pointer-events: none;
+}
+
+.lv-bento--blueprint .lv-cell::before { top: -5px; left: -5px; }
+.lv-bento--blueprint .lv-cell.lv-edge::after { top: -5px; right: -6px; }
+.lv-bento--blueprint::before { bottom: -6px; left: -6px; }
+.lv-bento--blueprint::after { right: -6px; bottom: -6px; }
+
+/* ───────── switcher + index ───────── */
+
+.lv-switcher {
+  position: fixed;
+  bottom: var(--space-16);
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inverse);
+  box-shadow: var(--shadow-popup);
+  transform: translateX(-50%);
+}
+
+.lv .lv-switcher a {
+  display: grid;
+  min-width: 28px;
+  height: 28px;
+  padding-inline: var(--space-8);
+  place-items: center;
+  border-radius: var(--radius-pill);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--landing-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.lv .lv-switcher a:hover { color: #fff; }
+.lv .lv-switcher a[data-current] { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+.lv-index {
+  width: min(640px, calc(100% - var(--space-48)));
+  margin: 0 auto;
+  padding: var(--space-120) 0 var(--space-120);
+}
+
+.lv-index-title {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.lv-index-lead {
+  margin-top: var(--space-12);
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.lv-index-list {
+  margin: var(--space-48) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--lv-line);
+  list-style: none;
+}
+
+.lv-index-list li { border-bottom: 1px solid var(--lv-line); }
+
+.lv-index-list a {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: var(--space-4) var(--space-16);
+  padding: var(--space-24) 0;
+}
+
+.lv-index-list a:hover .lv-index-name { color: var(--lv-red); }
+
+.lv-index-number {
+  grid-row: span 2;
+  color: var(--text-muted-subtle);
+  font-family: var(--landing-mono);
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.lv-index-name { font-size: 15px; font-weight: 500; line-height: 22px; }
+.lv-index-note { color: var(--text-secondary); font-size: 14px; line-height: 1.55; }
+
+/* ───────── responsive ───────── */
+
+@media (max-width: 1040px) {
+  .lv-sidebar-layout { grid-template-columns: 340px minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .lv-hline,
+  .lv-measure { display: none; }
+
+  .lv-strip { grid-template-columns: minmax(0, 1fr); }
+
+  .lv .lv-bento.landing-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+
+  .lv .lv-cell,
+  .lv .lv-cell--hero { grid-column: auto; grid-row: auto; }
+  .lv .lv-cell--wide { grid-column: 1 / -1; }
+
+  .lv-hero--split { grid-template-columns: minmax(0, 1fr); gap: var(--space-32); padding: 112px var(--space-24) 72px; }
+  .lv-hero--centered { padding: 120px var(--space-24) 88px; }
+  .lv-hero--blueprint { padding: 128px var(--space-24) 96px; }
+
+  .lv-sidebar-layout { display: block; }
+  .lv-hero--sidebar { position: static; height: auto; min-height: 0; gap: var(--space-64); padding: 96px var(--space-24) var(--space-48); }
+  .lv .lv-bento--pair.landing-bento { border-left: 0; }
+
+  .lv-bento--blueprint .lv-cell { padding: var(--space-48) var(--space-24) var(--space-32); }
+}
+
+@media (max-width: 600px) {
+  .lv .lv-bento.landing-bento { grid-template-columns: minmax(0, 1fr); }
+  .lv .lv-cell--wide { grid-column: auto; }
+  .lv-cell { padding-inline: var(--space-24); }
+  .lv-cell-label { left: var(--space-24); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lv-cell { opacity: 1; transform: none; transition: none; }
+}

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { LandingVersionPage } from "./LandingVersionPage";
 import { HeroVariantsPage } from "./hero/HeroVariantsPage";
+import { LayoutVariantsPage } from "./layouts/LayoutVariantsPage";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -18,11 +19,14 @@ const demoControllerDocument = !directApplication
   && (landingDemoBuild || (import.meta.env.DEV && window.location.pathname === "/"));
 const landingVersion = params.get("landing-version");
 const heroRoute = window.location.pathname.match(/^\/hero(?:\/([a-z0-9-]+))?\/?$/);
+const layoutsRoute = window.location.pathname.match(/^\/layouts(?:\/([a-z0-9-]+))?\/?$/);
 const page = heroRoute
   ? <HeroVariantsPage slug={heroRoute[1] ?? null} />
-  : landingVersion === "1" || landingVersion === "2"
-    ? <LandingVersionPage version={landingVersion} />
-    : <App />;
+  : layoutsRoute
+    ? <LayoutVariantsPage slug={layoutsRoute[1] ?? null} />
+    : landingVersion === "1" || landingVersion === "2"
+      ? <LandingVersionPage version={landingVersion} />
+      : <App />;
 
 if (landingDemoBuild && !import.meta.env.DEV) {
   const inspectorRoot = document.createElement("div");
