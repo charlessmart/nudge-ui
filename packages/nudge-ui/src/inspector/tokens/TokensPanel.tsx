@@ -15,6 +15,7 @@ import {
   compatibleTokenNames,
   contextLabel,
   filterTokenRows,
+  isInternalTokenRow,
   scopeRowsToStylesheet,
   tokenModes,
   tokenStylesheets,
@@ -50,6 +51,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
     [rows, file, mode, stylesheets.length],
   );
   const visibleRows = useMemo(() => filterTokenRows(scopedRows, query), [query, scopedRows]);
+  const internalRows = useMemo(() => visibleRows.filter(isInternalTokenRow), [visibleRows]);
   const entries: TokenEntry[] = useMemo(() => rows.map((row) => ({
     name: row.definition.cssName,
     value: row.resolvedValue || row.authoredValue,
@@ -79,7 +81,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
               <Select
                 className="tokens-panel__mode"
                 value={mode}
-                options={modes.map((candidate) => ({ value: candidate.key, label: candidate.key }))}
+                options={modes.map((candidate) => ({ value: candidate.key, label: candidate.label }))}
                 aria-label="Mode"
                 data-test="token-mode"
                 popupWidth="fit"
@@ -99,7 +101,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
       </div>
 
       {TOKEN_GROUP_ORDER.map((group) => {
-        const groupedRows = visibleRows.filter((row) => row.group === group);
+        const groupedRows = visibleRows.filter((row) => row.group === group && !internalRows.includes(row));
         if (groupedRows.length === 0) return null;
         return (
           <section className="token-group" data-test="token-group" data-group={group} key={group}>
@@ -112,6 +114,22 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
           </section>
         );
       })}
+
+      {internalRows.length > 0 ? (
+        // Per-element defaults such as Tailwind's `--tw-*` are plumbing, kept out of the way but opened by a search that finds them.
+        <Disclosure
+          key={query.trim() === "" ? "browsing" : "searching"}
+          className="token-group token-group--internal"
+          data-test="token-internal"
+          title={`Internal (${internalRows.length})`}
+          panelClassName="token-group__internal-list"
+          defaultOpen={query.trim() !== ""}
+        >
+          {internalRows.map((row) => (
+            <TokenCatalogItem key={row.definition.cssName} row={row} rows={rows} entries={entries} />
+          ))}
+        </Disclosure>
+      ) : null}
 
       {visibleRows.length === 0 ? (
         <div className="tokens-panel__empty" data-test="tokens-empty">No matching tokens</div>

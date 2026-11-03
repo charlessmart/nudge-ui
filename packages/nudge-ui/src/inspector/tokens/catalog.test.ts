@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, afterEach } from "vitest";
-import type { TokenDefinition } from "../../css/model/index.ts";
+import type { TokenContext, TokenDefinition } from "../../css/model/index.ts";
 import {
   aliasName,
   buildTokenCatalogRows,
@@ -10,6 +10,8 @@ import {
   createsAliasCycle,
   filterTokenRows,
   humanizeSelector,
+  tokenModeLabel,
+  tokenModes,
   type TokenRuntime,
 } from "./catalog.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
@@ -257,5 +259,43 @@ describe("token catalog", () => {
     const rows = buildTokenCatalogRows(CATALOG, document.documentElement, runtime());
     expect([...compatibleTokenNames(rows[0]!, rows)]).toEqual([]);
     expect([...compatibleTokenNames(rows[1]!, rows)]).toEqual([]);
+  });
+
+  it("reads theme selectors and plain media features as mode names", () => {
+    const label = (selector: string | undefined, media?: string) => tokenModeLabel({
+      selector,
+      ...(media ? { wrappers: [{ kind: "media" as const, params: media }] } : {}),
+    });
+    expect(label(".dark")).toBe("Dark");
+    expect(label(':root[data-theme="dark"]')).toBe("Dark");
+    expect(label("html.theme-ocean, :host(.theme-ocean)")).toBe("Ocean");
+    expect(label("[data-density=compact]")).toBe("Compact");
+    expect(label(":root", "(prefers-color-scheme: dark)")).toBe("Dark (system)");
+    expect(label(":root", "(prefers-contrast: more)")).toBe("High contrast");
+    expect(label(":root", "screen and (max-width: 600px)")).toBe("≤ 600px");
+    expect(label(".dark", "(width >= 48rem)")).toBe("Dark · ≥ 48rem");
+    // Anything richer than one theme name or one feature keeps what it says.
+    expect(label(".dark .card")).toBe(".dark .card");
+    expect(label(".dark, .night")).toBe(".dark, .night");
+    expect(label(":root", "(min-width: 600px) and (hover: hover)")).toBe("@media (min-width: 600px) and (hover: hover)");
+  });
+
+  it("names Default for the scheme it stands in for and keeps look-alike modes apart", () => {
+    const modes = (contexts: TokenContext[]) => {
+      const catalog: TokenDefinition[] = [{
+        cssName: "--surface",
+        name: "--surface",
+        declarations: contexts.map((context, index) => ({ value: `${index}`, source: `src/a.css:${index + 1}`, important: false, context })),
+      }];
+      return tokenModes(buildTokenCatalogRows(catalog, document.documentElement, runtime()), "src/a.css").map((mode) => mode.label);
+    };
+    const dark = (media: string) => ({ selector: ":root", wrappers: [{ kind: "media" as const, params: media }] });
+
+    expect(modes([{ selector: ":root" }, { selector: ".dark" }])).toEqual(["Light", "Dark"]);
+    expect(modes([{ selector: ":root" }, { selector: ".dark" }, dark("(prefers-color-scheme: dark)")])).toEqual(["Light", "Dark", "Dark (system)"]);
+    expect(modes([{ selector: ":root" }, { selector: ".light" }])).toEqual(["Dark", "Light"]);
+    expect(modes([{ selector: ":root" }, { selector: ".dark" }, { selector: ".ocean" }])).toEqual(["Default", "Dark", "Ocean"]);
+    expect(modes([{ selector: ":root" }, { selector: ".dark" }, { selector: '[data-theme="dark"]' }]))
+      .toEqual(["Light", "Dark (.dark)", 'Dark ([data-theme="dark"])']);
   });
 });

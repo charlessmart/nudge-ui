@@ -210,29 +210,154 @@ export function tokenStylesheets(rows: readonly TokenCatalogRow[]): TokenStylesh
     .sort((a, b) => b.count - a.count);
 }
 
+export const DEFAULT_TOKEN_MODE = "Default";
+
+const ROOT_EQUIVALENT_SELECTORS = new Set(["", ":root", ":host", "html"]);
+
+function selectorParts(selector: string): string[] {
+  return humanizeSelector(selector, getScopingSelectorPattern()).split(",").map((part) => part.trim());
+}
+
+/** `:root`, `:host`, `html`, or a list of them: each means the whole document, so none narrows where a token applies. */
+function isRootEquivalentSelector(selector: string | undefined): boolean {
+  return !selector || selectorParts(selector).every((part) => ROOT_EQUIVALENT_SELECTORS.has(part));
+}
+
+const PER_ELEMENT_PART = /^(\*|\*?::[a-z-]+|\*?:(before|after))$/i;
+
+/** `*`, `::before`, `::after`, `::backdrop` and the like declare a default on every element, as Tailwind's `--tw-*` properties do. */
+export function isPerElementSelector(selector: string | undefined): boolean {
+  return selector !== undefined && selectorParts(selector).every((part) => PER_ELEMENT_PART.test(part));
+}
+
+/**
+ * The mode a declaration belongs to: only the selector, `@media` and `@scope` conditions that choose which design applies.
+ * `@layer` orders the cascade and `@supports` picks a fallback for the browser, and root-equivalent selectors are all the document, so they fold into Default,
+ * where the declaration in effect is shown and the others stay listed as its variants.
+ * Per-element declarations are plumbing rather than a mode, so they join Default whatever wraps them.
+ */
+export function tokenModeKey(context: TokenContext): string {
+  if (isPerElementSelector(context.selector)) return DEFAULT_TOKEN_MODE;
+  const labels: string[] = [];
+  if (!isRootEquivalentSelector(context.selector)) labels.push(humanizeSelector(context.selector!, getScopingSelectorPattern()));
+  for (const wrapper of context.wrappers ?? []) {
+    if (wrapper.kind === "media" || wrapper.kind === "scope") labels.push(`@${wrapper.kind} ${wrapper.params}`);
+  }
+  return labels.join(" · ") || DEFAULT_TOKEN_MODE;
+}
+
+function sentenceCase(name: string): string {
+  const words = name.replace(/[-_]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The theme a selector part names: `.dark`, `.theme-ocean`, `[data-theme="dark"]` or `[data-density=compact]`, on its own or on the root. */
+function themeName(part: string): string | null {
+  const rest = part
+    .replace(/^:host\((.+)\)$/, "$1")
+    .replace(/^(:root|:host|html)(?=[.[:])/, "")
+    .replace(/^:(where|is)\(([^,()]+)\)$/, "$2");
+  const className = rest.match(/^\.(-?[_a-zA-Z][\w-]*)$/)?.[1];
+  if (className) return sentenceCase(className.replace(/^theme[-_]+/, ""));
+  const attribute = rest.match(/^\[([\w-]+)(?:\s*=\s*["']?([^"'\]]+?)["']?)?\]$/);
+  return attribute ? sentenceCase(attribute[2] ?? attribute[1]!.replace(/^data-/, "")) : null;
+}
+
+function selectorModeLabel(selector: string): string {
+  const names = selectorParts(selector).map(themeName);
+  const [first] = names;
+  return first && names.every((name) => name === first) ? first : humanizeSelector(selector, getScopingSelectorPattern());
+}
+
+const MEDIA_FEATURE_LABELS: Record<string, (value: string) => string | null> = {
+  "prefers-color-scheme": (value) => `${sentenceCase(value)} (system)`,
+  "prefers-contrast": (value) => value === "more" || value === "high" ? "High contrast" : value === "less" ? "Low contrast" : null,
+  "prefers-reduced-motion": (value) => value === "reduce" ? "Reduced motion" : null,
+  "forced-colors": (value) => value === "active" ? "Forced colors" : null,
+  "min-width": (value) => `≥ ${value}`,
+  "max-width": (value) => `≤ ${value}`,
+};
+
+/** One plain media feature reads as what it means; anything richer keeps its query. */
+function mediaModeLabel(query: string): string {
+  const condition = query.trim().replace(/^(only\s+)?screen\s+and\s+/i, "");
+  if (/^print$/i.test(condition)) return "Print";
+  const feature = condition.match(/^\(\s*([\w-]+)\s*:\s*([^()]+?)\s*\)$/);
+  const label = feature ? MEDIA_FEATURE_LABELS[feature[1]!.toLowerCase()]?.(feature[2]!) : null;
+  if (label) return label;
+  const range = condition.match(/^\(\s*width\s*(>=|<=)\s*([^()]+?)\s*\)$/);
+  return range ? `${range[1] === ">=" ? "≥" : "≤"} ${range[2]}` : `@media ${query}`;
+}
+
+/** How a mode reads in the picker: `Dark` for `.dark` or `[data-theme="dark"]`, `Dark (system)` for `prefers-color-scheme`. */
+export function tokenModeLabel(context: TokenContext): string {
+  if (isPerElementSelector(context.selector)) return DEFAULT_TOKEN_MODE;
+  const labels: string[] = [];
+  if (!isRootEquivalentSelector(context.selector)) labels.push(selectorModeLabel(context.selector!));
+  for (const wrapper of context.wrappers ?? []) {
+    if (wrapper.kind === "media") labels.push(mediaModeLabel(wrapper.params));
+    if (wrapper.kind === "scope") labels.push(`@scope ${wrapper.params}`);
+  }
+  return labels.join(" · ") || DEFAULT_TOKEN_MODE;
+}
+
+/** A token whose value comes only from per-element declarations, listed apart from the design tokens. */
+export function isInternalTokenRow(row: TokenCatalogRow): boolean {
+  const declarations = row.activeDeclaration ? [row.activeDeclaration] : row.definition.declarations;
+  return declarations.length > 0 && declarations.every((declaration) => isPerElementSelector(declaration.context.selector));
+}
+
 function isDefaultContext(context: TokenContext): boolean {
-  return (!context.selector || context.selector === ":root") && (context.wrappers ?? []).length === 0;
+  return tokenModeKey(context) === DEFAULT_TOKEN_MODE;
 }
 
 export interface TokenMode {
-  /** The declarations' context label, `Default` for the unconditional one. */
+  /** The declarations' mode key, `Default` for the unconditional one. */
   key: string;
+  /** How the mode reads in the picker. */
+  label: string;
   /** How many tokens declare a value in the mode. */
   count: number;
 }
 
-/** The contexts a stylesheet's tokens are declared in, the unconditional one first, then the most populated. */
+const OPPOSITE_SCHEME: Record<string, string> = { Dark: "Light", Light: "Dark" };
+
+/**
+ * Names Default for the scheme it stands in for when the other modes are only the opposite one (a `.dark` beside it makes it Light),
+ * and keeps two modes that read the same apart by their source.
+ */
+function finishModeLabels(modes: TokenMode[]): TokenMode[] {
+  const schemes = new Set<string | undefined>(modes
+    .filter((mode) => mode.key !== DEFAULT_TOKEN_MODE)
+    .map((mode) => OPPOSITE_SCHEME[mode.label.replace(/ \(system\)$/, "")]));
+  const defaultLabel = schemes.size === 1 && !schemes.has(undefined) ? [...schemes][0]! : DEFAULT_TOKEN_MODE;
+  const labelled = modes.map((mode) => mode.key === DEFAULT_TOKEN_MODE ? { ...mode, label: defaultLabel } : mode);
+  const uses = new Map<string, number>();
+  for (const mode of labelled) uses.set(mode.label, (uses.get(mode.label) ?? 0) + 1);
+  return labelled.map((mode) => (uses.get(mode.label) ?? 0) > 1 && mode.label !== mode.key
+    ? { ...mode, label: `${mode.label} (${mode.key})` }
+    : mode);
+}
+
+/** The modes a stylesheet's tokens are declared in, the unconditional one first, then the most populated. */
 export function tokenModes(rows: readonly TokenCatalogRow[], file: string): TokenMode[] {
   const counts = new Map<string, number>();
+  const labels = new Map<string, string>();
   for (const row of rows) {
-    const keys = row.definition.declarations
+    const contexts = row.definition.declarations
       .filter((declaration) => declarationFile(declaration) === file)
-      .map((declaration) => contextLabel(declaration.context));
-    for (const key of new Set(keys)) counts.set(key, (counts.get(key) ?? 0) + 1);
+      .map((declaration) => declaration.context);
+    const keys = new Set<string>();
+    for (const context of contexts) {
+      const key = tokenModeKey(context);
+      keys.add(key);
+      if (!labels.has(key)) labels.set(key, tokenModeLabel(context));
+    }
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return [...counts]
-    .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => Number(b.key === "Default") - Number(a.key === "Default") || b.count - a.count);
+  return finishModeLabels([...counts]
+    .map(([key, count]) => ({ key, label: labels.get(key) ?? key, count }))
+    .sort((a, b) => Number(b.key === DEFAULT_TOKEN_MODE) - Number(a.key === DEFAULT_TOKEN_MODE) || b.count - a.count));
 }
 
 function rowWithDeclaration(row: TokenCatalogRow, definition: TokenDefinition, declaration: TokenDeclaration): TokenCatalogRow {
@@ -253,16 +378,22 @@ function rowWithDeclaration(row: TokenCatalogRow, definition: TokenDefinition, d
 
 /**
  * The tokens one stylesheet declares, each reduced to that stylesheet's own declarations.
- * With a `mode`, only the tokens declared in that context, each showing that declaration, so it can be read and edited without being the one in effect.
+ * With a `mode`, only the tokens declared in that mode, each showing the declaration in effect when it is one of them, otherwise the last,
+ * so it can be read and edited without being the one in effect; the mode's other declarations of the token stay listed as variants.
  * Without one, a token another stylesheet overrides shows this stylesheet's default declaration.
  */
 export function scopeRowsToStylesheet(rows: readonly TokenCatalogRow[], file: string, mode: string | null = null): TokenCatalogRow[] {
   return rows.flatMap((row) => {
     const declarations = row.definition.declarations.filter((declaration) =>
-      declarationFile(declaration) === file && (mode === null || contextLabel(declaration.context) === mode));
+      declarationFile(declaration) === file && (mode === null || tokenModeKey(declaration.context) === mode));
     if (declarations.length === 0) return [];
     const definition = { ...row.definition, declarations };
-    if (mode !== null) return [rowWithDeclaration(row, definition, declarations[declarations.length - 1]!)];
+    if (mode !== null) {
+      const shown = row.activeDeclaration && declarations.includes(row.activeDeclaration)
+        ? row.activeDeclaration
+        : declarations[declarations.length - 1]!;
+      return [rowWithDeclaration(row, definition, shown)];
+    }
     if (!row.activeDeclaration || declarations.includes(row.activeDeclaration)) return [{ ...row, definition }];
 
     const declaration = declarations.find((candidate) => isDefaultContext(candidate.context));
