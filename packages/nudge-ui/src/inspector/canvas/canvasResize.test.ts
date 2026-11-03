@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  FOCUS_EDGE_SNAP_DISTANCE,
   MIN_CARD_HEIGHT,
   MIN_CARD_WIDTH,
   resizeCanvasRect,
+  resizeFocusWidth,
   type CanvasResizeDirection,
   type CanvasResizeRect,
 } from "./canvasResize.ts";
@@ -51,5 +53,24 @@ describe("resizeCanvasRect", () => {
       "right",
       { x: 0, y: 0 },
     )).toMatchObject({ width: MIN_CARD_WIDTH, height: MIN_CARD_HEIGHT });
+  });
+});
+
+describe("resizeFocusWidth", () => {
+  it("grows both sides of the centred frame so the dragged edge follows the pointer", () => {
+    expect(resizeFocusWidth(600, "right", 50, 1200)).toBe(700);
+    expect(resizeFocusWidth(600, "left", -50, 1200)).toBe(700);
+    expect(resizeFocusWidth(600, "left", 50, 1200)).toBe(500);
+  });
+
+  it("snaps to the full board width near the board's sides", () => {
+    const nearlyFull = 1200 - FOCUS_EDGE_SNAP_DISTANCE * 2;
+    expect(resizeFocusWidth(nearlyFull - 2, "right", 1, 1200)).toBe(1200);
+    expect(resizeFocusWidth(nearlyFull - 2, "right", 0, 1200)).toBe(nearlyFull - 2);
+    expect(resizeFocusWidth(600, "right", 5_000, 1200)).toBe(1200);
+  });
+
+  it("keeps the minimum frame width", () => {
+    expect(resizeFocusWidth(600, "right", -5_000, 1200)).toBe(MIN_CARD_WIDTH);
   });
 });

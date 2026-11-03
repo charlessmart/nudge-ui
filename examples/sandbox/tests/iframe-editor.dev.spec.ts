@@ -75,7 +75,8 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
   const widthProbe = await page.evaluate(() => (
     window as Window & { __focusWidthProbe?: { initial: number; samples: number[] } }
   ).__focusWidthProbe);
-  expect(widthProbe?.samples.some((width) => width !== widthProbe.initial)).toBe(true);
+  // Leaving Focus narrows a wider frame to the Focus width, so the zoom out never relayouts the page.
+  expect(widthProbe?.samples.every((width) => width === widthProbe.initial)).toBe(true);
   await expect(page.locator('[data-test^="canvas-card-resize-"]')).toBeAttached();
   await expect(page.locator('[data-test="presentation-focus"]')).toBeVisible();
   await expect.poll(() => page.locator('[data-test="canvas-board-content"]').evaluate((element: HTMLElement) => element.style.transform))

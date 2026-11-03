@@ -1,5 +1,7 @@
 export const MIN_CARD_WIDTH = 200;
 export const MIN_CARD_HEIGHT = 150;
+/** Within this many pixels of the board's sides, a focus resize snaps the frame to the full board width. */
+export const FOCUS_EDGE_SNAP_DISTANCE = 16;
 
 export type CanvasResizeDirection =
   | "top-left"
@@ -86,4 +88,19 @@ export function resizeCanvasRect(
     width: right - left,
     height: bottom - top,
   };
+}
+
+/**
+ * Focus centres the frame on the board, so an edge drag grows both sides at once and the dragged edge stays under the
+ * pointer. Close enough to the board's sides, the frame snaps to fill it.
+ */
+export function resizeFocusWidth(
+  startWidth: number,
+  edge: "left" | "right",
+  deltaX: number,
+  boardWidth: number,
+): number {
+  const growth = edge === "right" ? deltaX : -deltaX;
+  const width = Math.min(boardWidth, Math.max(MIN_CARD_WIDTH, startWidth + growth * 2));
+  return (boardWidth - width) / 2 <= FOCUS_EDGE_SNAP_DISTANCE ? boardWidth : width;
 }

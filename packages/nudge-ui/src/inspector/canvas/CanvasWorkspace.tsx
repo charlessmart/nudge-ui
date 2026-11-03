@@ -1,7 +1,7 @@
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactElement } from "react";
 import { IconCornerLeftUp, IconExternalLink } from "@tabler/icons-react";
 import {
   useCanvasCards,
@@ -44,6 +44,7 @@ import { PageCard } from "./PageCard.tsx";
 import { isPageSurface } from "./pageSurface.ts";
 import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
+import { getCanvasChromeScaleVariables } from "./resizeHandleScale.ts";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./viewStore.ts";
 import { getActiveDraftChanges, getChangesList, subscribeActiveDraftChanges } from "../drafts/store.ts";
@@ -113,6 +114,8 @@ import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolBarStyles].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
+/** How long after the last wheel event the board leaves its composited layer and repaints at the final scale. */
+const WHEEL_SETTLE_MS = 150;
 /** A strong in-out curve: the card morphs on screen rather than entering or leaving. */
 const PRESENTATION_TRANSITION_EASING = "cubic-bezier(0.77, 0, 0.175, 1)";
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
@@ -167,6 +170,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const sketchAvailable = sketchEnabled && getActiveCanvasFrame() !== null;
 
   const boardRef = useRef<HTMLDivElement>(null);
+  const boardContentRef = useRef<HTMLDivElement>(null);
+  const wheelSettleTimerRef = useRef<number | null>(null);
   useCanvasLayoutAnimation(boardRef, cards, camera, presentation);
   const panningRef = useRef(false);
   const panOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -324,30 +329,37 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       : null;
     if (!board || !card || !cardElement || typeof cardElement.animate !== "function" || camera.zoom <= 0) return;
 
-    // The previous layout is gone, so derive it: focus fills the board, canvas places the card through the camera.
+    // The previous layout is gone, so derive it: focus centres the frame at the top of the board, canvas places it through the camera.
     const boardRect = snapshotRect(board.getBoundingClientRect());
+    const focusWidth = Math.min(card.width, boardRect.width);
+    const focusRect: RectSnapshot = {
+      left: boardRect.left + (boardRect.width - focusWidth) / 2,
+      top: boardRect.top,
+      width: focusWidth,
+      height: boardRect.height,
+    };
     const canvasRect: RectSnapshot = {
       left: boardRect.left + camera.x + card.x * camera.zoom,
       top: boardRect.top + camera.y + card.y * camera.zoom,
       width: card.width * camera.zoom,
       height: card.height * camera.zoom,
     };
-    const oldRect = presentation === "focus" ? canvasRect : boardRect;
+    const oldRect = presentation === "focus" ? canvasRect : focusRect;
     const localScale = presentation === "focus" ? 1 : camera.zoom;
     const newRect = snapshotRect(cardElement.getBoundingClientRect());
     if (newRect.width <= 0 || newRect.height <= 0) return;
 
-    const localTranslateX = (oldRect.left + oldRect.width / 2 - (newRect.left + newRect.width / 2)) / localScale;
-    const localTranslateY = (oldRect.top + oldRect.height / 2 - (newRect.top + newRect.height / 2)) / localScale;
-    const scaleX = oldRect.width / newRect.width;
-    const scaleY = oldRect.height / newRect.height;
+    // One uniform scale anchored at the top edge, so the page zooms rather than stretching to the other height.
+    const localTranslateX = (oldRect.left - newRect.left) / localScale;
+    const localTranslateY = (oldRect.top - newRect.top) / localScale;
+    const scale = oldRect.width / newRect.width;
     const animation = cardElement.animate(
       [
         {
-          transformOrigin: "center center",
-          transform: `translate(${localTranslateX}px, ${localTranslateY}px) scale(${scaleX}, ${scaleY})`,
+          transformOrigin: "0 0",
+          transform: `translate(${localTranslateX}px, ${localTranslateY}px) scale(${scale})`,
         },
-        { transformOrigin: "center center", transform: "none" },
+        { transformOrigin: "0 0", transform: "none" },
       ],
       { duration: PRESENTATION_TRANSITION_MS, easing: PRESENTATION_TRANSITION_EASING, fill: "both" },
     );
@@ -460,22 +472,41 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (!activeDebugView.xray) clearFramesExploded();
   }, [activeDebugView.xray]);
 
+  // While wheel events keep arriving the board stays one composited layer, so pan and zoom ticks scale its existing
+  // raster instead of repainting every frame; once the wheel settles it repaints crisply at the final scale.
+  const markWheelGesture = useCallback(() => {
+    const content = boardContentRef.current;
+    if (!content) return;
+    content.dataset.wheeling = "true";
+    if (wheelSettleTimerRef.current !== null) window.clearTimeout(wheelSettleTimerRef.current);
+    wheelSettleTimerRef.current = window.setTimeout(() => {
+      wheelSettleTimerRef.current = null;
+      delete content.dataset.wheeling;
+    }, WHEEL_SETTLE_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (wheelSettleTimerRef.current !== null) window.clearTimeout(wheelSettleTimerRef.current);
+  }, []);
+
   const zoomAtPointer = useCallback((point: { x: number; y: number }, deltaY: number) => {
     const board = boardRef.current;
     if (!board) return;
+    markWheelGesture();
     setBoardCamera(zoomCameraAtPointer(
       getBoardCamera(),
       point,
       board.getBoundingClientRect(),
       deltaY,
     ));
-  }, []);
+  }, [markWheelGesture]);
 
   const panCanvasByWheel = useCallback((deltaX: number, deltaY: number) => {
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    markWheelGesture();
     const camera = getBoardCamera();
     setBoardCamera({ ...camera, x: camera.x - deltaX, y: camera.y - deltaY });
-  }, []);
+  }, [markWheelGesture]);
 
   const fitCanvasToBoard = useCallback(() => {
     const board = boardRef.current;
@@ -570,6 +601,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setAnimationsPaused(false);
   }, [selectedTool]);
 
+  // Showing the hidden panel means the user wants to inspect, so "Use app normally" gives way to Select.
+  const wasInspectorOpenRef = useRef(inspectorOpen);
+  useEffect(() => {
+    const opened = inspectorOpen && !wasInspectorOpenRef.current;
+    wasInspectorOpenRef.current = inspectorOpen;
+    if (opened && selectedTool === "select") setInteractionTool("design");
+  }, [inspectorOpen, selectedTool]);
+
   // Key handlers read this to decide whether the page keeps the keys the inspector acts on.
   useEffect(() => {
     setAppToolActive(selectedTool === "select");
@@ -638,10 +677,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           const activeId = getSelectedCardId() ?? getFocusedCardId();
           const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
           if (board && card) {
+            // A frame focus narrowed keeps that width on the canvas.
+            const width = Math.min(card.width, board.clientWidth);
+            if (width < card.width) resizeCard(card.id, width, card.height);
             const zoom = 0.9;
+            // Scale the focus layout about the board centre, so the frame's top edge eases down rather than jumping.
             setBoardCamera({
-              x: board.clientWidth / 2 - (card.x + card.width / 2) * zoom,
-              y: board.clientHeight / 2 - (card.y + card.height / 2) * zoom,
+              x: board.clientWidth / 2 - (card.x + width / 2) * zoom,
+              y: (board.clientHeight / 2) * (1 - zoom) - card.y * zoom,
               zoom,
             });
           }
@@ -1055,11 +1098,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             </div>
           ) : null}
           <div
+            ref={boardContentRef}
             className="canvas-workspace__board-content"
             style={{
               transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
               transformOrigin: "0 0",
-            }}
+              // Focus shows the frame at its own size, whatever zoom the canvas camera holds.
+              ...getCanvasChromeScaleVariables(presentation === "focus" ? 1 : camera.zoom),
+            } as CSSProperties}
             data-test="canvas-board-content"
           >
             {cards.map(renderCard)}

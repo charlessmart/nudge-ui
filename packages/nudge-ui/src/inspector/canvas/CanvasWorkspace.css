@@ -76,8 +76,9 @@
   /* Leave `will-change` unset so the browser can re-rasterize this subtree at the current camera scale. A permanent `will-change: transform` promotes it to a fixed bitmap, which makes iframe content look soft when zoomed. */
 }
 
-.canvas-workspace__board.is-grabbing .canvas-workspace__board-content {
-  /* Panning benefits from a cached composited layer; zoom restores the crisp default path as soon as the gesture ends. */
+.canvas-workspace__board.is-grabbing .canvas-workspace__board-content,
+.canvas-workspace__board-content[data-wheeling] {
+  /* Panning and wheel zoom benefit from a cached composited layer; the crisp default path returns as soon as the gesture ends. */
   will-change: transform;
 }
 

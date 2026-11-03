@@ -103,7 +103,7 @@ test("canvas links open a new route once and return to its existing live frame",
 });
 
 for (const linked of [false, true]) {
-  test(`returning from Focus centers the ${linked ? "linked" : "standalone"} frame at 90% zoom`, async ({ page }) => {
+  test(`returning from Focus zooms the ${linked ? "linked" : "standalone"} frame out to 90% about the board centre`, async ({ page }) => {
     await page.goto("/playground");
     await page.locator('[data-test="canvas-show-canvas"]').click();
     await waitForCanvasTransition(page);
@@ -137,11 +137,14 @@ for (const linked of [false, true]) {
       const frame = element.querySelector(`[data-card-id="${id}"]`)!.getBoundingClientRect();
       return {
         x: frame.x + frame.width / 2 - (viewport.x + viewport.width / 2),
-        y: frame.y + frame.height / 2 - (viewport.y + viewport.height / 2),
+        top: frame.y - viewport.y,
+        expectedTop: viewport.height * 0.05,
+        widthFits: frame.width <= viewport.width * 0.9 + 0.5,
       };
     }, id);
     expect(offset.x).toBeCloseTo(0, 1);
-    expect(offset.y).toBeCloseTo(0, 1);
+    expect(offset.top).toBeCloseTo(offset.expectedTop, 1);
+    expect(offset.widthFits).toBe(true);
     await expect(active).toHaveClass(/is-selected/);
   });
 }

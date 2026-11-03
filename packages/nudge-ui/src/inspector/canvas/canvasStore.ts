@@ -534,6 +534,17 @@ export function useCanvasCards(): CanvasCard[] {
   return useSyncExternalStore(subscribe, getCards, getCards);
 }
 
+/** Subscribers re-render when the frame count changes, not when any frame moves. */
+export function useCanvasCardCount(): number {
+  return useSyncExternalStore(subscribe, () => cards.length, () => cards.length);
+}
+
+/** Subscribers re-render when this frame's label changes, not when any frame moves. */
+export function useCanvasCardLabel(card: CanvasCard): string {
+  const label = (): string => getCanvasCardLabel(card);
+  return useSyncExternalStore(subscribe, label, label);
+}
+
 function frameRoute(card: CanvasCard): { key: string; label: string } {
   const sourceUrl = contentSourceUrl(card.content);
   const normalized = normalizeUrl(sourceUrl);

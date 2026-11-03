@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CANVAS_RESIZE_HANDLE_MAX_SCALE,
   CANVAS_RESIZE_HANDLE_MIN_SCALE,
+  getCanvasChromeScaleVariables,
   getCanvasResizeHandleScale,
 } from "./resizeHandleScale.ts";
 import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "./viewStore.ts";
@@ -22,5 +23,15 @@ describe("getCanvasResizeHandleScale", () => {
     expect(getCanvasResizeHandleScale(0)).toBe(CANVAS_RESIZE_HANDLE_MAX_SCALE);
     expect(getCanvasResizeHandleScale(Number.NaN)).toBe(CANVAS_RESIZE_HANDLE_MAX_SCALE);
     expect(getCanvasResizeHandleScale(Number.POSITIVE_INFINITY)).toBe(CANVAS_RESIZE_HANDLE_MAX_SCALE);
+  });
+});
+
+describe("getCanvasChromeScaleVariables", () => {
+  it("gives card chrome the inverse of the board zoom", () => {
+    expect(getCanvasChromeScaleVariables(0.5)).toEqual({
+      "--canvas-toolbar-scale": 2,
+      "--canvas-toolbar-inverse-scale": 0.5,
+      "--canvas-resize-handle-scale": 2,
+    });
   });
 });

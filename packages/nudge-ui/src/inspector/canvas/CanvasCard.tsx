@@ -2,11 +2,11 @@ import { SketchMarks } from "./sketch/SketchMarks.tsx";
 import { AgentActivityOverlay } from "./AgentActivityOverlay.tsx";
 import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
 import { refreshHtmlIteration } from "../iterations/coordinator.ts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import {
-  useCanvasCards,
-  getCanvasCardLabel,
+  useCanvasCardCount,
+  useCanvasCardLabel,
   updateCardUrl,
   resizeCard,
   setCardPosition,
@@ -16,9 +16,9 @@ import {
   useSelectedCardId,
   useFocusedCardId,
   navigateCard,
-  type CanvasCard,
+  type CanvasCard as CanvasCardData,
 } from "./canvasStore.ts";
-import { useBoardCamera, type CanvasPresentation } from "./viewStore.ts";
+import { getBoardCamera, type CanvasPresentation } from "./viewStore.ts";
 import { IconArrowsDiagonal } from "@tabler/icons-react";
 import { connectFrame } from "./frameConnection.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument } from "./projection.ts";
@@ -27,8 +27,6 @@ import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
 import { clearCanvasTextProjectionReports } from "../projection/textProjection.ts";
-import { getCanvasToolbarScale } from "./toolbarScale.ts";
-import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 import type { DocumentSession, InspectorSession } from "../session/sessionFactory.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
@@ -43,6 +41,7 @@ import { installFrameScrollbarStyles } from "./frameScrollbarStyles.ts";
 import {
   getCanvasResizeEdges,
   resizeCanvasRect,
+  resizeFocusWidth,
   type CanvasResizeDirection,
 } from "./canvasResize.ts";
 import { getDraftContentsForCard } from "../drafts/store.ts";
@@ -51,7 +50,7 @@ import { artifactDocumentUrl } from "../iterations/client.ts";
 import { CanvasCardHeader } from "./CanvasCardHeader.tsx";
 
 interface CanvasCardProps {
-  card: CanvasCard;
+  card: CanvasCardData;
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
   linkedToActive?: boolean;
@@ -81,13 +80,18 @@ const RESIZE_HANDLES: readonly CanvasResizeHandleDefinition[] = [
   { direction: "left", cursor: "ew-resize", transformOrigin: "left center", label: "Resize card from the left edge" },
 ];
 
-function resizeHandleTransform(direction: CanvasResizeDirection, scale: number): string {
-  if (direction === "top" || direction === "bottom") return `scale(1, ${scale})`;
-  if (direction === "left" || direction === "right") return `scale(${scale}, 1)`;
-  return `scale(${scale})`;
+/** Focus only resizes the width: the frame already fills the board's height. */
+const FOCUS_RESIZE_HANDLES = RESIZE_HANDLES.filter((handle) => handle.direction === "left" || handle.direction === "right");
+
+/** The frame's rendered width and the board's, since focus caps a wider frame at the board. */
+function focusWidths(handle: HTMLElement): { readonly frame: number; readonly board: number } | null {
+  const cardElement = handle.parentElement;
+  const board = cardElement?.parentElement;
+  return cardElement && board ? { frame: cardElement.offsetWidth, board: board.clientWidth } : null;
 }
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateIteration, documentOwner }: CanvasCardProps): ReactElement {
+// Memoised and camera-free: the board sets the zoom-derived scales as CSS variables, so a pan or zoom renders no card.
+export const CanvasCard = memo(function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateIteration, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
   const navigationUrlRef = useRef(contentNavigationUrl(card.content));
@@ -97,20 +101,17 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [creatingIteration, setCreatingIteration] = useState(false);
   const [iterationError, setIterationError] = useState<string | null>(null);
-  const camera = useBoardCamera();
   const runtimeConfig = useNudgeUiRuntimeConfig();
-  const canvasCards = useCanvasCards();
-  const canRemove = canvasCards.length > 1;
+  const canRemove = useCanvasCardCount() > 1;
+  const routeLabel = useCanvasCardLabel(card);
   const frameLabel = runtimeConfig.demo === true && runtimeConfig.demoCardLabels?.length && card.title
     ? card.title
-    : getCanvasCardLabel(card, canvasCards);
+    : routeLabel;
   const selectedCardId = useSelectedCardId();
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
   const isFocusPresentationCard = presentation === "focus" && presentationCard;
-  const toolbarScale = getCanvasToolbarScale(camera.zoom);
-  const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
 
   const disposeDocumentSession = useCallback((): void => {
     documentSessionRef.current?.session.dispose();
@@ -324,6 +325,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     let creationStarted = false;
     let cancelled = false;
     let position = { x: card.x, y: card.y };
+    const zoom = getBoardCamera().zoom;
 
     dragRef.current = {
       startX: e.clientX,
@@ -337,8 +339,8 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     function onMove(ev: PointerEvent): void {
-      const dx = (ev.clientX - dragRef.current.startX) / camera.zoom;
-      const dy = (ev.clientY - dragRef.current.startY) / camera.zoom;
+      const dx = (ev.clientX - dragRef.current.startX) / zoom;
+      const dy = (ev.clientY - dragRef.current.startY) / zoom;
       moved ||= Math.hypot(ev.clientX - dragRef.current.startX, ev.clientY - dragRef.current.startY) >= 6;
       position = { x: dragRef.current.cardX + dx, y: dragRef.current.cardY + dy };
       if (iterationDrag) {
@@ -384,7 +386,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
-  }, [card.id, card.x, card.y, camera.zoom, onCreateIteration, loadState, creatingIteration]);
+  }, [card.id, card.x, card.y, onCreateIteration, loadState, creatingIteration]);
 
   const handleCardPointerDown = useCallback(() => {
     if (getSelectedCardId() !== card.id) setSelectedElement(null);
@@ -406,19 +408,26 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     const pointerId = e.pointerId;
     const startX = e.clientX;
     const startY = e.clientY;
+    const focusStart = isFocusPresentationCard ? focusWidths(target) : null;
     const start = {
       x: card.x,
       y: card.y,
       width: card.width,
       height: card.height,
     };
+    const zoom = getBoardCamera().zoom;
     const commitResize = beginCardGeometryChange(card.id);
 
     function onMove(ev: PointerEvent): void {
       if (ev.pointerId !== pointerId) return;
+      if (focusStart) {
+        const edge = direction === "left" ? "left" : "right";
+        resizeCard(card.id, resizeFocusWidth(focusStart.frame, edge, ev.clientX - startX, focusStart.board), card.height);
+        return;
+      }
       const delta = {
-        x: (ev.clientX - startX) / camera.zoom,
-        y: (ev.clientY - startY) / camera.zoom,
+        x: (ev.clientX - startX) / zoom,
+        y: (ev.clientY - startY) / zoom,
       };
       const next = resizeCanvasRect(start, direction, delta);
       resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
@@ -456,7 +465,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
     target.addEventListener("lostpointercapture", onLostPointerCapture);
-  }, [card, camera.zoom]);
+  }, [card, isFocusPresentationCard]);
 
   function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>, direction: CanvasResizeDirection): void {
     const isArrowKey = event.key === "ArrowRight"
@@ -475,9 +484,14 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     };
     const edges = getCanvasResizeEdges(direction);
     if ((delta.x !== 0 && edges.horizontal === null) || (delta.y !== 0 && edges.vertical === null)) return;
-    const next = resizeCanvasRect(card, direction, delta);
+    const focusStart = isFocusPresentationCard ? focusWidths(event.currentTarget) : null;
     const commitResize = beginCardGeometryChange(card.id);
-    resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
+    if (focusStart && edges.horizontal) {
+      resizeCard(card.id, resizeFocusWidth(focusStart.frame, edges.horizontal, delta.x, focusStart.board), card.height);
+    } else {
+      const next = resizeCanvasRect(card, direction, delta);
+      resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
+    }
     commitResize();
   }
 
@@ -489,16 +503,18 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       role="group"
       aria-label={`Frame: ${frameLabel}`}
       style={{
-        "--canvas-toolbar-scale": toolbarScale,
-        "--canvas-toolbar-inverse-scale": 1 / toolbarScale,
         position: "absolute",
         visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
         pointerEvents: presentation === "focus" && !presentationCard ? "none" : undefined,
+        // Focus keeps the frame's own width, centred and capped at the board, so leaving focus is a plain zoom out.
         left: isFocusPresentationCard ? 0 : card.x,
+        right: isFocusPresentationCard ? 0 : undefined,
         top: isFocusPresentationCard ? 0 : card.y,
-        width: isFocusPresentationCard ? "100%" : card.width,
+        width: card.width,
+        maxWidth: isFocusPresentationCard ? "100%" : undefined,
+        marginInline: isFocusPresentationCard ? "auto" : undefined,
         height: isFocusPresentationCard ? "100%" : card.height,
-      } as CSSProperties}
+      }}
       onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
       {presentation === "canvas" ? (
@@ -544,15 +560,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
         <SketchMarks cardId={card.id} host={loadState === "ready" ? iframeRef.current : null} placement="card" />
       </div>
-      {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
+      {(presentation === "canvas" ? RESIZE_HANDLES : isFocusPresentationCard ? FOCUS_RESIZE_HANDLES : []).map((handle) => (
         <div
           key={handle.direction}
           className={`canvas-card__resize-handle canvas-card__resize-handle--${handle.direction}`}
           data-test={`canvas-card-resize-${card.id}${handle.direction === "bottom-right" ? "" : `-${handle.direction}`}`}
           data-resize-direction={handle.direction}
           style={{
-            // The edge's long axis follows the zoomed card; only its thickness is inverse-scaled.
-            transform: resizeHandleTransform(handle.direction, resizeHandleScale),
             transformOrigin: handle.transformOrigin,
             cursor: handle.cursor,
           }}
@@ -564,7 +578,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         >
           {handle.direction === "bottom-right" ? <IconArrowsDiagonal size={12} aria-hidden="true" /> : null}
         </div>
-      )) : null}
+      ))}
     </div>
   );
-}
+});

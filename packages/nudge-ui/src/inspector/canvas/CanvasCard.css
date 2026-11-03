@@ -226,12 +226,14 @@
   user-select: none;
 }
 
+/* The edge's long axis follows the zoomed card; only its thickness is inverse-scaled. The board sets the scale. */
 .canvas-card__resize-handle--top,
 .canvas-card__resize-handle--bottom {
   right: 16px;
   left: 16px;
   height: 16px;
   cursor: ns-resize;
+  transform: scale(1, var(--canvas-resize-handle-scale, 1));
 }
 
 .canvas-card__resize-handle--top {
@@ -248,6 +250,7 @@
   bottom: 16px;
   width: 16px;
   cursor: ew-resize;
+  transform: scale(var(--canvas-resize-handle-scale, 1), 1);
 }
 
 .canvas-card__resize-handle--left {
@@ -266,6 +269,7 @@
   width: 24px;
   height: 24px;
   cursor: nwse-resize;
+  transform: scale(var(--canvas-resize-handle-scale, 1));
 }
 
 .canvas-card__resize-handle--top-left {
@@ -297,6 +301,40 @@
 
 .canvas-card__resize-handle:hover {
   color: var(--accent);
+}
+
+/* Focus centres a narrower frame on the board, so its side grips sit in the gutter beside the page instead of over it.
+   A frame that fills the board pushes them past its clipped edges. */
+.canvas-card.is-focus-presentation .canvas-card__resize-handle--left {
+  left: -16px;
+}
+
+.canvas-card.is-focus-presentation .canvas-card__resize-handle--right {
+  right: -16px;
+}
+
+.canvas-card.is-focus-presentation .canvas-card__resize-handle {
+  top: 0;
+  bottom: 0;
+  opacity: 1;
+}
+
+.canvas-card.is-focus-presentation .canvas-card__resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  transform: translate(-50%, -50%);
+  transition: background-color 150ms ease;
+}
+
+.canvas-card.is-focus-presentation .canvas-card__resize-handle:hover::before,
+.canvas-card.is-focus-presentation .canvas-card__resize-handle:active::before {
+  background: var(--accent);
 }
 
 .canvas-card__resize-handle:focus-visible {

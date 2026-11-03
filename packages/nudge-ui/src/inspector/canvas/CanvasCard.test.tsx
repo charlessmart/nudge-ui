@@ -542,6 +542,47 @@ describe("CanvasCard renderer handshake", () => {
     expect(getCanvasCards()[0]).toMatchObject({ x: 60, y: 50, width: 840, height: 630 });
   });
 
+  it("resizes a focused frame's width from either side while it stays centred", () => {
+    const card: CanvasCardData = {
+      id: "card-focus-resize",
+      content: { kind: "route", url: window.location.href },
+      title: null,
+      x: 100,
+      y: 80,
+      width: 600,
+      height: 400,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, presentation: "focus" }));
+    });
+
+    const handles = [...host.querySelectorAll<HTMLElement>("[data-resize-direction]")].map((handle) => handle.dataset.resizeDirection);
+    expect(handles).toEqual(["right", "left"]);
+    const cardElement = host.querySelector<HTMLElement>(`[data-card-id="${card.id}"]`);
+    const right = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-right"]`);
+    if (!cardElement || !right) throw new Error("focus resize handles did not mount");
+    Object.defineProperty(cardElement, "offsetWidth", { configurable: true, value: 600 });
+    Object.defineProperty(host, "clientWidth", { configurable: true, value: 1200 });
+    mockPointerCapture(right);
+
+    // Focus ignores the canvas zoom, and the centred frame grows on both sides.
+    act(() => {
+      right.dispatchEvent(pointerEvent("pointerdown", 900, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 950, 200));
+      window.dispatchEvent(pointerEvent("pointerup", 950, 200));
+    });
+    expect(getCanvasCards()[0]).toMatchObject({ x: 100, y: 80, width: 700, height: 400 });
+
+    act(() => {
+      right.dispatchEvent(pointerEvent("pointerdown", 900, 200, 2));
+      window.dispatchEvent(pointerEvent("pointermove", 1_190, 200, 2));
+      window.dispatchEvent(pointerEvent("pointerup", 1_190, 200, 2));
+    });
+    expect(getCanvasCards()[0]).toMatchObject({ width: 1200 });
+  });
+
   it("stops a resize on pointer cancel and keeps the minimum dimensions", () => {
     const card: CanvasCardData = {
       id: "card-cancel-resize",
@@ -572,7 +613,7 @@ describe("CanvasCard renderer handshake", () => {
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(1);
   });
 
-  it("keeps the resize handle screen-sized while the board is zoomed", () => {
+  it("leaves zoom scaling of its chrome to the board", () => {
     const card: CanvasCardData = {
       id: "card-resize-scale",
       content: { kind: "route", url: window.location.href },
@@ -585,34 +626,14 @@ describe("CanvasCard renderer handshake", () => {
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
     renderCard(card);
 
-    const resizeHandle = host.querySelector(
-      `[data-test="canvas-card-resize-${card.id}"]`,
-    );
-    if (!(resizeHandle instanceof HTMLElement)) throw new Error("resize handle did not mount");
+    const cardElement = host.querySelector<HTMLElement>(`[data-card-id="${card.id}"]`);
+    const resizeHandle = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}"]`);
+    if (!cardElement || !resizeHandle) throw new Error("card did not mount");
 
-    expect(resizeHandle.style.transform).toBe("scale(2)");
+    // The board sets the scale variables, so a camera change never renders the card.
+    expect(cardElement.style.getPropertyValue("--canvas-toolbar-scale")).toBe("");
+    expect(resizeHandle.style.transform).toBe("");
     expect(resizeHandle.style.transformOrigin).toBe("right bottom");
-  });
-
-  it("inverse-scales only the thickness of zoomed edge handles", () => {
-    const card = {
-      id: "card-edge-resize-scale",
-      content: { kind: "route" as const, url: "http://localhost:3000/edge-scale" },
-      title: "Edge scale",
-      x: 0,
-      y: 0,
-      width: 800,
-      height: 600,
-    };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
-    renderCard(card);
-
-    const top = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-top"]`);
-    const left = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-left"]`);
-    if (!top || !left) throw new Error("edge resize handles did not mount");
-
-    expect(top.style.transform).toBe("scale(1, 2)");
-    expect(left.style.transform).toBe("scale(2, 1)");
   });
 
   it("deletes the requested frame from its action toolbar", () => {
