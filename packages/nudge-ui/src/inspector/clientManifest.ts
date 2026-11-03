@@ -5,7 +5,6 @@ import {
 import { NUDGE_UI_MANIFEST_VERSION } from "../transport/index.ts";
 
 export type { NudgeUiRuntimeConfig, NudgeUiRuntimeFeatures } from "./runtime/runtimeConfig.ts";
-export { detectStylingSystem } from "./runtime/runtimeConfig.ts";
 
 /** The client envelope shares one version with the transport module that serves it. */
 export const NUDGE_UI_CLIENT_MANIFEST_VERSION: typeof NUDGE_UI_MANIFEST_VERSION = NUDGE_UI_MANIFEST_VERSION;

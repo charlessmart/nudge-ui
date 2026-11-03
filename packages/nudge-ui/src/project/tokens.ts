@@ -13,6 +13,13 @@ import {
   type InventoryDiagnostic,
   type StylesheetArtifact,
 } from "../css/token-inventory/index.ts";
+import {
+  detectStylesheetDialects,
+  dialectsInUse,
+  interpretDialects,
+  observedDialects,
+  type DialectName,
+} from "../css/dialects/index.ts";
 import { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 import type {
   TokenCatalogDiagnostic,
@@ -26,6 +33,7 @@ export interface ProjectTokenSnapshot {
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
   readonly tokenGeneration: string;
+  readonly stylingDialects: readonly DialectName[];
 }
 
 export const EMPTY_PROJECT_TOKEN_SNAPSHOT: ProjectTokenSnapshot = {
@@ -33,6 +41,7 @@ export const EMPTY_PROJECT_TOKEN_SNAPSHOT: ProjectTokenSnapshot = {
   tokens: [],
   tokenDiagnostics: [],
   tokenGeneration: "empty",
+  stylingDialects: [],
 };
 
 export interface ProjectCssArtifact {
@@ -82,8 +91,11 @@ export async function createProjectTokenSnapshot(
   }
   artifacts.sort((a, b) => comparePosixStrings(a.projectPath, b.projectPath));
   const inventory = createTokenInventory();
+  const detected = new Set<DialectName>();
 
   for (const [discoveryOrder, artifact] of artifacts.entries()) {
+    const dialects = artifact.content === undefined ? [] : detectStylesheetDialects(artifact.content);
+    for (const dialect of dialects) detected.add(dialect);
     const inventoryArtifact: StylesheetArtifact = {
       buildTool: "static-html",
       id: artifact.projectPath,
@@ -91,6 +103,8 @@ export async function createProjectTokenSnapshot(
       provenance: "project",
       discoveryOrder,
       ...(artifact.content !== undefined ? { content: artifact.content } : {}),
+      // Labelled as the Vite host labels it, so the relabelling below reaches the same rows.
+      ...(dialects.includes("tailwind-v4") ? { adapter: "tailwind-v4" } : {}),
       ...(artifact.readError ? {
         diagnostics: [{
           code: "stylesheet-unreadable",
@@ -100,6 +114,15 @@ export async function createProjectTokenSnapshot(
       } : {}),
     };
     inventory.apply(inventoryArtifact);
+  }
+
+  // Without a module graph only stylesheet evidence is available: no Tailwind v3 config or vanilla-extract contract.
+  const interpretation = interpretDialects({
+    tailwindV3Css: detected.has("tailwind-v3"),
+    tailwindV4Css: detected.has("tailwind-v4"),
+  });
+  if (detected.size > 0) {
+    for (const contribution of interpretation.contributions) inventory.applyContribution(contribution);
   }
 
   const snapshot = inventory.snapshot();
@@ -121,6 +144,7 @@ export async function createProjectTokenSnapshot(
     tokens: snapshot.tokens,
     tokenDiagnostics: snapshot.diagnostics.map(mapDiagnostic),
     tokenGeneration,
+    stylingDialects: dialectsInUse(snapshot.tokens, observedDialects(interpretation)),
   };
 }
 

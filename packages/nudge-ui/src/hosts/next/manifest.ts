@@ -3,6 +3,7 @@ import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
+import { stylingSystemLabel } from "../../css/dialects/index.ts";
 import { createProjectId } from "../../project/identity.ts";
 import { NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 
@@ -13,7 +14,10 @@ export interface NudgeUiManifestInput {
 type MutableRuntime = Omit<
   NudgeUiRuntimeConfig,
   "tokenCatalog" | "tokens" | "tokenDiagnostics" | "componentContracts" | "tokenGeneration"
+  | "stylingSystem" | "stylingDialects"
 > & {
+  stylingSystem: string;
+  stylingDialects: NudgeUiRuntimeConfig["stylingDialects"];
   tokenCatalog: NudgeUiRuntimeConfig["tokenCatalog"];
   tokens: NudgeUiRuntimeConfig["tokens"];
   tokenDiagnostics: NudgeUiRuntimeConfig["tokenDiagnostics"];
@@ -31,6 +35,7 @@ export interface NudgeUiTokenSnapshot {
   tokens: NudgeUiRuntimeConfig["tokens"];
   tokenDiagnostics: NudgeUiRuntimeConfig["tokenDiagnostics"];
   tokenGeneration: string;
+  stylingDialects: NudgeUiRuntimeConfig["stylingDialects"];
 }
 
 export function nextjsProjectId(root: string): string {
@@ -42,7 +47,8 @@ export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
     projectId: nextjsProjectId(input.root),
     host: "nextjs-react",
     framework: "React",
-    stylingSystem: "CSS custom properties",
+    stylingSystem: stylingSystemLabel([]),
+    stylingDialects: [],
     // Canvas shares the Vite host's controller/renderer runtime (ADR-0006).
     capabilities: { canvas: true, componentSemantics: true, domNavigation: true },
     tokenCatalog: [],

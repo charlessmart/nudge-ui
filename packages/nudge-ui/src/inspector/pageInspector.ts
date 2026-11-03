@@ -180,6 +180,7 @@ function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
     host: "static-html",
     framework: "HTML",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
     features: { canvasIterations: false },
     componentContracts: [],

@@ -14,6 +14,7 @@ import {
   createProjectFileWatcher,
   type ProjectFileChange,
 } from "../../project/files.ts";
+import { stylingSystemLabel } from "../../css/dialects/index.ts";
 import { createProjectTokenSnapshot } from "../../project/tokens.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
@@ -246,6 +247,8 @@ export async function ensureSidecar(
       manifest.runtime.tokens = snapshot.tokens;
       manifest.runtime.tokenDiagnostics = snapshot.tokenDiagnostics;
       manifest.runtime.tokenGeneration = snapshot.tokenGeneration;
+      manifest.runtime.stylingDialects = snapshot.stylingDialects;
+      manifest.runtime.stylingSystem = stylingSystemLabel(snapshot.stylingDialects);
     };
 
     const receiveContracts = (file: string, contracts: unknown[]): void => {

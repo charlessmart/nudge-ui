@@ -1,4 +1,4 @@
-import { readTailwindV4AlphaUtility, tailwindV4AlphaExpression } from "../../css/dialects/index.ts";
+import { STYLING_DIALECTS } from "../../css/dialects/index.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { createContainerQueryEvaluator, type ContainerQueryEvaluator, type ContainerQueryPair } from "./resolution/containerQueryEvaluator.ts";
@@ -507,7 +507,7 @@ function rowsFromMatches(
     }
     row.atRuleCandidates = allCandidates;
   }
-  inferTailwindV4ColorOpacity(el, tokenTable, rows);
+  inferDialectClassTokens(el, tokenTable, rows);
   for (const row of rows) {
     if (row.capability !== "raw" || row.diagnostic) continue;
     const value = row.authored ?? row.declaredValue ?? "";
@@ -561,34 +561,33 @@ function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
   );
 }
 
-function inferTailwindV4ColorOpacity(
+/** A dialect class can apply a token through CSS that never names it, such as Tailwind v4's `bg-brand/40`. */
+function inferDialectClassTokens(
   el: HTMLElement,
   tokenTable: TokenTable,
   rows: ResolvedProperty[],
 ): void {
-  const row = rows.find((candidate) => candidate.property === "background-color" || candidate.property === "background");
-  if (!row || row.tokenName) return;
-
   for (const className of Array.from(el.classList)) {
-    const utility = readTailwindV4AlphaUtility(className);
-    if (!utility) continue;
-    const { baseName, alpha } = utility;
-    const entry = tokenTable[baseName];
-    if (!entry || entry.adapter !== "tailwind-v4") continue;
-    const authored = tailwindV4AlphaExpression(baseName, alpha);
-    row.tokenName = baseName;
-    row.declaredValue = authored;
-    row.authored = authored;
-    row.tokens = [{ name: baseName, origin: inspectorTokenOrigin(entry) }];
-    const colorInterpretation = resolveTokenValue(authored, tokenTable, EMPTY_LOCAL_ALIASES);
-    row.opacity = colorInterpretation.opacity;
-    row.color = colorInterpretation.color;
-    row.modifiers = [{ kind: "alpha", value: alpha }];
-    row.capability = "color";
-    row.resolvedTokenValue = entry.value;
-    row.evidence.reason = "Tailwind v4 opacity utility mapped to its base catalog token";
-    row.confidence = "probable";
-    return;
+    for (const dialect of STYLING_DIALECTS) {
+      const reading = dialect.readClass?.(className);
+      if (!reading) continue;
+      const row = rows.find((candidate) => reading.properties.includes(candidate.property));
+      if (!row || row.tokenName) continue;
+      const entry = tokenTable[reading.tokenCssName];
+      if (!entry || entry.adapter !== dialect.name) continue;
+      row.tokenName = reading.tokenCssName;
+      row.declaredValue = reading.expression;
+      row.authored = reading.expression;
+      row.tokens = [{ name: reading.tokenCssName, origin: inspectorTokenOrigin(entry) }];
+      const colorInterpretation = resolveTokenValue(reading.expression, tokenTable, EMPTY_LOCAL_ALIASES);
+      row.opacity = colorInterpretation.opacity;
+      row.color = colorInterpretation.color;
+      row.modifiers = reading.alpha === undefined ? [] : [{ kind: "alpha", value: reading.alpha }];
+      row.capability = "color";
+      row.resolvedTokenValue = entry.value;
+      row.evidence.reason = `${dialect.label} utility mapped to its base catalog token`;
+      row.confidence = "probable";
+    }
   }
 }
 

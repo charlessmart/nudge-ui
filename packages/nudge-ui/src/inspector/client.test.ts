@@ -35,6 +35,7 @@ const manifest: NudgeUiClientManifest = {
     host: "nextjs-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
