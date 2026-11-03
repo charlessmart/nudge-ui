@@ -56,7 +56,8 @@ describe("Tailwind v4 CSS", () => {
   it("detects CSS-first themes and generated local aliases", () => {
     expect(detectTailwindV4("@theme { --color-brand: oklch(60% .2 240); }")).toBe(true);
     expect(detectTailwindV4('@import "tailwindcss";')).toBe(true);
-    expect(detectTailwindV4(".bg-brand\\/10 { --tw-bg-opacity: 0.1; }")).toBe(true);
+    // Tailwind v3 emits the same helpers, so they are not v4 evidence.
+    expect(detectTailwindV4(".bg-brand\\/10 { --tw-bg-opacity: 0.1; }")).toBe(false);
     expect(detectTailwindV4(".button { color: red; }")).toBe(false);
   });
 

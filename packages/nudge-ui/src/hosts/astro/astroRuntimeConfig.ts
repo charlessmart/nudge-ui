@@ -1,7 +1,5 @@
-import {
-  detectStylingSystem,
-  type NudgeUiRuntimeConfig,
-} from "../../inspector/clientManifest.ts";
+import { dialectsInUse, stylingSystemLabel } from "../../css/dialects/index.ts";
+import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
 
 interface AstroRuntimeKnowledge {
   readonly projectId: string;
@@ -22,11 +20,14 @@ const ASTRO_SOURCE_COORDINATES = {
 export function createAstroRuntimeConfig(
   knowledge: AstroRuntimeKnowledge,
 ): NudgeUiRuntimeConfig {
+  // Astro reads Vite's published tokens, whose adapters carry the dialects Vite detected.
+  const stylingDialects = dialectsInUse(knowledge.tokens);
   return {
     projectId: knowledge.projectId,
     host: "astro",
     framework: "Astro",
-    stylingSystem: detectStylingSystem(knowledge.tokens),
+    stylingSystem: stylingSystemLabel(stylingDialects),
+    stylingDialects,
     capabilities: {
       canvas: true,
       componentSemantics: true,

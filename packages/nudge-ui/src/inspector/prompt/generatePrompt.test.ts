@@ -36,6 +36,7 @@ function configureAstroHost(): void {
     host: "astro",
     framework: "Astro",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: {
       canvas: false,
       componentSemantics: true,
@@ -58,6 +59,7 @@ function configureDefaultHost(): void {
     host: "vite-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
@@ -1121,6 +1123,47 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("--color-accent__hash");
   });
 
+  it("names the Tailwind utility a token edit corresponds to", () => {
+    const out = generatePrompt([rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background-color",
+      oldToken: { name: "--color-surface", cssName: "--color-surface", value: "#fff", source: "app.css", adapter: "tailwind-v4" },
+      newToken: { name: "--color-sunken", cssName: "--color-sunken", value: "#eee", source: "app.css", adapter: "tailwind-v4" },
+    })]);
+    expect(out).toContain("  In Tailwind v4 this is the bg-sunken utility, in place of bg-surface.");
+  });
+
+  it("names a Tailwind v3 theme token's utility for the edited property", () => {
+    const out = generatePrompt([rec({
+      cid: "Card",
+      file: "src/Card.tsx",
+      property: "padding",
+      oldToken: null,
+      newToken: { name: "theme.spacing.4", value: "1rem", cssValue: "1rem", source: "tailwind.config.js", adapter: "tailwind-v3" },
+    })]);
+    expect(out).toContain("  In Tailwind v3 this is the p-4 utility.");
+  });
+
+  it("ends the changes with guidance for each dialect the project uses", () => {
+    const out = generatePrompt([rec({ cid: "Card", file: "src/Card.tsx", property: "padding", rawValue: "12px" })], {
+      stylingDialects: ["vanilla-extract", "tailwind-v4"],
+    }, [], "Keep it tidy.");
+    const guidance = [
+      "How this project writes styles:",
+      "- vanilla-extract: tokens are paths in the theme contract; use them through the contract in .css.ts files or through sprinkles props, not as raw custom properties.",
+      "- Tailwind v4: apply design tokens with utility classes (such as bg-brand) instead of writing new CSS, and define new tokens as theme variables in @theme.",
+    ].join("\n");
+    expect(out).toContain(`${guidance}\n\nKeep it tidy.`);
+  });
+
+  it("adds dialect guidance only for style edits", () => {
+    expect(generatePrompt([rec({ cid: "Card", file: "src/Card.tsx", property: "padding", rawValue: "12px" })]))
+      .not.toContain("How this project writes styles:");
+    expect(generatePrompt([makeComponentChange()], { stylingDialects: ["tailwind-v4"] }))
+      .not.toContain("How this project writes styles:");
+  });
+
   it("renders global token edits separately with source and context", () => {
     const out = generatePrompt([{
       kind: "token",
@@ -1235,10 +1278,11 @@ describe("generatePrompt", () => {
 
 describe("detectFramework", () => {
   it("defaults to React + CSS custom properties when no adapter is present", () => {
-    expect(detectFramework([])).toEqual({ framework: "React", stylingSystem: "CSS custom properties" });
+    expect(detectFramework([])).toEqual({ framework: "React", stylingSystem: "CSS custom properties", stylingDialects: [] });
     expect(detectFramework([{ name: "--x", value: "1", source: "a.css" }])).toEqual({
       framework: "React",
       stylingSystem: "CSS custom properties",
+      stylingDialects: [],
     });
   });
 
@@ -1247,7 +1291,11 @@ describe("detectFramework", () => {
       { name: "--x", value: "1", source: "a.css", adapter: "vanilla-extract" },
       { name: "--y", value: "2", source: "b.css" },
     ];
-    expect(detectFramework(tokens)).toEqual({ framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
+    expect(detectFramework(tokens)).toEqual({
+      framework: "React",
+      stylingSystem: "vanilla-extract (sprinkles)",
+      stylingDialects: ["vanilla-extract"],
+    });
   });
 
   it("detects tailwind v3 / v4", () => {

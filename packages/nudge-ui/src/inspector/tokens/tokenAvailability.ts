@@ -1,3 +1,4 @@
+import { stylingDialect } from "../../css/dialects/index.ts";
 import type { TokenDefinition, TokenEntry, TokenTable } from "../../css/model/index.ts";
 import { interpretValue } from "../../css/value-semantics/index.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
@@ -92,7 +93,7 @@ function hydrateTokenCatalogFromCssom(
 ): TokenDefinition[] {
   const needsHydration = (definition: TokenDefinition): boolean =>
     definition.declarations.length === 0
-    || (definition.adapter === "vanilla-extract" && definition.declarations.every((declaration) =>
+    || (stylingDialect(definition.adapter)?.declaredOnPage === true && definition.declarations.every((declaration) =>
       declaration.value.trim() === `var(${definition.cssName})`
       && !declaration.context.selector
       && !declaration.context.wrappers?.length));

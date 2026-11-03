@@ -3,6 +3,7 @@ import type {
   TokenDefinition,
   TokenEntry,
 } from "../../css/model/index.ts";
+import { isDialectName, type DialectName } from "../../css/dialects/index.ts";
 import type { ComponentContract } from "../componentSemantics/types.ts";
 
 export type NudgeUiRuntimeHost =
@@ -39,7 +40,10 @@ export interface NudgeUiRuntimeConfig {
   readonly projectId: string;
   readonly host: NudgeUiRuntimeHost;
   readonly framework: NudgeUiRuntimeFramework;
+  /** A label for people; code reads `stylingDialects`. */
   readonly stylingSystem: string;
+  /** In priority order; empty for plain CSS (ADR-0048). */
+  readonly stylingDialects: readonly DialectName[];
   readonly capabilities: NudgeUiRuntimeCapabilities;
   /** Omitted features remain enabled. */
   readonly features?: NudgeUiRuntimeFeatures;
@@ -88,6 +92,7 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<NudgeUiRuntimeConfig>({
   host: "vite-react",
   framework: "React",
   stylingSystem: "CSS custom properties",
+  stylingDialects: [],
   capabilities: { canvas: true, componentSemantics: true, domNavigation: false },
   tokenCatalog: [],
   tokens: [],
@@ -210,6 +215,11 @@ function optionalStringArray(
   return value as readonly string[];
 }
 
+/** Names from a newer host are dropped rather than rejected, so an older client still starts. */
+function optionalDialects(input: Record<string, unknown>): readonly DialectName[] {
+  return (optionalStringArray(input, "stylingDialects") ?? []).filter(isDialectName);
+}
+
 function normalizeSourceCoordinatePolicy(
   input: Record<string, unknown>,
 ): SourceCoordinatePolicy | undefined {
@@ -284,6 +294,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
     host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
     framework: requireEnum(input, "framework", RUNTIME_FRAMEWORKS) as NudgeUiRuntimeFramework,
     stylingSystem: optionalString(input, "stylingSystem"),
+    stylingDialects: optionalDialects(input),
     capabilities: normalizeCapabilities(input.capabilities),
     ...(features === undefined ? {} : { features }),
     tokenCatalog: optionalArray(input, "tokenCatalog") as NudgeUiRuntimeConfig["tokenCatalog"],
@@ -359,15 +370,6 @@ export function getScopingSelectorPattern(): RegExp | null {
 export function subscribeNudgeUiRuntime(listener: () => void): () => void {
   runtimeListeners.add(listener);
   return () => runtimeListeners.delete(listener);
-}
-
-export function detectStylingSystem(tokens: readonly TokenEntry[]): string {
-  for (const token of tokens) {
-    if (token.adapter === "vanilla-extract") return "vanilla-extract (sprinkles)";
-    if (token.adapter === "tailwind-v3") return "Tailwind v3";
-    if (token.adapter === "tailwind-v4") return "Tailwind v4";
-  }
-  return "CSS custom properties";
 }
 
 export function getNudgeUiTokenEntries(): TokenEntry[] {

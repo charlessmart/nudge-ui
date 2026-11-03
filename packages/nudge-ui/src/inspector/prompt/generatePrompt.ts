@@ -17,6 +17,7 @@ import {
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
+import { dialectsInUse, stylingDialect, type DialectName } from "../../css/dialects/index.ts";
 import { PROMPT_INTRO } from "./promptDocument.ts";
 
 import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
@@ -26,6 +27,7 @@ import { isPageTargetCid } from "../selection/pageTarget.ts";
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
+  stylingDialects?: readonly DialectName[];
 }
 
 const EMPTY_SENTINEL = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
@@ -261,6 +263,29 @@ function sourceIntentLine(rec: ElementChangeRecord): string | null {
   return `  In the code this is written as ${rec.sourceProperty}${authored}. I previewed it using ${rec.property}.`;
 }
 
+/** States what the token is in the dialect's own source, without claiming that is how this element is styled. */
+function dialectSourceLine(rec: ElementChangeRecord): string | null {
+  if (!rec.newToken) return null;
+  const dialect = stylingDialect(rec.newToken.adapter);
+  const after = dialect?.sourceForm?.(rec.newToken, rec.property);
+  if (!dialect || !after) return null;
+  const before = rec.oldToken && rec.oldToken.adapter === dialect.name
+    ? dialect.sourceForm?.(rec.oldToken, rec.property)
+    : null;
+  return `  In ${dialect.label} this is the ${after} utility${before && before !== after ? `, in place of ${before}` : ""}.`;
+}
+
+function elementChangeLines(rec: ElementChangeRecord): string[] {
+  return [elementChangeLine(rec), sourceIntentLine(rec), dialectSourceLine(rec)]
+    .filter((line): line is string => line !== null);
+}
+
+/** One guidance line per dialect in use, so the agent writes the change the way the project already does. */
+function dialectGuidanceBlock(dialects: readonly DialectName[]): string | null {
+  const guidance = dialects.flatMap((name) => stylingDialect(name)?.promptGuidance ?? []);
+  return guidance.length > 0 ? ["How this project writes styles:", ...guidance.map((line) => `- ${line}`)].join("\n") : null;
+}
+
 function tokenChangeLine(rec: TokenChangeRecord): string {
   const where = [rec.contextLabel, `${rec.file}:${rec.line}`].filter(Boolean).join(", ");
   return `- Change ${rec.tokenName} from ${rec.oldRawValue} to ${rec.rawValue} (in ${where}).`;
@@ -307,7 +332,7 @@ function elementEvidence(group: ElementGroup): EvidenceFields {
 
 /** Combine identical final requests for individually selected elements. */
 function selectedStyleGroupKey(group: ElementGroup): string {
-  const requests = group.changes.map((change) => JSON.stringify([elementChangeLine(change), sourceIntentLine(change)])).sort();
+  const requests = group.changes.map((change) => JSON.stringify(elementChangeLines(change))).sort();
   return JSON.stringify(["selected-styles", requests]);
 }
 
@@ -536,9 +561,7 @@ export function generatePrompt(
       group.heading = "The whole page (its body element):";
       group.intro = ["These are page-wide styles that everything inherits, so please change the global stylesheet or root layout that styles the body, not a single component."];
       for (const change of element.changes) {
-        group.lines.push(elementChangeLine(change));
-        const intent = sourceIntentLine(change);
-        if (intent) group.lines.push(intent);
+        group.lines.push(...elementChangeLines(change));
       }
       continue;
     }
@@ -565,9 +588,7 @@ export function generatePrompt(
         "Make these changes to each of them:",
       ];
       for (const change of element.changes) {
-        group.lines.push(elementChangeLine(change));
-        const intent = sourceIntentLine(change);
-        if (intent) group.lines.push(intent);
+        group.lines.push(...elementChangeLines(change));
       }
       continue;
     }
@@ -580,9 +601,7 @@ export function generatePrompt(
     if (!runtimeCreated) addFacts(group.facts, { source: formatSourceLocation(coordinatePolicy, element) });
     addFacts(group.facts, evidenceFacts(elementEvidence(element)));
     for (const change of element.changes) {
-      group.lines.push(elementChangeLine(change));
-      const intent = sourceIntentLine(change);
-      if (intent) group.lines.push(intent);
+      group.lines.push(...elementChangeLines(change));
     }
   }
 
@@ -627,6 +646,12 @@ export function generatePrompt(
   }
 
   for (const group of groups.values()) blocks.push(renderGroup(group));
+
+  if (tokenChanges.length > 0 || elementChanges.length > 0) {
+    const editedTokens = elementChanges.flatMap((change) => [change.oldToken, change.newToken].filter((token) => token !== null));
+    const guidance = dialectGuidanceBlock(dialectsInUse(editedTokens, frameworkHints?.stylingDialects ?? []));
+    if (guidance) blocks.push(guidance);
+  }
 
   return renderPrompt(blocks, customInstructions);
 }

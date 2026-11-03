@@ -51,6 +51,30 @@ describe("standalone CSS token discovery", () => {
     expect(first.tokenCatalog[0]?.declarations[0]?.source).toBe("styles/theme.css:1");
   });
 
+  it("labels Tailwind v4 theme variables without a module graph", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await writeFile(join(root, "app.css"), '@import "tailwindcss";\n@theme { --color-brand: #09f; }');
+    await writeFile(join(root, "plain.css"), ":root { --gutter: 8px; }");
+
+    const snapshot = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    expect(snapshot.stylingDialects).toEqual(["tailwind-v4"]);
+    expect(snapshot.tokens.find((token) => token.cssName === "--color-brand"))
+      .toMatchObject({ adapter: "tailwind-v4", origin: "project", editable: true });
+    expect(snapshot.tokens.find((token) => token.cssName === "--gutter")?.adapter).toBeUndefined();
+  });
+
+  it("reports Tailwind v3 from its directives and plain CSS as no dialect", async () => {
+    const v3 = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await writeFile(join(v3, "globals.css"), "@tailwind base;\n@tailwind utilities;\n:root { --brand: #09f; }");
+    expect((await createProjectTokenSnapshot({ rootDirectory: v3, generationLabel: "test" })).stylingDialects)
+      .toEqual(["tailwind-v3"]);
+
+    const plain = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await writeFile(join(plain, "theme.css"), ":root { --brand: #09f; }");
+    expect((await createProjectTokenSnapshot({ rootDirectory: plain, generationLabel: "test" })).stylingDialects)
+      .toEqual([]);
+  });
+
   it("orders discovery by UTF-8 path bytes rather than locale", async () => {
     const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     for (const name of ["a_.css", "a~.css", "a.css", "a-.css"]) {

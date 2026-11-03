@@ -1,12 +1,59 @@
 import type { TokenCatalogDiagnostic, TokenEntry } from "../model/index.ts";
 import type { InventoryDiagnostic, TokenContribution } from "../token-inventory/types.ts";
-import { isTailwindV3Config, readTailwindV3Config, tailwindV4Relabelling } from "./tailwind.ts";
-import { readThemeContract } from "./vanillaExtract.ts";
+import type { DialectName, StylingDialect } from "./dialect.ts";
+import {
+  isTailwindV3Config,
+  readTailwindV3Config,
+  tailwindV3Dialect,
+  tailwindV4Dialect,
+  tailwindV4Relabelling,
+} from "./tailwind.ts";
+import { readThemeContract, vanillaExtractDialect } from "./vanillaExtract.ts";
 
+export type * from "./dialect.ts";
 export * from "./tailwind.ts";
 export * from "./vanillaExtract.ts";
 
-export type DialectName = "tailwind-v3" | "tailwind-v4" | "vanilla-extract";
+/** In priority order: a project's dialects are always listed in this order. */
+export const STYLING_DIALECTS: readonly StylingDialect[] = [
+  vanillaExtractDialect,
+  tailwindV3Dialect,
+  tailwindV4Dialect,
+];
+
+const PLAIN_CSS_LABEL = "CSS custom properties";
+
+export function stylingDialect(name: string | undefined): StylingDialect | undefined {
+  return name === undefined ? undefined : STYLING_DIALECTS.find((dialect) => dialect.name === name);
+}
+
+export function isDialectName(value: unknown): value is DialectName {
+  return typeof value === "string" && stylingDialect(value) !== undefined;
+}
+
+export function detectStylesheetDialects(css: string): DialectName[] {
+  return STYLING_DIALECTS.filter((dialect) => dialect.detectStylesheet?.(css) === true).map((dialect) => dialect.name);
+}
+
+/** Dialects proven by token adapters or by detection, in priority order. */
+export function dialectsInUse(
+  tokens: readonly { readonly adapter?: string | undefined }[],
+  detected: Iterable<DialectName> = [],
+): DialectName[] {
+  const names = new Set<string>(detected);
+  for (const token of tokens) if (token.adapter !== undefined) names.add(token.adapter);
+  return STYLING_DIALECTS.filter((dialect) => names.has(dialect.name)).map((dialect) => dialect.name);
+}
+
+export function stylingSystemLabel(dialects: readonly DialectName[]): string {
+  const labels = dialects.flatMap((name) => stylingDialect(name)?.label ?? []);
+  return labels.length > 0 ? labels.join(" and ") : PLAIN_CSS_LABEL;
+}
+
+/** True when any dialect claims the custom property as generated plumbing. */
+export function isDialectInternalProperty(name: string): boolean {
+  return STYLING_DIALECTS.some((dialect) => dialect.isInternalProperty?.(name) === true);
+}
 
 export interface TailwindV3Evidence {
   readonly config: unknown;
@@ -32,6 +79,8 @@ export interface PublishedThemeContractEvidence {
 
 export interface DialectEvidence {
   readonly tailwindV3?: TailwindV3Evidence;
+  /** An authored stylesheet uses v3 directives; proves the dialect, not its tokens. */
+  readonly tailwindV3Css?: boolean;
   readonly tailwindV4Css?: boolean;
   readonly inlineThemeContract?: InlineThemeContractEvidence;
   readonly publishedThemeContract?: PublishedThemeContractEvidence;
@@ -57,7 +106,7 @@ export function interpretDialects(evidence: DialectEvidence = {}): DialectInterp
   const tailwindV3Tokens = readTailwindV3Evidence(evidence.tailwindV3);
   observed.push({
     dialect: "tailwind-v3",
-    evidence: evidence.tailwindV3 === undefined ? "none" : "config",
+    evidence: evidence.tailwindV3 !== undefined ? "config" : evidence.tailwindV3Css === true ? "css" : "none",
     tokenCount: tailwindV3Tokens.length,
   });
 
@@ -88,6 +137,11 @@ export function interpretDialects(evidence: DialectEvidence = {}): DialectInterp
   });
 
   return { contributions, observed };
+}
+
+/** The dialects an interpretation proved, in priority order. */
+export function observedDialects(interpretation: DialectInterpretation): DialectName[] {
+  return dialectsInUse([], interpretation.observed.filter((entry) => entry.evidence !== "none").map((entry) => entry.dialect));
 }
 
 function readTailwindV3Evidence(evidence: TailwindV3Evidence | undefined): TokenEntry[] {

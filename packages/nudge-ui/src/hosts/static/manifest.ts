@@ -2,6 +2,7 @@ import {
   createNudgeUiClientManifest,
   type NudgeUiClientManifest,
 } from "../../inspector/clientManifest.ts";
+import { stylingSystemLabel } from "../../css/dialects/index.ts";
 import type { ProjectTokenSnapshot } from "../../project/tokens.ts";
 import { NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 import { automationManifestFields } from "../environment.ts";
@@ -28,7 +29,8 @@ export function createStandaloneRuntimeManifest(
       projectId,
       host: "static-html",
       framework: "HTML",
-      stylingSystem: "CSS custom properties",
+      stylingSystem: stylingSystemLabel(tokenSnapshot.stylingDialects),
+      stylingDialects: tokenSnapshot.stylingDialects,
       // Canvas shares the Vite host's controller/renderer runtime (ADR-0012).
       capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
       tokenCatalog: tokenSnapshot.tokenCatalog,
@@ -56,5 +58,6 @@ function emptyTokenSnapshot(): ProjectTokenSnapshot {
     tokens: [],
     tokenDiagnostics: [],
     tokenGeneration: "empty",
+    stylingDialects: [],
   };
 }

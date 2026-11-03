@@ -36,12 +36,20 @@ import {
 } from "./tokens/viteStylesheetArtifacts.ts";
 import type { ViteSourceScopeOptions } from "./tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
-import { interpretDialects } from "../../css/dialects/index.ts";
-import type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";
+import {
+  detectStylesheetDialects,
+  dialectsInUse,
+  interpretDialects,
+  observedDialects,
+  stylingSystemLabel,
+  type DialectInterpretation,
+  type DialectName,
+  type TailwindV3Config,
+  type ThemeContract,
+} from "../../css/dialects/index.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
 import {
   createNudgeUiClientManifest,
-  detectStylingSystem,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
@@ -215,7 +223,7 @@ export function createVitePlugins(
   // Ordered per artifact, not per observation: a transform hook has no import-graph ordering.
   const stylesheetOrdering = new Map<string, { order?: number; discoveryOrder?: number }>();
   // Detected from the authored graph: v3 also emits --tw-* helpers, so transformed output is not a safe signal.
-  const tailwindV4SourceFiles = new Set<string>();
+  const authoredStylesheetDialects = new Map<string, readonly DialectName[]>();
   // Candidates that can supply a transformed first snapshot before Vite builds its module graph.
   const discoveredHostCssFiles = new Set<string>();
   let activePackageCssFiles = new Set<string>();
@@ -296,8 +304,9 @@ export function createVitePlugins(
       stylesheetOrdering.set(fileId, { ...ordering });
     }
     if (stage === "authored") {
-      if (/@import\s+["']tailwindcss["']|@theme\b/i.test(code)) tailwindV4SourceFiles.add(fileId);
-      else tailwindV4SourceFiles.delete(fileId);
+      const dialects = detectStylesheetDialects(code);
+      if (dialects.length > 0) authoredStylesheetDialects.set(fileId, dialects);
+      else authoredStylesheetDialects.delete(fileId);
     }
     const artifact = createStylesheetArtifact({
       id: fileId,
@@ -305,7 +314,7 @@ export function createVitePlugins(
       stage,
       ...(stylesheetOrdering.get(fileId) ?? ordering),
       content: code,
-      tailwindV4: tailwindV4SourceFiles.has(fileId),
+      tailwindV4: authoredStylesheetDialects.get(fileId)?.includes("tailwind-v4") === true,
     });
     inventory.apply(artifact);
     sourceScanDiagnostics.delete(artifact.id);
@@ -313,7 +322,7 @@ export function createVitePlugins(
 
   function feedCssRemoval(id: string): void {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    tailwindV4SourceFiles.delete(fileId);
+    authoredStylesheetDialects.delete(fileId);
     stylesheetOrdering.delete(fileId);
     discoveredHostCssFiles.delete(fileId);
     const artifact = createStylesheetArtifact({
@@ -402,10 +411,12 @@ export function createVitePlugins(
 
 
   /** Id-keyed, replaceable contributions: repeating this with unchanged facts is a no-op. */
-  function syncInventoryContributions(): void {
-    const { contributions } = interpretDialects({
+  function syncInventoryContributions(): DialectInterpretation {
+    const detected = new Set([...authoredStylesheetDialects.values()].flat());
+    const interpretation = interpretDialects({
       ...(options.tailwindV3 === undefined ? {} : { tailwindV3: options.tailwindV3 }),
-      tailwindV4Css: tailwindV4SourceFiles.size > 0,
+      tailwindV3Css: detected.has("tailwind-v3"),
+      tailwindV4Css: detected.has("tailwind-v4"),
       ...(options.vanillaExtract?.themeContract === undefined ? {} : {
         inlineThemeContract: {
           contract: options.vanillaExtract.themeContract,
@@ -431,7 +442,8 @@ export function createVitePlugins(
       },
       diagnostics: [...sourceScanDiagnostics.values(), ...activeGraphDiagnostics],
     });
-    for (const contribution of contributions) inventory.applyContribution(contribution);
+    for (const contribution of interpretation.contributions) inventory.applyContribution(contribution);
+    return interpretation;
   }
 
   /** Publishes exactly once per observable snapshot change: callers settle every feed first, and this compares what `load()` would serialize. */
@@ -575,8 +587,9 @@ export function createVitePlugins(
   }
 
   function buildRuntimeSnapshot(): NudgeUiRuntimeConfig {
-    syncInventoryContributions();
+    const interpretation = syncInventoryContributions();
     const snapshot = inventory.snapshot();
+    const stylingDialects = dialectsInUse(snapshot.tokens, observedDialects(interpretation));
     const tokenDiagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
       code: diagnostic.code,
       message: diagnostic.message,
@@ -588,7 +601,8 @@ export function createVitePlugins(
       // Without a framework there are no component boundaries to describe, so the project is HTML and CSS.
       host: framework?.hostLabel ?? "static-html",
       framework: framework?.framework ?? "HTML",
-      stylingSystem: detectStylingSystem(snapshot.tokens),
+      stylingSystem: stylingSystemLabel(stylingDialects),
+      stylingDialects,
       ...(options.demo === true ? { demo: true } : {}),
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
@@ -772,6 +786,7 @@ export function createVitePlugins(
             `    host: ${JSON.stringify(identity.host)},`,
             `    framework: ${JSON.stringify(identity.framework)},`,
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
+            '    stylingDialects: detectFramework(tokens).stylingDialects,',
             '    demo: true,',
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,

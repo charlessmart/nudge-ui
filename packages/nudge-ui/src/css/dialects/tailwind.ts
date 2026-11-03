@@ -1,13 +1,188 @@
 import type { TokenEntry } from "../model/index.ts";
 import type { TokenContribution } from "../token-inventory/types.ts";
+import type { StylingDialect } from "./dialect.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** `--tw-*` helpers are not evidence: Tailwind v3 emits them too. */
 export function detectTailwindV4(css: string): boolean {
-  return /@(?:import\s+["']tailwindcss|theme\b)/i.test(css) || /--tw-[\w-]+/.test(css);
+  return /@import\s+["']tailwindcss(?:\/[\w-]+)?["']|@theme\b/i.test(css);
 }
+
+/** v4 still accepts `@tailwind utilities`, so its own markers win. */
+export function detectTailwindV3(css: string): boolean {
+  return /@tailwind\s+(?:base|components|utilities)\b/.test(css) && !detectTailwindV4(css);
+}
+
+type UtilityPrefixes = Readonly<Record<string, string>>;
+
+const COLOR_UTILITIES: UtilityPrefixes = {
+  "background-color": "bg",
+  background: "bg",
+  color: "text",
+  "border-color": "border",
+  "border-top-color": "border-t",
+  "border-right-color": "border-r",
+  "border-bottom-color": "border-b",
+  "border-left-color": "border-l",
+  "outline-color": "outline",
+  "text-decoration-color": "decoration",
+  "accent-color": "accent",
+  "caret-color": "caret",
+  fill: "fill",
+  stroke: "stroke",
+};
+
+const SPACING_UTILITIES: UtilityPrefixes = {
+  padding: "p",
+  "padding-top": "pt",
+  "padding-right": "pr",
+  "padding-bottom": "pb",
+  "padding-left": "pl",
+  "padding-inline": "px",
+  "padding-block": "py",
+  "padding-inline-start": "ps",
+  "padding-inline-end": "pe",
+  margin: "m",
+  "margin-top": "mt",
+  "margin-right": "mr",
+  "margin-bottom": "mb",
+  "margin-left": "ml",
+  "margin-inline": "mx",
+  "margin-block": "my",
+  "margin-inline-start": "ms",
+  "margin-inline-end": "me",
+  gap: "gap",
+  "row-gap": "gap-y",
+  "column-gap": "gap-x",
+  width: "w",
+  height: "h",
+  "min-width": "min-w",
+  "max-width": "max-w",
+  "min-height": "min-h",
+  "max-height": "max-h",
+  inset: "inset",
+  top: "top",
+  right: "right",
+  bottom: "bottom",
+  left: "left",
+};
+
+const RADIUS_UTILITIES: UtilityPrefixes = {
+  "border-radius": "rounded",
+  "border-top-left-radius": "rounded-tl",
+  "border-top-right-radius": "rounded-tr",
+  "border-bottom-right-radius": "rounded-br",
+  "border-bottom-left-radius": "rounded-bl",
+};
+
+const BORDER_WIDTH_UTILITIES: UtilityPrefixes = {
+  "border-width": "border",
+  "border-top-width": "border-t",
+  "border-right-width": "border-r",
+  "border-bottom-width": "border-b",
+  "border-left-width": "border-l",
+};
+
+const FONT_SIZE_UTILITIES: UtilityPrefixes = { "font-size": "text" };
+const FONT_WEIGHT_UTILITIES: UtilityPrefixes = { "font-weight": "font" };
+const FONT_FAMILY_UTILITIES: UtilityPrefixes = { "font-family": "font" };
+const LINE_HEIGHT_UTILITIES: UtilityPrefixes = { "line-height": "leading" };
+const LETTER_SPACING_UTILITIES: UtilityPrefixes = { "letter-spacing": "tracking" };
+const SHADOW_UTILITIES: UtilityPrefixes = { "box-shadow": "shadow" };
+
+function utilityName(prefixes: UtilityPrefixes, property: string, key: string): string | null {
+  const prefix = prefixes[property];
+  if (prefix === undefined || key === "") return null;
+  return key === "DEFAULT" ? prefix : `${prefix}-${key}`;
+}
+
+/** v3 theme sections, keyed as `readTailwindV3Config` names them. */
+const V3_SECTION_UTILITIES: Readonly<Record<string, UtilityPrefixes>> = {
+  colors: COLOR_UTILITIES,
+  spacing: SPACING_UTILITIES,
+  borderRadius: RADIUS_UTILITIES,
+  borderWidth: BORDER_WIDTH_UTILITIES,
+  fontSize: FONT_SIZE_UTILITIES,
+  fontWeight: FONT_WEIGHT_UTILITIES,
+  lineHeight: LINE_HEIGHT_UTILITIES,
+  letterSpacing: LETTER_SPACING_UTILITIES,
+};
+
+/** `theme.colors.blue.500` with `background-color` is `bg-blue-500`. */
+export function tailwindV3Utility(tokenName: string, property: string): string | null {
+  const [root, section, ...path] = tokenName.split(".");
+  const prefixes = section === undefined ? undefined : V3_SECTION_UTILITIES[section];
+  if (root !== "theme" || !prefixes || path.length === 0) return null;
+  if (section !== "colors") return utilityName(prefixes, property, path.join("."));
+  // Only colors nest; other sections keep dotted keys such as spacing `0.5`. `blue.DEFAULT` is `bg-blue`.
+  const parts = path[path.length - 1] === "DEFAULT" ? path.slice(0, -1) : path;
+  return utilityName(prefixes, property, parts.join("-") || "DEFAULT");
+}
+
+/** v4 theme namespaces, longest first so `--font-weight-` is not read as a font family. */
+const V4_NAMESPACE_UTILITIES: ReadonlyArray<readonly [string, UtilityPrefixes]> = [
+  ["--font-weight-", FONT_WEIGHT_UTILITIES],
+  ["--tracking-", LETTER_SPACING_UTILITIES],
+  ["--leading-", LINE_HEIGHT_UTILITIES],
+  ["--spacing-", SPACING_UTILITIES],
+  ["--shadow-", SHADOW_UTILITIES],
+  ["--radius-", RADIUS_UTILITIES],
+  ["--color-", COLOR_UTILITIES],
+  ["--text-", FONT_SIZE_UTILITIES],
+  ["--font-", FONT_FAMILY_UTILITIES],
+];
+
+/** `--color-brand` with `background-color` is `bg-brand`. */
+export function tailwindV4Utility(cssName: string, property: string): string | null {
+  for (const [namespace, prefixes] of V4_NAMESPACE_UTILITIES) {
+    if (!cssName.startsWith(namespace)) continue;
+    const key = cssName.slice(namespace.length);
+    // `--text-lg--line-height` is a companion of `--text-lg`, not a utility of its own.
+    return key.includes("--") ? null : utilityName(prefixes, property, key);
+  }
+  return null;
+}
+
+function isTailwindHelperProperty(name: string): boolean {
+  return name.startsWith("--tw-");
+}
+
+export const tailwindV3Dialect: StylingDialect = {
+  name: "tailwind-v3",
+  label: "Tailwind v3",
+  detectStylesheet: detectTailwindV3,
+  tokenOrigin: "framework",
+  // v3 compiles config values into utility rules, so a token is a literal, not a custom property.
+  literalTokens: true,
+  declaredOnPage: false,
+  isInternalProperty: isTailwindHelperProperty,
+  sourceForm: (token, property) => tailwindV3Utility(token.name, property),
+  promptGuidance: "Tailwind v3: apply design tokens with utility classes (such as bg-blue-500) instead of writing new CSS, and add new tokens to the theme in the Tailwind config.",
+};
+
+export const tailwindV4Dialect: StylingDialect = {
+  name: "tailwind-v4",
+  label: "Tailwind v4",
+  detectStylesheet: detectTailwindV4,
+  tokenOrigin: "framework",
+  literalTokens: false,
+  declaredOnPage: false,
+  isInternalProperty: isTailwindHelperProperty,
+  readClass: (className) => {
+    const utility = readTailwindV4AlphaUtility(className);
+    return utility && {
+      properties: ["background-color", "background"],
+      tokenCssName: utility.baseName,
+      expression: tailwindV4AlphaExpression(utility.baseName, utility.alpha),
+      alpha: utility.alpha,
+    };
+  },
+  sourceForm: (token, property) => tailwindV4Utility(token.cssName ?? token.name, property),
+  promptGuidance: "Tailwind v4: apply design tokens with utility classes (such as bg-brand) instead of writing new CSS, and define new tokens as theme variables in @theme.",
+};
 
 /** The generic parser cannot tell authored from generated v4 tokens, so this corrects provenance and editability. */
 export function tailwindV4Relabelling(): TokenContribution {

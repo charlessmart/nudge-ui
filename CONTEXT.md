@@ -19,6 +19,10 @@ that intent to a coding agent. The inspector does not edit application source.
   an entry focuses its owning frame, including when another draft is active.
 - **Agent activity**: Temporary attribution of file reads or edits to rendered
   source identities. Activity does not change task status or edit intent.
+- **Styling dialect**: A way of writing styles that changes how tokens are named
+  and applied: Tailwind v3, Tailwind v4 or vanilla-extract. Plain CSS is the
+  absence of a dialect. A dialect is detected per project and tells the prompt
+  how an edit should be written.
 
 A future **saved version** must represent an immutable captured state with its
 own identity. Mutable draft revisions do not provide that guarantee.

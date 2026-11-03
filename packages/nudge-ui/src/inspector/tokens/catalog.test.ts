@@ -23,6 +23,7 @@ function configureAstroHost(): void {
     host: "astro",
     framework: "Astro",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: {
       canvas: false,
       componentSemantics: true,
@@ -42,6 +43,7 @@ function configureDefaultHost(): void {
     host: "vite-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
+    stylingDialects: [],
     capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],

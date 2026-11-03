@@ -1,3 +1,4 @@
+import { isDialectInternalProperty, stylingDialect } from "../../css/dialects/index.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { TokenOrigin, TokenTable } from "../../css/model/index.ts";
 import type {
@@ -12,8 +13,7 @@ const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 export function inspectorTokenOrigin(entry: TokenEntry | undefined): TokenOrigin {
   if (!entry) return "runtime";
   if (entry.origin) return entry.origin;
-  if (entry.adapter === "tailwind-v3" || entry.adapter === "tailwind-v4") return "framework";
-  return "project";
+  return stylingDialect(entry.adapter)?.tokenOrigin ?? "project";
 }
 
 function colorTuple(value: string): string | null {
@@ -30,30 +30,31 @@ function colorTuple(value: string): string | null {
   return rgb ? [rgb[1], rgb[2], rgb[3]].map((part) => String(Math.round(Number(part)))).join(",") : null;
 }
 
-const frameworkColorIndexes = new WeakMap<TokenTable, Map<string, TokenEntry>>();
+const literalColorIndexes = new WeakMap<TokenTable, Map<string, TokenEntry>>();
 
-/** First Tailwind v3 token per color tuple. */
-function frameworkColorIndex(tokenTable: TokenTable): Map<string, TokenEntry> {
-  let index = frameworkColorIndexes.get(tokenTable);
+/** First literal dialect token per color tuple: a literal has no var() to name it, so its value is its identity. */
+function literalColorIndex(tokenTable: TokenTable): Map<string, TokenEntry> {
+  let index = literalColorIndexes.get(tokenTable);
   if (index) return index;
   index = new Map();
   for (const entry of Object.values(tokenTable)) {
-    if (entry.adapter !== "tailwind-v3") continue;
+    if (stylingDialect(entry.adapter)?.literalTokens !== true) continue;
     const tuple = colorTuple(entry.value);
     if (tuple && !index.has(tuple)) index.set(tuple, entry);
   }
-  frameworkColorIndexes.set(tokenTable, index);
+  literalColorIndexes.set(tokenTable, index);
   return index;
 }
 
-function directFrameworkColor(value: string, tokenTable: TokenTable): TokenEntry | undefined {
+function directLiteralColor(value: string, tokenTable: TokenTable): TokenEntry | undefined {
   const tuple = colorTuple(value);
   if (!tuple) return undefined;
-  return frameworkColorIndex(tokenTable).get(tuple);
+  return literalColorIndex(tokenTable).get(tuple);
 }
 
-function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribution {
-  if (!ref.startsWith("--tw-")) {
+/** A dialect's plumbing variable is never itself a token; it names the token it forwards, if any. */
+function dialectAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribution {
+  if (!isDialectInternalProperty(ref)) {
     return {
       known: true,
       tokenName: ref,
@@ -88,9 +89,9 @@ export function createInspectorValueContext(
     tokenContext: {
       table: tokenTable,
       localAliases,
-      resolveDirectToken: (value) => directFrameworkColor(value, tokenTable),
+      resolveDirectToken: (value) => directLiteralColor(value, tokenTable),
       resolveOrigin: inspectorTokenOrigin,
-      resolveAlias: twLocalAliasPolicy,
+      resolveAlias: dialectAliasPolicy,
     },
     ...(directionality ? { directionality } : {}),
   };
