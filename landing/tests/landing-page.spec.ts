@@ -132,10 +132,7 @@ test("keeps the final landing card after refreshing a focused historical version
   await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
 
-  const versionOneCard = inspectorHost
-    .locator('[data-test^="canvas-card-dimensions-"]')
-    .filter({ hasText: "V1" })
-    .locator("xpath=ancestor::*[@data-card-id][1]");
+  const versionOneCard = inspectorHost.getByRole("group", { name: "Frame: V1", exact: true });
   const boardBounds = await inspectorHost.locator('[data-test="canvas-board"]').boundingBox();
   const cardBounds = await versionOneCard.boundingBox();
   if (!boardBounds || !cardBounds) throw new Error("The canvas frame is not rendered.");
@@ -154,8 +151,8 @@ test("keeps the final landing card after refreshing a focused historical version
   await restoredHost.locator('[data-test="canvas-show-canvas"]').click();
   await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
 
-  const restoredLabels = await restoredHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
-  expect(restoredLabels.sort()).toEqual(["Final", "V1", "V2"]);
+  const restoredLabels = await restoredHost.locator("[data-card-id]").evaluateAll((cards) => cards.map((card) => card.getAttribute("aria-label")));
+  expect(restoredLabels.sort()).toEqual(["Frame: Final", "Frame: V1", "Frame: V2"]);
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {
