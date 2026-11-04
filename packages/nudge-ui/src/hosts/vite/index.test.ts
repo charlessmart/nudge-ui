@@ -272,9 +272,11 @@ describe("nudgeUi plugin virtual inspector module", () => {
     plugin.configResolved?.({ root: "/project", command: "build", mode: "nudge-demo" });
     const code = await plugin.load!("\0virtual:nudge-ui-inspector");
     expect(code).toContain("readNudgeUiEditorTarget(window.location.href)");
-    expect(code).toContain("hasNudgeUiDirectTabIntent()");
-    expect(code).toContain("rememberNudgeUiDirectTabIntent()");
     expect(code).toContain("isCanvasRenderer()");
+    // The application keeps the top document; only an explicit editor URL boots the editor.
+    expect(code).not.toContain("history.replaceState");
+    expect(code).toContain('__nudge_ui_robots.content = "noindex"');
+    expect(code).toContain("setInspectorOpen(true)");
     expect(code).toContain('document.documentElement.setAttribute("data-nudge-ui-editor", "")');
     expect(code).toContain("demo: true");
     expect(code).toContain('demoPages: ["/?landing-version=1"]');

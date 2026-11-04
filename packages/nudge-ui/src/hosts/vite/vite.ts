@@ -107,6 +107,8 @@ const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
 const DEBUG_MOUNT_DIV = `<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>`;
 const INSPECTOR_SCRIPT = `<script type="module" src="${CLIENT_PATH}" data-nudge-ui-client data-nudge-ui-manifest="${MANIFEST_PATH}"></script>`;
 const LEGACY_INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
+/** One-shot handoff so the demo editor opens expanded after its open action, but collapsed after a refresh. */
+const DEMO_OPEN_PANEL_SESSION_KEY = "nudge-ui:demo-open-panel";
 
 export function extractViteModuleCss(code: string): string | null {
   const match = /(?:^|;)\s*(?:const|let|var)\s+__vite__css\s*=\s*("(?:[^"\\]|\\.)*")/m.exec(code);
@@ -758,25 +760,30 @@ export function createVitePlugins(
           return `export {};\n`;
         }
         if (options.demo === true) {
-          const demoControllerExpression = demoBuild
-            ? "true"
-            : '(import.meta.env.DEV && window.location.pathname === "/")';
           // Taken from the composed framework, so the demo bootstrap cannot drift from the served manifest.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, hasNudgeUiDirectTabIntent, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget, rememberNudgeUiDirectTabIntent } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget, setInspectorOpen } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
+            // The application owns the top document so crawlers index it; only an explicit editor URL boots the editor (ADR-0049).
+            `const __nudge_ui_open_panel_key = ${JSON.stringify(DEMO_OPEN_PANEL_SESSION_KEY)};`,
             'const __nudge_ui_renderer = isCanvasRenderer();',
-            'const __nudge_ui_explicit_direct = isNudgeUiDirectUrl(window.location.href);',
-            'if (__nudge_ui_explicit_direct) rememberNudgeUiDirectTabIntent();',
-            'const __nudge_ui_direct_tab = hasNudgeUiDirectTabIntent();',
-            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !__nudge_ui_explicit_direct && !__nudge_ui_direct_tab && ${demoControllerExpression};`,
-            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href) ?? (__nudge_ui_demo_controller ? window.location.href : null);',
-            'if (__nudge_ui_demo_controller && readNudgeUiEditorTarget(window.location.href) === null) {',
-            '  window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(window.location.href));',
+            'const __nudge_ui_editor_target = __nudge_ui_renderer || isNudgeUiDirectUrl(window.location.href) ? null : readNudgeUiEditorTarget(window.location.href);',
+            'let __nudge_ui_open_panel = false;',
+            'if (__nudge_ui_editor_target) {',
+            '  try {',
+            '    __nudge_ui_open_panel = sessionStorage.getItem(__nudge_ui_open_panel_key) === "1";',
+            '    sessionStorage.removeItem(__nudge_ui_open_panel_key);',
+            '  } catch {',
+            '    // Without storage the editor opens collapsed, as it does after a refresh.',
+            '  }',
+            '  const __nudge_ui_robots = document.createElement("meta");',
+            '  __nudge_ui_robots.name = "robots";',
+            '  __nudge_ui_robots.content = "noindex";',
+            '  document.head.append(__nudge_ui_robots);',
             '}',
             'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
             'if (__nudge_ui_renderer) document.documentElement.setAttribute("data-nudge-ui-renderer", "");',
@@ -801,10 +808,17 @@ export function createVitePlugins(
             '  const __dt_root = document.getElementById("nudge-ui-root");',
             '  if (__dt_root) {',
             '    bootstrapNudgeUi(__dt_root);',
+            '    if (__nudge_ui_open_panel && !__nudge_ui_renderer) setInspectorOpen(true);',
             '  }',
             '}',
             'window.addEventListener("nudge-ui:open", () => {',
-            '  if (!__nudge_ui_renderer && (__nudge_ui_explicit_direct || __nudge_ui_direct_tab)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
+            '  if (__nudge_ui_renderer || __nudge_ui_editor_target) return;',
+            '  try {',
+            '    sessionStorage.setItem(__nudge_ui_open_panel_key, "1");',
+            '  } catch {',
+            '    // The editor still opens, collapsed.',
+            '  }',
+            '  window.location.assign(createNudgeUiEditorUrl(window.location.href));',
             '});',
           ].join("\n");
         }

@@ -676,8 +676,13 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
     justify-items: center;
   }
 
-  .landing-setup-option > .landing-button {
+  .landing-setup-option > .landing-button,
+  .landing-setup-option > .landing-install-actions {
     align-self: end;
+  }
+
+  .landing-setup-option > .landing-install-actions {
+    justify-content: center;
   }
 }
 

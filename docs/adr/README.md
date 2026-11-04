@@ -49,3 +49,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0043: The Inspection tool slows the whole page](./0043-page-wide-animation-speed.md) (supersedes ADR-0039's animation timeline and markers, and its one-view-at-a-time view tool)
 - [ADR-0044: Remove the MCP integration and add pages from the Canvas](./0044-remove-the-mcp-integration.md) (supersedes ADR-0013, ADR-0015, ADR-0026, ADR-0028, and ADR-0032)
 - [ADR-0048: Styling dialect adapters](./0048-styling-dialect-adapters.md)
+- [ADR-0049: The landing page owns the top document](./0049-landing-page-owns-the-top-document.md) (supersedes ADR-0027's iframe-editor landing demo)

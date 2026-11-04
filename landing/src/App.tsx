@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { IconArrowUpRight, IconArrowsMove, IconComponents, IconEdit, IconLayoutGrid, IconMessageCircle, IconPalette, IconSend, IconSketching } from "@tabler/icons-react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { IconArrowDown, IconArrowUpRight, IconArrowsMove, IconComponents, IconEdit, IconLayoutGrid, IconMessageCircle, IconPalette, IconSend, IconSketching } from "@tabler/icons-react";
 import demoVideo from "../assets/demo.mp4";
 import inspectorArrowHead from "../assets/arrow-head.svg";
 import inspectorArrowTail from "../assets/arrow-tail.svg";
@@ -333,7 +333,20 @@ function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
   );
 }
 
-export function InstallCommand(): ReactNode {
+function ArrowRightIcon(): ReactNode {
+  return (
+    <svg className="landing-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function openNudge(): void {
+  window.dispatchEvent(new Event(OPEN_NUDGE_EVENT));
+}
+
+function CopyInstallPromptButton(): ReactNode {
+  const tooltipId = useId();
   const [copied, setCopied] = useState(false);
   const copyTimeout = useRef<number | null>(null);
 
@@ -364,28 +377,49 @@ export function InstallCommand(): ReactNode {
   };
 
   return (
+    <div className="landing-install-copy-wrap">
+      <LandingButton
+        type="button"
+        variant="secondary"
+        className="landing-install-copy"
+        data-copied={copied}
+        aria-describedby={tooltipId}
+        onClick={copyPrompt}
+      >
+        <span className="landing-install-copy-icon" aria-hidden="true">
+          <CopyIcon />
+          <DoneIcon />
+        </span>
+        {copied ? "Install prompt copied" : "Copy install prompt"}
+      </LandingButton>
+      <span className="landing-install-tooltip" id={tooltipId} role="tooltip">{installPrompt}</span>
+    </div>
+  );
+}
+
+export function InstallCommand(): ReactNode {
+  return (
     <div className="landing-install-actions">
       <a className="landing-button landing-button--primary" href={chromeStoreUrl} target="_blank" rel="noreferrer">
         <ChromeIcon />
         Add to Chrome
       </a>
-      <div className="landing-install-copy-wrap">
-        <LandingButton
-          type="button"
-          variant="secondary"
-          className="landing-install-copy"
-          data-copied={copied}
-          aria-describedby="landing-install-tooltip"
-          onClick={copyPrompt}
-        >
-          <span className="landing-install-copy-icon" aria-hidden="true">
-            <CopyIcon />
-            <DoneIcon />
-          </span>
-          {copied ? "Install prompt copied" : "Copy install prompt"}
-        </LandingButton>
-        <span className="landing-install-tooltip" id="landing-install-tooltip" role="tooltip">{installPrompt}</span>
-      </div>
+      <CopyInstallPromptButton />
+    </div>
+  );
+}
+
+function HeroActions(): ReactNode {
+  return (
+    <div className="landing-install-actions">
+      <LandingButton type="button" variant="primary" aria-controls="nudge-ui-root" onClick={openNudge}>
+        Try it here
+        <ArrowRightIcon />
+      </LandingButton>
+      <LandingButton variant="secondary" href="#install">
+        Install
+        <IconArrowDown size={16} stroke={1.6} aria-hidden="true" />
+      </LandingButton>
     </div>
   );
 }
@@ -434,16 +468,9 @@ function DemoIntro(): ReactNode {
       <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
       <div className="landing-demo-content landing-content-column">
         <p className="landing-demo-description">Open Nudge and try the loop yourself: rewrite the copy, swap a token or drag the spacing below, and see it immediately.</p>
-        <LandingButton
-          type="button"
-          variant="primary"
-          aria-controls="nudge-ui-root"
-          onClick={() => window.dispatchEvent(new Event(OPEN_NUDGE_EVENT))}
-        >
+        <LandingButton type="button" variant="primary" aria-controls="nudge-ui-root" onClick={openNudge}>
           Open Nudge
-          <svg className="landing-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ArrowRightIcon />
         </LandingButton>
       </div>
       <FeatureBento />
@@ -464,7 +491,7 @@ export function App(): ReactNode {
                 <p className="landing-hero-intro">
                   Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
                 </p>
-                <InstallCommand />
+                <HeroActions />
               </div>
             </div>
           </section>
@@ -473,7 +500,7 @@ export function App(): ReactNode {
 
           <DemoIntro />
 
-          <section className="landing-setup landing-setup--intro landing-inner" aria-label="Install options">
+          <section className="landing-setup landing-setup--intro landing-inner" id="install" aria-label="Install options">
             <div className="landing-setup-columns">
               <div className="landing-setup-option">
                 <h3 className="landing-setup-option-title">Chrome extension</h3>
@@ -487,10 +514,13 @@ export function App(): ReactNode {
               <div className="landing-setup-option">
                 <h3 className="landing-setup-option-title">npm package</h3>
                 <p className="landing-setup-lead">For deeper work.<br />Use your real components, share with collaborators, and iterate on the canvas with html mockups.</p>
-                <LandingButton variant="tertiary" href={npmPackageUrl} target="_blank" rel="noreferrer">
-                  View on npm
-                  <IconArrowUpRight size={16} stroke={1.6} aria-hidden="true" />
-                </LandingButton>
+                <div className="landing-install-actions">
+                  <CopyInstallPromptButton />
+                  <LandingButton variant="tertiary" href={npmPackageUrl} target="_blank" rel="noreferrer">
+                    View on npm
+                    <IconArrowUpRight size={16} stroke={1.6} aria-hidden="true" />
+                  </LandingButton>
+                </div>
               </div>
             </div>
           </section>
