@@ -1,3 +1,4 @@
+import { showCanvas } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.describe("Canvas spatial board", () => {
@@ -110,7 +111,7 @@ test.describe("Canvas board gesture handling", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/playground");
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
   });
 
   test("dev: unmodified wheel event pans the board", async ({ page }) => {

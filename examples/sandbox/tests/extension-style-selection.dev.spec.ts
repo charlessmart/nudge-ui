@@ -41,6 +41,12 @@ async function openFixture(page: Page) {
   return page.mainFrame();
 }
 
+test("extension toolbar has no zoom control, since the page is not on a Canvas", async ({ page }) => {
+  await openFixture(page);
+  await expect(page.locator('[data-test="canvas-toolbar"]')).toBeVisible();
+  await expect(page.locator('[data-test="canvas-zoom-menu"]')).toHaveCount(0);
+});
+
 test("extension multi-selection shows the shared corner radius", async ({ page }) => {
   const content = await openFixture(page);
   await content.locator("#first").click();

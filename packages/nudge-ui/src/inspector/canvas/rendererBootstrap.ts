@@ -24,6 +24,7 @@ import type {
   PanStartMessage,
   RendererHelloMessage,
   ZoomMessage,
+  ZoomStepMessage,
   WheelPanMessage,
 } from "./frameProtocol.ts";
 import { wheelPanDelta } from "./wheelPan.ts";
@@ -34,7 +35,7 @@ import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isUserClick } from "../overlay/clickPolicy.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
-import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasZoomStepForEvent } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { createPageAnimationSpeed } from "./pageAnimationSpeed.ts";
@@ -476,6 +477,14 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner) || isInspectorUiEvent(event)) return;
     if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
+    const zoomStep = canvasZoomStepForEvent(event);
+    const identity = zoomStep === null ? null : getRendererIdentity();
+    if (zoomStep !== null && identity) {
+      // The Canvas zoom replaces the browser's while a frame has focus, in Focus as well.
+      event.preventDefault();
+      const message: ZoomStepMessage = { type: "zoom-step", protocolVersion: PROTOCOL_VERSION, direction: zoomStep, ...identity };
+      sendToParent(message);
+    }
     if (spacePans && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();

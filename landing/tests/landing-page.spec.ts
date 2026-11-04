@@ -123,7 +123,8 @@ test("keeps the final landing card after refreshing a focused historical version
   await expect.poll(() => restoredHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   await restoredHost.locator('[data-test="show-inspector"]').click();
   await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "focus");
-  await restoredHost.locator('[data-test="canvas-show-canvas"]').click();
+  await restoredHost.locator('[data-test="canvas-zoom-menu"]').click();
+  await restoredHost.locator('[data-test="canvas-zoom-focus"]').click();
   await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
 
   const restoredLabels = await restoredHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();

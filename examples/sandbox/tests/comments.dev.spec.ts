@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
@@ -35,7 +35,7 @@ test("scrolling over comment pins pans the canvas and pins track it between anim
   await app.locator("#hero-title").click();
   await page.locator('[data-test="comment-input"]').fill("Follow this heading");
   await page.locator('[data-test="comment-confirm"]').click();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await app.locator("body").evaluate(() => window.scrollTo(0, 0));
   const pin = page.locator('[data-test="comment-pin"]');
@@ -65,7 +65,7 @@ test("focus view shows one comment pin when the route has duplicate frames", asy
   const pins = page.locator('[data-test="comment-pin"]');
   await expect(pins).toHaveCount(1);
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   await cards.first().hover();
@@ -83,7 +83,7 @@ test("focus view shows one comment pin when the route has duplicate frames", asy
   await pins.click();
   await expect(page.locator('[data-test="comment-input"]')).toHaveValue("One note across duplicate frames");
   await page.locator('[data-test="comment-input"]').press("Escape");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await expect(pins).toHaveCount(2);
 });

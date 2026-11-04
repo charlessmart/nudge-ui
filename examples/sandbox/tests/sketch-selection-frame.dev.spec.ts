@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 interface Point {
   readonly x: number;
@@ -13,7 +13,7 @@ const FRAME = '[data-test="sketch-selection-frame"]';
 
 async function openRectangleSketch(page: Page): Promise<Point> {
   await openEditor(page, "/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await page.locator('[data-test="canvas-tool-sketch"]').click();

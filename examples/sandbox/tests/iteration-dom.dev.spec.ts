@@ -1,11 +1,11 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("HTML iteration DOM drags work and change counts describe final prompt intent", async ({ page }) => {
   await page.goto("/conformance");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const cards = page.locator(".canvas-card");
   await expect(cards.first().locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
   await cards.first().locator("iframe").contentFrame().locator("body").evaluate((body) => {
@@ -66,7 +66,7 @@ test("HTML iteration DOM drags work and change counts describe final prompt inte
 
 test("duplicates slide right and iterations slide down with hover paused", async ({ page }) => {
   await page.goto("/conformance");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const cards = page.locator(".canvas-card");
   async function captureEntrance(index: number): Promise<void> {
     await waitForCanvasTransition(page);
@@ -153,7 +153,7 @@ test("duplicates slide right and iterations slide down with hover paused", async
 
 test("linked frame geometry scales with the canvas and controls retain their zoom behavior", async ({ page }) => {
   await page.goto("/conformance");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await expect(cards).toHaveCount(2);

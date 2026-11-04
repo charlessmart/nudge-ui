@@ -104,3 +104,12 @@ export function resizeFocusWidth(
   const width = Math.min(boardWidth, Math.max(MIN_CARD_WIDTH, startWidth + growth * 2));
   return (boardWidth - width) / 2 <= FOCUS_EDGE_SNAP_DISTANCE ? boardWidth : width;
 }
+
+/**
+ * A frame that fills the board in Focus keeps filling it as the board resizes, such as when the inspector hides; a
+ * narrower or wider frame keeps its own width. Returns the new width, or null to leave the frame as it is.
+ */
+export function followFocusBoardWidth(frameWidth: number, previousBoardWidth: number, boardWidth: number): number | null {
+  if (boardWidth === previousBoardWidth || Math.abs(frameWidth - previousBoardWidth) >= 1) return null;
+  return boardWidth;
+}

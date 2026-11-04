@@ -15,6 +15,16 @@ export interface ClientRect {
   top: number;
 }
 
+/** Zooms to `zoom` about a point on the board, which stays where it is on screen. */
+export function zoomCameraAbout(camera: CanvasCamera, zoom: number, point: ClientPoint): CanvasCamera {
+  const next = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, zoom));
+  return {
+    x: point.x - ((point.x - camera.x) / camera.zoom) * next,
+    y: point.y - ((point.y - camera.y) / camera.zoom) * next,
+    zoom: next,
+  };
+}
+
 export function zoomCameraAtPointer(
   camera: CanvasCamera,
   pointer: ClientPoint,

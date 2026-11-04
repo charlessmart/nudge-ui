@@ -1,3 +1,4 @@
+import { showCanvas } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -80,7 +81,7 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
     };
   })).toEqual({ guides: 4, rulers: 0 });
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await expect(page.locator('[data-test="canvas-workspace"][data-presentation="canvas"]')).toBeVisible();
   await page.locator('[data-test="canvas-workspace"]').hover({ position: { x: 4, y: 60 } });
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();

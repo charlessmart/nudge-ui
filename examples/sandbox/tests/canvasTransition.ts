@@ -9,6 +9,12 @@ export async function waitForCanvasTransition(page: Page): Promise<void> {
   });
 }
 
+/** Leaves Focus for the Canvas by unticking View in focus in the toolbar's zoom menu. */
+export async function showCanvas(page: Page): Promise<void> {
+  await page.locator('[data-test="canvas-zoom-menu"]').click();
+  await page.locator('[data-test="canvas-zoom-focus"]').click();
+}
+
 export async function clickFrameAction(page: Page, action: Locator): Promise<void> {
   await waitForCanvasTransition(page);
   const cardId = await action.evaluate((element) => element.closest(".canvas-card")?.getAttribute("data-card-id"));

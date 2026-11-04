@@ -1,14 +1,14 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 
-async function showCanvas(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+async function showCanvasSettled(page: import("@playwright/test").Page): Promise<void> {
+  await showCanvas(page);
   await waitForCanvasTransition(page);
 }
 
 async function duplicateCanvasCard(page: import("@playwright/test").Page): Promise<void> {
-  await showCanvas(page);
+  await showCanvasSettled(page);
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });

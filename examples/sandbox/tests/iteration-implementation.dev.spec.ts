@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 async function createIteration(page: Page) {
   await page.goto("/playground");
   await expect(page.locator('[data-test="copy-iteration-implementation"]')).not.toBeAttached();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards).toHaveCount(2);

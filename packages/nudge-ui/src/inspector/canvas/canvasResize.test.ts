@@ -3,6 +3,7 @@ import {
   FOCUS_EDGE_SNAP_DISTANCE,
   MIN_CARD_HEIGHT,
   MIN_CARD_WIDTH,
+  followFocusBoardWidth,
   resizeCanvasRect,
   resizeFocusWidth,
   type CanvasResizeDirection,
@@ -72,5 +73,19 @@ describe("resizeFocusWidth", () => {
 
   it("keeps the minimum frame width", () => {
     expect(resizeFocusWidth(600, "right", -5_000, 1200)).toBe(MIN_CARD_WIDTH);
+  });
+});
+
+describe("followFocusBoardWidth", () => {
+  it("keeps a frame that fills the board filling it as the board grows or shrinks", () => {
+    expect(followFocusBoardWidth(1000, 1000, 1300)).toBe(1300);
+    expect(followFocusBoardWidth(1300, 1300, 1000)).toBe(1000);
+    expect(followFocusBoardWidth(999.6, 1000, 1300)).toBe(1300);
+  });
+
+  it("leaves narrower and wider frames at their own width", () => {
+    expect(followFocusBoardWidth(800, 1000, 1300)).toBeNull();
+    expect(followFocusBoardWidth(1440, 1000, 1300)).toBeNull();
+    expect(followFocusBoardWidth(1000, 1000, 1000)).toBeNull();
   });
 });

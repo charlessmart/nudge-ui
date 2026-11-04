@@ -1,3 +1,4 @@
+import { showCanvas } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -5,7 +6,7 @@ test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 test.describe("with the feature off", () => {
   test("keeps the Add page button hidden on the canvas", async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await expect(page.locator('[data-test="canvas-add-page"]')).toBeHidden();
   });
 });
@@ -21,7 +22,7 @@ test.describe("with the feature on", () => {
     const addPage = page.locator('[data-test="canvas-add-page"]');
     await expect(addPage).toBeHidden();
 
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await expect(addPage).toBeVisible();
     await expect(page.locator('[data-test="empty-state"] [data-test="canvas-add-page"]')).toHaveCount(0);
     await addPage.click();
@@ -32,7 +33,7 @@ test.describe("with the feature on", () => {
 
   test("copies agent instructions for writing artifacts", async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await page.locator('[data-test="canvas-add-page"]').click();
     await page.locator('[data-test="canvas-copy-agent-instructions"]').click();
 
@@ -60,7 +61,7 @@ test.describe("with the feature on", () => {
     expect(created.status()).toBe(201);
 
     await page.reload();
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await page.locator('[data-test="canvas-add-page"]').click();
 
     const item = page.locator(`[data-test="canvas-add-iteration-${id}"]`);

@@ -1,4 +1,4 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 for (const navigation of ["document", "client-side"]) {
@@ -20,7 +20,7 @@ for (const navigation of ["document", "client-side"]) {
     await frame.locator('a[href="/conformance"]').first().click();
     await expect.poll(() => frame.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
     await expect(page).toHaveURL(/\/conformance\?nudge-ui=editor$/);
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await expect(cards).toHaveCount(1);
     await expect(cards.first()).toHaveAttribute("data-card-id", id!);
@@ -38,14 +38,14 @@ test("focus-mode address navigation replaces the current frame", async ({ page }
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveAttribute("data-card-id", id!);
   await expect.poll(() => cards.first().locator("iframe").contentFrame().locator("body").evaluate(() => location.pathname)).toBe("/conformance");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await expect(cards).toHaveCount(1);
 });
 
 test("independent frames highlight their shared live route after navigation", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
   const cards = page.locator(".canvas-card");
@@ -60,7 +60,7 @@ test("independent frames highlight their shared live route after navigation", as
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-focus-"]'));
   await page.goto("/playground?nudge-ui=editor");
   await expect(cards.nth(1).locator("iframe").contentFrame().locator("#hero-title")).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   for (const card of await cards.all()) {
     await expect(card.locator(".canvas-card__frame")).toHaveCSS("outline-color", "rgb(168, 85, 247)");
@@ -74,7 +74,7 @@ test("independent frames highlight their shared live route after navigation", as
   await expect(cards.nth(1).locator(".canvas-card__frame")).toHaveCSS("outline-color", "rgb(168, 85, 247)");
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-focus-"]'));
   await page.goto("/conformance?nudge-ui=editor");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   for (const card of await cards.all()) {
     await expect(card.locator(".canvas-card__frame")).not.toHaveCSS("outline-color", "rgb(168, 85, 247)");
@@ -83,7 +83,7 @@ test("independent frames highlight their shared live route after navigation", as
 
 test("canvas links open a new route once and return to its existing live frame", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
   const cards = page.locator(".canvas-card");
@@ -105,7 +105,7 @@ test("canvas links open a new route once and return to its existing live frame",
 for (const linked of [false, true]) {
   test(`returning from Focus zooms the ${linked ? "linked" : "standalone"} frame out to 90% about the board centre`, async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     const cards = page.locator(".canvas-card");
     const content = page.locator('[data-test="canvas-board-content"]');
@@ -129,7 +129,7 @@ for (const linked of [false, true]) {
     expect(await zoom()).not.toBeCloseTo(0.9);
     await clickFrameAction(page, active.locator('[data-test^="canvas-card-focus-"]'));
     await waitForCanvasTransition(page);
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     expect(await zoom()).toBeCloseTo(0.9);
     const offset = await board.evaluate((element, id) => {
