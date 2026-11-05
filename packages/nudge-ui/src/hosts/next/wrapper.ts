@@ -320,11 +320,10 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   });
 
   const resolveRewrites = async (): Promise<RewritesShape> => {
-    const port = await sidecarPort();
-    const userRewrites =
-      typeof source.rewrites === "function"
-        ? await source.rewrites()
-        : source.rewrites;
+    const [port, userRewrites] = await Promise.all([
+      sidecarPort(),
+      typeof source.rewrites === "function" ? source.rewrites() : source.rewrites,
+    ]);
 
     const shape: RewritesShape = Array.isArray(userRewrites)
       ? { afterFiles: userRewrites as RewritesSource[] }

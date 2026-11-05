@@ -577,9 +577,13 @@ export function createVitePlugins(
     return postTransformPromise;
   }
 
+  /** The CSS graph and the theme contract module write disjoint state, so they load together. */
+  async function ensureTokenInputs(): Promise<void> {
+    await Promise.all([ensurePostTransformCss(), ensurePublishedThemeContract()]);
+  }
+
   async function buildClientManifest(): Promise<NudgeUiClientManifest> {
-    await ensurePostTransformCss();
-    await ensurePublishedThemeContract();
+    await ensureTokenInputs();
     return createNudgeUiClientManifest({
       runtime: buildRuntimeSnapshot(),
       ...automationManifestFields(),
@@ -746,8 +750,7 @@ export function createVitePlugins(
         if (command === "build" && !demoBuild) {
           return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const nudgeUiProjectId = "";\nexport default tokens;\n`;
         }
-        await ensurePostTransformCss();
-        await ensurePublishedThemeContract();
+        await ensureTokenInputs();
         // One immutable snapshot is serialized verbatim; there is no post-snapshot enrichment.
         const runtime = buildRuntimeSnapshot();
         lastPublishedGeneration = runtime.tokenGeneration;

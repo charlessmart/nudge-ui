@@ -105,14 +105,18 @@ async function toggleInspector(tab: chrome.tabs.Tab & { id: number }): Promise<v
 
 async function reportUnavailable(tabId: number, error: unknown): Promise<void> {
   const reason = error instanceof Error ? error.message : String(error);
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#d93025" });
-  await chrome.action.setBadgeText({ tabId, text: "!" });
-  await chrome.action.setTitle({ tabId, title: `Nudge UI cannot run on this page: ${reason}` });
+  await Promise.all([
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#d93025" }),
+    chrome.action.setBadgeText({ tabId, text: "!" }),
+    chrome.action.setTitle({ tabId, title: `Nudge UI cannot run on this page: ${reason}` }),
+  ]);
 }
 
 async function clearUnavailable(tabId: number): Promise<void> {
-  await chrome.action.setBadgeText({ tabId, text: "" });
-  await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title ?? "Nudge UI" });
+  await Promise.all([
+    chrome.action.setBadgeText({ tabId, text: "" }),
+    chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title ?? "Nudge UI" }),
+  ]);
 }
 
 const tabTasks = new Map<number, Promise<void>>();

@@ -6,23 +6,24 @@ export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> 
   const source = frame.contentDocument;
   const view = frame.contentWindow;
   if (!source || !view?.document.documentElement) throw new Error("The frame is not ready to capture.");
-  await source.fonts?.ready;
-  await Promise.all([...source.images].map((image) => image.decode?.().catch(() => undefined)));
+  await Promise.all([
+    source.fonts?.ready,
+    ...[...source.images].map((image) => image.decode?.().catch(() => undefined)),
+  ]);
   const original = source.documentElement;
   const copy = original.cloneNode(true) as HTMLElement;
   copy.removeAttribute(HTML_ARTIFACT_REVISION_ATTRIBUTE);
   const sourceElements = [original, ...original.querySelectorAll("*")];
   const copiedElements = [copy, ...copy.querySelectorAll("*")];
   const assets = new Map<string, Promise<string>>();
+  // Keyed by the copied node, so a stylesheet owner copies its resolved attributes before it is replaced.
+  const inlineStyles = new Map<Element, Promise<void>>();
   for (let index = 0; index < sourceElements.length; index += 1) {
     const sourceElement = sourceElements[index]!;
     const copied = copiedElements[index]!;
     if (sourceElement.nodeType !== 1 || copied.nodeType !== 1) continue;
     // Renderer IDs belong to the source iframe's registry; the iteration's fresh registry can reuse them for different nodes.
     copied.removeAttribute("data-renderer-id");
-    // Keep authored inline values (percentages, variables, calc) instead of computed dimensions.
-    const inline = copied.getAttribute("style");
-    if (inline) copied.setAttribute("style", await resolveCssUrls(inline, source.baseURI, assets));
     if (sourceElement.tagName === "INPUT" && copied.tagName === "INPUT") {
       const input = sourceElement as HTMLInputElement;
       copied.setAttribute("value", input.value);
@@ -30,13 +31,22 @@ export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> 
       else copied.removeAttribute("checked");
     }
     if (sourceElement.tagName === "TEXTAREA" && copied.tagName === "TEXTAREA") copied.textContent = (sourceElement as HTMLTextAreaElement).value;
+    let captured: Element = copied;
     if (sourceElement.tagName === "CANVAS" && copied.tagName === "CANVAS") {
       try {
         const image = source.createElement("img");
         image.src = (sourceElement as HTMLCanvasElement).toDataURL();
         for (const attribute of [...copied.attributes]) image.setAttribute(attribute.name, attribute.value);
         copied.replaceWith(image);
+        captured = image;
       } catch { /* Tainted canvases remain empty. */ }
+    }
+    // Keep authored inline values (percentages, variables, calc) instead of computed dimensions.
+    const inline = captured.getAttribute("style");
+    if (inline) {
+      inlineStyles.set(captured, resolveCssUrls(inline, source.baseURI, assets).then((resolved) => {
+        captured.setAttribute("style", resolved);
+      }));
     }
   }
   const base = source.createElement("base");
@@ -54,11 +64,15 @@ export async function captureHtmlIteration(frame: CanvasFrame): Promise<string> 
       if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
     }
   });
-  for (const image of copy.querySelectorAll("img")) {
+  const images = [...copy.querySelectorAll("img")].map(async (image) => {
     const url = image.getAttribute("src");
     if (url) image.src = await inlineAsset(url, base.href, assets);
-  }
-  await captureStylesheets(source, copy, sourceElements, copiedElements, assets);
+  });
+  await Promise.all([
+    ...inlineStyles.values(),
+    ...images,
+    captureStylesheets(source, copy, sourceElements, copiedElements, assets, inlineStyles),
+  ]);
   return `<!doctype html>\n${copy.outerHTML}`;
 }
 
@@ -69,39 +83,45 @@ async function captureStylesheets(
   sourceElements: Element[],
   copiedElements: Element[],
   assets: Map<string, Promise<string>>,
+  inlineStyles: ReadonlyMap<Element, Promise<void>>,
 ): Promise<void> {
-  for (const sheet of [...document.styleSheets]) {
+  // Each sheet replaces only its own node, so the sheets are fetched and resolved concurrently.
+  const owned = [...document.styleSheets].map(async (sheet) => {
     const owner = sheet.ownerNode;
     // Some DOM implementations do not expose ownerNode.
     const sourceNode = owner ?? sourceElements.find((element) => "sheet" in element && element.sheet === sheet);
     const index = sourceNode ? sourceElements.indexOf(sourceNode as Element) : -1;
     const copiedNode = index >= 0 ? copiedElements[index] : undefined;
-    if (!copiedNode?.parentNode) continue;
+    if (!copiedNode?.parentNode) return;
     if (sheet.disabled) {
       copiedNode.remove();
-      continue;
+      return;
     }
     let css: string;
     try {
       css = [...sheet.cssRules].map((rule) => rule.cssText).join("\n");
     } catch {
-      if (!sheet.href) continue;
+      if (!sheet.href) return;
       try {
         const response = await fetch(sheet.href);
-        if (!response.ok) continue;
+        if (!response.ok) return;
         css = await response.text();
       } catch {
         // Keep the stylesheet link when CORS prevents embedding it; its URL still resolves against the original base.
-        continue;
+        return;
       }
     }
     const style = document.createElement("style");
+    const [text] = await Promise.all([
+      resolveCssUrls(css, sheet.href ?? document.baseURI, assets),
+      inlineStyles.get(copiedNode),
+    ]);
     for (const attribute of [...copiedNode.attributes]) {
       if (!["href", "rel", "integrity", "crossorigin"].includes(attribute.name)) {
         style.setAttribute(attribute.name, attribute.value);
       }
     }
-    style.textContent = await resolveCssUrls(css, sheet.href ?? document.baseURI, assets);
+    style.textContent = text;
     // Captured edits become the iteration's base; the renderer must create its own managed stylesheet for new edits.
     if (style.id === "nudge-ui-styles") {
       style.removeAttribute("id");
@@ -109,15 +129,16 @@ async function captureStylesheets(
       style.setAttribute("data-nudge-capture-overrides", "");
     }
     copiedNode.replaceWith(style);
-  }
-  for (const sheet of document.adoptedStyleSheets ?? []) {
-    if (sheet.disabled) continue;
+  });
+  // Appended now, in adoption order; only their text waits on assets.
+  const adopted = (document.adoptedStyleSheets ?? []).filter((sheet) => !sheet.disabled).map(async (sheet) => {
     const style = document.createElement("style");
+    (copy.querySelector("head") ?? copy).append(style);
     style.textContent = await resolveCssUrls(
       [...sheet.cssRules].map((rule) => rule.cssText).join("\n"), document.baseURI, assets,
     );
-    (copy.querySelector("head") ?? copy).append(style);
-  }
+  });
+  await Promise.all([...owned, ...adopted]);
 }
 
 async function resolveCssUrls(css: string, base: string, assets: Map<string, Promise<string>>): Promise<string> {

@@ -73,11 +73,14 @@ export async function createProjectTokenSnapshot(
   const discovered = await Promise.all(
     scanRoots.map((root) => discoverProjectCssArtifacts(root, options.readFile)),
   );
+  const canonicalPaths = await Promise.all(discovered.map((rootArtifacts) => Promise.all(
+    rootArtifacts.map((artifact) => realpath(artifact.absolutePath).catch(() => artifact.absolutePath)),
+  )));
   const artifacts: ProjectCssArtifact[] = [];
   const seenFiles = new Set<string>();
   for (let index = 0; index < discovered.length; index += 1) {
-    for (const artifact of discovered[index] ?? []) {
-      const canonicalPath = await realpath(artifact.absolutePath).catch(() => artifact.absolutePath);
+    for (const [artifactIndex, artifact] of (discovered[index] ?? []).entries()) {
+      const canonicalPath = canonicalPaths[index]?.[artifactIndex] ?? artifact.absolutePath;
       if (seenFiles.has(canonicalPath)) continue;
       seenFiles.add(canonicalPath);
       // Additional roots are expressed relative to the primary so one inventory keeps provenance.
@@ -189,21 +192,25 @@ async function walkDirectory(
   }
   entries.sort((a, b) => comparePosixStrings(a.name, b.name));
 
-  for (const entry of entries) {
-    if (entry.isDirectory() && isExcludedDirectoryName(entry.name)) continue;
+  // Probes and reads never change a traversal decision, so they run concurrently; the decisions below keep name order.
+  const probes = await Promise.all(entries.map(async (entry) => {
+    if (entry.isDirectory() && isExcludedDirectoryName(entry.name)) return null;
     const absolutePath = join(directory, entry.name);
-    const canonicalPath = await canonicalWithinRoot(rootDirectory, absolutePath);
-    if (!canonicalPath) continue;
+    const [canonicalPath, stats] = await Promise.all([
+      canonicalWithinRoot(rootDirectory, absolutePath),
+      stat(absolutePath).catch(() => null),
+    ]);
+    return canonicalPath && stats ? { entry, absolutePath, canonicalPath, stats } : null;
+  }));
 
-    let stats: Awaited<ReturnType<typeof stat>>;
-    try {
-      stats = await stat(absolutePath);
-    } catch {
-      continue;
-    }
+  const reads: Array<Promise<void>> = [];
+  for (const probe of probes) {
+    if (!probe) continue;
+    const { entry, absolutePath, canonicalPath, stats } = probe;
 
     if (stats.isDirectory()) {
       if (isExcludedDirectoryName(entry.name)) continue;
+      // Sequential, so a directory reached through two links keeps the provenance a depth-first walk gives it.
       await walkDirectory(
         rootDirectory,
         absolutePath,
@@ -223,16 +230,23 @@ async function walkDirectory(
     if (isSensitiveProjectPath(projectPath) || isSensitiveProjectPath(canonicalProjectPath)) {
       continue;
     }
-    try {
-      const content = await readFile(absolutePath);
-      artifacts.push({ absolutePath, projectPath, content });
-    } catch (error) {
-      artifacts.push({
-        absolutePath,
-        projectPath,
-        readError: readErrorMessage(error),
-      });
-    }
+    reads.push(readArtifact(absolutePath, projectPath, readFile).then((artifact) => {
+      artifacts.push(artifact);
+    }));
+  }
+  await Promise.all(reads);
+}
+
+/** Never rejects: a reader that throws, synchronously or not, becomes a read error. */
+async function readArtifact(
+  absolutePath: string,
+  projectPath: string,
+  readFile: ProjectCssFileReader,
+): Promise<ProjectCssArtifact> {
+  try {
+    return { absolutePath, projectPath, content: await readFile(absolutePath) };
+  } catch (error) {
+    return { absolutePath, projectPath, readError: readErrorMessage(error) };
   }
 }
 
