@@ -160,7 +160,6 @@ export const tailwindV3Dialect: StylingDialect = {
   declaredOnPage: false,
   isInternalProperty: isTailwindHelperProperty,
   sourceForm: (token, property) => tailwindV3Utility(token.name, property),
-  promptGuidance: "Tailwind v3: apply design tokens with utility classes (such as bg-blue-500) instead of writing new CSS, and add new tokens to the theme in the Tailwind config.",
 };
 
 export const tailwindV4Dialect: StylingDialect = {
@@ -181,7 +180,6 @@ export const tailwindV4Dialect: StylingDialect = {
     };
   },
   sourceForm: (token, property) => tailwindV4Utility(token.cssName ?? token.name, property),
-  promptGuidance: "Tailwind v4: apply design tokens with utility classes (such as bg-brand) instead of writing new CSS, and define new tokens as theme variables in @theme.",
 };
 
 /** The generic parser cannot tell authored from generated v4 tokens, so this corrects provenance and editability. */

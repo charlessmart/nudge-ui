@@ -134,7 +134,7 @@ export function CopyPromptButton({
     try {
       const request = {
         cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
-        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem, stylingDialects: runtimeConfig.stylingDialects },
+        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
         customInstructions,
       };
       if (target === "application") {
@@ -162,7 +162,7 @@ export function CopyPromptButton({
     try {
       prepared = await prepareHandoff({
         cardId: getEditableCardId(getSelectedCardId(), getFocusedCardId()),
-        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem, stylingDialects: runtimeConfig.stylingDialects },
+        hints: { framework: runtimeConfig.framework, stylingSystem: runtimeConfig.stylingSystem },
         customInstructions,
       });
       setSaveMessage(null);

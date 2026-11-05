@@ -30,6 +30,4 @@ export interface StylingDialect {
   readClass?(className: string): DialectClassReading | null;
   /** How source applies the token to the property, when the dialect has one fixed form. */
   sourceForm?(token: Pick<TokenEntry, "name" | "cssName">, property: string): string | null;
-  /** Read by an agent: how edits in this dialect should be written. */
-  readonly promptGuidance: string;
 }

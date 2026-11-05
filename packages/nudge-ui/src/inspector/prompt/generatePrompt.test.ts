@@ -1145,25 +1145,6 @@ describe("generatePrompt", () => {
     expect(out).toContain("  In Tailwind v3 this is the p-4 utility.");
   });
 
-  it("ends the changes with guidance for each dialect the project uses", () => {
-    const out = generatePrompt([rec({ cid: "Card", file: "src/Card.tsx", property: "padding", rawValue: "12px" })], {
-      stylingDialects: ["vanilla-extract", "tailwind-v4"],
-    }, [], "Keep it tidy.");
-    const guidance = [
-      "How this project writes styles:",
-      "- vanilla-extract: tokens are paths in the theme contract; use them through the contract in .css.ts files or through sprinkles props, not as raw custom properties.",
-      "- Tailwind v4: apply design tokens with utility classes (such as bg-brand) instead of writing new CSS, and define new tokens as theme variables in @theme.",
-    ].join("\n");
-    expect(out).toContain(`${guidance}\n\nKeep it tidy.`);
-  });
-
-  it("adds dialect guidance only for style edits", () => {
-    expect(generatePrompt([rec({ cid: "Card", file: "src/Card.tsx", property: "padding", rawValue: "12px" })]))
-      .not.toContain("How this project writes styles:");
-    expect(generatePrompt([makeComponentChange()], { stylingDialects: ["tailwind-v4"] }))
-      .not.toContain("How this project writes styles:");
-  });
-
   it("renders global token edits separately with source and context", () => {
     const out = generatePrompt([{
       kind: "token",

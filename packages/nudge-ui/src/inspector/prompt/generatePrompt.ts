@@ -17,7 +17,7 @@ import {
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
-import { dialectsInUse, stylingDialect, type DialectName } from "../../css/dialects/index.ts";
+import { stylingDialect } from "../../css/dialects/index.ts";
 import { PROMPT_INTRO } from "./promptDocument.ts";
 
 import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
@@ -27,7 +27,6 @@ import { isPageTargetCid } from "../selection/pageTarget.ts";
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
-  stylingDialects?: readonly DialectName[];
 }
 
 const EMPTY_SENTINEL = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
@@ -278,12 +277,6 @@ function dialectSourceLine(rec: ElementChangeRecord): string | null {
 function elementChangeLines(rec: ElementChangeRecord): string[] {
   return [elementChangeLine(rec), sourceIntentLine(rec), dialectSourceLine(rec)]
     .filter((line): line is string => line !== null);
-}
-
-/** One guidance line per dialect in use, so the agent writes the change the way the project already does. */
-function dialectGuidanceBlock(dialects: readonly DialectName[]): string | null {
-  const guidance = dialects.flatMap((name) => stylingDialect(name)?.promptGuidance ?? []);
-  return guidance.length > 0 ? ["How this project writes styles:", ...guidance.map((line) => `- ${line}`)].join("\n") : null;
 }
 
 function tokenChangeLine(rec: TokenChangeRecord): string {
@@ -646,12 +639,6 @@ export function generatePrompt(
   }
 
   for (const group of groups.values()) blocks.push(renderGroup(group));
-
-  if (tokenChanges.length > 0 || elementChanges.length > 0) {
-    const editedTokens = elementChanges.flatMap((change) => [change.oldToken, change.newToken].filter((token) => token !== null));
-    const guidance = dialectGuidanceBlock(dialectsInUse(editedTokens, frameworkHints?.stylingDialects ?? []));
-    if (guidance) blocks.push(guidance);
-  }
 
   return renderPrompt(blocks, customInstructions);
 }
