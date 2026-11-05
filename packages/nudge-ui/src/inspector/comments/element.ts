@@ -1,5 +1,5 @@
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
-import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
+import { matchesRenderedInstanceEvidence, resolveRenderedInstance } from "../projection/renderedInstance.ts";
 import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 
 export function resolveCommentElement(doc: Document, target: RenderedInstanceRef): HTMLElement | null {
@@ -21,6 +21,15 @@ export function resolveCommentElement(doc: Document, target: RenderedInstanceRef
   const matching = candidates.filter((element) => element.getAttribute("data-cprops") === props
     && element.getAttribute("aria-label") === (ariaLabel ?? null));
   return matching.length === 1 ? matching[0]! : null;
+}
+
+/** Where a pin goes. Identical outputs, such as mapped bars, fall back to the saved occurrence; resolution stays strict. */
+export function placeCommentElement(doc: Document, target: RenderedInstanceRef): HTMLElement | null {
+  const resolved = resolveCommentElement(doc, target);
+  if (resolved) return resolved;
+  const selector = sourceSiteSelector(target.sourceSite.cid, target.sourceSite.src);
+  const candidate = selector ? doc.querySelectorAll<HTMLElement>(selector)[target.locator.occurrence] : undefined;
+  return candidate && matchesRenderedInstanceEvidence(candidate, target) ? candidate : null;
 }
 
 export function commentViewport(doc: Document): string {
