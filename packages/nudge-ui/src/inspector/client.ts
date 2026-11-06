@@ -90,7 +90,10 @@ export function subscribeToManifestReloads(
   runtimeDocument: () => Document | null = () => document,
 ): void {
   if (!manifest.reload || typeof EventSource === "undefined") return;
-  const source = new EventSource(manifest.reload.endpoint);
+  // HTTP/1.1 allows six connections per origin, and a stream holds one for good, so a Canvas with many frames would
+  // starve its own page loads. Only the top document holds the stream; it relays revisions to its renderers.
+  const relay = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(`nudge-ui:reload:${manifest.reload.endpoint}`);
+  const source = relay && isCanvasRenderer() ? null : new EventSource(manifest.reload.endpoint);
   let seenRevision = manifest.revision;
   let latestObserved = seenRevision;
   let failedRevision = -1;
@@ -122,14 +125,22 @@ export function subscribeToManifestReloads(
     latestObserved = Math.max(latestObserved, revision);
     if (manifest.reload?.strategy === "reload-document") {
       if (revision <= seenRevision) return;
-      source.close();
+      source?.close();
+      relay?.close();
       window.location.reload();
       return;
     }
     void reconcile();
   };
+  if (!source) {
+    relay?.addEventListener("message", handleRevision);
+    return;
+  }
   for (const eventName of manifest.reload.events ?? ["message"]) {
-    source.addEventListener(eventName, handleRevision);
+    source.addEventListener(eventName, (event) => {
+      relay?.postMessage((event as MessageEvent).data);
+      handleRevision(event);
+    });
   }
 }
 

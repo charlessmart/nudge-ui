@@ -24,7 +24,7 @@
 }
 
 .at-rule-indicator[data-active="true"] {
-  background: var(--accent);
+  background: var(--brand-primary);
 }
 
 .at-rule-indicator:focus-visible {
@@ -67,10 +67,10 @@
   line-height: 1.35;
 }
 
-/* The winning rule reads as the active row, like other accent active states in the inspector. */
+/* The winning rule reads as the active row, like other brand active states in the inspector. */
 .at-rule-tooltip__rules [data-active="true"] {
-  background: var(--accent-surface);
-  color: var(--accent-text);
+  background: var(--brand-surface);
+  color: var(--brand-primary);
 }
 
 .at-rule-tooltip code {

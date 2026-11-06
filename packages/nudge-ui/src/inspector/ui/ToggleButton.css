@@ -23,7 +23,7 @@
 }
 
 .toggle-button--primary {
-  background: var(--accent);
+  background: var(--brand-primary);
   color: #ffffff;
 }
 
@@ -52,7 +52,7 @@
 }
 
 .toggle-button--primary:hover:not(:disabled) {
-  background: var(--accent);
+  background: var(--brand-primary-hover);
 }
 
 .toggle-button[data-pressed] {

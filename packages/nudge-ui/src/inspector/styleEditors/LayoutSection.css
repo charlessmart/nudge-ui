@@ -363,7 +363,7 @@
 .layout__alignment-glyph > span {
   flex: 0 0 auto;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--brand-primary);
 }
 
 .layout__alignment-glyph[data-axis="row"] > span {
