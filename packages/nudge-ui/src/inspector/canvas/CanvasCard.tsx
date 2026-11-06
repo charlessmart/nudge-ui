@@ -1,5 +1,5 @@
 import { SketchMarks } from "./sketch/SketchMarks.tsx";
-import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
+import { componentId, componentSheetUrl, contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
 import { refreshHtmlIteration } from "../iterations/coordinator.ts";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
@@ -94,6 +94,8 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
   const navigationUrlRef = useRef(contentNavigationUrl(card.content));
+  const sheetComponentId = componentId(card.content);
+  const sheetComponentIdRef = useRef(sheetComponentId);
   const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
   const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
@@ -264,10 +266,22 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
   }, [card.id, iterationId(card.content)]);
 
   useLayoutEffect(() => {
-    if (!contentNavigationUrl(card.content) || navigationUrlRef.current === contentNavigationUrl(card.content)) return;
+    if (!contentNavigationUrl(card.content)) {
+      // Spent by the frame reporting its URL; forget it so the next navigation there still loads.
+      navigationUrlRef.current = undefined;
+      return;
+    }
+    if (navigationUrlRef.current === contentNavigationUrl(card.content)) return;
     navigationUrlRef.current = contentNavigationUrl(card.content);
     loadFrame(contentNavigationUrl(card.content));
   }, [contentNavigationUrl(card.content), loadFrame]);
+
+  useLayoutEffect(() => {
+    // A sheet routed to another component in Focus view loads that component's page in place.
+    if (sheetComponentId === undefined || sheetComponentIdRef.current === sheetComponentId) return;
+    sheetComponentIdRef.current = sheetComponentId;
+    loadFrame(componentSheetUrl(sheetComponentId));
+  }, [sheetComponentId, loadFrame]);
 
   useEffect(() => {
     if (loadState !== "loading") return;
@@ -316,7 +330,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
 
     e.stopPropagation();
     e.preventDefault();
-    const iterationDrag = e.altKey && !!onCreateIteration && loadState === "ready" && !creatingIteration;
+    const iterationDrag = e.altKey && !!onCreateIteration && card.content.kind !== "component" && loadState === "ready" && !creatingIteration;
     // Iteration creation history already records where the new frame was dropped.
     const commitMove = iterationDrag ? null : beginCardGeometryChange(card.id);
     let moved = false;
@@ -525,8 +539,8 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
           iterationDisabled={loadState !== "ready"}
           iterationError={iterationError}
           onShowFocus={onShowFocus ? () => onShowFocus(card.id) : undefined}
-          onDuplicate={onDuplicate ? () => onDuplicate(card.id) : undefined}
-          onCreateIteration={onCreateIteration ? () => void handleIteration() : undefined}
+          onDuplicate={onDuplicate && card.content.kind === "route" ? () => onDuplicate(card.id) : undefined}
+          onCreateIteration={onCreateIteration && card.content.kind !== "component" ? () => void handleIteration() : undefined}
           onRemove={handleRemove}
           onNavigate={navigate}
           onPointerDown={handleToolbarPointerDown}

@@ -150,6 +150,38 @@ export function selectorPseudoClasses(selector: string): readonly SelectorPseudo
   return matches;
 }
 
+/** Index just past the `)` that closes the group opened at `open`, skipping attribute values and escapes. */
+function closingParenthesis(selector: string, open: number): number {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = open; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (character === "\\") { index++; continue; }
+    if (quote) {
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === "(") depth++;
+    else if (character === ")" && --depth === 0) return index + 1;
+  }
+  return selector.length;
+}
+
+/** Starts of the pseudo-classes that sit inside a `:not()`, so `.b:not(:disabled)` reads as a guard, not a state. */
+export function negatedPseudoClassStarts(selector: string): ReadonlySet<number> {
+  const pseudoClasses = selectorPseudoClasses(selector);
+  const negated = new Set<number>();
+  for (const pseudo of pseudoClasses) {
+    if (pseudo.name !== "not" || selector[pseudo.end] !== "(") continue;
+    const close = closingParenthesis(selector, pseudo.end);
+    for (const inner of pseudoClasses) {
+      if (inner.start > pseudo.end && inner.start < close) negated.add(inner.start);
+    }
+  }
+  return negated;
+}
+
 export function hasSelectorPseudoClass(selector: string, names: ReadonlySet<string>): boolean {
   return selectorPseudoClasses(selector).some(({ name }) => names.has(name));
 }

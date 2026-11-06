@@ -3,8 +3,10 @@ import { parseDataSrc } from "../selection/resolveSelection.ts";
 import { appendChanges } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { canPlanBatchEditScopes, planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../selection/editScope.ts";
+import { variantScopeForElement } from "../shell/variantScopeState.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../shell/styleState.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
+import { statesOverridingProperty } from "./resolution.ts";
 import {
   boundRuntimeEvidence,
   isRuntimeCreatedElement,
@@ -98,6 +100,23 @@ export function buildSelector(cid: string, src: string): string | null {
   return sourceSiteSelector(cid, src);
 }
 
+function variantFields(el: HTMLElement, plan: { scope?: string } | undefined): Pick<ElementChangeRecord, "variantScope"> {
+  if (plan?.scope === "rendered-instance") return {};
+  const variantScope = variantScopeForElement(el);
+  return variantScope ? { variantScope } : {};
+}
+
+/** Only a base edit can reach a state that sets the property itself. */
+function preservedStateFields(
+  el: HTMLElement,
+  state: NonNullable<ElementChangeRecord["state"]>,
+  property: string,
+): Pick<ElementChangeRecord, "preservedStates"> {
+  if (state !== "base" || isPageTarget(el)) return {};
+  const preservedStates = statesOverridingProperty(el, property);
+  return preservedStates.length > 0 ? { preservedStates } : {};
+}
+
 function stateFields(el: HTMLElement) {
   const state = getActiveStyleState();
   const selector = selectorForElement(el);
@@ -151,7 +170,9 @@ export function swapTokens(
         runtimeEvidence: source.runtimeEvidence,
         sourceEvidence: source.sourceEvidence,
         state,
+        ...preservedStateFields(el, state, change.property),
         ...scopePlan.get(el),
+        ...variantFields(el, scopePlan.get(el)),
       };
       records.push(record);
       verificationTargets.set(changeKey(record), el);
@@ -241,7 +262,9 @@ function buildStyleRecord(
     runtimeEvidence: source.runtimeEvidence,
     sourceEvidence: source.sourceEvidence,
     state,
+    ...preservedStateFields(el, state, property),
     ...scopePlan.get(el),
+    ...variantFields(el, scopePlan.get(el)),
   } satisfies ElementChangeRecord;
 }
 

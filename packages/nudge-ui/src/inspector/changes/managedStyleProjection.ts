@@ -2,7 +2,7 @@ import type { PreviewResult, StyleRule } from "../projection/managedStylesheet.t
 import { verifyPreview } from "../projection/managedStylesheet.ts";
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import { instanceSelector } from "../projection/renderedInstance.ts";
-import { selectorForInteractionState } from "../shell/styleState.ts";
+import { selectorExcludingStates, selectorForInteractionState } from "../shell/styleState.ts";
 import { selectorForInteractionStatePreview } from "../shell/interactionStatePreview.ts";
 import {
   isComponentChange,
@@ -12,6 +12,7 @@ import {
   type PreviewableChangeRecord,
 } from "./types.ts";
 import { tokenReference } from "./model.ts";
+import { scopeSelectorToVariant } from "../componentSemantics/variantMarkers.ts";
 
 function requestedStyleValue(change: PreviewableChangeRecord): string {
   if (isTokenChange(change)) return change.rawValue;
@@ -33,12 +34,15 @@ function ruleKey(change: PreviewableChangeRecord): string {
 
 /** The source selector stays canonical; the projection marker is document-local. */
 export function selectorForManagedChange(change: PreviewableChangeRecord): string | null {
-  if (!isTokenChange(change) && change.scope === "rendered-instance") {
+  if (isTokenChange(change)) return change.selector;
+  const preserved = change.preservedStates ?? [];
+  if (change.scope === "rendered-instance") {
     if (!change.instanceOverride) return null;
     const selector = instanceSelector(change.instanceOverride);
-    return selector ? selectorForInteractionState(selector, change.state ?? "base") : null;
+    return selector ? selectorExcludingStates(selectorForInteractionState(selector, change.state ?? "base"), preserved) : null;
   }
-  return change.selector;
+  const selector = change.variantScope ? scopeSelectorToVariant(change.selector, change.variantScope) : change.selector;
+  return selectorExcludingStates(selector, preserved);
 }
 
 export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {

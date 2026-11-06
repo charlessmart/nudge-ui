@@ -7,7 +7,7 @@ import {
   documentRevisions as getDocumentRevisions,
   registerResolutionLineage,
 } from "./resolution/cssomCollector.ts";
-import { createRuleMatcher, matchRuleForElement, prewarmRuleMatching, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
+import { createRuleMatcher, getAvailableInteractionStates, isStateBranch, matchRuleForElement, prewarmRuleMatching, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 import type {
   AtRuleCandidate,
@@ -817,6 +817,40 @@ export function getResolvedPropertiesForState(
     rows,
   });
   return rows;
+}
+
+// Attribution is irrelevant to which rule wins, and one stable table keeps the per-state snapshots reusable.
+const NO_TOKENS: TokenTable = {};
+
+/** A shorthand row covers its longhands (`background` sets `background-color`), and a shorthand edit covers its rows. */
+function declaresProperty(row: ResolvedProperty, property: string): boolean {
+  return row.property === property
+    || row.sourceProperty === property
+    || row.property.startsWith(`${property}-`)
+    || property.startsWith(`${row.property}-`);
+}
+
+/**
+ * Interaction states whose own rule wins `property` on this element, as `.button:hover { background }` does.
+ * A base edit leaves those states alone, as editing the base rule in source would.
+ */
+export function statesOverridingProperty(el: HTMLElement, property: string): Array<Exclude<InteractionState, "base">> {
+  const doc = el.ownerDocument ?? document;
+  const { rules } = collectCssomRules(doc);
+  const overriding: Array<Exclude<InteractionState, "base">> = [];
+  for (const state of getAvailableInteractionStates(el)) {
+    if (state === "base") continue;
+    for (const row of getResolvedPropertiesForState(el, NO_TOKENS, state)) {
+      const { selector, sourceOrder, inheritedFrom } = row.evidence;
+      if (!declaresProperty(row, property) || inheritedFrom || selector === undefined || sourceOrder === undefined) continue;
+      const rule = rules[sourceOrder];
+      if (rule && isStateBranch(rule.selectorText, selector, state)) {
+        overriding.push(state);
+        break;
+      }
+    }
+  }
+  return overriding;
 }
 
 const stableTokenCache = new WeakMap<HTMLElement, ResolvedPropertiesSnapshot>();

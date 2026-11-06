@@ -7,9 +7,11 @@ import { useSyncExternalStore } from "react";
 import {
   DEFAULT_CAMERA,
   getBoardCamera,
+  getCanvasPresentation,
   placeBoardCamera,
   restoreCanvasView,
   setCanvasMode,
+  setCanvasPresentation,
   type CanvasCamera,
   type CanvasMode,
   type CanvasPresentation,
@@ -89,10 +91,16 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
+/** Focus shows one frame across the board, so a frame created there opens snapped to the board's sides and follows it as panels open and close. */
+function openingWidth(width: number): number {
+  return getCanvasPresentation() === "focus" ? Math.max(200, visibleViewport().width) : width;
+}
+
 /** Adds one card to the end of the row. */
 export function addCanvasCard(url: string, title?: string, { undoable = true }: { undoable?: boolean } = {}): CanvasCard {
   const before = cards;
-  const size = lastUsedCardSize ?? defaultViewportSize();
+  const lastSize = lastUsedCardSize ?? defaultViewportSize();
+  const size = { width: openingWidth(lastSize.width), height: lastSize.height };
   const pos = nextCardPosition(cards, CARD_GAP);
   const card: CanvasCard = {
     id: `card-${++cardIdCounter}`,
@@ -126,7 +134,8 @@ export function setCanvasCardRevealer(reveal: (cardId: string) => void): void {
 
 export function revealCanvasCard(cardId: string): void {
   selectCard(cardId);
-  revealCardInView(cardId);
+  const bounds = selectedBounds([cardId]);
+  if (bounds) placeBoardCamera(fitCamera(bounds, visibleViewport(), FIT_ALL_PADDING) ?? getBoardCamera());
 }
 
 function recordCreation(before: readonly CanvasCard[], created: readonly CanvasCard[]): void {
@@ -213,7 +222,7 @@ export function removeCanvasCard(id: string, { undoable = false }: { undoable?: 
 export function activateIframeWorkspace(
   url: string,
   viewport: { width: number; height: number },
-  options: { replaceActiveCard?: boolean; preserveIterationFocus?: boolean; undoable?: boolean } = {},
+  options: { replaceActiveCard?: boolean; preserveIterationFocus?: boolean; undoable?: boolean; fillBoardWidth?: boolean } = {},
 ): CanvasCard | null {
   const normalized = normalizeUrl(url);
   if (!normalized || normalized.origin !== window.location.origin) return null;
@@ -230,7 +239,7 @@ export function activateIframeWorkspace(
       return active;
     }
   }
-  if (options.replaceActiveCard && active && !iterationId(active.content)) {
+  if (options.replaceActiveCard && active?.content.kind === "route") {
     const oldRoute = normalizeUrl(contentSourceUrl(active.content));
     const changedRoute = !oldRoute || normalizedUrlKey(oldRoute) !== normalizedUrlKey(normalized);
     const next = {
@@ -263,7 +272,8 @@ export function activateIframeWorkspace(
   }
 
   if (cards.length === 0) {
-    const width = Math.max(200, viewport.width - PRIMARY_CARD_INSET * 2);
+    // Focus opens full width with no inset, so the frame counts as snapped to the board and follows it as panels open and close.
+    const width = Math.max(200, options.fillBoardWidth ? viewport.width : viewport.width - PRIMARY_CARD_INSET * 2);
     const height = Math.max(150, viewport.height - PRIMARY_CARD_INSET * 2);
     const card: CanvasCard = {
       id: `card-${++cardIdCounter}`,
@@ -290,6 +300,73 @@ export function activateIframeWorkspace(
   return card;
 }
 
+export const COMPONENT_SHEET_SIZE = { width: 1100, height: 800 } as const;
+
+let boardViewport: (() => { width: number; height: number } | null) | null = null;
+
+/** The workspace reports its board size, which excludes the side panels, so camera fits use the visible area. */
+export function setBoardViewportProvider(provider: (() => { width: number; height: number } | null) | null): void {
+  boardViewport = provider;
+}
+
+function visibleViewport(): { width: number; height: number } {
+  return boardViewport?.() ?? windowViewport();
+}
+
+/** Reveals the sheet frame for a component beside the application frame it was opened from, creating it on first use. Focus view shows the sheet in place; canvas view fits the camera to it. */
+export function openComponentSheet(contract: { componentId: string; name: string }): CanvasCard {
+  const previous = cards.find((card) => card.id === (selectedCardId ?? focusedCardId));
+  const companion = previous?.content.kind === "route" ? previous : cards.find((card) => card.content.kind === "route");
+  const existing = cards.find((card) => card.content.kind === "component" && card.content.componentId === contract.componentId);
+  setCanvasMode("canvas");
+  let card = existing;
+  if (!card && getCanvasPresentation() === "focus") {
+    // Focus view shows one frame, so browsing components routes a sheet already open to the next one instead of adding a frame per component.
+    const sheet = previous?.content.kind === "component" ? previous : cards.find((candidate) => candidate.content.kind === "component");
+    if (sheet) {
+      card = { ...sheet, title: contract.name, content: { kind: "component", componentId: contract.componentId, name: contract.name } };
+      const routed = card;
+      cards = cards.map((candidate) => candidate.id === routed.id ? routed : candidate);
+    }
+  }
+  if (card && card.height < COMPONENT_SHEET_SIZE.height) {
+    // Sheets created beside a very short app frame would otherwise stay too short to show the grid.
+    const grown = { ...card, height: COMPONENT_SHEET_SIZE.height };
+    cards = cards.map((candidate) => candidate.id === grown.id ? grown : candidate);
+    card = grown;
+  }
+  if (!card) {
+    const before = cards;
+    // Matches the app frame beside it, but never so short that the variant grid is cut off.
+    const height = Math.max(companion?.height ?? 0, COMPONENT_SHEET_SIZE.height);
+    const leftmost = cards.length ? Math.min(...cards.map((candidate) => candidate.x)) : 0;
+    const width = openingWidth(COMPONENT_SHEET_SIZE.width);
+    card = {
+      id: `card-${++cardIdCounter}`,
+      content: { kind: "component", componentId: contract.componentId, name: contract.name },
+      title: contract.name,
+      x: leftmost - CARD_GAP - width,
+      y: companion?.y ?? (cards.length ? Math.min(...cards.map((candidate) => candidate.y)) : 0),
+      width,
+      height,
+    };
+    cards = [card, ...cards];
+    recordCreation(before, [card]);
+  }
+  focusedCardId = card.id;
+  selectedCardId = card.id;
+  notify();
+  if (getCanvasPresentation() === "focus") return card;
+  const bounds = selectedBounds([card.id]);
+  if (bounds) placeBoardCamera(fitCamera(bounds, visibleViewport(), FIT_ALL_PADDING) ?? getBoardCamera());
+  return card;
+}
+
+/** Cards currently showing a component sheet. */
+export function getComponentSheetCards(): readonly CanvasCard[] {
+  return cards.filter((card) => card.content.kind === "component");
+}
+
 export function updateCardTitle(id: string, title: string): void {
   cards = cards.map((c) => (c.id === id ? { ...c, title } : c));
   notify();
@@ -312,7 +389,8 @@ export function duplicateCard(sourceId: string): CanvasCard | null {
   const before = cards;
   const source = cards.find((c) => c.id === sourceId);
   if (!source || source.content.kind !== "route") return null;
-  const size = lastUsedCardSize ?? { width: source.width, height: source.height };
+  const lastSize = lastUsedCardSize ?? { width: source.width, height: source.height };
+  const size = { width: openingWidth(lastSize.width), height: lastSize.height };
   const card: CanvasCard = {
     id: `card-${++cardIdCounter}`,
     content: { kind: "route", url: source.content.url },
@@ -348,7 +426,7 @@ export function addCanvasArtifact(artifact: HtmlArtifactMetadata): CanvasCard {
     title: artifact.title || null,
     x: pos.x,
     y: pos.y,
-    width: Math.max(320, Math.round(artifact.viewport.width)),
+    width: openingWidth(Math.max(320, Math.round(artifact.viewport.width))),
     height: Math.max(240, Math.round(artifact.viewport.height)),
     entrance: "iteration",
     animateEntrance: false,
@@ -363,7 +441,7 @@ export function addCanvasArtifact(artifact: HtmlArtifactMetadata): CanvasCard {
 export function addCanvasIteration(sourceId: string, artifactId: string, position?: { x: number; y: number }, animateEntrance = true): CanvasCard | null {
   const before = cards;
   const source = cards.find((card) => card.id === sourceId);
-  if (!source) return null;
+  if (!source || source.content.kind === "component") return null;
   const { x, y } = position ?? iterationPosition(cards, source, CARD_GAP);
   const iteration: CanvasCard = {
     id: `card-${++cardIdCounter}`, content: { kind: "iteration", sourceUrl: contentSourceUrl(source.content), artifactId }, title: source.title,

@@ -31,12 +31,23 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
 import { discardChangesForInstanceOverride, undo, redo } from "../drafts/store.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "../selection/editScope.ts";
+import { sourceSiteSelector as sourceSiteSelectorFor } from "../selection/sourceSite.ts";
+import { variantScopeSelector, type VariantScope } from "../componentSemantics/variantMarkers.ts";
 import { canEditStyles } from "../tokens/editActions.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
+import {
+  cellComponentName,
+  initialVariantChoice,
+  setActiveVariantScope,
+  sheetCellOf,
+  sheetCellState,
+  variantChoicesForCell,
+  type VariantChoice,
+} from "./variantScopeState.ts";
 import { useInteractionStatePreview } from "./interactionStatePreview.ts";
 import type { InteractionState } from "./styleState.ts";
 import { getInspectorToggleShortcutLabel, getPlatformModifierKey, isEditableEvent } from "./shortcuts.ts";
@@ -132,14 +143,27 @@ export function InspectorShell(): ReactElement {
   const [panelView, setPanelView] = useState<PanelView>("styles");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scopeRevision, refreshScope] = useState(0);
+  const [variantChoices, setVariantChoices] = useState<VariantChoice[]>([]);
+  const [variantChoiceId, setVariantChoiceId] = useState("all");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   useInteractionStatePreview(selectedElements.length === 1 ? selectedElements[0]!.domElement : null, styleState);
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
-  const isMultiSelection = selectedElements.length > 1;  useEffect(() => {
+  const isMultiSelection = selectedElements.length > 1;
+
+  useEffect(() => {
     // A new selection must not inherit an incidental state from the previous element; base is the deliberate default.
-    setActiveStyleState("base");
-    setStyleState("base");
-  }, [selected?.domElement, isMultiSelection]);
+    // A component sheet cell forces one state and renders one variant, so edits there target both.
+    const cell = selected && !isMultiSelection ? sheetCellOf(selected.domElement) : null;
+    const nextState = cell ? sheetCellState(cell) : "base";
+    setActiveStyleState(nextState);
+    setStyleState(nextState);
+    const name = cell ? cellComponentName(cell) : null;
+    const choices = cell && name ? variantChoicesForCell(cell, runtimeConfig.componentContracts, name) : [];
+    const initial = initialVariantChoice(choices);
+    setActiveVariantScope(initial?.scope ?? null);
+    setVariantChoices(choices);
+    setVariantChoiceId(initial?.id ?? "all");
+  }, [selected?.domElement, isMultiSelection, runtimeConfig.componentContracts]);
 
   useEffect(() => {
     if (!selected) return;
@@ -252,8 +276,11 @@ export function InspectorShell(): ReactElement {
     ) ?? paintedBackgroundRow;
   }, [cssInspection.stableProperties, isMultiSelection, paintedBackgroundRow, selected, styleState]);
   const editScope = selected && !isMultiSelection ? getEditScope(selected.domElement) : null;
+  const activeVariantScope = variantChoices.find((choice) => choice.id === variantChoiceId)?.scope ?? null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
-    ? countSourceSiteMatches(selected.domElement, scopeRevision)
+    ? activeVariantScope
+      ? countVariantScopedMatches(selected.domElement, activeVariantScope, styleState)
+      : countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
   // The title names the selection; the detail keeps the markup name, which a component title would otherwise hide.
   const selectionName = !selected
@@ -340,6 +367,14 @@ export function InspectorShell(): ReactElement {
                 sourceSiteMatchCount={sourceSiteMatchCount}
                 styleState={styleState}
                 availableInteractionStates={availableInteractionStates}
+                variantChoices={variantChoices.map((choice) => ({ value: choice.id, label: choice.label }))}
+                variantChoiceId={variantChoiceId}
+                onVariantChange={(id) => {
+                  const choice = variantChoices.find((candidate) => candidate.id === id);
+                  if (!choice) return;
+                  setActiveVariantScope(choice.scope);
+                  setVariantChoiceId(choice.id);
+                }}
                 onStyleStateChange={(state) => {
                   setActiveStyleState(state);
                   setStyleState(state);
@@ -370,7 +405,7 @@ export function InspectorShell(): ReactElement {
                 />
               ) : (
                 <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
-                  These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
+                  Identical repeated items can only be edited together, so select all of them.
                 </StatusCallout>
               )}
             </>
@@ -385,4 +420,23 @@ export function InspectorShell(): ReactElement {
       ) : null}
     </>
   );
+}
+
+/**
+ * Elements a variant-scoped edit reaches in this document, for the "Affects N elements" callout. A state edit only
+ * paints the sheet cells that force that state; a base edit reaches every state that does not set the property itself.
+ */
+function countVariantScopedMatches(element: HTMLElement, scope: VariantScope, state: InteractionState): number {
+  const site = sourceSiteSelectorFor(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
+  if (!site) return 0;
+  try {
+    const matches = [...element.ownerDocument.querySelectorAll(`${site}${variantScopeSelector(scope)}`)];
+    if (state === "base") return matches.length;
+    return matches.filter((match) => {
+      const cell = sheetCellOf(match);
+      return cell !== null && sheetCellState(cell) === state;
+    }).length;
+  } catch {
+    return 0;
+  }
 }

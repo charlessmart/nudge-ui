@@ -6,6 +6,7 @@ import {
   hasSelectorPseudoClass,
   isElementSensitiveSelector,
   canMatchSelectorSubject,
+  negatedPseudoClassStarts,
   selectorPseudoClasses,
   selectorSubjectKey,
   splitSelectorAtTopLevel,
@@ -56,19 +57,36 @@ function stableSelector(selector: string): string | null {
   );
 }
 
+/** Stands in for a negated state, so `:not(:hover)` still matches outside hover once the state is stripped. */
+const NEVER_MATCHES = "[data-nudge-ui-never]";
+
 export function branchForState(selector: string, state: InteractionState): string | null {
   const pseudoClasses = selectorPseudoClasses(selector)
     .filter(({ name }) => INTERACTION_PSEUDO_CLASSES.has(name));
-  const states = new Set(pseudoClasses.map(({ name }) => name));
-  if (state === "base") return states.size === 0 ? selector : null;
-  if (!states.has(state)) return states.size === 0 ? selector : null;
+  if (pseudoClasses.length === 0) return selector;
+  const negated = negatedPseudoClassStarts(selector);
+  if (pseudoClasses.some(({ name, start }) => name === state && negated.has(start))) return null;
+  const states = new Set(pseudoClasses.filter(({ start }) => !negated.has(start)).map(({ name }) => name));
+  if (states.size > 0 && (state === "base" || !states.has(state))) return null;
   // CSSOM cannot test a hypothetical pseudo-class, so strip it for a stable element match; the real rule is untouched.
   let transformed = selector;
   for (let index = pseudoClasses.length - 1; index >= 0; index--) {
     const pseudoClass = pseudoClasses[index]!;
-    transformed = transformed.slice(0, pseudoClass.start) + transformed.slice(pseudoClass.end);
+    const replacement = negated.has(pseudoClass.start) ? NEVER_MATCHES : "";
+    transformed = transformed.slice(0, pseudoClass.start) + replacement + transformed.slice(pseudoClass.end);
   }
   return transformed;
+}
+
+/** Whether a rule wins in `state` through a branch that names that state itself, not through its stateless styling. */
+export function isStateBranch(selectorText: string, matchedBranch: string, state: InteractionState): boolean {
+  if (state === "base") return false;
+  return splitSelectorAtTopLevel(selectorText, ",").some((branch) => {
+    const trimmed = branch.trim();
+    if (branchForState(trimmed, state) !== matchedBranch) return false;
+    const negated = negatedPseudoClassStarts(trimmed);
+    return selectorPseudoClasses(trimmed).some(({ name, start }) => name === state && !negated.has(start));
+  });
 }
 
 function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {

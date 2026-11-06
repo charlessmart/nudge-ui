@@ -5,6 +5,7 @@ import { ConformancePage } from "./ConformancePage";
 import { ExamplesHubPage } from "./ExamplesHubPage";
 import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
 import "./styles.css";
+import "./ds/tokens.css";
 
 // Dev-only dynamic import: the fixture markup carries inspector identity attributes by design and must stay out of the production bundle.
 const DevSpacingConformancePage = import.meta.env.DEV
@@ -32,6 +33,9 @@ const DevComponentPropsPage = import.meta.env.DEV
 const DevPlaygroundPage = import.meta.env.DEV
   ? lazy(() => import("./playground/PlaygroundPage").then(({ PlaygroundPage }) => ({ default: PlaygroundPage })))
   : null;
+const DevSettingsPage = import.meta.env.DEV
+  ? lazy(() => import("./ds/SettingsPage").then(({ SettingsPage }) => ({ default: SettingsPage })))
+  : null;
 const DevRawCssComponentsPage = import.meta.env.DEV
   ? lazy(() => import("./ExamplesRawCssComponentsPage").then(({ ExamplesRawCssComponentsPage }) => ({ default: ExamplesRawCssComponentsPage })))
   : null;
@@ -44,6 +48,13 @@ function Route() {
     return DevPlaygroundPage ? (
       <Suspense fallback={<main className="spacing-conformance-loading">Loading playground…</main>}>
         <DevPlaygroundPage />
+      </Suspense>
+    ) : <App />;
+  }
+  if (import.meta.env.DEV && window.location.pathname === "/app") {
+    return DevSettingsPage ? (
+      <Suspense fallback={<main className="settings-page">Loading settings…</main>}>
+        <DevSettingsPage />
       </Suspense>
     ) : <App />;
   }

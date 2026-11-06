@@ -214,4 +214,15 @@ describe("change codecs", () => {
     expect(serialized.scope).toBe("source-site");
     expect(isSerializableChange(serialized)).toBe(true);
   });
+
+  it("round-trips a variant scope and rejects a malformed or instance-scoped one", () => {
+    const variantScope = { componentName: "Button", props: { variant: "primary", loading: false } };
+    const serialized = serializeChange({ ...makeElementChange(), variantScope });
+    expect(serialized).toMatchObject({ variantScope });
+    expect(isSerializableChange(JSON.parse(JSON.stringify(serialized)))).toBe(true);
+    expect(deserializeChange(serialized!)).toMatchObject({ variantScope });
+    expect(isSerializableChange({ ...serialized, variantScope: { componentName: "Button", props: {} } })).toBe(false);
+    expect(isSerializableChange({ ...serialized, variantScope: { componentName: "Button", props: { n: 1 } } })).toBe(false);
+    expect(isSerializableChange({ ...serialized, scope: "rendered-instance" })).toBe(false);
+  });
 });

@@ -7,6 +7,8 @@
   pointer-events: auto;
 }
 
+/* Only the camera moves the board. `clip` rather than `hidden`, which the browser would still scroll to
+   reveal an off-screen frame that takes focus as it loads, knocking the board out from under the camera. */
 .canvas-workspace__board {
   flex: 1;
   overflow: hidden;
@@ -119,3 +121,4 @@
 .canvas-workspace[data-surface="page"] .canvas-toolbar {
   pointer-events: auto;
 }
+   heading (see `headingRule`), added beside this stylesheet in `CanvasWorkspace.tsx`. */

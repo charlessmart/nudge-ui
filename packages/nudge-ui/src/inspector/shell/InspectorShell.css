@@ -355,6 +355,10 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.selection + .status-callout {
+  margin-top: var(--space-12);
+}
+
 .style-state {
   grid-template-columns: var(--label-column) minmax(0, 1fr);
   column-gap: var(--field-label-gap);
@@ -436,6 +440,13 @@
 .selection .component-props {
   padding: 0;
   border-bottom: 0;
+}
+
+/* Quiet, so its icon lines up with the field labels below instead of the button's padding. */
+.component-props__open-sheet {
+  align-self: flex-start;
+  margin-bottom: var(--space-8);
+  margin-left: calc(var(--space-8) * -1);
 }
 
 .component-props__hint {

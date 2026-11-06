@@ -1,5 +1,6 @@
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
+import type { VariantScope } from "../componentSemantics/variantMarkers.ts";
 import type {
   EditScope,
   RenderedInstanceOverride,
@@ -55,6 +56,10 @@ export interface ElementChangeRecord {
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
+  /** States whose own rule sets this property; a base edit leaves them their value, as editing the base rule in source would. */
+  preservedStates?: Array<"hover" | "active" | "focus" | "focus-visible" | "disabled">;
+  /** Limits a source-site edit to the component variant it names; absent edits apply to every variant. */
+  variantScope?: VariantScope;
 }
 
 export interface TokenChangeRecord {

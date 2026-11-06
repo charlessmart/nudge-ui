@@ -1,6 +1,6 @@
 import { contentSourceUrl } from "./frameContent.ts";
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   getCanvasCards,
   addCanvasCard,
@@ -25,6 +25,9 @@ import {
   addCanvasArtifact,
   findCardByArtifactId,
   CARD_GAP,
+  openComponentSheet,
+  setBoardViewportProvider,
+  COMPONENT_SHEET_SIZE,
 } from "./canvasStore.ts";
 import {
   getCanvasMode,
@@ -42,8 +45,10 @@ import {
 import { normalizeUrl } from "./normalizeUrl.ts";
 import { clearSessionUndoHistory, sessionTimeline } from "../workspace/timeline.ts";
 
+/** Card sizing rules are tested on the Canvas board; Focus opens new frames at the board width. */
 function resetAllCards(): void {
   setCanvasMode("inspect");
+  setCanvasPresentation("canvas");
   resetFitAllFlag();
   for (const card of getCanvasCards()) {
     removeCanvasCard(card.id);
@@ -213,6 +218,16 @@ describe("iframe workspace startup", () => {
     expect(getFocusedCardId()).toBe(card?.id);
   });
 
+  it("opens the first Focus card at the full board width so it stays snapped to the board", () => {
+    const card = activateIframeWorkspace(
+      new URL("/playground", window.location.href).href,
+      { width: 1200, height: 800 },
+      { fillBoardWidth: true },
+    );
+
+    expect(card?.width).toBe(1200);
+  });
+
   it("focuses a restored target without changing its size or camera", () => {
     const target = new URL("/playground", window.location.href).href;
     hydrateCanvasStore("inspect", [{
@@ -303,6 +318,28 @@ describe("iframe workspace startup", () => {
     expect(getCanvasCards().find((card) => card.id === other.id)).toEqual(other);
     expect(getBoardCamera()).toEqual(camera);
     expect(getFocusedCardId()).toBe(first.id);
+  });
+});
+
+describe("new frames in Focus", () => {
+  beforeEach(() => {
+    resetAllCards();
+    setCanvasPresentation("focus");
+    setBoardViewportProvider(() => ({ width: 1100, height: 700 }));
+  });
+  afterEach(() => setBoardViewportProvider(null));
+
+  it("open snapped to the board's width", () => {
+    const page = addCanvasCard("http://localhost:5173/about");
+    resizeCard(page.id, 640, 480);
+    expect(duplicateCard(page.id)?.width).toBe(1100);
+    expect(addCanvasCard("http://localhost:5173/pricing").width).toBe(1100);
+    expect(openComponentSheet({ componentId: "card", name: "Card" }).width).toBe(1100);
+  });
+
+  it("keep their own width on the Canvas", () => {
+    setCanvasPresentation("canvas");
+    expect(openComponentSheet({ componentId: "card", name: "Card" }).width).toBe(COMPONENT_SHEET_SIZE.width);
   });
 });
 

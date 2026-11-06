@@ -29,9 +29,17 @@ import {
   taggedCallsiteMultiplicity,
   taggedInvocationsAbove,
   taggedRootInvocations,
+  taggedCallsite,
 } from "./callsites.ts";
+import { resetVariantMarkers, setVariantContracts, startVariantMarkers, type StampedInvocation } from "./variantStamper.ts";
 
-export { registerReactCallsites } from "./callsites.ts";
+import { registerReactCallsites as registerCallsites } from "./callsites.ts";
+
+/** Called from transformed modules before any of their JSX renders. */
+export function registerReactCallsites(...args: Parameters<typeof registerCallsites>): void {
+  registerCallsites(...args);
+  startVariantMarkers(resolveInvocation);
+}
 
 const BOUNDARY_MARKER = Symbol.for("nudge-ui.react-component-boundary");
 const EMPTY_OVERRIDE: Readonly<Record<string, unknown>> = Object.freeze({});
@@ -74,6 +82,7 @@ export function resetReactComponentRuntime(): void {
   overridesByCallsite = new Map();
   listeners.clear();
   resetTaggedCallsites();
+  resetVariantMarkers();
 }
 
 function subscribe(listener: () => void): () => void {
@@ -153,6 +162,7 @@ const ReactComponentOverride = forwardRef<unknown, BoundaryProps>(
     forwardedRef,
   ): ReactElement {
     useEffect(() => registerMountedCallsite(meta.callsiteId), [meta.callsiteId]);
+    useEffect(() => startVariantMarkers(resolveInvocation), []);
     const override = useSyncExternalStore(
       subscribe,
       () => overrideFor(meta.callsiteId),
@@ -192,6 +202,16 @@ export function instrumentReactComponent(
     ReactComponentOverride,
     { key: element.key ?? undefined, element, meta },
   );
+}
+
+/** Wrapped callsites read their boundary's element props; registered ones read their fiber's. */
+function resolveInvocation(fiber: Fiber): StampedInvocation | null {
+  const boundary = boundaryOf(fiber);
+  if (boundary) {
+    return { meta: boundary.meta, props: { ...boundary.element.props, ...overrideFor(boundary.meta.callsiteId) } };
+  }
+  const meta = taggedCallsite(fiber);
+  return meta ? { meta, props: invocationProps(fiber) } : null;
 }
 
 function boundaryOf(fiber: Fiber): BoundaryProps | null {
@@ -300,6 +320,7 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   replaceOverrides: replaceReactComponentOverrides,
   getCallsiteMultiplicity: callsiteMultiplicity,
   rootInvocations: inspectReactRootInvocations,
+  replaceVariantContracts: setVariantContracts,
 };
 
 registerHostRuntimeAdapter(reactComponentRuntimeAdapter);

@@ -381,6 +381,7 @@ describe("nudgeUi react alias configuration", () => {
     ]));
     expect(result?.optimizeDeps?.include).toEqual([
       "nudge-ui/internal/component-runtime",
+      "nudge-ui/internal/component-sheet",
     ]);
   });
 
@@ -400,6 +401,7 @@ describe("nudgeUi react alias configuration", () => {
     expect(result.optimizeDeps?.include).toEqual([
       "host-dependency",
       "nudge-ui/internal/component-runtime",
+      "nudge-ui/internal/component-sheet",
     ]);
     expect(result.optimizeDeps?.exclude).toEqual(["host-excluded-dependency"]);
     expect(result.optimizeDeps?.force).toBe(true);
@@ -424,7 +426,7 @@ describe("nudgeUi react alias configuration", () => {
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
       server: { watch: { ignored: ["**/.nudge", "**/.nudge/**"] } },
       optimizeDeps: {
-        include: ["nudge-ui/internal/component-runtime"],
+        include: ["nudge-ui/internal/component-runtime", "nudge-ui/internal/component-sheet"],
       },
       resolve: {
         alias: expect.arrayContaining([

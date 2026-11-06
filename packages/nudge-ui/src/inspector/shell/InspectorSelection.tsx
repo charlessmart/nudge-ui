@@ -21,16 +21,21 @@ export interface InspectorSelectionProps {
   readonly styleState: InteractionState;
   readonly availableInteractionStates: readonly InteractionState[];
   readonly onStyleStateChange: (state: InteractionState) => void;
+  /** A component sheet cell's variant scopes; the select shows when there is more than one. */
+  readonly variantChoices?: readonly { readonly value: string; readonly label: string }[];
+  readonly variantChoiceId?: string;
+  readonly onVariantChange?: (id: string) => void;
   readonly onRelink: () => void;
   readonly onUnlink: () => void;
 }
 
 /** Presents selection scope and interaction states without reading the DOM. */
-export function InspectorSelection({ identity, count, name, isComponent = false, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
+export function InspectorSelection({ identity, count, name, isComponent = false, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, variantChoices = [], variantChoiceId, onVariantChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
   const showInteractionState = count === 1 && availableInteractionStates.length > 1;
+  const showVariantScope = count === 1 && variantChoices.length > 1 && onVariantChange !== undefined;
   const hasEditScopeCallout = count === 1 && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
   return <>
-    {name || children || showInteractionState || hasEditScopeCallout ? (
+    {name || children || showInteractionState || showVariantScope || hasEditScopeCallout ? (
       <div
         className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
         data-test="selection"
@@ -85,6 +90,17 @@ export function InspectorSelection({ identity, count, name, isComponent = false,
           </div>
         ) : null}
         {children}
+        {showVariantScope ? (
+          <FieldRow label="Variant" className="variant-scope" data-test="variant-scope">
+            <Select
+              value={variantChoiceId ?? variantChoices[0]!.value}
+              data-test="variant-scope-select"
+              aria-label="Variant scope"
+              options={[...variantChoices]}
+              onValueChange={(id) => onVariantChange?.(id)}
+            />
+          </FieldRow>
+        ) : null}
         {showInteractionState ? (
           <FieldRow label="State" className="style-state" data-test="style-state">
             <Select

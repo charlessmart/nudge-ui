@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { getLinkedFrameIds, type FrameContent } from "./frameContent.ts";
 
 const frame = (id: string, url: string): { id: string; content: FrameContent } => ({
@@ -39,3 +39,17 @@ it("keeps HTML iterations independent of their live source route", () => {
   expect(getLinkedFrameIds(frames, "iteration")).toEqual([]);
   expect(getLinkedFrameIds([frames[0]!, frames[2]!], "first")).toEqual([]);
 });
+
+it("models component sheets as a shared components draft with an encoded document URL", async () => {
+  const { contentDocumentUrl, contentEditTarget, contentSourceUrl, isFrameContent } = await import("./frameContent.ts");
+  const content: FrameContent = { kind: "component", componentId: "src/Button.tsx:Button", name: "Button" };
+  const url = `${window.location.origin}/__nudge_ui__/components?component=src%2FButton.tsx%3AButton`;
+
+  expect(contentDocumentUrl(content)).toBe(url);
+  expect(contentSourceUrl(content)).toBe(url);
+  expect(contentEditTarget(content)).toEqual({ kind: "components" });
+  expect(isFrameContent(content, window.location.origin)).toBe(true);
+  expect(isFrameContent({ kind: "component", componentId: "", name: "x" }, window.location.origin)).toBe(false);
+  expect(getLinkedFrameIds([{ id: "sheet", content }, frame("a", "http://localhost/a")], "sheet")).toEqual([]);
+});
+

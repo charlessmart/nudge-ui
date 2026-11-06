@@ -5,6 +5,7 @@ import type {
 } from "../../css/model/index.ts";
 import { isDialectName, type DialectName } from "../../css/dialects/index.ts";
 import type { ComponentContract } from "../componentSemantics/types.ts";
+import { publishHostRuntimeVariantContracts } from "../componentSemantics/runtimeBridge.ts";
 
 export type NudgeUiRuntimeHost =
   | "vite-react"
@@ -53,6 +54,8 @@ export interface NudgeUiRuntimeConfig {
   readonly tokenGeneration: string;
   readonly componentContracts: readonly ComponentContract[];
   readonly demo?: boolean;
+  /** True when the host serves component sheets at the components route. */
+  readonly componentSheet?: boolean;
   /** Additional same-origin pages seeded into the demo canvas. */
   readonly demoPages?: readonly string[];
   /** In display order, including the primary card. */
@@ -309,6 +312,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
       "componentContracts",
     ) as NudgeUiRuntimeConfig["componentContracts"],
     ...(demo === true ? { demo: true } : {}),
+    ...(input.componentSheet === true ? { componentSheet: true } : {}),
     ...(demoPages === undefined ? {} : { demoPages }),
     ...(demoCardLabels === undefined ? {} : { demoCardLabels }),
   });
@@ -321,6 +325,9 @@ const runtimeListeners = new Set<() => void>();
 
 export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
   activeRuntimeConfig = normalizeNudgeUiRuntimeConfig(config);
+  publishHostRuntimeVariantContracts(
+    activeRuntimeConfig.capabilities.componentSemantics ? activeRuntimeConfig.componentContracts : [],
+  );
   for (const listener of runtimeListeners) {
     try {
       listener();

@@ -22,13 +22,21 @@ function liveSourcePlugin(): Plugin {
             { find: NUDGE_UI_CLIENT_PATH, replacement: nudgeUiSource("inspector/client.ts") },
             { find: "nudge-ui/testing", replacement: nudgeUiSource("inspector/testing.ts") },
             {
+              find: "nudge-ui/internal/component-sheet",
+              replacement: nudgeUiSource("componentSheet/sheet.tsx"),
+            },
+            {
               find: "nudge-ui/internal/component-runtime",
               replacement: nudgeUiSource("inspector/componentSemantics/react/runtime.tsx"),
             },
           ],
         },
         // Keeps aliased modules in Vite's module graph instead of the dep optimizer, so edits hot-update.
-        optimizeDeps: { exclude: ["nudge-ui/testing", "nudge-ui/internal/component-runtime"] },
+        optimizeDeps: { exclude: [
+            "nudge-ui/testing",
+            "nudge-ui/internal/component-runtime",
+            "nudge-ui/internal/component-sheet",
+          ] },
       };
     },
     configureServer: {

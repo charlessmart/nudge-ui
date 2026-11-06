@@ -63,6 +63,11 @@
       "import": "./dist/inspector/componentSemantics/react/runtime.js",
       "default": "./dist/inspector/componentSemantics/react/runtime.js"
     },
+    "./internal/component-sheet": {
+      "types": "./dist/componentSheet/sheet.d.ts",
+      "import": "./dist/componentSheet/sheet.js",
+      "default": "./dist/componentSheet/sheet.js"
+    },
     "./internal/host-runtime": {
       "types": "./dist/inspector/componentSemantics/runtimeBridge.d.ts",
       "import": "./dist/inspector/componentSemantics/runtimeBridge.js",

@@ -33,7 +33,7 @@ export function registerReactCallsites(metas: readonly ComponentInvocationMeta[]
   observeCommits();
 }
 
-function taggedCallsite(fiber: Fiber): ComponentInvocationMeta | null {
+export function taggedCallsite(fiber: Fiber): ComponentInvocationMeta | null {
   if (isHostOutput(fiber)) return null;
   const src = fiber.memoizedProps?.["data-src"];
   return typeof src === "string" ? callsites.get(src) ?? null : null;

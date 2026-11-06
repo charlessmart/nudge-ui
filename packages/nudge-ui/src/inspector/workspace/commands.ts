@@ -37,6 +37,7 @@ export async function createIteration(cardId: string, position?: { x: number; y:
   const frame = getRegisteredFrames().get(cardId);
   const draft = getDraftForCard(cardId);
   const document = frame?.contentDocument;
+  if (source?.content.kind === "component") throw new Error("Component sheets cannot be iterated.");
   if (!source || !frame || !document || !draft) throw new Error("The source frame is no longer available.");
   if (!canEditDraft(draft.id)) throw new Error("This workspace is unavailable while saving or open in another tab.");
   if (isInlineTextEditingActive()) throw new Error("Finish editing the text before creating an iteration.");

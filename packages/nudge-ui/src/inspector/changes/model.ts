@@ -1,3 +1,4 @@
+import { variantScopeKey } from "../componentSemantics/variantMarkers.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import {
   isComponentChange,
@@ -51,6 +52,7 @@ export function changeKey(change: ChangeRecord): string {
       : change.selector,
     change.scope ?? "source-site",
     change.state ?? "base",
+    variantScopeKey(change.variantScope),
     change.property,
   ].join("\u0000");
 }

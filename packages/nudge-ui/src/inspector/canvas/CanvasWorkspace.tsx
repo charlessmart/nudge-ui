@@ -25,6 +25,7 @@ import {
   type CanvasCard as CanvasCardData,
   updateCardUrl,
   revealCanvasCard,
+  setBoardViewportProvider,
 } from "./canvasStore.ts";
 import {
   setBoardCamera,
@@ -48,7 +49,8 @@ import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { getCanvasChromeScaleVariables } from "./resizeHandleScale.ts";
 import { followFocusBoardWidth } from "./canvasResize.ts";
 import { useCanvasMode } from "./viewStore.ts";
-import { getActiveDraftChanges, getChangesList, subscribeActiveDraftChanges } from "../drafts/store.ts";
+import { getActiveDraftChanges, getChangesList, getDraftChanges, subscribeActiveDraftChanges, subscribeDrafts } from "../drafts/store.ts";
+import { COMPONENTS_DRAFT_ID } from "./componentProjection.ts";
 import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -112,8 +114,15 @@ import { getSelectedElements, setSelectedElement } from "../selection/selectionS
 
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
+import { mirrorAppRootIntoSheets } from "./sheetRootMirror.ts";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolBarStyles].join("\n");
+const WORKSPACE_STYLES = [
+  foundationStyles,
+  canvasWorkspaceStyles,
+  canvasCardStyles,
+  canvasToolbarStyles,
+  sketchToolBarStyles,
+].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 /** The zoom Focus opens the Canvas at when zooming out of it. */
 const FOCUS_EXIT_ZOOM = 0.9;
@@ -193,6 +202,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const fitAllScheduledRef = useRef(false);
   // Track the consumed primaryUrl prop separately from navigation inside a frame.
   const activatedPrimaryUrlRef = useRef<string | null>(null);
+  const [boardMeasured, setBoardMeasured] = useState(false);
   const demoSeededRef = useRef(false);
   const previousPresentationRef = useRef(presentation);
   const presentationAnimationRef = useRef<Animation | null>(null);
@@ -283,7 +293,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const normalized = normalizeUrl(url);
     if (!normalized || normalized.origin !== window.location.origin) return;
     const card = getCanvasCards().find((candidate) => {
-      const route = !iterationId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
+      const route = candidate.content.kind === "route" && normalizeUrl(contentSourceUrl(candidate.content));
       return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
     }) ?? addCanvasCard(url);
     selectCard(card.id);
@@ -397,6 +407,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const board = boardRef.current;
     if (!primaryUrl || !board) return;
     if (activatedPrimaryUrlRef.current === primaryUrl && cards.length > 0) return;
+    // An unmeasured board would size the first frame to its minimum, so wait for the first layout.
+    if (board.clientWidth === 0 && typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(() => {
+        if (board.clientWidth === 0) return;
+        observer.disconnect();
+        setBoardMeasured(true);
+      });
+      observer.observe(board);
+      return () => observer.disconnect();
+    }
     activatedPrimaryUrlRef.current = primaryUrl;
     // The page is its own only card, so a restored zoomed-out board never applies.
     if (pageSurface && presentation !== "focus") setCanvasPresentation("focus");
@@ -404,9 +424,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       width: board.clientWidth,
       height: board.clientHeight,
     };
+    const inFocus = pageSurface || presentation === "focus";
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
-      replaceActiveCard: (pageSurface || presentation === "focus") && runtimeConfig.demo !== true,
+      replaceActiveCard: inFocus && runtimeConfig.demo !== true,
       preserveIterationFocus: true,
+      fillBoardWidth: inFocus && runtimeConfig.demo !== true,
     });
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
       setBoardCamera({
@@ -454,14 +476,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       focusCard(primaryCard.id);
     }
-  }, [primaryUrl, cards.length, pageSurface, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
+  }, [primaryUrl, cards.length, pageSurface, presentation, boardMeasured, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
     if (pageSurface) return;
     if (primaryUrl && activatedPrimaryUrlRef.current !== primaryUrl) return;
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
-    if (!activeCard) return;
+    if (!activeCard || activeCard.content.kind === "component") return;
     mirrorEditorAddress(contentSourceUrl(activeCard.content));
   }, [cards, focusedCardId, primaryUrl, selectedCardId]);
 
@@ -532,6 +554,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const camera = getBoardCamera();
     setBoardCamera({ ...camera, x: camera.x - deltaX, y: camera.y - deltaY });
   }, [markWheelGesture]);
+
+  useEffect(() => (runtimeConfig.componentSheet ? mirrorAppRootIntoSheets() : undefined), [runtimeConfig.componentSheet]);
+
+  useEffect(() => {
+    setBoardViewportProvider(() => {
+      const board = boardRef.current;
+      return board && board.clientWidth > 0 ? { width: board.clientWidth, height: board.clientHeight } : null;
+    });
+    return () => setBoardViewportProvider(null);
+  }, []);
 
   const fitCanvasToBoard = useCallback(() => {
     const board = boardRef.current;
@@ -806,10 +838,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const stopChanges = subscribeActiveDraftChanges(() => {
       projectToAllReadyCards();
     });
+    // Component-sheet edits also preview in every live app frame, even when another draft is active.
+    let componentsRevision = getDraftChanges(COMPONENTS_DRAFT_ID).revision;
+    const stopComponents = subscribeDrafts(() => {
+      const next = getDraftChanges(COMPONENTS_DRAFT_ID).revision;
+      if (next === componentsRevision) return;
+      componentsRevision = next;
+      projectToAllReadyCards();
+    });
     const stopPreview = subscribeOriginalPreview(() => {
       projectToAllReadyCards();
     });
     return () => {
+      stopComponents();
       stopChanges();
       stopPreview();
     };
@@ -855,7 +896,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       const syncActiveFrameUrl = (url: string): void => {
-        if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
+        if (getCanvasCards().some((card) => card.id === frame.cardId && card.content.kind !== "route")) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
           mirrorEditorAddress(url);
@@ -960,7 +1001,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       if (msg.type !== "navigation-intent") return;
       dismissLinkPreview();
-      if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
+      if (getCanvasCards().some((card) => card.id === frame.cardId && card.content.kind !== "route")) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
       const frameDocument = frame.document();

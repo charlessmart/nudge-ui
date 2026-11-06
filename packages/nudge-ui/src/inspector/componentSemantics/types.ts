@@ -69,6 +69,8 @@ export interface ComponentPropContract {
   control: "select" | "boolean" | "text";
   options: ComponentPropValue[];
   optional: boolean;
+  /** Literal default from the component's destructured props, when valid for the control. */
+  defaultValue?: ComponentPropValue;
 }
 
 export interface ComponentContract {
@@ -77,6 +79,8 @@ export interface ComponentContract {
   file: string;
   props: ComponentPropContract[];
   provenance: "typescript" | "package-manifest";
+  /** `wrapper`: renders no UI of its own, only providers, boundaries or `children` (a context provider, a guard). */
+  role?: "wrapper";
 }
 
 export interface EditableComponentTarget extends RuntimeComponentTarget {
@@ -98,4 +102,6 @@ export interface ComponentRuntimeAdapter {
   getCallsiteMultiplicity?(callsiteId: string): number | null | undefined;
   /** Nearest first; null when the runtime cannot read the element's ancestry, so structural identity fails closed. */
   rootInvocations?(element: HTMLElement): ComponentRootInvocation[] | null;
+  /** Contracts arrive from the inspector client, which has a separate dependency graph from the host Adapter. */
+  replaceVariantContracts?(contracts: ComponentContract[]): void;
 }

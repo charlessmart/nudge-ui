@@ -1,3 +1,4 @@
+import { describeVariantScope, variantScopeKey } from "../componentSemantics/variantMarkers.ts";
 import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/types.ts";
 import type {
   ChangeRecord,
@@ -208,6 +209,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
       instanceOverride?.id ?? "",
       instanceOverride ? JSON.stringify(instanceOverride.target) : "",
       change.state ?? "base",
+      variantScopeKey(change.variantScope),
     ].join("\u0000");
     let group = map.get(key);
     if (!group) {
@@ -240,6 +242,7 @@ const STATE_LEADS = {
 
 function elementChangeLine(rec: ElementChangeRecord): string {
   const lead = STATE_LEADS[rec.state ?? "base"];
+  const variant = rec.variantScope ? ` (only for ${describeVariantScope(rec.variantScope)})` : "";
   let change: string;
   if (rec.newToken && rec.oldToken) {
     change = `change ${rec.property} from the ${rec.oldToken.name} token to the ${rec.newToken.name} token`;
@@ -252,7 +255,7 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   } else {
     change = `update ${rec.property} (no value was recorded)`;
   }
-  const sentence = `${lead}${change}.`;
+  const sentence = `${lead}${change}${variant}.`;
   return `- ${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
 }
 

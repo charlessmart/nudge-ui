@@ -22,13 +22,16 @@ import {
   getCanvasCards,
   addCanvasCard,
   addCanvasIteration,
+  openComponentSheet,
   duplicateCard,
   hydrateCanvasStore,
   removeCanvasCard as removeCanvasCardStore,
   focusCard,
   getFocusedCardId,
   resizeCard,
+  revealCanvasCard,
   selectCard,
+  getSelectedCardId,
 } from "./canvasStore.ts";
 import {
   getCanvasMode,
@@ -275,6 +278,55 @@ describe("sessionStore hydration", () => {
 
     expect(getChangesList()).toMatchObject([{ rawValue: "blue" }]);
     expect(getDraftContentsForCard(original.id)?.changes).toMatchObject([{ rawValue: "red" }]);
+  });
+
+  it("restores component sheet frames", () => {
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    expect(sheet.x).toBeLessThan(0);
+    expect(openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" }).id).toBe(sheet.id);
+    persistSession();
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+
+    expect(hydrateSession().restored).toBe(true);
+    expect(getCanvasCards().find((card) => card.id === sheet.id)?.content)
+      .toEqual({ kind: "component", componentId: "src/Button.tsx:Button", name: "Button" });
+    expect(getCanvasCards()).toHaveLength(2);
+  });
+
+  it("centres the camera on the component sheet instead of fitting its app frame too", () => {
+    setCanvasPresentation("canvas");
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    const camera = getBoardCamera();
+
+    const centreX = (sheet.x + sheet.width / 2) * camera.zoom + camera.x;
+    const centreY = (sheet.y + sheet.height / 2) * camera.zoom + camera.y;
+    expect(centreX).toBeCloseTo(window.innerWidth / 2);
+    expect(centreY).toBeCloseTo(window.innerHeight / 2);
+  });
+
+  it("shows the component sheet in place when opened from focus view", () => {
+    setCanvasPresentation("focus");
+    addCanvasCard(localUrl("/first"));
+    const camera = getBoardCamera();
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+
+    expect(getCanvasPresentation()).toBe("focus");
+    expect(getFocusedCardId()).toBe(sheet.id);
+    expect(getBoardCamera()).toEqual(camera);
+  });
+
+  it("routes the focused sheet to the next component in focus view instead of adding a frame", () => {
+    setCanvasPresentation("focus");
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    const routed = openComponentSheet({ componentId: "src/Badge.tsx:Badge", name: "Badge" });
+
+    expect(routed.id).toBe(sheet.id);
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(routed.content).toEqual({ kind: "component", componentId: "src/Badge.tsx:Badge", name: "Badge" });
+    expect(getFocusedCardId()).toBe(sheet.id);
   });
 
   it("restores geometry without replacing the current draft's intent", () => {

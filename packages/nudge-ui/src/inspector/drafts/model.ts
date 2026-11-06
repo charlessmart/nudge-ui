@@ -18,7 +18,12 @@ export interface HtmlTarget {
   readonly path: string;
 }
 
-export type DraftTarget = ApplicationTarget | HtmlTarget;
+/** One shared draft for every component sheet frame; its source-site styles also project into live app frames. */
+export interface ComponentsTarget {
+  readonly kind: "components";
+}
+
+export type DraftTarget = ApplicationTarget | HtmlTarget | ComponentsTarget;
 
 /** A draft's ID is its target key, so every frame showing the same page or iteration edits one draft. */
 export interface Draft {
@@ -33,6 +38,7 @@ export interface DraftSnapshot {
   readonly drafts: readonly Draft[];
 }
 
+const COMPONENTS_PATH = "/__nudge_ui__/components";
 const ARTIFACT_PATH = /^\/__nudge_ui__\/artifacts\/([a-f0-9-]{36})\//i;
 
 export function applicationTarget(url: string = window.location.href): ApplicationTarget {
@@ -51,16 +57,28 @@ export function artifactIdFromUrl(url: string): string | null {
   return ARTIFACT_PATH.exec(new URL(url, window.location.href).pathname)?.[1] ?? null;
 }
 
+export function componentsTarget(): ComponentsTarget {
+  return { kind: "components" };
+}
+
+export function isComponentsUrl(url: string): boolean {
+  const path = new URL(url, window.location.href).pathname;
+  return path === COMPONENTS_PATH || path === `${COMPONENTS_PATH}/`;
+}
+
 export function documentTarget(url: string): DraftTarget {
+  if (isComponentsUrl(url)) return componentsTarget();
   const artifactId = artifactIdFromUrl(url);
   return artifactId ? htmlTarget(artifactId) : applicationTarget(url);
 }
 
 export function targetKey(target: DraftTarget): string {
+  if (target.kind === "components") return "components";
   return target.kind === "application" ? `application:${target.route}` : `html:${target.artifactId}`;
 }
 
 export function targetFromKey(key: string): DraftTarget | null {
+  if (key === "components") return componentsTarget();
   if (key.startsWith("html:")) return htmlTarget(key.slice("html:".length));
   if (!key.startsWith("application:")) return null;
   const target: DraftTarget = { kind: "application", route: key.slice("application:".length) };
@@ -74,6 +92,7 @@ export function isDraftTarget(value: unknown): value is DraftTarget {
     if (typeof target.route !== "string") return false;
     try { return applicationTarget(target.route).route === target.route; } catch { return false; }
   }
+  if (target.kind === "components") return true;
   return target.kind === "html" && typeof target.artifactId === "string"
     && target.path === `.nudge/artifacts/${target.artifactId}/document.html`;
 }

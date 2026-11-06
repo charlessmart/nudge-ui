@@ -7,7 +7,7 @@ import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
-import { SelectPlayFilledIcon } from "./CanvasToolIcons.tsx";
+import { SelectPlayOutlineIcon } from "./CanvasToolIcons.tsx";
 
 export interface CanvasCardHeaderProps {
   readonly card: CanvasCard;
@@ -110,7 +110,7 @@ export function CanvasCardHeader({
           {onShowFocus ? (
             <Tooltip content="Open this frame in focus view">
               <IconButton variant="quiet" label="Focus" data-test={`canvas-card-focus-${card.id}`} onClick={onShowFocus}>
-                <SelectPlayFilledIcon aria-hidden="true" />
+                <SelectPlayOutlineIcon aria-hidden="true" />
               </IconButton>
             </Tooltip>
           ) : null}

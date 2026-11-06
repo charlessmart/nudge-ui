@@ -1,4 +1,5 @@
 import type {
+  ComponentContract,
   ComponentFramework,
   ComponentOverride,
   ComponentRootInvocation,
@@ -24,6 +25,7 @@ interface HostRuntimeRegistry {
   readonly version: typeof NUDGE_UI_HOST_RUNTIME_VERSION;
   readonly adapters: Map<ComponentFramework, ComponentRuntimeAdapter>;
   readonly overrides: Map<ComponentFramework, ComponentOverride[]>;
+  variantContracts?: ComponentContract[];
 }
 
 interface HostRuntimeRegistryCandidate {
@@ -66,6 +68,7 @@ export function registerHostRuntimeAdapter(
   hostRegistry.adapters.set(adapter.framework, adapter);
   const overrides = hostRegistry.overrides.get(adapter.framework);
   if (overrides) adapter.replaceOverrides(copyComponentOverrides(overrides));
+  if (hostRegistry.variantContracts) adapter.replaceVariantContracts?.(structuredClone(hostRegistry.variantContracts));
   return () => {
     if (hostRegistry.adapters.get(adapter.framework) === adapter) {
       hostRegistry.adapters.delete(adapter.framework);
@@ -113,6 +116,15 @@ export function replaceHostRuntimeAdapterOverrides(
     hostRegistry.adapters.get(framework)?.replaceOverrides(
       copyComponentOverrides(projection),
     );
+  }
+}
+
+/** Hands the component contracts to every host Adapter, now and when one registers later. */
+export function publishHostRuntimeVariantContracts(contracts: readonly ComponentContract[]): void {
+  const hostRegistry = registry();
+  hostRegistry.variantContracts = structuredClone([...contracts]);
+  for (const adapter of hostRegistry.adapters.values()) {
+    adapter.replaceVariantContracts?.(structuredClone(hostRegistry.variantContracts));
   }
 }
 

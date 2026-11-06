@@ -93,6 +93,7 @@ function verifyPackage(packageRoot) {
       "./internal/client",
       "./internal/inspector",
       "./internal/component-runtime",
+      "./internal/component-sheet",
       "./internal/host-runtime",
       "./internal/page-inspector",
       "./internal/cursor-images",
