@@ -40,7 +40,7 @@ export async function createIteration(cardId: string, position?: { x: number; y:
   if (source?.content.kind === "component") throw new Error("Component sheets cannot be iterated.");
   if (!source || !frame || !document || !draft) throw new Error("The source frame is no longer available.");
   if (!canEditDraft(draft.id)) throw new Error("This workspace is unavailable while saving or open in another tab.");
-  if (isInlineTextEditingActive()) throw new Error("Finish editing the text before creating an iteration.");
+  if (isInlineTextEditingActive()) throw new Error("Finish editing the text before creating an unlinked frame.");
   const revision = await projectDraftToDocument(document, draft.contents);
   if (revision === null) throw new Error("The source preview is still updating. Try again.");
   try {

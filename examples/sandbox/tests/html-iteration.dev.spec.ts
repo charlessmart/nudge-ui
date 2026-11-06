@@ -11,7 +11,7 @@ test("clearing iteration changes preserves the canvas until Reset canvas is used
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration");
+  await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Unlinked frame");
   const iteration = cards.nth(2).locator("iframe");
   const iterationUrl = await iteration.getAttribute("src");
   const heading = iteration.contentFrame().locator("h1").first();
@@ -50,7 +50,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   const duplicate = cards.nth(1);
   await expect(duplicate.locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
   await clickFrameAction(page, duplicate.locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
+  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Unlinked frame", { timeout: 15_000 });
   await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
 
   const source = cards.first().locator("iframe");
@@ -136,7 +136,7 @@ test("an HTML iteration retains responsive layout after capture and prompt hando
     overrides.sheet!.insertRule("#responsive-iteration .fluid { letter-spacing: 3px; }");
   });
   await clickFrameAction(page, duplicate.locator('[data-test^="canvas-card-create-iteration-"]'));
-  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
+  await expect(page.locator(".canvas-card").nth(2).locator(".canvas-card__dimensions")).toContainText("Unlinked frame", { timeout: 15_000 });
   iframe = page.locator(".canvas-card").nth(2).locator("iframe");
   const iterationUrl = await iframe.getAttribute("src");
   const artifactId = iterationUrl!.split("/")[3]!;
@@ -214,7 +214,7 @@ test("linked frames drag independently and iterations preserve their source layo
 
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards).toHaveCount(4);
-  await expect(cards.nth(3).locator(".canvas-card__dimensions")).toContainText("Iteration", { timeout: 15_000 });
+  await expect(cards.nth(3).locator(".canvas-card__dimensions")).toContainText("Unlinked frame", { timeout: 15_000 });
   await expect(cards.locator(".canvas-card__frame")).toHaveCount(4);
   for (const card of await cards.all()) {
     await expect(card.locator(".canvas-card__frame")).not.toHaveCSS("outline-color", "rgb(168, 85, 247)");
@@ -269,7 +269,7 @@ for (const modifier of ["Alt"] as const) {
     expect(await content.evaluate((element: HTMLElement) => element.style.transform)).toBe(cameraBefore);
     await expect(page.locator('[data-test="canvas-board"]')).not.toHaveClass(/is-layout-transitioning/);
     expect(await cards.nth(1).evaluate((element: HTMLElement) => ({ x: element.style.left, y: element.style.top }))).toEqual(before);
-    await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Iteration");
+    await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Unlinked frame");
     await expect(cards.nth(2).locator(".canvas-card__frame")).not.toHaveCSS("outline-color", "rgb(168, 85, 247)");
     const dropped = await cards.nth(2).evaluate((element: HTMLElement) => ({ x: Number.parseFloat(element.style.left), y: Number.parseFloat(element.style.top) }));
     expect(dropped.x).toBeGreaterThan(Number.parseFloat(before.x));

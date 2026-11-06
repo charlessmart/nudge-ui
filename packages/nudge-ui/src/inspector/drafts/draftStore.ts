@@ -410,7 +410,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     canEdit,
     isLocked: (id) => id === undefined ? locked.size > 0 : locked.has(id),
     lock(id) {
-      if (locked.has(id)) throw new Error("This iteration is already saving.");
+      if (locked.has(id)) throw new Error("This unlinked frame is already saving.");
       locked.add(id);
       return () => { locked.delete(id); };
     },

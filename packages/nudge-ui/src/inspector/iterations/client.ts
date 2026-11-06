@@ -15,17 +15,17 @@ export function artifactDocumentUrl(id: string): string {
 
 export async function listHtmlArtifacts(): Promise<HtmlArtifactMetadata[]> {
   const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, { cache: "no-store", signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("HTML iterations could not be listed.");
+  if (!response.ok) throw new Error("Unlinked frames could not be listed.");
   const value: unknown = await response.json();
-  if (!Array.isArray(value)) throw new Error("HTML iterations returned an invalid list.");
+  if (!Array.isArray(value)) throw new Error("Unlinked frames returned an invalid list.");
   return value.filter(isHtmlArtifactMetadata).slice(0, 200);
 }
 
 export async function readHtmlArtifactRevision(id: string): Promise<HtmlArtifactRevision> {
   const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}/revision`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("The HTML iteration could not be refreshed.");
+  if (!response.ok) throw new Error("The unlinked frame could not be refreshed.");
   const revision: unknown = await response.json();
-  if (!isHtmlArtifactRevision(revision)) throw new Error("The HTML iteration returned an invalid revision.");
+  if (!isHtmlArtifactRevision(revision)) throw new Error("The unlinked frame returned an invalid revision.");
   return revision;
 }
 
@@ -37,9 +37,9 @@ export async function commitHtmlArtifact(id: string, expected: HtmlArtifactRevis
     body: JSON.stringify({ expected, ...(html === undefined ? {} : { html }) }),
   });
   if (response.status === 409) throw new Error(HTML_ITERATION_CONFLICT);
-  if (!response.ok) throw new Error((await response.text()) || "The HTML iteration could not be saved.");
+  if (!response.ok) throw new Error((await response.text()) || "The unlinked frame could not be saved.");
   const revision: unknown = await response.json();
-  if (!isHtmlArtifactRevision(revision)) throw new Error("The HTML iteration returned an invalid revision.");
+  if (!isHtmlArtifactRevision(revision)) throw new Error("The unlinked frame returned an invalid revision.");
   return revision;
 }
 
@@ -54,11 +54,11 @@ export async function createHtmlArtifact(frame: CanvasFrame, sourceUrl: string, 
       viewport: { width: frame.clientWidth, height: frame.clientHeight },
     }),
   });
-  if (!response.ok) throw new Error((await response.text()) || "The HTML iteration could not be saved.");
+  if (!response.ok) throw new Error((await response.text()) || "The unlinked frame could not be saved.");
   return id;
 }
 
 export async function removeHtmlArtifact(id: string): Promise<void> {
   const response = await fetch(`${NUDGE_UI_ARTIFACTS_PATH}/${id}`, { method: "DELETE", keepalive: true });
-  if (!response.ok) throw new Error((await response.text()) || "The HTML iteration could not be removed.");
+  if (!response.ok) throw new Error((await response.text()) || "The unlinked frame could not be removed.");
 }

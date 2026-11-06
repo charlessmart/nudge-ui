@@ -14,7 +14,7 @@ export interface HtmlArtifactMetadata {
 }
 
 export const HTML_ARTIFACT_REVISION_ATTRIBUTE = "data-nudge-artifact-revision";
-export const HTML_ITERATION_CONFLICT = "This iteration changed outside Nudge. Your visual edits are still pending. Create another iteration to keep your design, then clear this iteration’s changes to load the external update.";
+export const HTML_ITERATION_CONFLICT = "This unlinked frame changed outside Nudge. Your visual edits are still pending. Create another unlinked frame to keep your design, then clear this frame’s changes to load the external update.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

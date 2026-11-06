@@ -39,7 +39,7 @@ async function prepareDraftHandoff(request: HandoffRequest): Promise<Omit<Prepar
   let { changes, structuralChanges } = getDraftChanges(owner.draftId);
   if (target.kind === "html") {
     const frame = request.cardId ? getRegisteredFrames().get(request.cardId) : undefined;
-    if (!request.cardId || !frame) throw new Error("The HTML iteration is still loading. Try again when the frame is ready.");
+    if (!request.cardId || !frame) throw new Error("The unlinked frame is still loading. Try again when the frame is ready.");
     ({ changes, structuralChanges } = await prepareHtmlIterationHandoff(request.cardId, target.artifactId, frame));
   }
   return { owner, changes: [...changes], structuralChanges: [...structuralChanges], comments };
@@ -61,7 +61,7 @@ export async function prepareHandoff(request: HandoffRequest): Promise<PreparedH
 export async function prepareIterationImplementationPrompt(request: HandoffRequest): Promise<string> {
   const cards = getCanvasCards();
   const card = cards.find((candidate) => candidate.id === request.cardId);
-  if (card?.content.kind !== "iteration") throw new Error("Select an HTML iteration to implement in the app.");
+  if (card?.content.kind !== "iteration") throw new Error("Select an unlinked frame to implement in the app.");
   const label = getCanvasCardLabel(card, cards);
   const page = applicationTarget(card.content.sourceUrl).route;
   const { changes, structuralChanges, comments } = await prepareDraftHandoff(request);

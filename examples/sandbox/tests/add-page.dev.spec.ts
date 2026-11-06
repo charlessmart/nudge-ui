@@ -55,7 +55,7 @@ test.describe("Add page", () => {
 
     const cards = page.locator(".canvas-card");
     await expect(cards).toHaveCount(2);
-    await expect(cards.nth(1)).toHaveAttribute("aria-label", /Iteration 1/);
+    await expect(cards.nth(1)).toHaveAttribute("aria-label", /Unlinked frame 1/);
     await expect(cards.nth(1).locator("iframe")).toHaveAttribute("src", new RegExp(`/artifacts/${id}/preview`));
     await request.delete(`/__nudge_ui__/artifacts/${id}`);
   });

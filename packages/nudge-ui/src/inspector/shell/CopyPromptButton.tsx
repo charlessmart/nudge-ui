@@ -103,7 +103,7 @@ export function CopyPromptButton({
   const label = showingNothing
     ? "Nothing to copy"
     : preparing
-      ? "Saving iteration…"
+      ? "Saving unlinked frame…"
       : copied
         ? "Copied!"
         : "Copy";
@@ -140,11 +140,11 @@ export function CopyPromptButton({
       if (target === "application") {
         const prompt = await prepareIterationImplementationPrompt(request);
         try { await copyToClipboard(prompt); }
-        catch { throw new Error("The iteration was saved, but the prompt could not be copied. Try again."); }
+        catch { throw new Error("The unlinked frame was saved, but the prompt could not be copied. Try again."); }
       } else {
         const prepared = await prepareHandoff(request);
         try { await copyHandoff(prepared); }
-        catch { throw new Error("The iteration was saved, but the prompt could not be copied. Try again."); }
+        catch { throw new Error("The unlinked frame was saved, but the prompt could not be copied. Try again."); }
       }
       setSaveMessage(null);
       setCopied(true);
@@ -167,7 +167,7 @@ export function CopyPromptButton({
       });
       setSaveMessage(null);
     } catch (error) {
-      setSaveMessage(error instanceof Error ? error.message : "The HTML iteration could not be saved.");
+      setSaveMessage(error instanceof Error ? error.message : "The unlinked frame could not be saved.");
       return;
     }
     try {
@@ -252,13 +252,13 @@ export function CopyPromptButton({
                     <Menu.Item
                       className="copy-prompt__menu-item"
                       data-test="copy-iteration-prompt"
-                      label="Copy iteration prompt"
+                      label="Copy unlinked frame prompt"
                       onClick={() => void copyIterationPrompt("iteration")}
                     >
                       <IconArtboard className="copy-prompt__menu-icon" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
                       <span className="copy-prompt__menu-content">
-                        <span className="copy-prompt__menu-title">Copy iteration prompt</span>
-                        <span className="copy-prompt__menu-description">Continue editing this HTML iteration.</span>
+                        <span className="copy-prompt__menu-title">Copy unlinked frame prompt</span>
+                        <span className="copy-prompt__menu-description">Continue editing this unlinked frame.</span>
                       </span>
                     </Menu.Item>
                     <Menu.Item

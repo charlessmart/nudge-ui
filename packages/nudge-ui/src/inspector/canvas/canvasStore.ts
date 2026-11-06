@@ -643,6 +643,7 @@ export function getCanvasCardLabel(card: CanvasCard, frameCards: readonly Canvas
   if (card.content.kind === "component") return card.content.name;
   const flowState = flowStateOf(card.content);
   if (flowState) return flowState.tag ? `${flowState.label} · ${flowState.tag}` : flowState.label;
+  if (card.content.kind === "iteration") return `${route.label} · Unlinked frame ${number}`;
   return number === 1 ? route.label : `${route.label} · Copy ${number}`;
 }
 

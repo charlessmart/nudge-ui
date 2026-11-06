@@ -211,7 +211,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
     setCreatingIteration(true);
     setIterationError(null);
     try { return await onCreateIteration(card.id, position); }
-    catch (error) { setIterationError(error instanceof Error ? error.message : "The iteration could not be created."); }
+    catch (error) { setIterationError(error instanceof Error ? error.message : "The unlinked frame could not be created."); }
     finally { setCreatingIteration(false); }
   }
 

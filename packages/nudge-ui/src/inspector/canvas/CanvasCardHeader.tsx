@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { IconArrowLeft, IconArrowRight, IconBoltFilled, IconCopy, IconShape, IconTrash } from "@tabler/icons-react";
+import { IconArrowLeft, IconArrowRight, IconBoltFilled, IconCopy, IconTrash, IconUnlink } from "@tabler/icons-react";
 import type { CanvasCard } from "./canvasStore.ts";
 import { contentSourceUrl, flowStateOf, iterationId } from "./frameContent.ts";
 import { resolveFrameUrl } from "./appRoute.ts";
-import { Button } from "../ui/Button.tsx";
 import { stepFrameHistory, visitFrameUrl, type FrameHistory } from "./frameHistory.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -212,24 +211,25 @@ export function CanvasCardHeader({
               <span className="canvas-card__title canvas-card__dimensions" data-test={`canvas-card-drag-${card.id}`} title={label}>{label}</span>
             </span>
           )}
+          {onCreateIteration ? (
+            <div className="canvas-card__url-trail">
+              <Tooltip content="Unlink to HTML frame for iteration">
+                <IconButton
+                  variant="quiet"
+                  size="compact"
+                  label={iterationBusy ? "Creating unlinked frame" : "Create unlinked frame"}
+                  data-test={`canvas-card-create-iteration-${card.id}`}
+                  disabled={iterationBusy || iterationDisabled}
+                  onClick={onCreateIteration}
+                >
+                  <IconUnlink size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                </IconButton>
+              </Tooltip>
+            </div>
+          ) : null}
         </div>
 
         <div className="canvas-card__actions">
-          {onCreateIteration ? (
-            <Tooltip content="Create unlinked HTML version for design iteration">
-              <Button
-                variant="quiet"
-                className="canvas-card__iteration-button"
-                aria-label={iterationBusy ? "Creating iteration" : "Create HTML iteration"}
-                data-test={`canvas-card-create-iteration-${card.id}`}
-                disabled={iterationBusy || iterationDisabled}
-                onClick={onCreateIteration}
-              >
-                <IconShape size={16} stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                <span className="canvas-card__iteration-label">{iterationBusy ? "Creating…" : "Iteration"}</span>
-              </Button>
-            </Tooltip>
-          ) : null}
           {onDuplicate && !iteration ? (
             <Tooltip content="Duplicate">
               <IconButton variant="quiet" className="canvas-card__action-icon" label="Duplicate" data-test={`canvas-card-duplicate-${card.id}`} onClick={onDuplicate}>

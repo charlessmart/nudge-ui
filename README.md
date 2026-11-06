@@ -39,9 +39,9 @@ The canvas allows you to open multiple pages of you app to compare flows, respon
 
 **Duplicate** creates a live frame, a view into your running app.
 
-**Iteration** captures an independent HTML design with its own edits, this makes it easier to do larger front end design changes. HTML iterations are stored under `.nudge/artifacts/`.
+**Unlink** (the unlink button beside a frame's URL) captures an unlinked frame: an independent HTML design with its own edits, which makes larger front-end design changes easier. Unlinked frames are stored under `.nudge/artifacts/`.
 
-You can ask an agent to refine an iteration, then use **Copy prompt for live app** to implement that design in application source. 
+You can ask an agent to refine an unlinked frame, then use **Copy prompt for live app** to implement that design in application source. 
 
 ## Install
 

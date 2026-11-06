@@ -182,7 +182,7 @@ export async function handleHtmlArtifactRequest(
         const input = await body(request);
         if (!input) { respond(response, 400, "Invalid document"); return true; }
         if (!isHtmlArtifactRevision(input.expected)) {
-          respond(response, 428, "An expected iteration revision is required"); return true;
+          respond(response, 428, "An expected unlinked frame revision is required"); return true;
         }
         if ((input.html !== undefined && typeof input.html !== "string")
           || (request.method === "PUT" && typeof input.html !== "string")) {
