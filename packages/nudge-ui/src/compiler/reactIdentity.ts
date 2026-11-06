@@ -374,6 +374,26 @@ function walk(
           state.changed = true;
         }
       }
+      // Spreads forward the callsite's identity onto this root, so the definition site is recorded after them.
+      // Component tags count too: `<Comp {...props}>` and `<Slot.Root {...props}>` usually render the root host element,
+      // and the innermost definition wins because each one is appended after its own spread.
+      const lastAttribute = attrs[attrs.length - 1];
+      if (
+        elementName(nameNode)
+        && attrs.some((attr) => attr.type === "JSXSpreadAttribute")
+        && !hasAttr(attrs, "data-nudge-def")
+        && typeof lastAttribute?.end === "number"
+      ) {
+        const loc = nameNode.loc as
+          | { start?: { line?: number; column?: number } }
+          | undefined;
+        const line = loc?.start?.line;
+        const col = loc?.start?.column;
+        if (typeof line === "number" && typeof col === "number") {
+          ms.appendLeft(lastAttribute.end, ` data-nudge-def="${relPath}:${line}:${col + 1}"`);
+          state.changed = true;
+        }
+      }
     }
   }
 

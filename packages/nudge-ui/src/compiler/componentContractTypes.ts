@@ -5,6 +5,8 @@ export interface ComponentPropContract {
   control: "select" | "boolean" | "text";
   options: ComponentPropValue[];
   optional: boolean;
+  /** Literal default from the component's destructured props, when valid for the control. */
+  defaultValue?: ComponentPropValue;
 }
 
 export interface ComponentContract {
@@ -13,6 +15,8 @@ export interface ComponentContract {
   file: string;
   props: ComponentPropContract[];
   provenance: "typescript" | "package-manifest";
+  /** `wrapper`: renders no UI of its own, only providers, boundaries or `children` (a context provider, a guard). */
+  role?: "wrapper";
 }
 
 /** How a prop was written at its callsite; `default` exists only at runtime, for omitted props. */

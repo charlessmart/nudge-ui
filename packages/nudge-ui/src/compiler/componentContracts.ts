@@ -137,7 +137,9 @@ function membersForType(
     if (!declaration) return [];
     seen.add(name);
     if (declaration.type === "TSInterfaceDeclaration") {
-      return membersForType(declaration.body as Node, declarations, seen);
+      const inherited = ((declaration.extends as Node[] | undefined) ?? []).flatMap((heritage) =>
+        membersForType(heritageReference(heritage), declarations, seen));
+      return [...inherited, ...membersForType(declaration.body as Node, declarations, seen)];
     }
     if (declaration.type === "TSTypeAliasDeclaration") {
       return membersForType(declaration.typeAnnotation as Node, declarations, seen);
@@ -189,16 +191,262 @@ function componentInitializer(node: Node): ComponentInitializer | null {
   };
 }
 
+/** Literal defaults of a destructured props parameter: `({ variant = "primary", loading = false })`. */
+function destructuredDefaults(param: Node | null | undefined): Map<string, ComponentPropValue> {
+  const defaults = new Map<string, ComponentPropValue>();
+  let pattern = param;
+  if (pattern?.type === "AssignmentPattern") pattern = pattern.left as Node;
+  if (pattern?.type !== "ObjectPattern") return defaults;
+  for (const property of (pattern.properties as Node[] | undefined) ?? []) {
+    if (property.type !== "ObjectProperty" || property.computed === true) continue;
+    const key = property.key as Node;
+    const name = key.type === "Identifier" ? nodeName(key) : key.type === "StringLiteral" ? String(key.value) : null;
+    const value = property.value as Node;
+    if (!name || value.type !== "AssignmentPattern") continue;
+    const literal = isNode(value.right) ? literalValue(value.right) : null;
+    if (literal !== null) defaults.set(name, literal);
+  }
+  return defaults;
+}
+
+function withDefault(prop: ComponentPropContract, defaults: Map<string, ComponentPropValue>): ComponentPropContract {
+  const value = defaults.get(prop.name);
+  if (value === undefined) return prop;
+  const valid = prop.control === "boolean"
+    ? typeof value === "boolean"
+    : prop.control === "select"
+      ? prop.options.includes(value)
+      : typeof value === "string";
+  return valid ? { ...prop, defaultValue: value } : prop;
+}
+
+
+/** An interface `extends` entry as a type reference (Babel emits TSExpressionWithTypeArguments or TSInterfaceHeritage). */
+function heritageReference(heritage: Node): Node {
+  return {
+    type: "TSTypeReference",
+    typeName: heritage.expression ?? heritage.typeName,
+    typeParameters: heritage.typeParameters ?? heritage.typeArguments,
+  };
+}
+
+function typeArguments(node: Node): Node[] {
+  return (
+    (node.typeParameters as { params?: Node[] } | undefined)
+    ?? (node.typeArguments as { params?: Node[] } | undefined)
+  )?.params ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// cva / tailwind-variants support
+// ---------------------------------------------------------------------------
+
+interface VariantProp {
+  name: string;
+  keys: string[];
+  defaultValue?: string;
+}
+
+type VariantTable = VariantProp[];
+
+function propertyKeyName(property: Node): string | null {
+  if (property.type !== "ObjectProperty" || property.computed === true) return null;
+  const key = property.key as Node;
+  if (key.type === "Identifier") return nodeName(key);
+  if (key.type === "StringLiteral" || key.type === "NumericLiteral") return String(key.value);
+  return null;
+}
+
+function objectProperty(object: Node, name: string): Node | null {
+  for (const property of (object.properties as Node[] | undefined) ?? []) {
+    if (propertyKeyName(property) === name) return property.value as Node;
+  }
+  return null;
+}
+
+function unwrapExpression(node: Node): Node {
+  let current = node;
+  while (
+    current.type === "TSAsExpression" || current.type === "TSSatisfiesExpression"
+    || current.type === "ParenthesizedExpression" || current.type === "TSNonNullExpression"
+  ) current = current.expression as Node;
+  return current;
+}
+
+function variantTableFromCall(call: Node): VariantTable | null {
+  const callee = nodeName(call.callee as Node)?.split(".").at(-1);
+  if (callee !== "cva" && callee !== "tv") return null;
+  for (const argument of (call.arguments as Node[] | undefined) ?? []) {
+    const config = unwrapExpression(argument);
+    if (config.type !== "ObjectExpression") continue;
+    const variants = objectProperty(config, "variants");
+    if (!variants || unwrapExpression(variants).type !== "ObjectExpression") continue;
+    const defaultVariants = objectProperty(config, "defaultVariants");
+    const defaultsObject = defaultVariants ? unwrapExpression(defaultVariants) : null;
+    const table: VariantTable = [];
+    for (const property of (unwrapExpression(variants).properties as Node[] | undefined) ?? []) {
+      const name = propertyKeyName(property);
+      const values = unwrapExpression(property.value as Node);
+      if (!name || values.type !== "ObjectExpression") continue;
+      const keys = ((values.properties as Node[] | undefined) ?? [])
+        .map(propertyKeyName)
+        .filter((key): key is string => key !== null);
+      if (keys.length === 0) continue;
+      const entry: VariantProp = { name, keys };
+      const defaultNode = defaultsObject?.type === "ObjectExpression"
+        ? objectProperty(defaultsObject, name)
+        : null;
+      const literal = defaultNode ? literalValue(unwrapExpression(defaultNode)) : null;
+      if (literal !== null) entry.defaultValue = String(literal);
+      table.push(entry);
+    }
+    return table;
+  }
+  return null;
+}
+
+function variantProp(entry: VariantProp, defaults: Map<string, ComponentPropValue>): ComponentPropContract {
+  const isBoolean = entry.keys.every((key) => key === "true" || key === "false");
+  const options: ComponentPropValue[] = isBoolean
+    ? [false, true]
+    : [...new Set(entry.keys)];
+  const prop: ComponentPropContract = {
+    name: entry.name,
+    control: isBoolean ? "boolean" : "select",
+    options,
+    optional: true,
+  };
+  const authored = defaults.get(entry.name)
+    ?? (entry.defaultValue === undefined
+      ? undefined
+      : isBoolean ? entry.defaultValue === "true" : entry.defaultValue);
+  const candidate = authored === undefined || !isBoolean || typeof authored === "boolean"
+    ? authored
+    : undefined;
+  return candidate === undefined ? prop : withDefault(prop, new Map([[entry.name, candidate]]));
+}
+
+// ---------------------------------------------------------------------------
+// Props type inspection: VariantProps references and intrinsic element props
+// ---------------------------------------------------------------------------
+
+const VOID_ELEMENTS = new Set([
+  "input", "img", "br", "hr", "meta", "link", "area", "base", "col", "embed",
+  "source", "track", "wbr", "textarea",
+]);
+
+const INTRINSIC_PROPS_TYPES = new Set([
+  "ComponentProps", "ComponentPropsWithoutRef", "ComponentPropsWithRef",
+]);
+
+/** HTML attribute interfaces whose element has no children, keyed by the element-specific prefix. */
+const VOID_ATTRIBUTE_TYPES = new Set([
+  "InputHTMLAttributes", "ImgHTMLAttributes", "TextareaHTMLAttributes", "AreaHTMLAttributes",
+  "BaseHTMLAttributes", "ColHTMLAttributes", "EmbedHTMLAttributes", "LinkHTMLAttributes",
+  "MetaHTMLAttributes", "SourceHTMLAttributes", "TrackHTMLAttributes",
+]);
+
+interface PropsTypeInfo {
+  variantTables: string[];
+  /** True when the type pulls in props of a non-void intrinsic element. */
+  acceptsChildren: boolean;
+}
+
+function inspectPropsType(
+  node: Node | null,
+  declarations: Map<string, Node>,
+  info: PropsTypeInfo = { variantTables: [], acceptsChildren: false },
+  seen = new Set<string>(),
+): PropsTypeInfo {
+  if (!node) return info;
+  if (node.type === "TSIntersectionType" || node.type === "TSUnionType") {
+    for (const part of (node.types as Node[] | undefined) ?? []) inspectPropsType(part, declarations, info, seen);
+    return info;
+  }
+  if (node.type === "TSParenthesizedType") {
+    return inspectPropsType(node.typeAnnotation as Node, declarations, info, seen);
+  }
+  if (node.type !== "TSTypeReference") return info;
+  const fullName = nodeName(node.typeName as Node);
+  if (!fullName) return info;
+  const name = fullName.split(".").at(-1) ?? fullName;
+  const args = typeArguments(node);
+
+  if (name === "VariantProps") {
+    const query = args[0];
+    const target = query?.type === "TSTypeQuery" ? nodeName(query.exprName as Node) : null;
+    if (target) info.variantTables.push(target);
+    return info;
+  }
+  if (INTRINSIC_PROPS_TYPES.has(name)) {
+    const tag = args[0] ? literalValue(args[0]) : null;
+    if (typeof tag === "string" && /^[a-z][a-z0-9]*$/.test(tag) && !VOID_ELEMENTS.has(tag)) {
+      info.acceptsChildren = true;
+    }
+    return info;
+  }
+  if (name === "HTMLAttributes" || (name.endsWith("HTMLAttributes") && !VOID_ATTRIBUTE_TYPES.has(name))) {
+    info.acceptsChildren = true;
+    return info;
+  }
+  if (seen.has(fullName)) return info;
+  const declaration = declarations.get(fullName);
+  if (!declaration) return info;
+  seen.add(fullName);
+  if (declaration.type === "TSInterfaceDeclaration") {
+    for (const heritage of (declaration.extends as Node[] | undefined) ?? []) {
+      inspectPropsType(heritageReference(heritage), declarations, info, seen);
+    }
+  } else if (declaration.type === "TSTypeAliasDeclaration") {
+    inspectPropsType(declaration.typeAnnotation as Node, declarations, info, seen);
+  }
+  return info;
+}
+
+/** Whether the component spreads props onto a non-void lowercase host element. */
+function spreadsIntoHostElement(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(spreadsIntoHostElement);
+  if (!isNode(node)) return false;
+  if (node.type === "JSXOpeningElement") {
+    const tag = nodeName(node.name as Node);
+    const attributes = (node.attributes as Node[] | undefined) ?? [];
+    if (tag && /^[a-z]/.test(tag) && !VOID_ELEMENTS.has(tag)
+      && attributes.some((attribute) => attribute.type === "JSXSpreadAttribute")) return true;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "loc" || key === "leadingComments" || key === "trailingComments") continue;
+    if (typeof value === "object" && value !== null && spreadsIntoHostElement(value)) return true;
+  }
+  return false;
+}
+
 function componentContract(
   name: string,
   propsType: Node | null,
   declarations: Map<string, Node>,
   file: string,
+  param?: Node | null,
+  variantTables: Map<string, VariantTable> = new Map(),
+  functionNode?: Node | null,
 ): ComponentContract | null {
   if (!/^[A-Z]/.test(name)) return null;
+  const defaults = destructuredDefaults(param);
   const props = membersForType(propsType, declarations)
     .map(propertyContract)
-    .filter((prop): prop is ComponentPropContract => prop !== null);
+    .filter((prop): prop is ComponentPropContract => prop !== null)
+    .map((prop) => withDefault(prop, defaults));
+  const info = inspectPropsType(propsType, declarations);
+  const taken = new Set(props.map((prop) => prop.name));
+  for (const target of info.variantTables) {
+    for (const entry of variantTables.get(target) ?? []) {
+      if (taken.has(entry.name)) continue;
+      taken.add(entry.name);
+      props.push(variantProp(entry, defaults));
+    }
+  }
+  if (!taken.has("children") && (info.acceptsChildren || (propsType !== null && functionNode && spreadsIntoHostElement(functionNode.body)))) {
+    props.push({ name: "children", control: "text", options: [], optional: true });
+  }
   if (props.length === 0) return null;
   return {
     componentId: componentIdentity(file, name),
@@ -206,7 +454,62 @@ function componentContract(
     file,
     props,
     provenance: "typescript",
+    ...(functionNode && rendersOnlyPlumbing(name, functionNode) ? { role: "wrapper" as const } : {}),
   };
+}
+
+/** `Theme.Provider`, `motion.div`; an unreadable tag (namespaced) yields "" and counts as UI. */
+function jsxTagName(node: Node): string {
+  if (node.type === "JSXMemberExpression") {
+    const object = jsxTagName(node.object as Node);
+    const property = nodeName(node.property as Node);
+    return object && property ? `${object}.${property}` : "";
+  }
+  return nodeName(node) ?? "";
+}
+
+function isCreateContext(node: Node): boolean {
+  const call = unwrapExpression(node);
+  return call?.type === "CallExpression" && nodeName(call.callee as Node)?.split(".").at(-1) === "createContext";
+}
+
+// Tags that compose behaviour rather than UI: fragments, React's own boundaries, context providers and consumers.
+const PLUMBING_TAG = /(?:^|\.)(?:Fragment|Suspense|StrictMode|Profiler|Provider|Consumer)$|(?:Provider|Context|Boundary)$/;
+
+/**
+ * Whether a component renders no element of its own: it is named `…Provider`, every JSX tag it writes is a provider,
+ * boundary or fragment, or it writes no JSX and returns `children` or nothing. `<Card>` composing `<Box>` still renders UI, so a
+ * component tag that is not plumbing keeps the component in the library.
+ */
+function rendersOnlyPlumbing(name: string, functionNode: Node): boolean {
+  // Providers often render a hidden helper beside the context (an `<audio>` element, an effect watcher).
+  if (/Provider$/.test(name)) return true;
+  let sawJsx = false;
+  let rendersUi = false;
+  let createsElements = false;
+  const visit = (node: unknown): void => {
+    if (rendersUi) return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!isNode(node)) return;
+    if (node.type === "JSXFragment") sawJsx = true;
+    if (node.type === "JSXOpeningElement") {
+      sawJsx = true;
+      const tag = jsxTagName(node.name as Node);
+      if (/^[a-z]/.test(tag) || !PLUMBING_TAG.test(tag)) rendersUi = true;
+    }
+    if (node.type === "Identifier" && (node.name === "createElement" || node.name === "cloneElement")) createsElements = true;
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "loc" || key === "leadingComments" || key === "trailingComments") continue;
+      if (typeof value === "object" && value !== null) visit(value);
+    }
+  };
+  visit(functionNode.body);
+  if (rendersUi) return false;
+  // Without JSX, `createElement` may build anything.
+  return sawJsx || !createsElements;
 }
 
 function unwrapExport(node: Node): Node {
@@ -216,7 +519,17 @@ function unwrapExport(node: Node): Node {
   return node;
 }
 
+export interface ComponentCatalog {
+  contracts: ComponentContract[];
+  /** Ids of every wrapper component in the file, including ones whose props only the type checker can read. */
+  wrapperIds: string[];
+}
+
 export function extractComponentContracts(code: string, file: string): ComponentContract[] {
+  return extractComponentCatalog(code, file).contracts;
+}
+
+export function extractComponentCatalog(code: string, file: string): ComponentCatalog {
   let ast: Node;
   try {
     ast = parse(code, {
@@ -224,7 +537,7 @@ export function extractComponentContracts(code: string, file: string): Component
       plugins: ["jsx", "typescript"],
     }) as unknown as Node;
   } catch {
-    return [];
+    return { contracts: [], wrapperIds: [] };
   }
 
   const program = ast.program as Node | undefined;
@@ -237,16 +550,36 @@ export function extractComponentContracts(code: string, file: string): Component
     if (name) declarations.set(name, node);
   }
 
+  const variantTables = new Map<string, VariantTable>();
+  for (const statement of body) {
+    const node = unwrapExport(statement);
+    if (node.type !== "VariableDeclaration") continue;
+    for (const declaration of (node.declarations as Node[] | undefined) ?? []) {
+      const id = declaration.id as Node | undefined;
+      const init = declaration.init as Node | undefined;
+      const name = id ? nodeName(id) : null;
+      const call = init ? unwrapExpression(init) : null;
+      if (!name || call?.type !== "CallExpression") continue;
+      const table = variantTableFromCall(call);
+      if (table) variantTables.set(name, table);
+    }
+  }
+
   const contracts: ComponentContract[] = [];
+  const wrapperIds: string[] = [];
+  const noteWrapper = (name: string, node: Node): void => {
+    if (/^[A-Z]/.test(name) && (isCreateContext(node) || rendersOnlyPlumbing(name, node))) wrapperIds.push(componentIdentity(file, name));
+  };
   for (const statement of body) {
     const node = unwrapExport(statement);
     if (node.type === "FunctionDeclaration") {
       const name = nodeName(node.id as Node);
       const param = ((node.params as Node[] | undefined) ?? [])[0];
       const contract = name
-        ? componentContract(name, propsTypeFromParam(param), declarations, file)
+        ? componentContract(name, propsTypeFromParam(param), declarations, file, param, variantTables, node)
         : null;
       if (contract) contracts.push(contract);
+      if (name) noteWrapper(name, node);
       continue;
     }
     if (node.type !== "VariableDeclaration") continue;
@@ -255,14 +588,17 @@ export function extractComponentContracts(code: string, file: string): Component
       const init = declaration.init as Node | undefined;
       const name = id ? nodeName(id) : null;
       const initializer = init ? componentInitializer(init) : null;
+      // React 19 renders a context as `<ThemeContext value>`, so the checker lists it as a component.
+      if (name && init && isCreateContext(init)) noteWrapper(name, init);
       if (!id || !initializer || !name) continue;
       const param = ((initializer.functionNode.params as Node[] | undefined) ?? [])[0];
       const propsType = propsTypeFromParam(param)
         ?? initializer.propsType
         ?? propsTypeFromVariableId(id);
-      const contract = componentContract(name, propsType, declarations, file);
+      const contract = componentContract(name, propsType, declarations, file, param, variantTables, initializer.functionNode);
       if (contract) contracts.push(contract);
+      noteWrapper(name, initializer.functionNode);
     }
   }
-  return contracts;
+  return { contracts, wrapperIds };
 }
