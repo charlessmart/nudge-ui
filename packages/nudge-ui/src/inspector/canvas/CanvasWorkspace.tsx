@@ -25,7 +25,6 @@ import {
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
-  revealCanvasCard,
   setBoardViewportProvider,
 } from "./canvasStore.ts";
 import {
@@ -108,7 +107,6 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketch } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isAddPageEnabled } from "../runtime/features.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
@@ -197,7 +195,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const spaceHeldRef = useRef(false);
   // Mirrored into state so the desired renderer state can carry it; the ref stays for synchronous event handlers.
   const [spaceHeld, setSpaceHeld] = useState(false);
-  const [addPageEnabled] = useState(isAddPageEnabled);
   const updateSpaceHeld = useCallback((held: boolean): void => {
     spaceHeldRef.current = held;
     setSpaceHeld(held);
@@ -1240,8 +1237,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         <CanvasToolbar
           tool={interactionTool}
           sketchEnabled={sketchAvailable}
-          addPageVisible={addPageEnabled && presentation === "canvas"}
-          onPageAdded={revealCanvasCard}
           onToolChange={handleToolChange}
           zoom={pageSurface ? undefined : {
             presentation,

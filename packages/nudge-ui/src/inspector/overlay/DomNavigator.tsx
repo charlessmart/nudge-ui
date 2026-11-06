@@ -1,15 +1,14 @@
 import { useLayoutEffect, useRef, useState, type ReactElement } from "react";
-import { IconChevronDown, IconChevronRight, IconMenu2 } from "@tabler/icons-react";
+import { IconMenu2 } from "@tabler/icons-react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { computeNavigationParents, computeTrackedChildren, hasTrackedChildren } from "../selection/hierarchy.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
-import { describeNode } from "../selection/nodeDescription.ts";
 import type { Rect } from "./overlayGeometry.ts";
 import { portalContainer } from "../ui/portalContainer.ts";
-import { cx } from "../ui/classNames.ts";
+import { LAYER_INDENT, LayerRow } from "../layers/LayerRow.tsx";
 
 export interface DomNavigatorProps {
   selected: SelectedElement;
@@ -22,6 +21,8 @@ export interface DomNavigatorProps {
   project: (element: HTMLElement) => Rect | null;
   /** The selection is a component or shares its source with other elements. */
   linked?: boolean;
+  /** Shows the button that opens the hierarchy menu; without it the chip only names the element and its size. */
+  menu?: boolean;
 }
 
 /** Space between the selection's bottom edge and the chip, and the closest the chip gets to the edge it sits in. */
@@ -57,7 +58,7 @@ function selectNode(node: HTMLElement): void {
   if (resolved) setSelectedElement(resolved);
 }
 
-export function DomNavigator({ selected, hierarchy, anchor, size, bounds, project, linked = false }: DomNavigatorProps): ReactElement | null {
+export function DomNavigator({ selected, hierarchy, anchor, size, bounds, project, linked = false, menu = true }: DomNavigatorProps): ReactElement | null {
   const children = computeTrackedChildren(selected.domElement);
   const parents = computeNavigationParents(hierarchy, children.elements.length > 0);
   // The page is reachable only from here, above the tracked ancestors.
@@ -96,54 +97,35 @@ export function DomNavigator({ selected, hierarchy, anchor, size, bounds, projec
       return next;
     });
   };
-  const renderItem = (key: string, element: HTMLElement | null, depth: number): ReactElement => {
+  const renderItem = (key: string, element: HTMLElement | null, depth: number, expansion?: { expanded: boolean; onToggle: () => void }): ReactElement => {
     const current = element === null;
     const target = element ?? selected.domElement;
     return (
-      <button
+      <LayerRow
         key={key}
-        type="button"
-        className={cx("dom-navigator__item", current && "dom-navigator__item--selected")}
-        data-test="dom-navigator-item"
-        data-current={current ? "true" : undefined}
-        data-depth={depth}
-        data-cid={target.getAttribute("data-cid") ?? undefined}
-        style={{ paddingLeft: `calc(var(--space-8) + ${depth * 16}px)` }}
+        element={target}
+        depth={depth}
+        current={current}
+        expanded={expansion?.expanded}
+        onToggle={expansion?.onToggle}
         role="menuitem"
-        aria-current={current ? "true" : undefined}
-        onMouseEnter={() => setHovered(current ? null : target)}
-        onClick={() => {
+        testPrefix="dom-navigator"
+        onHover={setHovered}
+        onSelect={() => {
           if (!current) selectNode(target);
-          setOpen(false);
+          // A layer with children stays in the open menu, which lists them below it as the new selection.
+          if (!expansion) setOpen(false);
         }}
-      >
-        <span>{describeNode(target)}</span>
-      </button>
+      />
     );
   };
   const renderChildren = (list: ReturnType<typeof computeTrackedChildren>, depth: number, path: string): ReactElement[] => [
     ...list.elements.flatMap((element, index) => {
       const key = `${path}/${index}`;
       const nested = opened.has(element) ? computeTrackedChildren(element) : null;
-      const expandable = hasTrackedChildren(element);
+      const expansion = hasTrackedChildren(element) ? { expanded: nested !== null, onToggle: () => toggleOpened(element) } : undefined;
       return [
-        <div key={key} className="dom-navigator__row" data-test="dom-navigator-row">
-          {expandable ? (
-            <button
-              type="button"
-              className="dom-navigator__expander"
-              data-test="dom-navigator-expander"
-              aria-label={`${nested ? "Collapse" : "Expand"} ${describeNode(element)}`}
-              aria-expanded={nested !== null}
-              style={{ left: `calc(var(--space-4) + ${(depth - 1) * 16}px)` }}
-              onMouseEnter={() => setHovered(null)}
-              onClick={() => toggleOpened(element)}
-            >
-              {nested ? <IconChevronDown size={12} aria-hidden="true" /> : <IconChevronRight size={12} aria-hidden="true" />}
-            </button>
-          ) : null}
-          {renderItem(key, element, depth)}
-        </div>,
+        renderItem(key, element, depth, expansion),
         ...(nested ? renderChildren(nested, depth + 1, key) : []),
       ];
     }),
@@ -153,7 +135,7 @@ export function DomNavigator({ selected, hierarchy, anchor, size, bounds, projec
           key={`${path}/more`}
           className="dom-navigator__more"
           data-test="dom-navigator-more"
-          style={{ paddingLeft: `calc(var(--space-8) + ${depth * 16}px)` }}
+          style={{ paddingLeft: `calc(var(--space-8) + ${depth * LAYER_INDENT}px)` }}
         >
           +{list.hidden} more
         </div>
@@ -169,48 +151,56 @@ export function DomNavigator({ selected, hierarchy, anchor, size, bounds, projec
         className="dom-navigator"
         data-test="dom-navigator"
         data-linked={linked ? "true" : undefined}
+        data-menu={menu ? undefined : "false"}
         aria-label="DOM navigator"
         style={chipPosition(anchor, chipSize, bounds)}
       >
-        <BasePopover.Root open={expanded} onOpenChange={setOpen}>
-          <BasePopover.Trigger
-            render={
-              <button
-                type="button"
-                className="dom-navigator__trigger"
-                data-test="dom-navigator-trigger"
-                aria-label="Open DOM navigator"
-                aria-haspopup="menu"
-                aria-expanded={expanded}
-                onMouseEnter={() => setHovered(null)}
-              />
-            }
-          >
-            <IconMenu2 size={14} aria-hidden="true" />
-          </BasePopover.Trigger>
-          <span className="dom-navigator__label">{tag}</span>
-          {sizeText ? <span className="dom-navigator__size" data-test="dom-navigator-size">{sizeText}</span> : null}
-          <BasePopover.Portal container={portalContainer()}>
-            <BasePopover.Positioner
-              className="dom-navigator__positioner"
-              side="bottom"
-              align="start"
-              sideOffset={4}
+        {menu ? (
+          <BasePopover.Root open={expanded} onOpenChange={setOpen}>
+            <BasePopover.Trigger
+              render={
+                <button
+                  type="button"
+                  className="dom-navigator__trigger"
+                  data-test="dom-navigator-trigger"
+                  aria-label="Open DOM navigator"
+                  aria-haspopup="menu"
+                  aria-expanded={expanded}
+                  onMouseEnter={() => setHovered(null)}
+                />
+              }
             >
-              <BasePopover.Popup
-                className="dom-navigator__menu"
-                role="menu"
-                aria-label="DOM navigator"
-                onMouseLeave={() => setHovered(null)}
+              <IconMenu2 size={14} aria-hidden="true" />
+            </BasePopover.Trigger>
+            <span className="dom-navigator__label">{tag}</span>
+            {sizeText ? <span className="dom-navigator__size" data-test="dom-navigator-size">{sizeText}</span> : null}
+            <BasePopover.Portal container={portalContainer()}>
+              <BasePopover.Positioner
+                className="dom-navigator__positioner"
+                side="bottom"
+                align="start"
+                sideOffset={4}
               >
-                {page ? renderItem("page", page, 0) : null}
-                {parents.slice().reverse().map((element, index) => renderItem(`up-${index}`, element, index + pageDepth))}
-                {renderItem("current", null, parents.length + pageDepth)}
-                {renderChildren(children, parents.length + pageDepth + 1, "down")}
-              </BasePopover.Popup>
-            </BasePopover.Positioner>
-          </BasePopover.Portal>
-        </BasePopover.Root>
+                <BasePopover.Popup
+                  className="dom-navigator__menu"
+                  role="menu"
+                  aria-label="DOM navigator"
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  {page ? renderItem("page", page, 0) : null}
+                  {parents.slice().reverse().map((element, index) => renderItem(`up-${index}`, element, index + pageDepth))}
+                  {renderItem("current", null, parents.length + pageDepth)}
+                  {renderChildren(children, parents.length + pageDepth + 1, "down")}
+                </BasePopover.Popup>
+              </BasePopover.Positioner>
+            </BasePopover.Portal>
+          </BasePopover.Root>
+        ) : (
+          <>
+            <span className="dom-navigator__label">{tag}</span>
+            {sizeText ? <span className="dom-navigator__size" data-test="dom-navigator-size">{sizeText}</span> : null}
+          </>
+        )}
       </div>
     </>
   );

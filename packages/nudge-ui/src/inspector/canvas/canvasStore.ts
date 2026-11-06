@@ -127,13 +127,7 @@ export function setCanvasHistoryActivator(activate: (cardId: string) => void): v
   activateHistoryCard = activate;
 }
 
-let revealCardInView: (cardId: string) => void = () => undefined;
-
-/** Lets the panel reveal a card in the Canvas without knowing the board geometry. */
-export function setCanvasCardRevealer(reveal: (cardId: string) => void): void {
-  revealCardInView = reveal;
-}
-
+/** Selects a card and fits the camera to it, as choosing a page in the navigator does on the Canvas. */
 export function revealCanvasCard(cardId: string): void {
   selectCard(cardId);
   const bounds = selectedBounds([cardId]);

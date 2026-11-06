@@ -306,6 +306,20 @@ describe("sessionStore hydration", () => {
     expect(centreY).toBeCloseTo(window.innerHeight / 2);
   });
 
+  it("centres the camera on a page revealed from the navigator", () => {
+    setCanvasPresentation("canvas");
+    addCanvasCard(localUrl("/first"));
+    const second = addCanvasCard(localUrl("/second"));
+    revealCanvasCard(second.id);
+    const camera = getBoardCamera();
+
+    const centreX = (second.x + second.width / 2) * camera.zoom + camera.x;
+    const centreY = (second.y + second.height / 2) * camera.zoom + camera.y;
+    expect(getSelectedCardId()).toBe(second.id);
+    expect(centreX).toBeCloseTo(window.innerWidth / 2);
+    expect(centreY).toBeCloseTo(window.innerHeight / 2);
+  });
+
   it("shows the component sheet in place when opened from focus view", () => {
     setCanvasPresentation("focus");
     addCanvasCard(localUrl("/first"));

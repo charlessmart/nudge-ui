@@ -60,6 +60,7 @@ import {
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigator } from "../overlay/DomNavigator.tsx";
+import { isNavigatorAvailable } from "../navigator/navigatorStore.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
@@ -400,7 +401,10 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedFrameExploded = useFrameExploded(findCanvasCardIdByDocument(selected?.domElement.ownerDocument));
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
-  const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
+  const runtimeConfig = useNudgeUiRuntimeConfig();
+  const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
+  // The navigator's layers replace the chip's menu beside the Canvas; a page inspected in place keeps it.
+  const domNavigatorMenu = !isNavigatorAvailable(runtimeConfig);
   const inlineTextSession = useInlineTextSession();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
@@ -971,6 +975,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           size={selectedLocalRect ?? undefined}
           bounds={selectedFrameViewport}
           linked={selectionIsLinked}
+          menu={domNavigatorMenu}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
             : null}

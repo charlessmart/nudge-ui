@@ -35,6 +35,8 @@ export interface NudgeUiRuntimeCapabilities {
 export interface NudgeUiRuntimeFeatures {
   readonly sketch?: boolean;
   readonly canvasIterations?: boolean;
+  /** The left Pages, Flows and Components panel; off, the DOM navigator chip stands in for its layers. */
+  readonly navigator?: boolean;
 }
 
 export interface NudgeUiRuntimeConfig {
@@ -264,10 +266,11 @@ function normalizeFeatures(input: unknown): NudgeUiRuntimeFeatures | undefined {
   }
   const sketch = optionalFeatureBoolean(input, "sketch");
   const canvasIterations = optionalFeatureBoolean(input, "canvasIterations");
-  if (sketch === undefined && canvasIterations === undefined) return {};
+  const navigatorPanel = optionalFeatureBoolean(input, "navigator");
   return {
     ...(sketch === undefined ? {} : { sketch }),
     ...(canvasIterations === undefined ? {} : { canvasIterations }),
+    ...(navigatorPanel === undefined ? {} : { navigator: navigatorPanel }),
   };
 }
 

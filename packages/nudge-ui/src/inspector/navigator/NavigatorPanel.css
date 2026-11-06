@@ -1,0 +1,235 @@
+/* The left panel mirrors the inspector: same surface, edge and type. It sits above the same page overlays the inspector covers. */
+.navigator {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-subtle);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: 1.35;
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* Matches the inspector's header: the collapse control, then the view switch across the panel. */
+.navigator__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-block: var(--space-12);
+  padding-inline: var(--space-16);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.navigator__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.navigator__view-switch.segmented-control {
+  width: 100%;
+}
+
+/* "Components" fits a third of the default width with the tighter padding. */
+.navigator__view-switch .button.segmented-control__button {
+  padding: 0 var(--space-4);
+}
+
+.navigator__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+/* Frames keep their natural height, up to half the panel; layers take the rest and scroll on their own. */
+.navigator__frames-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.navigator__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8);
+}
+
+.navigator__section + .navigator__section {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.navigator__section--frames {
+  flex: none;
+  max-height: 50%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.navigator__section--layers {
+  flex: 1;
+  min-height: 0;
+}
+
+.navigator__section--layers .layer-tree {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.navigator__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--control-height-small);
+  padding-left: var(--space-8);
+}
+
+.navigator__section-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+  letter-spacing: -0.02em;
+}
+
+.navigator__list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navigator__item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navigator__item:hover,
+.navigator__item:focus-visible {
+  background: var(--surface-well);
+  outline: 0;
+}
+
+.navigator__item[data-active="true"] {
+  background: var(--surface-well);
+}
+
+.navigator__item-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.navigator__item[data-active="true"] .navigator__item-icon {
+  color: var(--text-primary);
+}
+
+.navigator__item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigator__item-meta {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.navigator__empty,
+.navigator__more {
+  margin: 0;
+  padding: var(--space-4) var(--space-8);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.navigator__empty--error {
+  color: var(--danger);
+}
+
+/* Collapsed: one chip naming the page and selection, placed where the inspector's restore button sits on the other side. */
+.navigator-chip {
+  appearance: none;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: calc(var(--z-index) + 1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  max-width: min(360px, 40vw);
+  height: calc(var(--control-height-large) + (var(--space-4) * 2));
+  padding: 0 var(--space-12) 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: navigator-chip-in 160ms ease-out;
+}
+
+.navigator-chip:hover {
+  background: var(--surface-raised-hover);
+}
+
+.navigator-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.navigator-chip__page,
+.navigator-chip__selection {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigator-chip__selection {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-base);
+}
+
+@keyframes navigator-chip-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* The library brings its own padding and scrolling. */
+.navigator__body--components > * {
+  min-height: 0;
+}

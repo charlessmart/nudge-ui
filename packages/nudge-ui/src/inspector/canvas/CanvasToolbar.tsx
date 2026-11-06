@@ -8,7 +8,6 @@ import {
   IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
-import { AddPageMenu } from "./AddPageMenu.tsx";
 import { CanvasZoomMenu, type CanvasZoomMenuProps } from "./CanvasZoomMenu.tsx";
 import { ToolbarButton } from "./ToolbarButton.tsx";
 import {
@@ -51,9 +50,6 @@ export function adjacentCanvasZoomLevel(zoom: number, direction: -1 | 1): number
 export interface CanvasToolbarProps {
   readonly tool: CanvasInteractionTool;
   readonly sketchEnabled: boolean;
-  /** The Add page button slides in beside Inspection while the Canvas is showing, and out again in Focus view. */
-  readonly addPageVisible: boolean;
-  readonly onPageAdded: (cardId: string) => void;
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
   /** The zoom control at the toolbar's end; left out where the page has no Canvas to zoom. */
   readonly zoom?: CanvasZoomMenuProps;
@@ -160,32 +156,20 @@ function useDraggableToolbar() {
 export function CanvasToolbar({
   tool,
   sketchEnabled,
-  addPageVisible,
-  onPageAdded,
   onToolChange,
   zoom,
 }: CanvasToolbarProps): ReactElement {
   const { ref, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } = useDraggableToolbar();
-  const [addPageOpen, setAddPageOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
 
-  // The Inspection panel, the Add page menu and the zoom menu float over the same spot, so only one is open at a time.
+  // The Inspection panel and the zoom menu float over the same spot, so only one is open at a time.
   useEffect(() => {
-    if (tool !== "debug") return;
-    setAddPageOpen(false);
-    setZoomOpen(false);
+    if (tool === "debug") setZoomOpen(false);
   }, [tool]);
-
-  function changeAddPageOpen(open: boolean): void {
-    setAddPageOpen(open);
-    if (open) setZoomOpen(false);
-    // Selecting the active Inspection tool again puts it away.
-    if (open && tool === "debug") onToolChange("debug");
-  }
 
   function changeZoomOpen(open: boolean): void {
     setZoomOpen(open);
-    if (open) setAddPageOpen(false);
+    // Selecting the active Inspection tool again puts it away.
     if (open && tool === "debug") onToolChange("debug");
   }
 
@@ -242,12 +226,6 @@ export function CanvasToolbar({
           dataTest="canvas-tool-debug"
           onClick={() => onToolChange("debug")}
         />
-        <div className="canvas-toolbar__add" data-visible={addPageVisible ? "true" : "false"} data-test="canvas-toolbar-add-page">
-          <div className="canvas-toolbar__add-inner">
-            <div className="canvas-toolbar__divider" aria-hidden="true" />
-            <AddPageMenu onAdded={onPageAdded} open={addPageOpen} onOpenChange={changeAddPageOpen} />
-          </div>
-        </div>
       </div>
       <div className="canvas-toolbar__divider" aria-hidden="true" />
       {/* Previewing the app and zooming change how the page is viewed, not the page itself. */}

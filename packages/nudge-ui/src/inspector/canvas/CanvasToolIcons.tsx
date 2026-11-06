@@ -38,12 +38,12 @@ export function SketchThickIcon(props: CanvasToolIconProps): ReactElement {
 }
 
 const SELECT_PLAY_PATH =
-  "M8.5241 4.93791C7.85783 4.52789 7 5.00724 7 5.78956V18.2104C7 18.9928 7.85783 19.4721 8.5241 19.0621L18.6161 12.8517C19.2506 12.4612 19.2506 11.5388 18.6161 11.1483L8.5241 4.93791Z";
+  "M7.4025 3.1846C6.5708 2.6728 5.5 3.2712 5.5 4.2477V19.7522C5.5 20.7289 6.5708 21.3272 7.4025 20.8154L20 13.0631C20.792 12.5757 20.792 11.4243 20 10.9369L7.4025 3.1846Z";
 
 export function SelectPlayOutlineIcon(props: CanvasToolIconProps): ReactElement {
   return (
     <ToolIconSvg {...props}>
-      <path d={SELECT_PLAY_PATH} stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={SELECT_PLAY_PATH} stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" strokeLinejoin="round" />
     </ToolIconSvg>
   );
 }

@@ -78,6 +78,7 @@ import { isDemoRuntime, isNudgeUiFeatureEnabled } from "../runtime/runtimeConfig
 import { SketchWorkspace } from "../canvas/sketch/SketchWorkspace.tsx";
 import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
+import { setInspectorTab, useInspectorTab, type InspectorTab } from "./inspectorTabStore.ts";
 import { SegmentedControl, type SegmentedControlOption } from "../ui/SegmentedControl.tsx";
 import { DocumentTokensView } from "../tokens/DocumentTokensView.tsx";
 
@@ -118,10 +119,9 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
   });
 }
 
-type PanelView = "styles" | "tokens";
 
-/** The panel shows the selection's styles, or the document's design tokens. */
-const PANEL_VIEWS: readonly SegmentedControlOption<PanelView>[] = [
+/** The panel shows the selection's styles, or the document's design tokens. Pages, flows and components live in the navigator. */
+const PANEL_VIEWS: readonly SegmentedControlOption<InspectorTab>[] = [
   { value: "styles", label: "Styles", testId: "panel-view-styles" },
   { value: "tokens", label: "Tokens", testId: "panel-view-tokens" },
 ];
@@ -140,9 +140,9 @@ export function InspectorShell(): ReactElement {
   const selectedElements = useSelectedElements();
   const componentProps = useComponentProps(selected);
   const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
-  const [panelView, setPanelView] = useState<PanelView>("styles");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scopeRevision, refreshScope] = useState(0);
+  const activeTab = useInspectorTab();
   const [variantChoices, setVariantChoices] = useState<VariantChoice[]>([]);
   const [variantChoiceId, setVariantChoiceId] = useState("all");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
@@ -164,6 +164,11 @@ export function InspectorShell(): ReactElement {
     setVariantChoices(choices);
     setVariantChoiceId(initial?.id ?? "all");
   }, [selected?.domElement, isMultiSelection, runtimeConfig.componentContracts]);
+
+  useEffect(() => {
+    // Picking an element (on the canvas or in a component sheet) is a request to edit it.
+    if (selected?.domElement) setInspectorTab("styles");
+  }, [selected?.domElement]);
 
   useEffect(() => {
     if (!selected) return;
@@ -332,9 +337,9 @@ export function InspectorShell(): ReactElement {
           aria-label="Panel view"
           data-test="panel-view"
           className="panel__view-switch"
-          value={panelView}
+          value={activeTab}
           options={PANEL_VIEWS}
-          onChange={setPanelView}
+          onChange={setInspectorTab}
         />}
         prompt={<CopyPromptButton
           settingsOpen={settingsOpen}
@@ -342,7 +347,7 @@ export function InspectorShell(): ReactElement {
           onClearChanges={clearInspectorSession}
         />}
       >
-        {panelView === "tokens" ? <DocumentTokensView /> : (
+        {activeTab === "tokens" ? <DocumentTokensView /> : (
           <>
           {inlineTextFeedback ? (
             <StatusCallout
