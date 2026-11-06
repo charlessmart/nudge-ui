@@ -10,8 +10,8 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 24px;
-  border-radius: 12px;
+  padding: var(--space-24);
+  border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
   color: var(--text-primary);
@@ -20,7 +20,7 @@
 }
 
 .locked-notice__message {
-  font-size: 14px;
+  font-size: var(--font-size-large);
   text-align: center;
   font-weight: 650;
 }

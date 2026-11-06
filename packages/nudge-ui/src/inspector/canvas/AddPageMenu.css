@@ -25,8 +25,8 @@
 
 .add-page-menu__error {
   margin: 0;
-  color: var(--danger);
-  font-size: var(--font-size-small);
+  color: var(--danger-text);
+  font-size: var(--font-size-base);
 }
 
 .add-page-menu__list {
@@ -83,8 +83,8 @@
   border-radius: var(--radius-4);
   background: var(--surface-well-2x);
   color: var(--text-muted);
-  font-size: 10px;
-  line-height: 18px;
+  font-size: var(--font-size-small);
+  line-height: 1.8;
 }
 
 .add-page-menu__footer {

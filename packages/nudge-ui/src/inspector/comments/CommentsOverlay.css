@@ -8,7 +8,7 @@
   box-sizing: border-box;
   padding: 0;
   border: 2px solid var(--surface-raised-2x);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--brand-primary);
   box-shadow: var(--shadow-popup);
   color: var(--text-primary);
@@ -16,15 +16,14 @@
   font-size: var(--font-size-base);
   cursor: pointer;
   pointer-events: auto;
-  /* The colour eases with the shape, so the pin does not flash from accent to surface as it opens. */
-  transition: height 180ms cubic-bezier(0.2, 0, 0, 1), background-color 120ms ease;
+  /* The pin opens to its note's size at once (size never animates); the colour eases so it does not flash from accent to surface. */
+  transition: background-color 120ms ease;
 }
 
-/* Animating the grid track from 0fr to 1fr grows the pin to exactly the width of its note. */
+/* A 0fr to 1fr grid track sizes the pin to exactly the width of its note. */
 .comment-pin__reveal {
   display: grid;
   grid-template-columns: 0fr;
-  transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .comment-pin__clip { min-width: 0; overflow: hidden; }
@@ -37,7 +36,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 120ms ease-out;
 }
 
 .comment-pin:focus-visible {
@@ -64,7 +63,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .comment-pin, .comment-pin__reveal, .comment-pin__note { transition: none; }
+  .comment-pin, .comment-pin__note { transition: none; }
 }
 
 .comment-editor-backdrop {

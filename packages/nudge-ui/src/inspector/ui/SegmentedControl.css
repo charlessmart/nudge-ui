@@ -21,7 +21,7 @@
   height: auto;
   padding: 0 var(--space-8);
   border: 0;
-  border-radius: 6px; /*Custom to fit inside control surface*/
+  border-radius: var(--radius-6); /*Custom to fit inside control surface*/
   background: transparent;
   color: var(--text-muted);
   font-size: var(--font-size-base);
@@ -38,7 +38,7 @@
   bottom: 2px;
   left: 2px;
   width: calc((100% - 4px - (var(--segment-count) - 1) * 2px) / var(--segment-count));
-  border-radius: 6px;
+  border-radius: var(--radius-6);
   background: var(--surface-raised-2x);
   box-shadow: 0 0 0 0.5px var(--border-subtle);
   transform: translateX(calc(var(--segment-index) * (100% + 2px)));

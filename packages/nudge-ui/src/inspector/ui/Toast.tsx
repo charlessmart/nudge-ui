@@ -1,7 +1,7 @@
 import { Toast as BaseToast } from "@base-ui/react/toast";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
-import { IconAlertTriangleFilled, IconCircleCheckFilled } from "@tabler/icons-react";
+import { IconAlertTriangleFilled, IconCircleCheckFilled, IconX } from "@tabler/icons-react";
 import { portalContainer } from "./portalContainer.ts";
 import { useInspectorOpen } from "../shell/openStore.ts";
 import { useSketchInteractionActive } from "../canvas/sketch/interaction.ts";
@@ -33,7 +33,8 @@ export function showToast({ title, description, tone = "success", timeout, image
     type: tone,
     data: image ? { image } : undefined,
     priority: tone === "error" ? "high" : "low",
-    timeout: timeout ?? (tone === "error" || tone === "warning" ? 5000 : 2000),
+    // An error stays until it is dismissed, so there is time to read how to recover.
+    timeout: timeout ?? (tone === "error" ? 0 : tone === "warning" ? 5000 : 2000),
   });
 }
 
@@ -63,6 +64,11 @@ function ToastList(): ReactElement {
             {toast.description ? <BaseToast.Description className="toast__description" /> : null}
           </BaseToast.Content>
           {toast.data?.image ? <ToastThumbnail image={toast.data.image} /> : null}
+          {toast.type === "error" ? (
+            <BaseToast.Close className="icon-button icon-button--quiet icon-button--compact toast__close" aria-label="Dismiss" data-test="toast-close">
+              <IconX size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+            </BaseToast.Close>
+          ) : null}
         </BaseToast.Root>
       ))}
     </>

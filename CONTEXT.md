@@ -17,8 +17,6 @@ that intent to a coding agent. The inspector does not edit application source.
   move and resize independently; membership does not determine edit ownership.
 - **Session undo**: One ordered timeline of edits and frame creation. Replaying
   an entry focuses its owning frame, including when another draft is active.
-- **Agent activity**: Temporary attribution of file reads or edits to rendered
-  source identities. Activity does not change task status or edit intent.
 - **Styling dialect**: A way of writing styles that changes how tokens are named
   and applied: Tailwind v3, Tailwind v4 or vanilla-extract. Plain CSS is the
   absence of a dialect. A dialect is detected per project and tells the prompt

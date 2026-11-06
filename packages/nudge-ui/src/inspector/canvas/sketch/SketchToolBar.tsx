@@ -333,7 +333,7 @@ function ShapePicker({ tool, lastShape, color, onToolChange }: {
         </button>
       </Tooltip>
       {menuOpen ? (
-        <div className="sketch-options__shape-menu" role="menu" aria-label="Shapes" data-test="sketch-shape-options">
+        <div className="sketch-options__shape-menu popover-enter" role="menu" aria-label="Shapes" data-test="sketch-shape-options">
           {SHAPE_OPTIONS.map((option) => (
             <button
               key={option.tool}
@@ -361,7 +361,7 @@ function ShapePicker({ tool, lastShape, color, onToolChange }: {
 
 const PALETTE_RADIUS = 26;
 const PALETTE_SWATCH_SIZE = 32;
-const PALETTE_STAGGER_MS = 18;
+const PALETTE_STAGGER_MS = 10;
 const PALETTE_STACK_ORDER: readonly string[] = ["yellow", "orange", "red", "black", "green", "blue"];
 
 function paletteSwatchOffset(index: number, count: number): CSSProperties {
@@ -375,7 +375,7 @@ function paletteSwatchOffset(index: number, count: number): CSSProperties {
 type PalettePhase = "closed" | "open" | "closing";
 
 /** Matches the longest swatch collapse in SketchToolBar.css (duration plus stagger). */
-const PALETTE_CLOSE_MS = 180 + (SKETCH_PEN_COLORS.length - 1) * PALETTE_STAGGER_MS;
+const PALETTE_CLOSE_MS = 150 + (SKETCH_PEN_COLORS.length - 1) * PALETTE_STAGGER_MS;
 
 function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
   readonly color: SketchPenColor;
@@ -471,9 +471,9 @@ function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
 
 /** These match `sketch-options-item-in` and the per-item delay in SketchToolBar.css. */
 const ITEM_COUNT = 7;
-const ITEM_BASE_DELAY_MS = 40;
-const ITEM_STAGGER_MS = 25;
-const ITEM_DURATION_MS = 200;
+const ITEM_BASE_DELAY_MS = 20;
+const ITEM_STAGGER_MS = 5;
+const ITEM_DURATION_MS = 150;
 const INTRO_SETTLE_MS = ITEM_BASE_DELAY_MS + ITEM_DURATION_MS + (ITEM_COUNT - 1) * ITEM_STAGGER_MS;
 
 function BarItem({ index, children }: {

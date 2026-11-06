@@ -11,6 +11,13 @@ export interface EditHistoryEntry {
     readonly draftId: string;
     readonly cardId?: string;
   };
+  /** State outside the draft that changed in the same step, such as the comments a clear removed; replay moves it with the contents. */
+  readonly companion?: HistoryCompanion;
+}
+
+export interface HistoryCompanion {
+  readonly undo: () => void;
+  readonly redo: () => void;
 }
 
 export interface CanvasHistoryEntry {

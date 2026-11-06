@@ -12,7 +12,7 @@
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-base);
   min-height: var(--control-height-large);
-  padding: 0 12px;
+  padding: 0 var(--space-12);
   border-radius: var(--radius-control);
   vertical-align: middle;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform var(--spring-duration) var(--spring-ease);

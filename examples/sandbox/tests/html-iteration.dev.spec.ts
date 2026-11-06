@@ -32,6 +32,7 @@ test("clearing iteration changes preserves the canvas until Reset canvas is used
   await expect(cards.nth(2).locator("iframe")).toHaveAttribute("src", iterationUrl!);
   await page.locator('[data-test="settings-button"]').click();
   await page.locator('[data-test="settings-reset-canvas"]').click();
+  await page.locator('[data-test="settings-reset-confirm-button"]').click();
   // The current app route is recreated as the fresh starting frame.
   await expect(cards).toHaveCount(1);
   await expect(page.locator('[data-test="settings-dialog"]')).not.toBeVisible();

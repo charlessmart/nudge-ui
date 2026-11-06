@@ -42,6 +42,7 @@ import { isMultiTarget, targetElements, type EditTarget } from "../selection/edi
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "../styleEditors/inlineAuthored.ts";
 import { InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { formatInspectorLabel } from "../ui/labels.ts";
 import { isMacPlatform } from "../shell/shortcuts.ts";
 import { cssFontFamilyName, requestSystemFonts, useSystemFonts, type SystemFontsState } from "../runtime/systemFonts.ts";
 import { startValuePreview } from "../styleEditors/valuePreview.ts";
@@ -875,6 +876,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         value={null}
         open={showPopover}
         placeholder={property}
+        inputAriaLabel={label ?? formatInspectorLabel(property)}
         inputRef={inputRef}
         inputAppearance="embedded"
         inputDataTest={inputDataTest}

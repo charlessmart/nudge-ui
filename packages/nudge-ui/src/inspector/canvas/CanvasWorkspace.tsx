@@ -117,11 +117,11 @@ const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardSty
 const PRESENTATION_TRANSITION_MS = 200;
 /** The zoom Focus opens the Canvas at when zooming out of it. */
 const FOCUS_EXIT_ZOOM = 0.9;
-const CAMERA_STEP_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
+const CAMERA_STEP_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: "ease-out" };
 /** How long after the last wheel event the board leaves its composited layer and repaints at the final scale. */
 const WHEEL_SETTLE_MS = 150;
-/** A strong in-out curve: the card morphs on screen rather than entering or leaving. */
-const PRESENTATION_TRANSITION_EASING = "cubic-bezier(0.77, 0, 0.175, 1)";
+/** An in-out curve: the card morphs on screen rather than entering or leaving. */
+const PRESENTATION_TRANSITION_EASING = "ease-in-out";
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
 
@@ -333,6 +333,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       ? board?.querySelector<HTMLElement>(`[data-card-id="${presentationCardId}"]`)
       : null;
     if (!board || !card || !cardElement || typeof cardElement.animate !== "function" || camera.zoom <= 0) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
     // The previous layout is gone, so derive it: focus centres the frame at the top of the board, canvas places it through the camera.
     const boardRect = snapshotRect(board.getBoundingClientRect());
@@ -1170,7 +1171,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           <button
             type="button"
             ref={linkPopoverRef}
-            className="canvas-link-popover"
+            className="canvas-link-popover popover-enter"
             data-test="canvas-link-popover"
             style={{ left: linkPopoverPosition.left, top: linkPopoverPosition.top }}
             onPointerEnter={keepLinkPreview}

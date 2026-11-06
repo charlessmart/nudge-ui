@@ -38,7 +38,9 @@ import {
   getCanvasPresentation,
   setBoardCamera,
 } from "./viewStore.ts";
-import { activateDraftForCard, getDraftContentsForCard, loadDrafts, resetDrafts } from "../drafts/store.ts";
+import { activateDraftForCard, getDraftContentsForCard, loadDrafts, redo, resetDrafts, undo } from "../drafts/store.ts";
+import { getComments, removeComment, saveComment, type ElementComment } from "../comments/store.ts";
+import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
@@ -446,6 +448,40 @@ describe("sessionStore hydration", () => {
 describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
+
+  it("clears the selected frame's changes and comments as one step that undo and redo replay", () => {
+    resetDrafts();
+    const card = addCanvasCard(localUrl("/first"));
+    loadDrafts(nudgeUiProjectId);
+    activateDraftForCard(card.id);
+    selectCard(card.id);
+    appendChange(makeElementChange({ rawValue: "red" }));
+    const element = document.createElement("button");
+    element.dataset.cid = "Button";
+    element.dataset.src = "src/Button.tsx:1:1";
+    document.body.append(element);
+    const note: ElementComment = {
+      id: "note", route: localUrl("/first"), target: captureRenderedInstance(element)!,
+      tag: "button", note: "Make this bigger", baseline: "", viewport: "", handedOff: false,
+    };
+    saveComment(note);
+    try {
+      clearSelectedFrameChanges();
+      expect(getDraftContentsForCard(card.id)?.changes).toEqual([]);
+      expect(getComments()).toEqual([]);
+
+      expect(undo()).toBe(true);
+      expect(getDraftContentsForCard(card.id)?.changes[0]).toMatchObject({ rawValue: "red" });
+      expect(getComments()).toEqual([note]);
+
+      expect(redo()).toBe(true);
+      expect(getDraftContentsForCard(card.id)?.changes).toEqual([]);
+      expect(getComments()).toEqual([]);
+    } finally {
+      removeComment(note.id);
+      resetDrafts();
+    }
+  });
 
   it("clears only the selected draft and preserves canvas geometry and other frame edits", () => {
     resetDrafts();

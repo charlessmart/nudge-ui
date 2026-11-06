@@ -235,7 +235,7 @@ describe("InspectorShell", () => {
     // The clear button is joined to the changes count, ahead of the copy button.
     const clear = shadow.querySelector<HTMLButtonElement>('[data-test="clear-session"]')!;
     expect(clear.getAttribute("aria-label")).toBe("Clear changes");
-    expect(clear.closest(".copy-prompt__changes")?.querySelector('[data-test="changes-toggle"]')?.textContent).toBe("1 Change");
+    expect(clear.closest(".copy-prompt__changes")?.querySelector('[data-test="changes-toggle"]')?.textContent).toBe("1 change");
 
     act(() => {
       (shadow.querySelector('[data-test="clear-session"]') as HTMLButtonElement).click();
@@ -255,6 +255,13 @@ describe("InspectorShell", () => {
     expect(button.textContent).toBe("Reset canvas");
     expect(button.parentElement?.lastElementChild).toBe(button);
     act(() => { button.click(); });
+    // Reset can't be undone, so the first click only asks.
+    expect(getCanvasCards()).toHaveLength(1);
+    act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-cancel"]')!.click(); });
+    expect(shadow.querySelector('[data-test="settings-reset-confirm"]')).toBeNull();
+    expect(getCanvasCards()).toHaveLength(1);
+    act(() => { button.click(); });
+    act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-confirm-button"]')!.click(); });
     expect(getCanvasCards()).toEqual([]);
   });
 
@@ -299,7 +306,7 @@ describe("InspectorShell", () => {
     expect(diagnostic?.getAttribute("aria-atomic")).toBe("true");
     expect(diagnostic?.className).toContain("status-callout--danger");
     expect(diagnostic?.querySelector("strong")).toBeNull();
-    expect(diagnostic?.textContent).toBe("Cannot edit text - No visible text");
+    expect(diagnostic?.textContent).toBe("Can't edit: no text here. Double-click the words instead.");
 
     const editable = document.createElement("p");
     editable.dataset.cid = "EditableCopy";

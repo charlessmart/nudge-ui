@@ -1,7 +1,7 @@
 .layout-combo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -41,7 +41,7 @@
   border-radius: 50%;
   background: var(--text-secondary);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--font-size-badge);
   font-weight: 700;
   line-height: 1;
   cursor: help;

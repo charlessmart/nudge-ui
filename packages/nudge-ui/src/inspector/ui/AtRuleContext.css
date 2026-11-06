@@ -70,7 +70,7 @@
 /* The winning rule reads as the active row, like other accent active states in the inspector. */
 .at-rule-tooltip__rules [data-active="true"] {
   background: var(--accent-surface);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .at-rule-tooltip code {

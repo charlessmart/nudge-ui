@@ -17,8 +17,9 @@ const WALL_MAX_OFFSET_PX = 5;
 const WALL_OFFSET_SCALE = 1.6;
 const WALL_KNEE_PX = 10;
 
-const SPRING_STIFFNESS = 320;
-const SPRING_DAMPING = 20;
+/** Settles in about 0.3s. Stiffness and damping scale together (×4 and ×2) to change the speed without changing the bounce. */
+const SPRING_STIFFNESS = 1280;
+const SPRING_DAMPING = 40;
 const REST_PX = 0.01;
 
 /** Logarithmic falloff: net real pointer travel in, capped signed virtual offset out. */

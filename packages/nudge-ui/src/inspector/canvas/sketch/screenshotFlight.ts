@@ -1,7 +1,7 @@
 import { portalContainer } from "../../ui/portalContainer.ts";
 import type { ScreenshotArea } from "./screenshot.ts";
 
-const FLIGHT_MS = 480;
+const FLIGHT_MS = 200;
 /** The tilt the picture lands with, like a print dropped on a desk. */
 const LANDING_TURN_DEG = -8;
 /** Width of the picture when it lands on the screenshot button. */
@@ -45,8 +45,6 @@ export async function flyScreenshot(picture: HTMLCanvasElement, from: Screenshot
     const dy = to.top + to.height / 2 - (from.top + from.height / 2);
     return [
       { transform: "none", opacity: 1, offset: 0 },
-      // A beat at full size, lifted slightly, so the whole picture reads before it goes.
-      { transform: "scale(0.94) rotate(-2deg)", opacity: 1, offset: 0.25 },
       { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotate(${LANDING_TURN_DEG}deg)`, opacity: 1, offset: 0.92 },
       { transform: `translate(${dx}px, ${dy}px) scale(${scale * 0.6}) rotate(${LANDING_TURN_DEG}deg)`, opacity: 0, offset: 1 },
     ];
@@ -59,8 +57,8 @@ export async function flyScreenshot(picture: HTMLCanvasElement, from: Screenshot
 
   try {
     container.append(card);
-    flight = card.animate(keyframes(), { duration: FLIGHT_MS, easing: "cubic-bezier(0.32, 0, 0.12, 1)", fill: "forwards" });
-    tint.animate([{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 1 }], { duration: FLIGHT_MS, fill: "forwards" });
+    flight = card.animate(keyframes(), { duration: FLIGHT_MS, easing: "ease-in-out", fill: "forwards" });
+    tint.animate([{ opacity: 0 }, { opacity: 1, offset: 0.5 }, { opacity: 1 }], { duration: FLIGHT_MS, fill: "forwards" });
     window.addEventListener("resize", retarget);
     await flight.finished;
     // A breath between the landing and the toast, so they read as two steps.

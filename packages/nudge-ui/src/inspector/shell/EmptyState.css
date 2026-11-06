@@ -12,13 +12,13 @@
 /* The illustrations draw their highlights in currentColor, so they take the brand colour from here. */
 .empty-state__icon { display: block; width: min(100%, 182px); height: auto; margin-bottom: var(--space-16); color: var(--brand-primary); }
 .empty-state__icon svg { display: block; width: 100%; height: auto; }
-.empty-state__title { margin: 0; color: var(--text-primary); font-size: var(--font-size-base); font-weight: var(--font-weight-base); }
+.empty-state__title { margin: 0; text-wrap: balance; color: var(--text-primary); font-size: var(--font-size-base); font-weight: var(--font-weight-base); }
 .empty-state__hint {
   max-width: 28ch;
   margin: 0;
   color: var(--text-primary);
   font-size: var(--font-size-base);
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 
 .empty-state__hint kbd {

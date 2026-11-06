@@ -729,7 +729,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
           const { drop, rejection } = getDropAttemptAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
           if (drop && !moveElement(current.element, drop)) {
-            showToast({ tone: "error", title: "Couldn't record this move" });
+            showToast({ tone: "error", title: "Couldn't move this element", description: "Try dropping it again." });
           } else if (rejection) {
             showToast({ tone: "error", title: rejection.message });
             const outline = outlineNodes.current.get(current.element);

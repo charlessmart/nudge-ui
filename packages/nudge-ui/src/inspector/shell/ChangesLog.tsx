@@ -143,10 +143,10 @@ function RevertButton({
   );
 }
 
-/** "No changes", "1 Change", "3 Changes". */
+/** "No changes", "1 change", "3 changes". */
 export function changesLabel(total: number): string {
   if (total === 0) return "No changes";
-  return `${total} ${total === 1 ? "Change" : "Changes"}`;
+  return `${total} ${total === 1 ? "change" : "changes"}`;
 }
 
 /**

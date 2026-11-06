@@ -149,6 +149,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     <ControlSurface>
       <TokenField
         property="border-radius"
+        label="Corner Radius"
         selection={selection}
         tokenRow={mixed ? null : borderRadiusRow}
         initialValue={mixed ? "Mix" : undefined}

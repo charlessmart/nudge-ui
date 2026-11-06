@@ -20,17 +20,25 @@
   outline: none;
 }
 
-.canvas-card.is-focused.is-selected:not(.is-linked) .canvas-card__frame {
-  animation: canvas-card-focus 900ms ease-out;
+/* A heavier ring flashes over the selection outline and fades on `opacity`, so the card itself never repaints. */
+.canvas-card.is-focused.is-selected:not(.is-linked) .canvas-card__frame::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  outline: 3px solid var(--frame-accent, var(--accent));
+  outline-offset: -3px;
+  opacity: 0;
+  pointer-events: none;
+  animation: canvas-card-focus 200ms ease-out;
 }
 
 @keyframes canvas-card-focus {
-  0%, 35% { outline: 3px solid var(--frame-accent, var(--accent)); outline-offset: -3px; }
-  100% { outline: 0 solid transparent; outline-offset: -2px; }
+  from { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .canvas-card.is-focused.is-selected:not(.is-linked) .canvas-card__frame {
+  .canvas-card.is-focused.is-selected:not(.is-linked) .canvas-card__frame::after {
     animation: none;
   }
 }
@@ -167,8 +175,8 @@
   position: absolute;
   right: 0;
   bottom: calc(100% + var(--space-4));
-  color: var(--danger);
-  font-size: var(--font-size-small);
+  color: var(--danger-text);
+  font-size: var(--font-size-base);
   white-space: nowrap;
 }
 
@@ -185,7 +193,7 @@
   justify-content: center;
   height: 100%;
   color: var(--text-muted, #777777);
-  font-size: 12px;
+  font-size: var(--font-size-base);
   font-weight: 500;
 }
 
@@ -194,22 +202,22 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-12);
   height: 100%;
-  padding: 20px;
+  padding: var(--space-20);
   text-align: center;
 }
 
 .canvas-card__error p {
   margin: 0;
   color: var(--text-muted, #777777);
-  font-size: 12px;
+  font-size: var(--font-size-base);
   font-weight: 500;
 }
 
 .canvas-card__error-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .canvas-card__resize-handle {
@@ -218,10 +226,10 @@
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  padding: 4px;
+  padding: var(--space-4);
   color: var(--text-muted, #777777);
   opacity: 0;
-  transition: opacity 150ms ease;
+  transition: opacity 150ms ease-out;
   touch-action: none;
   user-select: none;
 }

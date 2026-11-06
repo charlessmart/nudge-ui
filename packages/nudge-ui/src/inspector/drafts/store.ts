@@ -9,7 +9,7 @@ import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
 import type { StyleRule } from "../projection/managedStylesheet.ts";
-import { sessionTimeline } from "../workspace/timeline.ts";
+import { sessionTimeline, type HistoryCompanion } from "../workspace/timeline.ts";
 import { createDraftStore, type CommitResult, type DraftChangesSnapshot } from "./draftStore.ts";
 import { targetFromKey, targetKey, type Draft, type DraftContents, type DraftSnapshot } from "./model.ts";
 
@@ -143,6 +143,13 @@ export function clearActiveDraft(): void {
   // A pending blur/composition timer must not be able to append a draft after the canonical set has been cleared.
   cancelInlineTextForClear();
   drafts.clearActive();
+}
+
+/** Empties the active draft as one undo step; `companion` brings back anything cleared alongside it, such as comments. */
+export function discardActiveDraft(companion?: HistoryCompanion): boolean {
+  if (!drafts.canEdit()) return false;
+  cancelInlineTextForClear();
+  return drafts.discardActive(companion);
 }
 
 export function forgetDraft(id: string): void {

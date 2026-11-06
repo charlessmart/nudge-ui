@@ -39,7 +39,8 @@ import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import { useInteractionStatePreview } from "./interactionStatePreview.ts";
 import type { InteractionState } from "./styleState.ts";
-import { getInspectorToggleShortcutLabel, isEditableEvent } from "./shortcuts.ts";
+import { getInspectorToggleShortcutLabel, getPlatformModifierKey, isEditableEvent } from "./shortcuts.ts";
+import { showToast } from "../ui/Toast.tsx";
 import { clearSelectedFrameChanges } from "../canvas/sessionStore.ts";
 import {
   useFocusedCardId,
@@ -272,6 +273,7 @@ export function InspectorShell(): ReactElement {
 
   function clearInspectorSession(): void {
     clearSelectedFrameChanges();
+    showToast({ title: "Changes cleared", description: `Press ${getPlatformModifierKey()}+Z to bring them back.`, tone: "info" });
   }
 
   return (

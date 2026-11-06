@@ -102,13 +102,27 @@ export function removeComment(id: string): void {
 
 export function getCommentClearRevision(): number { return clearRevision; }
 
-/** Clears saved notes and invalidates any open or saving comment draft. */
-export function clearComments(target?: DraftTarget): void {
+/** Clears saved notes, invalidates any open or saving comment draft and returns the notes it removed. */
+export function clearComments(target?: DraftTarget): readonly ElementComment[] {
+  if (!canWriteWorkspace()) return [];
+  const removed = target ? getCommentsForTarget(target) : getComments();
+  removeComments(removed);
+  return removed;
+}
+
+/** Removes these notes and invalidates any open or saving comment draft. */
+export function removeComments(removed: readonly ElementComment[]): void {
   if (!canWriteWorkspace()) return;
-  getComments();
   clearRevision += 1;
-  const cleared = new Set((target ? getCommentsForTarget(target) : getComments()).map((comment) => comment.id));
-  publish(getComments().filter((comment) => !cleared.has(comment.id)));
+  const ids = new Set(removed.map((comment) => comment.id));
+  publish(getComments().filter((comment) => !ids.has(comment.id)));
+}
+
+/** Puts back notes a clear removed, keeping any saved since under the same id. */
+export function restoreComments(restored: readonly ElementComment[]): void {
+  const current = getComments();
+  const ids = new Set(current.map((comment) => comment.id));
+  publish([...current, ...restored.filter((comment) => !ids.has(comment.id))]);
 }
 
 /** Marks only exact id+note matches, so an edited note is not marked handed off. */

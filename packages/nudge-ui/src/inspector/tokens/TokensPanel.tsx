@@ -172,7 +172,7 @@ function TokenCatalogItem({
       data-active={row.activeDeclaration ? "true" : "false"}
     >
       <div className="token-row__inline">
-        <TokenLabel as="code" className="token-row__name" title={tokenName}>
+        <TokenLabel as="code" className="token-row__name">
           {tokenName}
         </TokenLabel>
         {row.activeDeclaration ? (

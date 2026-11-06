@@ -64,8 +64,8 @@ export async function copyScreenshot(screenshot: Promise<SketchScreenshot>, land
     console.warn("[nudge-ui] Screenshot not copied.", error);
     showToast({
       tone: "error",
-      title: "Screenshot not copied - try again",
-      description: error instanceof Error ? error.message : undefined,
+      title: "Couldn't copy the screenshot",
+      description: "Allow clipboard access for this page, then try again.",
     });
     return false;
   }

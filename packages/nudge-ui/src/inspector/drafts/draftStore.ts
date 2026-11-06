@@ -8,7 +8,7 @@ import { changeKey, mergeChange, sameEffectiveChanges, selectorForChange } from 
 import { isElementChange, type ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { isStructuralChange } from "../projection/structuralProjectionBoundary.ts";
-import type { Timeline } from "../workspace/timeline.ts";
+import type { HistoryCompanion, Timeline } from "../workspace/timeline.ts";
 import {
   applicationTarget,
   isDraftTarget,
@@ -86,6 +86,8 @@ export interface DraftStore {
   reconcile(id: string, verifiedKeys: ReadonlySet<string>, verifiedStructuralIds: ReadonlySet<string>): number;
   clear(id: string, expectedRevision?: number): boolean;
   clearActive(): boolean;
+  /** Empties the active draft as one undoable step, unlike `clearActive`, which also drops its history. */
+  discardActive(companion?: HistoryCompanion): boolean;
   forget(id: string): void;
 
   /** Replaces every in-memory draft with the stored drafts, so a tab that takes over never writes stale edits. */
@@ -262,7 +264,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     return seams.canWrite() && !locked.has(id);
   }
 
-  function commitActive(next: DraftContents, event: DraftProjectionEvent = { kind: "edit" }): boolean {
+  function commitActive(next: DraftContents, event: DraftProjectionEvent = { kind: "edit" }, companion?: HistoryCompanion): boolean {
     if (!canEdit()) return false;
     return mutate(() => {
       const draft = draftState();
@@ -273,7 +275,8 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
         focus: { draftId: draft.id, ...(draft.activateCardId ? { cardId: draft.activateCardId } : {}) },
         before,
         after: draft.contents,
-      }, sameDraftContents);
+        ...(companion ? { companion } : {}),
+      }, companion ? () => false : sameDraftContents);
       project(event);
       return true;
     });
@@ -294,6 +297,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     return mutate(() => {
       const replayed = seams.timeline.replay(direction, (entry, next) => {
         replaceContents(draftState(entry.draftId), next);
+        entry.companion?.[direction]();
         // Replay always makes the entry's draft active, including when another draft is active; a known frame is revealed before that switch.
         if (entry.focus?.cardId) seams.revealDraft(entry.focus.draftId, entry.focus.cardId);
         else seams.revealDraft(entry.draftId);
@@ -464,6 +468,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     },
     clear: (id, expectedRevision) => clear(id, { kind: "edit" }, expectedRevision),
     clearActive: () => clear(activeId(), { kind: "reset" }),
+    discardActive: (companion) => commitActive(EMPTY, { kind: "reset" }, companion),
     forget(id) {
       if (!drafts.has(id) || locked.has(id)) return;
       mutate(() => {

@@ -80,8 +80,8 @@
   color: var(--text-muted-subtle);
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-label);
-  letter-spacing: 0.04em;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .settings__nav-items {
@@ -145,13 +145,21 @@
 }
 
 .settings__section-title {
+  text-wrap: balance;
   margin: 0;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-large);
   font-weight: var(--font-weight-label);
 }
 
 .settings__section > .prompt-settings__field {
+  margin-top: var(--space-20);
+}
+
+.settings__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
   margin-top: var(--space-20);
 }
 

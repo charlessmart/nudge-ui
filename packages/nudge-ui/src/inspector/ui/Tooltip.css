@@ -31,31 +31,14 @@
   line-height: 1.3;
 }
 
-/* Moving between tooltips in a group opens the next one instantly; replaying the entrance would read as a flicker. */
-/* Grows out of its trigger rather than its own center. */
-.tooltip__popup[data-open]:not([data-instant]) {
+/* Enters with the shared `popover-enter`, growing out of its trigger rather than its own center. */
+.tooltip__popup {
   transform-origin: var(--transform-origin);
-  animation: tooltip-enter calc(var(--spring-duration) * 0.7) var(--spring-ease);
 }
 
-@keyframes tooltip-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-/* Without the movement, the fade alone still softens the arrival. */
-@keyframes tooltip-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tooltip__popup[data-open]:not([data-instant]) {
-    animation: tooltip-fade 120ms ease-out;
-  }
+/* Moving between tooltips in a group opens the next one instantly; replaying the entrance would read as a flicker. */
+.tooltip__popup[data-instant] {
+  animation: none;
 }
 
 .tooltip__content {

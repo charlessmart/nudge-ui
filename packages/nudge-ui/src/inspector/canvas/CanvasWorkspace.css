@@ -87,7 +87,6 @@
   white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
-  animation: canvas-link-popover-enter 120ms ease-out;
 }
 
 .canvas-link-popover:hover {
@@ -102,17 +101,6 @@
 .canvas-link-popover:focus-visible {
   outline: 0;
   box-shadow: var(--shadow-popup), inset 0 0 0 2px var(--accent);
-}
-
-@keyframes canvas-link-popover-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas-link-popover {
-    animation: none;
-  }
 }
 
 /* Moving iframes must not acquire hover state beneath a stationary pointer. */

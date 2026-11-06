@@ -84,17 +84,18 @@
 }
 
 .sketch__title {
-  margin: 0 36px 4px 0;
+  text-wrap: balance;
+  margin: 0 36px var(--space-4) 0;
   color: var(--text-primary);
-  font-size: 17px;
+  font-size: var(--font-size-title);
   font-weight: 700;
 }
 
 .sketch__description {
   max-width: 620px;
-  margin: 0 0 16px;
+  margin: 0 0 var(--space-16);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-medium);
   line-height: 1.45;
 }
 

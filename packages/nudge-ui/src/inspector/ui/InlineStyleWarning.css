@@ -10,7 +10,7 @@
   border-radius: 50%;
   background: var(--text-secondary);
   color: var(--surface-raised-2x);
-  font-size: 11px;
+  font-size: var(--font-size-badge);
   font-weight: 700;
   line-height: 1;
   cursor: help;

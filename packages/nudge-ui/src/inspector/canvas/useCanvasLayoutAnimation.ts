@@ -3,9 +3,8 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { type CanvasCard } from "./canvasStore.ts";
 import { setCanvasLayoutTransitioning, type CanvasCamera, type CanvasPresentation } from "./viewStore.ts";
 
-const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
-const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 250, easing: EASE_OUT };
-const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: EASE_OUT };
+const SLIDE_OPTIONS: KeyframeAnimationOptions = { duration: 200, easing: "ease-out" };
+const CAMERA_OPTIONS: KeyframeAnimationOptions = { duration: 150, easing: "ease-out" };
 
 export function useCanvasLayoutAnimation(
   boardRef: RefObject<HTMLDivElement | null>,

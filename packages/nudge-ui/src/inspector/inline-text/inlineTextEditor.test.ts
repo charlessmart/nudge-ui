@@ -176,7 +176,7 @@ describe("inlineTextEditor", () => {
       reason: "no-text",
     });
     expect(getInlineTextFeedback(getInlineTextDiagnostic())).toMatchObject({
-      message: "Cannot edit text - No visible text",
+      message: "Can't edit: no text here. Double-click the words instead.",
     });
 
     const editable = fixture();

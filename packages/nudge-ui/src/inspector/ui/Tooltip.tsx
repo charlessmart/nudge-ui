@@ -104,7 +104,7 @@ export function Tooltip({
           sideOffset={sideOffset}
         >
           <BaseTooltip.Popup
-            className={cx("tooltip__popup", popupClassName)}
+            className={cx("tooltip__popup popover-enter", popupClassName)}
             data-test={dataTest}
           >
             <div className="tooltip__content">{tooltipContent}</div>

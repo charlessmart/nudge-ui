@@ -65,7 +65,7 @@ describe("ChangesMenu", () => {
       });
     });
 
-    expect(toggle.textContent).toBe("1 Change");
+    expect(toggle.textContent).toBe("1 change");
     // Mounted but closed until the count is clicked.
     expect(document.querySelector('[data-test="changes-log"]')?.hasAttribute("data-open")).toBe(false);
     openChanges();
@@ -79,7 +79,7 @@ describe("ChangesMenu", () => {
   });
 
   it("labels the count in the singular and plural", () => {
-    expect([changesLabel(0), changesLabel(1), changesLabel(3)]).toEqual(["No changes", "1 Change", "3 Changes"]);
+    expect([changesLabel(0), changesLabel(1), changesLabel(3)]).toEqual(["No changes", "1 change", "3 changes"]);
   });
 
   it("presents and reverts canonical structural changes directly", () => {

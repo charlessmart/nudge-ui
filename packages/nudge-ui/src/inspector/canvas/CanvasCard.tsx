@@ -1,5 +1,4 @@
 import { SketchMarks } from "./sketch/SketchMarks.tsx";
-import { AgentActivityOverlay } from "./AgentActivityOverlay.tsx";
 import { contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
 import { refreshHtmlIteration } from "../iterations/coordinator.ts";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
@@ -557,7 +556,6 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           data-test={`canvas-card-iframe-${card.id}`}
         />
-        <AgentActivityOverlay cardId={card.id} content={card.content} iframe={loadState === "ready" ? iframeRef.current : null} />
         <SketchMarks cardId={card.id} host={loadState === "ready" ? iframeRef.current : null} placement="card" />
       </div>
       {(presentation === "canvas" ? RESIZE_HANDLES : isFocusPresentationCard ? FOCUS_RESIZE_HANDLES : []).map((handle) => (

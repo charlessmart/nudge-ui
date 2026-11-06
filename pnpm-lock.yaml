@@ -491,9 +491,6 @@ importers:
       postcss:
         specifier: ^8.5.26
         version: 8.5.26
-      thinking-orbs:
-        specifier: ^0.3.2
-        version: 0.3.2(react@19.2.8)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -11495,10 +11492,6 @@ snapshots:
   thinking-orbs@0.3.2(react@18.3.1):
     dependencies:
       react: 18.3.1
-
-  thinking-orbs@0.3.2(react@19.2.8):
-    dependencies:
-      react: 19.2.8
 
   tiny-inflate@1.0.3: {}
 

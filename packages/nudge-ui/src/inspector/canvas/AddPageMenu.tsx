@@ -53,7 +53,7 @@ export function AddPageMenu({ onAdded, open, onOpenChange }: AddPageMenuProps): 
         description: "Paste them into your coding agent.",
       });
     } catch {
-      showToast({ tone: "error", title: "Could not copy the agent instructions" });
+      showToast({ tone: "error", title: "Couldn't copy the agent instructions", description: "Allow clipboard access for this page, then try again." });
     }
   }
 

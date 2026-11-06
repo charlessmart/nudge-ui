@@ -378,7 +378,7 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
       showToast({
         tone: "error",
         title: "Stroke discarded",
-        description: `A stroke can contain at most ${SKETCH_LIMITS.points.toLocaleString()} points.`,
+        description: `A stroke can contain at most ${SKETCH_LIMITS.points.toLocaleString()} points. Draw it as shorter strokes.`,
       });
       return;
     }

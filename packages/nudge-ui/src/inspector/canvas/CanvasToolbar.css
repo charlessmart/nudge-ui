@@ -41,7 +41,7 @@
   user-select: none;
   opacity: 0;
   translate: -50% -4px;
-  transition: opacity 140ms ease, translate 200ms cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity 140ms ease-out, translate 200ms ease-out;
 }
 
 .canvas-toolbar--movable[data-dragging="true"] .canvas-toolbar__grip {
@@ -100,8 +100,8 @@
   gap: var(--space-4);
 }
 
-/* Slides in beside the Inspection tool, along with the divider that precedes it, by growing from zero width, so the centered
-   toolbar widens smoothly. The negative margin cancels the group's gap while it is collapsed, and the timing matches the card morph between Canvas and Focus. */
+/* Appears beside the Inspection tool, along with the divider that precedes it. The group takes its width at once (width
+   never animates) and its contents fade in; the negative margin cancels the group's gap while it is collapsed. */
 .canvas-toolbar__add {
   display: grid;
   grid-template-columns: 0fr;
@@ -109,10 +109,8 @@
   opacity: 0;
   visibility: hidden;
   transition:
-    grid-template-columns 200ms cubic-bezier(0.77, 0, 0.175, 1),
-    margin-inline-start 200ms cubic-bezier(0.77, 0, 0.175, 1),
-    opacity 200ms ease,
-    visibility 0s linear 200ms;
+    opacity 150ms ease-in,
+    visibility 0s linear 150ms;
 }
 
 .canvas-toolbar__add[data-visible="true"] {
@@ -121,9 +119,7 @@
   opacity: 1;
   visibility: visible;
   transition:
-    grid-template-columns 200ms cubic-bezier(0.77, 0, 0.175, 1),
-    margin-inline-start 200ms cubic-bezier(0.77, 0, 0.175, 1),
-    opacity 200ms ease 60ms,
+    opacity 200ms ease-out,
     visibility 0s;
 }
 
@@ -175,7 +171,7 @@
   box-shadow: var(--shadow-popup);
   translate: calc(-50% + var(--canvas-toolbar-offset-x, 0px)) var(--canvas-toolbar-offset-y, 0px);
   pointer-events: auto;
-  animation: inspection-bar-in 240ms cubic-bezier(0.2, 0, 0, 1) backwards;
+  animation: inspection-bar-in 200ms ease-out backwards;
 }
 
 @keyframes inspection-bar-in {
@@ -193,6 +189,7 @@
 }
 
 .inspection-bar__title {
+  text-wrap: balance;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-label);
   color: var(--text-primary);
@@ -230,8 +227,8 @@
 }
 
 /* The fill deepens toward full speed. */
-.inspection-bar__slider .slider__fill {
-  background: linear-gradient(to right, var(--brand-surface), var(--brand-primary));
+.inspection-bar__slider {
+  --slider-fill: linear-gradient(to right, var(--brand-surface), var(--brand-primary));
 }
 
 /* Each later group starts on a divider. */

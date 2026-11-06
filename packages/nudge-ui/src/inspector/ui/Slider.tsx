@@ -112,7 +112,7 @@ export function Slider({
       onLostPointerCapture={(event) => endDrag(event.currentTarget)}
       onKeyDown={handleKeyDown}
     >
-      {filled ? <span className="slider__fill" aria-hidden="true" /> : null}
+      {filled ? <span className="slider__fill" aria-hidden="true"><span className="slider__fill-bar" /></span> : null}
       <span className="slider__thumb" aria-hidden="true" />
       {valueLabel === undefined ? null : (
         <span className="slider__value" aria-hidden="true"><RollingText value={valueLabel} /></span>
