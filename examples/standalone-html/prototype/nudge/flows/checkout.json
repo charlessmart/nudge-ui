@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "id": "checkout",
+  "title": "Checkout",
+  "viewport": { "width": 420, "height": 500 },
+  "states": [
+    { "id": "welcome", "label": "Welcome", "tag": "default", "route": "/checkout.html" },
+    {
+      "id": "form", "label": "Form", "route": "/checkout.html",
+      "seed": { "localStorage": { "cart": "[\"mug\"]" } },
+      "steps": [{ "click": { "role": "button", "name": "Get started" } }, { "waitFor": { "role": "heading", "name": "Checkout" } }]
+    },
+    {
+      "id": "processing", "label": "Processing", "tag": "loading", "route": "/checkout.html",
+      "network": [{ "match": "POST /api/pay", "hold": true }, { "match": "GET /api/never-called", "json": {} }],
+      "steps": [
+        { "click": { "role": "button", "name": "Get started" } },
+        { "fill": { "role": "textbox", "name": "Name" }, "value": "Ada" },
+        { "click": { "role": "button", "name": "Pay" } },
+        { "waitFor": { "text": "Processing" } }
+      ]
+    },
+    {
+      "id": "declined", "label": "Declined", "tag": "error", "route": "/checkout.html",
+      "seed": { "localStorage": { "cart": "[\"mug\",\"bowl\"]" } },
+      "network": [{ "match": "POST /api/pay", "status": 402, "json": { "message": "Card declined" } }],
+      "steps": [
+        { "click": { "role": "button", "name": "Get started" } },
+        { "fill": { "role": "textbox", "name": "Name" }, "value": "Ada" },
+        { "click": { "role": "button", "name": "Pay" } },
+        { "waitFor": { "role": "alert" } }
+      ]
+    },
+    {
+      "id": "placed", "label": "Placed", "tag": "success", "route": "/checkout.html",
+      "network": [{ "match": "POST /api/pay", "status": 200, "json": {} }],
+      "steps": [
+        { "click": { "role": "button", "name": "Get started" } },
+        { "fill": { "role": "textbox", "name": "Name" }, "value": "Ada" },
+        { "click": { "role": "button", "name": "Pay" } },
+        { "waitFor": { "text": "Order placed" } }
+      ]
+    },
+    {
+      "id": "unmocked", "label": "Unmocked", "route": "/checkout.html",
+      "steps": [
+        { "click": { "role": "button", "name": "Get started" } },
+        { "fill": { "role": "textbox", "name": "Name" }, "value": "Ada" },
+        { "click": { "role": "button", "name": "Pay" } },
+        { "waitFor": { "role": "alert" } }
+      ]
+    },
+    {
+      "id": "broken", "label": "Broken recipe", "route": "/checkout.html",
+      "steps": [{ "waitFor": { "role": "button", "name": "Not on this page" }, "timeoutMs": 200 }]
+    }
+  ],
+  "edges": [
+    { "from": "welcome", "to": "form", "label": "Get started" },
+    { "from": "form", "to": "processing", "label": "Pay" },
+    { "from": "processing", "to": "declined", "label": "402" },
+    { "from": "processing", "to": "placed", "label": "200" }
+  ]
+}

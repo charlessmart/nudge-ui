@@ -1,3 +1,4 @@
+import { FLOW_REPLAYING_GLOBAL } from "../flows/replay.ts";
 import {
   PROTOCOL_VERSION,
   clearRendererIdentity,
@@ -292,6 +293,8 @@ export function bootstrapRenderer(resources: RendererBootstrapResources = {}): R
 
     const onClick = (event: MouseEvent): void => {
       if (!ownsRendererBootstrap(owner)) return;
+      // A replayed flow step navigates the frame itself, whatever link previews would do with a person's click.
+      if ((window as Window & { [FLOW_REPLAYING_GLOBAL]?: boolean })[FLOW_REPLAYING_GLOBAL]) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
       if (!isEligibleNavigation(anchor, event)) return;

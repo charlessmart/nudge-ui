@@ -12,6 +12,7 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../transport/routes.ts";
+import { isSameOriginRequest } from "./sameOrigin.ts";
 import { injectStandaloneBootstrap } from "../hosts/static/html/bootstrap.ts";
 
 export type { HtmlArtifactMetadata };
@@ -112,16 +113,7 @@ export async function handleHtmlArtifactRequest(
   if (pathname !== NUDGE_UI_ARTIFACTS_PATH && !pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) return false;
   const parts = pathname.slice(NUDGE_UI_ARTIFACTS_PATH.length).split("/").filter(Boolean);
   if (request.method !== "GET" && request.method !== "HEAD") {
-    const origin = request.headers.origin;
-    const host = request.headers.host;
-    if (origin && host) {
-      try {
-        if (new URL(origin).host !== host) {
-          respond(response, 403, "Cross-origin artifact writes are not allowed");
-          return true;
-        }
-      } catch { respond(response, 403, "Invalid request origin"); return true; }
-    }
+    if (!isSameOriginRequest(request)) { respond(response, 403, "Cross-origin artifact writes are not allowed"); return true; }
   }
   const id = parts[0];
   if (parts.length > 2 || (id && !ID.test(id)) || (parts.length === 2 && !["document", "baseline", "preview", "commit", "revision"].includes(parts[1]!))) {

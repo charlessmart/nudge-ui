@@ -1,3 +1,5 @@
+import { flowStateOf } from "../canvas/frameContent.ts";
+import { NUDGE_FLOWS_DIRECTORY } from "../../transport/flows.ts";
 import { captureHandoffOwner, type HandoffSnapshot } from "../prompt/handoffVerification.ts";
 import { htmlIterationImplementationPrompt, htmlIterationPrompt } from "../iterations/prompt.ts";
 import { getCanvasCardLabel, getCanvasCards } from "../canvas/canvasStore.ts";
@@ -23,6 +25,13 @@ export interface PreparedHandoff extends HandoffSnapshot {
   readonly comments: readonly ElementComment[];
 }
 
+/** Names the flow state the edit was made in, since its elements may only exist there. */
+function flowStateContext(cardId: string | null | undefined): string[] {
+  const binding = flowStateOf(getCanvasCards().find((card) => card.id === cardId)?.content);
+  if (!binding) return [];
+  return [`I was viewing its "${binding.label}" state from the "${binding.flowTitle}" flow; the recipe that reaches that state is in ${NUDGE_FLOWS_DIRECTORY}/ under the flow id "${binding.flowId}" and state id "${binding.stateId}".`];
+}
+
 async function prepareDraftHandoff(request: HandoffRequest): Promise<Omit<PreparedHandoff, "prompt">> {
   const owner = captureHandoffOwner(request.cardId);
   const target = owner.target;
@@ -45,7 +54,7 @@ export async function prepareHandoff(request: HandoffRequest): Promise<PreparedH
     ? htmlIterationPrompt(target.artifactId, generated, changes.length + structuralChanges.length + comments.length === 0, request.customInstructions)
     : target.kind === "components"
       ? withPromptContext(componentDefinitionContext(changes), generated)
-      : withPromptContext([`The page I'm working on is ${target.route}.`], generated);
+      : withPromptContext([`The page I'm working on is ${target.route}.`, ...flowStateContext(request.cardId)], generated);
   return { ...handoff, prompt };
 }
 

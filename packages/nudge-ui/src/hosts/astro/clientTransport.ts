@@ -1,4 +1,5 @@
 import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
+import { handleFlowsRequest } from "../../project/flows.ts";
 import {
   createNudgeUiClientManifest,
   type NudgeUiClientManifest,
@@ -41,6 +42,7 @@ export function createAstroClientTransportPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         void handleHtmlArtifactRequest(request, response, server.config.root)
+          .then((handled) => handled || handleFlowsRequest(request, response, server.config.root))
           .then((handled) => { if (!handled) handleClientRequest(server, request, response, next); }).catch(next);
       });
     },

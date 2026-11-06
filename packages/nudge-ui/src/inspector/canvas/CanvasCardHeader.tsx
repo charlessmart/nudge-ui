@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
 import { IconBoltFilled, IconCopy, IconShape, IconTrash } from "@tabler/icons-react";
 import type { CanvasCard } from "./canvasStore.ts";
-import { contentSourceUrl, iterationId } from "./frameContent.ts";
+import { contentSourceUrl, flowStateOf, iterationId } from "./frameContent.ts";
 import { resolveFrameUrl } from "./appRoute.ts";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -57,7 +57,8 @@ export function CanvasCardHeader({
   onPointerDown,
 }: CanvasCardHeaderProps): ReactElement {
   const iteration = iterationId(card.content) !== undefined;
-  const currentUrl = iteration ? null : contentSourceUrl(card.content);
+  // A flow frame is named by its state; several states usually share one URL.
+  const currentUrl = iteration || flowStateOf(card.content) ? null : contentSourceUrl(card.content);
   const [draft, setDraft] = useState(() => currentUrl ? framePath(currentUrl) : "");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [editingUrl, setEditingUrl] = useState(false);

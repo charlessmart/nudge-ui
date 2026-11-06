@@ -1,4 +1,5 @@
 import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
+import { handleFlowsRequest } from "../../project/flows.ts";
 import { handleLibraryVisibilityRequest } from "../../project/libraryVisibility.ts";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -67,7 +68,7 @@ import {
 } from "../../inspector/clientManifest.ts";
 import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
 import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -200,7 +201,7 @@ export function transformIndexHtmlHtml(
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
   const withFramework = headScript ? prependToHead(html, `<script data-nudge-ui-head>${headScript}</script>`) : html;
   // First of all, so animation libraries read the clock the Inspection tool can slow.
-  const withHead = prependToHead(withFramework, `<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`);
+  const withHead = prependToHead(withFramework, `<script data-nudge-ui-clock>${DOCUMENT_HEAD_SCRIPT}</script>`);
   if (withHead.includes("</body>")) {
     return withHead.replace("</body>", `${inject}</body>`);
   }
@@ -779,6 +780,7 @@ export function createVitePlugins(
           request, response, root ?? process.cwd(),
           (html) => server.transformIndexHtml(request.url ?? "/", html),
         )) return;
+        if (await handleFlowsRequest(request, response, root ?? process.cwd())) return;
         if (componentSheetEnabled() && await handleLibraryVisibilityRequest(request, response, root ?? process.cwd())) return;
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)

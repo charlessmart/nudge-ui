@@ -1,7 +1,10 @@
+import { flowScenarioName } from "../../transport/flows.ts";
+import { FlowFrameStatus } from "../flows/FlowFrameStatus.tsx";
+import { replayCardFlowState } from "../flows/flowsStore.ts";
 import { SketchMarks } from "./sketch/SketchMarks.tsx";
-import { componentId, componentSheetUrl, contentDocumentUrl, contentNavigationUrl, contentSourceUrl, iterationId } from "./frameContent.ts";
+import { componentId, componentSheetUrl, contentDocumentUrl, contentNavigationUrl, contentStartUrl, flowStateOf, flowStateRevision, iterationId } from "./frameContent.ts";
 import { refreshHtmlIteration } from "../iterations/coordinator.ts";
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import {
   useCanvasCardCount,
@@ -15,6 +18,7 @@ import {
   useSelectedCardId,
   useFocusedCardId,
   navigateCard,
+  getCardEntrance,
   type CanvasCard as CanvasCardData,
 } from "./canvasStore.ts";
 import { getBoardCamera, type CanvasPresentation } from "./viewStore.ts";
@@ -92,7 +96,15 @@ function focusWidths(handle: HTMLElement): { readonly frame: number; readonly bo
 // Memoised and camera-free: the board sets the zoom-derived scales as CSS variables, so a pan or zoom renders no card.
 export const CanvasCard = memo(function CanvasCard({ card, presentation = "canvas", presentationCard = true, linkedToActive = false, onShowFocus, onDuplicate, onCreateIteration, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentSourceUrl(card.content));
+  const initialUrlRef = useRef(contentNavigationUrl(card.content) ?? contentStartUrl(card.content));
+  const flowState = flowStateOf(card.content);
+  const flowRevision = flowStateRevision(flowState);
+  const flowRevisionRef = useRef(flowRevision);
+  // An edited recipe starts a new frame at the state's own route, wherever the old frame had got to.
+  if (flowRevisionRef.current !== flowRevision) {
+    flowRevisionRef.current = flowRevision;
+    initialUrlRef.current = contentStartUrl(card.content);
+  }
   const navigationUrlRef = useRef(contentNavigationUrl(card.content));
   const sheetComponentId = componentId(card.content);
   const sheetComponentIdRef = useRef(sheetComponentId);
@@ -113,6 +125,8 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
   const isFocusPresentationCard = presentation === "focus" && presentationCard;
+  // Read once at mount: a frame of a flow that is just opening slides in, staggered by its column.
+  const [entranceColumn] = useState(() => getCardEntrance(card.id));
 
   const disposeDocumentSession = useCallback((): void => {
     documentSessionRef.current?.session.dispose();
@@ -156,7 +170,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
       disposeDocumentSession();
       unregisterCardFrame(card.id);
     };
-  }, [bindDocumentSession, card.id, iterationId(card.content), disposeDocumentSession]);
+  }, [bindDocumentSession, card.id, iterationId(card.content), flowRevision, disposeDocumentSession]);
 
   useEffect(() => {
     if (card.content.kind !== "iteration" || loadState !== "ready") return;
@@ -226,6 +240,19 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
     adoptFrameRuntime(frameRuntimeRef.current);
   }, [isSelected]);
 
+  const flowFrameRendered = useRef(false);
+  useLayoutEffect(() => {
+    if (!flowFrameRendered.current) {
+      flowFrameRendered.current = true;
+      return;
+    }
+    if (getSelectedCardId() === card.id) setSelectedElement(null);
+    disposeDocumentSession();
+    invalidateCanvasPreviewDocument(card.id);
+    setLoadState("loading");
+    setErrorMessage(null);
+  }, [flowRevision]);
+
   useEffect(() => {
     return subscribeCanvasRendererMessages(({ frame, message: data }) => {
       if (frame.cardId !== card.id) return;
@@ -243,6 +270,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
+          void replayCardFlowState(card.id, iframeRef.current);
         }
         return;
       }
@@ -510,7 +538,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
 
   return (
     <div
-      className={`canvas-card${linkedToActive ? " is-linked" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
+      className={`canvas-card${linkedToActive ? " is-linked" : ""}${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}${entranceColumn === undefined ? "" : " is-entering"}`}
       data-card-id={card.id}
       tabIndex={presentation === "canvas" ? 0 : undefined}
       role="group"
@@ -527,7 +555,8 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
         maxWidth: isFocusPresentationCard ? "100%" : undefined,
         marginInline: isFocusPresentationCard ? "auto" : undefined,
         height: isFocusPresentationCard ? "100%" : card.height,
-      }}
+        ...(entranceColumn === undefined ? {} : { "--canvas-card-entrance-column": entranceColumn }),
+      } as CSSProperties}
       onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
       {presentation === "canvas" ? (
@@ -561,7 +590,8 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
           </div>
         ) : null}
         <iframe
-          key={iterationId(card.content) ?? "live"}
+          key={iterationId(card.content) ?? flowRevision ?? "live"}
+          {...(flowState ? { name: flowScenarioName(flowState.scenario) } : {})}
           ref={iframeRef}
           className="canvas-card__iframe"
           src={card.content.kind === "iteration" ? contentDocumentUrl(card.content) : initialUrlRef.current}
@@ -570,6 +600,7 @@ export const CanvasCard = memo(function CanvasCard({ card, presentation = "canva
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           data-test={`canvas-card-iframe-${card.id}`}
         />
+        {flowState ? <FlowFrameStatus binding={flowState} /> : null}
         <SketchMarks cardId={card.id} host={loadState === "ready" ? iframeRef.current : null} placement="card" />
       </div>
       {(presentation === "canvas" ? RESIZE_HANDLES : isFocusPresentationCard ? FOCUS_RESIZE_HANDLES : []).map((handle) => (

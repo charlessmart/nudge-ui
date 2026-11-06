@@ -1,3 +1,4 @@
+import { FlowBoardOverlay } from "../flows/FlowBoardOverlay.tsx";
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
@@ -115,6 +116,7 @@ import { getSelectedElements, setSelectedElement } from "../selection/selectionS
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 import { mirrorAppRootIntoSheets } from "./sheetRootMirror.ts";
+import { headingRule } from "../ui/headingStyle.ts";
 
 const WORKSPACE_STYLES = [
   foundationStyles,
@@ -122,6 +124,7 @@ const WORKSPACE_STYLES = [
   canvasCardStyles,
   canvasToolbarStyles,
   sketchToolBarStyles,
+  headingRule(".flow-board__title", "var(--canvas-toolbar-scale, 1)"),
 ].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
 /** The zoom Focus opens the Canvas at when zooming out of it. */
@@ -1205,6 +1208,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             } as CSSProperties}
             data-test="canvas-board-content"
           >
+            {!pageSurface && presentation === "canvas" ? <FlowBoardOverlay cards={cards} /> : null}
             {cards.map(renderCard)}
           </div>
         </div>

@@ -53,3 +53,33 @@ it("models component sheets as a shared components draft with an encoded documen
   expect(getLinkedFrameIds([{ id: "sheet", content }, frame("a", "http://localhost/a")], "sheet")).toEqual([]);
 });
 
+describe("flow state frames", () => {
+  const binding = { flowId: "f", stateId: "s", flowTitle: "F", label: "S", route: "/a", scenario: {}, steps: [] };
+
+  it("round-trips through validation and refuses a malformed binding", async () => {
+    const { isFrameContent } = await import("./frameContent.ts");
+    const url = `${window.location.origin}/a`;
+    expect(isFrameContent({ kind: "route", url, flowState: binding }, window.location.origin)).toBe(true);
+    expect(isFrameContent({ kind: "route", url, flowState: { flowId: "f" } }, window.location.origin)).toBe(false);
+  });
+
+  it("edits the page's own draft, and is not linked to its neighbours as a breakpoint", async () => {
+    const { contentEditTarget, getLinkedFrameIds } = await import("./frameContent.ts");
+    const url = `${window.location.origin}/a`;
+    expect(contentEditTarget({ kind: "route", url, flowState: binding })).toEqual(contentEditTarget({ kind: "route", url }));
+    const frames = [
+      { id: "state", content: { kind: "route" as const, url, flowState: binding } },
+      { id: "plain", content: { kind: "route" as const, url } },
+      { id: "copy", content: { kind: "route" as const, url } },
+    ];
+    expect(getLinkedFrameIds(frames, "state")).toEqual([]);
+    expect(getLinkedFrameIds(frames, "plain")).toEqual(["plain", "copy"]);
+  });
+
+  it("changes revision only when the recipe does", async () => {
+    const { flowStateRevision } = await import("./frameContent.ts");
+    expect(flowStateRevision(undefined)).toBeNull();
+    expect(flowStateRevision({ ...binding, label: "Renamed" })).toBe(flowStateRevision(binding));
+    expect(flowStateRevision({ ...binding, route: "/b" })).not.toBe(flowStateRevision(binding));
+  });
+});

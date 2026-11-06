@@ -11,7 +11,7 @@
    reveal an off-screen frame that takes focus as it loads, knocking the board out from under the camera. */
 .canvas-workspace__board {
   flex: 1;
-  overflow: hidden;
+  overflow: clip;
   position: relative;
   background: var(--surface-canvas);
 }
@@ -121,4 +121,34 @@
 .canvas-workspace[data-surface="page"] .canvas-toolbar {
   pointer-events: auto;
 }
+
+.flow-board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Placed at the frames' top edge, then lifted past the card header (its gap plus its height, see
+   `.canvas-card__header`) and a further gap. Sized and spaced in toolbar pixels like that header,
+   so the title keeps its size and its distance from the URL bar at any zoom. Its type is the shared
    heading (see `headingRule`), added beside this stylesheet in `CanvasWorkspace.tsx`. */
+.flow-board__title {
+  position: absolute;
+  transform: translateY(calc(-100% - (var(--control-height-large) + var(--space-8) * 4) * var(--canvas-toolbar-scale, 1)));
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Enters with its flow's first column of frames (see `.canvas-card.is-entering`). */
+.flow-board__title.is-entering {
+  animation: canvas-card-slide-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-board__title.is-entering {
+    animation: none;
+  }
+}

@@ -14,7 +14,7 @@ import {
 } from "./index.ts";
 import { interpretDialects } from "../../css/dialects/index.ts";
 import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -109,7 +109,7 @@ describe("transformIndexHtmlHtml", () => {
 
   it("places the animation clock, then a head script, ahead of every other script", () => {
     const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { headScript: "window.early = true;" })!;
-    const clock = out.indexOf(`<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`);
+    const clock = out.indexOf(`<script data-nudge-ui-clock>${DOCUMENT_HEAD_SCRIPT}</script>`);
     const head = out.indexOf("<script data-nudge-ui-head>window.early = true;</script>");
     expect(clock).toBeGreaterThan(out.indexOf("<head"));
     expect(out.indexOf("<script")).toBe(clock);

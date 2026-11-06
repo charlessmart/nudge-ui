@@ -43,6 +43,27 @@
   }
 }
 
+/* A just-opened flow's frames slide in from the left, one column after another. `translate` rather than
+   `transform`, so it composes with anything else that moves the card. Distance is in toolbar pixels,
+   so the slide reads the same at any zoom. */
+.canvas-card.is-entering {
+  animation: canvas-card-slide-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--canvas-card-entrance-column, 0) * 70ms);
+}
+
+@keyframes canvas-card-slide-in {
+  from {
+    opacity: 0;
+    translate: calc(-240px * var(--canvas-toolbar-scale, 1)) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-card.is-entering {
+    animation: none;
+  }
+}
+
 .canvas-card__header {
   position: absolute;
   left: 0;
@@ -425,4 +446,30 @@
     height: var(--control-height-small);
     border-radius: var(--radius-4);
   }
+}
+
+/* Narrow frames keep the live mark but drop Back and Forward, which would otherwise run into the Focus button. */
+@container canvas-card-bar (max-width: 420px) {
+  .canvas-card__url-lead .icon-button {
+    display: none;
+  }
+}
+
+.flow-frame-status {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-panel);
+  color: var(--text-muted);
+  box-shadow: 0 1px 6px rgb(0 0 0 / 20%);
+  font-size: var(--font-size-small);
+  pointer-events: none;
+}
+
+.flow-frame-status[data-tone="error"] {
+  color: #d92d20;
 }

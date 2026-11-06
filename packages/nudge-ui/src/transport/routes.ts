@@ -13,6 +13,8 @@ export const NUDGE_UI_ARTIFACTS_PATH = `${NUDGE_UI_ROUTE_PREFIX}artifacts`;
 export const NUDGE_UI_COMPONENTS_PATH = `${NUDGE_UI_ROUTE_PREFIX}components`;
 /** Which library components the user hid or restored, saved in the project as `.nudge/library.json` so it can be committed and shared. */
 export const NUDGE_UI_LIBRARY_PATH = `${NUDGE_UI_ROUTE_PREFIX}library`;
+/** Agent-written flows from `nudge/flows`, and the replay results the browser reports back. */
+export const NUDGE_UI_FLOWS_PATH = `${NUDGE_UI_ROUTE_PREFIX}flows`;
 export const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 
 /** Query marker that presents an application route through the editor shell. */

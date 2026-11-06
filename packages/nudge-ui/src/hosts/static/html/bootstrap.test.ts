@@ -4,7 +4,7 @@ import {
   NUDGE_UI_MANIFEST_PATH,
 } from "../manifest.ts";
 import { injectStandaloneBootstrap } from "./bootstrap.ts";
-import { ANIMATION_CLOCK_SCRIPT } from "../../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../../inspector/canvas/documentHeadScript.ts";
 
 describe("injectStandaloneBootstrap", () => {
   it("inserts an external mount and client before body close", () => {
@@ -27,7 +27,7 @@ describe("injectStandaloneBootstrap", () => {
     const source = "<!doctype html><html><head><script src=\"/gsap.js\"></script></head><body></body></html>";
     const { html } = injectStandaloneBootstrap(source);
 
-    expect(html.indexOf("<script")).toBe(html.indexOf(`<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`));
+    expect(html.indexOf("<script")).toBe(html.indexOf(`<script data-nudge-ui-clock>${DOCUMENT_HEAD_SCRIPT}</script>`));
     expect(html.indexOf("data-nudge-ui-clock")).toBeGreaterThan(html.indexOf("<head>"));
     expect(html.match(/data-nudge-ui-clock/g)).toHaveLength(1);
   });

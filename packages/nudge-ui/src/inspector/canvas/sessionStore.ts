@@ -108,7 +108,9 @@ function buildSession(): DurableSession {
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
-      content: c.content.kind === "route" ? { kind: "route", url: c.content.url } : { ...c.content },
+      content: c.content.kind === "route"
+        ? { kind: "route", url: c.content.url, ...(c.content.flowState ? { flowState: c.content.flowState } : {}) }
+        : { ...c.content },
       title: c.title,
       x: c.x,
       y: c.y,

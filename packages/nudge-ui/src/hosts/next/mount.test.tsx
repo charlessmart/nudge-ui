@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { NudgeUiMount } from "./mount.tsx";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 describe("NudgeUiMount", () => {
   it("installs a load-failure diagnostic before requesting the inspector client", () => {
@@ -16,6 +16,6 @@ describe("NudgeUiMount", () => {
 
   it("installs the animation clock before anything else", () => {
     const markup = renderToStaticMarkup(<NudgeUiMount />);
-    expect(markup.startsWith(`<script data-nudge-ui-clock="">${ANIMATION_CLOCK_SCRIPT}</script>`)).toBe(true);
+    expect(markup.startsWith(`<script data-nudge-ui-clock="">${DOCUMENT_HEAD_SCRIPT}</script>`)).toBe(true);
   });
 });

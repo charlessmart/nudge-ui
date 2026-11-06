@@ -1,6 +1,8 @@
 import type { FrameContent } from "./frameContent.ts";
 import type { HtmlArtifactMetadata } from "../../transport/artifacts.ts";
-import { iterationId, contentSourceUrl } from "./frameContent.ts";
+import { iterationId, contentSourceUrl, flowRouteUrl, flowStateOf, type FlowStateBinding } from "./frameContent.ts";
+import type { FlowDefinition, FlowState } from "../../transport/flows.ts";
+import { FLOW_DEFAULT_VIEWPORT, FLOW_FRAME_GAP, FLOW_ROW_GAP, FLOW_TOP_GAP, flowGrid } from "../flows/flowLayout.ts";
 import { frameLifecycle } from "./frameLifecycle.ts";
 import { recordCanvasChange, discardCanvasHistory } from "../workspace/timeline.ts";
 import { useSyncExternalStore } from "react";
@@ -258,7 +260,7 @@ export function activateIframeWorkspace(
   const existing = focused && focusedUrl
     && normalizedUrlKey(focusedUrl) === normalizedUrlKey(normalized)
     ? focused
-    : cards.find((card) => card.content.kind === "route" && card.content.url === targetHref) ?? findCardByNormalizedUrl(normalized);
+    : cards.find((card) => card.content.kind === "route" && !card.content.flowState && card.content.url === targetHref) ?? findCardByNormalizedUrl(normalized);
   if (existing) {
     let activated = existing;
     if (contentSourceUrl(existing.content) !== targetHref) {
@@ -373,14 +375,18 @@ export function updateCardTitle(id: string, title: string): void {
 }
 
 export function updateCardUrl(id: string, url: string): void {
-  cards = cards.map((c) => (c.id === id && c.content.kind === "route" ? { ...c, content: { ...c.content, url } } : c));
+  // The frame now reports where it is, so the URL it was last sent to is spent: navigating there again reloads it.
+  // A flow frame keeps its route, so a reload starts the recipe over instead of opening where its steps ended.
+  cards = cards.map((c) => c.id === id && c.content.kind === "route"
+    ? { ...c, content: c.content.flowState ? { kind: "route", url: flowRouteUrl(c.content.flowState), flowState: c.content.flowState } : { kind: "route", url } }
+    : c);
   notify();
 }
 
 /** Navigates a live card to a new same-origin route. */
 export function navigateCard(id: string, url: string): void {
   cards = cards.map((c) => c.id === id && c.content.kind === "route"
-    ? { ...c, title: null, content: { kind: "route", url, navigationUrl: url } }
+    ? { ...c, title: null, content: { kind: "route", url, navigationUrl: url, ...(c.content.flowState ? { flowState: c.content.flowState } : {}) } }
     : c);
   notify();
 }
@@ -497,7 +503,7 @@ export function findCardByNormalizedUrl(
   normalized: NormalizedUrl,
 ): CanvasCard | undefined {
   return cards.find((c) => {
-    if (c.content.kind !== "route") return false;
+    if (c.content.kind !== "route" || c.content.flowState) return false;
     const n = normalizeUrl(c.content.url);
     if (!n) return false;
     return normalizedUrlKey(n) === normalizedUrlKey(normalized);
@@ -640,6 +646,170 @@ export function getCanvasCardLabel(card: CanvasCard, frameCards: readonly Canvas
   const matchingKind = matchingFrames.filter((candidate) => candidate.content.kind === card.content.kind);
   const number = matchingKind.findIndex((candidate) => candidate.id === card.id) + 1;
 
-  if (card.content.kind === "iteration") return `${route.label} · Iteration ${number}`;
+  if (card.content.kind === "component") return card.content.name;
+  const flowState = flowStateOf(card.content);
+  if (flowState) return flowState.tag ? `${flowState.label} · ${flowState.tag}` : flowState.label;
   return number === 1 ? route.label : `${route.label} · Copy ${number}`;
+}
+
+export function flowStateBinding(flow: FlowDefinition, state: FlowState): FlowStateBinding {
+  return {
+    flowId: flow.id,
+    stateId: state.id,
+    flowTitle: flow.title,
+    label: state.label,
+    ...(state.tag ? { tag: state.tag } : {}),
+    route: state.route,
+    ...(state.expectRoute ? { expectRoute: state.expectRoute } : {}),
+    scenario: {
+      ...(state.seed ? { seed: state.seed } : {}),
+      ...(state.network ? { network: state.network } : {}),
+      ...(state.allowMutations ? { allowMutations: true } : {}),
+      ...(state.hideStorage ? { hideStorage: state.hideStorage } : {}),
+      ...(state.allowRealtime ? { allowRealtime: true } : {}),
+    },
+    steps: state.steps ?? [],
+  };
+}
+
+export function getFlowCards(flowId: string): readonly CanvasCard[] {
+  return cards.filter((card) => flowStateOf(card.content)?.flowId === flowId);
+}
+
+function flowStateCard(flow: FlowDefinition, state: FlowState, x: number, y: number, size: { width: number; height: number }): CanvasCard {
+  return {
+    id: `card-${++cardIdCounter}`,
+    content: { kind: "route", url: flowRouteUrl(flowStateBinding(flow, state)), flowState: flowStateBinding(flow, state) },
+    title: state.label,
+    x,
+    y,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+/** How long a newly opened flow's frames count as entering: long enough for the last column's staggered slide to finish. */
+const FLOW_ENTRANCE_MS = 1600;
+const enteringCards = new Map<string, { column: number; until: number }>();
+
+/** The column a frame slides in with while its flow is just opening, so frames enter left to right; undefined once it has settled. */
+export function getCardEntrance(cardId: string): number | undefined {
+  const entrance = enteringCards.get(cardId);
+  if (!entrance) return undefined;
+  if (Date.now() < entrance.until) return entrance.column;
+  enteringCards.delete(cardId);
+  return undefined;
+}
+
+/** Lays a flow out below everything on the board as one undo step, or reveals it if it is already open. */
+export function openFlowCards(flow: FlowDefinition, focusStateId?: string): void {
+  setCanvasMode("canvas");
+  setCanvasPresentation("canvas");
+  let opened = getFlowCards(flow.id);
+  if (opened.length === 0) {
+    const before = cards;
+    const size = flow.viewport ?? FLOW_DEFAULT_VIEWPORT;
+    const left = cards.length ? Math.min(...cards.map((card) => card.x)) : 0;
+    const top = cards.length ? Math.max(...cards.map((card) => card.y + card.height)) + FLOW_TOP_GAP : 0;
+    const grid = flowGrid(flow);
+    const until = Date.now() + FLOW_ENTRANCE_MS;
+    const created = flow.states.map((state) => {
+      const place = grid.get(state.id) ?? { column: 0, row: 0 };
+      const card = flowStateCard(
+        flow,
+        state,
+        left + place.column * (size.width + FLOW_FRAME_GAP),
+        top + place.row * (size.height + FLOW_ROW_GAP),
+        size,
+      );
+      enteringCards.set(card.id, { column: place.column, until });
+      return card;
+    });
+    cards = [...cards, ...created];
+    recordCreation(before, created);
+    opened = created;
+  }
+  // Opening the flow itself shows all of it with its first screen selected; a state chosen from the list lands on that state.
+  const stateCard = (stateId: string | undefined) => opened.find((card) => flowStateOf(card.content)?.stateId === stateId);
+  const focus = stateCard(focusStateId);
+  const target = focus ?? stateCard(flow.states[0]?.id) ?? opened[0];
+  if (!target) return notify();
+  focusedCardId = target.id;
+  selectedCardId = target.id;
+  notify();
+  if (focus) {
+    const bounds = selectedBounds([focus.id]);
+    if (bounds) placeBoardCamera(fitCamera(bounds, visibleViewport(), FIT_ALL_PADDING) ?? getBoardCamera());
+    return;
+  }
+  const bounds = selectedBounds(opened.map((card) => card.id));
+  if (bounds) placeBoardCamera(fitFlowCamera(bounds, visibleViewport()) ?? getBoardCamera());
+}
+
+/** Screen room the flow title takes above its frames (see `.flow-board__title`); the title keeps its size at any zoom. */
+const FLOW_TITLE_ROOM = 104;
+
+/** Fits a whole flow below its title. A flow too big to fit at the furthest zoom keeps its first screen's corner in view rather than its middle. */
+function fitFlowCamera(bounds: Bounds, viewport: { width: number; height: number }): CanvasCamera | null {
+  const fit = fitCamera(bounds, { width: viewport.width, height: viewport.height - FLOW_TITLE_ROOM }, FIT_ALL_PADDING);
+  if (!fit) return null;
+  const { zoom } = fit;
+  const tooWide = (bounds.maxX - bounds.minX) * zoom > viewport.width - FIT_ALL_PADDING * 2;
+  const tooTall = (bounds.maxY - bounds.minY) * zoom > viewport.height - FLOW_TITLE_ROOM - FIT_ALL_PADDING * 2;
+  return {
+    x: tooWide ? FIT_ALL_PADDING - bounds.minX * zoom : fit.x,
+    y: tooTall ? FIT_ALL_PADDING + FLOW_TITLE_ROOM - bounds.minY * zoom : fit.y + FLOW_TITLE_ROOM,
+    zoom,
+  };
+}
+
+/** Takes a flow's frames off the board. Undo brings each one back. */
+export function closeFlowCards(flowId: string): void {
+  batchCanvasChanges(() => {
+    for (const card of getFlowCards(flowId)) {
+      if (cards.length > 1) removeCanvasCard(card.id, { undoable: true });
+    }
+  });
+}
+
+/** Applies an edited flow file to its open frames, keeping where the user put them. */
+export function syncFlowCards(flows: readonly FlowDefinition[]): void {
+  batchCanvasChanges(() => {
+    for (const flow of flows) {
+      const opened = getFlowCards(flow.id);
+      if (opened.length === 0) continue;
+      const seen = new Set<string>();
+      for (const card of opened) {
+        const current = flowStateOf(card.content);
+        if (!current || card.content.kind !== "route") continue;
+        const state = flow.states.find((candidate) => candidate.id === current.stateId);
+        if (!state) {
+          if (cards.length > 1) removeCanvasCard(card.id);
+          continue;
+        }
+        seen.add(state.id);
+        const next = flowStateBinding(flow, state);
+        if (JSON.stringify(next) === JSON.stringify(current)) continue;
+        const content: FrameContent = {
+          kind: "route",
+          url: flowRouteUrl(next),
+          flowState: next,
+        };
+        cards = cards.map((candidate) => candidate.id === card.id ? { ...candidate, content, title: state.label } : candidate);
+        notify();
+      }
+      const added = flow.states.filter((state) => !seen.has(state.id));
+      if (added.length === 0) continue;
+      const remaining = getFlowCards(flow.id);
+      const anchor = remaining[0];
+      const size = anchor ?? flow.viewport ?? FLOW_DEFAULT_VIEWPORT;
+      let x = remaining.length ? Math.max(...remaining.map((card) => card.x + card.width)) + FLOW_FRAME_GAP : 0;
+      const y = anchor?.y ?? 0;
+      for (const state of added) {
+        cards = [...cards, flowStateCard(flow, state, x, y, size)];
+        x += size.width + FLOW_FRAME_GAP;
+      }
+      notify();
+    }
+  });
 }
