@@ -1,15 +1,91 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
-test("opens the restricted demo in the shared iframe editor", async ({ page }) => {
+/** Leaves Focus for the Canvas by unticking View in focus in the toolbar's zoom menu. */
+async function showCanvas(inspectorHost: Locator): Promise<void> {
+  await inspectorHost.locator('[data-test="canvas-zoom-menu"]').click();
+  await inspectorHost.locator('[data-test="canvas-zoom-focus"]').click();
+}
+
+const panelOpen = (inspectorHost: Locator) => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"));
+
+test("renders the landing page in the top document for crawlers", async ({ page }) => {
   await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  expect(new URL(page.url()).searchParams.getAll("nudge-ui")).toEqual([]);
+  await expect(page.locator("html")).not.toHaveAttribute("data-nudge-ui-editor", "");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://nudgeui.com/");
+  await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator("#nudge-ui-root")).toBeEmpty();
+
+  const hero = page.locator("section.landing-hero");
+  await expect(hero.getByRole("button", { name: "Try it here" })).toBeVisible();
+  await expect(hero.getByRole("link", { name: "Add to Chrome" })).toHaveCount(0);
+  await expect(hero.getByRole("link", { name: "Install" })).toHaveAttribute("href", "#install");
+
+  const install = page.locator("section#install");
+  await expect(install.getByRole("link", { name: "Add to Chrome" })).toBeVisible();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  await install.getByRole("button", { name: "Copy install prompt" }).click();
+  await expect(install.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
+});
+
+test("serves crawlers that do not run scripts the same heading, description and install links", async ({ page, request }) => {
+  const html = await (await request.get("/")).text();
+  const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(html)?.[1] ?? "";
+  await page.goto("/");
+
+  const heading = await page.getByRole("heading", { level: 1 }).innerText();
+  const description = await page.locator('meta[name="description"]').getAttribute("content");
+  expect(fallback).toContain(`<h1>${heading}</h1>`);
+  expect(fallback).toContain(description);
+  const links = await page.locator("section#install a[href^='https://']").evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute("href")));
+  for (const href of links) expect(fallback).toContain(`href="${href}"`);
+});
+
+test("advertises the sitemap to crawlers", async ({ request }) => {
+  const robots = await request.get("/robots.txt");
+  expect(await robots.text()).toContain("Sitemap: https://nudgeui.com/sitemap.xml");
+  const sitemap = await request.get("/sitemap.xml");
+  expect(await sitemap.text()).toContain("<loc>https://nudgeui.com/</loc>");
+});
+
+test("keeps design explorations out of the index", async ({ page }) => {
+  await page.goto("/hero");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+});
+
+test("loads the inspector only when a visitor opens Nudge", async ({ page }) => {
+  // The dev server injects the inspector into every document, so only the production build defers it.
+  test.skip(process.env.NUDGE_UI_LANDING_TARGET === "dev", "The dev server always loads the inspector.");
+  const inspectorRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("nudge-ui-inspector")) inspectorRequests.push(request.url());
+  });
+
+  await page.goto("/", { waitUntil: "networkidle" });
+  expect(inspectorRequests).toEqual([]);
+
+  await page.locator("section.landing-hero").getByRole("button", { name: "Try it here" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.getAll("nudge-ui")).toContain("editor");
+  await expect.poll(() => inspectorRequests.length).toBeGreaterThan(0);
+});
+
+test("opens the restricted demo in the shared iframe editor from Try it here", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("section.landing-hero").getByRole("button", { name: "Try it here" }).click();
+
   await expect.poll(() => new URL(page.url()).searchParams.getAll("nudge-ui")).toContain("editor");
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
   const inspectorHost = page.locator("#nudge-ui-root");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await expect(workspace).toHaveAttribute("data-presentation", "focus");
-  await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("false");
-  await expect(inspectorHost.locator('[data-test="show-inspector"]')).toBeVisible();
+  await expect.poll(() => panelOpen(inspectorHost)).toBe("true");
+  await expect(inspectorHost.getByRole("button", { name: "Use app normally", exact: true })).toHaveAttribute("aria-pressed", "true");
 
   const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
   await expect(frames).toHaveCount(3);
@@ -23,15 +99,6 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
   await expect(app.locator(".landing-hero-demo-grid")).toHaveCSS("position", "absolute");
-  const demo = app.locator("section#demo");
-  const openNudge = demo.getByRole("button", { name: "Open Nudge" });
-  await expect(openNudge).toBeVisible();
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
-  const useAppNormally = inspectorHost.getByRole("button", { name: "Use app normally", exact: true });
-  const copyInstallPrompt = app.getByRole("button", { name: "Copy install prompt" });
-  await copyInstallPrompt.click();
-  await expect(app.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const sources = await frames.evaluateAll((elements) => elements.map((element) => (
     (element as HTMLIFrameElement).src
@@ -39,15 +106,14 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "1")).toHaveLength(1);
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "2")).toHaveLength(1);
 
-  await openNudge.click();
-  await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
-  await expect(useAppNormally).toHaveAttribute("aria-pressed", "true");
-
-  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
+  await showCanvas(inspectorHost);
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
   await expect(versionOneFrame).toBeVisible();
   await expect(versionTwoFrame).toBeVisible();
-  await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
+  // Iterations write filesystem artifacts, so the landing config enables them for the dev server only.
+  if (process.env.NUDGE_UI_LANDING_TARGET !== "dev") {
+    await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
+  }
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
   const editableDemoText = app.locator(".landing-bento-text-heading");
   await editableDemoText.dblclick();
@@ -80,8 +146,21 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   expect(demoStorage).toEqual({ local: [], session: [], indexedDb: [] });
 });
 
+test("opens a refreshed editor collapsed until the page asks for the panel", async ({ page }) => {
+  await page.goto("/?nudge-ui=editor");
+  const inspectorHost = page.locator("#nudge-ui-root");
+  await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
+  await expect.poll(() => panelOpen(inspectorHost)).toBe("false");
+  await expect(inspectorHost.locator('[data-test="show-inspector"]')).toBeVisible();
+
+  const app = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
+  await app.locator("section#demo").getByRole("button", { name: "Open Nudge" }).click();
+  await expect.poll(() => panelOpen(inspectorHost)).toBe("true");
+  expect(new URL(page.url()).searchParams.getAll("nudge-ui")).toEqual(["editor"]);
+});
+
 test("does not undo the seeded landing versions", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?nudge-ui=editor");
   const inspectorHost = page.locator("#nudge-ui-root");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   await inspectorHost.locator('[data-test="show-inspector"]').click();
@@ -96,25 +175,17 @@ test("does not undo the seeded landing versions", async ({ page }) => {
 });
 
 test("keeps the final landing card after refreshing a focused historical version", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?nudge-ui=editor");
   const inspectorHost = page.locator("#nudge-ui-root");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await inspectorHost.locator('[data-test="show-inspector"]').click();
-  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
+  await showCanvas(inspectorHost);
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
 
-  const versionOneCard = inspectorHost
-    .locator('[data-test^="canvas-card-dimensions-"]')
-    .filter({ hasText: "V1" })
-    .locator("xpath=ancestor::*[@data-card-id][1]");
-  const boardBounds = await inspectorHost.locator('[data-test="canvas-board"]').boundingBox();
-  const cardBounds = await versionOneCard.boundingBox();
-  if (!boardBounds || !cardBounds) throw new Error("The canvas frame is not rendered.");
-  await page.mouse.move(boardBounds.x + 10, boardBounds.y + 10);
-  await page.mouse.wheel(cardBounds.x - boardBounds.x - 40, cardBounds.y - boardBounds.y - 80);
-  await versionOneCard.hover({ position: { x: 10, y: 10 } });
-  await versionOneCard.locator('[data-test^="canvas-card-focus-"]').click();
+  // The open panel can cover a frame's hover chrome, so the frame's focus action is triggered directly.
+  const versionOneCard = inspectorHost.getByRole("group", { name: "Frame: V1", exact: true });
+  await versionOneCard.locator('[data-test^="canvas-card-focus-"]').dispatchEvent("click");
   await expect(workspace).toHaveAttribute("data-presentation", "focus");
   await expect.poll(() => new URL(page.url()).searchParams.get("landing-version")).toBe("1");
 
@@ -127,8 +198,8 @@ test("keeps the final landing card after refreshing a focused historical version
   await restoredHost.locator('[data-test="canvas-zoom-focus"]').click();
   await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
 
-  const restoredLabels = await restoredHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
-  expect(restoredLabels.sort()).toEqual(["Final", "V1", "V2"]);
+  const restoredLabels = await restoredHost.locator("[data-card-id]").evaluateAll((cards) => cards.map((card) => card.getAttribute("aria-label")));
+  expect(restoredLabels.sort()).toEqual(["Frame: Final", "Frame: V1", "Frame: V2"]);
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {
@@ -150,14 +221,13 @@ test("opens the editor from an explicit direct application view", async ({ page 
     };
   }).toEqual({ direct: null, editor: "editor", state: "one", hash: "#demo" });
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
-  await expect(page.locator("#nudge-ui-root").locator('[data-test="show-inspector"]')).toBeVisible();
+  await expect.poll(() => panelOpen(page.locator("#nudge-ui-root"))).toBe("true");
 });
 
 test("loads the showcase video as it enters the viewport", async ({ page }) => {
   await page.goto("/");
 
-  const app = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
-  const showcase = app.locator("section.landing-showcase");
+  const showcase = page.locator("section.landing-showcase");
   const videoContainer = showcase.locator(".landing-showcase-video");
   await expect(videoContainer).toHaveCount(1);
   await expect(showcase.locator("video")).toHaveCount(0);

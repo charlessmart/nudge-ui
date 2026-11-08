@@ -272,17 +272,19 @@ describe("nudgeUi plugin virtual inspector module", () => {
     plugin.configResolved?.({ root: "/project", command: "build", mode: "nudge-demo" });
     const code = await plugin.load!("\0virtual:nudge-ui-inspector");
     expect(code).toContain("readNudgeUiEditorTarget(window.location.href)");
-    expect(code).toContain("hasNudgeUiDirectTabIntent()");
-    expect(code).toContain("rememberNudgeUiDirectTabIntent()");
     expect(code).toContain("isCanvasRenderer()");
+    // The application keeps the top document; only an explicit editor URL boots the editor.
+    expect(code).not.toContain("history.replaceState");
+    // The open action, panel handoff and noindex live in the inspector, so the dev editor shell shares them.
+    expect(code).toContain('window.addEventListener("nudge-ui:open", () => openDemoEditor())');
+    expect(code).not.toContain("sessionStorage");
+    expect(code).not.toContain("noindex");
     expect(code).toContain('document.documentElement.setAttribute("data-nudge-ui-editor", "")');
     expect(code).toContain("demo: true");
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
     expect(code).toContain('demoCardLabels: ["V1","Final"]');
     expect(code).toContain('features: {"canvasIterations":false}');
     expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
-    expect(code).toContain('window.addEventListener("nudge-ui:open"');
-    expect(code).toContain("window.location.assign(createNudgeUiEditorUrl(window.location.href))");
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();
   });
 });

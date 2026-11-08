@@ -103,10 +103,6 @@ export function isNudgeUiDirectUrl(href: string): boolean {
   return readNudgeUiQuerySwitch(href) === "off";
 }
 
-export function rememberNudgeUiDirectTabIntent(): void {
-  rememberNudgeUiTabSwitch("off");
-}
-
 export function rememberNudgeUiTabSwitch(value: "off" | "on"): void {
   try {
     sessionStorage.setItem(value === "off" ? DIRECT_TAB_SESSION_KEY : FORCED_TAB_SESSION_KEY, "1");

@@ -894,26 +894,17 @@ export function createVitePlugins(
           return `export {};\n`;
         }
         if (options.demo === true) {
-          const demoControllerExpression = demoBuild
-            ? "true"
-            : '(import.meta.env.DEV && window.location.pathname === "/")';
           // Taken from the composed framework, so the demo bootstrap cannot drift from the served manifest.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, hasNudgeUiDirectTabIntent, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget, rememberNudgeUiDirectTabIntent } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, isCanvasRenderer, isNudgeUiDirectUrl, openDemoEditor, readNudgeUiEditorTarget } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
+            // The application owns the top document so crawlers index it; only an explicit editor URL boots the editor (ADR-0049).
             'const __nudge_ui_renderer = isCanvasRenderer();',
-            'const __nudge_ui_explicit_direct = isNudgeUiDirectUrl(window.location.href);',
-            'if (__nudge_ui_explicit_direct) rememberNudgeUiDirectTabIntent();',
-            'const __nudge_ui_direct_tab = hasNudgeUiDirectTabIntent();',
-            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !__nudge_ui_explicit_direct && !__nudge_ui_direct_tab && ${demoControllerExpression};`,
-            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href) ?? (__nudge_ui_demo_controller ? window.location.href : null);',
-            'if (__nudge_ui_demo_controller && readNudgeUiEditorTarget(window.location.href) === null) {',
-            '  window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(window.location.href));',
-            '}',
+            'const __nudge_ui_editor_target = __nudge_ui_renderer || isNudgeUiDirectUrl(window.location.href) ? null : readNudgeUiEditorTarget(window.location.href);',
             'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
             'if (__nudge_ui_renderer) document.documentElement.setAttribute("data-nudge-ui-renderer", "");',
             'if (__nudge_ui_editor_target || __nudge_ui_renderer) {',
@@ -939,9 +930,7 @@ export function createVitePlugins(
             '    bootstrapNudgeUi(__dt_root);',
             '  }',
             '}',
-            'window.addEventListener("nudge-ui:open", () => {',
-            '  if (!__nudge_ui_renderer && (__nudge_ui_explicit_direct || __nudge_ui_direct_tab)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
-            '});',
+            'window.addEventListener("nudge-ui:open", () => openDemoEditor());',
           ].join("\n");
         }
         return null;
