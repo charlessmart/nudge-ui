@@ -36,6 +36,7 @@ import { releaseDocumentProjection, getStructuralChanges } from "./projection/st
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/viewStore.ts";
+import { consumeDemoOpenPanelIntent, markDocumentNoindex } from "./demoEditor.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
@@ -130,8 +131,8 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
     setCanvasMode("canvas");
     workspaceController?.dispose();
     workspaceController = startWorkspaceController();
-    mountInspector(inspectorHost);
-    setInspectorOpen(false);
+    markDocumentNoindex();
+    mountInspector(inspectorHost, { open: consumeDemoOpenPanelIntent() });
     return;
   }
 
@@ -249,7 +250,7 @@ function mountLockedNotice(host: HTMLElement, storageError = false): void {
   }));
 }
 
-export function mountInspector(host: HTMLElement): void {
+export function mountInspector(host: HTMLElement, options: { readonly open?: boolean } = {}): void {
   const demo = isDemoRuntime();
   if (!demo && !hasWriteLease()) return;
   const runtimeConfig = getNudgeUiRuntimeConfig();
@@ -282,7 +283,7 @@ export function mountInspector(host: HTMLElement): void {
     window.addEventListener("keydown", onKeydown, true);
     window.addEventListener("keyup", onKeyup, true);
   }
-  setInspectorOpen(true);
+  setInspectorOpen(options.open ?? true);
 }
 
 export function unmountInspector(): void {

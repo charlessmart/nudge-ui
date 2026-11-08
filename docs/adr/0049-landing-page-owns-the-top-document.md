@@ -23,18 +23,30 @@ The landing page renders in the top document at every route. The editor
 boots only from an explicit editor URL.
 
 - **Open action.** The page's open actions, **Try it here** in the hero and
-  **Open Nudge** in the demo section, dispatch `nudge-ui:open`. The demo
-  bootstrap then navigates to the editor URL for the current route, which keeps
-  the path, query and hash. This is the same reload ADR-0027 used for the
-  direct-application view, which is no longer a special case.
+  **Open Nudge** in the demo section, dispatch `nudge-ui:open`. `openDemoEditor`
+  in the inspector then navigates to the editor URL for the current route, which
+  keeps the path, query and hash. The event is ignored inside the editor and
+  its Canvas frames, which have their own open paths. The navigation itself is
+  `openNudgeUi`, which the floating Nudge button on a closed page shares.
 - **Panel state.** A one-shot `sessionStorage` entry, removed as the editor
   reads it, opens the panel when the editor is reached from an open action. A
   refresh still opens collapsed in Focus, as ADR-0027 requires, and the demo
-  still leaves no storage behind.
-- **Indexing.** The editor document adds `<meta name="robots"
-  content="noindex">`. The landing HTML declares `https://nudgeui.com/` as
-  canonical, which also covers the `?landing-version=` cards, and the site
-  publishes a sitemap listing it.
+  still leaves no storage behind. `bootstrapNudgeUi` reads it and passes the
+  initial state to `mountInspector`, so the generated demo module, the dev
+  server's editor shell and the production build all behave the same.
+- **Indexing.** `bootstrapNudgeUi` adds `<meta name="robots" content="noindex">`
+  to the demo editor document. The landing HTML declares
+  `https://nudgeui.com/` as canonical, which also covers the
+  `?landing-version=` cards, and the site publishes `robots.txt` pointing at a
+  sitemap listing it. The `/hero` and `/layouts` explorations are `noindex` and
+  drop the canonical.
+- **Loading.** The production page loads the inspector bundle only in the
+  editor and its Canvas frames. On the plain page it loads on the first open
+  action, then replays the event, so a visitor who never opens Nudge never
+  downloads it.
+- **Crawlers without scripts.** `index.html` carries a `<noscript>` block with
+  the heading, description and install links. A test keeps it in step with the
+  rendered page.
 - **Unchanged.** The editor, its seeded V1, V2 and Final cards, Canvas, and the
   demo restrictions on persistence, leasing and agent access follow ADR-0027.
 

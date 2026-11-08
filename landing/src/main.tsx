@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
+import { App, OPEN_NUDGE_EVENT } from "./App";
 import { LandingVersionPage } from "./LandingVersionPage";
 import { HeroVariantsPage } from "./hero/HeroVariantsPage";
 import { LayoutVariantsPage } from "./layouts/LayoutVariantsPage";
@@ -27,11 +27,29 @@ const page = heroRoute
       ? <LandingVersionPage version={landingVersion} />
       : <App />;
 
+// Design explorations are not content: keep them out of the index and off the home page's canonical.
+if (heroRoute || layoutsRoute) {
+  document.querySelector('link[rel="canonical"]')?.remove();
+  const robots = document.createElement("meta");
+  robots.name = "robots";
+  robots.content = "noindex";
+  document.head.append(robots);
+}
+
 if (landingDemoBuild && !import.meta.env.DEV) {
   const inspectorRoot = document.createElement("div");
   inspectorRoot.id = "nudge-ui-root";
   document.body.appendChild(inspectorRoot);
-  void import("virtual:nudge-ui-inspector");
+  const loadInspector = () => import("virtual:nudge-ui-inspector");
+  if (editorDocument || window.self !== window.top) {
+    // The editor and its Canvas frames need the inspector from the first paint.
+    void loadInspector();
+  } else {
+    // The plain page only needs it once a visitor opens Nudge; the open action then runs from the loaded module.
+    window.addEventListener(OPEN_NUDGE_EVENT, () => {
+      void loadInspector().then(() => window.dispatchEvent(new Event(OPEN_NUDGE_EVENT)));
+    }, { once: true });
+  }
 }
 
 if (!editorDocument) {

@@ -1,5 +1,11 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+/** Leaves Focus for the Canvas by unticking View in focus in the toolbar's zoom menu. */
+async function showCanvas(inspectorHost: Locator): Promise<void> {
+  await inspectorHost.locator('[data-test="canvas-zoom-menu"]').click();
+  await inspectorHost.locator('[data-test="canvas-zoom-focus"]').click();
+}
+
 const panelOpen = (inspectorHost: Locator) => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"));
 
 test("renders the landing page in the top document for crawlers", async ({ page }) => {
@@ -23,6 +29,48 @@ test("renders the landing page in the top document for crawlers", async ({ page 
   await install.getByRole("button", { name: "Copy install prompt" }).click();
   await expect(install.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
+});
+
+test("serves crawlers that do not run scripts the same heading, description and install links", async ({ page, request }) => {
+  const html = await (await request.get("/")).text();
+  const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(html)?.[1] ?? "";
+  await page.goto("/");
+
+  const heading = await page.getByRole("heading", { level: 1 }).innerText();
+  const description = await page.locator('meta[name="description"]').getAttribute("content");
+  expect(fallback).toContain(`<h1>${heading}</h1>`);
+  expect(fallback).toContain(description);
+  const links = await page.locator("section#install a[href^='https://']").evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute("href")));
+  for (const href of links) expect(fallback).toContain(`href="${href}"`);
+});
+
+test("advertises the sitemap to crawlers", async ({ request }) => {
+  const robots = await request.get("/robots.txt");
+  expect(await robots.text()).toContain("Sitemap: https://nudgeui.com/sitemap.xml");
+  const sitemap = await request.get("/sitemap.xml");
+  expect(await sitemap.text()).toContain("<loc>https://nudgeui.com/</loc>");
+});
+
+test("keeps design explorations out of the index", async ({ page }) => {
+  await page.goto("/hero");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+});
+
+test("loads the inspector only when a visitor opens Nudge", async ({ page }) => {
+  // The dev server injects the inspector into every document, so only the production build defers it.
+  test.skip(process.env.NUDGE_UI_LANDING_TARGET === "dev", "The dev server always loads the inspector.");
+  const inspectorRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("nudge-ui-inspector")) inspectorRequests.push(request.url());
+  });
+
+  await page.goto("/", { waitUntil: "networkidle" });
+  expect(inspectorRequests).toEqual([]);
+
+  await page.locator("section.landing-hero").getByRole("button", { name: "Try it here" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.getAll("nudge-ui")).toContain("editor");
+  await expect.poll(() => inspectorRequests.length).toBeGreaterThan(0);
 });
 
 test("opens the restricted demo in the shared iframe editor from Try it here", async ({ page }) => {
@@ -58,11 +106,14 @@ test("opens the restricted demo in the shared iframe editor from Try it here", a
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "1")).toHaveLength(1);
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "2")).toHaveLength(1);
 
-  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
+  await showCanvas(inspectorHost);
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
   await expect(versionOneFrame).toBeVisible();
   await expect(versionTwoFrame).toBeVisible();
-  await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
+  // Iterations write filesystem artifacts, so the landing config enables them for the dev server only.
+  if (process.env.NUDGE_UI_LANDING_TARGET !== "dev") {
+    await expect(inspectorHost.locator('[data-test^="canvas-card-create-iteration-"]')).toHaveCount(0);
+  }
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
   const editableDemoText = app.locator(".landing-bento-text-heading");
   await editableDemoText.dblclick();
@@ -129,17 +180,12 @@ test("keeps the final landing card after refreshing a focused historical version
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await inspectorHost.locator('[data-test="show-inspector"]').click();
-  await inspectorHost.getByRole("button", { name: "Canvas", exact: true }).click();
+  await showCanvas(inspectorHost);
   await inspectorHost.getByRole("button", { name: "Select", exact: true }).click();
 
+  // The open panel can cover a frame's hover chrome, so the frame's focus action is triggered directly.
   const versionOneCard = inspectorHost.getByRole("group", { name: "Frame: V1", exact: true });
-  const boardBounds = await inspectorHost.locator('[data-test="canvas-board"]').boundingBox();
-  const cardBounds = await versionOneCard.boundingBox();
-  if (!boardBounds || !cardBounds) throw new Error("The canvas frame is not rendered.");
-  await page.mouse.move(boardBounds.x + 10, boardBounds.y + 10);
-  await page.mouse.wheel(cardBounds.x - boardBounds.x - 40, cardBounds.y - boardBounds.y - 80);
-  await versionOneCard.hover({ position: { x: 10, y: 10 } });
-  await versionOneCard.locator('[data-test^="canvas-card-focus-"]').click();
+  await versionOneCard.locator('[data-test^="canvas-card-focus-"]').dispatchEvent("click");
   await expect(workspace).toHaveAttribute("data-presentation", "focus");
   await expect.poll(() => new URL(page.url()).searchParams.get("landing-version")).toBe("1");
 

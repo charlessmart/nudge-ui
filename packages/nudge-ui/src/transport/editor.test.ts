@@ -8,7 +8,6 @@ import {
   isNudgeUiDirectUrl,
   isNudgeUiEditorDocumentRequest,
   readNudgeUiQuerySwitch,
-  rememberNudgeUiDirectTabIntent,
   rememberNudgeUiTabSwitch,
   readNudgeUiEditorTarget,
   resolveNudgeUiClientEntry,
@@ -104,7 +103,7 @@ describe("editor transport", () => {
       },
     });
     expect(hasNudgeUiDirectTabIntent()).toBe(false);
-    rememberNudgeUiDirectTabIntent();
+    rememberNudgeUiTabSwitch("off");
     expect(hasNudgeUiDirectTabIntent()).toBe(true);
     delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
   });

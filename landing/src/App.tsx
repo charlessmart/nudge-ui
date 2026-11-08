@@ -412,7 +412,7 @@ export function InstallCommand(): ReactNode {
 function HeroActions(): ReactNode {
   return (
     <div className="landing-install-actions">
-      <LandingButton type="button" variant="primary" aria-controls="nudge-ui-root" onClick={openNudge}>
+      <LandingButton type="button" variant="primary" onClick={openNudge}>
         Try it here
         <ArrowRightIcon />
       </LandingButton>
@@ -468,7 +468,7 @@ function DemoIntro(): ReactNode {
       <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
       <div className="landing-demo-content landing-content-column">
         <p className="landing-demo-description">Open Nudge and try the loop yourself: rewrite the copy, swap a token or drag the spacing below, and see it immediately.</p>
-        <LandingButton type="button" variant="primary" aria-controls="nudge-ui-root" onClick={openNudge}>
+        <LandingButton type="button" variant="primary" onClick={openNudge}>
           Open Nudge
           <ArrowRightIcon />
         </LandingButton>
