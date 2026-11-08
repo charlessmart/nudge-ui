@@ -8,6 +8,7 @@ import {
 } from "../../transport/artifacts.ts";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../../transport/routes.ts";
 import { captureHtmlIteration } from "./capture.ts";
+import { createArtifactId } from "./artifactId.ts";
 
 export function artifactDocumentUrl(id: string): string {
   return `${NUDGE_UI_ARTIFACTS_PATH}/${id}/preview`;
@@ -44,18 +45,24 @@ export async function commitHtmlArtifact(id: string, expected: HtmlArtifactRevis
 }
 
 export async function createHtmlArtifact(frame: CanvasFrame, sourceUrl: string, title: string, capturedHtml?: string): Promise<string> {
-  const id = crypto.randomUUID();
   const html = capturedHtml ?? await captureHtmlIteration(frame);
-  const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      id, html, sourceUrl, title,
-      viewport: { width: frame.clientWidth, height: frame.clientHeight },
-    }),
-  });
-  if (!response.ok) throw new Error((await response.text()) || "The unlinked frame could not be saved.");
-  return id;
+  let lastError = "The unlinked frame could not be saved.";
+  // A short suffix makes an existing directory unlikely, but a retry keeps creation reliable.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const id = createArtifactId(title);
+    const response = await fetch(NUDGE_UI_ARTIFACTS_PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id, html, sourceUrl, title,
+        viewport: { width: frame.clientWidth, height: frame.clientHeight },
+      }),
+    });
+    if (response.ok) return id;
+    lastError = (await response.text()) || lastError;
+    if (response.status !== 409) throw new Error(lastError);
+  }
+  throw new Error(lastError);
 }
 
 export async function removeHtmlArtifact(id: string): Promise<void> {

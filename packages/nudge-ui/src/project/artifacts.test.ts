@@ -32,34 +32,33 @@ async function request(method: string, path: string, input?: unknown): Promise<{
 }
 
 describe("HTML artifact route", () => {
-  it("keeps the captured baseline while updating the editable document", async () => {
+  it("saves the editable document without moving the preview until commit", async () => {
     root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
     const id = "550e8400-e29b-41d4-a716-446655440000";
     const path = "/__nudge_ui__/artifacts";
-    const baseline = "<!doctype html><html><body><main>Before</main></body></html>";
+    const original = "<!doctype html><html><body><main>Before</main></body></html>";
 
     expect((await request("POST", path, {
-      id, html: baseline, sourceUrl: "http://localhost/page", title: "Page",
+      id, html: original, sourceUrl: "http://localhost/page", title: "Page",
       viewport: { width: 800, height: 600 },
     })).status).toBe(201);
-    expect(await readFile(join(root, ".nudge", "artifacts", id, "baseline.html"), "utf8")).toBe(baseline);
+    expect(existsSync(join(root, ".nudge", "artifacts", id, "baseline.html"))).toBe(false);
 
     const initial = JSON.parse((await request("GET", `${path}/${id}/revision`)).body);
-    expect((await request("PUT", `${path}/${id}/document`, { expected: initial, html: baseline.replace("Before", "After") })).status).toBe(200);
-    expect((await request("GET", `${path}/${id}/baseline`)).body).toContain("Before");
+    expect((await request("PUT", `${path}/${id}/document`, { expected: initial, html: original.replace("Before", "After") })).status).toBe(200);
+    expect((await request("GET", `${path}/${id}/baseline`)).status).toBe(404);
     expect((await request("GET", `${path}/${id}/document`)).body).toContain("After");
     expect((await request("GET", `${path}/${id}/preview`)).body).toContain("Before");
     const saved = JSON.parse((await request("GET", `${path}/${id}/revision`)).body);
     expect((await request("POST", `${path}/${id}/commit`, { expected: saved })).status).toBe(200);
     expect((await request("GET", `${path}/${id}/preview`)).body).toContain("After");
-    expect(await readFile(join(root, ".nudge", "artifacts", id, "baseline.html"), "utf8")).toBe(baseline);
     expect((await request("POST", path, {
-      id, html: baseline, sourceUrl: "http://localhost/page", title: "Page", viewport: { width: 800, height: 600 },
+      id, html: original, sourceUrl: "http://localhost/page", title: "Page", viewport: { width: 800, height: 600 },
     })).status).toBe(409);
     expect((await request("PUT", `${path}/invalid/document`, { html: "x" })).status).toBe(404);
   });
 
-  it("detects agent edits on disk and promotes them without changing the original capture", async () => {
+  it("detects agent edits on disk and promotes them to the preview", async () => {
     root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
     const id = "550e8400-e29b-41d4-a716-446655440000";
     const path = `/__nudge_ui__/artifacts/${id}`;
@@ -74,7 +73,6 @@ describe("HTML artifact route", () => {
     expect((await request("GET", `${path}/preview`)).body).toContain("Agent iteration");
     const synced = JSON.parse((await request("GET", `${path}/revision`)).body);
     expect(synced.document).toBe(synced.preview);
-    expect(await readFile(join(root, ".nudge", "artifacts", id, "baseline.html"), "utf8")).toBe(original);
   });
 
   it("rejects stale browser saves while preserving agent output and the editing base", async () => {
@@ -128,6 +126,31 @@ describe("HTML artifact route", () => {
     expect((await request("GET", `${path}/preview`)).body).toContain(`data-nudge-artifact-revision="${expected.preview}"`);
   });
 
+  it("stores and lists an artifact under a readable title slug", async () => {
+    root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
+    const id = "landing-page-one-4f3c2a1e";
+    const path = `/__nudge_ui__/artifacts/${id}`;
+    expect((await request("POST", "/__nudge_ui__/artifacts", {
+      id, html: "<html><body>Slug</body></html>", sourceUrl: "http://localhost/page",
+      title: "Landing page one", viewport: { width: 800, height: 600 },
+    })).status).toBe(201);
+    expect((await request("GET", `${path}/preview`)).status).toBe(200);
+    expect(JSON.parse((await request("GET", "/__nudge_ui__/artifacts")).body)).toMatchObject([
+      { id, title: "Landing page one" },
+    ]);
+    expect((await request("DELETE", path)).status).toBe(204);
+  });
+
+  it("rejects an artifact ID that is not a safe directory name", async () => {
+    root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
+    const result = await request("POST", "/__nudge_ui__/artifacts", {
+      id: "../escape", html: "<html></html>", sourceUrl: "http://localhost/page",
+      title: "Bad", viewport: { width: 800, height: 600 },
+    });
+    expect(result.status).toBe(400);
+    expect(existsSync(join(root, ".nudge"))).toBe(false);
+  });
+
   it("lists an empty project without creating artifact storage", async () => {
     root = await mkdtemp(join(tmpdir(), "nudge-artifacts-"));
     const response = await request("GET", "/__nudge_ui__/artifacts");
@@ -159,7 +182,6 @@ describe("HTML artifact route", () => {
       id: newer, sourceUrl: "http://localhost/two", title: "Two", capturedAt: 20,
       viewport: { width: 1024, height: 768 },
     }));
-    await writeFile(join(root, ".nudge", "artifacts", newer, "baseline.html"), "<html></html>");
     await writeFile(join(root, ".nudge", "artifacts", "not-an-artifact"), "x");
 
     const response = await request("GET", path);

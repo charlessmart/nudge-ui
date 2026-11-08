@@ -1,5 +1,6 @@
 import { applicationTarget, componentsTarget, htmlTarget, type DraftTarget } from "../drafts/model.ts";
 import { artifactDocumentUrl } from "../iterations/client.ts";
+import { isHtmlArtifactId } from "../../transport/artifacts.ts";
 import type { FlowScenario, FlowStep } from "../../transport/flows.ts";
 
 /** Which flow state a route frame shows. A copy of the file's recipe, so a restored frame loads before the file is read. */
@@ -79,7 +80,7 @@ export function isFrameContent(value: unknown, origin: string): value is FrameCo
   const url = content.kind === "route" ? content.url : content.sourceUrl;
   if (typeof url !== "string") return false;
   try { if (new URL(url).origin !== origin) return false; } catch { return false; }
-  if (content.kind === "iteration") return typeof content.artifactId === "string" && /^[a-f0-9-]{36}$/i.test(content.artifactId);
+  if (content.kind === "iteration") return isHtmlArtifactId(content.artifactId);
   if (content.flowState !== undefined && !isFlowStateBinding(content.flowState)) return false;
   return content.kind === "route" && content.navigationUrl === undefined;
 }

@@ -1,6 +1,8 @@
 import { normalizeUrl, normalizedUrlKey } from "../canvas/normalizeUrl.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
+import { isHtmlArtifactId } from "../../transport/artifacts.ts";
+import { NUDGE_UI_ARTIFACTS_PATH } from "../../transport/routes.ts";
 
 export interface DraftContents {
   readonly changes: readonly ChangeRecord[];
@@ -39,7 +41,6 @@ export interface DraftSnapshot {
 }
 
 const COMPONENTS_PATH = "/__nudge_ui__/components";
-const ARTIFACT_PATH = /^\/__nudge_ui__\/artifacts\/([a-f0-9-]{36})\//i;
 
 export function applicationTarget(url: string = window.location.href): ApplicationTarget {
   const page = new URL(url, window.location.href);
@@ -54,7 +55,11 @@ export function htmlTarget(artifactId: string): HtmlTarget {
 }
 
 export function artifactIdFromUrl(url: string): string | null {
-  return ARTIFACT_PATH.exec(new URL(url, window.location.href).pathname)?.[1] ?? null;
+  const path = new URL(url, window.location.href).pathname;
+  const prefix = `${NUDGE_UI_ARTIFACTS_PATH}/`;
+  if (!path.startsWith(prefix)) return null;
+  const id = path.slice(prefix.length).split("/")[0];
+  return isHtmlArtifactId(id) ? id : null;
 }
 
 export function componentsTarget(): ComponentsTarget {
@@ -93,6 +98,6 @@ export function isDraftTarget(value: unknown): value is DraftTarget {
     try { return applicationTarget(target.route).route === target.route; } catch { return false; }
   }
   if (target.kind === "components") return true;
-  return target.kind === "html" && typeof target.artifactId === "string"
+  return target.kind === "html" && isHtmlArtifactId(target.artifactId)
     && target.path === `.nudge/artifacts/${target.artifactId}/document.html`;
 }

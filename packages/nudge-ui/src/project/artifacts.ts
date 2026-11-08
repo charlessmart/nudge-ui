@@ -1,6 +1,7 @@
 import {
   HTML_ARTIFACT_REVISION_ATTRIBUTE,
   HTML_ITERATION_CONFLICT,
+  isHtmlArtifactId,
   isHtmlArtifactMetadata,
   isHtmlArtifactRevision,
   type HtmlArtifactMetadata,
@@ -48,7 +49,6 @@ function sameRevision(left: HtmlArtifactRevision, right: HtmlArtifactRevision): 
   return left.document === right.document && left.preview === right.preview;
 }
 
-const ID = /^[a-f0-9-]{36}$/i;
 const MAX_BYTES = 12 * 1024 * 1024;
 const INERT_INTERACTIONS = `<script data-nudge-artifact-guard>
 document.addEventListener("submit", event => event.preventDefault(), true);
@@ -116,7 +116,7 @@ export async function handleHtmlArtifactRequest(
     if (!isSameOriginRequest(request)) { respond(response, 403, "Cross-origin artifact writes are not allowed"); return true; }
   }
   const id = parts[0];
-  if (parts.length > 2 || (id && !ID.test(id)) || (parts.length === 2 && !["document", "baseline", "preview", "commit", "revision"].includes(parts[1]!))) {
+  if (parts.length > 2 || (id && !isHtmlArtifactId(id)) || (parts.length === 2 && !["document", "preview", "commit", "revision"].includes(parts[1]!))) {
     respond(response, 404, "Not Found");
     return true;
   }
@@ -136,7 +136,6 @@ export async function handleHtmlArtifactRequest(
       await mkdir(temporary);
       try {
         await settleAll([
-          writeFile(join(temporary, "baseline.html"), input.html),
           writeFile(join(temporary, "preview.html"), input.html),
           writeFile(join(temporary, "document.html"), input.html),
           writeFile(join(temporary, "metadata.json"), JSON.stringify(metadata)),
@@ -165,7 +164,7 @@ export async function handleHtmlArtifactRequest(
         return true;
       }
       if (request.method === "GET" && parts.length === 2 && parts[1] !== "commit") {
-        const file = parts[1] === "baseline" ? "baseline.html" : parts[1] === "preview" ? "preview.html" : "document.html";
+        const file = parts[1] === "preview" ? "preview.html" : "document.html";
         const html = await readFile(join(target, file), "utf8");
         const stamped = html.replace(/<html\b/i, `<html ${HTML_ARTIFACT_REVISION_ATTRIBUTE}="${revision(html)}"`);
         const bootstrapped = injectStandaloneBootstrap(stamped).html;
@@ -268,7 +267,7 @@ async function listArtifacts(root: string): Promise<HtmlArtifactMetadata[]> {
     throw error;
   }
   const found = await Promise.all(entries.map(async (entry): Promise<HtmlArtifactMetadata | null> => {
-    if (!entry.isDirectory() || !ID.test(entry.name)) return null;
+    if (!entry.isDirectory() || !isHtmlArtifactId(entry.name)) return null;
     try {
       const value: unknown = JSON.parse(await readFile(join(artifacts, entry.name, "metadata.json"), "utf8"));
       return isHtmlArtifactMetadata(value) && value.id === entry.name ? value : null;
@@ -292,7 +291,7 @@ interface NewArtifact {
 function validArtifact(value: unknown): value is NewArtifact {
   if (!isRecord(value)) return false;
   const viewport = value.viewport;
-  return typeof value.id === "string" && ID.test(value.id)
+  return isHtmlArtifactId(value.id)
     && typeof value.sourceUrl === "string" && value.sourceUrl.length < 4096
     && typeof value.title === "string" && value.title.length < 512
     && typeof value.html === "string" && value.html.length > 0

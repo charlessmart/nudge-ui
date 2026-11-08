@@ -40,6 +40,16 @@ it("keeps HTML iterations independent of their live source route", () => {
   expect(getLinkedFrameIds([frames[0]!, frames[2]!], "first")).toEqual([]);
 });
 
+it("accepts legacy and readable artifact IDs for iteration frames", async () => {
+  const { isFrameContent } = await import("./frameContent.ts");
+  const origin = window.location.origin;
+  const base = { kind: "iteration" as const, sourceUrl: `${origin}/playground` };
+
+  expect(isFrameContent({ ...base, artifactId: "550e8400-e29b-41d4-a716-446655440000" }, origin)).toBe(true);
+  expect(isFrameContent({ ...base, artifactId: "landing-page-one-4f3c2a1e" }, origin)).toBe(true);
+  expect(isFrameContent({ ...base, artifactId: "../escape" }, origin)).toBe(false);
+});
+
 it("models component sheets as a shared components draft with an encoded document URL", async () => {
   const { contentDocumentUrl, contentEditTarget, contentSourceUrl, isFrameContent } = await import("./frameContent.ts");
   const content: FrameContent = { kind: "component", componentId: "src/Button.tsx:Button", name: "Button" };

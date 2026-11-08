@@ -53,3 +53,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0047: Flows from agent-written files](./0047-flows-from-agent-written-files.md) (supersedes ADR-0030's deferral of state fixtures and ADR-0044's no-agent-initiated-Canvas-changes consequence for flows)
 - [ADR-0048: Styling dialect adapters](./0048-styling-dialect-adapters.md)
 - [ADR-0050: Component framework adapters, and component sheets on Next.js](./0050-component-framework-adapters.md) (supersedes ADR-0045's and ADR-0046's Vite-only sheets and library routes, and ADR-0034's note that Next.js does not inject the renderer capture)
+- [ADR-0051: Readable HTML artifact folders, without a baseline capture](./0051-readable-html-artifact-folders.md) (supersedes ADR-0030's UUID artifact IDs and its `baseline.html` file)

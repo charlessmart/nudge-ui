@@ -56,7 +56,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   const source = cards.first().locator("iframe");
   const iteration = cards.nth(2).locator("iframe");
   const iterationUrl = await iteration.getAttribute("src");
-  expect(iterationUrl).toMatch(/^\/__nudge_ui__\/artifacts\/[a-f0-9-]{36}\/preview$/i);
+  expect(iterationUrl).toMatch(/^\/__nudge_ui__\/artifacts\/(?:[a-z0-9]+(?:-[a-z0-9]+)*-[a-f0-9]{8}|[a-f0-9-]{36})\/preview$/);
   await expect(iteration.contentFrame().locator("h1").first()).toBeVisible();
   await expect(source.contentFrame().locator("h1").first()).toBeVisible();
   const originalHeading = await source.contentFrame().locator("h1").first().textContent();
@@ -79,9 +79,9 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   await expect(source.contentFrame().locator("h1").first()).toHaveText(originalHeading ?? "");
 
   const artifactId = iterationUrl!.split("/")[3]!;
-  const baseline = await page.request.get(`/__nudge_ui__/artifacts/${artifactId}/baseline`);
-  expect(baseline.ok()).toBe(true);
-  expect(await baseline.text()).toContain("<h1");
+  const saved = await page.request.get(`/__nudge_ui__/artifacts/${artifactId}/document`);
+  expect(saved.ok()).toBe(true);
+  expect(await saved.text()).toContain("<h1");
 
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveText(/Copy prompt/);
   await page.locator('[data-test="copy-prompt"]').click();

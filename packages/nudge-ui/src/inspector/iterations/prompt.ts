@@ -5,7 +5,7 @@ export function htmlIterationPrompt(id: string, changes: string, noInspectorChan
   return withPromptContext([
     `Please edit only ${directory}/document.html. It's the standalone HTML and CSS shown in the Nudge unlinked frame I have selected.`,
     "Keep its responsive CSS and the design edits I've already made, and leave the application source files alone. Any original source locations below just identify the captured elements; they aren't files to edit.",
-    `Please also leave ${directory}/baseline.html, ${directory}/preview.html, and the metadata as they are. Nudge will reload the unlinked frame from your updated document.`,
+    `Please also leave ${directory}/preview.html and the metadata as they are. Nudge will reload the unlinked frame from your updated document.`,
   ], noInspectorChanges
     ? ["Use the current unlinked frame as your starting point. The visual edits I've made are already saved in its markup and styles.", ...(customInstructions.trim() ? ["", customInstructions.trim()] : [])].join("\n")
     : changes);
