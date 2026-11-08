@@ -89,11 +89,29 @@
   line-height: 1.8;
 }
 
-.add-page-menu__footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+/* Heads both add menus. The quiet button bleeds out by its padding, so its icon lines up with the text. */
+.add-menu-intro {
+  display: grid;
+  justify-items: start;
   gap: var(--space-4);
+  padding: var(--space-4) var(--space-8) 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.add-menu-intro p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.add-menu-intro .button {
+  margin-left: calc(var(--space-12) * -1);
+}
+
+/* The items an agent already wrote, set off from the intro above. */
+.add-menu-intro + .add-page-menu__list,
+.add-menu-intro + .add-page-menu__muted,
+.add-menu-intro + .add-page-menu__error {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }

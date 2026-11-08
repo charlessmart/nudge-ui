@@ -38,7 +38,7 @@
   min-height: var(--control-height-large);
   padding-right: var(--space-8);
   border: 0;
-  border-radius: var(--radius-4);
+  border-radius: var(--radius-8);
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;

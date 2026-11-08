@@ -19,7 +19,7 @@ export function computeHierarchy(el: HTMLElement): HTMLElement[] {
   return chain;
 }
 
-/** Direct children listed in the DOM navigator before the rest collapse into a count. */
+/** Direct children listed in the layer tree before the rest collapse into a count. */
 export const NAVIGATOR_CHILD_LIMIT = 50;
 
 export interface TrackedChildren {

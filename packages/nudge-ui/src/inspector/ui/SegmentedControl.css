@@ -67,8 +67,10 @@
   color: var(--text-primary);
 }
 
+/* The control owns its icon weight, like IconButton and ToggleButton, whatever stroke a caller passes. */
 .segmented-control__button svg {
   flex-shrink: 0;
+  stroke-width: var(--icon-stroke-width);
 }
 
 .segmented-control__label {
@@ -76,4 +78,83 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * A narrow track of views: inactive views stay icon-sized and the active one takes the rest and names itself.
+ * Every segment shares one flex-basis, and only flex-grow changes (0 to 1), so while the outgoing view folds and the
+ * incoming one unfolds their growth always sums to 1 and the track never shifts. The chip has a constant width
+ * (the track minus the icon-sized views), so it only needs to slide.
+ */
+.segmented-control--reveal {
+  /* Wider than the track is tall, so a folded view reads as a target rather than a bare icon. */
+  --segment-collapsed: var(--space-48);
+  /* Twice the shared spring: the morph moves a lot of width, and reads better given the time to travel. */
+  --segment-duration: calc(var(--spring-duration) * 2);
+  display: flex;
+  gap: 2px;
+}
+
+.segmented-control--reveal .segmented-control__indicator {
+  width: calc(100% - 4px - (var(--segment-count) - 1) * (var(--segment-collapsed) + 2px));
+  transform: translateX(calc(var(--segment-index) * (var(--segment-collapsed) + 2px)));
+  transition: transform var(--segment-duration) var(--ease-out);
+}
+
+/*
+ * Each icon sits a fixed inset from its segment's leading edge (centred in the folded width) and the label follows it,
+ * clipped by the segment. The opened segment centres its icon and label by growing that inset to the centring value,
+ * worked out from the opened width and the measured `--label-width`, never from layout. The inset animates on the
+ * same curve as the segment's width, so the icon travels in step with the segment instead of re-centring on its own.
+ */
+.segmented-control--reveal .button.segmented-control__button {
+  flex: 0 0 var(--segment-collapsed);
+  justify-content: flex-start;
+  gap: var(--space-4);
+  --segment-inset: calc((var(--segment-collapsed) - var(--icon-size-small)) / 2);
+  padding: 0 var(--space-8) 0 var(--segment-inset);
+  overflow: hidden;
+  transition:
+    flex-grow var(--segment-duration) var(--ease-out),
+    padding-inline-start var(--segment-duration) var(--ease-out),
+    color 120ms ease,
+    /* Press feedback stays on the spring, like every other button. */
+    transform var(--spring-duration) var(--spring-ease);
+}
+
+.segmented-control--reveal .button.segmented-control__button--selected,
+.segmented-control--reveal .button.segmented-control__button--selected:hover:not(:disabled) {
+  flex-grow: 1;
+  /* Padding percentages resolve against the track, so 100% minus the folded segments is the opened width. */
+  padding-inline-start: max(
+    var(--segment-inset),
+    calc(
+      (100% - (var(--segment-count) - 1) * (var(--segment-collapsed) + 2px)
+        - var(--icon-size-small) - var(--space-4) - var(--label-width, 0px)) / 2
+    )
+  );
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+/* The label clips instead of truncating, so a half-open segment never shows "Com…". */
+.segmented-control--reveal .segmented-control__label {
+  text-overflow: clip;
+  opacity: 0;
+  transition: opacity 180ms var(--ease-out);
+}
+
+.segmented-control--reveal .segmented-control__button--selected .segmented-control__label {
+  opacity: 1;
+  /* A long, slightly delayed fade: the text arrives with the segment rather than ahead of it. */
+  transition: opacity var(--segment-duration) ease 80ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-control--reveal .segmented-control__indicator,
+  .segmented-control--reveal .button.segmented-control__button,
+  .segmented-control--reveal .segmented-control__label {
+    transition: none;
+  }
 }

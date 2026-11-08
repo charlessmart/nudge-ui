@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent, ReactElement } from "react";
 import {
-  IconAdjustmentsHorizontal,
-  IconAdjustmentsHorizontalFilled,
   IconMessageCircle,
   IconMessageCircleFilled,
   IconPointer2,
+  IconScanEye,
   IconSketching,
 } from "@tabler/icons-react";
 import { CanvasZoomMenu, type CanvasZoomMenuProps } from "./CanvasZoomMenu.tsx";
@@ -221,8 +220,8 @@ export function CanvasToolbar({
           active={tool === "debug"}
           label="Inspection"
           shortcut={INSPECTION_SHORTCUTS.tool.label}
-          icon={<IconAdjustmentsHorizontal size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
-          activeIcon={<IconAdjustmentsHorizontalFilled size={ICON_SIZE} aria-hidden="true" />}
+          icon={<IconScanEye size={ICON_SIZE} stroke="var(--icon-stroke-width)" aria-hidden="true" />}
+          activeIcon={<IconScanEye size={ICON_SIZE} stroke={2.4} aria-hidden="true" />}
           dataTest="canvas-tool-debug"
           onClick={() => onToolChange("debug")}
         />

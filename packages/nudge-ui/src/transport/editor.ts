@@ -116,6 +116,12 @@ export function rememberNudgeUiTabSwitch(value: "off" | "on"): void {
   }
 }
 
+/** Leaves the plain page for the editor. `rememberTab` also keeps this tab in the editor when it later loads a plain page. */
+export function openNudgeUi(options: { readonly rememberTab?: boolean } = {}): void {
+  if (options.rememberTab) rememberNudgeUiTabSwitch("on");
+  window.location.assign(createNudgeUiEditorUrl(window.location.href));
+}
+
 export function hasNudgeUiDirectTabIntent(): boolean {
   return readTabFlag(DIRECT_TAB_SESSION_KEY);
 }

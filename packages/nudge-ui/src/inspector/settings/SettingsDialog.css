@@ -70,8 +70,12 @@
   background: var(--surface-panel);
 }
 
-.settings__reset-canvas {
+.settings__close-nudge {
   margin-top: auto;
+}
+
+.settings__reset-canvas {
+  margin-top: var(--space-4);
 }
 
 .settings__nav-label {

@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "../index.ts";
 import { getSelectedElement, setSelectedElement, setSelectedElements } from "../selection/selectionStore.ts";
+import { setInspectorTab } from "./inspectorTabStore.ts";
 import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { appendChange, clearActiveDraft, getChangesList } from "../drafts/store.ts";
@@ -38,6 +39,8 @@ describe("InspectorShell", () => {
     act(() => {
       unmountInspector();
     });
+    // The panel view is module state and selection no longer resets it, so each test starts on Styles.
+    setInspectorTab("styles");
     clearActiveDraft();
     clearComments();
     clearRestoreCount();
@@ -426,6 +429,33 @@ describe("InspectorShell", () => {
     });
 
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("keeps the panel view when an element is selected", () => {
+    const target = document.createElement("button");
+    target.dataset.cid = "Selected";
+    target.dataset.src = "fixtures/selected.tsx:1:1";
+    document.body.append(target);
+
+    try {
+      act(() => {
+        mountInspector(host);
+      });
+      const shadow = host.shadowRoot!;
+      act(() => {
+        shadow.querySelector<HTMLButtonElement>('[data-test="panel-view-tokens"]')!.click();
+      });
+      expect(shadow.querySelector('[data-test="document-tokens"]')).not.toBeNull();
+
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(target));
+      });
+      expect(shadow.querySelector('[data-test="document-tokens"]')).not.toBeNull();
+    } finally {
+      act(() => setInspectorTab("styles"));
+      act(() => setSelectedElement(null));
+      target.remove();
+    }
   });
 
   it("does not delete the selected element from a focused inspector input", () => {

@@ -384,6 +384,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let panning = false;
   let boardGesturesEnabled = false;
   let boardScrollPans = false;
+  let boardZooms = false;
   let spacePans = false;
   let nativeAppInteraction = false;
 
@@ -459,6 +460,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     if ((event.data as BoardGestureStateMessage).type === "board-gesture-state") {
       boardGesturesEnabled = (event.data as BoardGestureStateMessage).enabled;
       boardScrollPans = (event.data as BoardGestureStateMessage).panScroll === true;
+      boardZooms = (event.data as BoardGestureStateMessage).zoom ?? boardGesturesEnabled;
       nativeAppInteraction = (event.data as BoardGestureStateMessage).panScroll === false;
       spacePans = boardGesturesEnabled
         && ((event.data as BoardGestureStateMessage).spacePan ?? !nativeAppInteraction);
@@ -578,7 +580,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   const onWheel = (event: WheelEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
     const zoom = event.ctrlKey || event.metaKey;
-    if (!boardGesturesEnabled || (!zoom && !boardScrollPans)) return;
+    if (zoom ? !boardZooms : !boardGesturesEnabled || !boardScrollPans) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     event.preventDefault();

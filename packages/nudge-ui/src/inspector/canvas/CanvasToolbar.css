@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-8);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
@@ -100,6 +100,12 @@
   gap: var(--space-4);
 }
 
+/* Toolbar buttons keep the large 20px icons in a 32px button. The sketch bar's plain tools share the class. */
+.icon-button.canvas-toolbar__tool {
+  width: var(--control-height-large);
+  height: var(--control-height-large);
+}
+
 .canvas-toolbar__divider {
   flex-shrink: 0;
   width: 1px;
@@ -114,8 +120,8 @@
 .inspection-bar {
   position: absolute;
   left: 50%;
-  /* Sits one gap above the canvas toolbar (padding, 40px buttons, padding). */
-  bottom: calc(var(--space-20) + var(--control-height-xlarge) + var(--space-8) + var(--space-8));
+  /* Sits one gap above the canvas toolbar (padding, 32px buttons, padding). */
+  bottom: calc(var(--space-20) + var(--control-height-large) + var(--space-8) * 2 + var(--space-8));
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
@@ -269,7 +275,7 @@
   align-items: center;
   gap: var(--space-4);
   /* The same height as the toolbar's buttons. */
-  height: var(--control-height-xlarge);
+  height: var(--control-height-large);
   padding-inline: var(--space-8) var(--space-4);
   border: 0;
   border-radius: var(--radius-control);

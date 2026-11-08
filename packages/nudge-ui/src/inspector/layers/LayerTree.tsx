@@ -28,6 +28,21 @@ function useTreeRevision(doc: Document | null): void {
   }, [doc]);
 }
 
+/** Whether the row is fully visible in the nearest ancestor that scrolls vertically. */
+function isRowInView(row: Element): boolean {
+  let parent: Element | null = row.parentElement;
+  while (parent) {
+    const { overflowY } = getElementWindow(parent).getComputedStyle(parent);
+    if ((overflowY === "auto" || overflowY === "scroll") && parent.scrollHeight > parent.clientHeight) {
+      const box = row.getBoundingClientRect();
+      const view = parent.getBoundingClientRect();
+      return box.top >= view.top && box.bottom <= view.bottom;
+    }
+    parent = parent.parentElement;
+  }
+  return false;
+}
+
 /** Every tracked element in a page, with the path to the selection open. */
 export function LayerTree({ doc }: { readonly doc: Document | null }): ReactElement {
   const selected = useSelectedElement();
@@ -46,9 +61,22 @@ export function LayerTree({ doc }: { readonly doc: Document | null }): ReactElem
     });
   }, [hierarchy]);
 
+  // The tree scrolls to a row only for a new selection. Opening the Pages view or a layer keeps the
+  // person's scroll position, so the selection the tree mounts with counts as already revealed.
+  const revealedRef = useRef<HTMLElement | null>(selected?.domElement ?? null);
   useLayoutEffect(() => {
-    listRef.current?.querySelector('[data-current="true"]')?.scrollIntoView({ block: "nearest" });
-  }, [selected?.domElement, opened]);
+    const element = selected?.domElement ?? null;
+    if (element === revealedRef.current) return;
+    if (!element) {
+      revealedRef.current = null;
+      return;
+    }
+    const row = listRef.current?.querySelector('[data-current="true"]');
+    // The row appears once the effect above opens its ancestors; stop waiting when they are all open.
+    if (!row && !hierarchy.slice(1).every((ancestor) => opened.has(ancestor))) return;
+    revealedRef.current = element;
+    if (row && !isRowInView(row)) row.scrollIntoView({ block: "center", inline: "nearest" });
+  }, [selected?.domElement, opened, hierarchy]);
 
   const body = doc?.body;
   if (!body) return <p className="navigator__empty">Open a page to see its layers.</p>;
@@ -73,7 +101,6 @@ export function LayerTree({ doc }: { readonly doc: Document | null }): ReactElem
           current={current}
           expanded={expandable ? open : undefined}
           onToggle={() => toggle(element)}
-          role="treeitem"
           testPrefix="layer-tree"
           onSelect={() => {
             // The whole row opens a layer; clicking the selected, open layer again closes it.

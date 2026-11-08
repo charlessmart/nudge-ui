@@ -1,7 +1,7 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import type { FocusEvent, ReactElement, ReactNode } from "react";
 import { cx } from "./classNames.ts";
-import { portalContainer } from "./portalContainer.ts";
+import { usePortalContainer } from "./portalContainer.ts";
 
 export interface TooltipGroupProps {
   children?: ReactNode;
@@ -76,6 +76,7 @@ export function Tooltip({
   popupClassName,
   "data-test": dataTest,
 }: TooltipProps): ReactElement {
+  const portalTarget = usePortalContainer();
   if (disabled) return children;
   const childDisabled = isDisabledTrigger(children);
   const trigger = stableTrigger || childDisabled ? (
@@ -96,7 +97,7 @@ export function Tooltip({
         closeDelay={closeDelay}
         onFocus={disableFocus ? preventFocusOpening : undefined}
       />
-      <BaseTooltip.Portal container={portalContainer()}>
+      <BaseTooltip.Portal container={portalTarget}>
         <BaseTooltip.Positioner
           className={cx("tooltip__positioner", positionerClassName)}
           side={side}

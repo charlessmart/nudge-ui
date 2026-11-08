@@ -11,7 +11,7 @@
   outline-color: var(--linked);
 }
 
-/* Spacing handles and their value badge draw above the DOM navigator chip, which can sit over a margin band. */
+/* Spacing handles and their value badge draw above the element outlines. */
 .canvas-spacing-guide {
   position: fixed;
   z-index: 3;

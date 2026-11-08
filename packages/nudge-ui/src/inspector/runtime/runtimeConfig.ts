@@ -25,7 +25,6 @@ export interface SourceCoordinatePolicy {
 export interface NudgeUiRuntimeCapabilities {
   readonly canvas: boolean;
   readonly componentSemantics: boolean;
-  readonly domNavigation?: boolean;
   /** Precision policy for prompt source coordinates; every source site is exact when omitted. */
   readonly sourceCoordinates?: SourceCoordinatePolicy;
   /** Regex for this host's scoping markers; stripped from selector labels, kept in change records. Omitted means no stripping. */
@@ -35,7 +34,7 @@ export interface NudgeUiRuntimeCapabilities {
 export interface NudgeUiRuntimeFeatures {
   readonly sketch?: boolean;
   readonly canvasIterations?: boolean;
-  /** The left Pages, Flows and Components panel; off, the DOM navigator chip stands in for its layers. */
+  /** The Pages and Components views; off, the panel holds only Styles and Tokens. */
   readonly navigator?: boolean;
 }
 
@@ -98,7 +97,7 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<NudgeUiRuntimeConfig>({
   framework: "React",
   stylingSystem: "CSS custom properties",
   stylingDialects: [],
-  capabilities: { canvas: true, componentSemantics: true, domNavigation: false },
+  capabilities: { canvas: true, componentSemantics: true },
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -242,7 +241,7 @@ function normalizeSourceCoordinatePolicy(
 }
 
 function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
-  if (input === undefined) return { canvas: false, componentSemantics: false, domNavigation: false };
+  if (input === undefined) return { canvas: false, componentSemantics: false };
   if (!isPlainRecord(input)) {
     throw new TypeError(
       'Nudge UI runtime configuration field "capabilities" must be an object.',
@@ -251,7 +250,6 @@ function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
   return {
     canvas: optionalBoolean(input, "canvas"),
     componentSemantics: optionalBoolean(input, "componentSemantics"),
-    domNavigation: optionalBoolean(input, "domNavigation"),
     sourceCoordinates: normalizeSourceCoordinatePolicy(input),
     scopingSelectorPattern: optionalNonEmptyString(input, "scopingSelectorPattern"),
   };

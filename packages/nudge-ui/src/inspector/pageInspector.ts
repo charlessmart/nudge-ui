@@ -181,7 +181,7 @@ function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
     framework: "HTML",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
+    capabilities: { canvas: true, componentSemantics: false },
     features: { canvasIterations: false },
     componentContracts: [],
     ...tokens,

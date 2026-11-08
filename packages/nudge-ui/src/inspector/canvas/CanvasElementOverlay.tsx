@@ -11,7 +11,7 @@ import {
   useTemporaryAppInteraction,
 } from "./viewStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
-import { getSelectedElements, useHierarchy, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
   readBorderWidths,
   toRect,
@@ -58,9 +58,6 @@ import {
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
-import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
-import { DomNavigator } from "../overlay/DomNavigator.tsx";
-import { isNavigatorAvailable } from "../navigator/navigatorStore.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
@@ -130,7 +127,7 @@ function selectGestureElement(element: HTMLElement): void {
   if (selected) setSelectedElement(selected);
 }
 
-/** The renderer reports its last clicked element; the DOM navigator may have since selected another one. */
+/** The renderer reports its last clicked element; the layer tree may have since selected another one. */
 function singleSelectedRendererElement(element: HTMLElement | null): HTMLElement | null {
   const current = getSelectedElements();
   return current.length === 1 && current[0]!.domElement === element ? element : null;
@@ -400,11 +397,6 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedFrame = findCanvasFrameByDocument(selected?.domElement.ownerDocument);
   const selectedFrameExploded = useFrameExploded(findCanvasCardIdByDocument(selected?.domElement.ownerDocument));
   const selectedElements = useSelectedElements();
-  const hierarchy = useHierarchy();
-  const runtimeConfig = useNudgeUiRuntimeConfig();
-  const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
-  // The navigator's layers replace the chip's menu beside the Canvas; a page inspected in place keeps it.
-  const domNavigatorMenu = !isNavigatorAvailable(runtimeConfig);
   const inlineTextSession = useInlineTextSession();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
@@ -966,20 +958,6 @@ export function CanvasElementOverlay(): ReactElement | null {
         >
           {spacingValueCss(spacingBadge.value)}
         </div>
-      ) : null}
-      {domNavigationEnabled && !selectedFrameExploded && !inlineTextSession && !measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedFrameViewport ? (
-        <DomNavigator
-          selected={selected}
-          hierarchy={hierarchy}
-          anchor={selectedRect}
-          size={selectedLocalRect ?? undefined}
-          bounds={selectedFrameViewport}
-          linked={selectionIsLinked}
-          menu={domNavigatorMenu}
-          project={(element) => element.ownerDocument === selected.domElement.ownerDocument
-            ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
-            : null}
-        />
       ) : null}
       <DropGuideOverlay
         guide={projectedDropGuide}

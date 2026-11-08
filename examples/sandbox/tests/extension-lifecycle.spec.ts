@@ -57,8 +57,17 @@ const test = base.extend<{ extension: InstalledExtension }>({
           : url.pathname === "/meta-external"
             ? '<meta http-equiv="Content-Security-Policy" content="frame-src https://example.invalid">'
             : "";
-      response.end(`<!doctype html><html><head>${meta}<style>body{margin:40px}</style></head>
-        <body><h1 id="heading">Extension fixture</h1><input id="draft"></body></html>`);
+      const wheelLock = url.pathname === "/wheel-lock"
+        ? "<script>addEventListener('wheel', (event) => event.preventDefault(), { passive: false });</script>"
+        : url.pathname === "/wheel-lock-capture"
+          ? "<script>addEventListener('wheel', (event) => event.preventDefault(), { passive: false, capture: true });</script>"
+          : "";
+      // A transformed body makes fixed descendants size against the body, not the viewport.
+      const bodyAttributes = url.pathname === "/transform"
+        ? ' style="transform: translateZ(0); height: 3000px"'
+        : "";
+      response.end(`<!doctype html><html><head>${meta}${wheelLock}<style>body{margin:40px}</style></head>
+        <body${bodyAttributes}><h1 id="heading">Extension fixture</h1><input id="draft"></body></html>`);
     });
     await new Promise<void>((resolve) =>
       server.listen(0, "127.0.0.1", resolve),
@@ -225,6 +234,65 @@ test("opens in the page without reloading it, and a second click closes it", asy
   await extension.toggle(page);
   await expect(page.locator('[data-test="canvas-tool-comment"]')).toBeVisible();
 });
+
+test("the Pages panel shows only the page layers", async ({ extension }) => {
+  const page = await extension.context.newPage();
+  await openInspector(extension, page, "/layers");
+  await page.locator('[data-test="panel-view-pages"]').click();
+  const tree = page.locator('[data-test="layer-tree"]');
+  await expect(tree).toBeVisible();
+  await expect(page.locator('[data-test="navigator-frames"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="navigator-add-page"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="navigator-flows"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="flows-panel"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="flows-empty"]')).toHaveCount(0);
+
+  const heading = tree.locator('[data-test="layer-tree-item"]').filter({ hasText: /^h1/ }).first();
+  await expect(heading).toBeVisible();
+  await heading.click();
+  await expect(heading).toHaveAttribute("data-current", "true");
+});
+
+for (const path of ["/layers", "/wheel-lock", "/wheel-lock-capture", "/transform"]) {
+  test(`the Layers panel scrolls through a long tree on ${path}`, async ({ extension }) => {
+    const page = await extension.context.newPage();
+    await openInspector(extension, page, path);
+    await page.evaluate(() => {
+      let parent = document.body;
+      for (let index = 0; index < 60; index += 1) {
+        const layer = document.createElement("div");
+        layer.dataset.cid = `Deep${index}`;
+        layer.dataset.src = `probe.tsx:${index}:1`;
+        layer.textContent = `deep ${index}`;
+        parent.append(layer);
+        parent = layer;
+      }
+    });
+    await page.locator('[data-test="panel-view-pages"]').click();
+    const expanders = page.locator('[data-test="layer-tree-expander"][aria-expanded="false"]');
+    for (let round = 0; round < 20; round += 1) {
+      const count = await expanders.count();
+      if (count === 0) break;
+      for (let index = count - 1; index >= 0; index -= 1) {
+        await expanders.nth(index).click().catch(() => undefined);
+      }
+    }
+
+    const panel = page.locator(".panel");
+    const overflow = await panel.evaluate((element) => ({
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    }));
+    expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight);
+
+    await panel.evaluate((element) => { element.scrollTop = 0; });
+    const box = await panel.boundingBox();
+    if (!box) throw new Error("The panel is not visible.");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 600);
+    await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  });
+}
 
 /** Drags the panel by its header to the left edge and waits for it to settle there. */
 async function dockPanelLeft(page: Page): Promise<void> {

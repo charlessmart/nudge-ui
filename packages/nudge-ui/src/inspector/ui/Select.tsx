@@ -3,7 +3,7 @@ import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import { useRef, type ButtonHTMLAttributes, type ComponentProps, type ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
-import { portalContainer } from "./portalContainer.ts";
+import { usePortalContainer } from "./portalContainer.ts";
 import type { PopupWidth } from "./PopoverListbox.tsx";
 import { IconButton } from "./IconButton.tsx";
 import { controlAnchor } from "./controlAnchor.ts";
@@ -62,6 +62,7 @@ function NativeSelect({
   children,
   ...props
 }: SelectProps): ReactElement {
+  const portalTarget = usePortalContainer();
   const allOptions = [...options, ...groups.flatMap((group) => group.options)];
   const selectedOption = allOptions.find((option) => option.value === value);
 
@@ -94,7 +95,7 @@ function NativeSelect({
         </BaseSelect.Icon>
         {children}
       </BaseSelect.Trigger>
-      <BaseSelect.Portal container={portalContainer()}>
+      <BaseSelect.Portal container={portalTarget}>
         <BaseSelect.Positioner className="select__positioner" sideOffset={4} {...popupPosition}
           anchor={iconOnly ? undefined : controlAnchor(triggerRef)}
           // Overlapping the trigger would offset the popup from the control's edges.
@@ -143,6 +144,7 @@ function SearchableSelect({
   "data-test": dataTest,
   ...props
 }: SelectProps): ReactElement {
+  const portalTarget = usePortalContainer();
   const allOptions = [...options, ...groups.flatMap((group) => group.options)];
   const selectedOption = allOptions.find((option) => option.value === value);
   const optionByValue = new Map(allOptions.map((option) => [option.value, option]));
@@ -192,7 +194,7 @@ function SearchableSelect({
         </BaseCombobox.Icon>
         {children}
       </BaseCombobox.Trigger>
-      <BaseCombobox.Portal container={portalContainer()}>
+      <BaseCombobox.Portal container={portalTarget}>
         <BaseCombobox.Positioner className="select__positioner" sideOffset={4} side={popupPosition?.side} align={popupPosition?.align}
           anchor={iconOnly ? undefined : controlAnchor(triggerRef)}>
           <BaseCombobox.Popup className={`select__popup select__popup--searchable${popupWidth === "fit" ? " select__popup--fit" : ""}`}>

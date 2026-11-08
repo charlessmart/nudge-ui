@@ -4,23 +4,15 @@
   gap: var(--space-4);
 }
 
-/* Above the frame list until a flow exists, separated from it like a section. */
+/* Fills the Flows section until a flow exists, aligned with the section title. */
 .flows-panel__intro {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-8);
-  padding: var(--space-16);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-4) var(--space-8) var(--space-8);
   color: var(--text-secondary);
   font-size: var(--font-size-base);
-}
-
-.flows-panel__intro h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-label);
 }
 
 .flows-panel__intro p {
@@ -28,15 +20,19 @@
   line-height: 1.4;
 }
 
-.flows-panel__intro code,
+/* Bleeds out by its own padding, so the icon lines up with the text above. */
+.flows-panel__intro .flows-panel__copy-prompt {
+  margin-left: calc(var(--space-12) * -1);
+}
+
 .flows-panel__errors code {
   font-size: inherit;
   word-break: break-word;
 }
 
 .flows-panel__errors {
-  padding: var(--space-8);
-  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  gap: var(--space-4);
 }
 
 .flows-panel ul {
@@ -47,64 +43,37 @@
   list-style: none;
 }
 
-/* A flow reads like a layer with children: chevron in the gutter, icon, title, then its show/hide toggle. */
+/* A flow heads its states: icon and title on the same edge as page rows, then its show/hide toggle. */
 .flows-panel__header {
-  position: relative;
   display: flex;
   align-items: center;
-  border-radius: var(--radius-4);
 }
 
-.flows-panel__header:hover {
-  background: var(--surface-well);
+/* Show or Hide appears with the pointer or keyboard focus, so a list of flows reads as titles. */
+.flows-panel__toggle {
+  opacity: 0;
 }
 
-.flows-panel__expander {
-  appearance: none;
-  position: absolute;
-  top: 50%;
-  left: var(--space-4);
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-4);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transform: translateY(-50%);
+.flows-panel__header:hover .flows-panel__toggle,
+.flows-panel__toggle:focus-visible {
+  opacity: 1;
 }
 
-.flows-panel__expander:hover,
-.flows-panel__expander:focus-visible {
-  background: var(--surface-well-2x);
-  color: var(--text-primary);
-  outline: 0;
+@media (hover: none) {
+  .flows-panel__toggle {
+    opacity: 1;
+  }
 }
 
 .flows-panel__title {
-  appearance: none;
   display: flex;
   flex: 1;
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
   min-height: var(--control-height-large);
-  padding: 0 var(--space-8) 0 calc(var(--space-8) + 16px);
-  border: 0;
-  background: transparent;
+  padding: 0 var(--space-8);
   color: var(--text-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.flows-panel__title:focus-visible {
-  outline: 0;
 }
 
 .flows-panel__state {
@@ -114,7 +83,7 @@
   gap: var(--space-8);
   width: 100%;
   min-height: var(--control-height-large);
-  padding: 0 var(--space-8) 0 calc(var(--space-8) + 32px);
+  padding: 0 var(--space-8) 0 calc(var(--space-8) * 2 + 14px);
   border: 0;
   border-radius: var(--radius-4);
   background: transparent;
@@ -169,7 +138,7 @@
 
 .flows-panel__states .flows-panel__problem,
 .flows-panel__states .flows-panel__blocked {
-  margin-left: calc(var(--space-8) + 32px);
+  margin-left: calc(var(--space-8) * 2 + 14px);
 }
 
 .flows-panel__problem { color: #d92d20; }
@@ -177,3 +146,4 @@
 .flows-panel__empty { color: var(--text-secondary); }
 
 .flows-panel__blocked[data-tone="warn"] { color: #b54708; }
+

@@ -5,7 +5,7 @@ import { showCanvas } from "./canvasTransition.ts";
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 async function openFrames(page: Page): Promise<void> {
-  await page.locator('[data-test="navigator-expand"]').click();
+  await page.locator('[data-test="panel-view-pages"]').click();
   await expect(page.locator('[data-test="navigator-frames"]')).toBeVisible();
 }
 
@@ -22,11 +22,12 @@ test.describe("Add page", () => {
     await page.locator('[data-test="navigator-copy-agent-instructions"]').click();
 
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-      .toContain(".nudge/artifacts/<uuid>/");
+      .toContain(".nudge/artifacts/<name>-<suffix>/");
     const instructions = await page.evaluate(() => navigator.clipboard.readText());
     expect(instructions).toContain('"viewport"');
     expect(instructions).toContain("/pricing");
-    expect(instructions).toContain("36-character UUID");
+    expect(instructions).toContain("48 characters or fewer");
+    expect(instructions).toContain("8-character lowercase hex suffix");
   });
 
   test("lists a saved iteration and adds it at its captured size", async ({ page, request }) => {

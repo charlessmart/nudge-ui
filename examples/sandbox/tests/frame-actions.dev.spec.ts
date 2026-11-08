@@ -67,7 +67,7 @@ test("changes a live frame URL with the same-origin rules", async ({ page }) => 
   await expect(frame).toHaveAttribute("src", before!);
 });
 
-test("Delete after DOM navigation removes the selected icon and undo restores it", async ({ page }) => {
+test("Delete after selecting a nested layer removes the icon and undo restores it", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
   await showCanvas(page);
   await waitForCanvasTransition(page);
@@ -87,9 +87,14 @@ test("Delete after DOM navigation removes the selected icon and undo restores it
   const link = frame.getByRole("link", { name: "See how it works", exact: true });
   const icon = link.locator("span");
   await link.click();
-  await page.getByRole("button", { name: "Open DOM navigator" }).click();
-  await page.getByRole("menuitem").filter({ hasText: /^span$/ }).click();
-  await expect(page.locator(".dom-navigator__label")).toHaveText("span");
+  await page.locator('[data-test="panel-view-pages"]').click();
+  const expander = page.locator('.layer-row:has([data-test="layer-tree-item"][data-current="true"]) [data-test="layer-tree-expander"]');
+  await expect(expander).toHaveAttribute("aria-expanded", "false");
+  await expander.click();
+  const spanLayer = page.locator('[data-test="layer-tree-item"]').filter({ hasText: /^span$/ });
+  await expect(spanLayer).toBeVisible();
+  await spanLayer.click();
+  await expect(spanLayer).toHaveAttribute("data-current", "true");
 
   await page.keyboard.press("Delete");
 

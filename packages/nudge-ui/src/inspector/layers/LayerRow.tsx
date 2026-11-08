@@ -47,14 +47,12 @@ export interface LayerRowProps {
   readonly expanded?: boolean;
   readonly onToggle?: () => void;
   readonly onSelect: () => void;
-  readonly onHover?: (element: HTMLElement | null) => void;
   /** Prefix for `data-test` hooks, so each tree keeps its own. */
   readonly testPrefix: string;
-  readonly role?: "menuitem" | "treeitem";
 }
 
-/** One layer: a disclosure chevron, an icon for what it is, and its tag, id and classes. Shared by the layers panel and the DOM navigator. */
-export function LayerRow({ element, depth, current = false, expanded, onToggle, onSelect, onHover, testPrefix, role }: LayerRowProps): ReactElement {
+/** One layer: a disclosure chevron, an icon for what it is, and its tag, id and classes. */
+export function LayerRow({ element, depth, current = false, expanded, onToggle, onSelect, testPrefix }: LayerRowProps): ReactElement {
   const label = describeNode(element);
   return (
     <div className="layer-row" data-test={`${testPrefix}-row`}>
@@ -66,7 +64,6 @@ export function LayerRow({ element, depth, current = false, expanded, onToggle, 
           aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
           aria-expanded={expanded}
           style={{ left: `calc(var(--space-4) + ${(depth - 1) * LAYER_INDENT}px)` }}
-          onMouseEnter={() => onHover?.(null)}
           onClick={onToggle}
         >
           {expanded ? <IconChevronDown size={12} aria-hidden="true" /> : <IconChevronRight size={12} aria-hidden="true" />}
@@ -80,9 +77,8 @@ export function LayerRow({ element, depth, current = false, expanded, onToggle, 
         data-depth={depth}
         data-cid={element.getAttribute("data-cid") ?? undefined}
         style={{ paddingLeft: `calc(var(--space-8) + ${depth * LAYER_INDENT}px)` }}
-        role={role}
+        role="treeitem"
         aria-current={current ? "true" : undefined}
-        onMouseEnter={() => onHover?.(current ? null : element)}
         onClick={onSelect}
       >
         <LayerIcon element={element} />

@@ -14,6 +14,7 @@
   inset: var(--panel-inset) var(--panel-inset) var(--panel-inset) auto;
   z-index: 13;
   width: min(var(--panel-width), calc(100vw - 2 * var(--panel-inset)));
+  max-height: calc(100vh - 2 * var(--panel-inset));
   overflow: auto;
   overscroll-behavior: contain;
   background: var(--surface-panel);
@@ -338,6 +339,12 @@
   min-height: 0;
 }
 
+/* Pages and Components run edge to edge like the panel's own rows; the panel body supplies the gutter. */
+.panel__navigator-view {
+  margin-inline: calc(var(--space-16) * -1);
+  margin-bottom: -28px;
+}
+
 .panel::-webkit-scrollbar {
   width: 6px;
 }
@@ -442,11 +449,10 @@
   border-bottom: 0;
 }
 
-/* Quiet, so its icon lines up with the field labels below instead of the button's padding. */
+/* Quiet, bled by its own inline padding so the icon's left edge shares the component glyph's column. */
 .component-props__open-sheet {
   align-self: flex-start;
-  margin-bottom: var(--space-8);
-  margin-left: calc(var(--space-8) * -1);
+  margin-inline-start: calc(var(--space-12) * -1);
 }
 
 .component-props__hint {

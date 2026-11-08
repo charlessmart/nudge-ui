@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { Toggle } from "@base-ui/react/toggle";
 import { Tooltip } from "./Tooltip.tsx";
 
@@ -21,6 +21,8 @@ interface SegmentedControlProps<T extends string> {
   disabled?: boolean;
   /** Shows each option's label in a tooltip; for icon-only segments. */
   tooltips?: boolean;
+  /** Inactive options show only their icon; the selected one also shows its label. */
+  showSelectedLabel?: boolean;
   allowDeselect?: boolean;
   /** Restores the value represented by an unselected control. */
   onDeselect?: () => void;
@@ -36,13 +38,22 @@ export function SegmentedControl<T extends string>({
   className,
   disabled = false,
   tooltips = false,
+  showSelectedLabel = false,
   allowDeselect = false,
   onDeselect,
 }: SegmentedControlProps<T>): ReactElement {
   const selectedIndex = options.findIndex((option) => option.value === value);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const labelKey = options.map((option) => option.label).join("\n");
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!showSelectedLabel || !root) return;
+    return measureRevealLabels(root);
+  }, [showSelectedLabel, labelKey]);
   return (
     <div
-      className={`segmented-control${className ? ` ${className}` : ""}`}
+      ref={rootRef}
+      className={`segmented-control${showSelectedLabel ? " segmented-control--reveal" : ""}${className ? ` ${className}` : ""}`}
       role="group"
       aria-label={ariaLabel}
       data-test={dataTest}
@@ -69,11 +80,37 @@ export function SegmentedControl<T extends string>({
               }
             }}
           >
-            {option.icon ?? <span className="segmented-control__label">{option.label}</span>}
+            {showSelectedLabel && option.icon ? (
+              // Every label stays mounted so the selected one can unfold while the previous one folds away.
+              <>
+                {option.icon}
+                <span className="segmented-control__label">{option.label}</span>
+              </>
+            ) : option.icon ?? <span className="segmented-control__label">{option.label}</span>}
           </Toggle>
         );
         return <Fragment key={option.value}>{tooltips ? <Tooltip>{toggle}</Tooltip> : toggle}</Fragment>;
       })}
     </div>
   );
+}
+
+/**
+ * Publishes each label's natural width as `--label-width` on its segment, so CSS can centre the opened segment's icon
+ * and label with padding that animates on the same curve as the segment's width. Labels are clipped while folded, so
+ * `scrollWidth` reads the full text; webfonts can change it once they load.
+ */
+function measureRevealLabels(root: HTMLElement): () => void {
+  let cancelled = false;
+  const measure = (): void => {
+    if (cancelled) return;
+    for (const label of root.querySelectorAll<HTMLElement>(".segmented-control__label")) {
+      label.parentElement?.style.setProperty("--label-width", `${label.scrollWidth}px`);
+    }
+  };
+  measure();
+  void root.ownerDocument.fonts?.ready.then(measure);
+  return () => {
+    cancelled = true;
+  };
 }

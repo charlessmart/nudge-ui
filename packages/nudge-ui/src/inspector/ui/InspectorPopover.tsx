@@ -1,7 +1,7 @@
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { ReactElement, ReactNode } from "react";
 import { Tooltip } from "./Tooltip.tsx";
-import { portalContainer } from "./portalContainer.ts";
+import { usePortalContainer } from "./portalContainer.ts";
 
 export interface InspectorPopoverProps {
   triggerElement: ReactElement;
@@ -29,12 +29,13 @@ export function InspectorPopover({
   popupClassName,
   "data-test": dataTest,
 }: InspectorPopoverProps): ReactElement {
+  const portalTarget = usePortalContainer();
   return (
     <BasePopover.Root open={open} onOpenChange={onOpenChange}>
       <Tooltip content={triggerTooltip} disabled={triggerTooltip === undefined}>
         <BasePopover.Trigger render={triggerElement} data-test={dataTest} />
       </Tooltip>
-      <BasePopover.Portal container={portalContainer()}>
+      <BasePopover.Portal container={portalTarget}>
         <BasePopover.Positioner
           className="inspector-popover__positioner"
           side={side}

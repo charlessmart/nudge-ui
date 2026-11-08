@@ -40,6 +40,37 @@ test("dev: opens a pure editor shell with one fitted application iframe", async 
   });
 });
 
+test("dev: a Ctrl-wheel over the Focus frame zooms straight out into the Canvas", async ({ page }) => {
+  await page.goto("/playground");
+  const iframe = page.locator('[data-test^="canvas-card-iframe-"]');
+  await expect(page.frameLocator('[data-test^="canvas-card-iframe-"]').locator("#hero-title")).toBeVisible();
+  const focusBox = await iframe.boundingBox();
+  if (!focusBox) throw new Error("Focus frame has no box");
+  const pointer = { x: focusBox.x + focusBox.width * 0.25, y: focusBox.y + 200 };
+  // The page point under the pointer, as a fraction of the frame's width and in frame pixels down from its top.
+  const anchor = { x: (pointer.x - focusBox.x) / focusBox.width, y: pointer.y - focusBox.y };
+
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 40);
+  await page.keyboard.up("Control");
+
+  await expect(page.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
+  // The gesture continues from where Focus showed the frame, so no presentation morph plays over it.
+  await expect(page.locator('[data-test="canvas-workspace"]')).not.toHaveClass(/is-presentation-transitioning/);
+  const zoom = await page.locator('[data-test="canvas-board-content"]').evaluate((element: HTMLElement) => (
+    Number(/scale\(([^)]+)\)/.exec(element.style.transform)?.[1])
+  ));
+  expect(zoom).toBeGreaterThan(0.5);
+  expect(zoom).toBeLessThan(1);
+  const canvasBox = await iframe.boundingBox();
+  if (!canvasBox) throw new Error("Canvas frame has no box");
+  expect(canvasBox.width).toBeCloseTo(focusBox.width * zoom, 0);
+  // Zooming about the pointer keeps the same page point beneath it.
+  expect(canvasBox.x + anchor.x * canvasBox.width).toBeCloseTo(pointer.x, 0);
+  expect(canvasBox.y + anchor.y * zoom).toBeCloseTo(pointer.y, 0);
+});
+
 test("dev: switches the same responsive iframe between Focus and Canvas", async ({ page }) => {
   await page.goto("/playground");
   const iframe = page.locator('[data-test^="canvas-card-iframe-"]');

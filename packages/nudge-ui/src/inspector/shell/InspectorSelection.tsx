@@ -16,6 +16,8 @@ export interface InspectorSelectionProps {
   readonly isComponent?: boolean;
   /** Component props, shown between the name and the link status. */
   readonly children?: ReactNode;
+  /** The section's closing action, after the variant and state rows. */
+  readonly footer?: ReactNode;
   readonly editScope: "source-site" | "rendered-instance" | null;
   readonly sourceSiteMatchCount: number;
   readonly styleState: InteractionState;
@@ -30,7 +32,7 @@ export interface InspectorSelectionProps {
 }
 
 /** Presents selection scope and interaction states without reading the DOM. */
-export function InspectorSelection({ identity, count, name, isComponent = false, children, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, variantChoices = [], variantChoiceId, onVariantChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
+export function InspectorSelection({ identity, count, name, isComponent = false, children, footer, editScope, sourceSiteMatchCount, styleState, availableInteractionStates, onStyleStateChange, variantChoices = [], variantChoiceId, onVariantChange, onRelink, onUnlink }: InspectorSelectionProps): ReactElement {
   const showInteractionState = count === 1 && availableInteractionStates.length > 1;
   const showVariantScope = count === 1 && variantChoices.length > 1 && onVariantChange !== undefined;
   const hasEditScopeCallout = count === 1 && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
@@ -118,6 +120,7 @@ export function InspectorSelection({ identity, count, name, isComponent = false,
             />
           </FieldRow>
         ) : null}
+        {footer}
       </div>
     ) : null}
   </>;

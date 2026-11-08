@@ -17,10 +17,10 @@ async function screens(page: Page): Promise<string[]> {
   return texts.map((text) => text.replace(/\s+/g, " ").trim()).sort();
 }
 
-/** Flows are grouped in the navigator's Frames view, which it opens on. */
+/** Flows have their own section above Pages in the panel's Pages view. */
 async function openFlowsView(page: Page): Promise<void> {
-  await page.locator('[data-test="navigator-expand"]').click();
-  await expect(page.locator('[data-test="navigator-frames"]')).toBeVisible();
+  await page.locator('[data-test="panel-view-pages"]').click();
+  await expect(page.locator('[data-test="navigator-flows"]')).toBeVisible();
 }
 
 async function openFlow(page: Page): Promise<void> {
@@ -60,6 +60,12 @@ test("a flow shows every state of one URL side by side without touching the app 
   // A mock that never matched is called out, so a wrong pattern is not mistaken for a working one.
   await expect(panel.locator('[data-test="flows-unused"]')).toHaveText("1 mock matched no request");
   await expect(page.locator('[data-test="flow-frame-error"]')).toHaveCount(1);
+
+  // Adding a flow explains that the agent maps it, and offers the prompt.
+  await page.locator('[data-test="flows-add"]').click();
+  await expect(page.locator('[data-test="flows-add-menu"]')).toContainText("Ask your agent to map flows.");
+  await expect(page.locator('[data-test="flows-add-menu"] [data-test="flows-copy-prompt"]')).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // What the agent reads to repair its recipes.
   await expect.poll(() => {

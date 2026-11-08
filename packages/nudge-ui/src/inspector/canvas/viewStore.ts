@@ -48,10 +48,12 @@ export function setCanvasMode(next: CanvasMode): void {
 
 export function getCanvasPresentation(): CanvasPresentation { return presentation; }
 
-export function setCanvasPresentation(next: CanvasPresentation): void {
+/** `animate: false` switches in place, for a gesture that already lines the two layouts up and keeps moving. */
+export function setCanvasPresentation(next: CanvasPresentation, options: { animate?: boolean } = {}): void {
   if (presentation === next) return;
   presentation = next;
-  presentationTransitioning = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  presentationTransitioning = options.animate !== false
+    && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (presentationTransitionTimer !== null) window.clearTimeout(presentationTransitionTimer);
   presentationTransitionTimer = presentationTransitioning
     ? window.setTimeout(() => {

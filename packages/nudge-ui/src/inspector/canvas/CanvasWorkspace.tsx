@@ -30,6 +30,7 @@ import {
 import {
   setBoardCamera,
   getBoardCamera,
+  getCanvasPresentation,
   setCanvasPresentation,
   hasFitAllRan,
   useBoardCamera,
@@ -134,6 +135,20 @@ const WHEEL_SETTLE_MS = 150;
 const PRESENTATION_TRANSITION_EASING = "ease-in-out";
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
+
+/**
+ * The frame Focus shows, at the width it shows it: a frame Focus narrowed to the board keeps that width on the Canvas.
+ * Call inside a canvas batch.
+ */
+function focusFrameLeavingForCanvas(board: HTMLElement): { card: CanvasCardData; width: number } | null {
+  const cards = getCanvasCards();
+  const activeId = getSelectedCardId() ?? getFocusedCardId();
+  const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
+  if (!card) return null;
+  const width = Math.min(card.width, board.clientWidth);
+  if (width < card.width) resizeCard(card.id, width, card.height);
+  return { card, width };
+}
 
 interface RectSnapshot {
   readonly left: number;
@@ -498,11 +513,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       commentCursor,
       spaceHeld,
       boardGestures: presentation === "canvas",
+      zoomGestures: !pageSurface,
       appInteractive,
       linkPreviews: linksOpenInCards,
       debugView: activeDebugView,
     }),
-    [activeDebugView, appInteractive, commentCursor, inspectorOpen, linksOpenInCards, presentation, rendererCursor, rendererInteractionsEnabled, spaceHeld],
+    [activeDebugView, appInteractive, commentCursor, inspectorOpen, linksOpenInCards, pageSurface, presentation, rendererCursor, rendererInteractionsEnabled, spaceHeld],
   );
   const desiredRendererStateRef = useRef(desiredRendererState);
   desiredRendererStateRef.current = desiredRendererState;
@@ -547,6 +563,26 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       deltaY,
     ));
   }, [markWheelGesture]);
+
+  /**
+   * A Cmd/Ctrl-wheel in Focus carries straight on as a Canvas zoom. The Canvas opens at 100% with the frame exactly where
+   * Focus shows it, so the wheel scales the board from there instead of the presentation morph playing over the gesture.
+   */
+  const wheelZoomFromFocus = useCallback((point: { x: number; y: number }, deltaY: number) => {
+    const board = boardRef.current;
+    if (!board || sketchActive) return;
+    // Wheel events can outrun the re-render that hands the gesture to the Canvas handlers.
+    if (getCanvasPresentation() === "focus") {
+      batchCanvasChanges(() => {
+        const focused = focusFrameLeavingForCanvas(board);
+        if (focused) {
+          setBoardCamera({ x: (board.clientWidth - focused.width) / 2 - focused.card.x, y: -focused.card.y, zoom: 1 });
+        }
+        setCanvasPresentation("canvas", { animate: false });
+      });
+    }
+    zoomAtPointer(point, deltaY);
+  }, [sketchActive, zoomAtPointer]);
 
   const panCanvasByWheel = useCallback((deltaX: number, deltaY: number) => {
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
@@ -744,13 +780,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const board = boardRef.current;
     if (presentation === "focus") {
       batchCanvasChanges(() => {
-        const cards = getCanvasCards();
-        const activeId = getSelectedCardId() ?? getFocusedCardId();
-        const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
-        if (board && card) {
-          // A frame focus narrowed keeps that width on the canvas.
-          const width = Math.min(card.width, board.clientWidth);
-          if (width < card.width) resizeCard(card.id, width, card.height);
+        const focused = board ? focusFrameLeavingForCanvas(board) : null;
+        if (board && focused) {
+          const { card, width } = focused;
           // Focus shows the frame at its own size, so zooming either way leaves it for the next Canvas level.
           const zoom = direction < 0 ? FOCUS_EXIT_ZOOM : adjacentCanvasZoomLevel(1, 1) ?? 1;
           // Scale the focus layout about the board centre, so the frame's top edge eases rather than jumping.
@@ -966,8 +998,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (msg.type === "zoom") {
-        if (presentation !== "canvas" || sketchActive) return;
-        zoomAtPointer(toViewportPoint(frame.viewport(), msg.point), msg.deltaY);
+        if (sketchActive) return;
+        const point = toViewportPoint(frame.viewport(), msg.point);
+        if (presentation === "focus") wheelZoomFromFocus(point, msg.deltaY);
+        else zoomAtPointer(point, msg.deltaY);
         return;
       }
       // The pan moves the frame, so every pan point maps through the viewport captured at pan start.
@@ -1007,7 +1041,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, handleZoomStep, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
+  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, handleZoomStep, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, wheelZoomFromFocus, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -1095,6 +1129,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, [endPanning, movePanning, presentation, sketchActive, startPanning]);
+
+  // Focus scrolls the page natively; only a Cmd/Ctrl-wheel takes it out to the Canvas, as it zooms the Canvas anywhere.
+  useEffect(() => {
+    if (mode !== "canvas" || presentation !== "focus" || pageSurface) return;
+    function handleFocusWheel(e: WheelEvent): void {
+      if (!(e.ctrlKey || e.metaKey) || sketchActive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      wheelZoomFromFocus({ x: e.clientX, y: e.clientY }, e.deltaY);
+    }
+    window.addEventListener("wheel", handleFocusWheel, { capture: true, passive: false });
+    return () => window.removeEventListener("wheel", handleFocusWheel, { capture: true });
+  }, [mode, pageSurface, presentation, sketchActive, wheelZoomFromFocus]);
 
   useEffect(() => {
     if (mode !== "canvas" || presentation !== "canvas") return;

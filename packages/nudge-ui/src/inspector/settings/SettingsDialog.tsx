@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
+  IconPower,
   IconSettings,
   IconX,
   IconTrash,
@@ -15,6 +16,7 @@ import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../canvas/sketch/interaction.ts";
 import { resetSketchMarks } from "../canvas/sketch/marksStore.ts";
+import { closeNudgeUi } from "../shell/closeNudge.ts";
 
 export type SettingsSection = "instructions";
 
@@ -85,6 +87,11 @@ export function SettingsDialog({
     onOpenChange(false);
   }
 
+  function closeNudge(): void {
+    onOpenChange(false);
+    closeNudgeUi();
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal container={portalContainer()}>
@@ -129,6 +136,15 @@ export function SettingsDialog({
                   </button>
                 ))}
               </div>
+              <button
+                className="settings__nav-item settings__close-nudge"
+                data-test="settings-close-nudge"
+                type="button"
+                onClick={closeNudge}
+              >
+                <IconPower size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                <span className="settings__nav-item-label">Close Nudge</span>
+              </button>
               <button
                 ref={resetButtonRef}
                 className="settings__nav-item settings__reset-canvas"

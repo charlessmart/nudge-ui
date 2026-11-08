@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconArtboard, IconCopy, IconPlus } from "@tabler/icons-react";
 import { addCanvasArtifact, findCardByArtifactId, revealCanvasCard } from "../canvas/canvasStore.ts";
@@ -12,8 +12,25 @@ import { portalContainer } from "../ui/portalContainer.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { showToast } from "../ui/Toast.tsx";
 
-/** Lists the unlinked HTML frames saved under `.nudge/artifacts`; choosing one places it on the Canvas. `footer` adds actions beside the agent instructions. */
-export function AddPageMenu({ footer }: { readonly footer?: ReactNode }): ReactElement {
+/** Heads an add menu: one line on what the agent does, and the prompt that asks it to. */
+export function AddMenuIntro({ text, copyTestId, onCopy }: {
+  readonly text: string;
+  readonly copyTestId: string;
+  readonly onCopy: () => void;
+}): ReactElement {
+  return (
+    <div className="add-menu-intro">
+      <p>{text}</p>
+      <Button variant="quiet" size="compact" type="button" data-test={copyTestId} onClick={onCopy}>
+        <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+        Copy prompt
+      </Button>
+    </div>
+  );
+}
+
+/** Lists the unlinked HTML frames saved under `.nudge/artifacts`; choosing one places it on the Canvas. */
+export function AddPageMenu(): ReactElement {
   const [open, setOpen] = useState(false);
   const [artifacts, setArtifacts] = useState<HtmlArtifactMetadata[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -43,9 +60,9 @@ export function AddPageMenu({ footer }: { readonly footer?: ReactNode }): ReactE
   async function copyAgentInstructions(): Promise<void> {
     try {
       await copyToClipboard(artifactAgentInstructions(window.location.origin));
-      showToast({ title: "Instructions copied", description: "Paste them into your coding agent." });
+      showToast({ title: "Prompt copied", description: "Paste it into your coding agent." });
     } catch {
-      showToast({ tone: "error", title: "Couldn't copy the instructions", description: "Allow clipboard access for this page, then try again." });
+      showToast({ tone: "error", title: "Could not copy the prompt", description: "Allow clipboard access for this page, then try again." });
     }
   }
 
@@ -70,15 +87,18 @@ export function AddPageMenu({ footer }: { readonly footer?: ReactNode }): ReactE
       </Tooltip>
       <BasePopover.Portal container={portalContainer()}>
         <BasePopover.Positioner className="add-page-menu__positioner" side="bottom" align="start" sideOffset={6}>
-          {/* Focus would otherwise land on the footer button while the list is still loading, scrolling the menu to its end. */}
+          {/* Focus stays off the copy button, so opening the menu to pick a frame does not ring it. */}
           <BasePopover.Popup className="add-page-menu" aria-label="Add page" data-test="navigator-add-page-menu" initialFocus={false}>
+            <AddMenuIntro
+              text="Ask your agent to draft pages."
+              copyTestId="navigator-copy-agent-instructions"
+              onCopy={() => void copyAgentInstructions()}
+            />
             {artifacts === null ? (
               <p className="add-page-menu__muted" role="status">Reading unlinked frames…</p>
             ) : failed ? (
               <p className="add-page-menu__error" role="alert">Could not read .nudge/artifacts.</p>
-            ) : artifacts.length === 0 ? (
-              <p className="add-page-menu__muted">No unlinked frames found.</p>
-            ) : (
+            ) : artifacts.length === 0 ? null : (
               <div className="add-page-menu__list">
                 {artifacts.map((artifact) => (
                   <button
@@ -100,13 +120,6 @@ export function AddPageMenu({ footer }: { readonly footer?: ReactNode }): ReactE
                 ))}
               </div>
             )}
-            <div className="add-page-menu__footer">
-              <Button variant="quiet" size="compact" type="button" data-test="navigator-copy-agent-instructions" onClick={() => void copyAgentInstructions()}>
-                <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                Copy agent instructions
-              </Button>
-              {footer}
-            </div>
           </BasePopover.Popup>
         </BasePopover.Positioner>
       </BasePopover.Portal>

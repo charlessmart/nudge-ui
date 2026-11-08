@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-export type InspectorTab = "styles" | "tokens";
+export type InspectorTab = "pages" | "components" | "styles" | "tokens";
 
 const STORAGE_KEY = "nudge-ui:inspector-tab";
-const TABS: readonly InspectorTab[] = ["styles", "tokens"];
+const TABS: readonly InspectorTab[] = ["pages", "components", "styles", "tokens"];
 const listeners = new Set<() => void>();
 let tab = readStoredTab();
 

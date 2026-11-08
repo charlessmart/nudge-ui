@@ -1,7 +1,7 @@
 import { isDocumentProjectionReport } from "../projection/renderedInstance.ts";
 import { isTextProjectionReport } from "../projection/textProjection.ts";
 import { isStructuralProjectionReport } from "../projection/structuralProjectionBoundary.ts";
-import type { ComponentOverride } from "../componentSemantics/types.ts";
+import { isComponentFramework, type ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
@@ -272,6 +272,8 @@ export interface BoardGestureStateMessage extends RendererMessage {
   panScroll?: boolean;
   /** Holding Space turns a drag into a board pan while the app keeps native wheel input. */
   spacePan?: boolean;
+  /** Cmd/Ctrl-wheel zooms the board; defaults to `enabled`. Focus enables it alone, so a zoom out leaves for the Canvas. */
+  zoom?: boolean;
 }
 
 export interface ZoomMessage extends RendererMessage {
@@ -646,7 +648,7 @@ export function isComponentOverrideList(value: unknown): value is ComponentOverr
     const callsiteId = ownValue(candidate, "callsiteId");
     const prop = ownValue(candidate, "prop");
     const overrideValue = ownValue(candidate, "value");
-    return framework === "react"
+    return typeof framework === "string" && isComponentFramework(framework)
       && typeof callsiteId === "string" && callsiteId.length > 0
       && typeof prop === "string" && prop.length > 0
       && (typeof overrideValue === "string"

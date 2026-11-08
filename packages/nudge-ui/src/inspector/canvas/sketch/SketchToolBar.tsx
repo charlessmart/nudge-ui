@@ -250,7 +250,6 @@ function IllustratedToolButton({
   label,
   shortcut,
   onSelect,
-  note = false,
   children,
 }: {
   readonly tool: SketchDrawingTool;
@@ -258,8 +257,6 @@ function IllustratedToolButton({
   readonly label: string;
   readonly shortcut?: string;
   readonly onSelect: (tool: SketchDrawingTool) => void;
-  /** A whole object that sits inside the bar, rather than a tool rising out of its bottom edge. */
-  readonly note?: boolean;
   readonly children: ReactElement;
 }): ReactElement {
   const active = tool === activeTool;
@@ -267,7 +264,7 @@ function IllustratedToolButton({
     <Tooltip content={label} shortcut={shortcut} stableTrigger>
       <button
         type="button"
-        className={`sketch-options__illustrated${note ? " sketch-options__illustrated--note" : ""}`}
+        className="sketch-options__illustrated"
         aria-label={label}
         aria-pressed={active}
         data-active={active ? "true" : "false"}
@@ -584,7 +581,7 @@ export function SketchToolBar({
           </IllustratedToolButton>
         </BarItem>
         <BarItem index={2}>
-          <IllustratedToolButton tool="text" activeTool={drawing.tool} label="Text" shortcut={SKETCH_TOOL_SHORTCUTS.text} onSelect={onToolChange} note>
+          <IllustratedToolButton tool="text" activeTool={drawing.tool} label="Text" shortcut={SKETCH_TOOL_SHORTCUTS.text} onSelect={onToolChange}>
             <NoteIllustration color={drawing.color} />
           </IllustratedToolButton>
         </BarItem>
@@ -595,8 +592,6 @@ export function SketchToolBar({
           <ColorPicker color={drawing.color} hidden={!settled} initiallyOpen={paletteOpen} onColorChange={onColorChange} />
         </BarItem>
         <BarItem index={5}>
-          {/* The same divider the canvas toolbar uses, setting the page actions apart from the drawing tools. */}
-          <div className="canvas-toolbar__divider" aria-hidden="true" data-test="sketch-options-divider" />
           <Tooltip content="Copy screenshot to clipboard" stableTrigger>
             <IconButton
               variant="quiet"

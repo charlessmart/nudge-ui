@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { IconArrowLeft, IconArrowRight, IconBoltFilled, IconCopy, IconTrash, IconUnlink } from "@tabler/icons-react";
+import { IconArrowsMaximize, IconArrowLeft, IconArrowRight, IconBoltFilled, IconCopy, IconTrash, IconUnlink } from "@tabler/icons-react";
 import type { CanvasCard } from "./canvasStore.ts";
 import { contentSourceUrl, flowStateOf, iterationId } from "./frameContent.ts";
 import { resolveFrameUrl } from "./appRoute.ts";
@@ -7,7 +7,6 @@ import { stepFrameHistory, visitFrameUrl, type FrameHistory } from "./frameHisto
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
-import { SelectPlayOutlineIcon } from "./CanvasToolIcons.tsx";
 
 export interface CanvasCardHeaderProps {
   readonly card: CanvasCard;
@@ -132,7 +131,7 @@ export function CanvasCardHeader({
           {onShowFocus ? (
             <Tooltip content="Open this frame in focus view">
               <IconButton variant="quiet" label="Focus" data-test={`canvas-card-focus-${card.id}`} onClick={onShowFocus}>
-                <SelectPlayOutlineIcon aria-hidden="true" />
+                <IconArrowsMaximize size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
               </IconButton>
             </Tooltip>
           ) : null}

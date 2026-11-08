@@ -109,19 +109,16 @@ test("the sketch tools sit in a bar above the toolbar with screenshot and clear 
   const lefts = await Promise.all(order.map(async (selector) => (await box(page.locator(selector))).x));
   expect(lefts).toEqual([...lefts].sort((first, second) => first - second));
 
-  // A divider, like the one in the canvas toolbar, sits between the color picker and the page actions.
-  const divider = page.locator('[data-test="sketch-options-divider"]');
-  await expect(divider).toHaveCount(1);
-  const dividerBox = await box(divider);
-  const colorBox = await box(page.locator('[data-test="sketch-tool-color"]'));
-  const screenshotBox = await box(page.locator('[data-test="sketch-screenshot"]'));
-  expect(dividerBox.x).toBeGreaterThan(colorBox.x + colorBox.width);
-  expect(dividerBox.x + dividerBox.width).toBeLessThan(screenshotBox.x);
-  expect(dividerBox.width).toBe(1);
-  expect(dividerBox.height).toBe(24);
-  expect(dividerBox.y + dividerBox.height / 2).toBeCloseTo(screenshotBox.y + screenshotBox.height / 2, 0);
-  const toolbarDivider = await box(page.locator('[data-test="canvas-toolbar"] > .canvas-toolbar__divider'));
-  expect(dividerBox.height).toBe(toolbarDivider.height);
+  // Both bars are 48px tall: 32px controls inside 8px of padding. The pen's well runs down to the bar's bottom edge.
+  expect(sketchBar.height).toBe(48);
+  expect(toolbar.height).toBe(48);
+  for (const selector of ['[data-test="sketch-tool-shape"]', '[data-test="sketch-tool-color"]', '[data-test="sketch-screenshot"]', '[data-test="canvas-tool-design"]']) {
+    const control = await box(page.locator(selector));
+    expect([control.width, control.height]).toEqual([32, 32]);
+  }
+  const pen = await box(page.locator('[data-test="sketch-tool-pen"]'));
+  expect([pen.width, pen.height]).toEqual([40, 40]);
+  expect(pen.y + pen.height).toBeCloseTo(sketchBar.y + sketchBar.height, 0);
 
   // Screenshot and clear are icon buttons with tooltips; with nothing drawn, there is nothing to clear.
   await expect(page.locator('[data-test="sketch-screenshot"]')).toBeEnabled();
@@ -191,7 +188,7 @@ test("typed text sits on a white note with a shadow", async ({ page }) => {
   await expect(page.locator(MARK)).toHaveCount(0);
 });
 
-test("P, E, R, I, L and T pick the pen, eraser, rectangle, circle, arrow and text tools, except while typing text", async ({ page }) => {
+test("P, E, R, O, L and T pick the pen, eraser, rectangle, circle, arrow and text tools, except while typing text", async ({ page }) => {
   const middle = await openSketch(page);
   const isActive = (tool: string) => expect(page.locator(`[data-test="sketch-tool-${tool}"]`)).toHaveAttribute("data-active", "true");
 
@@ -211,7 +208,7 @@ test("P, E, R, I, L and T pick the pen, eraser, rectangle, circle, arrow and tex
   await page.keyboard.press("r");
   await isActive("shape");
   await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "rectangle");
-  await page.keyboard.press("i");
+  await page.keyboard.press("o");
   await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "ellipse");
   await page.keyboard.press("l");
   await expect(page.locator('[data-test="sketch-tool-shape"]')).toHaveAttribute("data-shape", "arrow");

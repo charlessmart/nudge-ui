@@ -25,7 +25,7 @@ declare global {
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
-import { IconSettings } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconColorSwatch, IconComponents, IconFiles, IconSettings } from "@tabler/icons-react";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
@@ -62,7 +62,7 @@ import { canvasFrameHost } from "../canvas/canvasFrame.ts";
 import { getFrameRegistryVersion, subscribeFrameRegistry } from "../canvas/projection.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
-import { ComponentPropsSection, useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
+import { ComponentPropsSection, ComponentSheetAction, useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
 import {
   cancelInlineTextEdit,
   isInlineTextEditingActive,
@@ -81,6 +81,9 @@ import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 import { setInspectorTab, useInspectorTab, type InspectorTab } from "./inspectorTabStore.ts";
 import { SegmentedControl, type SegmentedControlOption } from "../ui/SegmentedControl.tsx";
 import { DocumentTokensView } from "../tokens/DocumentTokensView.tsx";
+import { ComponentLibraryPanel } from "../library/ComponentLibraryPanel.tsx";
+import { FramesView } from "../navigator/NavigatorPanel.tsx";
+import { isNavigatorAvailable } from "../navigator/navigatorStore.ts";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -120,10 +123,12 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 }
 
 
-/** The panel shows the selection's styles, or the document's design tokens. Pages, flows and components live in the navigator. */
+/** The panel holds every view: pages, components, the selection's styles and the document's tokens. */
 const PANEL_VIEWS: readonly SegmentedControlOption<InspectorTab>[] = [
-  { value: "styles", label: "Styles", testId: "panel-view-styles" },
-  { value: "tokens", label: "Tokens", testId: "panel-view-tokens" },
+  { value: "styles", label: "Styles", icon: <IconAdjustmentsHorizontal size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-styles" },
+  { value: "pages", label: "Pages", icon: <IconFiles size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-pages" },
+  { value: "tokens", label: "Tokens", icon: <IconColorSwatch size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-tokens" },
+  { value: "components", label: "Components", icon: <IconComponents size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-components" },
 ];
 
 export function InspectorShell(): ReactElement {
@@ -143,6 +148,14 @@ export function InspectorShell(): ReactElement {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scopeRevision, refreshScope] = useState(0);
   const activeTab = useInspectorTab();
+  const navigatorAvailable = isNavigatorAvailable(runtimeConfig);
+  const componentsAvailable = navigatorAvailable && runtimeConfig.componentSheet === true;
+  const panelViews = PANEL_VIEWS.filter((option) =>
+    option.value === "styles"
+    || option.value === "tokens"
+    || (option.value === "pages" && navigatorAvailable)
+    || (option.value === "components" && componentsAvailable));
+  const tab = panelViews.some((option) => option.value === activeTab) ? activeTab : "styles";
   const [variantChoices, setVariantChoices] = useState<VariantChoice[]>([]);
   const [variantChoiceId, setVariantChoiceId] = useState("all");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
@@ -164,11 +177,6 @@ export function InspectorShell(): ReactElement {
     setVariantChoices(choices);
     setVariantChoiceId(initial?.id ?? "all");
   }, [selected?.domElement, isMultiSelection, runtimeConfig.componentContracts]);
-
-  useEffect(() => {
-    // Picking an element (on the canvas or in a component sheet) is a request to edit it.
-    if (selected?.domElement) setInspectorTab("styles");
-  }, [selected?.domElement]);
 
   useEffect(() => {
     if (!selected) return;
@@ -337,9 +345,11 @@ export function InspectorShell(): ReactElement {
           aria-label="Panel view"
           data-test="panel-view"
           className="panel__view-switch"
-          value={activeTab}
-          options={PANEL_VIEWS}
+          value={tab}
+          options={panelViews}
           onChange={setInspectorTab}
+          showSelectedLabel
+          tooltips
         />}
         prompt={<CopyPromptButton
           settingsOpen={settingsOpen}
@@ -347,7 +357,11 @@ export function InspectorShell(): ReactElement {
           onClearChanges={clearInspectorSession}
         />}
       >
-        {activeTab === "tokens" ? <DocumentTokensView /> : (
+        {tab === "pages" ? (
+          <div className="panel__navigator-view"><FramesView /></div>
+        ) : tab === "components" ? (
+          <div className="panel__navigator-view"><ComponentLibraryPanel /></div>
+        ) : tab === "tokens" ? <DocumentTokensView /> : (
           <>
           {inlineTextFeedback ? (
             <StatusCallout
@@ -393,6 +407,7 @@ export function InspectorShell(): ReactElement {
                   unlinkElement(selected.domElement);
                   refreshScopeState();
                 }}
+                footer={!isMultiSelection ? <ComponentSheetAction selected={selected} /> : null}
               >
                 {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
               </InspectorSelection>

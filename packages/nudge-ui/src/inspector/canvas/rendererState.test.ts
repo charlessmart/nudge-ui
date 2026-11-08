@@ -11,6 +11,7 @@ function input(overrides: Partial<RendererDesiredStateInput> = {}): RendererDesi
     commentCursor: null,
     spaceHeld: false,
     boardGestures: true,
+    zoomGestures: true,
     appInteractive: false,
     linkPreviews: false,
     debugView: DEBUG_VIEW_OFF,
@@ -43,7 +44,7 @@ describe("sendRendererState", () => {
     expect(messages).toEqual([
       { type: "pan-modifier", spaceHeld: false },
       { type: "inspector-interaction-state", open: true, interactionsEnabled: true, cursor: "design" },
-      { type: "board-gesture-state", enabled: true, panScroll: true, spacePan: true },
+      { type: "board-gesture-state", enabled: true, panScroll: true, spacePan: true, zoom: true },
       { type: "link-preview-state", enabled: false },
       { type: "debug-view-state", state: DEBUG_VIEW_OFF },
     ]);

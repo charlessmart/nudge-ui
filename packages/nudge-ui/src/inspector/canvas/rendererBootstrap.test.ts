@@ -154,6 +154,19 @@ describe("bootstrapRenderer teardown", () => {
     const focus = new WheelEvent("wheel", { deltaY: 50, ctrlKey: true, cancelable: true });
     window.dispatchEvent(focus);
     expect(focus.defaultPrevented).toBe(false);
+
+    // Focus keeps the board's zoom alone, so a zoom out can leave for the Canvas.
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin, source: window.parent,
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: false, panScroll: false, zoom: true, ...identity },
+    }));
+    const focusZoom = new WheelEvent("wheel", { deltaY: 40, metaKey: true, cancelable: true });
+    window.dispatchEvent(focusZoom);
+    expect(focusZoom.defaultPrevented).toBe(true);
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({ type: "zoom", deltaY: 40 }));
+    const focusScroll = new WheelEvent("wheel", { deltaY: 40, cancelable: true });
+    window.dispatchEvent(focusScroll);
+    expect(focusScroll.defaultPrevented).toBe(false);
   });
 
   it("keeps Space-drag panning while the app takes native wheel input", () => {

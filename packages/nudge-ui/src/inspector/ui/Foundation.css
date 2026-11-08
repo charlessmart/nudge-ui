@@ -24,9 +24,9 @@
   --border-strong: #d8d8d8;
 
   --text-primary: #242424;
-  --text-secondary: #6f6f6f;
-  --text-muted: #777777;
-  --text-muted-subtle: #a1a1a1;
+  --text-secondary: #575757;
+  --text-muted: #5f5f5f;
+  --text-muted-subtle: #757575;
   --text-inverse: #fff;
 
   /* Dark enough to keep the focus ring at 3:1 against every panel surface, the hovered control well included. */
@@ -73,6 +73,8 @@
   /* One shared spring: settles in 200ms, the ceiling for interaction feedback, with a ~1.5% overshoot, subtle enough for arrivals, releases and resting states. */
   --spring-duration: 200ms;
   --spring-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* One shared ease-out: no overshoot, for elements that morph between layouts and should land without bouncing. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0, 1);
   /* Presses go in fast and out on the spring, so the control never feels sluggish. */
   --press-duration: 90ms;
   --shake-duration: 200ms;

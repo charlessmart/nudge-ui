@@ -11,6 +11,7 @@ import {
   COPY_PROMPT_HOTKEY_EVENT,
   isolateTypingKeys,
 } from "./shell/shortcuts.ts";
+import { isolateInspectorWheel } from "./shell/scrollIsolation.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { isPageSurface } from "./canvas/pageSurface.ts";
 import { claimShortcutKey } from "./canvas/keyboardShortcuts.ts";
@@ -34,7 +35,7 @@ import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
-import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/viewStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
@@ -252,13 +253,6 @@ function mountLockedNotice(host: HTMLElement, storageError = false): void {
 export function mountInspector(host: HTMLElement): void {
   const demo = isDemoRuntime();
   if (!demo && !hasWriteLease()) return;
-  const runtimeConfig = getNudgeUiRuntimeConfig();
-  if (runtimeConfig.capabilities.domNavigation !== true) {
-    configureNudgeUiRuntime({
-      ...runtimeConfig,
-      capabilities: { ...runtimeConfig.capabilities, domNavigation: true },
-    });
-  }
   if (lockedRoot) {
     lockedRoot.unmount();
     lockedRoot = null;
@@ -270,6 +264,8 @@ export function mountInspector(host: HTMLElement): void {
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown, true));
     inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup, true));
     inspectorSession.registerCleanup(isolateTypingKeys(shadow));
+    // A page inspected in place can cancel wheel events on its document; the inspector still scrolls.
+    if (isPageSurface()) inspectorSession.registerCleanup(isolateInspectorWheel(shadow));
     inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {
       onRendererKeyboardShortcut(message, frame.identity);
     }));

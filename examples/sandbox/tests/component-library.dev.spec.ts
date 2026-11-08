@@ -1,5 +1,5 @@
 import { expect, test, type FrameLocator, type Page } from "@playwright/test";
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 // ADR-0045: the Components panel lists host contracts and opens component sheet frames on the canvas.
@@ -15,6 +15,8 @@ function sheetFrame(page: Page): FrameLocator {
 
 async function openButtonSheet(page: Page): Promise<void> {
   await openEditor(page, "/app?nudge-ui=editor");
+  // The sheet opens beside the app frame on the Canvas; Focus shows one frame at a time.
+  await showCanvas(page);
   await page.locator('[data-test="panel-view-components"]').click();
   const item = page.locator(`[data-test="component-library-item"][data-component-id="${BUTTON_ID}"]`);
   await item.click();
@@ -43,6 +45,8 @@ const paddingLeft = (frame: FrameLocator, selector: string) =>
 
 test("library panel lists Button under src/ds and opens a sheet frame beside the app frame", async ({ page }) => {
   await openEditor(page, "/app?nudge-ui=editor");
+  // The sheet opens beside the app frame on the Canvas; Focus shows one frame at a time.
+  await showCanvas(page);
   await page.locator('[data-test="panel-view-components"]').click();
   const panel = page.locator('[data-test="component-library"]');
   await expect(panel).toBeVisible();
@@ -114,6 +118,8 @@ test("variant-scoped padding edit in the sheet reaches only primary buttons in b
   await expect(cell).toBeVisible();
   await waitForCanvasTransition(page);
   await cell.click();
+  // Selecting leaves the panel on Components; edit the cell from Styles.
+  await page.locator('[data-test="panel-view-styles"]').click();
 
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible({ timeout: 10000 });
   const scope = page.locator('[data-test="variant-scope-select"]');
@@ -153,6 +159,7 @@ test("a base background edit in the sheet leaves states with their own backgroun
   await expect(base).toBeVisible();
   await waitForCanvasTransition(page);
   await base.click();
+  await page.locator('[data-test="panel-view-styles"]').click();
   await expect(page.locator('[data-test="variant-scope-select"]')).toContainText("critical · sm");
 
   const fill = page.locator('[data-test="token-field"][aria-label="Background Color"]');

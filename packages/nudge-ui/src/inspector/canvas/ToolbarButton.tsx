@@ -43,6 +43,7 @@ export function ToolbarButton({
       <IconButton
         variant="quiet"
         size="large"
+        className="canvas-toolbar__tool"
         activeStyle={activeStyle}
         label={label}
         aria-pressed={expanded === undefined ? active : undefined}

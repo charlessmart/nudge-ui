@@ -19,6 +19,8 @@ export interface RendererDesiredState {
   readonly panScroll: boolean;
   /** Space turns a drag into a board pan even while the app takes native wheel input. */
   readonly spacePan: boolean;
+  /** Cmd/Ctrl-wheel zooms the board rather than the frame's document, even in Focus. */
+  readonly zoomGestures: boolean;
   /** Hovering a link offers opening it in a new canvas frame. */
   readonly linkPreviews: boolean;
   readonly debugView: DebugViewState;
@@ -31,6 +33,7 @@ export interface RendererDesiredStateInput {
   readonly commentCursor: string | null;
   readonly spaceHeld: boolean;
   readonly boardGestures: boolean;
+  readonly zoomGestures: boolean;
   readonly appInteractive: boolean;
   readonly linkPreviews: boolean;
   readonly debugView: DebugViewState;
@@ -46,6 +49,7 @@ export function rendererDesiredState(input: RendererDesiredStateInput): Renderer
     boardGestures: input.boardGestures,
     panScroll: input.boardGestures && !input.appInteractive,
     spacePan: input.boardGestures,
+    zoomGestures: input.zoomGestures,
     linkPreviews: input.linkPreviews,
     debugView: input.debugView,
   };
@@ -65,7 +69,7 @@ export function sendRendererState(frame: FrameConnection, state: RendererDesired
     cursor: state.cursor,
     ...(state.cursor === "comment" && state.commentCursor ? { commentCursor: state.commentCursor } : {}),
   });
-  frame.post({ type: "board-gesture-state", enabled: state.boardGestures, panScroll: state.panScroll, spacePan: state.spacePan });
+  frame.post({ type: "board-gesture-state", enabled: state.boardGestures, panScroll: state.panScroll, spacePan: state.spacePan, zoom: state.zoomGestures });
   frame.post({ type: "link-preview-state", enabled: state.linkPreviews });
   frame.post({ type: "debug-view-state", state: state.debugView });
 }

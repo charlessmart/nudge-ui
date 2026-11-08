@@ -58,19 +58,23 @@
   align-items: center;
 }
 
+/* Names truncate on the left, because the end of a token name carries the most meaning. */
 .token-row__name {
   min-width: 0;
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
   color: var(--text-primary);
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-base);
 }
 
-/* Names wrap instead of truncating, so the whole name is readable without a pointer. */
-.token-row__name,
+/* The LTR isolate keeps leading hyphens in place while the row still cuts from the left. */
 .token-row__name .token-label__content {
-  white-space: normal;
-  overflow-wrap: anywhere;
+  display: inline;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .token-variants {

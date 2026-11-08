@@ -6,6 +6,7 @@ import {
 } from "./clientManifest.ts";
 import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStylesheetOrder.ts";
+import { mountClosedNudge } from "./shell/closedNudge.tsx";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import {
   hasNudgeUiDirectTabIntent,
@@ -38,7 +39,11 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
     automated: navigator.webdriver === true,
   });
   const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
-  if (entry.kind === "direct") return;
+  if (entry.kind === "direct") {
+    // A direct page keeps one Nudge button. Artifact captures render inside a Canvas frame and must stay untouched.
+    if (!window.location.pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) mountClosedNudge();
+    return;
+  }
   if (entry.kind === "automated") {
     if ((await fetchManifest(manifestUrl)).inspectAutomatedBrowsers === true) {
       window.location.replace(entry.href);
