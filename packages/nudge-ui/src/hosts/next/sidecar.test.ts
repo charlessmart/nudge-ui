@@ -578,3 +578,52 @@ describe("sidecar source contract scan", () => {
     expect(names).not.toContain("tone");
   });
 });
+
+describe("sidecar component catalog", () => {
+  it("publishes props that only the type checker can read", async () => {
+    const root = mkdtempSync(join(tmpdir(), "checker-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "tsconfig.json"), `${JSON.stringify({ compilerOptions: { jsx: "preserve", strict: true }, include: ["app"] })}\n`);
+    writeFileSync(join(root, "app", "types.ts"), 'export type Tone = "accent" | "quiet";\n');
+    writeFileSync(join(root, "app", "Badge.tsx"), [
+      'import type { Tone } from "./types";',
+      "export interface BadgeProps { tone?: Tone }",
+      "export function Badge({ tone }: BadgeProps) {",
+      "  return <span data-tone={tone} />;",
+      "}",
+      "",
+    ].join("\n"));
+    const handle = await ensureSidecar(root);
+    handles.push(handle);
+
+    const deadline = Date.now() + 15_000;
+    let options: unknown[] | undefined;
+    while (Date.now() < deadline) {
+      const manifest = (await (await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`)).json()) as {
+        runtime: { componentContracts: Array<{ componentId: string; props: Array<{ name: string; options: unknown[] }> }> };
+      };
+      options = manifest.runtime.componentContracts
+        .find((contract) => contract.componentId === "app/Badge#Badge")
+        ?.props.find((prop) => prop.name === "tone")?.options;
+      if (options?.length) break;
+      await settle(100);
+    }
+    expect(options).toEqual(["accent", "quiet"]);
+  });
+
+  it("keeps the sheet definition current and serves library visibility when sheets are on", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sheet-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "layout.tsx"), "export default function L({ children }) { return <html><body>{children}</body></html>; }\n");
+    writeFileSync(join(root, "app", "Badge.tsx"), 'export function Badge({ tone }: { tone?: "a" | "b" }) {\n  return <i data-tone={tone} />;\n}\n');
+    const handle = await ensureSidecar(root, { componentSheet: {}, typeAwareComponents: false });
+    handles.push(handle);
+
+    const definition = readFileSync(join(root, ".nudge", "next", "component-sheet.ts"), "utf8");
+    expect(definition).toContain('"app/Badge#Badge": () => import("../../app/Badge.tsx")');
+    const library = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/library`);
+    expect(library.status).toBe(200);
+  });
+});

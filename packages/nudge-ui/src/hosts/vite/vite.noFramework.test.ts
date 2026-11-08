@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createVitePlugins } from "./vite.ts";
-import { createReactSupport } from "./react.ts";
+import { createReactSupport } from "./framework.ts";
 
 const STYLESHEET = ":root { --brand: #123456; --space: 8px; }";
 

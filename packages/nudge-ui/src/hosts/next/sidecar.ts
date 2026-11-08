@@ -10,7 +10,11 @@ import {
   type NudgeUiManifest,
   type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
-import { extractComponentContracts } from "../../compiler/componentContracts.ts";
+import type { ComponentContract } from "../../compiler/index.ts";
+import { createComponentCatalog } from "../componentFramework/catalog.ts";
+import { reactComponentFramework } from "../componentFramework/react.ts";
+import { handleLibraryVisibilityRequest } from "../../project/libraryVisibility.ts";
+import { nextSheetPaths, writeSheetDefinition } from "./componentSheet.ts";
 import {
   createProjectFileWatcher,
   type ProjectFileChange,
@@ -64,9 +68,8 @@ function portFilePath(root: string): string {
   return join(stateDirFor(root), "nudge-ui-sidecar.json");
 }
 
-const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
-const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_modules"]);
 const SCAN_MAX_SOURCES = 5000;
+const EXCLUDED_SOURCE = /[\\/](?:node_modules|\.next|\.nudge)[\\/]/;
 
 function hasWorkspaceManifest(directory: string): boolean {
   if (existsSync(join(directory, "pnpm-workspace.yaml"))) return true;
@@ -120,55 +123,6 @@ function isWithinRoot(root: string, candidate: string): boolean {
       && !isAbsolute(pathFromRoot));
 }
 
-/** Reads authored sources directly because Turbopack's persistent cache can skip loader re-runs; `canonicalRoot` must be realpath'd so keys match loader postings. */
-async function scanProjectContracts(
-  canonicalRoot: string,
-  apply: (file: string, contracts: unknown[]) => void,
-): Promise<{ truncated: boolean; files: Set<string> }> {
-  const queue: string[] = [canonicalRoot];
-  const files = new Set<string>();
-  let examined = 0;
-  let truncated = false;
-  while (queue.length > 0 && !truncated) {
-    const directory = queue.shift()!;
-    let entries;
-    try {
-      entries = readdirSync(directory, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    // Deterministic order keeps any truncation boundary stable across runs.
-    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    for (const entry of entries) {
-      const absolutePath = join(directory, entry.name);
-      if (entry.isDirectory()) {
-        if (!SCAN_EXCLUDED_SEGMENTS.has(entry.name)) queue.push(absolutePath);
-        continue;
-      }
-      if (!CONTRACT_SOURCE_EXT.test(entry.name)) continue;
-      if (++examined > SCAN_MAX_SOURCES) {
-        truncated = true;
-        break;
-      }
-      const relativeFile = relative(canonicalRoot, absolutePath).split("\\").join("/");
-      files.add(relativeFile);
-      try {
-        const source = readFileSync(absolutePath, "utf8");
-        apply(relativeFile, extractComponentContracts(source, relativeFile));
-      } catch {
-        /* unreadable sources contribute no knowledge */
-      }
-    }
-  }
-  if (truncated) {
-    console.warn(
-      `[nudge-ui] component contract scan stopped at ${SCAN_MAX_SOURCES} sources; `
-        + "contracts beyond that bound are missing until their files compile.",
-    );
-  }
-  return { truncated, files };
-}
-
 /** Null unless the size is stable across the read: truncate-then-write editors can expose a syntactically valid prefix. */
 function readStableSource(absolutePath: string): { source: string } | null {
   try {
@@ -201,6 +155,12 @@ export interface SidecarOptions {
   /** Authored workspace roots included in the token inventory and watcher. */
   sourceRoots?: readonly string[];
   tokens?: boolean;
+  /** Reads project component props through the TypeScript checker on a worker thread. Defaults to true. */
+  typeAwareComponents?: boolean;
+  /** Contracts for packages whose public types cannot describe an editable prop. */
+  componentMetadata?: readonly ComponentContract[];
+  /** Keeps `.nudge/next/component-sheet.ts` current for the stub route the wrapper wrote (ADR-0050). */
+  componentSheet?: { wrapper?: string };
 }
 
 export async function ensureSidecar(
@@ -220,18 +180,59 @@ export async function ensureSidecar(
     let generation = 0;
     const streams = new Set<ServerResponse>();
 
-    const contractsByFile = new Map<string, unknown[]>();
+    const framework = reactComponentFramework;
+    const catalog = createComponentCatalog(framework, {
+      root: () => fsRoot,
+      isHostSource: (file) => isWithinRoot(fsRoot, file) && !EXCLUDED_SOURCE.test(file),
+      catalogPath: (file) => relative(fsRoot, file).split(sep).join("/"),
+      warn: (message) => console.warn(message),
+    }, {
+      ...(options.componentMetadata ? { componentMetadata: options.componentMetadata } : {}),
+      typeAware: options.typeAwareComponents !== false,
+      maxScannedFiles: SCAN_MAX_SOURCES,
+    });
+    // Postings for files the sidecar cannot read itself; a readable file always goes through the catalog.
+    const postedContracts = new Map<string, ComponentContract[]>();
+    const sheetPaths = options.componentSheet ? nextSheetPaths(fsRoot) : null;
     let contractsTimer: NodeJS.Timeout | null = null;
     const flushContracts = (): void => {
+      if (contractsTimer) clearTimeout(contractsTimer);
       contractsTimer = null;
-      const flat: unknown[] = [];
-      for (const list of contractsByFile.values()) flat.push(...list);
-      // SAFETY: contracts come from the shared extractor or the loader's serialized output of that same extractor contract.
-      manifest.runtime.componentContracts = flat as NudgeUiManifest["runtime"]["componentContracts"];
+      const contracts = [...catalog.contracts(), ...[...postedContracts.values()].flat()];
+      manifest.runtime.componentContracts = contracts;
+      if (sheetPaths) {
+        try {
+          writeSheetDefinition({
+            framework,
+            root: fsRoot,
+            definition: sheetPaths.definition,
+            contracts,
+            ...(options.componentSheet?.wrapper ? { wrapper: options.componentSheet.wrapper } : {}),
+          });
+        } catch (error) {
+          console.warn(`[nudge-ui] Could not update the component sheet module: ${String(error)}`);
+        }
+      }
       generation += 1;
       for (const stream of streams) {
         stream.write(`data: ${JSON.stringify({ revision: generation })}\n\n`);
       }
+    };
+    const scheduleFlush = (): void => {
+      if (!contractsTimer) contractsTimer = setTimeout(flushContracts, 120);
+    };
+    catalog.onContractsChanged(scheduleFlush);
+
+    /** A path the watcher or a loader names, relative to the canonical root. */
+    const observeSource = (absolutePath: string): boolean => {
+      const stable = readStableSource(absolutePath);
+      if (!stable) return false;
+      try {
+        catalog.observe(absolutePath, stable.source);
+      } catch {
+        /* syntactically invalid sources keep their previous knowledge */
+      }
+      return true;
     };
 
     let manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
@@ -252,13 +253,26 @@ export async function ensureSidecar(
       manifest.runtime.stylingSystem = stylingSystemLabel(snapshot.stylingDialects);
     };
 
+    /** The loader posts after every compile; the sidecar rereads the file so every contract source agrees. */
     const receiveContracts = (file: string, contracts: unknown[]): void => {
-      contractsByFile.set(file, contracts);
-      if (!contractsTimer) contractsTimer = setTimeout(flushContracts, 120);
+      const absolutePath = resolve(fsRoot, file);
+      if (observeSource(absolutePath)) {
+        postedContracts.delete(file);
+      } else if (contracts.length === 0) {
+        postedContracts.delete(file);
+        catalog.forget(absolutePath);
+      } else {
+        // SAFETY: postings are the loader's serialized output of the same extractor contract.
+        postedContracts.set(file, contracts as ComponentContract[]);
+      }
+      scheduleFlush();
     };
 
     const server: Server = createServer((req, res) => {
-      void handleHtmlArtifactRequest(req, res, fsRoot).then((handled) => handled || handleFlowsRequest(req, res, fsRoot)).then((handled) => {
+      void handleHtmlArtifactRequest(req, res, fsRoot)
+        .then((handled) => handled || handleFlowsRequest(req, res, fsRoot))
+        .then((handled) => handled || (sheetPaths !== null && handleLibraryVisibilityRequest(req, res, fsRoot)))
+        .then((handled) => {
         if (!handled) respond(req, res, () => manifest, () => generation, streams, receiveContracts);
       });
     });
@@ -283,13 +297,12 @@ export async function ensureSidecar(
     const watchers: Array<{ close: () => Promise<void> }> = [];
     // Runs even without the token lifecycle so a restarted sidecar republishes contracts.
     try {
-      await scanProjectContracts(fsRoot, (file, list) => {
-        contractsByFile.set(file, list);
-      });
-      if (contractsByFile.size > 0) flushContracts();
+      catalog.warmUp();
     } catch {
       /* an unreadable tree keeps whatever knowledge postings provided */
     }
+    // An empty project publishes nothing, so its first revision is the first real change.
+    if (catalog.contracts().length > 0 || sheetPaths) flushContracts();
     if (options.tokens) {
       // Scan before the first manifest response so early clients see tokens without waiting for a watcher tick.
       try {
@@ -316,41 +329,19 @@ export async function ensureSidecar(
         for (const change of changes) {
           const normalized = change.absolutePath.split("\\").join("/");
           // fs.watch can report a directory or omit the filename, leaving the source unknown; a bounded rescan is then the only way to stay coherent.
-          if (!CONTRACT_SOURCE_EXT.test(normalized)) {
+          if (!catalog.owns(normalized)) {
             needsContractRescan = true;
             continue;
           }
-          const key = relative(fsRoot, normalized);
+          postedContracts.delete(relative(fsRoot, normalized).split(sep).join("/"));
           if (change.kind === "remove") {
-            contractsByFile.delete(key);
+            catalog.forget(normalized);
             continue;
           }
-          const stable = readStableSource(change.absolutePath);
-          if (!stable) {
-            needsContractRescan = true;
-            continue;
-          }
-          try {
-            contractsByFile.set(key, extractComponentContracts(stable.source, key));
-          } catch {
-            /* syntactically invalid sources keep their previous knowledge */
-          }
+          if (!observeSource(change.absolutePath)) needsContractRescan = true;
         }
 
-        if (needsContractRescan) {
-          const scannedContracts = new Map<string, unknown[]>();
-          const scan = await scanProjectContracts(fsRoot, (file, list) => {
-            scannedContracts.set(file, list);
-          });
-          if (!scan.truncated) {
-            for (const file of contractsByFile.keys()) {
-              if (!scan.files.has(file)) contractsByFile.delete(file);
-            }
-          }
-          for (const [file, list] of scannedContracts) {
-            contractsByFile.set(file, list);
-          }
-        }
+        if (needsContractRescan) catalog.rescan();
 
         await settleTokens();
       };
@@ -404,6 +395,8 @@ export async function ensureSidecar(
         for (const stream of streams) stream.end();
         streams.clear();
         void Promise.all(watchers.map((watcher) => watcher.close().catch(() => {})));
+        if (contractsTimer) clearTimeout(contractsTimer);
+        catalog.dispose();
         rmSync(portFilePath(root), { force: true });
         state.starting = undefined;
         const closeServer = new Promise<void>((resolveClose, rejectClose) => {

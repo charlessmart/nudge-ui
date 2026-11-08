@@ -280,7 +280,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
     expect(code).toContain('demoCardLabels: ["V1","Final"]');
     expect(code).toContain('features: {"canvasIterations":false}');
-    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true, domNavigation: true }");
+    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
     expect(code).toContain('window.addEventListener("nudge-ui:open"');
     expect(code).toContain("window.location.assign(createNudgeUiEditorUrl(window.location.href))");
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();

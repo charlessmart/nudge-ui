@@ -30,8 +30,8 @@ import {
   APPLICATION_GESTURE_EVENTS,
   blockApplicationClick,
   blockApplicationGesture,
-  isInlineEditorTarget,
   isUserClick,
+  keepsNativeInteraction,
 } from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import {
@@ -543,7 +543,7 @@ export function installRendererElementSelector(
 
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
     if (interactionsSuspended) return;
-    if (event.button !== 0 || commentMode) return;
+    if (event.button !== 0 || commentMode || keepsNativeInteraction(event.target)) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
     const spacingAffordance = getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY);
@@ -585,7 +585,7 @@ export function installRendererElementSelector(
 
   for (const type of APPLICATION_GESTURE_EVENTS) {
     trackListener<Event>(document, type, (event: Event) => {
-      if (interactionsSuspended || !acceptsClick(event) || isInlineEditorTarget(event.target)) return;
+      if (interactionsSuspended || !acceptsClick(event) || keepsNativeInteraction(event.target)) return;
       blockApplicationGesture(event);
     }, true);
   }
@@ -594,6 +594,12 @@ export function installRendererElementSelector(
     if (!pendingDrag) {
       if (interactionsSuspended) return;
       const target = event.target;
+      // The inspector's own in-page controls are not part of the design, so they show no hover outline.
+      if (keepsNativeInteraction(target)) {
+        lastHoverPoint = null;
+        clearActiveHover();
+        return;
+      }
       if (target instanceof Element) {
         const mode = selectionTargetMode(event);
         const element = resolveSelectionTarget(target, mode);
@@ -816,7 +822,7 @@ export function installRendererElementSelector(
     document,
     "dblclick",
     (event: MouseEvent) => {
-      if (interactionsSuspended || commentMode) return;
+      if (interactionsSuspended || commentMode || keepsNativeInteraction(event.target)) return;
       const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
       const identity = getRendererIdentity();
       if (!element || !identity) return;
@@ -850,7 +856,7 @@ export function installRendererElementSelector(
         return;
       }
       const target = event.target;
-      if (!(target instanceof Element)) return;
+      if (!(target instanceof Element) || keepsNativeInteraction(target)) return;
 
       // Design-tool clicks are editing gestures and must not reach the rendered application.
       const el = resolveSelectionTarget(target, selectionTargetMode(event));

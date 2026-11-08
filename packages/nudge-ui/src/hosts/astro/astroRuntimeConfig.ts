@@ -31,7 +31,6 @@ export function createAstroRuntimeConfig(
     capabilities: {
       canvas: true,
       componentSemantics: true,
-      domNavigation: true,
       sourceCoordinates: ASTRO_SOURCE_COORDINATES,
       scopingSelectorPattern: ASTRO_SCOPING_SELECTOR_PATTERN,
     },

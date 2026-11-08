@@ -20,7 +20,8 @@ export interface TypeAwareContractsOptions {
   onChange(contracts: ReadonlyMap<string, ComponentContract>): void;
   warn(message: string): void;
   debounceMs?: number;
-  createRunner?: () => ContractRunner;
+  /** The framework's checker pass, normally a worker thread. */
+  createRunner: () => ContractRunner;
 }
 
 export interface TypeAwareContracts {
@@ -54,15 +55,10 @@ export function selectTypeAwareRoots(
   return { roots, truncated: true };
 }
 
-// Same relative layout in source and in dist; only the extension differs.
-const WORKER_URL = new URL(
-  `../../compiler/projectComponentContractsWorker${import.meta.url.endsWith(".ts") ? ".ts" : ".js"}`,
-  import.meta.url,
-);
-
-export function createWorkerRunner(): ContractRunner {
+/** Runs a worker module that answers `ProjectContractRequest` messages; the URL is built lazily by the caller, because CommonJS bundles have no `import.meta.url`. */
+export function createWorkerRunner(workerUrl: URL): ContractRunner {
   // A bounded heap turns a runaway program into a worker error, which falls back to syntactic contracts.
-  const worker = new Worker(WORKER_URL, { resourceLimits: { maxOldGenerationSizeMb: 4096 } });
+  const worker = new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: 4096 } });
   worker.unref();
   let nextId = 0;
   const pending = new Map<number, { resolve(contracts: ComponentContract[]): void; reject(error: Error): void }>();
@@ -114,7 +110,7 @@ export function createTypeAwareContracts(options: TypeAwareContractsOptions): Ty
     }
     running = true;
     try {
-      runner ??= (options.createRunner ?? createWorkerRunner)();
+      runner ??= options.createRunner();
       const { roots: files, truncated } = selectTypeAwareRoots(options.files(), root);
       if (truncated && !truncationReported) {
         truncationReported = true;

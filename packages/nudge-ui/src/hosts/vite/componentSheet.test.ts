@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComponentContract } from "../../compiler/index.ts";
 import {
-  findSheetWrapperFile,
-  isSheetWrapperFile,
   componentSheetModuleTarget,
   collectSheetStyleImports,
   createComponentSheetDocument,
@@ -131,20 +129,6 @@ describe("sheet wrapper", () => {
     props: [],
     provenance: "typescript",
   };
-
-  it("finds the configured file, else the first conventional name that exists", () => {
-    const existing = new Set(["/app/nudge.sheet.jsx", "/app/nudge.sheet.ts", "/app/src/Wrap.tsx"]);
-    const exists = (file: string): boolean => existing.has(file);
-    expect(findSheetWrapperFile("/app", undefined, exists)).toBe("/app/nudge.sheet.jsx");
-    expect(findSheetWrapperFile("/app/", "./src/Wrap.tsx", exists)).toBe("/app/src/Wrap.tsx");
-    expect(findSheetWrapperFile("/app", "src/Missing.tsx", exists)).toBeNull();
-    expect(findSheetWrapperFile("/app", undefined, () => false)).toBeNull();
-  });
-
-  it("recognizes only root-level conventional names", () => {
-    expect(isSheetWrapperFile("/app/nudge.sheet.tsx", "/app")).toBe(true);
-    expect(isSheetWrapperFile("/app/src/nudge.sheet.tsx", "/app")).toBe(false);
-  });
 
   it("loads the wrapper on demand so a broken one cannot blank the sheet", () => {
     const source = serializeComponentSheetEntry({

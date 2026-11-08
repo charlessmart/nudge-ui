@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from 
 import { buildSelector, installRendererElementSelector, selectRendererElement } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
+import { NATIVE_INTERACTION_ATTRIBUTE } from "../overlay/clickPolicy.ts";
 
 // jsdom marks every dispatched event untrusted; tests choose which clicks count as a person's.
 const clickPolicy = { userClick: true };
@@ -825,6 +826,24 @@ describe("renderer Select tool", () => {
     sendInteractionState({ open: true, interactionsEnabled: false });
     trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
     expect(openMenu).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the inspector's own in-page controls interactive in the Design tool", () => {
+    const control = document.createElement("button");
+    control.setAttribute(NATIVE_INTERACTION_ATTRIBUTE, "");
+    document.body.append(control);
+    const onPress = vi.fn();
+    for (const type of ["pointerdown", "mousedown", "click"]) control.addEventListener(type, onPress);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    control.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    control.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    control.dispatchEvent(click);
+
+    expect(onPress).toHaveBeenCalledTimes(3);
+    expect(click.defaultPrevented).toBe(false);
+    expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "element-click" }), window.location.origin);
   });
 
   it("lets script clicks reach the application in the Design tool", () => {

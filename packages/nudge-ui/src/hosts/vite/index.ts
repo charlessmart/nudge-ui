@@ -1,6 +1,6 @@
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import { createVitePlugins, type NudgeUiOptions } from "./vite.ts";
-import { createReactSupport } from "./react.ts";
+import { createReactSupport } from "./framework.ts";
 
 export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   return createVitePlugins(options, createReactSupport);

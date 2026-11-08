@@ -11,7 +11,7 @@ import { getDraftChanges } from "../drafts/store.ts";
 import { recordClipboardHandoff } from "../prompt/clipboardHandoff.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { generatePrompt, type FrameworkHints } from "../prompt/generatePrompt.ts";
-import { componentDefinitionContext } from "../prompt/componentDefinitionContext.ts";
+import { generateComponentPrompt } from "../prompt/componentPrompt.ts";
 import { withPromptContext } from "../prompt/promptDocument.ts";
 
 export interface HandoffRequest {
@@ -49,12 +49,13 @@ export async function prepareHandoff(request: HandoffRequest): Promise<PreparedH
   const handoff = await prepareDraftHandoff(request);
   const { owner: { target }, changes, structuralChanges, comments } = handoff;
   const hints = target.kind === "html" ? { ...request.hints, framework: "HTML" } : request.hints;
+  if (target.kind === "components") {
+    return { ...handoff, prompt: generateComponentPrompt(changes, hints, structuralChanges, request.customInstructions, comments) };
+  }
   const generated = generatePrompt([...changes], hints, structuralChanges, request.customInstructions, comments);
   const prompt = target.kind === "html"
     ? htmlIterationPrompt(target.artifactId, generated, changes.length + structuralChanges.length + comments.length === 0, request.customInstructions)
-    : target.kind === "components"
-      ? withPromptContext(componentDefinitionContext(changes), generated)
-      : withPromptContext([`The page I'm working on is ${target.route}.`, ...flowStateContext(request.cardId)], generated);
+    : withPromptContext([`The page I'm working on is ${target.route}.`, ...flowStateContext(request.cardId)], generated);
   return { ...handoff, prompt };
 }
 

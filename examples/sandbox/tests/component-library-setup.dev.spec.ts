@@ -17,11 +17,7 @@ const item = (page: Page, id: string) => page.locator(`[data-test="component-lib
 
 async function openLibrary(page: Page): Promise<void> {
   await openEditor(page, "/app?nudge-ui=editor");
-  // The navigator remembers being open across reloads, so only the collapsed chip needs a click.
-  const components = page.locator('[data-test="navigator-view-components"]');
-  await expect(components.or(page.locator('[data-test="navigator-expand"]'))).toBeVisible();
-  if (!await components.isVisible()) await page.locator('[data-test="navigator-expand"]').click();
-  await components.click();
+  await page.locator('[data-test="panel-view-components"]').click();
   await expect(item(page, PROBE_ID)).toBeVisible();
 }
 

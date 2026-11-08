@@ -24,6 +24,26 @@ import {
 } from "./model.ts";
 import { buildSheetSetupPrompt } from "./setupPrompt.ts";
 import { headingRule } from "../inspector/ui/headingStyle.ts";
+import { NATIVE_INTERACTION_ATTRIBUTE } from "../inspector/overlay/clickPolicy.ts";
+import { isolateTypingKeys } from "../inspector/shell/shortcuts.ts";
+import { ColorPickerPanel } from "../inspector/ui/ColorPickerPanel.tsx";
+import { InspectorPopover } from "../inspector/ui/InspectorPopover.tsx";
+import { Button } from "../inspector/ui/Button.tsx";
+import { PortalContainerContext } from "../inspector/ui/portalContainer.ts";
+import { parseCssColor } from "../inspector/ui/colorModel.ts";
+import foundationStyles from "../inspector/ui/Foundation.css?inline";
+import controlSurfaceStyles from "../inspector/ui/ControlSurface.css?inline";
+import textInputStyles from "../inspector/ui/TextInput.css?inline";
+import buttonStyles from "../inspector/ui/Button.css?inline";
+import iconButtonStyles from "../inspector/ui/IconButton.css?inline";
+import selectStyles from "../inspector/ui/Select.css?inline";
+import popoverListboxStyles from "../inspector/ui/PopoverListbox.css?inline";
+import menuScrollbarStyles from "../inspector/ui/MenuScrollbar.css?inline";
+import inspectorPopoverStyles from "../inspector/ui/InspectorPopover.css?inline";
+import sliderStyles from "../inspector/ui/Slider.css?inline";
+import rollingTextStyles from "../inspector/ui/RollingText.css?inline";
+import tooltipStyles from "../inspector/ui/Tooltip.css?inline";
+import colorPickerPanelStyles from "../inspector/ui/ColorPickerPanel.css?inline";
 import {
   buildStateStyles,
   emptyStateSelectors,
@@ -66,13 +86,14 @@ const CHROME_CSS = `
 html, body { margin: 0; }
 .nudge-sheet { box-sizing: border-box; min-height: 100vh; padding: 56px 48px 72px; background: var(--sheet-bg); color: var(--sheet-text); font: 13px/1.4 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 .nudge-sheet *, .nudge-sheet *::before, .nudge-sheet *::after { box-sizing: border-box; }
-.nudge-sheet-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 40px; user-select: none; }
+.nudge-sheet-header { margin-bottom: 40px; user-select: none; }
 .nudge-sheet-title { margin: 0; color: var(--sheet-text); }
 ${headingRule(".nudge-sheet-title")}
-.nudge-sheet-meta { margin: 10px 0 0; font-size: 12px; color: var(--sheet-muted); }
-.nudge-sheet-theme { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--sheet-line); }
-.nudge-sheet-theme button { padding: 4px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--sheet-muted); font: 500 12px/1.2 inherit; font-family: inherit; cursor: pointer; }
-.nudge-sheet-theme button[aria-pressed="true"] { background: var(--sheet-control); color: var(--sheet-text); box-shadow: 0 1px 2px rgb(0 0 0 / 12%); }
+.nudge-sheet-meta { margin: 2px 0 0; font-size: 12px; color: var(--sheet-muted); }
+.nudge-sheet-background { position: relative; display: flex; align-items: center; gap: 8px; width: max-content; margin-bottom: 12px; font-size: 12px; color: var(--sheet-muted); }
+.nudge-sheet-background button { margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.nudge-sheet-background button:focus-visible { outline: 2px solid var(--sheet-set); outline-offset: 2px; }
+.nudge-sheet-swatch { display: block; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(127 127 127 / 45%); }
 .nudge-sheet-grid { display: grid; column-gap: 8px; row-gap: 4px; align-items: center; width: max-content; }
 .nudge-sheet-set { position: relative; grid-row: 2 / -1; grid-column: 2 / -1; align-self: stretch; margin: -8px -12px; border: 1px dashed var(--sheet-set); border-radius: 6px; pointer-events: none; }
 .nudge-sheet-set-label { position: absolute; bottom: 100%; left: -1px; display: flex; align-items: center; gap: 4px; padding-bottom: 2px; color: var(--sheet-set); font-size: 12px; font-weight: 500; white-space: nowrap; user-select: none; }
@@ -88,10 +109,13 @@ ${headingRule(".nudge-sheet-title")}
 .nudge-sheet-list li { margin: 4px 0; }
 `;
 
-export function mountComponentSheet(options: MountComponentSheetOptions): void {
+/** Returns an unmount, for hosts that mount the sheet from a component of their own. */
+export function mountComponentSheet(options: MountComponentSheetOptions): () => void {
   installChrome();
   const container = options.container ?? document.getElementById("root") ?? document.body;
-  createRoot(container).render(createElement(ComponentSheet, options));
+  const root = createRoot(container);
+  root.render(createElement(ComponentSheet, options));
+  return () => root.unmount();
 }
 
 function installChrome(): void {
@@ -290,28 +314,146 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-type SheetTheme = "auto" | "light" | "dark";
-const THEME_STORAGE_KEY = "nudge-ui:component-sheet-theme";
+/** "auto" picks the backdrop from the components themselves; otherwise any CSS colour the user chose. */
+type SheetBackground = "auto" | (string & {});
+const BACKGROUND_STORAGE_KEY = "nudge-ui:component-sheet-background";
 
-function readStoredTheme(): SheetTheme {
+function readStoredBackground(): SheetBackground {
   try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return stored === "light" || stored === "dark" ? stored : "auto";
+    const stored = localStorage.getItem(BACKGROUND_STORAGE_KEY);
+    return stored && CSS.supports("color", stored) ? stored : "auto";
   } catch {
     return "auto";
   }
 }
 
-function useSheetTheme(): [SheetTheme, (theme: SheetTheme) => void] {
-  const [theme, setTheme] = useState<SheetTheme>(readStoredTheme);
-  return [theme, (next) => {
-    setTheme(next);
+function useSheetBackground(): [SheetBackground, (background: SheetBackground) => void] {
+  const [background, setBackground] = useState<SheetBackground>(readStoredBackground);
+  return [background, (next) => {
+    setBackground(next);
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, next);
+      if (next === "auto") localStorage.removeItem(BACKGROUND_STORAGE_KEY);
+      else localStorage.setItem(BACKGROUND_STORAGE_KEY, next);
     } catch {
       // The choice still applies until the frame reloads.
     }
   }];
+}
+
+/** The stylesheets the inspector's colour picker and the controls inside it need. */
+const PICKER_STYLES = [
+  foundationStyles,
+  controlSurfaceStyles,
+  textInputStyles,
+  buttonStyles,
+  iconButtonStyles,
+  selectStyles,
+  popoverListboxStyles,
+  menuScrollbarStyles,
+  inspectorPopoverStyles,
+  sliderStyles,
+  rollingTextStyles,
+  tooltipStyles,
+  colorPickerPanelStyles,
+  `.sheet-background-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-8);
+    padding: var(--space-12);
+    border-top: 1px solid var(--border-subtle);
+  }`,
+].join("\n");
+
+/**
+ * The sheet renders in the application's document, which never loads the inspector's stylesheets. The picker's popup
+ * goes into a shadow root of its own that carries them, so they neither leak into the application nor pick up its CSS.
+ */
+function usePickerShadowRoot(): ShadowRoot | null {
+  const [shadow, setShadow] = useState<ShadowRoot | null>(null);
+  useLayoutEffect(() => {
+    const host = document.createElement("div");
+    host.setAttribute("data-nudge-ui-sheet-chrome", "");
+    host.setAttribute(NATIVE_INTERACTION_ATTRIBUTE, "");
+    // Fixed at the origin, so the popup positions from the viewport and focusing it never scrolls the sheet.
+    host.style.cssText = "position: fixed; top: 0; left: 0; z-index: 2147483000;";
+    document.body.append(host);
+    const root = host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = PICKER_STYLES;
+    root.append(style);
+    const releaseTyping = isolateTypingKeys(root);
+    setShadow(root);
+    return () => {
+      releaseTyping();
+      host.remove();
+    };
+  }, []);
+  return shadow;
+}
+
+function BackgroundPicker({ background, color, onChange }: {
+  background: SheetBackground;
+  color: string;
+  onChange: (background: SheetBackground) => void;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  const shadow = usePickerShadowRoot();
+  const label = background === "auto" ? "Auto" : background;
+
+  return chrome(
+    "div",
+    "nudge-sheet-background",
+    createElement(
+      PortalContainerContext.Provider,
+      { value: shadow },
+      createElement(
+        InspectorPopover,
+        {
+          open: open && shadow !== null,
+          onOpenChange: setOpen,
+          side: "bottom",
+          align: "start",
+          sideOffset: 8,
+          popupClassName: "inspector-popover__popup--fit",
+          "data-test": "sheet-background-picker",
+          triggerElement: chrome("button", "nudge-sheet-trigger", chrome("span", "nudge-sheet-swatch", null, {
+            style: { background: color },
+          }), {
+            type: "button",
+            "aria-label": `Sheet background: ${label}`,
+            title: `Sheet background: ${label}`,
+            "data-test": "sheet-background",
+          }),
+          children: [
+            createElement(ColorPickerPanel, { key: "panel", value: color, onChange }),
+            createElement(
+              "div",
+              { key: "actions", className: "sheet-background-actions" },
+              createElement(Button, {
+                type: "button",
+                disabled: background === "auto",
+                "data-test": "sheet-background-auto",
+                onClick: () => onChange("auto"),
+              }, "Reset"),
+              createElement(Button, {
+                type: "button",
+                variant: "primary",
+                "data-test": "sheet-background-confirm",
+                onClick: () => setOpen(false),
+              }, "Confirm"),
+            ),
+          ],
+        },
+      ),
+    ),
+    { [NATIVE_INTERACTION_ATTRIBUTE]: "" },
+  );
+}
+
+/** Relative luminance of any CSS colour, through the colour picker's own parser. */
+function colorLuminance(color: string): number | null {
+  const rgba = parseCssColor(color);
+  return rgba ? luminance(`rgb(${rgba.r}, ${rgba.g}, ${rgba.b})`) : null;
 }
 
 function luminance(color: string): number | null {
@@ -399,7 +541,7 @@ function ComponentSheet(options: MountComponentSheetOptions): ReactNode {
     setFailures(new Map());
     setCopied(false);
   }
-  const [theme, setTheme] = useSheetTheme();
+  const [background, setBackground] = useSheetBackground();
   const [autoDark, setAutoDark] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   // The editor copies the application's root theme attributes in after mount, which repaints every cell.
@@ -424,14 +566,18 @@ function ComponentSheet(options: MountComponentSheetOptions): ReactNode {
       .find((color) => luminance(color) !== null) ?? null;
     const pageIsDark = page ? luminance(page)! < 0.4 : undefined;
     const grid = gridRef.current;
-    if (theme !== "auto" || !grid) return;
+    // Auto is worked out whatever the choice, so the picker's Auto option previews the colour it would use.
+    if (!grid) return;
     const nextDark = prefersDarkBackdrop([...grid.querySelectorAll('[data-nudge-ui-sheet-state="base"]')], pageIsDark);
     setAutoDark(nextDark);
     // The page colour is only the backdrop when it agrees with what the components need.
     setAppBackdrop(page && pageIsDark === nextDark ? page : null);
     // Stylesheet changes (the app's CSS arriving, Nudge edits) can change the page colour and text colours.
-  }, [theme, loaded.status, contract?.componentId, rootRevision, stateSelectors]);
-  const dark = theme === "dark" || (theme === "auto" && autoDark);
+  }, [background, loaded.status, contract?.componentId, rootRevision, stateSelectors]);
+  // A chosen colour sets the chrome's own text colours by its lightness, like the application's page colour does.
+  const dark = background === "auto" ? autoDark : (colorLuminance(background) ?? 1) < 0.4;
+  const backdrop = background === "auto" ? appBackdrop : background;
+  const swatchColor = background === "auto" ? appBackdrop ?? (autoDark ? "#1e1e1e" : "#f5f5f5") : background;
   // Columns follow the states this component's own elements are styled for, not every state the page's CSS uses.
   useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -465,23 +611,9 @@ function ComponentSheet(options: MountComponentSheetOptions): ReactNode {
   const header = createElement(
     "header",
     { className: "nudge-sheet-header", "data-nudge-ui-sheet-chrome": "" },
-    createElement(
-      "div",
-      null,
-      chrome("div", "nudge-sheet-title", contract.name, { role: "heading", "aria-level": 1 }),
-      chrome("p", "nudge-sheet-meta", contract.file),
-    ),
-    chrome("div", "nudge-sheet-theme", (["auto", "light", "dark"] as const).map((option) => createElement(
-      "button",
-      {
-        key: option,
-        type: "button",
-        "aria-pressed": theme === option,
-        "data-nudge-ui-sheet-chrome": "",
-        onClick: () => setTheme(option),
-      },
-      option[0]!.toUpperCase() + option.slice(1),
-    )), { role: "group", "aria-label": "Sheet background" }),
+    createElement(BackgroundPicker, { background, color: swatchColor, onChange: setBackground }),
+    chrome("div", "nudge-sheet-title", contract.name, { role: "heading", "aria-level": 1 }),
+    chrome("p", "nudge-sheet-meta", contract.file),
   );
 
   let body: ReactNode;
@@ -586,7 +718,7 @@ function ComponentSheet(options: MountComponentSheetOptions): ReactNode {
       className: "nudge-sheet",
       "data-theme": dark ? "dark" : "light",
       "data-nudge-ui-component-sheet": contract.componentId,
-      style: theme === "auto" && appBackdrop ? { "--sheet-bg": appBackdrop } : undefined,
+      style: backdrop ? { "--sheet-bg": backdrop } : undefined,
     },
     header,
     banner,

@@ -238,6 +238,24 @@ describe("instrumentRootLayout", () => {
     expect(mountIndex).toBeLessThan(result!.code.indexOf("</body>"));
   });
 
+  it("puts the renderer capture first in an existing head", () => {
+    const result = instrumentRootLayout(
+      "export default function RootLayout({ children }) {\n  return <html><head><meta charSet=\"utf-8\" /></head><body>{children}</body></html>;\n}\n",
+    )!;
+    const head = result.code.indexOf("{__NudgeUiCreateElement(__NudgeUiHeadElement)}");
+    expect(head).toBe(result.code.indexOf("<head>") + "<head>".length);
+    expect(head).toBeLessThan(result.code.indexOf("<meta"));
+  });
+
+  it("adds a head when the layout has none, so the capture parses before the app's scripts", () => {
+    const result = instrumentRootLayout(
+      "export default function RootLayout({ children }) {\n  return <html lang=\"en\"><body>{children}</body></html>;\n}\n",
+    )!;
+    const head = result.code.indexOf('{__NudgeUiCreateElement("head", null, __NudgeUiCreateElement(__NudgeUiHeadElement))}');
+    expect(head).toBe(result.code.indexOf('<html lang="en">') + '<html lang="en">'.length);
+    expect(head).toBeLessThan(result.code.indexOf("<body>"));
+  });
+
   it("skips layouts without a literal body element", () => {
     const source = "export default function RootLayout({ children }) {\n  return <html><Body>{children}</Body></html>;\n}\n";
 

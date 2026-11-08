@@ -98,6 +98,7 @@ function verifyPackage(packageRoot) {
       "./internal/page-inspector",
       "./internal/cursor-images",
       "./internal/next/mount",
+      "./internal/next/component-sheet",
     ];
     const actualExports = Object.keys(packageJson.exports ?? {});
     assert(

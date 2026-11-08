@@ -1,12 +1,13 @@
 import type {
   TokenEntry,
 } from "../../css/model/index.ts";
-import type {
-  ComponentChangeRecord,
-  ComponentChangeTarget,
-  ComponentInvocationEvidence,
-  ComponentPropBaseline,
-  ComponentPropValue,
+import {
+  isComponentFramework,
+  type ComponentChangeRecord,
+  type ComponentChangeTarget,
+  type ComponentInvocationEvidence,
+  type ComponentPropBaseline,
+  type ComponentPropValue,
 } from "../componentSemantics/types.ts";
 import { isVariantScopeValue, type VariantScope } from "../componentSemantics/variantMarkers.ts";
 import type {
@@ -438,7 +439,7 @@ function isRepeatedUnsafeSourceOverride(change: ComponentChangeRecord): boolean 
 function isComponentTargetValue(value: unknown): value is ComponentChangeTarget {
   return isRecord(value)
     && hasOnlyKeys(value, ["framework", "componentId", "callsiteId", "componentName", "file", "line", "column"])
-    && value.framework === "react"
+    && typeof value.framework === "string" && isComponentFramework(value.framework)
     && typeof value.componentId === "string"
     && typeof value.callsiteId === "string"
     && typeof value.componentName === "string"

@@ -32,7 +32,7 @@ export function createStandaloneRuntimeManifest(
       stylingSystem: stylingSystemLabel(tokenSnapshot.stylingDialects),
       stylingDialects: tokenSnapshot.stylingDialects,
       // Canvas shares the Vite host's controller/renderer runtime (ADR-0012).
-      capabilities: { canvas: true, componentSemantics: false, domNavigation: true },
+      capabilities: { canvas: true, componentSemantics: false },
       tokenCatalog: tokenSnapshot.tokenCatalog,
       tokens: tokenSnapshot.tokens,
       tokenDiagnostics: tokenSnapshot.tokenDiagnostics,

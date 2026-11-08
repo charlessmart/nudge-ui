@@ -1,7 +1,9 @@
 import type { ComponentContract } from "../../compiler/index.ts";
 import { NUDGE_UI_COMPONENTS_PATH } from "../../transport/index.ts";
+import type { ComponentFrameworkAdapter } from "../componentFramework/adapter.ts";
+import { reactComponentFramework } from "../componentFramework/react.ts";
+import { serializeSheetDefinition, suggestedSheetWrapperFile } from "../componentFramework/sheet.ts";
 
-export const COMPONENT_SHEET_RUNTIME_MODULE = "nudge-ui/internal/component-sheet";
 export const VIRTUAL_COMPONENT_SHEET_ID = "virtual:nudge-ui-component-sheet";
 export const RESOLVED_COMPONENT_SHEET_ID = `\0${VIRTUAL_COMPONENT_SHEET_ID}`;
 const COMPONENT_SHEET_SCRIPT_SRC = `/@id/__x00__${VIRTUAL_COMPONENT_SHEET_ID}`;
@@ -160,34 +162,6 @@ export async function collectSheetStyleImports(
   return styles;
 }
 
-/** Conventional names for the file whose default export wraps every cell, in order of preference. */
-export const SHEET_WRAPPER_FILES = ["nudge.sheet.tsx", "nudge.sheet.jsx", "nudge.sheet.ts", "nudge.sheet.js"] as const;
-/** What the setup prompt asks an agent to create when the project has none. */
-export const SUGGESTED_SHEET_WRAPPER_FILE = SHEET_WRAPPER_FILES[0];
-
-export function isSheetWrapperFile(file: string, root: string): boolean {
-  const normalizedRoot = root.replace(/\\/g, "/").replace(/\/$/, "");
-  const normalized = file.replace(/\\/g, "/");
-  return SHEET_WRAPPER_FILES.some((name) => normalized === `${normalizedRoot}/${name}`);
-}
-
-/** The project's wrapper file: the configured path, else the first conventional name that exists. */
-export function findSheetWrapperFile(
-  root: string,
-  configured: string | undefined,
-  exists: (file: string) => boolean,
-): string | null {
-  const join = (name: string): string => `${root.replace(/\/$/, "")}/${name.replace(/^\.\//, "")}`;
-  if (configured) {
-    const file = configured.startsWith("/") ? configured : join(configured);
-    return exists(file) ? file : null;
-  }
-  for (const name of SHEET_WRAPPER_FILES) {
-    if (exists(join(name))) return join(name);
-  }
-  return null;
-}
-
 export interface ComponentSheetEntryInput {
   contracts: readonly ComponentContract[];
   /** Specifiers imported first, in order. */
@@ -198,40 +172,33 @@ export interface ComponentSheetEntryInput {
   wrapperPath?: string;
   /** Project-relative contract files that exist on disk resolve to their absolute path. */
   projectFile(contract: ComponentContract): string | null;
+  /** Defaults to the React adapter, the only framework with a sheet renderer today. */
+  framework?: ComponentFrameworkAdapter;
+}
+
+/** Vite serves files outside its module graph's URL space through `/@fs/`. */
+function fsSpecifier(file: string): string {
+  return `/@fs/${file.replace(/\\/g, "/").replace(/^\//, "")}`;
 }
 
 /** The module source behind the virtual sheet entry. */
 export function serializeComponentSheetEntry(input: ComponentSheetEntryInput): string {
-  const loaders: string[] = [];
-  const seen = new Set<string>();
-  for (const contract of input.contracts) {
-    if (seen.has(contract.componentId)) continue;
-    seen.add(contract.componentId);
-    const file = input.projectFile(contract);
-    const specifier = file === null
-      ? contract.file
-      : `/@fs/${file.replace(/\\/g, "/").replace(/^\//, "")}`;
-    const exportName = contract.name;
-    loaders.push(
-      `  ${JSON.stringify(contract.componentId)}: () => import(${JSON.stringify(specifier)})`
-        + `.then((m) => m[${JSON.stringify(exportName)}] ?? m.default),`,
-    );
-  }
-  const wrapper = input.wrapper ? `/@fs/${input.wrapper.replace(/\\/g, "/").replace(/^\//, "")}` : null;
+  const framework = input.framework ?? reactComponentFramework;
+  const runtime = framework.runtimeModules.sheet;
+  if (runtime === null) throw new Error(`[nudge-ui] ${framework.label} has no component sheet renderer.`);
   return [
     ...input.styles.map((style) => `import ${JSON.stringify(style)};`),
-    `import { mountComponentSheet } from ${JSON.stringify(COMPONENT_SHEET_RUNTIME_MODULE)};`,
-    `const contracts = ${JSON.stringify(input.contracts)};`,
-    "const loaders = {",
-    ...loaders,
-    "};",
+    `import { mountComponentSheet } from ${JSON.stringify(runtime)};`,
     "mountComponentSheet({",
-    "  contracts,",
-    "  loaders,",
-    // Imported on demand so a wrapper that fails to load is reported in the sheet instead of blanking it.
-    `  sheetWrapper: { file: ${JSON.stringify(input.wrapperPath ?? SUGGESTED_SHEET_WRAPPER_FILE)}, load: ${wrapper
-      ? `() => import(${JSON.stringify(wrapper)}).then((m) => m.default ?? m.SheetWrapper ?? null)`
-      : "null"} },`,
+    ...serializeSheetDefinition({
+      contracts: input.contracts,
+      componentSpecifier(contract) {
+        const file = input.projectFile(contract);
+        return file === null ? contract.file : fsSpecifier(file);
+      },
+      wrapperSpecifier: input.wrapper ? fsSpecifier(input.wrapper) : null,
+      wrapperPath: input.wrapperPath ?? suggestedSheetWrapperFile(framework),
+    }),
     '  componentId: new URLSearchParams(window.location.search).get("component"),',
     "});",
     "",

@@ -9,6 +9,8 @@ import { NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 
 export interface NudgeUiManifestInput {
   root: string;
+  /** True when the wrapper wrote the component sheet route. */
+  componentSheet?: boolean;
 }
 
 type MutableRuntime = Omit<
@@ -50,12 +52,13 @@ export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
     stylingSystem: stylingSystemLabel([]),
     stylingDialects: [],
     // Canvas shares the Vite host's controller/renderer runtime (ADR-0006).
-    capabilities: { canvas: true, componentSemantics: true, domNavigation: true },
+    capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],
     tokenGeneration: "",
     componentContracts: [],
+    ...(input.componentSheet ? { componentSheet: true } : {}),
   };
   return createNudgeUiClientManifest({
     runtime,

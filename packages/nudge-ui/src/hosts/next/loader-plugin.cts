@@ -38,15 +38,12 @@ const { transformNextModuleSource } = require("./loader.ts") as {
 };
 // SAFETY: `typeof import(...)` derives the asserted shape from the module's own declaration, so the required exports cannot drift.
 const {
-  extractComponentContracts,
-  defaultReactComponentProtocols,
   formatComponentPolicyWarning,
   groupComponentPolicyDiagnostics,
   mergeComponentModuleProtocols,
-  resolveHostComponentPolicy,
 } = require("../../compiler/index.ts") as typeof import("../../compiler/index.ts");
-
-const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
+// SAFETY: `typeof import(...)` derives the asserted shape from the module's own declaration, so the required exports cannot drift.
+const { reactComponentFramework: framework } = require("../componentFramework/react.ts") as typeof import("../componentFramework/react.ts");
 // SAFETY: A local require of the sibling repository-scope module, whose export shape is asserted by its own contract.
 const { nudgeUiRepositoryPackagePattern } = require("./repositoryScope.ts") as {
   nudgeUiRepositoryPackagePattern: RegExp;
@@ -111,7 +108,7 @@ function isInsideSourceRoot(file: string, root: string): boolean {
 /** Publishes one file's contracts to the sidecar's aggregation endpoint; the port comes from the state file under `<root>/.next`. */
 function postContracts(root: string, relativeFile: string, source: string): void {
   // Empty results are published too, so a file whose components were all removed prunes its stale entry.
-  const contracts = extractComponentContracts(source, relativeFile);
+  const contracts = framework.extractFileContracts(source, relativeFile).contracts;
   let port = 0;
   try {
     // SAFETY: The JSON.parse result is validated by the typeof/Array.isArray guards below before use.
@@ -197,7 +194,7 @@ function nudgeUiLoader(
       pagesDir: options.pagesDir,
       hostPolicy,
       instrumentComponents,
-      componentRuntimeModule: NEXT_COMPONENT_RUNTIME_MODULE,
+      componentRuntimeModule: framework.runtimeModules.components,
     });
 
   const resolveImport = this.getResolve?.({
@@ -206,7 +203,7 @@ function nudgeUiLoader(
   });
   const asyncCallback = resolveImport && instrumentComponents ? this.async?.() : undefined;
   if (resolveImport && asyncCallback) {
-    void resolveHostComponentPolicy(source, moduleId, {
+    void framework.resolvePolicy(source, moduleId, {
       resolve: async (specifier: string, importer: string) => {
         try {
           return await resolveImport(nodePath.dirname(importer), specifier);
@@ -226,7 +223,7 @@ function nudgeUiLoader(
       sourcePath,
     }, {
       moduleProtocols: mergeComponentModuleProtocols(
-        defaultReactComponentProtocols,
+        framework.defaultProtocols,
         options.componentProtocols,
       ),
     }).then((hostPolicy: import("../../compiler/index.ts").HostComponentPolicy) => {

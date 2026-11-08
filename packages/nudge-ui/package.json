@@ -83,6 +83,11 @@
       "import": "./dist/inspector/ui/customCursors.js",
       "default": "./dist/inspector/ui/customCursors.js"
     },
+    "./internal/next/component-sheet": {
+      "types": "./dist/hosts/next/componentSheetPage.d.ts",
+      "import": "./dist/hosts/next/componentSheetPage.js",
+      "default": "./dist/hosts/next/componentSheetPage.js"
+    },
     "./internal/next/mount": {
       "types": "./dist/hosts/next/mount.d.ts",
       "import": "./dist/hosts/next/mount.js",

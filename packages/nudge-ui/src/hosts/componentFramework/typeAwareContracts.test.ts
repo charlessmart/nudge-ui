@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComponentContract } from "../../compiler/index.ts";
-import { nudgeUi } from "./index.ts";
+import { nudgeUi } from "../vite/index.ts";
 import {
   createTypeAwareContracts,
   selectTypeAwareRoots,

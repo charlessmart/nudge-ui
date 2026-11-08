@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -328,6 +328,46 @@ describe("withNudgeUi — development output shape", () => {
     expect(manifest.runtime?.projectId).toMatch(/^nextjs:[0-9a-f]{24}$/);
   });
 
+  it("routes component sheets to Next and everything else reserved to the sidecar", async () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "layout.tsx"), "export default function L({ children }) { return <html><body>{children}</body></html>; }\n");
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const config = resolveForDevelopment({ pageExtensions: ["tsx", "mdx"] } as NudgeUiNextConfig);
+
+    expect(config.pageExtensions).toEqual(["tsx", "mdx", "nudge.tsx"]);
+    const stub = join(root, "app", "%5F%5Fnudge_ui%5F%5F", "components", "page.nudge.tsx");
+    expect(existsSync(stub)).toBe(true);
+    expect(readFileSync(join(root, "app", "%5F%5Fnudge_ui%5F%5F", ".gitignore"), "utf8")).toBe("*\n");
+
+    const resolved = await (config.rewrites as () => Promise<{ beforeFiles: Array<{ source: string; destination: string }> }>)();
+    const proxy = resolved.beforeFiles[0]!;
+    expect(proxy.source).toBe("/__nudge_ui__/:path((?!components(?:$|/)).*)");
+    expect(proxy.destination).toMatch(/\/__nudge_ui__\/:path$/);
+    const port = Number(proxy.destination.match(/:(\d+)/)?.[1]);
+    const manifest = (await (await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`)).json()) as {
+      runtime: { componentSheet?: boolean };
+    };
+    expect(manifest.runtime.componentSheet).toBe(true);
+
+    // `next build` evaluates the config too, and must never see the stub.
+    withNudgeUi({})("phase-production-build");
+    expect(existsSync(join(root, "app", "%5F%5Fnudge_ui%5F%5F"))).toBe(false);
+  });
+
+  it("leaves page extensions and the proxy alone when sheets are off", async () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "layout.tsx"), "export default function L({ children }) { return <html><body>{children}</body></html>; }\n");
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const config = withNudgeUi({} as NudgeUiNextConfig, { componentSheet: false })(DEVELOPMENT_SERVER_PHASE);
+
+    expect(config.pageExtensions).toBeUndefined();
+    expect(existsSync(join(root, "app", "%5F%5Fnudge_ui%5F%5F"))).toBe(false);
+  });
+
   it("shadows reserved-namespace user rewrites and keeps their other entries", async () => {
     const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
     projectRoots.push(root);
@@ -384,7 +424,7 @@ describe("manifest builder", () => {
     const manifest = buildManifest({ root: "/x" });
 
     // Canvas shares the Vite host's runtime; component props cover client components only.
-    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true, domNavigation: true });
+    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true });
     expect(manifest.runtime.tokenCatalog).toEqual([]);
     expect(manifest.runtime.componentContracts).toEqual([]);
     expect(manifest.runtime.framework).toBe("React");

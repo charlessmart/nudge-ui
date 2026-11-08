@@ -2,7 +2,7 @@ import { parse } from "@babel/parser";
 import type { SourceMap } from "magic-string";
 import MagicString from "magic-string";
 import { posix } from "node:path";
-import { injectIdentity } from "../../compiler/reactIdentity.ts";
+import { reactComponentFramework } from "../componentFramework/react.ts";
 import type { HostComponentPolicy } from "../../compiler/componentPolicyResolution.ts";
 
 const APP_SOURCE_EXT = /\.([cm]?[jt]sx?)$/i;
@@ -13,11 +13,15 @@ const EXCLUDED_SEGMENTS = /(^|\/)(node_modules|\.next)\//i;
 
 const MOUNT_LOCAL_NAME = "__NudgeUiMountElement";
 
-const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
+const HEAD_LOCAL_NAME = "__NudgeUiHeadElement";
 
 const MOUNT_IMPORT =
   `import { createElement as __NudgeUiCreateElement } from "react";\n`
-  + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME} } from "nudge-ui/internal/next/mount";\n`;
+  + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME}, NudgeUiHead as ${HEAD_LOCAL_NAME} } from "nudge-ui/internal/next/mount";\n`;
+
+const HEAD_CHILD = `{__NudgeUiCreateElement(${HEAD_LOCAL_NAME})}`;
+// A layout without its own <head> gets one: the renderer capture must parse ahead of the application's scripts.
+const HEAD_ELEMENT = `{__NudgeUiCreateElement("head", null, __NudgeUiCreateElement(${HEAD_LOCAL_NAME}))}`;
 
 // Rendered through createElement rather than as a JSX element: a bare `{Component}` is not a valid React child, and a `<Cmp />` element would be visible to later identity passes.
 const MOUNT_JSX = `\n    {__NudgeUiCreateElement(${MOUNT_LOCAL_NAME})}\n  `;
@@ -55,10 +59,10 @@ export function transformNextModuleSource(
   const clientComponent =
     hasUseClientDirective(source) || isPagesRouterModule(normalized, options);
 
-  const identity = injectIdentity(source, normalized, options.root, {
+  const identity = reactComponentFramework.instrument(source, normalized, options.root, {
     instrumentComponents: clientComponent && options.instrumentComponents !== false,
-    hostPolicy: options.hostPolicy,
-    componentRuntimeModule: options.componentRuntimeModule ?? NEXT_COMPONENT_RUNTIME_MODULE,
+    ...(options.hostPolicy ? { hostPolicy: options.hostPolicy } : {}),
+    ...(options.componentRuntimeModule ? { componentRuntimeModule: options.componentRuntimeModule } : {}),
   });
 
   let code = identity ? identity.code : source;
@@ -200,7 +204,7 @@ export function hasUseClientDirective(source: string): boolean {
 interface HtmlNode {
   type: string;
   children?: HtmlNode[];
-  openingElement?: { name?: { type?: string; name?: unknown } };
+  openingElement?: { name?: { type?: string; name?: unknown }; end?: number; selfClosing?: boolean };
   closingElement?: { start?: number };
   [key: string]: unknown;
 }
@@ -227,6 +231,14 @@ export function instrumentRootLayout(source: string): { code: string; map: Sourc
   const ms = new MagicString(source);
   // Must land after any directive prologue, or a leading `"use client"` loses prologue status.
   ms.appendLeft(directivePrologueEnd(source), MOUNT_IMPORT);
+  const headElement = findElement(htmlElement, "head");
+  const headOpenEnd = headElement?.openingElement?.end;
+  const htmlOpenEnd = htmlElement.openingElement?.end;
+  if (headElement && headOpenEnd !== undefined && !headElement.openingElement?.selfClosing) {
+    ms.appendLeft(headOpenEnd, HEAD_CHILD);
+  } else if (!headElement && htmlOpenEnd !== undefined) {
+    ms.appendLeft(htmlOpenEnd, HEAD_ELEMENT);
+  }
   ms.appendLeft(bodyElement.closingElement.start, MOUNT_JSX);
   return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
 }

@@ -56,10 +56,8 @@ export function useComponentProps(selected: SelectedElement | null): ComponentPr
 
 export function ComponentPropsSection({ selected }: { selected: SelectedElement }): ReactElement | null {
   const view = useComponentProps(selected);
-  const sheetsAvailable = useNudgeUiRuntimeConfig().componentSheet === true;
   if (!view) return null;
   const { target, visibleProps, changes } = view;
-  const inSheet = selected.domElement.ownerDocument.querySelector("[data-nudge-ui-component-sheet]") !== null;
 
   return (
     <section
@@ -67,21 +65,6 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
       data-test="component-props-section"
       data-component={target.meta.componentName}
     >
-      {sheetsAvailable && !inSheet ? (
-        <Button
-          variant="quiet"
-          className="component-props__open-sheet"
-          data-test="component-props-open-sheet"
-          onClick={() => {
-            // The sheet activates the shared components draft, so an application element must not stay selected.
-            setSelectedElement(null);
-            openComponentSheet({ componentId: target.contract.componentId, name: target.contract.name });
-          }}
-        >
-          <IconComponents size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-          Edit main component
-        </Button>
-      ) : null}
       {target.livePreview === false ? (
         <div className="component-props__hint" data-test="component-props-prompt-only">
           Live preview isn't available here. Changes are added to the prompt.
@@ -124,5 +107,29 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
         );
       })}
     </section>
+  );
+}
+
+/** Opens the component's sheet; it closes the selection section, so it sits at the section's foot. */
+export function ComponentSheetAction({ selected }: { selected: SelectedElement }): ReactElement | null {
+  const view = useComponentProps(selected);
+  const sheetsAvailable = useNudgeUiRuntimeConfig().componentSheet === true;
+  const inSheet = selected.domElement.ownerDocument.querySelector("[data-nudge-ui-component-sheet]") !== null;
+  if (!view || !sheetsAvailable || inSheet) return null;
+  const { target } = view;
+  return (
+    <Button
+      variant="quiet"
+      className="component-props__open-sheet"
+      data-test="component-props-open-sheet"
+      onClick={() => {
+        // The sheet activates the shared components draft, so an application element must not stay selected.
+        setSelectedElement(null);
+        openComponentSheet({ componentId: target.contract.componentId, name: target.contract.name });
+      }}
+    >
+      <IconComponents size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+      Edit main component
+    </Button>
   );
 }

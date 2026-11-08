@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import type { ComponentModuleProtocols } from "../../compiler/componentPolicyResolution.ts";
+import type { ComponentContract } from "../../compiler/componentContractTypes.ts";
+import { reactComponentFramework } from "../componentFramework/react.ts";
+import { nextSheetPaths, removeSheetRoute, withSheetPageExtension, writeSheetRoute } from "./componentSheet.ts";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
@@ -24,6 +27,7 @@ export interface NudgeUiNextConfig {
   ) => Record<string, unknown>;
   rewrites?: (() => Promise<RewritesShape> | RewritesShape) | RewritesShape;
   transpilePackages?: string[];
+  pageExtensions?: string[];
 }
 
 export interface NudgeUiNextOptions {
@@ -32,6 +36,18 @@ export interface NudgeUiNextOptions {
   readonly componentProtocols?: ComponentModuleProtocols;
   /** Authored workspace directories outside the Next.js application root. */
   readonly sourceRoots?: readonly string[];
+  /**
+   * Reads project component props through the TypeScript checker (imported props types, enums,
+   * `ComponentProps<typeof X>`), off the main thread. Defaults to true.
+   */
+  readonly typeAwareComponents?: boolean;
+  /** Fills gaps for packages whose public type graph cannot describe an editable prop. */
+  readonly componentMetadata?: readonly ComponentContract[];
+  /**
+   * Component sheets render one component per Canvas frame, inside the App Router root layout. `false` turns them off.
+   * `wrapper` names a file whose default export wraps every cell; without it, `nudge.sheet.tsx` in the project root is used.
+   */
+  readonly componentSheet?: { readonly wrapper?: string } | false;
 }
 
 export interface RewritesSource {
@@ -128,6 +144,8 @@ function collectUserRewriteSources(rewrites: RewritesShape): string[] {
 
 /** Mirrors next/constants PHASE_DEVELOPMENT_SERVER. */
 export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
+/** Mirrors next/constants PHASE_PRODUCTION_BUILD. */
+const PRODUCTION_BUILD_PHASE = "phase-production-build";
 
 /** Object exports are converted to factories so the phase is always available; the phase gate keeps `NODE_ENV=development next build` uninstrumented. */
 function isDevelopmentEvaluation(phase: string): boolean {
@@ -153,6 +171,14 @@ export function withNudgeUi<T extends object>(
     : () => config;
   return (phase: string): T => {
     const resolved = factory(phase);
+    if (phase === PRODUCTION_BUILD_PHASE) {
+      // A stub left by `next dev` must never reach a production type check or build.
+      try {
+        removeSheetRoute(process.cwd());
+      } catch {
+        /* a stub that cannot be removed is still unrouted without the dev page extension */
+      }
+    }
     if (!isDevelopmentEvaluation(phase) || !isNudgeUiEnabled(options.enabled)) return resolved;
     return instrumentConfig(resolved, options);
   };
@@ -168,13 +194,17 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   }
 
   const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
+  const sheet = prepareComponentSheet(root, options);
 
   // ensureSidecar is a per-process singleton; awaiting it wherever the port is needed removes any config-evaluation race.
   const sidecarPort = (): Promise<number> =>
     ensureSidecar(root, {
-      manifest: buildManifest({ root }),
+      manifest: buildManifest({ root, componentSheet: sheet !== null }),
       tokens: true,
       ...(sourceRoots ? { sourceRoots } : {}),
+      ...(options.typeAwareComponents === false ? { typeAwareComponents: false } : {}),
+      ...(options.componentMetadata ? { componentMetadata: options.componentMetadata } : {}),
+      ...(sheet ? { componentSheet: sheet } : {}),
     })
       .then((handle: SidecarHandle) => handle.port)
       .catch((error: unknown) => {
@@ -183,6 +213,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
       });
 
   const nextConfig: NudgeUiNextConfig = { ...source };
+  if (sheet) nextConfig.pageExtensions = withSheetPageExtension(source.pageExtensions);
 
   const nudgeUiPackages = ["nudge-ui"];
   const userTranspile = Array.isArray(source.transpilePackages)
@@ -305,10 +336,16 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     };
   };
 
-  const proxyRewrite = (port: number): RewritesSource => ({
-    source: `${NUDGE_UI_ROUTE_PREFIX}:path*`,
-    destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path*`,
-  });
+  // The sheet route is a page of the application, so the proxy leaves it to Next; every other reserved path is the sidecar's.
+  const proxyRewrite = (port: number): RewritesSource => sheet
+    ? {
+      source: `${NUDGE_UI_ROUTE_PREFIX}:path((?!components(?:$|/)).*)`,
+      destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path`,
+    }
+    : {
+      source: `${NUDGE_UI_ROUTE_PREFIX}:path*`,
+      destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path*`,
+    };
 
   const editorRewrite = (port: number, header: { key: string; value: string }): RewritesSource => ({
     source: "/:path*",
@@ -356,3 +393,19 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   return nextConfig as T;
 }
 
+/** Writes the stub route for `next dev`; null when sheets are off or the project has no App Router root layout. */
+function prepareComponentSheet(root: string, options: NudgeUiNextOptions): { wrapper?: string } | null {
+  if (options.componentSheet === false) return null;
+  const paths = nextSheetPaths(root);
+  if (!paths) {
+    console.info("[nudge-ui] Component sheets need an App Router root layout (app/layout.tsx); the library opens no sheets.");
+    return null;
+  }
+  try {
+    writeSheetRoute(paths, reactComponentFramework);
+  } catch (error) {
+    console.warn(`[nudge-ui] Could not write the component sheet route: ${String(error)}`);
+    return null;
+  }
+  return options.componentSheet?.wrapper ? { wrapper: options.componentSheet.wrapper } : {};
+}

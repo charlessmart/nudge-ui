@@ -30,7 +30,7 @@ export interface FrameworkHints {
   stylingSystem?: string;
 }
 
-const EMPTY_SENTINEL = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
+export const EMPTY_SENTINEL = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
 
 /** The ways a prompt can point at an element, best first: a location or id finds the code directly, copy and labels are searchable, props and DOM paths are the weakest guides. */
 const INDICATOR_RANK = ["source", "elementId", "text", "ariaLabel", "props", "domPath"] as const;

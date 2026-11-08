@@ -27,11 +27,10 @@ import {
   collectSheetStyleImports,
   componentSheetModuleTarget,
   createComponentSheetDocument,
-  findSheetWrapperFile,
   isComponentSheetRequest,
-  isSheetWrapperFile,
   serializeComponentSheetEntry,
 } from "./componentSheet.ts";
+import { findSheetWrapperFile, isSheetWrapperFile } from "../componentFramework/sheet.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
   NUDGE_UI_EDITOR_PATH,
@@ -66,7 +65,7 @@ import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
-import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
+import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./framework.ts";
 import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
 import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
@@ -631,7 +630,7 @@ export function createVitePlugins(
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
       ...(options.features === undefined ? {} : { features: options.features }),
-      capabilities: { canvas: true, componentSemantics: framework !== null, domNavigation: true },
+      capabilities: { canvas: true, componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
         declarations: definition.declarations.map((declaration) => ({ ...declaration })),
@@ -645,7 +644,10 @@ export function createVitePlugins(
   }
 
   function componentSheetEnabled(): boolean {
-    return framework !== null && command === "serve" && options.componentSheet !== false;
+    return framework !== null
+      && framework.adapter.runtimeModules.sheet !== null
+      && command === "serve"
+      && options.componentSheet !== false;
   }
 
   async function discoverSheetStyles(): Promise<string[]> {
@@ -678,9 +680,9 @@ export function createVitePlugins(
   }
 
   function sheetWrapperFile(): string | null {
-    if (!root) return null;
+    if (!root || !framework) return null;
     const configured = options.componentSheet ? options.componentSheet.wrapper : undefined;
-    return findSheetWrapperFile(root, configured, (file) => existsSync(file) && statSync(file).isFile());
+    return findSheetWrapperFile(framework.adapter, root, configured, (file) => existsSync(file) && statSync(file).isFile());
   }
 
   async function serializeComponentSheet(componentId: string | null): Promise<string> {
@@ -688,6 +690,7 @@ export function createVitePlugins(
     const contracts = componentId === null ? catalog : catalog.filter((contract) => contract.componentId === componentId);
     const wrapper = sheetWrapperFile();
     return serializeComponentSheetEntry({
+      ...(framework ? { framework: framework.adapter } : {}),
       contracts,
       wrapper,
       ...(root && wrapper ? { wrapperPath: relative(root, wrapper) } : {}),
@@ -770,7 +773,7 @@ export function createVitePlugins(
       framework?.onContractsChanged(() => void refreshAfterAsyncContracts(server));
       // A wrapper created or deleted while a sheet is open changes the sheet entry itself, not a module it imports.
       const refreshSheets = (file: string): void => {
-        if (root && isSheetWrapperFile(file, root)) void refreshAfterAsyncContracts(server);
+        if (root && framework && isSheetWrapperFile(framework.adapter, file, root)) void refreshAfterAsyncContracts(server);
       };
       server.watcher?.on("add", refreshSheets);
       server.watcher?.on("unlink", refreshSheets);
@@ -924,7 +927,7 @@ export function createVitePlugins(
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
             `    features: ${JSON.stringify(options.features ?? {})},`,
-            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)}, domNavigation: true },`,
+            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',

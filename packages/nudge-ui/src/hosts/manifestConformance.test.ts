@@ -43,7 +43,6 @@ describe("client manifest conformance", () => {
     const { runtime } = build();
     expect(runtime.projectId.length).toBeGreaterThan(0);
     expect(typeof runtime.capabilities.canvas).toBe("boolean");
-    expect(typeof runtime.capabilities.domNavigation).toBe("boolean");
     expect(typeof runtime.capabilities.componentSemantics).toBe("boolean");
   });
 

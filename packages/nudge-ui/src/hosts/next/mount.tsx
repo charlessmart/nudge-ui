@@ -2,6 +2,12 @@
 
 import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
 import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
+import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
+
+/** The first child of the root layout's `<head>`: React DOM must find the DevTools hook it extends when it loads (ADR-0034). */
+export function NudgeUiHead() {
+  return <script data-nudge-ui-head="" dangerouslySetInnerHTML={{ __html: REACT_RENDERER_CAPTURE_SCRIPT }} />;
+}
 
 export function NudgeUiMount() {
   return (
