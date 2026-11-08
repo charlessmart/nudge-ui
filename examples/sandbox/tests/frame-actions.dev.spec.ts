@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 test("frame toolbar exposes the URL and actions without hovering", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   const original = cards.first();
@@ -15,7 +15,7 @@ test("frame toolbar exposes the URL and actions without hovering", async ({ page
   await actions.getByRole("button", { name: "Focus", exact: true }).click();
   await waitForCanvasTransition(page);
   await expect(page.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "focus");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await original.hover();
   await actions.getByRole("button", { name: "Duplicate", exact: true }).click();
@@ -29,7 +29,7 @@ test("frame toolbar exposes the URL and actions without hovering", async ({ page
 
 test("keyboard focus reaches the frame actions", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.mouse.move(1200, 600);
   const card = page.locator(".canvas-card").first();
@@ -45,7 +45,7 @@ test("keyboard focus reaches the frame actions", async ({ page }) => {
 
 test("changes a live frame URL with the same-origin rules", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const card = page.locator(".canvas-card").first();
   const input = card.locator('[data-test^="canvas-card-url-"]');
@@ -69,7 +69,7 @@ test("changes a live frame URL with the same-origin rules", async ({ page }) => 
 
 test("Delete after DOM navigation removes the selected icon and undo restores it", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   await cards.first().hover();
@@ -79,7 +79,7 @@ test("Delete after DOM navigation removes the selected icon and undo restores it
   await cards.nth(1).hover();
   await cards.nth(1).getByRole("button", { name: "Focus", exact: true }).click();
   await waitForCanvasTransition(page);
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const selectedFrameId = await cards.nth(1).getAttribute("data-card-id");
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
@@ -105,7 +105,7 @@ test("Delete after DOM navigation removes the selected icon and undo restores it
 
 test("keyboard frame deletion supports undo and redo and keeps the final frame", async ({ page }) => {
   await page.goto("/playground?nudge-ui=on");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   await cards.first().hover();

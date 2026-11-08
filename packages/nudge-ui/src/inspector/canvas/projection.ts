@@ -19,6 +19,7 @@ import {
   type CompiledManagedStyles,
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
+import { COMPONENTS_DRAFT_ID, scopeVariantChanges, shareableComponentChanges } from "./componentProjection.ts";
 import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection, notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 
@@ -30,7 +31,7 @@ export interface FrameProjection extends DraftProjectionPlan<CompiledManagedStyl
   readonly css: string;
 }
 
-const draftPlans = new Map<string, { peek: boolean; plan: FrameProjection }>();
+const draftPlans = new Map<string, { peek: boolean; sharedRevision: number; plan: FrameProjection }>();
 
 interface FrameProjectionState {
   iframe: CanvasFrame;
@@ -84,12 +85,23 @@ export function computeProjectionForCard(cardId: string): FrameProjection {
   const draftId = draftIdForCard(cardId);
   const workspace = draftId ? getDraftChanges(draftId) : getActiveDraftChanges();
   const peek = isOriginalPreviewActive();
+  const card = getCanvasCards().find((candidate) => candidate.id === cardId);
+  // Route frames also preview the shared components draft; its revision belongs to their cache key.
+  const shared = card?.content.kind === "route" && workspace.draftId !== COMPONENTS_DRAFT_ID
+    ? getDraftChanges(COMPONENTS_DRAFT_ID) : null;
+  const sharedRevision = shared?.revision ?? 0;
   const cached = draftPlans.get(workspace.draftId);
-  if (cached && cached.plan.draftRevision === workspace.revision && cached.peek === peek) return cached.plan;
-  const source = peek ? { ...workspace, changes: [], structuralChanges: [] } : workspace;
+  if (cached && cached.plan.draftRevision === workspace.revision && cached.peek === peek
+    && cached.sharedRevision === sharedRevision) return cached.plan;
+  const inherited = shared ? shareableComponentChanges(shared.changes) : [];
+  const ownChanges = workspace.draftId === COMPONENTS_DRAFT_ID ? scopeVariantChanges(workspace.changes) : workspace.changes;
+  const own = inherited.length || ownChanges !== workspace.changes
+    ? { ...workspace, changes: [...inherited, ...ownChanges] }
+    : workspace;
+  const source = peek ? { ...own, changes: [], structuralChanges: [] } : own;
   const compiled = compileDraftProjection(source);
   const plan: FrameProjection = { ...compiled, draftId: workspace.draftId, draftRevision: workspace.revision, css: compiled.managedStyles.css, revision: ++revision };
-  draftPlans.set(workspace.draftId, { peek, plan });
+  draftPlans.set(workspace.draftId, { peek, sharedRevision, plan });
   return plan;
 }
 
@@ -142,7 +154,7 @@ export function sendProjectionToCard(
   const state = frameProjectionStates.get(card.id);
   if (state && plan.revision < state.sentRevision) {
     plan = { ...plan, revision: ++revision };
-    draftPlans.set(plan.draftId, { peek: isOriginalPreviewActive(), plan });
+    draftPlans.set(plan.draftId, { peek: isOriginalPreviewActive(), sharedRevision: draftPlans.get(plan.draftId)?.sharedRevision ?? 0, plan });
   }
   if (state) state.canonicalProjection = plan;
   const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, runtimeIdentities } = plan;

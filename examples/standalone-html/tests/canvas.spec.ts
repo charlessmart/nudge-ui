@@ -21,8 +21,10 @@ async function openEditor(page: Page): Promise<Frame> {
  * A single-frame project opens focused, so tests that need card actions enter canvas first.
  */
 async function showCanvas(page: Page): Promise<void> {
-  const show = page.locator('[data-test="canvas-show-canvas"]');
-  if (await show.count() > 0) await show.click();
+  if (await page.locator('[data-test="canvas-workspace"]').getAttribute("data-presentation") === "focus") {
+    await page.locator('[data-test="canvas-zoom-menu"]').click();
+    await page.locator('[data-test="canvas-zoom-focus"]').click();
+  }
   await expect(page.locator('[data-test^="canvas-card-actions-"]')).toHaveCount(1, { timeout: 15_000 });
 }
 

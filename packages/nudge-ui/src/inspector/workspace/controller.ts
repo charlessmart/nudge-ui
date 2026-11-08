@@ -49,7 +49,7 @@ export function startWorkspaceController() {
       if (remaining.some((content) => iterationId(content) === artifactId)) return;
       forgetDraft(targetKey(contentEditTarget(released)));
       void removeHtmlArtifact(artifactId).catch((error: unknown) => {
-        console.warn("Nudge UI could not remove an unused HTML iteration:", error);
+        console.warn("Nudge UI could not remove an unused unlinked frame:", error);
       });
     },
   });

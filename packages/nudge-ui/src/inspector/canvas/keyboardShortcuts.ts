@@ -26,6 +26,14 @@ export function inspectionViewForCode(code: string): InspectionView | null {
   return null;
 }
 
+/** ⌘+ and ⌘− (Ctrl elsewhere) step the Canvas zoom instead of the browser's. */
+export function canvasZoomStepForEvent(event: Pick<KeyboardEvent, "code" | "metaKey" | "ctrlKey" | "altKey">): -1 | 1 | null {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return null;
+  if (event.code === "Equal" || event.code === "NumpadAdd") return 1;
+  if (event.code === "Minus" || event.code === "NumpadSubtract") return -1;
+  return null;
+}
+
 export function canvasToolForCode(code: string): CanvasInteractionTool | null {
   if (code === "KeyV") return "design";
   if (code === "KeyC") return "comment";

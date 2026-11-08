@@ -34,11 +34,13 @@ import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
 import { useFrameExploded } from "./frameViewState.ts";
 import { findCanvasCardIdByDocument, findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
-import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect } from "./frameConnection.ts";
+import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect, type FrameViewport } from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { getEditScope, sourceSiteSelector } from "../selection/editScope.ts";
 import { useComponentProps } from "../componentSemantics/ComponentPropsSection.tsx";
+import { variantScopeSelector, type VariantScope } from "../componentSemantics/variantMarkers.ts";
+import { useActiveVariantScope } from "../shell/variantScopeState.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { setInspectorOpen, toggleInspector } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
@@ -58,6 +60,7 @@ import {
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigator } from "../overlay/DomNavigator.tsx";
+import { isNavigatorAvailable } from "../navigator/navigatorStore.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
@@ -317,9 +320,13 @@ const OUTLINE_IDLE_FRAMES = 8;
 
 /** Writes the outline boxes straight to the DOM, so a stale React render cannot win; returns whether any moved. */
 function syncOutlinePositions(frame: CanvasFrame, outlines: ReadonlyMap<HTMLElement, HTMLElement>): boolean {
-  const viewport = measureFrameViewport(frame);
+  // Component sheet outlines include instances in other frames, which project through their own frame.
+  const viewports = new Map<CanvasFrame, FrameViewport>();
   let moved = false;
   for (const [element, node] of outlines) {
+    const owner = findCanvasFrameByDocument(element.ownerDocument) ?? frame;
+    let viewport = viewports.get(owner);
+    if (!viewport) viewports.set(owner, viewport = measureFrameViewport(owner));
     const rect = toViewportRect(viewport, toRect(element.getBoundingClientRect()));
     const box = `${rect.left}|${rect.top}|${rect.width}|${rect.height}`;
     if (node.dataset.box !== box) moved = true;
@@ -333,13 +340,48 @@ function syncOutlinePositions(frame: CanvasFrame, outlines: ReadonlyMap<HTMLElem
 }
 
 function isLinkedElement(element: HTMLElement | null): boolean {
-  return element !== null && getEditScope(element) === "source-site" && findLinkedPeers(element).length > 0;
+  return element !== null && getEditScope(element) === "source-site" && findLinkedPeers(element, null).length > 0;
+}
+
+/**
+ * Instances in other frames that a component sheet edit reaches: the definition site, narrowed to the active variant,
+ * so the application frame shows which of its elements will change.
+ */
+function findComponentInstancesInOtherFrames(
+  element: HTMLElement,
+  scope: VariantScope | null,
+  selectedFrame: CanvasFrame,
+): Array<{ peer: HTMLElement; rect: Rect }> {
+  if (!element.ownerDocument.querySelector("[data-nudge-ui-component-sheet]")) return [];
+  const src = element.getAttribute("data-src");
+  if (!src) return [];
+  const value = JSON.stringify(src);
+  const selector = `:is([data-src=${value}], [data-nudge-def=${value}])${scope ? variantScopeSelector(scope) : ""}`;
+  const found: Array<{ peer: HTMLElement; rect: Rect }> = [];
+  for (const frame of getRegisteredFrames().values()) {
+    const doc = frame.contentDocument;
+    if (frame === selectedFrame || !doc || doc.querySelector("[data-nudge-ui-component-sheet]")) continue;
+    const viewport = measureFrameViewport(frame);
+    let peers: HTMLElement[];
+    try {
+      peers = [...doc.querySelectorAll<HTMLElement>(selector)].slice(0, LINKED_PEER_LIMIT);
+    } catch {
+      continue;
+    }
+    for (const peer of peers) {
+      const rect = clipRect(toViewportRect(viewport, toRect(peer.getBoundingClientRect())), viewport);
+      if (rect) found.push({ peer, rect });
+    }
+  }
+  return found;
 }
 
 /** Other elements rendered from the selected element's source site. */
-function findLinkedPeers(element: HTMLElement): HTMLElement[] {
-  const selector = sourceSiteSelector(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
-  if (!selector) return [];
+function findLinkedPeers(element: HTMLElement, scope: VariantScope | null): HTMLElement[] {
+  const site = sourceSiteSelector(element.getAttribute("data-cid") ?? "", element.getAttribute("data-src") ?? "");
+  if (!site) return [];
+  // In a component sheet the edit reaches only the active variant's cells.
+  const selector = scope && element.closest("[data-nudge-ui-sheet-cell]") ? `${site}${variantScopeSelector(scope)}` : site;
   try {
     return [...element.ownerDocument.querySelectorAll<HTMLElement>(selector)]
       .filter((candidate) => candidate !== element)
@@ -359,7 +401,10 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedFrameExploded = useFrameExploded(findCanvasCardIdByDocument(selected?.domElement.ownerDocument));
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
-  const domNavigationEnabled = useNudgeUiRuntimeConfig().capabilities.domNavigation === true;
+  const runtimeConfig = useNudgeUiRuntimeConfig();
+  const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
+  // The navigator's layers replace the chip's menu beside the Canvas; a page inspected in place keeps it.
+  const domNavigatorMenu = !isNavigatorAvailable(runtimeConfig);
   const inlineTextSession = useInlineTextSession();
   const camera = useBoardCamera();
   const presentation = useCanvasPresentation();
@@ -408,12 +453,21 @@ export function CanvasElementOverlay(): ReactElement | null {
     : [];
 
   const componentProps = useComponentProps(selectedElements.length === 1 ? selected : null);
+  const activeVariantScope = useActiveVariantScope();
   const linkedPeers = selectedInCanvas && selectedElements.length === 1 && selected && getEditScope(selected.domElement) === "source-site"
-    ? findLinkedPeers(selected.domElement)
+    ? findLinkedPeers(selected.domElement, activeVariantScope)
     : [];
   const projectedLinkedPeers = selectedFrameViewport
-    ? linkedPeers.map((peer) => ({ peer, rect: toViewportRect(selectedFrameViewport, toRect(peer.getBoundingClientRect())) }))
+    ? linkedPeers.flatMap((peer) => {
+      // Peers scrolled out of the frame would otherwise be outlined on the board beside it.
+      const rect = clipRect(toViewportRect(selectedFrameViewport, toRect(peer.getBoundingClientRect())), selectedFrameViewport);
+      return rect ? [{ peer, rect }] : [];
+    })
     : [];
+  const remoteComponentPeers = selectedFrame && selectedElements.length === 1 && selected && getEditScope(selected.domElement) === "source-site"
+    ? findComponentInstancesInOtherFrames(selected.domElement, activeVariantScope, selectedFrame)
+    : [];
+  projectedLinkedPeers.push(...remoteComponentPeers);
   const selectionIsLinked = componentProps !== null || linkedPeers.length > 0;
 
   // Camera transforms commit before iframe viewport geometry is readable; re-render once so overlays use the new frame rect.
@@ -729,7 +783,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
           const { drop, rejection } = getDropAttemptAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
           if (drop && !moveElement(current.element, drop)) {
-            showToast({ tone: "error", title: "Couldn't record this move" });
+            showToast({ tone: "error", title: "Couldn't move this element", description: "Try dropping it again." });
           } else if (rejection) {
             showToast({ tone: "error", title: rejection.message });
             const outline = outlineNodes.current.get(current.element);
@@ -921,6 +975,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           size={selectedLocalRect ?? undefined}
           bounds={selectedFrameViewport}
           linked={selectionIsLinked}
+          menu={domNavigatorMenu}
           project={(element) => element.ownerDocument === selected.domElement.ownerDocument
             ? toViewportRect(selectedFrameViewport, toRect(element.getBoundingClientRect()))
             : null}
@@ -937,4 +992,12 @@ export function CanvasElementOverlay(): ReactElement | null {
       />
     </>
   );
+}
+
+function clipRect(rect: Rect, bounds: Rect): Rect | null {
+  const left = Math.max(rect.left, bounds.left);
+  const top = Math.max(rect.top, bounds.top);
+  const right = Math.min(rect.left + rect.width, bounds.left + bounds.width);
+  const bottom = Math.min(rect.top + rect.height, bounds.top + bounds.height);
+  return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
 }

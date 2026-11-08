@@ -10,6 +10,7 @@ import {
   PromptSettingsFields,
 } from "../prompt/PromptSettingsDialog.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
+import { Button } from "../ui/Button.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { cancelSketchInteraction } from "../canvas/sketch/interaction.ts";
@@ -49,14 +50,31 @@ export function SettingsDialog({
   projectId,
 }: SettingsDialogProps): ReactElement {
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  // Reset cannot be undone, so it asks first; the question takes the content area until it is answered.
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelResetRef = useRef<HTMLButtonElement>(null);
   const sections = SETTINGS_SECTIONS;
   const activeDefinition = sections.find((section) => section.id === activeSection) ?? sections[0]!;
 
   useEffect(() => {
-    if (open) setActiveSection(initialSection);
+    if (open) {
+      setActiveSection(initialSection);
+      setConfirmingReset(false);
+    }
   }, [initialSection, open]);
+
+  // The safe choice takes focus when the question appears.
+  useEffect(() => {
+    if (confirmingReset) cancelResetRef.current?.focus();
+  }, [confirmingReset]);
+
+  function cancelReset(): void {
+    setConfirmingReset(false);
+    resetButtonRef.current?.focus();
+  }
 
   function resetCanvas(): void {
     if (!hasWriteLease()) return;
@@ -100,8 +118,11 @@ export function SettingsDialog({
                     className={`settings__nav-item${activeDefinition.id === section.id ? " settings__nav-item--active" : ""}`}
                     data-test={`settings-nav-${section.id}`}
                     type="button"
-                    aria-current={activeDefinition.id === section.id ? "page" : undefined}
-                    onClick={() => setActiveSection(section.id)}
+                    aria-current={!confirmingReset && activeDefinition.id === section.id ? "page" : undefined}
+                    onClick={() => {
+                      setConfirmingReset(false);
+                      setActiveSection(section.id);
+                    }}
                   >
                     {section.icon}
                     <span className="settings__nav-item-label">{section.label}</span>
@@ -109,10 +130,12 @@ export function SettingsDialog({
                 ))}
               </div>
               <button
+                ref={resetButtonRef}
                 className="settings__nav-item settings__reset-canvas"
                 data-test="settings-reset-canvas"
                 type="button"
-                onClick={resetCanvas}
+                aria-current={confirmingReset ? "page" : undefined}
+                onClick={() => setConfirmingReset(true)}
               >
                 <IconTrash size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
                 <span className="settings__nav-item-label">Reset canvas</span>
@@ -120,7 +143,22 @@ export function SettingsDialog({
             </nav>
 
             <main className="settings__content" data-test="settings-content">
-              {activeDefinition.id === "instructions" ? (
+              {confirmingReset ? (
+                <section className="settings__section" data-test="settings-reset-confirm" aria-labelledby="settings-reset-title">
+                  <h2 className="settings__section-title" id="settings-reset-title">Reset the canvas?</h2>
+                  <p className="settings__section-description">
+                    This removes every frame, change, comment and sketch on this canvas, and it can&apos;t be undone.
+                  </p>
+                  <div className="settings__actions">
+                    <Button ref={cancelResetRef} variant="secondary" data-test="settings-reset-cancel" onClick={cancelReset}>
+                      Cancel
+                    </Button>
+                    <Button variant="danger" data-test="settings-reset-confirm-button" onClick={resetCanvas}>
+                      Reset canvas
+                    </Button>
+                  </div>
+                </section>
+              ) : activeDefinition.id === "instructions" ? (
                 <section
                   className="settings__section"
                   data-test="prompt-settings-dialog"

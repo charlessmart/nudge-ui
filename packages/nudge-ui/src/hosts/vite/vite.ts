@@ -1,4 +1,6 @@
 import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
+import { handleFlowsRequest } from "../../project/flows.ts";
+import { handleLibraryVisibilityRequest } from "../../project/libraryVisibility.ts";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
@@ -19,6 +21,17 @@ import {
   type ArtifactStage,
   type InventoryDiagnostic,
 } from "../../css/token-inventory/index.ts";
+import {
+  RESOLVED_COMPONENT_SHEET_ID,
+  VIRTUAL_COMPONENT_SHEET_ID,
+  collectSheetStyleImports,
+  componentSheetModuleTarget,
+  createComponentSheetDocument,
+  findSheetWrapperFile,
+  isComponentSheetRequest,
+  isSheetWrapperFile,
+  serializeComponentSheetEntry,
+} from "./componentSheet.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
   NUDGE_UI_EDITOR_PATH,
@@ -55,7 +68,7 @@ import {
 } from "../../inspector/clientManifest.ts";
 import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
 import { automationManifestFields, isNudgeUiEnabled } from "../environment.ts";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -89,6 +102,13 @@ export interface NudgeUiOptions extends ReactOptions {
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractOptions;
+  /**
+   * Component sheets render one component per iframe. Global stylesheets are discovered from the HTML
+   * entry's import graph; `styles` replaces that discovery, and `false` turns sheets off.
+   * `wrapper` names a file whose default export wraps every cell, for the providers a component needs
+   * (theme, router, data client). Without it, `nudge.sheet.tsx` in the project root is used when present.
+   */
+  componentSheet?: { styles?: string[]; wrapper?: string } | false;
   /** Authored workspace directories outside Vite's resolved root; dependencies and generated output stay excluded. */
   sourceRoots?: readonly string[];
 }
@@ -183,7 +203,7 @@ export function transformIndexHtmlHtml(
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
   const withFramework = headScript ? prependToHead(html, `<script data-nudge-ui-head>${headScript}</script>`) : html;
   // First of all, so animation libraries read the clock the Inspection tool can slow.
-  const withHead = prependToHead(withFramework, `<script data-nudge-ui-clock>${ANIMATION_CLOCK_SCRIPT}</script>`);
+  const withHead = prependToHead(withFramework, `<script data-nudge-ui-clock>${DOCUMENT_HEAD_SCRIPT}</script>`);
   if (withHead.includes("</body>")) {
     return withHead.replace("</body>", `${inject}</body>`);
   }
@@ -579,9 +599,13 @@ export function createVitePlugins(
     return postTransformPromise;
   }
 
+  /** The CSS graph and the theme contract module write disjoint state, so they load together. */
+  async function ensureTokenInputs(): Promise<void> {
+    await Promise.all([ensurePostTransformCss(), ensurePublishedThemeContract()]);
+  }
+
   async function buildClientManifest(): Promise<NudgeUiClientManifest> {
-    await ensurePostTransformCss();
-    await ensurePublishedThemeContract();
+    await ensureTokenInputs();
     return createNudgeUiClientManifest({
       runtime: buildRuntimeSnapshot(),
       ...automationManifestFields(),
@@ -618,7 +642,89 @@ export function createVitePlugins(
       tokenDiagnostics,
       tokenGeneration: snapshot.generation,
       componentContracts: componentContractCatalog(),
+      ...(componentSheetEnabled() ? { componentSheet: true } : {}),
     };
+  }
+
+  function componentSheetEnabled(): boolean {
+    return framework !== null && command === "serve" && options.componentSheet !== false;
+  }
+
+  async function discoverSheetStyles(): Promise<string[]> {
+    if (!root || !devServer) return [];
+    const override = options.componentSheet;
+    if (override && override.styles && override.styles.length > 0) return override.styles;
+    const htmlFile = join(root, "index.html");
+    let source: string;
+    try {
+      source = readFileSync(htmlFile, "utf8");
+    } catch {
+      return [];
+    }
+    const server = devServer;
+    const files = await collectSheetStyleImports({ file: htmlFile, source }, {
+      read(file) {
+        try {
+          return readFileSync(file, "utf8");
+        } catch {
+          return null;
+        }
+      },
+      async resolve(specifier, importer) {
+        if (/^(?:https?:)?\/\//.test(specifier) || specifier.startsWith("data:")) return null;
+        return (await server.pluginContainer.resolveId(specifier, importer))?.id ?? null;
+      },
+      isProjectSource: (file) => isHostSource(file),
+    });
+    return files.map((file) => `/@fs/${file.replace(/^\//, "")}`);
+  }
+
+  function sheetWrapperFile(): string | null {
+    if (!root) return null;
+    const configured = options.componentSheet ? options.componentSheet.wrapper : undefined;
+    return findSheetWrapperFile(root, configured, (file) => existsSync(file) && statSync(file).isFile());
+  }
+
+  async function serializeComponentSheet(componentId: string | null): Promise<string> {
+    const catalog = componentContractCatalog();
+    const contracts = componentId === null ? catalog : catalog.filter((contract) => contract.componentId === componentId);
+    const wrapper = sheetWrapperFile();
+    return serializeComponentSheetEntry({
+      contracts,
+      wrapper,
+      ...(root && wrapper ? { wrapperPath: relative(root, wrapper) } : {}),
+      styles: await discoverSheetStyles(),
+      projectFile(contract) {
+        if (!root) return null;
+        const file = resolve(root, contract.file);
+        return existsSync(file) && statSync(file).isFile() ? file : null;
+      },
+    });
+  }
+
+  /** One virtual sheet module per opened component (`?component=` ids). */
+  function sheetModules(server: ViteDevServer): ModuleNode[] {
+    return [...server.moduleGraph.idToModuleMap.entries()]
+      .filter(([id]) => componentSheetModuleTarget(id) !== undefined)
+      .map(([, module]) => module);
+  }
+
+  /** The checker pass finishes outside any file event, so it must repeat what handleHotUpdate does for changed contracts. */
+  async function refreshAfterAsyncContracts(server: ViteDevServer): Promise<void> {
+    try {
+      const components = framework
+        ? server.moduleGraph.getModuleById(resolvedFrameworkModule()!)
+        : undefined;
+      const modules = [components, ...sheetModules(server)].filter((module): module is ModuleNode => module !== undefined);
+      for (const module of modules) server.moduleGraph.invalidateModule(module);
+      if (!components || typeof server.reloadModule !== "function") {
+        server.ws.send({ type: "full-reload", path: "*" });
+        return;
+      }
+      await Promise.all(modules.map((module) => server.reloadModule(module)));
+    } catch (error) {
+      server.config.logger.warn(`[nudge-ui] Could not refresh type-aware component contracts: ${String(error)}`);
+    }
   }
 
   function componentContractCatalog(): ComponentContract[] {
@@ -663,11 +769,21 @@ export function createVitePlugins(
       devServer = server;
       const runtimeWarning = framework?.unresolvedRuntimeWarning();
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
+      framework?.onContractsChanged(() => void refreshAfterAsyncContracts(server));
+      // A wrapper created or deleted while a sheet is open changes the sheet entry itself, not a module it imports.
+      const refreshSheets = (file: string): void => {
+        if (root && isSheetWrapperFile(file, root)) void refreshAfterAsyncContracts(server);
+      };
+      server.watcher?.on("add", refreshSheets);
+      server.watcher?.on("unlink", refreshSheets);
+      server.httpServer?.once("close", () => framework?.dispose());
       server.middlewares?.use(async (request, response, next) => {
         if (await handleHtmlArtifactRequest(
           request, response, root ?? process.cwd(),
           (html) => server.transformIndexHtml(request.url ?? "/", html),
         )) return;
+        if (await handleFlowsRequest(request, response, root ?? process.cwd())) return;
+        if (componentSheetEnabled() && await handleLibraryVisibilityRequest(request, response, root ?? process.cwd())) return;
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
           ? request.method !== "GET"
@@ -677,6 +793,20 @@ export function createVitePlugins(
         if (invalidReservedMethod) {
           response.statusCode = 405;
           response.end();
+          return;
+        }
+        if (
+          componentSheetEnabled()
+          && isComponentSheetRequest(pathname)
+          && (request.method === "GET" || request.method === "HEAD")
+        ) {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(request.method === "HEAD" ? undefined : await server.transformIndexHtml(
+            request.url ?? pathname,
+            createComponentSheetDocument(new URL(request.url ?? pathname, "http://nudge.local").searchParams.get("component")),
+          ));
           return;
         }
         if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
@@ -739,6 +869,10 @@ export function createVitePlugins(
     resolveId(id) {
       if (id === VIRTUAL_TOKENS_ID || id === RESOLVED_TOKENS_ID) return RESOLVED_TOKENS_ID;
       if (id === VIRTUAL_INSPECTOR_ID || id === RESOLVED_INSPECTOR_ID) return RESOLVED_INSPECTOR_ID;
+      if (componentSheetEnabled() && componentSheetModuleTarget(id) !== undefined) {
+        const component = componentSheetModuleTarget(id);
+        return component ? `${RESOLVED_COMPONENT_SHEET_ID}?component=${encodeURIComponent(component)}` : RESOLVED_COMPONENT_SHEET_ID;
+      }
       if (frameworkModuleId(id)) return resolvedFrameworkModule();
       return null;
     },
@@ -748,8 +882,7 @@ export function createVitePlugins(
         if (command === "build" && !demoBuild) {
           return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const nudgeUiProjectId = "";\nexport default tokens;\n`;
         }
-        await ensurePostTransformCss();
-        await ensurePublishedThemeContract();
+        await ensureTokenInputs();
         // One immutable snapshot is serialized verbatim; there is no post-snapshot enrichment.
         const runtime = buildRuntimeSnapshot();
         lastPublishedGeneration = runtime.tokenGeneration;
@@ -823,6 +956,9 @@ export function createVitePlugins(
           ].join("\n");
         }
         return null;
+      }
+      if (id.startsWith(RESOLVED_COMPONENT_SHEET_ID) && componentSheetEnabled()) {
+        return serializeComponentSheet(componentSheetModuleTarget(id) ?? null);
       }
       if (framework && id === resolvedFrameworkModule()) {
         const productionBuild = command === "build" && !demoBuild;
@@ -907,6 +1043,12 @@ export function createVitePlugins(
         if (contractsChanged && virtualComponents) {
           ctx.server.moduleGraph.invalidateModule(virtualComponents);
           modules.push(virtualComponents);
+        }
+        if (contractsChanged) {
+          for (const virtualSheet of sheetModules(ctx.server)) {
+            ctx.server.moduleGraph.invalidateModule(virtualSheet);
+            modules.push(virtualSheet);
+          }
         }
         if (changed && virtualTokens) {
           modules.push(virtualTokens);

@@ -8,7 +8,7 @@ import {
 import { createProjectContextPlugin } from "./projectContext.ts";
 import { isNudgeUiEnabled } from "../environment.ts";
 import { installMarkdownIdentity } from "./markdownIdentity.ts";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 export type { NudgeUiOptions };
 
@@ -58,7 +58,7 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
         });
 
         // Inline in every page's `<head>`, ahead of the page's own scripts, so animation libraries read the clock the Inspection tool can slow.
-        injectScript("head-inline", ANIMATION_CLOCK_SCRIPT);
+        injectScript("head-inline", DOCUMENT_HEAD_SCRIPT);
         injectScript("page", BOOTSTRAP_ENTRY_CONTENT);
 
         addMiddleware({ entrypoint: MIDDLEWARE_ENTRYPOINT, order: "pre" });

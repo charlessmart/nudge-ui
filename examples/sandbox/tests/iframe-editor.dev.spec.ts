@@ -1,4 +1,4 @@
-import { clickFrameAction } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("dev: opens a pure editor shell with one fitted application iframe", async ({ page }) => {
@@ -68,7 +68,7 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
     requestAnimationFrame(sample);
   });
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await page.waitForFunction(() => (
     window as Window & { __focusWidthProbe?: { done: boolean } }
   ).__focusWidthProbe?.done === true);
@@ -106,7 +106,7 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
     return board && frame ? { width: board.width - frame.width, height: board.height - frame.height } : null;
   }).toEqual({ width: 0, height: 0 });
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await expect.poll(() => page.locator('[data-test="canvas-workspace"]').evaluate((workspace) => {
     const card = workspace.querySelector<HTMLElement>(".canvas-card");
     const content = workspace.querySelector<HTMLElement>('[data-test="canvas-board-content"]');
@@ -119,7 +119,7 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
 
 test("dev: keeps hidden comparison geometry stable until Canvas reveal completes", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   const cards = page.locator(".canvas-card");
   await expect(cards).toHaveCount(2);
@@ -158,7 +158,7 @@ test("dev: keeps hidden comparison geometry stable until Canvas reveal completes
     };
     requestAnimationFrame(sample);
   });
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await page.waitForFunction(() => (
     window as Window & { __comparisonGeometryProbe?: { done: boolean } }
   ).__comparisonGeometryProbe?.done === true);
@@ -171,7 +171,7 @@ test("dev: keeps hidden comparison geometry stable until Canvas reveal completes
 
 test("dev: selecting another card makes its exact route the reload target", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
   const frames = page.frameLocator(".canvas-card__iframe");
   await frames.nth(1).locator('a[href="/conformance"]').click();
@@ -216,7 +216,7 @@ test("dev: edits iframe text with commit, cancel, undo, and reload persistence",
   await heading.press("Control+Shift+z");
   await expect(heading).toContainText("Inspect the iframe");
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await page.locator('[data-test^="canvas-card-reload-"]').click();
   await expect(app.locator("#hero-title")).toContainText("Inspect the iframe");
 });
@@ -314,7 +314,7 @@ test("dev: toggles the inspector from frame focus and restores native app clicks
 
 test("dev: keeps the selected outline aligned after canvas zoom", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const app = page.frameLocator('[data-test^="canvas-card-iframe-"]');
   const button = app.locator("button.btn").first();
   await button.click();

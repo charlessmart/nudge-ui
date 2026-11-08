@@ -63,6 +63,11 @@
       "import": "./dist/inspector/componentSemantics/react/runtime.js",
       "default": "./dist/inspector/componentSemantics/react/runtime.js"
     },
+    "./internal/component-sheet": {
+      "types": "./dist/componentSheet/sheet.d.ts",
+      "import": "./dist/componentSheet/sheet.js",
+      "default": "./dist/componentSheet/sheet.js"
+    },
     "./internal/host-runtime": {
       "types": "./dist/inspector/componentSemantics/runtimeBridge.d.ts",
       "import": "./dist/inspector/componentSemantics/runtimeBridge.js",
@@ -102,7 +107,6 @@
     "parse5": "^7.3.0",
     "perfect-freehand": "^1.2.3",
     "postcss": "^8.5.26",
-    "thinking-orbs": "^0.3.2",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {

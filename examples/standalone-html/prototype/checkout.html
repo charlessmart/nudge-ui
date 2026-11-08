@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Checkout</title></head>
+<body>
+<main id="app"></main>
+<script>
+  // Every state lives at this one URL, which is what flow recipes exist for.
+  const app = document.getElementById("app");
+  const items = JSON.parse(localStorage.getItem("cart") || "[]").length;
+  function form(error) {
+    app.innerHTML = `<h1>Checkout</h1><p id="count">${items} items</p>
+      <label>Name <input id="name"></label><button id="pay" disabled>Pay</button>
+      ${error ? `<p role="alert">${error}</p>` : ""}`;
+    document.getElementById("name").addEventListener("input", (event) => { document.getElementById("pay").disabled = !event.target.value; });
+    document.getElementById("pay").addEventListener("click", async () => {
+      app.innerHTML = "<h1>Processing</h1>";
+      const response = await fetch("/api/pay", { method: "POST" });
+      if (response.ok) app.innerHTML = "<h1>Order placed</h1>";
+      else form((await response.json()).message || "Payment failed");
+    });
+  }
+  app.innerHTML = '<button id="start">Get started</button>';
+  document.getElementById("start").addEventListener("click", () => form());
+</script>
+</body>
+</html>

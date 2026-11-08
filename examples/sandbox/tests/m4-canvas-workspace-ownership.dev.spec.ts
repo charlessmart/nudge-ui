@@ -1,4 +1,4 @@
-import { waitForCanvasTransition } from "./canvasTransition.ts";
+import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 
@@ -50,7 +50,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 test.describe("Canvas workspace lease — single ownership", () => {
   test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
@@ -77,7 +77,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
   test("dev: takeover transfers ownership and old tab loses authority", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
@@ -91,8 +91,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
     // Takeover is an in-place handoff: the second tab becomes editable without a reload.
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
-    const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
-    if (await showCanvas.isVisible()) await showCanvas.click();
+    if (await page2.locator('[data-test="canvas-workspace"]').getAttribute("data-presentation") === "focus") await showCanvas(page2);
     await waitForCanvasTransition(page2);
     await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
@@ -106,7 +105,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
 test.describe("Canvas workspace lease — expiry recovery", () => {
   test("dev: expired lease allows new tab to acquire ownership", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
@@ -129,8 +128,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="inspect-tab"]')).toBeVisible();
-    const showCanvas = page2.locator('[data-test="canvas-show-canvas"]');
-    if (await showCanvas.isVisible()) await showCanvas.click();
+    if (await page2.locator('[data-test="canvas-workspace"]').getAttribute("data-presentation") === "focus") await showCanvas(page2);
     await waitForCanvasTransition(page2);
     await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
@@ -142,7 +140,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 test.describe("Canvas workspace — stale change detection", () => {
   test("dev: restored stale change shows stale indicator", async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);
@@ -193,7 +191,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
   test("dev: stale state retains exact selector and source data", async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="canvas-show-canvas"]').click();
+    await showCanvas(page);
     await waitForCanvasTransition(page);
     await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await waitForInspector(page);

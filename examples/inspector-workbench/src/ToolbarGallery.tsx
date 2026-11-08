@@ -58,8 +58,6 @@ function CanvasToolbarFixture({ tool: initialTool, title }: {
         <CanvasToolbar
           tool={tool}
           sketchEnabled
-          addPageVisible={false}
-          onPageAdded={noop}
           onToolChange={setTool}
         />
         <SketchToolBar
@@ -89,8 +87,6 @@ function SketchBarFixture({ state }: { readonly state: BarState }): ReactElement
         <CanvasToolbar
           tool="sketch"
           sketchEnabled
-          addPageVisible={false}
-          onPageAdded={noop}
           onToolChange={noop}
         />
         <SketchToolBar

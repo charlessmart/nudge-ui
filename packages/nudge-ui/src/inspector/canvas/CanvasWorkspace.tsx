@@ -1,8 +1,9 @@
+import { FlowBoardOverlay } from "../flows/FlowBoardOverlay.tsx";
 import { getCanonicalFrameProjection } from "./projection.ts";
 import { getDraftForCard } from "../drafts/store.ts";
 import { iterationId, contentSourceUrl, getLinkedFrameIds } from "./frameContent.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactElement } from "react";
-import { IconCornerLeftUp, IconExternalLink } from "@tabler/icons-react";
+import { IconExternalLink } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
@@ -24,7 +25,7 @@ import {
   CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
-  revealCanvasCard,
+  setBoardViewportProvider,
 } from "./canvasStore.ts";
 import {
   setBoardCamera,
@@ -38,6 +39,7 @@ import {
   useTemporaryAppInteraction,
   setTemporaryAppInteraction,
   setAppToolActive,
+  type CanvasCamera,
 } from "./viewStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PageCard } from "./PageCard.tsx";
@@ -45,9 +47,10 @@ import { isPageSurface } from "./pageSurface.ts";
 import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { getCanvasChromeScaleVariables } from "./resizeHandleScale.ts";
-import { Button } from "../ui/Button.tsx";
+import { followFocusBoardWidth } from "./canvasResize.ts";
 import { useCanvasMode } from "./viewStore.ts";
-import { getActiveDraftChanges, getChangesList, subscribeActiveDraftChanges } from "../drafts/store.ts";
+import { getActiveDraftChanges, getChangesList, getDraftChanges, subscribeActiveDraftChanges, subscribeDrafts } from "../drafts/store.ts";
+import { COMPONENTS_DRAFT_ID } from "./componentProjection.ts";
 import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -76,7 +79,7 @@ import {
   isStructuralProjectionReportMessage,
 } from "./frameProtocol.ts";
 import { wheelPanDelta } from "./wheelPan.ts";
-import { zoomCameraAtPointer } from "./canvasGestures.ts";
+import { zoomCameraAbout, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
@@ -91,7 +94,7 @@ import {
   CanvasToolbar,
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
-import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, claimShortcutKey, inspectionViewForCode } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasToolForEvent, canvasToolForCode, canvasZoomStepForEvent, claimShortcutKey, inspectionViewForCode } from "./keyboardShortcuts.ts";
 import { canvasToolEffects, type BoardPointerState } from "./toolEffects.ts";
 import { getExplodeView, getOutlinesView, setAnimationSpeed, setAnimationsPaused, setExplodeView, setOutlinesView, useAnimationSpeed, useAnimationsPaused, useExplodeView, useOutlinesView, useSpacingView } from "./debugViewStore.ts";
 import { MAX_ANIMATION_SPEED, PAUSED_ANIMATION_SPEED } from "./animationSpeed.ts";
@@ -104,20 +107,31 @@ import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketch } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isAddPageEnabled } from "../runtime/features.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
 import { getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 
 import { setCommentToolActive } from "../comments/store.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
+import { mirrorAppRootIntoSheets } from "./sheetRootMirror.ts";
+import { headingRule } from "../ui/headingStyle.ts";
 
-const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles, sketchToolBarStyles].join("\n");
+const WORKSPACE_STYLES = [
+  foundationStyles,
+  canvasWorkspaceStyles,
+  canvasCardStyles,
+  canvasToolbarStyles,
+  sketchToolBarStyles,
+  headingRule(".flow-board__title", "var(--canvas-toolbar-scale, 1)"),
+].join("\n");
 const PRESENTATION_TRANSITION_MS = 200;
+/** The zoom Focus opens the Canvas at when zooming out of it. */
+const FOCUS_EXIT_ZOOM = 0.9;
+const CAMERA_STEP_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: "ease-out" };
 /** How long after the last wheel event the board leaves its composited layer and repaints at the final scale. */
 const WHEEL_SETTLE_MS = 150;
-/** A strong in-out curve: the card morphs on screen rather than entering or leaving. */
-const PRESENTATION_TRANSITION_EASING = "cubic-bezier(0.77, 0, 0.175, 1)";
+/** An in-out curve: the card morphs on screen rather than entering or leaving. */
+const PRESENTATION_TRANSITION_EASING = "ease-in-out";
 /** Leaves the open panel's reserved space uncovered; see the placement variables in `InspectorShell.css`. */
 const PANEL_RESERVED_INSET = { left: "var(--panel-reserve-start)", right: "var(--panel-reserve-end)" } as const;
 
@@ -172,6 +186,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const boardRef = useRef<HTMLDivElement>(null);
   const boardContentRef = useRef<HTMLDivElement>(null);
   const wheelSettleTimerRef = useRef<number | null>(null);
+  const cameraStepAnimationRef = useRef<Animation | null>(null);
   useCanvasLayoutAnimation(boardRef, cards, camera, presentation);
   const panningRef = useRef(false);
   const panOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -180,7 +195,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const spaceHeldRef = useRef(false);
   // Mirrored into state so the desired renderer state can carry it; the ref stays for synchronous event handlers.
   const [spaceHeld, setSpaceHeld] = useState(false);
-  const [addPageEnabled] = useState(isAddPageEnabled);
   const updateSpaceHeld = useCallback((held: boolean): void => {
     spaceHeldRef.current = held;
     setSpaceHeld(held);
@@ -188,6 +202,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const fitAllScheduledRef = useRef(false);
   // Track the consumed primaryUrl prop separately from navigation inside a frame.
   const activatedPrimaryUrlRef = useRef<string | null>(null);
+  const [boardMeasured, setBoardMeasured] = useState(false);
   const demoSeededRef = useRef(false);
   const previousPresentationRef = useRef(presentation);
   const presentationAnimationRef = useRef<Animation | null>(null);
@@ -278,7 +293,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const normalized = normalizeUrl(url);
     if (!normalized || normalized.origin !== window.location.origin) return;
     const card = getCanvasCards().find((candidate) => {
-      const route = !iterationId(candidate.content) && normalizeUrl(contentSourceUrl(candidate.content));
+      const route = candidate.content.kind === "route" && normalizeUrl(contentSourceUrl(candidate.content));
       return route && normalizedUrlKey(route) === normalizedUrlKey(normalized);
     }) ?? addCanvasCard(url);
     selectCard(card.id);
@@ -328,6 +343,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       ? board?.querySelector<HTMLElement>(`[data-card-id="${presentationCardId}"]`)
       : null;
     if (!board || !card || !cardElement || typeof cardElement.animate !== "function" || camera.zoom <= 0) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
     // The previous layout is gone, so derive it: focus centres the frame at the top of the board, canvas places it through the camera.
     const boardRect = snapshotRect(board.getBoundingClientRect());
@@ -371,10 +387,36 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     }).catch(() => undefined);
   }, [camera, cards, presentation, presentationCardId, presentationTransitioning]);
 
+  // A Focus frame snapped to the board's sides stays snapped as the board resizes, such as when the inspector hides.
+  useEffect(() => {
+    const board = boardRef.current;
+    if (presentation !== "focus" || !presentationCardId || !board || typeof ResizeObserver !== "function") return;
+    let boardWidth = board.clientWidth;
+    const observer = new ResizeObserver(() => {
+      const previousBoardWidth = boardWidth;
+      boardWidth = board.clientWidth;
+      const card = getCanvasCards().find((candidate) => candidate.id === presentationCardId);
+      const width = card ? followFocusBoardWidth(card.width, previousBoardWidth, boardWidth) : null;
+      if (card && width !== null) resizeCard(card.id, width, card.height);
+    });
+    observer.observe(board);
+    return () => observer.disconnect();
+  }, [presentation, presentationCardId]);
+
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!primaryUrl || !board) return;
     if (activatedPrimaryUrlRef.current === primaryUrl && cards.length > 0) return;
+    // An unmeasured board would size the first frame to its minimum, so wait for the first layout.
+    if (board.clientWidth === 0 && typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(() => {
+        if (board.clientWidth === 0) return;
+        observer.disconnect();
+        setBoardMeasured(true);
+      });
+      observer.observe(board);
+      return () => observer.disconnect();
+    }
     activatedPrimaryUrlRef.current = primaryUrl;
     // The page is its own only card, so a restored zoomed-out board never applies.
     if (pageSurface && presentation !== "focus") setCanvasPresentation("focus");
@@ -382,9 +424,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       width: board.clientWidth,
       height: board.clientHeight,
     };
+    const inFocus = pageSurface || presentation === "focus";
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
-      replaceActiveCard: (pageSurface || presentation === "focus") && runtimeConfig.demo !== true,
+      replaceActiveCard: inFocus && runtimeConfig.demo !== true,
       preserveIterationFocus: true,
+      fillBoardWidth: inFocus && runtimeConfig.demo !== true,
     });
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
       setBoardCamera({
@@ -432,14 +476,14 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       focusCard(primaryCard.id);
     }
-  }, [primaryUrl, cards.length, pageSurface, presentation, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
+  }, [primaryUrl, cards.length, pageSurface, presentation, boardMeasured, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
     if (pageSurface) return;
     if (primaryUrl && activatedPrimaryUrlRef.current !== primaryUrl) return;
     const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
-    if (!activeCard) return;
+    if (!activeCard || activeCard.content.kind === "component") return;
     mirrorEditorAddress(contentSourceUrl(activeCard.content));
   }, [cards, focusedCardId, primaryUrl, selectedCardId]);
 
@@ -473,10 +517,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [activeDebugView.xray]);
 
   // While wheel events keep arriving the board stays one composited layer, so pan and zoom ticks scale its existing
-  // raster instead of repainting every frame; once the wheel settles it repaints crisply at the final scale.
+  // raster instead of repainting every frame; once the wheel settles it repaints crisply at the final scale. Frames
+  // also ignore the pointer until then, so a pan keeps panning when one slides under it.
   const markWheelGesture = useCallback(() => {
     const content = boardContentRef.current;
     if (!content) return;
+    // The wheel takes over from an eased zoom step.
+    cameraStepAnimationRef.current?.cancel();
     content.dataset.wheeling = "true";
     if (wheelSettleTimerRef.current !== null) window.clearTimeout(wheelSettleTimerRef.current);
     wheelSettleTimerRef.current = window.setTimeout(() => {
@@ -507,6 +554,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const camera = getBoardCamera();
     setBoardCamera({ ...camera, x: camera.x - deltaX, y: camera.y - deltaY });
   }, [markWheelGesture]);
+
+  useEffect(() => (runtimeConfig.componentSheet ? mirrorAppRootIntoSheets() : undefined), [runtimeConfig.componentSheet]);
+
+  useEffect(() => {
+    setBoardViewportProvider(() => {
+      const board = boardRef.current;
+      return board && board.clientWidth > 0 ? { width: board.clientWidth, height: board.clientHeight } : null;
+    });
+    return () => setBoardViewportProvider(null);
+  }, []);
 
   const fitCanvasToBoard = useCallback(() => {
     const board = boardRef.current;
@@ -667,36 +724,71 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [handleToolShortcut, leaveViewTool, mode, sketchActive, sketchAvailable]);
 
+  /** Commits the camera at once and eases the board there, so the store always holds where the camera is heading. */
+  const easeBoardCamera = useCallback((next: CanvasCamera) => {
+    const content = boardContentRef.current;
+    const from = content ? getComputedStyle(content).transform : "none";
+    cameraStepAnimationRef.current?.cancel();
+    cameraStepAnimationRef.current = null;
+    setBoardCamera(next);
+    if (!content || typeof content.animate !== "function" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const camera = getBoardCamera();
+    cameraStepAnimationRef.current = content.animate([
+      { transform: from },
+      { transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` },
+    ], CAMERA_STEP_ANIMATION);
+  }, []);
+
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (sketchActive) return;
+    const board = boardRef.current;
     if (presentation === "focus") {
-      if (direction < 0) {
-        batchCanvasChanges(() => {
-          const board = boardRef.current;
-          const cards = getCanvasCards();
-          const activeId = getSelectedCardId() ?? getFocusedCardId();
-          const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
-          if (board && card) {
-            // A frame focus narrowed keeps that width on the canvas.
-            const width = Math.min(card.width, board.clientWidth);
-            if (width < card.width) resizeCard(card.id, width, card.height);
-            const zoom = 0.9;
-            // Scale the focus layout about the board centre, so the frame's top edge eases down rather than jumping.
-            setBoardCamera({
-              x: board.clientWidth / 2 - (card.x + width / 2) * zoom,
-              y: (board.clientHeight / 2) * (1 - zoom) - card.y * zoom,
-              zoom,
-            });
-          }
-          setCanvasPresentation("canvas");
-        });
-      }
+      batchCanvasChanges(() => {
+        const cards = getCanvasCards();
+        const activeId = getSelectedCardId() ?? getFocusedCardId();
+        const card = cards.find((candidate) => candidate.id === activeId) ?? cards[0];
+        if (board && card) {
+          // A frame focus narrowed keeps that width on the canvas.
+          const width = Math.min(card.width, board.clientWidth);
+          if (width < card.width) resizeCard(card.id, width, card.height);
+          // Focus shows the frame at its own size, so zooming either way leaves it for the next Canvas level.
+          const zoom = direction < 0 ? FOCUS_EXIT_ZOOM : adjacentCanvasZoomLevel(1, 1) ?? 1;
+          // Scale the focus layout about the board centre, so the frame's top edge eases rather than jumping.
+          setBoardCamera({
+            x: board.clientWidth / 2 - (card.x + width / 2) * zoom,
+            y: (board.clientHeight / 2) * (1 - zoom) - card.y * zoom,
+            zoom,
+          });
+        }
+        setCanvasPresentation("canvas");
+      });
       return;
     }
-    const nextZoom = adjacentCanvasZoomLevel(getBoardCamera().zoom, direction);
-    if (nextZoom === null) return;
-    setBoardCamera({ ...getBoardCamera(), zoom: nextZoom });
-  }, [presentation, sketchActive]);
+    const camera = getBoardCamera();
+    const nextZoom = adjacentCanvasZoomLevel(camera.zoom, direction);
+    if (nextZoom === null || !board) return;
+    easeBoardCamera(zoomCameraAbout(camera, nextZoom, { x: board.clientWidth / 2, y: board.clientHeight / 2 }));
+  }, [easeBoardCamera, presentation, sketchActive]);
+
+  useEffect(() => {
+    if (mode !== "canvas" || pageSurface) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      const direction = canvasZoomStepForEvent(event);
+      if (direction === null) return;
+      // The Canvas zoom replaces the browser's, even from the inspector's own fields.
+      event.preventDefault();
+      event.stopPropagation();
+      handleZoomStep(direction);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [handleZoomStep, mode, pageSurface]);
+
+  const zoomToActualSize = useCallback(() => {
+    const board = boardRef.current;
+    if (presentation !== "canvas" || sketchActive || !board) return;
+    easeBoardCamera(zoomCameraAbout(getBoardCamera(), 1, { x: board.clientWidth / 2, y: board.clientHeight / 2 }));
+  }, [easeBoardCamera, presentation, sketchActive]);
 
   const showCanvas = useCallback(() => {
     handleZoomStep(-1);
@@ -706,6 +798,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     focusCard(cardId);
     setCanvasPresentation("focus");
   }, []);
+
+  const showFocusForActiveCard = useCallback(() => {
+    const cardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
+    if (cardId) showFocus(cardId);
+  }, [showFocus]);
 
   const duplicateDesign = useCallback((cardId: string) => {
     const duplicate = addLinkedFrame(cardId);
@@ -741,10 +838,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const stopChanges = subscribeActiveDraftChanges(() => {
       projectToAllReadyCards();
     });
+    // Component-sheet edits also preview in every live app frame, even when another draft is active.
+    let componentsRevision = getDraftChanges(COMPONENTS_DRAFT_ID).revision;
+    const stopComponents = subscribeDrafts(() => {
+      const next = getDraftChanges(COMPONENTS_DRAFT_ID).revision;
+      if (next === componentsRevision) return;
+      componentsRevision = next;
+      projectToAllReadyCards();
+    });
     const stopPreview = subscribeOriginalPreview(() => {
       projectToAllReadyCards();
     });
     return () => {
+      stopComponents();
       stopChanges();
       stopPreview();
     };
@@ -790,7 +896,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       const syncActiveFrameUrl = (url: string): void => {
-        if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
+        if (getCanvasCards().some((card) => card.id === frame.cardId && card.content.kind !== "route")) return;
         const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (!pageSurface && (activeCardId === frame.cardId || getCanvasCards().length === 1)) {
           mirrorEditorAddress(url);
@@ -855,6 +961,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         if (presentation === "canvas" && !sketchActive && !appInteractive) panCanvasByWheel(msg.deltaX, msg.deltaY);
         return;
       }
+      if (msg.type === "zoom-step") {
+        handleZoomStep(msg.direction);
+        return;
+      }
       if (msg.type === "zoom") {
         if (presentation !== "canvas" || sketchActive) return;
         zoomAtPointer(toViewportPoint(frame.viewport(), msg.point), msg.deltaY);
@@ -891,13 +1001,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       }
       if (msg.type !== "navigation-intent") return;
       dismissLinkPreview();
-      if (getCanvasCards().some((card) => card.id === frame.cardId && iterationId(card.content))) return;
+      if (getCanvasCards().some((card) => card.id === frame.cardId && card.content.kind !== "route")) return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
+  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, handleZoomStep, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -1084,19 +1194,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
-          {inspectorOpen && presentation === "focus" && !pageSurface ? (
-            <div className="canvas-workspace__focus-action" data-test="canvas-show-canvas">
-              <Button
-                variant="quiet"
-                size="default"
-                type="button"
-                onClick={showCanvas}
-              >
-                <IconCornerLeftUp size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                Canvas
-              </Button>
-            </div>
-          ) : null}
           <div
             ref={boardContentRef}
             className="canvas-workspace__board-content"
@@ -1108,6 +1205,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
             } as CSSProperties}
             data-test="canvas-board-content"
           >
+            {!pageSurface && presentation === "canvas" ? <FlowBoardOverlay cards={cards} /> : null}
             {cards.map(renderCard)}
           </div>
         </div>
@@ -1115,7 +1213,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           <button
             type="button"
             ref={linkPopoverRef}
-            className="canvas-link-popover"
+            className="canvas-link-popover popover-enter"
             data-test="canvas-link-popover"
             style={{ left: linkPopoverPosition.left, top: linkPopoverPosition.top }}
             onPointerEnter={keepLinkPreview}
@@ -1139,9 +1237,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         <CanvasToolbar
           tool={interactionTool}
           sketchEnabled={sketchAvailable}
-          addPageVisible={addPageEnabled && presentation === "canvas"}
-          onPageAdded={revealCanvasCard}
           onToolChange={handleToolChange}
+          zoom={pageSurface ? undefined : {
+            presentation,
+            zoom: camera.zoom,
+            canZoomIn: presentation === "focus" || adjacentCanvasZoomLevel(camera.zoom, 1) !== null,
+            canZoomOut: presentation === "focus" || adjacentCanvasZoomLevel(camera.zoom, -1) !== null,
+            disabled: sketchActive || cards.length === 0,
+            onZoomIn: () => handleZoomStep(1),
+            onZoomOut: () => handleZoomStep(-1),
+            onZoomToActualSize: zoomToActualSize,
+            onFocus: showFocusForActiveCard,
+            onCanvas: showCanvas,
+          }}
         />
       </div>
     </>

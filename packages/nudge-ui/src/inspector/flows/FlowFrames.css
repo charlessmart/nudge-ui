@@ -1,0 +1,179 @@
+.flows-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Above the frame list until a flow exists, separated from it like a section. */
+.flows-panel__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.flows-panel__intro h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+}
+
+.flows-panel__intro p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.flows-panel__intro code,
+.flows-panel__errors code {
+  font-size: inherit;
+  word-break: break-word;
+}
+
+.flows-panel__errors {
+  padding: var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.flows-panel ul {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A flow reads like a layer with children: chevron in the gutter, icon, title, then its show/hide toggle. */
+.flows-panel__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-4);
+}
+
+.flows-panel__header:hover {
+  background: var(--surface-well);
+}
+
+.flows-panel__expander {
+  appearance: none;
+  position: absolute;
+  top: 50%;
+  left: var(--space-4);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.flows-panel__expander:hover,
+.flows-panel__expander:focus-visible {
+  background: var(--surface-well-2x);
+  color: var(--text-primary);
+  outline: 0;
+}
+
+.flows-panel__title {
+  appearance: none;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8) 0 calc(var(--space-8) + 16px);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flows-panel__title:focus-visible {
+  outline: 0;
+}
+
+.flows-panel__state {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8) 0 calc(var(--space-8) + 32px);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flows-panel__state:hover,
+.flows-panel__state:focus-visible {
+  background: var(--surface-well);
+  outline: 0;
+}
+
+.flows-panel__state[data-active="true"] {
+  background: var(--surface-well);
+}
+
+.flows-panel__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted-subtle);
+}
+
+.flows-panel__dot[data-tone="ok"] { background: #1f9d55; }
+.flows-panel__dot[data-tone="error"] { background: #d92d20; }
+.flows-panel__dot[data-tone="running"] { background: #d68a00; }
+
+.flows-panel__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flows-panel__tag {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.flows-panel__problem,
+.flows-panel__blocked,
+.flows-panel__empty {
+  margin: var(--space-4) var(--space-8);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+}
+
+.flows-panel__states .flows-panel__problem,
+.flows-panel__states .flows-panel__blocked {
+  margin-left: calc(var(--space-8) + 32px);
+}
+
+.flows-panel__problem { color: #d92d20; }
+.flows-panel__blocked,
+.flows-panel__empty { color: var(--text-secondary); }
+
+.flows-panel__blocked[data-tone="warn"] { color: #b54708; }

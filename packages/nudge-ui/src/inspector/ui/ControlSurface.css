@@ -19,6 +19,8 @@
   font: inherit;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-base);
+  /* Field values are data, so digits keep one width as they change. */
+  font-variant-numeric: tabular-nums;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 

@@ -8,7 +8,7 @@
   box-sizing: border-box;
   width: 100%;
   height: var(--layout-picker-height, auto);
-  padding: 4px;
+  padding: var(--space-4);
   appearance: none;
   border: none;
   border-radius: 9px;
@@ -41,12 +41,13 @@
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   background: var(--surface-raised);
 }
 
 .grid-picker__preview-label {
   position: absolute;
+  font-variant-numeric: tabular-nums;
   inset: 0;
   display: flex;
   align-items: center;
@@ -54,7 +55,6 @@
   color: var(--text-primary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-label);
-  letter-spacing: -0.04em;
   pointer-events: none;
 }
 
@@ -76,7 +76,7 @@
   display: grid;
   grid-template-columns: repeat(var(--grid-picker-columns), minmax(24px, 1fr));
   grid-template-rows: repeat(var(--grid-picker-rows), minmax(24px, 1fr));
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .grid-picker__cell {
@@ -92,20 +92,22 @@
 }
 
 .grid-picker__cell:hover,
-.grid-picker__cell:focus-visible,
 .grid-picker__cell--active {
-  background: var(--accent-surface);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--brand-surface);
+  box-shadow: inset 0 0 0 1px var(--brand-primary);
 }
 
 .grid-picker__cell:focus-visible {
   outline: 0;
+  background: var(--accent-surface);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .grid-picker__popover-value {
   margin-top: 9px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-medium);
   font-weight: 700;
   text-align: center;
 }

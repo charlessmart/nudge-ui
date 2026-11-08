@@ -150,10 +150,15 @@ export async function resolveHostComponentPolicy(
   const diagnostics: ComponentPolicyDiagnostic[] = [];
   const tracer = createTracer(adapter, options);
 
-  for (const componentName of analysis.importedJsxNames) {
+  // Each trace carries its own visited set, so components resolve concurrently and are recorded in name order.
+  const traced = await Promise.all(analysis.importedJsxNames.map(async (componentName) => {
     const reference = importedReference(componentName, analysis.imports);
-    if (!reference) continue;
-    const result = await tracer.request(reference.source, reference.exportName, importer);
+    if (!reference) return null;
+    return { componentName, reference, result: await tracer.request(reference.source, reference.exportName, importer) };
+  }));
+  for (const trace of traced) {
+    if (!trace) continue;
+    const { componentName, reference, result } = trace;
     if (result.resolved) {
       components[componentName] = result.protocol;
       continue;
@@ -365,11 +370,8 @@ function createTracer(adapter: ComponentModuleAdapter, options: ResolveHostCompo
       return resolveLocal(module, target.localName, exportName, state);
     }
 
-    const candidates: TraceResult[] = [];
-    for (const source of module.analysis.exportAll) {
-      const candidate = await request(source, exportName, module.moduleId, state);
-      if (candidate.resolved) candidates.push(candidate);
-    }
+    const candidates = (await Promise.all(module.analysis.exportAll.map((source) =>
+      request(source, exportName, module.moduleId, state)))).filter((candidate) => candidate.resolved);
     if (candidates.length === 1) return candidates[0]!;
     return unresolved("component-export-unresolved");
   }

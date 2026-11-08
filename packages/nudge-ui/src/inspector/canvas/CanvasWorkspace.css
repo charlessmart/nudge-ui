@@ -7,52 +7,13 @@
   pointer-events: auto;
 }
 
+/* Only the camera moves the board. `clip` rather than `hidden`, which the browser would still scroll to
+   reveal an off-screen frame that takes focus as it loads, knocking the board out from under the camera. */
 .canvas-workspace__board {
   flex: 1;
-  overflow: hidden;
+  overflow: clip;
   position: relative;
   background: var(--surface-canvas);
-}
-
-/* A tab hanging from the top edge, centred on the frame. The pseudo-elements draw the concave feet where the tab meets the edge, with the border ring following the curve into the tab's side borders. */
-.canvas-workspace__focus-action {
-  --focus-action-foot: var(--radius-12);
-  /* Opaque, so the border ring and the side borders cannot stack where they overlap. */
-  --focus-action-edge: var(--border-strong);
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: calc(var(--z-index) - 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  border: 1px solid var(--focus-action-edge);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-12) var(--radius-12);
-  background: var(--surface-canvas);
-  pointer-events: auto;
-}
-
-.canvas-workspace__focus-action::before,
-.canvas-workspace__focus-action::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  width: var(--focus-action-foot);
-  height: var(--focus-action-foot);
-  pointer-events: none;
-}
-
-.canvas-workspace__focus-action::before {
-  right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent calc(var(--focus-action-foot) - 1px), var(--focus-action-edge) calc(var(--focus-action-foot) - 1px) var(--focus-action-foot), var(--surface-canvas) var(--focus-action-foot));
-}
-
-.canvas-workspace__focus-action::after {
-  left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent calc(var(--focus-action-foot) - 1px), var(--focus-action-edge) calc(var(--focus-action-foot) - 1px) var(--focus-action-foot), var(--surface-canvas) var(--focus-action-foot));
 }
 
 .canvas-workspace__board.is-grabbable {
@@ -66,6 +27,12 @@
 /* Canvas gestures take precedence over every card interaction while Space is held. This also closes the short postMessage gap before an iframe receives its mirrored modifier state. */
 .canvas-workspace__board.is-grabbable .canvas-card,
 .canvas-workspace__board.is-grabbing .canvas-card {
+  pointer-events: none;
+}
+
+/* A wheel gesture belongs to the board until it settles. Chrome picks a new target when trackpad momentum starts, so a
+   frame that slid under the pointer during a pan would otherwise take the rest of the gesture and scroll its page. */
+.canvas-workspace__board-content[data-wheeling] .canvas-card {
   pointer-events: none;
 }
 
@@ -122,7 +89,6 @@
   white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
-  animation: canvas-link-popover-enter 120ms ease-out;
 }
 
 .canvas-link-popover:hover {
@@ -137,17 +103,6 @@
 .canvas-link-popover:focus-visible {
   outline: 0;
   box-shadow: var(--shadow-popup), inset 0 0 0 2px var(--accent);
-}
-
-@keyframes canvas-link-popover-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas-link-popover {
-    animation: none;
-  }
 }
 
 /* Moving iframes must not acquire hover state beneath a stationary pointer. */
@@ -165,4 +120,35 @@
 
 .canvas-workspace[data-surface="page"] .canvas-toolbar {
   pointer-events: auto;
+}
+
+.flow-board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Placed at the frames' top edge, then lifted past the card header (its gap plus its height, see
+   `.canvas-card__header`) and a further gap. Sized and spaced in toolbar pixels like that header,
+   so the title keeps its size and its distance from the URL bar at any zoom. Its type is the shared
+   heading (see `headingRule`), added beside this stylesheet in `CanvasWorkspace.tsx`. */
+.flow-board__title {
+  position: absolute;
+  transform: translateY(calc(-100% - (var(--control-height-large) + var(--space-8) * 4) * var(--canvas-toolbar-scale, 1)));
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Enters with its flow's first column of frames (see `.canvas-card.is-entering`). */
+.flow-board__title.is-entering {
+  animation: canvas-card-slide-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-board__title.is-entering {
+    animation: none;
+  }
 }

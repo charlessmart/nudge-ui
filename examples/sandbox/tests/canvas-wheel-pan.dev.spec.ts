@@ -1,9 +1,10 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
+import { PAN_WHEEL_SPEED } from "../../../packages/nudge-ui/src/inspector/canvas/wheelPan.ts";
 
 test("scrolling pans the canvas and Use app normally restores nested iframe scrolling", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const iframe = page.locator(".canvas-card__iframe").first();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
@@ -23,13 +24,15 @@ test("scrolling pans the canvas and Use app normally restores nested iframe scro
   const before = await camera();
   await scroller.hover();
   await page.mouse.wheel(50, 80);
-  await expect.poll(camera).toEqual({ x: before.x - 50, y: before.y - 80, zoom: before.zoom });
+  await expect.poll(camera).toEqual({ x: before.x - 50 * PAN_WHEEL_SPEED, y: before.y - 80 * PAN_WHEEL_SPEED, zoom: before.zoom });
   expect(await scroller.evaluate((element) => ({ x: element.scrollLeft, y: element.scrollTop }))).toEqual({ x: 0, y: 0 });
 
   const board = page.locator('[data-test="canvas-board"]');
   await board.dispatchEvent("wheel", { deltaX: 20, deltaY: 30, bubbles: true, composed: true });
-  await expect.poll(camera).toEqual({ x: before.x - 70, y: before.y - 110, zoom: before.zoom });
+  await expect.poll(camera).toEqual({ x: before.x - 70 * PAN_WHEEL_SPEED, y: before.y - 110 * PAN_WHEEL_SPEED, zoom: before.zoom });
   const panned = await camera();
+  // The board owns a wheel gesture until it settles, then frames take the pointer back.
+  await expect.poll(() => iframe.evaluate((element) => getComputedStyle(element.closest(".canvas-card")!).pointerEvents)).toBe("auto");
   await page.getByRole("button", { name: "Use app normally", exact: true }).click();
   await scroller.hover();
   await page.mouse.wheel(50, 80);
@@ -38,9 +41,26 @@ test("scrolling pans the canvas and Use app normally restores nested iframe scro
   expect(await camera()).toEqual(panned);
 });
 
+test("a wheel pan keeps frames out of the gesture until it settles", async ({ page }) => {
+  await page.goto("/playground");
+  await showCanvas(page);
+  await waitForCanvasTransition(page);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  const card = page.locator(".canvas-card").first();
+  const pointerEvents = () => card.evaluate((element) => getComputedStyle(element).pointerEvents);
+  const box = await card.boundingBox();
+  if (!box) throw new Error("frame did not render");
+
+  // Trackpad momentum picks a new target when it starts, so a frame that slid under the pointer must not take it.
+  await page.mouse.move(box.x + box.width + 40, box.y + box.height / 2);
+  await page.mouse.wheel(-120, 0);
+  expect(await pointerEvents()).toBe("none");
+  await expect.poll(pointerEvents).toBe("auto");
+});
+
 test("Holding A temporarily enables app interaction across iframe focus and the icon pins it", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const normal = page.getByRole("button", { name: "Use app normally", exact: true });
   const pan = page.getByRole("button", { name: "Pan", exact: true });
@@ -99,7 +119,7 @@ test("Holding A temporarily enables app interaction across iframe focus and the 
 
 test("Holding A clicks links inside the frame without opening a browser tab", async ({ page, context }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const iframe = page.locator(".canvas-card__iframe").first();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
@@ -128,7 +148,7 @@ test("Canvas stops horizontal overscroll from navigating back and restores the p
   const root = page.locator("html");
   await expect.poll(() => root.evaluate(overscroll)).toBe("auto");
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await expect.poll(() => root.evaluate(overscroll)).toBe("none");
   const iframe = page.locator(".canvas-card__iframe").first();

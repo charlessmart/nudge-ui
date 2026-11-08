@@ -1,6 +1,6 @@
 import { inspectorStorage } from "../runtime/inspectorStorage.ts";
 import { isFrameContent, type FrameContent } from "./frameContent.ts";
-import { clearComments } from "../comments/store.ts";
+import { clearComments, removeComments, restoreComments } from "../comments/store.ts";
 import { documentTarget, targetFromKey } from "../drafts/model.ts";
 import {
   getCanvasCards,
@@ -39,6 +39,7 @@ import {
   canEditDraft,
   clearActiveDraft,
   clearDrafts,
+  discardActiveDraft,
   getActiveDraftChanges,
   isDraftLocked,
   persistDrafts,
@@ -107,7 +108,9 @@ function buildSession(): DurableSession {
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
-      content: c.content.kind === "route" ? { kind: "route", url: c.content.url } : { ...c.content },
+      content: c.content.kind === "route"
+        ? { kind: "route", url: c.content.url, ...(c.content.flowState ? { flowState: c.content.flowState } : {}) }
+        : { ...c.content },
       title: c.title,
       x: c.x,
       y: c.y,
@@ -292,12 +295,15 @@ function safeDiscard(): void {
 }
 
 /** Clears the active draft and its comments while preserving canvas geometry, other drafts, and the last copied sketch. */
+/** Clears the selected frame's changes and comments as one step that undo brings back. */
 export function clearSelectedFrameChanges(): void {
   if (!canEditDraft()) return;
   const cardId = getSelectedCardId() ?? getFocusedCardId();
   if (cardId) activateDraftForCard(cardId);
-  clearComments(targetFromKey(getActiveDraftChanges().draftId) ?? documentTarget(window.location.href));
-  clearActiveDraft();
+  const comments = clearComments(targetFromKey(getActiveDraftChanges().draftId) ?? documentTarget(window.location.href));
+  discardActiveDraft(comments.length > 0
+    ? { undo: () => restoreComments(comments), redo: () => removeComments(comments) }
+    : undefined);
   setSelectedElement(null);
   projectToAllReadyCards();
   scheduleAutoSave();

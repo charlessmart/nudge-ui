@@ -280,6 +280,12 @@ export interface ZoomMessage extends RendererMessage {
   point: { x: number; y: number };
 }
 
+/** A zoom in or out shortcut pressed while the frame has keyboard focus. */
+export interface ZoomStepMessage extends RendererMessage {
+  type: "zoom-step";
+  direction: -1 | 1;
+}
+
 export interface WheelPanMessage extends RendererMessage {
   type: "wheel-pan";
   deltaX: number;
@@ -350,6 +356,7 @@ export type RendererToControllerMessage =
   | PanEndMessage
   | PanModifierMessage
   | ZoomMessage
+  | ZoomStepMessage
   | WheelPanMessage
   | AppInteractionModifierMessage
   | DebugViewPhaseMessage;
@@ -464,6 +471,10 @@ const RENDERER_SCHEMAS = {
   "pan-end": { fields: null },
   "pan-modifier": { fields: null },
   "zoom": { fields: null },
+  "zoom-step": {
+    fields: ["direction"],
+    validate: (value) => ownValue(value, "direction") === 1 || ownValue(value, "direction") === -1,
+  },
   "wheel-pan": { fields: null },
   "app-interaction-modifier": { fields: null },
   "debug-view-phase": {
@@ -524,6 +535,7 @@ export type FrameProtocolMessage =
   | MeasureModifierMessage
   | BoardGestureStateMessage
   | ZoomMessage
+  | ZoomStepMessage
   | WheelPanMessage
   | AppInteractionModifierMessage
   | InspectorInteractionStateMessage

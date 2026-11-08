@@ -33,6 +33,7 @@
 }
 
 .prompt-settings__title {
+  text-wrap: balance;
   margin: 0;
   color: var(--text-primary);
   font-size: var(--font-size-base);

@@ -111,6 +111,7 @@ export function App() {
           <a href="/examples">Examples hub</a>
           <a href="/examples/raw-css">Raw CSS</a>
           {import.meta.env.DEV ? <a href="/component-props">Component props</a> : null}
+          {import.meta.env.DEV ? <a href="/app">Settings app</a> : null}
           <a href="/conformance">Conformance</a>
         </nav>
 

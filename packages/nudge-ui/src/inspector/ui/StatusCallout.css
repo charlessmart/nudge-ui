@@ -15,7 +15,7 @@
 
 .status-callout--accent {
   background: var(--accent-surface);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .status-callout--danger {

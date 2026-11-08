@@ -1,3 +1,4 @@
+import { describeVariantScope, variantScopeKey } from "../componentSemantics/variantMarkers.ts";
 import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/types.ts";
 import type {
   ChangeRecord,
@@ -17,7 +18,7 @@ import {
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
-import { dialectsInUse, stylingDialect, type DialectName } from "../../css/dialects/index.ts";
+import { stylingDialect } from "../../css/dialects/index.ts";
 import { PROMPT_INTRO } from "./promptDocument.ts";
 
 import { getCommentsForTarget, type ElementComment } from "../comments/store.ts";
@@ -27,7 +28,6 @@ import { isPageTargetCid } from "../selection/pageTarget.ts";
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
-  stylingDialects?: readonly DialectName[];
 }
 
 const EMPTY_SENTINEL = "There are no changes to export yet. Make a change in the Nudge UI inspector first.";
@@ -209,6 +209,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
       instanceOverride?.id ?? "",
       instanceOverride ? JSON.stringify(instanceOverride.target) : "",
       change.state ?? "base",
+      variantScopeKey(change.variantScope),
     ].join("\u0000");
     let group = map.get(key);
     if (!group) {
@@ -241,6 +242,7 @@ const STATE_LEADS = {
 
 function elementChangeLine(rec: ElementChangeRecord): string {
   const lead = STATE_LEADS[rec.state ?? "base"];
+  const variant = rec.variantScope ? ` (only for ${describeVariantScope(rec.variantScope)})` : "";
   let change: string;
   if (rec.newToken && rec.oldToken) {
     change = `change ${rec.property} from the ${rec.oldToken.name} token to the ${rec.newToken.name} token`;
@@ -253,7 +255,7 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   } else {
     change = `update ${rec.property} (no value was recorded)`;
   }
-  const sentence = `${lead}${change}.`;
+  const sentence = `${lead}${change}${variant}.`;
   return `- ${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
 }
 
@@ -278,12 +280,6 @@ function dialectSourceLine(rec: ElementChangeRecord): string | null {
 function elementChangeLines(rec: ElementChangeRecord): string[] {
   return [elementChangeLine(rec), sourceIntentLine(rec), dialectSourceLine(rec)]
     .filter((line): line is string => line !== null);
-}
-
-/** One guidance line per dialect in use, so the agent writes the change the way the project already does. */
-function dialectGuidanceBlock(dialects: readonly DialectName[]): string | null {
-  const guidance = dialects.flatMap((name) => stylingDialect(name)?.promptGuidance ?? []);
-  return guidance.length > 0 ? ["How this project writes styles:", ...guidance.map((line) => `- ${line}`)].join("\n") : null;
 }
 
 function tokenChangeLine(rec: TokenChangeRecord): string {
@@ -646,12 +642,6 @@ export function generatePrompt(
   }
 
   for (const group of groups.values()) blocks.push(renderGroup(group));
-
-  if (tokenChanges.length > 0 || elementChanges.length > 0) {
-    const editedTokens = elementChanges.flatMap((change) => [change.oldToken, change.newToken].filter((token) => token !== null));
-    const guidance = dialectGuidanceBlock(dialectsInUse(editedTokens, frameworkHints?.stylingDialects ?? []));
-    if (guidance) blocks.push(guidance);
-  }
 
   return renderPrompt(blocks, customInstructions);
 }

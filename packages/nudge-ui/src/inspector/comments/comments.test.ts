@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
-import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
+import { commentFingerprint, commentViewport, placeCommentElement, resolveCommentElement } from "./element.ts";
 import { clearComments, commentRoute, getComments, getCommentsForTarget, loadComments, markCommentsHandedOff, removeComment, saveComment, type ElementComment } from "./store.ts";
 import { applicationTarget, htmlTarget } from "../drafts/model.ts";
 import { reconcileComments, type CommentProjectionTransport } from "./verification.ts";
@@ -143,6 +143,32 @@ describe("element comments", () => {
     await reconcileComments(document, transport);
     expect(replacement.textContent).toBe("Publish");
     expect(getComments()).toHaveLength(1);
+  });
+
+  it("places a note on the saved one of several identical mapped elements without resolving it", async () => {
+    const bars = Array.from({ length: 3 }, () => {
+      const bar = document.createElement("div");
+      bar.dataset.cid = "Spark";
+      bar.dataset.src = "src/StatCards.tsx:16:9";
+      document.body.append(bar);
+      return bar;
+    });
+    const saved = { ...comment(bars[1]!), handedOff: true };
+    saveComment(saved);
+
+    expect(resolveCommentElement(document, saved.target)).toBeNull();
+    expect(placeCommentElement(document, saved.target)).toBe(bars[1]);
+    bars[1]!.style.height = "40%";
+    await reconcileComments(document, transport);
+    expect(getComments()).toHaveLength(1);
+  });
+
+  it("does not place a note on an occurrence whose evidence changed", () => {
+    const saved = comment(target());
+    document.body.firstElementChild!.textContent = "Publish";
+    target();
+    target();
+    expect(placeCommentElement(document, saved.target)).toBeNull();
   });
 
   it("does not arm a newer note when an earlier handoff finishes", () => {

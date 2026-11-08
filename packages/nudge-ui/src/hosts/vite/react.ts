@@ -3,14 +3,17 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { Alias } from "vite";
 import { injectIdentity } from "../../compiler/reactIdentity.ts";
-import { extractComponentContracts } from "../../compiler/componentContracts.ts";
+import { extractComponentCatalog } from "../../compiler/componentContracts.ts";
 import {
   collectPackageComponentImports,
   extractPackageComponentContractCatalog,
   type PackageComponentImport,
 } from "../../compiler/packageComponentContracts.ts";
+import { mergeComponentContracts } from "../../compiler/projectComponentContracts.ts";
 import type { ComponentContract } from "../../compiler/index.ts";
+import { createTypeAwareContracts } from "./typeAwareContracts.ts";
 import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
+import { COMPONENT_SHEET_RUNTIME_MODULE as COMPONENT_SHEET_RUNTIME_MODULE_ID } from "./componentSheet.ts";
 import { REACT_RENDERER_CAPTURE_SCRIPT } from "../reactRendererCapture.ts";
 import {
   defaultReactComponentProtocols,
@@ -24,6 +27,7 @@ import {
 
 const COMPONENT_EXTENSION = /\.(?:tsx|jsx)(?:$|[?#])/;
 const COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
+const COMPONENT_SHEET_RUNTIME_MODULE = COMPONENT_SHEET_RUNTIME_MODULE_ID;
 
 const packageRequire = createRequire(import.meta.url);
 
@@ -35,6 +39,12 @@ export interface ReactOptions {
   /** Package imports are fail-closed unless listed here or described by a component protocol. */
   compatibleComponentImports?: ComponentInstrumentationOptions["compatibleComponentImports"];
   componentProtocols?: ComponentModuleProtocols;
+  /**
+   * Reads project component props through the TypeScript checker (imported props types, enums,
+   * `ComponentProps<typeof X>`), off the main thread, and merges them over the syntactic contracts.
+   * Defaults to true.
+   */
+  typeAwareComponents?: boolean;
 }
 
 export interface FrameworkHost {
@@ -49,17 +59,41 @@ export interface FrameworkTransformContext {
   warn(message: string): void;
 }
 
+/** Cheap change detector: observing an unchanged module must not queue a checker pass. */
+function fingerprintSource(code: string): string {
+  let hash = 5381;
+  for (let index = 0; index < code.length; index++) hash = ((hash << 5) + hash + code.charCodeAt(index)) | 0;
+  return `${code.length}:${hash}`;
+}
+
 export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   const contractsByFile = new Map<string, ComponentContract[]>();
+  const wrapperIdsByFile = new Map<string, readonly string[]>();
   const packageImportsByFile = new Map<string, PackageComponentImport[]>();
   const reportedPolicyDiagnostics = new Set<string>();
   const manualComponentIds = new Set(
     options.componentMetadata?.map((contract) => contract.componentId) ?? [],
   );
   let packageFingerprint = "";
+  const observedSources = new Map<string, string>();
+  let typeAwareContracts = new Map<string, ComponentContract>();
+  let contractsListener: (() => void) | null = null;
+  const typeAware = options.typeAwareComponents === false
+    ? null
+    : createTypeAwareContracts({
+      root: () => host.root(),
+      files: () => [...observedSources.keys()],
+      catalogPath: (file) => host.catalogPath(file),
+      warn: (message) => console.warn(message),
+      onChange(contracts) {
+        typeAwareContracts = new Map(contracts);
+        contractsListener?.();
+      },
+    });
 
   // Aliased so the injected specifier resolves in a packed install, where the application's graph has never heard of it.
   const componentRuntimePath = resolveComponentRuntime();
+  const componentSheetPath = resolvePackageModule(COMPONENT_SHEET_RUNTIME_MODULE);
 
   if (options.componentMetadata?.length) {
     contractsByFile.set("package-manifests", options.componentMetadata.map((contract) => ({
@@ -116,14 +150,24 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       const demoAliases = context.demo && options.skipReactAliases !== true
         ? resolveReactAliases(context.projectRoot)
         : [];
-      const runtimeAliases: Alias[] = componentRuntimePath
-        ? [{ find: COMPONENT_RUNTIME_MODULE, replacement: componentRuntimePath }]
-        : [];
+      const runtimeAliases: Alias[] = [
+        ...(componentRuntimePath
+          ? [{ find: COMPONENT_RUNTIME_MODULE, replacement: componentRuntimePath }]
+          : []),
+        ...(componentSheetPath
+          ? [{ find: COMPONENT_SHEET_RUNTIME_MODULE, replacement: componentSheetPath }]
+          : []),
+      ];
       return {
         ...(componentRuntimePath
           ? {
             // Vite merges this with the application's own settings, so listing its entries here would duplicate them.
-            optimizeDeps: { include: [COMPONENT_RUNTIME_MODULE] },
+            optimizeDeps: {
+              include: [
+                COMPONENT_RUNTIME_MODULE,
+                ...(componentSheetPath ? [COMPONENT_SHEET_RUNTIME_MODULE] : []),
+              ],
+            },
           }
           : {}),
         resolve: {
@@ -153,19 +197,37 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
         }
       }
       refreshPackageContracts();
+      typeAware?.refresh();
+    },
+
+    /** Notified when the asynchronous checker pass changes what `contracts()` returns. */
+    onContractsChanged(listener: () => void): void {
+      contractsListener = listener;
+    },
+
+    dispose(): void {
+      typeAware?.dispose();
     },
 
     observe(id: string, code: string, refreshPackages = true): void {
       if (!COMPONENT_EXTENSION.test(id) || !host.isHostSource(id)) return;
       const fileId = id.split(/[?#]/, 1)[0] ?? id;
-      contractsByFile.set(fileId, extractComponentContracts(code, host.catalogPath(fileId)));
+      const catalog = extractComponentCatalog(code, host.catalogPath(fileId));
+      contractsByFile.set(fileId, catalog.contracts);
+      wrapperIdsByFile.set(fileId, catalog.wrapperIds);
+      const fingerprint = fingerprintSource(code);
+      const changed = observedSources.get(fileId) !== fingerprint;
+      observedSources.set(fileId, fingerprint);
+      if (changed && refreshPackages) typeAware?.schedule();
       packageImportsByFile.set(fileId, collectPackageComponentImports(code, fileId));
       if (refreshPackages) refreshPackageContracts();
     },
 
     forget(id: string): void {
       contractsByFile.set(id, []);
+      wrapperIdsByFile.delete(id);
       packageImportsByFile.delete(id);
+      if (observedSources.delete(id)) typeAware?.schedule();
       refreshPackageContracts();
     },
 
@@ -213,7 +275,12 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     },
 
     contracts(): ComponentContract[] {
-      return [...contractsByFile.values()].flat();
+      const syntactic = [...contractsByFile.values()].flat();
+      if (typeAwareContracts.size === 0) return syntactic;
+      // Checker-only components (props from `PropsWithChildren`, imported types) still get the parser's role.
+      const wrapperIds = new Set([...wrapperIdsByFile.values()].flat());
+      return mergeComponentContracts(syntactic, typeAwareContracts, manualComponentIds)
+        .map((contract) => contract.role || !wrapperIds.has(contract.componentId) ? contract : { ...contract, role: "wrapper" as const });
     },
 
     serializeVirtualModule(contracts: readonly ComponentContract[]): string {
@@ -246,8 +313,12 @@ function scanComponentFiles(rootDir: string, files: string[] = [], dir = rootDir
 }
 
 function resolveComponentRuntime(): string | null {
+  return resolvePackageModule(COMPONENT_RUNTIME_MODULE);
+}
+
+function resolvePackageModule(specifier: string): string | null {
   try {
-    return packageRequire.resolve(COMPONENT_RUNTIME_MODULE);
+    return packageRequire.resolve(specifier);
   } catch {
     return null;
   }

@@ -32,21 +32,21 @@ export function createHtmlIterationCoordinator(storage: HtmlIterationStorage) {
         if (!canWriteWorkspace()) throw new Error("This workspace is open in another tab.");
         const draft = getDraftForCard(cardId);
         const workspace = getDraftContentsForCard(cardId);
-        if (!draft || draft.target.kind !== "html" || draft.target.artifactId !== artifactId || !workspace) throw new Error("The iteration draft is no longer available.");
+        if (!draft || draft.target.kind !== "html" || draft.target.artifactId !== artifactId || !workspace) throw new Error("The unlinked frame's draft is no longer available.");
         const html = await capture();
         const current = getDraftForCard(cardId);
         if (current?.id !== draft.id || current.revision !== draft.revision) {
-          throw new Error("The iteration changed while saving. Your edits are still pending. Try again.");
+          throw new Error("The unlinked frame changed while saving. Your edits are still pending. Try again.");
         }
         const release = lockDraft(draft.id);
         try {
           if (!canWriteWorkspace()) throw new Error("This workspace is open in another tab.");
           await storage.commit(artifactId, { document: baseRevision, preview: baseRevision }, html);
-          if (!canWriteWorkspace()) throw new Error("The iteration was saved. Reopen the active workspace to continue.");
+          if (!canWriteWorkspace()) throw new Error("The unlinked frame was saved. Reopen the active workspace to continue.");
         } finally { release(); }
         // No await between releasing the lock and settling this exact revision.
         if (!clearSavedIterationDraft(cardId, draft.revision)) {
-          throw new Error("The iteration was saved, but its newer edits remain pending.");
+          throw new Error("The unlinked frame was saved, but its newer edits remain pending.");
         }
         return workspace;
       });
@@ -79,28 +79,28 @@ const coordinator = createHtmlIterationCoordinator({ readRevision: readHtmlArtif
 
 function loadedRevision(frame: CanvasFrame): string {
   const revision = frame.contentDocument?.documentElement.getAttribute(HTML_ARTIFACT_REVISION_ATTRIBUTE);
-  if (!revision || !/^[a-f0-9]{64}$/.test(revision)) throw new Error("The HTML iteration is still loading. Try again when the frame is ready.");
+  if (!revision || !/^[a-f0-9]{64}$/.test(revision)) throw new Error("The unlinked frame is still loading. Try again when the frame is ready.");
   return revision;
 }
 
 /** Materializes pending intent before the agent can start editing document.html. */
 export async function prepareHtmlIterationHandoff(cardId: string, artifactId: string, frame: CanvasFrame): Promise<DraftContents> {
-  if (isInlineTextEditingActive()) throw new Error("Finish editing the text before saving this iteration.");
+  if (isInlineTextEditingActive()) throw new Error("Finish editing the text before saving this unlinked frame.");
   const contents = getDraftContentsForCard(cardId);
-  if (!contents) throw new Error("The iteration draft is no longer available.");
+  if (!contents) throw new Error("The unlinked frame's draft is no longer available.");
   if (contents.changes.length + contents.structuralChanges.length === 0) return contents;
   const document = frame.contentDocument;
   const baseRevision = loadedRevision(frame);
   try {
     const workspace = await coordinator.prepare(cardId, artifactId, baseRevision, async () => {
-      if (!document || isInlineTextEditingActive()) throw new Error("Finish editing the text before saving this iteration.");
+      if (!document || isInlineTextEditingActive()) throw new Error("Finish editing the text before saving this unlinked frame.");
       const workspace = getDraftContentsForCard(cardId);
-      if (!workspace) throw new Error("The iteration draft is no longer available.");
+      if (!workspace) throw new Error("The unlinked frame's draft is no longer available.");
       const revision = await projectDraftToDocument(document, workspace);
-      if (revision === null) throw new Error("The iteration preview is still updating. Try again.");
+      if (revision === null) throw new Error("The unlinked frame's preview is still updating. Try again.");
       const html = await captureHtmlIteration(frame);
       if (frame.contentDocument !== document || !isCanvasProjectionRevisionCurrent(document, revision)) {
-        throw new Error("The iteration changed while saving. Your edits are still pending. Try again.");
+        throw new Error("The unlinked frame changed while saving. Your edits are still pending. Try again.");
       }
       return html;
     });

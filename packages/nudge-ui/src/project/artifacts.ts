@@ -12,6 +12,7 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { NUDGE_UI_ARTIFACTS_PATH } from "../transport/routes.ts";
+import { isSameOriginRequest } from "./sameOrigin.ts";
 import { injectStandaloneBootstrap } from "../hosts/static/html/bootstrap.ts";
 
 export type { HtmlArtifactMetadata };
@@ -35,6 +36,12 @@ async function readRevision(target: string): Promise<HtmlArtifactRevision> {
     readFile(join(target, "document.html")), readFile(join(target, "preview.html")),
   ]);
   return { document: revision(document), preview: revision(preview) };
+}
+
+/** Waits for every write before rethrowing, so cleanup never races a file still being written. */
+async function settleAll(operations: ReadonlyArray<Promise<unknown>>): Promise<void> {
+  const failure = (await Promise.allSettled(operations)).find((result) => result.status === "rejected");
+  if (failure) throw failure.reason;
 }
 
 function sameRevision(left: HtmlArtifactRevision, right: HtmlArtifactRevision): boolean {
@@ -106,16 +113,7 @@ export async function handleHtmlArtifactRequest(
   if (pathname !== NUDGE_UI_ARTIFACTS_PATH && !pathname.startsWith(`${NUDGE_UI_ARTIFACTS_PATH}/`)) return false;
   const parts = pathname.slice(NUDGE_UI_ARTIFACTS_PATH.length).split("/").filter(Boolean);
   if (request.method !== "GET" && request.method !== "HEAD") {
-    const origin = request.headers.origin;
-    const host = request.headers.host;
-    if (origin && host) {
-      try {
-        if (new URL(origin).host !== host) {
-          respond(response, 403, "Cross-origin artifact writes are not allowed");
-          return true;
-        }
-      } catch { respond(response, 403, "Invalid request origin"); return true; }
-    }
+    if (!isSameOriginRequest(request)) { respond(response, 403, "Cross-origin artifact writes are not allowed"); return true; }
   }
   const id = parts[0];
   if (parts.length > 2 || (id && !ID.test(id)) || (parts.length === 2 && !["document", "baseline", "preview", "commit", "revision"].includes(parts[1]!))) {
@@ -137,10 +135,12 @@ export async function handleHtmlArtifactRequest(
       };
       await mkdir(temporary);
       try {
-        await writeFile(join(temporary, "baseline.html"), input.html);
-        await writeFile(join(temporary, "preview.html"), input.html);
-        await writeFile(join(temporary, "document.html"), input.html);
-        await writeFile(join(temporary, "metadata.json"), JSON.stringify(metadata));
+        await settleAll([
+          writeFile(join(temporary, "baseline.html"), input.html),
+          writeFile(join(temporary, "preview.html"), input.html),
+          writeFile(join(temporary, "document.html"), input.html),
+          writeFile(join(temporary, "metadata.json"), JSON.stringify(metadata)),
+        ]);
         await rename(temporary, target);
       } catch (error) {
         await rm(temporary, { recursive: true, force: true });
@@ -182,27 +182,29 @@ export async function handleHtmlArtifactRequest(
         const input = await body(request);
         if (!input) { respond(response, 400, "Invalid document"); return true; }
         if (!isHtmlArtifactRevision(input.expected)) {
-          respond(response, 428, "An expected iteration revision is required"); return true;
+          respond(response, 428, "An expected unlinked frame revision is required"); return true;
         }
         if ((input.html !== undefined && typeof input.html !== "string")
           || (request.method === "PUT" && typeof input.html !== "string")) {
           respond(response, 400, "Invalid document"); return true;
         }
         const expected = input.expected;
-        if (!sameRevision(await readRevision(target), expected)) {
+        // One read serves the revision check, the committed document, and the preview rollback.
+        const [documentBefore, previewBefore] = await Promise.all([
+          readFile(join(target, "document.html")), readFile(join(target, "preview.html")),
+        ]);
+        if (!sameRevision({ document: revision(documentBefore), preview: revision(previewBefore) }, expected)) {
           respond(response, 409, HTML_ITERATION_CONFLICT); return true;
         }
-        const html = typeof input.html === "string" ? input.html : await readFile(join(target, "document.html"), "utf8");
+        const html = typeof input.html === "string" ? input.html : documentBefore.toString("utf8");
         const writes = request.method === "POST" ? ["preview.html"] : [];
         if (typeof input.html === "string") writes.push("document.html");
-        const previewBefore = await readFile(join(target, "preview.html"));
-        const temporaryFiles: Array<{ temporary: string; destination: string }> = [];
+        const temporaryFiles = writes.map((file) => ({
+          temporary: join(target, `${file}-${crypto.randomUUID()}.tmp`),
+          destination: join(target, file),
+        }));
         try {
-          for (const file of writes) {
-            const temporary = join(target, `${file}-${crypto.randomUUID()}.tmp`);
-            temporaryFiles.push({ temporary, destination: join(target, file) });
-            await writeFile(temporary, html);
-          }
+          await settleAll(temporaryFiles.map((file) => writeFile(file.temporary, html)));
           // External writers do not join this request queue, so the final check and replacements stay in one critical section.
           const latest = {
             document: revision(readFileSync(join(target, "document.html"))),
@@ -265,17 +267,17 @@ async function listArtifacts(root: string): Promise<HtmlArtifactMetadata[]> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
-  const found: HtmlArtifactMetadata[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !ID.test(entry.name)) continue;
+  const found = await Promise.all(entries.map(async (entry): Promise<HtmlArtifactMetadata | null> => {
+    if (!entry.isDirectory() || !ID.test(entry.name)) return null;
     try {
       const value: unknown = JSON.parse(await readFile(join(artifacts, entry.name, "metadata.json"), "utf8"));
-      if (isHtmlArtifactMetadata(value) && value.id === entry.name) found.push(value);
+      return isHtmlArtifactMetadata(value) && value.id === entry.name ? value : null;
     } catch {
       /* An artifact without readable metadata is not offered. */
+      return null;
     }
-  }
-  return found.sort((left, right) => right.capturedAt - left.capturedAt).slice(0, 200);
+  }));
+  return found.filter((value): value is HtmlArtifactMetadata => value !== null).sort((left, right) => right.capturedAt - left.capturedAt).slice(0, 200);
 }
 
 interface NewArtifact {

@@ -30,7 +30,7 @@
 .measurement-label {
   fill: #fff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 
@@ -58,36 +58,6 @@
   font-size: var(--font-size-base);
 }
 
-.dom-navigator__row {
-  position: relative;
-  display: grid;
-}
-
-.dom-navigator__expander {
-  appearance: none;
-  position: absolute;
-  top: 50%;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-4);
-  background: transparent;
-  color: var(--text-muted);
-  transform: translateY(-50%);
-}
-
-.dom-navigator__expander:hover,
-.dom-navigator__expander:focus-visible {
-  background: var(--surface-well-2x);
-  color: var(--text-primary);
-  outline: 0;
-}
-
 .dom-navigator__more {
   padding-block: var(--space-4);
   color: var(--text-muted);
@@ -99,8 +69,7 @@
   background: var(--linked);
 }
 
-.dom-navigator__trigger,
-.dom-navigator__item {
+.dom-navigator__trigger {
   appearance: none;
   display: flex;
   align-items: center;
@@ -135,6 +104,11 @@
   white-space: nowrap;
 }
 
+/* Without the menu button the label leads, so it takes the button's inset. */
+.dom-navigator[data-menu="false"] {
+  padding-left: var(--space-8);
+}
+
 .dom-navigator__positioner {
   z-index: 2;
   pointer-events: auto;
@@ -154,18 +128,6 @@
   box-shadow: var(--shadow-popup);
 }
 
-.dom-navigator__item {
-  width: 100%;
-  min-height: var(--control-height-small);
-  padding: 0 var(--space-8);
-  border-color: transparent;
-  border-radius: var(--radius-4);
-  background: transparent;
-  text-align: left;
-  font-family: var(--font-family);
-  font-size: var(--font-size-base);
-}
-
 .dom-navigator__trigger:hover {
   background: var(--surface-well);
   color: var(--surface-raised-2x);
@@ -176,16 +138,6 @@
   color: var(--surface-raised-2x);
   outline: 1px solid currentColor;
   outline-offset: -3px;
-}
-
-.dom-navigator__item:hover,
-.dom-navigator__item:focus-visible {
-  background: var(--surface-well);
-  outline: 0;
-}
-
-.dom-navigator__item--selected {
-  background: var(--accent-surface);
 }
 
 .dom-navigator-preview {

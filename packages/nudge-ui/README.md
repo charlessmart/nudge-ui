@@ -33,7 +33,7 @@ optional, so you only need the tools your app uses.
   borders, shadows, text, design tokens, and supported component props.
 - **Compare pages:** Open routes in Canvas frames, resize them, and create linked
   duplicates to compare the same design at different viewport sizes.
-- **Explore alternatives:** Create independent HTML iterations from a frame,
+- **Explore alternatives:** Unlink a frame into an independent HTML design,
   refine them, and ask an agent to implement your chosen design in the live app.
 - **Explain changes:** Add comments alongside visual edits, or sketch over the page and copy the image to paste into your agent.
 - **Hand off to an agent:** Copy a prompt with source context, comments, and
@@ -51,10 +51,11 @@ optional, so you only need the tools your app uses.
 Hold `Space` to pan the canvas. Use undo and redo to revisit edits and frame
 changes. Comments and pending edits are saved locally.
 
-Use **Duplicate** for a linked live frame or **Iteration** for an independent
-HTML design. Iterations save HTML and CSS under `.nudge/artifacts/` in your
-project. They capture the rendered design without the app's scripts. Iteration
-prompts ask the agent to edit that HTML; **Copy prompt for live app** asks it to
+Use **Duplicate** for a linked live frame, or the unlink button beside a frame's
+URL for an unlinked frame: an independent HTML design. Unlinked frames save HTML
+and CSS under `.nudge/artifacts/` in your project. They capture the rendered
+design without the app's scripts. Unlinked frame prompts ask the agent to edit
+that HTML; **Copy prompt for live app** asks it to
 implement the design in application source.
 
 After handoff, comments clear when Nudge detects that the target's content or
@@ -65,7 +66,7 @@ ambiguous targets keep their comments.
 ## Hand off to a coding agent
 
 Press **Copy prompt** in the inspector and paste the prompt into your agent. For
-an HTML iteration, the prompt menu offers **Copy iteration prompt** to keep
+an unlinked frame, the prompt menu offers **Copy unlinked frame prompt** to keep
 refining the standalone HTML, or **Copy prompt for live app** to implement the
 design in application source.
 

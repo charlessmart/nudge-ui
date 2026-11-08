@@ -224,6 +224,7 @@ describe("extractPackageComponentContracts", () => {
             ],
             optional: true,
           },
+          { name: "children", control: "text", options: [], optional: true },
         ],
       }]);
     } finally {
@@ -419,6 +420,55 @@ describe("extractPackageComponentContracts", () => {
           ],
         },
       ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("package wrapper detection", () => {
+  function wrapperFixture(): { root: string; hostFile: string } {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-package-wrappers-"));
+    const hostFile = writeFixtureFile(root, "src/App.tsx", "export {};");
+    writeFixtureFile(root, "node_modules/react/package.json", JSON.stringify({ name: "react", types: "index.d.ts" }));
+    writeFixtureFile(root, "node_modules/react/index.d.ts", `
+      export type ReactNode = unknown;
+      export type PropsWithChildren<P> = P & { children?: ReactNode };
+      export interface ProviderProps<T> { value: T; children?: ReactNode }
+      export type Provider<T> = (props: ProviderProps<T>) => unknown;
+      declare global {
+        namespace JSX {
+          interface Element {}
+          interface IntrinsicElements { [name: string]: unknown; }
+        }
+      }
+    `);
+    writeFixtureFile(root, "node_modules/@fixture/kit/package.json", JSON.stringify({ name: "@fixture/kit", types: "index.d.ts" }));
+    writeFixtureFile(root, "node_modules/@fixture/kit/index.d.ts", `
+      import type { PropsWithChildren, Provider } from "react";
+      export declare function Toast(props: PropsWithChildren<{ content?: string }>): unknown;
+      export declare function Heading(props: PropsWithChildren<{ level?: 1 | 2 | 3 }>): unknown;
+      export declare function ThemeProvider(props: PropsWithChildren<{ attribute?: "class" | "data-theme" }>): unknown;
+      export declare function Chip(props: PropsWithChildren<{ size?: "s" | "l"; className?: string }>): unknown;
+      export declare function Spinner(props: { size?: "s" | "l" }): unknown;
+      export declare const FlagProvider: Provider<"on" | "off">;
+    `);
+    return { root, hostFile };
+  }
+
+  it("reads wrappers from props, not names", () => {
+    const { root, hostFile } = wrapperFixture();
+    try {
+      const contracts = extractPackageComponentContracts({ hostFile, moduleSpecifier: "@fixture/kit" });
+      const roles = Object.fromEntries(contracts.map((contract) => [contract.name, contract.role ?? null]));
+      // Children, no styling surface and nothing to vary: nothing is drawn that a sheet could style.
+      expect(roles.Toast).toBe("wrapper");
+      // A variant axis means a real component, whatever it is called.
+      expect(roles.Heading).toBeNull();
+      expect(roles.Chip).toBeNull();
+      expect(roles.Spinner).toBeNull();
+      // Only when the structure is ambiguous does the name break the tie.
+      expect(roles.ThemeProvider).toBe("wrapper");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

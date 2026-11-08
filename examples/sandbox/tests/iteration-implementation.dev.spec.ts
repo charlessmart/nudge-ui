@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 async function createIteration(page: Page) {
   await page.goto("/playground");
   await expect(page.locator('[data-test="copy-iteration-implementation"]')).not.toBeAttached();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards).toHaveCount(2);
@@ -37,7 +37,7 @@ test("iteration implementation copies the saved design and requested edits for t
   await expect(button).toHaveAttribute("data-copied", "true");
   await expect(button).toContainText("Copied!");
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
-  expect(prompt).toContain("Please implement /playground · Iteration 1 in the live app.");
+  expect(prompt).toContain("Please implement /playground · Unlinked frame 1 in the live app.");
   expect(prompt).toContain(`The page is ${new URL("/playground", page.url()).href}.`);
   expect(prompt).toContain(`.nudge/artifacts/${artifactId}/document.html`);
   expect(prompt).toContain("including all my saved visual edits");
@@ -62,8 +62,8 @@ test("iteration implementation copies the saved design and requested edits for t
   await page.getByRole("menu").press("Escape");
   await expect(page.getByRole("menu")).not.toBeAttached();
   await button.press("ArrowDown");
-  const iteration = page.getByRole("menuitem", { name: /^Copy iteration prompt/ });
-  await expect(iteration).toContainText("Continue editing this HTML iteration.");
+  const iteration = page.getByRole("menuitem", { name: /^Copy unlinked frame prompt/ });
+  await expect(iteration).toContainText("Continue editing this unlinked frame.");
   await expect(iteration).toBeFocused();
   await iteration.press("Enter");
   await expect(page.getByRole("menu")).not.toBeAttached();

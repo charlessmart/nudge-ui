@@ -37,8 +37,10 @@ async function makeWidthEdit(page: Page, frame: Frame, value: string): Promise<v
 
 /** Card chrome (frame actions) renders only in the canvas presentation; single-frame projects open focused. */
 async function showCanvas(page: Page): Promise<void> {
-  const show = page.locator('[data-test="canvas-show-canvas"]');
-  if (await show.count() > 0) await show.click();
+  if (await page.locator('[data-test="canvas-workspace"]').getAttribute("data-presentation") === "focus") {
+    await page.locator('[data-test="canvas-zoom-menu"]').click();
+    await page.locator('[data-test="canvas-zoom-focus"]').click();
+  }
   await expect(page.locator('[data-test^="canvas-card-actions-"]')).toHaveCount(1, { timeout: 45_000 });
 }
 

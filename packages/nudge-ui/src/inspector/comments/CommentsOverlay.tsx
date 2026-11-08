@@ -11,7 +11,7 @@ import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
-import { commentFingerprint, commentViewport, resolveCommentElement } from "./element.ts";
+import { commentFingerprint, commentViewport, placeCommentElement } from "./element.ts";
 import { commentRoute, getCommentClearRevision, isCommentToolActive, removeComment, saveComment, subscribeComments, useComments, useCommentToolActive, type ElementComment } from "./store.ts";
 import { isReadingCommentSource, readCommentSource, reconcileComments } from "./verification.ts";
 import styles from "./CommentsOverlay.css?inline";
@@ -168,7 +168,7 @@ export function CommentsOverlay(): ReactElement | null {
           const key = `${comment.id}:${cardId}`;
           const bound = bindings.current.get(key);
           const element = bound?.iframe === iframe && bound.element.isConnected && bound.element.ownerDocument === doc
-            ? bound.element : resolveCommentElement(doc, comment.target);
+            ? bound.element : placeCommentElement(doc, comment.target);
           if (!element) continue;
           bindings.current.set(key, { element, iframe });
           const anchor = anchorFor(iframe, element);

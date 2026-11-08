@@ -22,13 +22,16 @@ import {
   getCanvasCards,
   addCanvasCard,
   addCanvasIteration,
+  openComponentSheet,
   duplicateCard,
   hydrateCanvasStore,
   removeCanvasCard as removeCanvasCardStore,
   focusCard,
   getFocusedCardId,
   resizeCard,
+  revealCanvasCard,
   selectCard,
+  getSelectedCardId,
 } from "./canvasStore.ts";
 import {
   getCanvasMode,
@@ -38,7 +41,9 @@ import {
   getCanvasPresentation,
   setBoardCamera,
 } from "./viewStore.ts";
-import { activateDraftForCard, getDraftContentsForCard, loadDrafts, resetDrafts } from "../drafts/store.ts";
+import { activateDraftForCard, getDraftContentsForCard, loadDrafts, redo, resetDrafts, undo } from "../drafts/store.ts";
+import { getComments, removeComment, saveComment, type ElementComment } from "../comments/store.ts";
+import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
@@ -275,6 +280,69 @@ describe("sessionStore hydration", () => {
     expect(getDraftContentsForCard(original.id)?.changes).toMatchObject([{ rawValue: "red" }]);
   });
 
+  it("restores component sheet frames", () => {
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    expect(sheet.x).toBeLessThan(0);
+    expect(openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" }).id).toBe(sheet.id);
+    persistSession();
+    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+
+    expect(hydrateSession().restored).toBe(true);
+    expect(getCanvasCards().find((card) => card.id === sheet.id)?.content)
+      .toEqual({ kind: "component", componentId: "src/Button.tsx:Button", name: "Button" });
+    expect(getCanvasCards()).toHaveLength(2);
+  });
+
+  it("centres the camera on the component sheet instead of fitting its app frame too", () => {
+    setCanvasPresentation("canvas");
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    const camera = getBoardCamera();
+
+    const centreX = (sheet.x + sheet.width / 2) * camera.zoom + camera.x;
+    const centreY = (sheet.y + sheet.height / 2) * camera.zoom + camera.y;
+    expect(centreX).toBeCloseTo(window.innerWidth / 2);
+    expect(centreY).toBeCloseTo(window.innerHeight / 2);
+  });
+
+  it("centres the camera on a page revealed from the navigator", () => {
+    setCanvasPresentation("canvas");
+    addCanvasCard(localUrl("/first"));
+    const second = addCanvasCard(localUrl("/second"));
+    revealCanvasCard(second.id);
+    const camera = getBoardCamera();
+
+    const centreX = (second.x + second.width / 2) * camera.zoom + camera.x;
+    const centreY = (second.y + second.height / 2) * camera.zoom + camera.y;
+    expect(getSelectedCardId()).toBe(second.id);
+    expect(centreX).toBeCloseTo(window.innerWidth / 2);
+    expect(centreY).toBeCloseTo(window.innerHeight / 2);
+  });
+
+  it("shows the component sheet in place when opened from focus view", () => {
+    setCanvasPresentation("focus");
+    addCanvasCard(localUrl("/first"));
+    const camera = getBoardCamera();
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+
+    expect(getCanvasPresentation()).toBe("focus");
+    expect(getFocusedCardId()).toBe(sheet.id);
+    expect(getBoardCamera()).toEqual(camera);
+  });
+
+  it("routes the focused sheet to the next component in focus view instead of adding a frame", () => {
+    setCanvasPresentation("focus");
+    addCanvasCard(localUrl("/first"));
+    const sheet = openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" });
+    const routed = openComponentSheet({ componentId: "src/Badge.tsx:Badge", name: "Badge" });
+
+    expect(routed.id).toBe(sheet.id);
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(routed.content).toEqual({ kind: "component", componentId: "src/Badge.tsx:Badge", name: "Badge" });
+    expect(getFocusedCardId()).toBe(sheet.id);
+  });
+
   it("restores geometry without replacing the current draft's intent", () => {
     persistSession();
     appendChange(makeElementChange({ rawValue: "purple" }));
@@ -446,6 +514,40 @@ describe("sessionStore hydration", () => {
 describe("sessionStore clear session", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
+
+  it("clears the selected frame's changes and comments as one step that undo and redo replay", () => {
+    resetDrafts();
+    const card = addCanvasCard(localUrl("/first"));
+    loadDrafts(nudgeUiProjectId);
+    activateDraftForCard(card.id);
+    selectCard(card.id);
+    appendChange(makeElementChange({ rawValue: "red" }));
+    const element = document.createElement("button");
+    element.dataset.cid = "Button";
+    element.dataset.src = "src/Button.tsx:1:1";
+    document.body.append(element);
+    const note: ElementComment = {
+      id: "note", route: localUrl("/first"), target: captureRenderedInstance(element)!,
+      tag: "button", note: "Make this bigger", baseline: "", viewport: "", handedOff: false,
+    };
+    saveComment(note);
+    try {
+      clearSelectedFrameChanges();
+      expect(getDraftContentsForCard(card.id)?.changes).toEqual([]);
+      expect(getComments()).toEqual([]);
+
+      expect(undo()).toBe(true);
+      expect(getDraftContentsForCard(card.id)?.changes[0]).toMatchObject({ rawValue: "red" });
+      expect(getComments()).toEqual([note]);
+
+      expect(redo()).toBe(true);
+      expect(getDraftContentsForCard(card.id)?.changes).toEqual([]);
+      expect(getComments()).toEqual([]);
+    } finally {
+      removeComment(note.id);
+      resetDrafts();
+    }
+  });
 
   it("clears only the selected draft and preserves canvas geometry and other frame edits", () => {
     resetDrafts();

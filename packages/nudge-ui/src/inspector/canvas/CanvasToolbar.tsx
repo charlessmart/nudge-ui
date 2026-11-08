@@ -8,7 +8,7 @@ import {
   IconPointer2,
   IconSketching,
 } from "@tabler/icons-react";
-import { AddPageMenu } from "./AddPageMenu.tsx";
+import { CanvasZoomMenu, type CanvasZoomMenuProps } from "./CanvasZoomMenu.tsx";
 import { ToolbarButton } from "./ToolbarButton.tsx";
 import {
   DesignPointerFilledIcon,
@@ -28,7 +28,7 @@ import { INSPECTION_SHORTCUTS, type CanvasInteractionTool } from "./keyboardShor
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
-export const CANVAS_ZOOM_LEVELS = [0.25, 0.5, 0.9, 1] as const;
+export const CANVAS_ZOOM_LEVELS = [0.25, 0.5, 0.9, 1, 1.5, 2, 3] as const;
 
 export function closestCanvasZoomLevel(zoom: number): number {
   let closest: number = CANVAS_ZOOM_LEVELS[0];
@@ -38,20 +38,21 @@ export function closestCanvasZoomLevel(zoom: number): number {
   return closest;
 }
 
+/** The next preset past the current zoom, so a zoom between presets steps to the nearer one in that direction. */
 export function adjacentCanvasZoomLevel(zoom: number, direction: -1 | 1): number | null {
-  const current = closestCanvasZoomLevel(zoom);
-  const index = CANVAS_ZOOM_LEVELS.findIndex((candidate) => candidate === current);
-  const next = CANVAS_ZOOM_LEVELS[index + direction];
-  return next === undefined ? null : next;
+  const epsilon = 0.001;
+  const next = direction > 0
+    ? CANVAS_ZOOM_LEVELS.find((candidate) => candidate > zoom + epsilon)
+    : [...CANVAS_ZOOM_LEVELS].reverse().find((candidate) => candidate < zoom - epsilon);
+  return next ?? null;
 }
 
 export interface CanvasToolbarProps {
   readonly tool: CanvasInteractionTool;
   readonly sketchEnabled: boolean;
-  /** The Add page button slides in beside Inspection while the Canvas is showing, and out again in Focus view. */
-  readonly addPageVisible: boolean;
-  readonly onPageAdded: (cardId: string) => void;
   readonly onToolChange: (tool: CanvasInteractionTool) => void;
+  /** The zoom control at the toolbar's end; left out where the page has no Canvas to zoom. */
+  readonly zoom?: CanvasZoomMenuProps;
 }
 
 const ICON_SIZE = "var(--icon-size-large)";
@@ -155,20 +156,19 @@ function useDraggableToolbar() {
 export function CanvasToolbar({
   tool,
   sketchEnabled,
-  addPageVisible,
-  onPageAdded,
   onToolChange,
+  zoom,
 }: CanvasToolbarProps): ReactElement {
   const { ref, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } = useDraggableToolbar();
-  const [addPageOpen, setAddPageOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
 
-  // The Inspection panel and the Add page menu float over the same spot, so only one is open at a time.
+  // The Inspection panel and the zoom menu float over the same spot, so only one is open at a time.
   useEffect(() => {
-    if (tool === "debug") setAddPageOpen(false);
+    if (tool === "debug") setZoomOpen(false);
   }, [tool]);
 
-  function changeAddPageOpen(open: boolean): void {
-    setAddPageOpen(open);
+  function changeZoomOpen(open: boolean): void {
+    setZoomOpen(open);
     // Selecting the active Inspection tool again puts it away.
     if (open && tool === "debug") onToolChange("debug");
   }
@@ -188,18 +188,6 @@ export function CanvasToolbar({
       onDoubleClick={onDoubleClick}
     >
       <div className="canvas-toolbar__grip" aria-hidden="true" />
-      <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
-        <ToolbarButton
-          active={tool === "select"}
-          label="Use app normally"
-          shortcut="Hold A"
-          icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
-          activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
-          dataTest="canvas-tool-select"
-          onClick={() => onToolChange("select")}
-        />
-      </div>
-      <div className="canvas-toolbar__divider" aria-hidden="true" />
       <div className="canvas-toolbar__tools" role="group" aria-label="Interaction tools">
         <ToolbarButton
           active={tool === "design"}
@@ -238,12 +226,20 @@ export function CanvasToolbar({
           dataTest="canvas-tool-debug"
           onClick={() => onToolChange("debug")}
         />
-        <div className="canvas-toolbar__add" data-visible={addPageVisible ? "true" : "false"} data-test="canvas-toolbar-add-page">
-          <div className="canvas-toolbar__add-inner">
-            <div className="canvas-toolbar__divider" aria-hidden="true" />
-            <AddPageMenu onAdded={onPageAdded} open={addPageOpen} onOpenChange={changeAddPageOpen} />
-          </div>
-        </div>
+      </div>
+      <div className="canvas-toolbar__divider" aria-hidden="true" />
+      {/* Previewing the app and zooming change how the page is viewed, not the page itself. */}
+      <div className="canvas-toolbar__tools" role="group" aria-label="Preview tools">
+        <ToolbarButton
+          active={tool === "select"}
+          label="Use app normally"
+          shortcut="Hold A"
+          icon={<SelectPlayOutlineIcon size={ICON_SIZE} aria-hidden="true" />}
+          activeIcon={<SelectPlayFilledIcon size={ICON_SIZE} aria-hidden="true" />}
+          dataTest="canvas-tool-select"
+          onClick={() => onToolChange("select")}
+        />
+        {zoom ? <CanvasZoomMenu {...zoom} open={zoomOpen} onOpenChange={changeZoomOpen} /> : null}
       </div>
     </div>
   );

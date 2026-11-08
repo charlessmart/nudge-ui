@@ -8,7 +8,6 @@ export const vanillaExtractDialect: StylingDialect = {
   literalTokens: false,
   // A published contract only names variables; the theme class's stylesheet holds the values.
   declaredOnPage: true,
-  promptGuidance: "vanilla-extract: tokens are paths in the theme contract; use them through the contract in .css.ts files or through sprinkles props, not as raw custom properties.",
 };
 
 /** vanilla-extract generates custom-property names, so the contract is the only source of the authored path. */

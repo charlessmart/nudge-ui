@@ -207,10 +207,10 @@
 
 /* Subheadings inside the layout options menu share the editor title's label style. */
 .layout__subheading {
+  text-wrap: balance;
   color: var(--text-primary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-label);
-  letter-spacing: -0.02em;
   line-height: 1.25;
 }
 
@@ -363,7 +363,7 @@
 .layout__alignment-glyph > span {
   flex: 0 0 auto;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--brand-primary);
 }
 
 .layout__alignment-glyph[data-axis="row"] > span {
@@ -377,12 +377,12 @@
 /* Spread items run the whole main axis, kept clear of the grid's edge. */
 .layout__alignment-glyph[data-distributed="true"][data-axis="row"] {
   justify-self: stretch;
-  padding-inline: 8px;
+  padding-inline: var(--space-8);
 }
 
 .layout__alignment-glyph[data-distributed="true"][data-axis="column"] {
   align-self: stretch;
-  padding-block: 8px;
+  padding-block: var(--space-8);
 }
 
 .layout__spacing-field {

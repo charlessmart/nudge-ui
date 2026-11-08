@@ -8,6 +8,7 @@ import type {
   ComponentPropBaseline,
   ComponentPropValue,
 } from "../componentSemantics/types.ts";
+import { isVariantScopeValue, type VariantScope } from "../componentSemantics/variantMarkers.ts";
 import type {
   EditScope,
   RenderedInstanceOverride,
@@ -61,6 +62,8 @@ export interface SerializableElementChange {
   sourceInstanceCount?: number;
   instanceOverride?: RenderedInstanceOverride;
   state?: NonNullable<ElementChangeRecord["state"]>;
+  preservedStates?: NonNullable<ElementChangeRecord["preservedStates"]>;
+  variantScope?: VariantScope;
 }
 
 export interface SerializableTokenChange {
@@ -121,7 +124,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || !hasOnlyKeys(value, [
       "kind", "cid", "file", "line", "column", "selector", "property",
       "sourceProperty", "sourceAuthoredValue", "oldToken", "newToken", "rawValue",
-      "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "sourceInstanceCount", "instanceOverride", "state",
+      "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "sourceInstanceCount", "instanceOverride", "state", "preservedStates", "variantScope",
     ])
     || (value.kind !== undefined && value.kind !== "element")
     || typeof value.cid !== "string"
@@ -144,7 +147,10 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
       && (!isNonNegativeSafeInteger(value.sourceInstanceCount) || value.sourceInstanceCount < 1))
     || (value.instanceOverride !== undefined && value.scope !== "rendered-instance")
     || (value.scope === "rendered-instance" && !isRenderedInstanceOverride(value.instanceOverride))
-    || (value.state !== undefined && !isElementStateValue(value.state))) {
+    || (value.state !== undefined && !isElementStateValue(value.state))
+    || (value.preservedStates !== undefined && !isPreservedStatesValue(value.preservedStates))
+    || (value.variantScope !== undefined
+      && (!isVariantScopeValue(value.variantScope) || value.scope === "rendered-instance"))) {
     return false;
   }
   return true;
@@ -229,6 +235,8 @@ export function serializeElementChange(change: ElementChangeRecord): Serializabl
     ...(change.sourceInstanceCount !== undefined ? { sourceInstanceCount: change.sourceInstanceCount } : {}),
     instanceOverride: change.scope === "rendered-instance" ? change.instanceOverride : undefined,
     state: change.state,
+    ...(change.preservedStates?.length ? { preservedStates: [...change.preservedStates] } : {}),
+    ...(change.variantScope && change.scope !== "rendered-instance" ? { variantScope: cloneVariantScope(change.variantScope) } : {}),
   };
 }
 
@@ -321,6 +329,9 @@ export function deserializeElementChange(serialized: SerializableElementChange):
     ...(serialized.sourceInstanceCount !== undefined ? { sourceInstanceCount: serialized.sourceInstanceCount } : {}),
     instanceOverride: serialized.scope === "rendered-instance" ? serialized.instanceOverride : undefined,
     state: serialized.state,
+    ...(serialized.preservedStates?.length ? { preservedStates: [...serialized.preservedStates] } : {}),
+    ...(serialized.variantScope && serialized.scope !== "rendered-instance"
+      ? { variantScope: cloneVariantScope(serialized.variantScope) } : {}),
   };
 }
 
@@ -517,6 +528,10 @@ function isAuthoredPropKindValue(value: unknown): value is ComponentChangeRecord
   return value === "literal" || value === "expression" || value === "spread" || value === "default";
 }
 
+function isPreservedStatesValue(value: unknown): value is NonNullable<ElementChangeRecord["preservedStates"]> {
+  return Array.isArray(value) && value.every((state) => state !== "base" && isElementStateValue(state));
+}
+
 function isElementStateValue(value: unknown): value is NonNullable<ElementChangeRecord["state"]> {
   return value === "base"
     || value === "hover"
@@ -540,4 +555,8 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function cloneVariantScope(scope: VariantScope): VariantScope {
+  return { componentName: scope.componentName, props: { ...scope.props } };
 }

@@ -4,7 +4,7 @@ import {
   NUDGE_UI_MANIFEST_PATH,
 } from "../manifest.ts";
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
-import { ANIMATION_CLOCK_SCRIPT } from "../../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../../inspector/canvas/documentHeadScript.ts";
 
 const CLIENT_MARKER = "data-nudge-ui-client";
 const MOUNT_MARKER = "data-nudge-ui-mount";
@@ -55,7 +55,7 @@ export function injectStandaloneBootstrap(
   return {
     html: clockOffset === null
       ? withBootstrap
-      : `${withBootstrap.slice(0, clockOffset)}\n<script ${CLOCK_MARKER}>${ANIMATION_CLOCK_SCRIPT}</script>${withBootstrap.slice(clockOffset)}`,
+      : `${withBootstrap.slice(0, clockOffset)}\n<script ${CLOCK_MARKER}>${DOCUMENT_HEAD_SCRIPT}</script>${withBootstrap.slice(clockOffset)}`,
     injected: true,
   };
 }

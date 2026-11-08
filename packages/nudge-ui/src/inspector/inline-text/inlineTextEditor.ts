@@ -1123,7 +1123,7 @@ export function beginInlineTextEditFromEmptyProjection(
   marker: HTMLElement,
 ): InlineTextSession | TextEditRejection {
   if (!canEditDraft()) {
-    return { kind: "rejected", reason: "editing-active", message: "Wait for the iteration to finish saving before editing text." };
+    return { kind: "rejected", reason: "editing-active", message: "Wait for the unlinked frame to finish saving before editing text." };
   }
   if (!isNudgeUiDev()) {
     return {
@@ -1160,7 +1160,7 @@ export function beginInlineTextEdit(
   point?: { x: number; y: number },
 ): InlineTextSession | TextEditRejection {
   if (!canEditDraft()) {
-    return { kind: "rejected", reason: "editing-active", message: "Wait for the iteration to finish saving before editing text." };
+    return { kind: "rejected", reason: "editing-active", message: "Wait for the unlinked frame to finish saving before editing text." };
   }
   if (!isNudgeUiDev()) {
     return {

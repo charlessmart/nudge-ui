@@ -5,21 +5,22 @@ export interface InlineTextFeedback {
   readonly message: string;
 }
 
+/** Each message says why the edit was refused, then what to do instead. */
 const FEEDBACK_BY_REASON = {
   "no-text": {
-    message: "Cannot edit text - No visible text",
+    message: "Can't edit: no text here. Double-click the words instead.",
   },
   "no-binding": {
-    message: "Cannot edit text - No safe source binding",
+    message: "Can't edit: this text isn't traced to your source. Change it in your code.",
   },
   "ambiguous-binding": {
-    message: "Cannot edit text - Ambiguous source binding",
+    message: "Can't edit: this text renders in several places. Change it in your code.",
   },
   "editing-active": {
-    message: "Cannot edit text - Another edit is active",
+    message: "Can't edit yet: finish the open text edit first.",
   },
   "unsafe-target": {
-    message: "Cannot edit text - Unsupported text markup",
+    message: "Can't edit: this text contains other markup. Change it in your code.",
   },
 } satisfies Record<TextEditRejectionReason, InlineTextFeedback>;
 

@@ -1,8 +1,8 @@
 .rolling-text {
-  --rolling-text-out-duration: 120ms;
-  --rolling-text-in-duration: 160ms;
-  /* The new character waits this long, so the old one has all but gone before it starts to appear. */
-  --rolling-text-in-delay: 110ms;
+  --rolling-text-out-duration: 80ms;
+  --rolling-text-in-duration: 130ms;
+  /* The new character waits this long, so the old one has all but gone before it starts to appear; the roll ends by 200ms. */
+  --rolling-text-in-delay: 70ms;
   display: inline-flex;
   white-space: pre;
   font-variant-numeric: tabular-nums;
@@ -26,11 +26,11 @@
   top: 0;
   left: 0;
   pointer-events: none;
-  animation: rolling-text-out var(--rolling-text-out-duration) cubic-bezier(0.4, 0, 1, 1) both;
+  animation: rolling-text-out var(--rolling-text-out-duration) ease-in both;
 }
 
 .rolling-text__in[data-rolling] {
-  animation: rolling-text-in var(--rolling-text-in-duration) cubic-bezier(0, 0, 0.2, 1) var(--rolling-text-in-delay) both;
+  animation: rolling-text-in var(--rolling-text-in-duration) ease-out var(--rolling-text-in-delay) both;
 }
 
 /* A quarter of its own height each way, so the character shifts rather than travels, and the exit and entrance mirror

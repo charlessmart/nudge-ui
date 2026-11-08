@@ -182,7 +182,7 @@ function conditionalObjectMatches(
   });
 }
 
-function literalOptions(
+export function literalOptions(
   members: readonly ts.Type[],
   checker: ts.TypeChecker,
   location: ts.Node,
@@ -207,7 +207,7 @@ function literalOptions(
   return values;
 }
 
-function isBooleanType(
+export function isBooleanType(
   members: readonly ts.Type[],
   checker: ts.TypeChecker,
   location: ts.Node,
@@ -225,7 +225,7 @@ function isBooleanType(
   return values.has(false) && values.has(true);
 }
 
-function propContract(
+export function propContract(
   symbol: ts.Symbol,
   checker: ts.TypeChecker,
   location: ts.Node,
@@ -264,6 +264,76 @@ function propContract(
   return null;
 }
 
+const VOID_ATTRIBUTE_INTERFACES = new Set([
+  "InputHTMLAttributes", "ImgHTMLAttributes", "TextareaHTMLAttributes", "AreaHTMLAttributes",
+  "BaseHTMLAttributes", "ColHTMLAttributes", "EmbedHTMLAttributes", "LinkHTMLAttributes",
+  "MetaHTMLAttributes", "SourceHTMLAttributes", "TrackHTMLAttributes",
+]);
+
+/** DOM attribute interfaces all declare `children`, so only element-specific evidence can mark a void element. */
+function declaredByVoidElementAttributes(propsType: ts.Type, checker: ts.TypeChecker): boolean {
+  return checker.getPropertiesOfType(propsType).some((symbol) =>
+    symbol.getDeclarations()?.some((declaration) => {
+      const parent = declaration.parent;
+      return ts.isInterfaceDeclaration(parent) && VOID_ATTRIBUTE_INTERFACES.has(parent.name.text);
+    }) ?? false);
+}
+
+export function acceptsChildren(propsType: ts.Type, checker: ts.TypeChecker, location: ts.Node): boolean {
+  const children = checker.getPropertyOfType(propsType, "children");
+  if (!children) return false;
+  const type = checker.getTypeOfSymbolAtLocation(children, location);
+  const members = (type.isUnion() ? type.types : [type])
+    .filter((member) => (member.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Void)) === 0);
+  if (members.length === 0 || members.every((member) => (member.flags & ts.TypeFlags.Never) !== 0)) return false;
+  if (members.every((member) => member.getCallSignatures().length > 0)) return false;
+  const declarations = children.getDeclarations() ?? [];
+  const inherited = declarations.length > 0 && declarations.every((declaration) => {
+    const parent = declaration.parent;
+    return ts.isInterfaceDeclaration(parent) && parent.name.text === "DOMAttributes";
+  });
+  return !inherited || !declaredByVoidElementAttributes(propsType, checker);
+}
+
+// Props a component forwards to something it renders: a component taking any of these draws a surface of its own.
+const STYLE_SURFACE_PROPS = ["className", "class", "style", "css", "sx"];
+const DOM_ATTRIBUTE_INTERFACE = /(?:HTML|SVG|DOM|Aria)Attributes$/;
+// With children, a variant axis and no styling surface, a name is the only evidence left: a ThemeProvider takes
+// `attribute: "class" | "data-theme"`, a Heading takes `level: 1 | 2 | 3`.
+const AMBIGUOUS_WRAPPER_NAME = /(?:Provider|Context|Boundary|Portal)$/;
+
+/** Whether the props reach an element: a styling prop, or a prop inherited from a DOM attribute interface. */
+function hasStyleSurface(propsType: ts.Type, checker: ts.TypeChecker): boolean {
+  if (STYLE_SURFACE_PROPS.some((name) => checker.getPropertyOfType(propsType, name))) return true;
+  return checker.getPropertiesOfType(propsType).some((symbol) =>
+    symbol.getName() !== "children"
+    && (symbol.getDeclarations()?.some((declaration) => {
+      const parent = declaration.parent;
+      return ts.isInterfaceDeclaration(parent) && DOM_ATTRIBUTE_INTERFACE.test(parent.name.text);
+    }) ?? false));
+}
+
+/**
+ * Whether a package export renders no UI of its own. React's `Provider` type says so outright. Otherwise a component
+ * that takes `children` but no styling surface has no element to style: a Dialog root, a Tooltip, a context provider.
+ * A component with variant axes is only a wrapper when its name says so, because showing a wrapper costs a click
+ * and hiding a real component hides it from the library.
+ */
+export function isWrapperExport(
+  exportName: string,
+  componentType: ts.Type,
+  propsType: ts.Type,
+  props: readonly ComponentPropContract[],
+  checker: ts.TypeChecker,
+  location: ts.Node,
+): boolean {
+  if (isNamedType(componentType, "Provider") || isNamedType(componentType, "ProviderExoticComponent")) return true;
+  if (hasStyleSurface(propsType, checker)) return false;
+  if (!acceptsChildren(propsType, checker, location)) return false;
+  const hasVariantAxis = props.some((prop) => prop.name !== "children" && prop.control !== "text");
+  return !hasVariantAxis || AMBIGUOUS_WRAPPER_NAME.test(exportName);
+}
+
 function packageName(moduleSpecifier: string): string {
   const parts = moduleSpecifier.split("/");
   return moduleSpecifier.startsWith("@")
@@ -296,7 +366,7 @@ function packageDeclaredSymbols(
   );
 }
 
-function propsTypeFromComponent(
+export function propsTypeFromComponent(
   componentType: ts.Type,
   checker: ts.TypeChecker,
   location: ts.Node,
@@ -330,6 +400,10 @@ function componentContract(
   const props = packageDeclaredSymbols(propsType, checker, packageRoot)
     .map((prop) => propContract(prop, checker, declaration))
     .filter((prop): prop is ComponentPropContract => prop !== null);
+  // `children` is declared by React's types, not the package, but a sheet needs it to show a label.
+  if (props.length > 0 && !props.some((prop) => prop.name === "children") && acceptsChildren(propsType, checker, declaration)) {
+    props.push({ name: "children", control: "text", options: [], optional: true });
+  }
   if (props.length === 0) return null;
   return {
     componentId: componentIdentity(moduleSpecifier, exportName),
@@ -337,6 +411,7 @@ function componentContract(
     file: moduleSpecifier,
     props,
     provenance: "typescript",
+    ...(isWrapperExport(exportName, componentType, propsType, props, checker, declaration) ? { role: "wrapper" as const } : {}),
   };
 }
 

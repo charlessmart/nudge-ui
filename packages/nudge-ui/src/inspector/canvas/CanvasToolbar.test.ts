@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { adjacentCanvasZoomLevel, closestCanvasZoomLevel } from "./CanvasToolbar.tsx";
-import { APP_INTERACTION_KEY, canvasToolForCode, canvasToolForEvent, inspectionViewForCode } from "./keyboardShortcuts.ts";
+import { canvasZoomLabel } from "./CanvasZoomMenu.tsx";
+import { APP_INTERACTION_KEY, canvasToolForCode, canvasToolForEvent, canvasZoomStepForEvent, inspectionViewForCode } from "./keyboardShortcuts.ts";
 
 describe("canvas toolbar zoom presets", () => {
   it("snaps arbitrary canvas zoom to the nearest preset", () => {
@@ -11,8 +12,16 @@ describe("canvas toolbar zoom presets", () => {
   it("steps through presets and stops at each end", () => {
     expect(adjacentCanvasZoomLevel(0.9, -1)).toBe(0.5);
     expect(adjacentCanvasZoomLevel(0.9, 1)).toBe(1);
+    expect(adjacentCanvasZoomLevel(1, 1)).toBe(1.5);
+    expect(adjacentCanvasZoomLevel(0.7, 1)).toBe(0.9);
+    expect(adjacentCanvasZoomLevel(0.7, -1)).toBe(0.5);
     expect(adjacentCanvasZoomLevel(0.25, -1)).toBeNull();
-    expect(adjacentCanvasZoomLevel(1, 1)).toBeNull();
+    expect(adjacentCanvasZoomLevel(3, 1)).toBeNull();
+  });
+
+  it("labels Focus as 100% whatever the Canvas camera", () => {
+    expect(canvasZoomLabel("canvas", 0.9)).toBe("90%");
+    expect(canvasZoomLabel("focus", 0.5)).toBe("100%");
   });
 });
 
@@ -34,6 +43,19 @@ describe("canvas toolbar keyboard shortcuts", () => {
     ["KeyX", "explode"],
   ])("maps %s to the %s view", (code, view) => {
     expect(inspectionViewForCode(code)).toBe(view);
+  });
+
+  it("maps the zoom chords with either modifier, shifted or on the keypad", () => {
+    const chord = (code: string, keys: { metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean } = { metaKey: true }) => (
+      canvasZoomStepForEvent({ code, metaKey: false, ctrlKey: false, altKey: false, ...keys })
+    );
+    expect(chord("Equal")).toBe(1);
+    expect(chord("NumpadAdd", { ctrlKey: true })).toBe(1);
+    expect(chord("Minus")).toBe(-1);
+    expect(chord("NumpadSubtract")).toBe(-1);
+    expect(chord("Equal", {})).toBeNull();
+    expect(chord("Equal", { metaKey: true, altKey: true })).toBeNull();
+    expect(chord("KeyV")).toBeNull();
   });
 
   it("does not map the app interaction key to a canvas tool", () => {

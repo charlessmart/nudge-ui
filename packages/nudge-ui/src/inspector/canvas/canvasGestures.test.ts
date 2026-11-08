@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ZOOM_WHEEL_FACTOR, zoomCameraAtPointer } from "./canvasGestures.ts";
+import { ZOOM_WHEEL_FACTOR, zoomCameraAbout, zoomCameraAtPointer } from "./canvasGestures.ts";
 
 describe("canvas gesture coordinate conversion", () => {
   const camera = { x: 0, y: 0, zoom: 1 };
@@ -15,6 +15,12 @@ describe("canvas gesture coordinate conversion", () => {
   it("caps one event at a full notch", () => {
     expect(zoomCameraAtPointer(camera, at, rect, -1000).zoom).toBeCloseTo(ZOOM_WHEEL_FACTOR);
     expect(zoomCameraAtPointer(camera, at, rect, 1000).zoom).toBeCloseTo(1 / ZOOM_WHEEL_FACTOR);
+  });
+
+  it("zooms to a level about a board point that stays put", () => {
+    const next = zoomCameraAbout({ x: 100, y: 50, zoom: 1 }, 2, { x: 300, y: 250 });
+    expect(next).toEqual({ x: -100, y: -150, zoom: 2 });
+    expect(zoomCameraAbout(camera, 100, at).zoom).toBe(3);
   });
 
   it("keeps the world point under the pointer fixed while zooming", () => {

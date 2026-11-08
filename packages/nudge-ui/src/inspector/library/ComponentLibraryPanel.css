@@ -1,0 +1,221 @@
+.component-library {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-8);
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.component-library__search {
+  position: relative;
+  padding: var(--space-12) var(--space-8) var(--space-8);
+}
+
+.component-library__search .text-input {
+  width: 100%;
+  padding-left: 28px;
+}
+
+.component-library__search-icon {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-8) + 8px);
+  translate: 0 calc(-50% + 2px);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.component-library__list {
+  padding: 0 0 var(--space-8);
+}
+
+.component-library__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.component-library__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-8);
+}
+
+.component-library__row:hover {
+  background: var(--surface-control);
+}
+
+.component-library__row:hover .component-library__item {
+  color: var(--text-primary);
+}
+
+/* Revealed on hover, and kept while its menu is open; the row's own button opens the sheet. */
+.component-library__row .component-library__more {
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  display: none;
+  translate: 0 -50%;
+}
+
+.component-library__row:hover .component-library__more,
+.component-library__row:has(:focus-visible) .component-library__more,
+.component-library__row .component-library__more[data-popup-open] {
+  display: inline-flex;
+}
+
+.component-library__row:has(.component-library__more[data-popup-open]) {
+  background: var(--surface-control);
+}
+
+.component-library__row:hover .component-library__item-name {
+  padding-right: var(--control-height-small);
+}
+
+/* Sized to its items; the shared popup's 280px width is for editor panels. */
+.inspector-popover__popup.component-library__menu {
+  width: max-content;
+}
+
+.component-library__menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--control-height-small);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-4);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  outline: 0;
+}
+
+.component-library__menu-item[data-highlighted] {
+  background: var(--surface-control);
+}
+
+.component-library__menu-item[data-disabled] {
+  color: var(--text-muted-subtle);
+  cursor: default;
+}
+
+.component-library__menu-separator {
+  height: 1px;
+  margin: var(--space-4) 0;
+  background: var(--border-subtle);
+}
+
+.component-library__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.component-library__item[data-active="true"] {
+  background: var(--surface-well);
+  color: var(--text-primary);
+}
+
+.component-library__item-icon {
+  flex: none;
+  color: var(--linked);
+}
+
+.component-library__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-library__empty {
+  margin: var(--space-12) var(--space-8);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.component-library__group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-4) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.component-library__group-toggle span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.component-library__group-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.component-library__group-chevron {
+  flex: none;
+  transition: transform 120ms ease;
+}
+
+.component-library__group-toggle[aria-expanded="true"] .component-library__group-chevron {
+  transform: rotate(90deg);
+}
+
+.component-library__group-count {
+  flex: none;
+  color: var(--text-muted-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.component-library__list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.component-library__section + .component-library__section {
+  margin-top: var(--space-16);
+}
+
+.component-library__section-label {
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-8);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-label);
+  letter-spacing: -0.02em;
+}
+
+.component-library__group-toggle {
+  min-height: 28px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.component-library__item-source {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted-subtle);
+  font-size: var(--font-size-base);
+  text-overflow: ellipsis;
+}
+

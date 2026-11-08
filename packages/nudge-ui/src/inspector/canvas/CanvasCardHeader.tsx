@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import { IconBoltFilled, IconCopy, IconShape, IconTrash } from "@tabler/icons-react";
+import { IconArrowLeft, IconArrowRight, IconBoltFilled, IconCopy, IconTrash, IconUnlink } from "@tabler/icons-react";
 import type { CanvasCard } from "./canvasStore.ts";
-import { contentSourceUrl, iterationId } from "./frameContent.ts";
+import { contentSourceUrl, flowStateOf, iterationId } from "./frameContent.ts";
 import { resolveFrameUrl } from "./appRoute.ts";
-import { Button } from "../ui/Button.tsx";
+import { stepFrameHistory, visitFrameUrl, type FrameHistory } from "./frameHistory.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
-import { SelectPlayFilledIcon } from "./CanvasToolIcons.tsx";
+import { SelectPlayOutlineIcon } from "./CanvasToolIcons.tsx";
 
 export interface CanvasCardHeaderProps {
   readonly card: CanvasCard;
@@ -57,17 +57,39 @@ export function CanvasCardHeader({
   onPointerDown,
 }: CanvasCardHeaderProps): ReactElement {
   const iteration = iterationId(card.content) !== undefined;
-  const currentUrl = iteration ? null : contentSourceUrl(card.content);
+  // A flow frame is named by its state; several states usually share one URL.
+  const currentUrl = iteration || flowStateOf(card.content) ? null : contentSourceUrl(card.content);
   const [draft, setDraft] = useState(() => currentUrl ? framePath(currentUrl) : "");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [editingUrl, setEditingUrl] = useState(false);
   const editing = useRef(false);
   const skipBlurCommit = useRef(false);
   const urlInput = useRef<HTMLInputElement>(null);
+  const [history, setHistory] = useState<FrameHistory | null>(() => currentUrl ? visitFrameUrl(null, currentUrl) : null);
+  const traversingTo = useRef<string | null>(null);
 
   useEffect(() => {
     if (!editing.current && currentUrl) setDraft(framePath(currentUrl));
   }, [currentUrl]);
+
+  useEffect(() => {
+    if (!currentUrl) return;
+    const traversal = traversingTo.current;
+    traversingTo.current = null;
+    // Arriving where Back or Forward was headed is not a new visit.
+    if (traversal === currentUrl) return;
+    setHistory((current) => visitFrameUrl(current, currentUrl));
+  }, [currentUrl]);
+
+  function traverse(delta: -1 | 1): void {
+    const next = stepFrameHistory(history, delta);
+    if (!next) return;
+    const target = next.entries[next.index];
+    if (target === undefined) return;
+    traversingTo.current = target;
+    setHistory(next);
+    onNavigate(target);
+  }
 
   useLayoutEffect(() => {
     if (editingUrl) urlInput.current?.select();
@@ -110,7 +132,7 @@ export function CanvasCardHeader({
           {onShowFocus ? (
             <Tooltip content="Open this frame in focus view">
               <IconButton variant="quiet" label="Focus" data-test={`canvas-card-focus-${card.id}`} onClick={onShowFocus}>
-                <SelectPlayFilledIcon aria-hidden="true" />
+                <SelectPlayOutlineIcon aria-hidden="true" />
               </IconButton>
             </Tooltip>
           ) : null}
@@ -119,9 +141,23 @@ export function CanvasCardHeader({
         <div className="canvas-card__center">
           {currentUrl ? (
             <>
-              <span className="canvas-card__live" data-test={`canvas-card-drag-${card.id}`} title="Live view">
-                <IconBoltFilled size={12} aria-hidden="true" />
-              </span>
+              <div className="canvas-card__url-lead">
+                <Tooltip content="Back">
+                  <IconButton variant="quiet" size="compact" label="Back" data-test={`canvas-card-back-${card.id}`}
+                    disabled={!stepFrameHistory(history, -1)} onClick={() => traverse(-1)}>
+                    <IconArrowLeft size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content="Forward">
+                  <IconButton variant="quiet" size="compact" label="Forward" data-test={`canvas-card-forward-${card.id}`}
+                    disabled={!stepFrameHistory(history, 1)} onClick={() => traverse(1)}>
+                    <IconArrowRight size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                  </IconButton>
+                </Tooltip>
+                <span className="canvas-card__live" data-test={`canvas-card-drag-${card.id}`} title="Live view">
+                  <IconBoltFilled size={12} aria-hidden="true" />
+                </span>
+              </div>
               <TextInput
                 ref={urlInput}
                 compact
@@ -175,24 +211,25 @@ export function CanvasCardHeader({
               <span className="canvas-card__title canvas-card__dimensions" data-test={`canvas-card-drag-${card.id}`} title={label}>{label}</span>
             </span>
           )}
+          {onCreateIteration ? (
+            <div className="canvas-card__url-trail">
+              <Tooltip content="Unlink to HTML frame for iteration">
+                <IconButton
+                  variant="quiet"
+                  size="compact"
+                  label={iterationBusy ? "Creating unlinked frame" : "Create unlinked frame"}
+                  data-test={`canvas-card-create-iteration-${card.id}`}
+                  disabled={iterationBusy || iterationDisabled}
+                  onClick={onCreateIteration}
+                >
+                  <IconUnlink size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                </IconButton>
+              </Tooltip>
+            </div>
+          ) : null}
         </div>
 
         <div className="canvas-card__actions">
-          {onCreateIteration ? (
-            <Tooltip content="Create unlinked HTML version for design iteration">
-              <Button
-                variant="quiet"
-                className="canvas-card__iteration-button"
-                aria-label={iterationBusy ? "Creating iteration" : "Create HTML iteration"}
-                data-test={`canvas-card-create-iteration-${card.id}`}
-                disabled={iterationBusy || iterationDisabled}
-                onClick={onCreateIteration}
-              >
-                <IconShape size={16} stroke="var(--icon-stroke-width)" aria-hidden="true" />
-                <span className="canvas-card__iteration-label">{iterationBusy ? "Creating…" : "Iteration"}</span>
-              </Button>
-            </Tooltip>
-          ) : null}
           {onDuplicate && !iteration ? (
             <Tooltip content="Duplicate">
               <IconButton variant="quiet" className="canvas-card__action-icon" label="Duplicate" data-test={`canvas-card-duplicate-${card.id}`} onClick={onDuplicate}>

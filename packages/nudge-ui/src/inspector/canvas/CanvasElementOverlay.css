@@ -15,7 +15,7 @@
 .canvas-spacing-guide {
   position: fixed;
   z-index: 3;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   outline: none;
   box-shadow: none;
@@ -115,7 +115,7 @@
 
 .canvas-dom-drop-line {
   z-index: 2147483647;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #3b82f6;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 95%), 0 1px 5px rgb(37 99 235 / 72%);
 }
@@ -126,7 +126,7 @@
   display: flex;
   align-items: center;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   background: #2563eb;
   color: #ffffff;
   font: 500 11px/1 system-ui, sans-serif;
@@ -137,6 +137,6 @@
   z-index: 2147483646;
   box-sizing: border-box;
   border: 1px solid rgb(59 130 246 / 72%);
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   background: rgb(59 130 246 / 5%);
 }

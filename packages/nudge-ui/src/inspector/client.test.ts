@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -75,6 +76,33 @@ describe("subscribeToManifestReloads", () => {
       parent.remove();
       window.history.replaceState(null, "", previousUrl);
     }
+  });
+
+  it("has one stream per Canvas: the top document relays revisions to its renderers", async () => {
+    const fetch = vi.fn().mockResolvedValue(manifestResponse(1));
+    vi.stubGlobal("EventSource", FakeEventSource);
+    vi.stubGlobal("fetch", fetch);
+    const channels: FakeChannel[] = [];
+    class FakeChannel extends EventTarget {
+      constructor() { super(); channels.push(this); }
+      postMessage(data: unknown): void {
+        for (const channel of channels) if (channel !== this) channel.dispatchEvent(new MessageEvent("message", { data }));
+      }
+      close(): void {}
+    }
+    vi.stubGlobal("BroadcastChannel", FakeChannel);
+
+    subscribeToManifestReloads(manifest, "/__nudge_ui__/manifest");
+    expect(FakeEventSource.instances).toHaveLength(1);
+    const frame = document.createElement("iframe");
+    frame.setAttribute(CANVAS_RENDERER_ATTR, "");
+    vi.spyOn(window, "frameElement", "get").mockReturnValue(frame);
+    subscribeToManifestReloads(manifest, "/__nudge_ui__/manifest");
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    FakeEventSource.instances[0]!.emitRevision(1);
+    // The top document and the relayed renderer each refresh once.
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   });
 
   it("keeps the stream open and waits for a later revision after a refresh failure", async () => {

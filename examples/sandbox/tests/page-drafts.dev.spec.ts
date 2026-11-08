@@ -1,4 +1,4 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("page selection scopes the changes count and prompt while linked views share the page", async ({ page }) => {
@@ -8,7 +8,7 @@ test("page selection scopes the changes count and prompt while linked views shar
     } });
   });
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   const cards = page.locator(".canvas-card");
   const original = cards.first().locator("iframe").contentFrame();

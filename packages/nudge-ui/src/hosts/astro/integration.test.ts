@@ -6,7 +6,7 @@ import { evaluate } from "@mdx-js/mdx";
 import * as runtime from "react/jsx-runtime";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ANIMATION_CLOCK_SCRIPT } from "../../inspector/canvas/animationClock.ts";
+import { DOCUMENT_HEAD_SCRIPT } from "../../inspector/canvas/documentHeadScript.ts";
 
 type ConfigSetupParameters = Parameters<
   NonNullable<AstroIntegration["hooks"]["astro:config:setup"]>
@@ -64,7 +64,7 @@ describe("nudgeUiAstro", () => {
     expect((plugins[0] as { name?: string }).name).toBe("nudge-ui-astro-client-transport");
 
     expect(injectScript).toHaveBeenCalledTimes(2);
-    expect(injectScript.mock.calls[0]).toEqual(["head-inline", ANIMATION_CLOCK_SCRIPT]);
+    expect(injectScript.mock.calls[0]).toEqual(["head-inline", DOCUMENT_HEAD_SCRIPT]);
     const [stage, content] = injectScript.mock.calls[1] as unknown as [string, string];
     expect(stage).toBe("page");
     expect(content).toContain('/__nudge_ui__/client.mjs');

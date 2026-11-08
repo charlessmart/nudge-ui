@@ -57,13 +57,18 @@ export async function discoverCssImportGraph(
     }
     files.set(fileId, css);
 
-    for (const specifier of cssImportSpecifiers(css)) {
-      let resolved: string | null = null;
+    const specifiers = cssImportSpecifiers(css);
+    // Resolution is independent per import; visiting below stays in source order so cascade order holds.
+    const resolutions = await Promise.all(specifiers.map(async (specifier): Promise<string | null> => {
       try {
-        resolved = await dependencies.resolve(specifier, fileId);
+        return await dependencies.resolve(specifier, fileId);
       } catch {
         // An unresolved package must not prevent the host token catalog loading.
+        return null;
       }
+    }));
+    for (const [index, specifier] of specifiers.entries()) {
+      const resolved = resolutions[index];
       if (!resolved) {
         unresolved.push({ importer: fileId, specifier });
         continue;

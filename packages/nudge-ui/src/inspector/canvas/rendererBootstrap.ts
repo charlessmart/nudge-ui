@@ -1,3 +1,4 @@
+import { FLOW_REPLAYING_GLOBAL } from "../flows/replay.ts";
 import {
   PROTOCOL_VERSION,
   clearRendererIdentity,
@@ -24,6 +25,7 @@ import type {
   PanStartMessage,
   RendererHelloMessage,
   ZoomMessage,
+  ZoomStepMessage,
   WheelPanMessage,
 } from "./frameProtocol.ts";
 import { wheelPanDelta } from "./wheelPan.ts";
@@ -34,7 +36,7 @@ import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isUserClick } from "../overlay/clickPolicy.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
-import { APP_INTERACTION_KEY } from "./keyboardShortcuts.ts";
+import { APP_INTERACTION_KEY, canvasZoomStepForEvent } from "./keyboardShortcuts.ts";
 import { isInspectorUiEvent } from "./pageSurface.ts";
 import { disposeRuntimeIdentityClaims } from "../runtime/runtimeIdentityClaims.ts";
 import { createPageAnimationSpeed } from "./pageAnimationSpeed.ts";
@@ -291,6 +293,8 @@ export function bootstrapRenderer(resources: RendererBootstrapResources = {}): R
 
     const onClick = (event: MouseEvent): void => {
       if (!ownsRendererBootstrap(owner)) return;
+      // A replayed flow step navigates the frame itself, whatever link previews would do with a person's click.
+      if ((window as Window & { [FLOW_REPLAYING_GLOBAL]?: boolean })[FLOW_REPLAYING_GLOBAL]) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
       if (!isEligibleNavigation(anchor, event)) return;
@@ -476,6 +480,14 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner) || isInspectorUiEvent(event)) return;
     if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableTarget(event.target)) sendAppInteractionModifier(true);
+    const zoomStep = canvasZoomStepForEvent(event);
+    const identity = zoomStep === null ? null : getRendererIdentity();
+    if (zoomStep !== null && identity) {
+      // The Canvas zoom replaces the browser's while a frame has focus, in Focus as well.
+      event.preventDefault();
+      const message: ZoomStepMessage = { type: "zoom-step", protocolVersion: PROTOCOL_VERSION, direction: zoomStep, ...identity };
+      sendToParent(message);
+    }
     if (spacePans && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();

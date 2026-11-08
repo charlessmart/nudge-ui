@@ -225,8 +225,10 @@ function canonicalProjectPath(rootDirectory: string, path: string): string | nul
 }
 
 function isExcludedDirectory(rootDirectory: string, path: string): boolean {
-  return relative(rootDirectory, resolve(path)).split(sep).some((segment) =>
-    isExcludedDirectoryName(segment));
+  const pathFromRoot = relative(rootDirectory, resolve(path)).split(sep);
+  // The browser polls flow files and restarts only the frames an edit affects, so they must not reload every document.
+  if (pathFromRoot[0] === "nudge" && pathFromRoot[1] === "flows") return true;
+  return pathFromRoot.some((segment) => isExcludedDirectoryName(segment));
 }
 
 function isWithin(rootDirectory: string, candidate: string): boolean {

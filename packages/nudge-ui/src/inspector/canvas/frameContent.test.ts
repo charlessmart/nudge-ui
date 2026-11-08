@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { getLinkedFrameIds, type FrameContent } from "./frameContent.ts";
 
 const frame = (id: string, url: string): { id: string; content: FrameContent } => ({
@@ -38,4 +38,48 @@ it("keeps HTML iterations independent of their live source route", () => {
   expect(getLinkedFrameIds(frames, "first")).toEqual(["first", "second"]);
   expect(getLinkedFrameIds(frames, "iteration")).toEqual([]);
   expect(getLinkedFrameIds([frames[0]!, frames[2]!], "first")).toEqual([]);
+});
+
+it("models component sheets as a shared components draft with an encoded document URL", async () => {
+  const { contentDocumentUrl, contentEditTarget, contentSourceUrl, isFrameContent } = await import("./frameContent.ts");
+  const content: FrameContent = { kind: "component", componentId: "src/Button.tsx:Button", name: "Button" };
+  const url = `${window.location.origin}/__nudge_ui__/components?component=src%2FButton.tsx%3AButton`;
+
+  expect(contentDocumentUrl(content)).toBe(url);
+  expect(contentSourceUrl(content)).toBe(url);
+  expect(contentEditTarget(content)).toEqual({ kind: "components" });
+  expect(isFrameContent(content, window.location.origin)).toBe(true);
+  expect(isFrameContent({ kind: "component", componentId: "", name: "x" }, window.location.origin)).toBe(false);
+  expect(getLinkedFrameIds([{ id: "sheet", content }, frame("a", "http://localhost/a")], "sheet")).toEqual([]);
+});
+
+describe("flow state frames", () => {
+  const binding = { flowId: "f", stateId: "s", flowTitle: "F", label: "S", route: "/a", scenario: {}, steps: [] };
+
+  it("round-trips through validation and refuses a malformed binding", async () => {
+    const { isFrameContent } = await import("./frameContent.ts");
+    const url = `${window.location.origin}/a`;
+    expect(isFrameContent({ kind: "route", url, flowState: binding }, window.location.origin)).toBe(true);
+    expect(isFrameContent({ kind: "route", url, flowState: { flowId: "f" } }, window.location.origin)).toBe(false);
+  });
+
+  it("edits the page's own draft, and is not linked to its neighbours as a breakpoint", async () => {
+    const { contentEditTarget, getLinkedFrameIds } = await import("./frameContent.ts");
+    const url = `${window.location.origin}/a`;
+    expect(contentEditTarget({ kind: "route", url, flowState: binding })).toEqual(contentEditTarget({ kind: "route", url }));
+    const frames = [
+      { id: "state", content: { kind: "route" as const, url, flowState: binding } },
+      { id: "plain", content: { kind: "route" as const, url } },
+      { id: "copy", content: { kind: "route" as const, url } },
+    ];
+    expect(getLinkedFrameIds(frames, "state")).toEqual([]);
+    expect(getLinkedFrameIds(frames, "plain")).toEqual(["plain", "copy"]);
+  });
+
+  it("changes revision only when the recipe does", async () => {
+    const { flowStateRevision } = await import("./frameContent.ts");
+    expect(flowStateRevision(undefined)).toBeNull();
+    expect(flowStateRevision({ ...binding, label: "Renamed" })).toBe(flowStateRevision(binding));
+    expect(flowStateRevision({ ...binding, route: "/b" })).not.toBe(flowStateRevision(binding));
+  });
 });

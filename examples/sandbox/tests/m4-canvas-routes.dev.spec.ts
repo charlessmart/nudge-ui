@@ -1,4 +1,4 @@
-import { clickFrameAction, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test("dev: clicking a same-origin link navigates the focused card", async ({ page }) => {
@@ -58,7 +58,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
   await expect(duplicateBtn).toBeAttached();
   await clickFrameAction(page, duplicateBtn);
@@ -77,7 +77,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
 test("dev: delete key removes a comparison card and recovers the final editing surface", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
 
   await page.evaluate(() => {
     const win = window as unknown as Record<string, unknown>;
@@ -100,7 +100,7 @@ test("dev: delete key removes a comparison card and recovers the final editing s
 
 test("dev: deleting the active route does not recreate it after reload", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
   await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
@@ -130,7 +130,7 @@ test("dev: deleting the active route does not recreate it after reload", async (
 test("dev: Use app normally navigates links inside the frame without adding cards", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
 
@@ -148,7 +148,7 @@ test("dev: Use app normally navigates links inside the frame without adding card
 test("dev: hovering a link offers opening it in a new canvas frame", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
 

@@ -15,6 +15,7 @@
   z-index: 13;
   width: min(var(--panel-width), calc(100vw - 2 * var(--panel-inset)));
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--surface-panel);
   color: var(--text-primary);
   border: 0;
@@ -92,6 +93,12 @@
 @keyframes panel-restore-in {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel__restore {
+    animation: none;
+  }
 }
 
 .panel__tabs {
@@ -251,6 +258,7 @@
 }
 
 .copy-prompt__menu-title {
+  text-wrap: balance;
   font-weight: var(--font-weight-base);
 }
 
@@ -347,6 +355,10 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.selection + .status-callout {
+  margin-top: var(--space-12);
+}
+
 .style-state {
   grid-template-columns: var(--label-column) minmax(0, 1fr);
   column-gap: var(--field-label-gap);
@@ -372,10 +384,10 @@
 
 .component-props__source {
   color: var(--text-muted-subtle);
-  font-size: 10px;
+  font-size: var(--font-size-small);
   font-weight: 650;
-  letter-spacing: 0.06em;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* One component section: name with link status, props and state share a single border. */
@@ -430,6 +442,13 @@
   border-bottom: 0;
 }
 
+/* Quiet, so its icon lines up with the field labels below instead of the button's padding. */
+.component-props__open-sheet {
+  align-self: flex-start;
+  margin-bottom: var(--space-8);
+  margin-left: calc(var(--space-8) * -1);
+}
+
 .component-props__hint {
   font-size: var(--font-size-base);
   color: var(--text-secondary);
@@ -444,7 +463,7 @@
 }
 
 .inline-text-diagnostic {
-  margin-top: 12px;
+  margin-top: var(--space-12);
   font-weight: 400;
 }
 
@@ -468,10 +487,10 @@
 }
 
 .editor__title {
+  text-wrap: balance;
   color: var(--text-primary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-label);
-  letter-spacing: -0.02em;
   min-height: var(--control-height-large);
   display: flex;
   align-items: center;

@@ -34,8 +34,7 @@ priority order. Plain CSS is the absence of a dialect. A dialect answers:
   from the page;
 - which custom properties are its internal plumbing;
 - what a class that applies a token means, such as `bg-brand/40`;
-- how its source writes a token for a property, such as `bg-brand`; and
-- one line of guidance for an agent writing code in it.
+- how its source writes a token for a property, such as `bg-brand`.
 
 The module stays free of runtime imports, so the hosts and the browser use the
 same answers. Token interpretation remains `interpretDialects(evidence)`; its
@@ -52,9 +51,8 @@ Tailwind v4 is detected by `@import "tailwindcss"` or `@theme` only.
 **Consumers ask the dialect, not the adapter string.** Inspector code that
 needs dialect behaviour looks the token's dialect up with `stylingDialect()`.
 
-**The prompt says how to write the edit.** When the project uses a dialect, the
-prompt ends its changes with that dialect's guidance. A token edit whose dialect
-can name the source form adds it, for example "In Tailwind this is the
+**The prompt names the token's source form.** A token edit whose dialect can
+name the source form adds it, for example "In Tailwind this is the
 `bg-sunken` utility". The source form is phrased as a fact, because the change
 record does not prove the element is styled with utilities rather than with
 CSS that reads the same variable.
@@ -65,7 +63,7 @@ CSS that reads the same variable.
   host, the inspector and the prompt without new branches.
 - Next.js and static HTML still cannot read a Tailwind v3 configuration or a
   vanilla-extract contract. They detect Tailwind v3 from `@tailwind` directives,
-  which gives the label and the prompt guidance but no tokens.
+  which gives the label but no tokens.
 - Utility names follow Tailwind's documented namespaces. A project that
   renames a namespace or adds a prefix gets a wrong suggestion, which the
   prompt presents as a fact about Tailwind rather than an instruction.
@@ -78,4 +76,4 @@ CSS that reads the same variable.
   the unchanged token contributions.
 - Project token snapshot tests cover Tailwind v4 detection and relabelling
   without Vite.
-- Prompt tests cover dialect guidance and source forms.
+- Prompt tests cover source forms.

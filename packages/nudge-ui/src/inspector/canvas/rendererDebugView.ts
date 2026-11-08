@@ -10,12 +10,12 @@ const XRAY_CURSOR_STYLE_ID = "nudge-ui-debug-xray-cursor";
 const XRAY_LAYER_GAP = 50;
 const XRAY_MAX_DEPTH = 14;
 const XRAY_MAX_ELEMENTS = 600;
-const XRAY_DURATION_MS = 480;
+const XRAY_DURATION_MS = 200;
 const HOVER_OUTLINE_ID = "nudge-ui-debug-xray-hover";
 const HOVER_OUTLINE_COLOR = "rgba(0, 150, 255, 0.9)";
 const XRAY_LAYER_OUTLINE = "1px solid rgba(0, 150, 255, 0.55)";
 const XRAY_LAYER_HOVER_OUTLINE = "2px solid rgba(0, 150, 255, 1)";
-const XRAY_EASING = "cubic-bezier(0.2, 0, 0, 1)";
+const XRAY_EASING = "ease-out";
 const XRAY_ROOT_TRANSFORM = "rotateX(20deg) rotateY(20deg)";
 
 const OUTLINE_COLOR = "rgba(0, 150, 255, 0.75)";
@@ -23,6 +23,10 @@ const OUTLINE_COLOR = "rgba(0, 150, 255, 0.75)";
 const TEXT_LEVEL = "strong, b, em, i, small, code, kbd, mark, abbr, sub, sup, u, s, q, cite, time, span:not([class]), a:not([class]), label:not([class])";
 
 /** Draws a 1px outline on each box, leaving the page's own colors, fills and text as they are. */
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
 function outlinesCss(): string {
   const scope = `html[${OUTLINES_ATTRIBUTE}] body`;
   const excluded = `:not(#${NUDGE_UI_MOUNT_ID}):not(#${HOVER_OUTLINE_ID}):not(#${SPACING_LAYER_ID}, #${SPACING_LAYER_ID} *)`;
@@ -262,8 +266,9 @@ export function createRendererDebugView(
     const layers = collectXrayLayers(root);
     explodedRoot = root;
     const transition = `transform ${XRAY_DURATION_MS}ms ${XRAY_EASING}, translate ${XRAY_DURATION_MS}ms ${XRAY_EASING}`;
+    const animated = !prefersReducedMotion();
     for (const { element, depth } of layers) {
-      overrides.set(element, "transition", transition);
+      if (animated) overrides.set(element, "transition", transition);
       overrides.set(element, "transform-style", "preserve-3d");
       // Each of these flattens descendants out of the 3D rendering context.
       overrides.set(element, "overflow", "visible");
@@ -312,7 +317,7 @@ export function createRendererDebugView(
 
   function collapse(animated: boolean): void {
     if (phase === "idle") return;
-    if (!animated) {
+    if (!animated || prefersReducedMotion()) {
       finishCollapse();
       return;
     }
