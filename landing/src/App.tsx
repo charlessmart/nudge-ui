@@ -7,11 +7,17 @@ import demoPoster from "../assets/screen-1.png";
 import { FeatureBento } from "./components/FeatureBento";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
 import { LandingButton } from "./components/LandingButton";
+import { LiveDemoFrame } from "./components/LiveDemoFrame";
 
 export const chromeStoreUrl = "https://chromewebstore.google.com/detail/nudge-ui/adhhommjgomlfggojnkkpbaklgplopcm";
 export const npmPackageUrl = "https://www.npmjs.com/package/create-nudge-ui";
 export const installPrompt = "Run npm create nudge-ui@latest in this project";
 export const OPEN_NUDGE_EVENT = "nudge-ui:open";
+// Hero preview cards are hidden while we try a version without them; flip to bring them back.
+const showHeroDemoGrid = false;
+// The showcase plays the captured Nudge demo (public/live-demo) instead of the video; flip to bring the video back.
+const showLiveDemo = true;
+
 const manualSetupCode = [
   "Vite + React  nudge-ui/vite",
   "Next.js       nudge-ui/next",
@@ -285,27 +291,33 @@ function ShowcaseVideo({
         <span className="landing-showcase-browser-url">localhost</span>
       </div>
       <div className="landing-showcase-video-frame">
-        <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
-          <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" loading="lazy" />
-        </div>
-        {shouldLoadVideo ? (
-          <video
-            className="landing-showcase-video-element"
-            ref={videoRef}
-            data-ready={isVideoVisible && videoReady}
-            aria-label={video.title}
-            autoPlay={isVideoVisible}
-            muted
-            playsInline
-            poster={video.poster}
-            preload="metadata"
-            onError={() => setVideoReady(false)}
-            onLoadedData={() => setVideoReady(true)}
-            onEnded={handleVideoEnded}
-          >
-            <source src={video.src} type="video/mp4" />
-          </video>
-        ) : null}
+        {showLiveDemo ? (
+          <LiveDemoFrame load={shouldLoadVideo} playing={isVideoVisible} title="Nudge editing a music browsing app" />
+        ) : (
+          <>
+            <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
+              <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" loading="lazy" />
+            </div>
+            {shouldLoadVideo ? (
+              <video
+                className="landing-showcase-video-element"
+                ref={videoRef}
+                data-ready={isVideoVisible && videoReady}
+                aria-label={video.title}
+                autoPlay={isVideoVisible}
+                muted
+                playsInline
+                poster={video.poster}
+                preload="metadata"
+                onError={() => setVideoReady(false)}
+                onLoadedData={() => setVideoReady(true)}
+                onEnded={handleVideoEnded}
+              >
+                <source src={video.src} type="video/mp4" />
+              </video>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -484,7 +496,7 @@ export function App(): ReactNode {
       <div className="landing" id="top">
         <main>
           <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
-            <HeroDemoGrid />
+            {showHeroDemoGrid ? <HeroDemoGrid /> : null}
             <div className="landing-hero-content landing-content-column">
               <h1 className="landing-content-column" id="landing-hero-title">Nudge, a design panel for your codebase.</h1>
               <div className="landing-hero-side landing-content-column">

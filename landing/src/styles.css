@@ -1130,3 +1130,36 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
     transition: none;
   }
 }
+
+/* Live demo: the captured Nudge editor, drawn at its capture size and scaled to the frame. */
+.landing-live-demo {
+  position: absolute;
+  inset: var(--space-0);
+  overflow: hidden;
+  background: #f1f1ed;
+}
+
+.landing-live-demo-frame {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.landing-live-demo[data-ready="true"] .landing-live-demo-frame {
+  opacity: 1;
+}
+
+/* A hairline along the top of the captured inspector panel (the right 320 of 1280px), parting it from the browser bar. */
+.landing-live-demo::after {
+  content: "";
+  position: absolute;
+  top: var(--space-0);
+  right: var(--space-0);
+  width: 25%;
+  height: 1px;
+  background: var(--border-subtle);
+  pointer-events: none;
+}

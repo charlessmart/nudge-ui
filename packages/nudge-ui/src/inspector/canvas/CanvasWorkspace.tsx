@@ -443,7 +443,8 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
       replaceActiveCard: inFocus && runtimeConfig.demo !== true,
       preserveIterationFocus: true,
-      fillBoardWidth: inFocus && runtimeConfig.demo !== true,
+      // Demos keep their seeded cards (above), but Focus still opens the visitor's frame across the whole board.
+      fillBoardWidth: inFocus,
     });
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
       setBoardCamera({

@@ -98,7 +98,6 @@ test("opens the restricted demo in the shared iframe editor from Try it here", a
   const app = appFrame.contentFrame();
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
-  await expect(app.locator(".landing-hero-demo-grid")).toHaveCSS("position", "absolute");
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const sources = await frames.evaluateAll((elements) => elements.map((element) => (
     (element as HTMLIFrameElement).src
@@ -222,25 +221,4 @@ test("opens the editor from an explicit direct application view", async ({ page 
   }).toEqual({ direct: null, editor: "editor", state: "one", hash: "#demo" });
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
   await expect.poll(() => panelOpen(page.locator("#nudge-ui-root"))).toBe("true");
-});
-
-test("loads the showcase video as it enters the viewport", async ({ page }) => {
-  await page.goto("/");
-
-  const showcase = page.locator("section.landing-showcase");
-  const videoContainer = showcase.locator(".landing-showcase-video");
-  await expect(videoContainer).toHaveCount(1);
-  await expect(showcase.locator("video")).toHaveCount(0);
-
-  await videoContainer.evaluate(async (element) => {
-    document.documentElement.style.scrollBehavior = "auto";
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const rect = element.getBoundingClientRect();
-      const targetScrollY = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
-      window.scrollTo(0, targetScrollY);
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    }
-  });
-  await expect(showcase.locator("video")).toHaveCount(1);
 });
