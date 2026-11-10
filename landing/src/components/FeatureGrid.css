@@ -1,0 +1,876 @@
+/* Six features in a straight 3 × 2 grid, split by hairlines. Each illustration is a slice of Nudge's interface
+   that fades into the page on every side, so it reads as a glimpse of the product rather than a framed card. */
+
+/* Animated padding for the spacing illustration: the band, the content and the readout all follow one integer. */
+@property --fg-pad {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 20;
+}
+
+.fg {
+  /* Nudge's selection blue (the inspector's --accent) and the soft wash it fills spacing with. */
+  --fg-select: #0086e6;
+  --fg-wash: rgba(0, 134, 230, 0.1);
+  /* The inspector's primary face: a warm top edge deepening to pure red. */
+  --fg-red: #ff2600;
+  --fg-red-face: linear-gradient(180deg, #ff4400 -6.25%, #ff0000 100%);
+  --fg-red-surface: rgba(255, 38, 0, 0.1);
+  --fg-ink: #242424;
+  --fg-muted: #8a8a8a;
+  --fg-line: rgba(0, 0, 0, 0.08);
+  --fg-block: rgba(0, 0, 0, 0.05);
+  --fg-hairline: rgba(0, 0, 0, 0.07);
+  --fg-surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 14px 32px -10px rgba(0, 0, 0, 0.12);
+  --fg-popup-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.1);
+  --fg-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  row-gap: 72px;
+}
+
+.fg-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-inline: 28px;
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(16px);
+  transition:
+    opacity 600ms ease,
+    filter 600ms ease,
+    transform 1100ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: calc(var(--fg-index, 0) * 80ms);
+}
+
+.fg-item:nth-child(3n + 1) {
+  padding-left: 0;
+}
+
+.fg-item:nth-child(3n) {
+  padding-right: 0;
+}
+
+.fg-item:not(:nth-child(3n + 1)) {
+  border-left: 1px solid var(--lp-divider, rgba(0, 0, 0, 0.08));
+}
+
+.fg[data-visible="true"] .fg-item {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.fg-title {
+  margin: 20px 0 0;
+  color: var(--fg-ink);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+/* ---- Illustration frame ------------------------------------------------------------------------------------ */
+
+.fg-art {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  /* Fades out on all four sides, faster at the top and slowest toward the copy below. */
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0, #000 10%, #000 64%, transparent 100%),
+    linear-gradient(to right, transparent 0, #000 10%, #000 90%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, transparent 0, #000 10%, #000 64%, transparent 100%),
+    linear-gradient(to right, transparent 0, #000 10%, #000 90%, transparent 100%);
+  mask-composite: intersect;
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  user-select: none;
+}
+
+/* A white page surface; most illustrations sit on one that runs off the frame. */
+.fg-page {
+  position: absolute;
+  padding: 16px;
+  border: 1px solid var(--fg-hairline);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--fg-surface-shadow);
+}
+
+.fg-line {
+  display: block;
+  height: 6px;
+  margin-bottom: 7px;
+  border-radius: 3px;
+  background: var(--fg-line);
+}
+
+.fg-block {
+  display: block;
+  border-radius: 6px;
+  background: var(--fg-block);
+}
+
+.fg-size-label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--fg-select);
+  color: #fff;
+  font-family: var(--fg-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.fg-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--fg-swatch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.fg-panel {
+  position: absolute;
+  padding: 10px;
+  border: 1px solid var(--fg-hairline);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--fg-surface-shadow);
+}
+
+.fg-panel-heading {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--fg-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.fg-hand {
+  font-family: "Caveat", "Comic Sans MS", cursive;
+  font-weight: 500;
+}
+
+/* ---- Edit text in place ------------------------------------------------------------------------------------ */
+
+.fg-art--text .fg-page {
+  top: 18px;
+  right: -12%;
+  bottom: -20px;
+  left: 8%;
+  padding: 18px 20px;
+}
+
+.fg-page-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+
+.fg-page-nav .fg-line {
+  margin: 0;
+}
+
+.fg-text-target {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  outline: 1.5px solid var(--fg-select);
+  outline-offset: 4px;
+  border-radius: 1px;
+}
+
+/* Real text the editor demo selects and rewrites (landing e2e double-clicks it). */
+.fg-art--text .landing-bento-text-heading {
+  margin: 0;
+  color: var(--fg-ink);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  user-select: text;
+}
+
+.fg-caret {
+  width: 1.5px;
+  height: 22px;
+  background: var(--fg-select);
+  animation: fg-blink 1.1s steps(1) infinite;
+}
+
+.fg-text-body {
+  margin: 34px 0 12px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.fg-page-lines .fg-line {
+  height: 5px;
+}
+
+/* ---- Use your tokens --------------------------------------------------------------------------------------- */
+
+.fg-tokens-page {
+  top: 30px;
+  bottom: -20px;
+  left: 0;
+  width: 54%;
+}
+
+.fg-tokens-button {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 9px;
+  border: 1px solid #e00400;
+  border-radius: 6px;
+  background: var(--fg-red-face);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  outline: 1.5px solid var(--fg-select);
+  outline-offset: 3px;
+}
+
+.fg-tokens-panel {
+  top: 14px;
+  right: 0;
+  width: 60%;
+}
+
+.fg-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--fg-ink);
+  font-family: var(--fg-mono);
+  font-size: 9.5px;
+}
+
+.fg-field-chevron {
+  margin-left: auto;
+  color: var(--fg-muted);
+}
+
+.fg-popover {
+  margin-top: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--fg-popup-shadow);
+}
+
+.fg-popover-search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--fg-hairline);
+  color: var(--fg-muted);
+  font-size: 9.5px;
+}
+
+.fg-token {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: var(--fg-ink);
+  font-family: var(--fg-mono);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.fg-token[data-active="true"] {
+  background: rgba(0, 0, 0, 0.045);
+}
+
+.fg-token-check {
+  margin-left: auto;
+  color: var(--fg-ink);
+}
+
+/* ---- Drag padding and gaps --------------------------------------------------------------------------------- */
+
+.fg-art--spacing .fg-page {
+  top: 16px;
+  right: 9%;
+  bottom: -20px;
+  left: 9%;
+  padding: 18px;
+}
+
+.fg-spacing-card {
+  position: relative;
+  padding: calc(var(--fg-pad) * 1px) 12px 14px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--fg-hairline);
+  outline: 1.5px solid var(--fg-select);
+  animation: fg-pad 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* The padding the cursor is dragging, filled with Nudge's soft blue wash. */
+.fg-spacing-band {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: calc(var(--fg-pad) * 1px);
+  border-radius: 8px 8px 0 0;
+  background: var(--fg-wash);
+}
+
+.fg-spacing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fg-spacing-copy {
+  flex: 1;
+  padding-top: 6px;
+}
+
+.fg-spacing-copy .fg-line {
+  height: 5px;
+  margin-bottom: 5px;
+}
+
+.fg-avatar {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg-block);
+}
+
+.fg-spacing-gap {
+  display: block;
+  height: 10px;
+  margin-inline: -12px;
+  background: var(--fg-wash);
+}
+
+/* A handle on the band's edge with the live value beside it, as Nudge shows while dragging. */
+.fg-spacing-handle {
+  position: absolute;
+  top: calc(var(--fg-pad) * 1px - 2px);
+  left: 50%;
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fg-select);
+  box-shadow: 0 0 0 1.5px #fff;
+  transform: translateX(-50%);
+}
+
+.fg-spacing-value {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 8px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--fg-ink);
+  color: #fff;
+  font-family: var(--fg-mono);
+  font-size: 9px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  counter-reset: fg-pad var(--fg-pad);
+}
+
+/* The readout counts with the band; the markup carries a static value for when the property cannot animate. */
+@supports (counter-reset: fg-pad var(--fg-pad)) {
+  .fg-spacing-value {
+    font-size: 0;
+  }
+
+  .fg-spacing-value::after {
+    content: "padding " counter(fg-pad);
+    font-size: 9px;
+  }
+}
+
+.fg-art--spacing .fg-size-label {
+  top: calc(100% + 10px);
+}
+
+/* ---- Leave a comment for your agent ----------------------------------------------------------------------- */
+
+.fg-comment-page {
+  top: 18px;
+  right: 16%;
+  bottom: -20px;
+  left: 4%;
+}
+
+.fg-comment-target {
+  position: relative;
+  margin-top: 12px;
+}
+
+.fg-comment-target .fg-block {
+  height: 64px;
+  outline: 1px dashed rgba(0, 0, 0, 0.28);
+  outline-offset: 3px;
+}
+
+.fg-comment-pin {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50% 50% 50% 4px;
+  background: var(--fg-ink);
+  box-shadow: 0 0 0 1.5px #fff, 0 4px 10px rgba(0, 0, 0, 0.18);
+  color: #fff;
+}
+
+.fg-comment-bubble {
+  position: absolute;
+  top: 116px;
+  left: 22%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--fg-popup-shadow);
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transform-origin: top left;
+  transition: opacity 300ms ease, transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: 1100ms;
+}
+
+.fg[data-visible="true"] .fg-comment-bubble {
+  opacity: 1;
+  transform: none;
+}
+
+.fg-comment-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--fg-ink);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* The full note sizes the field, so the bubble does not grow as it types. */
+.fg-comment-input {
+  position: relative;
+  color: var(--fg-ink);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.fg-comment-sizer {
+  visibility: hidden;
+}
+
+.fg-comment-typed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+}
+
+.fg-comment-caret {
+  width: 1px;
+  height: 12px;
+  margin-left: 1px;
+  background: var(--fg-ink);
+  animation: fg-blink 1.1s steps(1) infinite;
+}
+
+.fg-comment-caret[data-typing="true"] {
+  animation: none;
+}
+
+.fg-comment-send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--fg-ink);
+  color: #fff;
+}
+
+/* ---- Sketch an idea ---------------------------------------------------------------------------------------- */
+
+.fg-sketch-page {
+  top: 14px;
+  right: -6%;
+  bottom: -20px;
+  left: 8%;
+  padding: 14px;
+}
+
+.fg-sketch-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fg-sketch-nav .fg-line {
+  margin: 0;
+  height: 5px;
+}
+
+.fg-sketch-logo {
+  width: 12px;
+  height: 12px;
+  margin-right: auto;
+  border-radius: 50%;
+  background: var(--fg-block);
+}
+
+.fg-sketch-image {
+  height: 54px;
+  margin-bottom: 10px;
+}
+
+.fg-sketch-button {
+  display: block;
+  width: 54px;
+  height: 16px;
+  margin-top: 8px;
+  border-radius: 5px;
+  background: var(--fg-line);
+}
+
+.fg-sketch-strokes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 170px;
+  overflow: visible;
+  stroke: var(--fg-red);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fg-sketch-strokes path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.fg[data-visible="true"] .fg-sketch-strokes path {
+  animation: fg-draw 700ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.fg[data-visible="true"] .fg-sketch-strokes path:nth-child(1) {
+  animation-delay: 900ms;
+}
+
+.fg[data-visible="true"] .fg-sketch-strokes path:nth-child(2) {
+  animation-delay: 1500ms;
+}
+
+.fg[data-visible="true"] .fg-sketch-strokes path:nth-child(3) {
+  animation-delay: 1900ms;
+  animation-duration: 300ms;
+}
+
+.fg-sketch-note {
+  position: absolute;
+  top: 94px;
+  left: 158px;
+  color: var(--fg-red);
+  font-size: 17px;
+  opacity: 0;
+  transform: rotate(-6deg);
+  transition: opacity 300ms ease 2100ms;
+}
+
+.fg[data-visible="true"] .fg-sketch-note {
+  opacity: 1;
+}
+
+.fg-sketch-tools {
+  position: absolute;
+  top: 26px;
+  right: 14%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--fg-popup-shadow);
+}
+
+.fg-sketch-tool {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: var(--fg-muted);
+}
+
+.fg-sketch-tool[data-active="true"] {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--fg-ink);
+}
+
+.fg-sketch-color {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--fg-swatch);
+}
+
+.fg-sketch-color[data-active="true"] {
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--fg-swatch);
+}
+
+/* ---- Compare & iterate on a canvas ------------------------------------------------------------------------- */
+
+.fg-art--canvas {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.12) 0.9px, transparent 1.2px);
+  background-size: 12px 12px;
+  background-position: 6px 6px;
+}
+
+.fg-canvas-frames {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.fg-canvas-card {
+  width: 68px;
+}
+
+.fg-canvas-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--fg-muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.fg-canvas-card[data-selected="true"] .fg-canvas-label {
+  color: var(--fg-select);
+}
+
+.fg-canvas-frame {
+  height: 100px;
+  padding: 8px 7px;
+  border: 1px solid var(--fg-hairline);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 14px -6px rgba(0, 0, 0, 0.12);
+}
+
+.fg-canvas-card[data-selected="true"] .fg-canvas-frame {
+  outline: 1.5px solid var(--fg-select);
+}
+
+.fg-canvas-frame .fg-line {
+  height: 4px;
+  margin-bottom: 4px;
+}
+
+.fg-canvas-blocks {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.fg-canvas-blocks .fg-block {
+  border-radius: 3px;
+}
+
+.fg-canvas-frame--stack .fg-canvas-blocks .fg-block {
+  height: 22px;
+}
+
+.fg-canvas-frame--split .fg-canvas-blocks {
+  grid-template-columns: 1fr 1fr;
+}
+
+.fg-canvas-frame--split .fg-canvas-blocks .fg-block {
+  height: 48px;
+}
+
+.fg-canvas-frame--grid .fg-canvas-blocks {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.fg-canvas-frame--grid .fg-canvas-blocks .fg-block {
+  height: 30px;
+}
+
+/* Nudge's floating canvas toolbar, with the pointer tool active in brand red. */
+.fg-toolbar {
+  position: absolute;
+  top: 150px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--fg-popup-shadow);
+  color: #5c5c5c;
+  transform: translateX(-50%);
+}
+
+.fg-tool {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.fg-tool[data-active="true"] {
+  background: var(--fg-red-surface);
+  color: var(--fg-red);
+}
+
+.fg-tool-pointer {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.fg-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  margin-inline: 2px;
+  background: var(--fg-hairline);
+}
+
+.fg-toolbar-zoom {
+  padding: 0 6px;
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+/* ---- Motion ----------------------------------------------------------------------------------------------- */
+
+@keyframes fg-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes fg-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fg-pad {
+  0%,
+  12% {
+    --fg-pad: 16;
+  }
+
+  50%,
+  62% {
+    --fg-pad: 26;
+  }
+
+  100% {
+    --fg-pad: 16;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-item,
+  .fg-comment-bubble,
+  .fg-sketch-note {
+    transition: none;
+  }
+
+  .fg-spacing-card,
+  .fg-caret,
+  .fg-comment-caret {
+    animation: none;
+  }
+
+  .fg .fg-sketch-strokes path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+/* ---- Responsive ------------------------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .fg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fg-item,
+  .fg-item:nth-child(3n + 1),
+  .fg-item:nth-child(3n) {
+    padding-inline: 24px;
+    border-left: 0;
+  }
+
+  .fg-item:nth-child(2n + 1) {
+    padding-left: 0;
+  }
+
+  .fg-item:nth-child(2n) {
+    padding-right: 0;
+    border-left: 1px solid var(--lp-divider, rgba(0, 0, 0, 0.08));
+  }
+}
+
+@media (max-width: 600px) {
+  .fg {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 56px;
+  }
+
+  .fg-item,
+  .fg-item:nth-child(n) {
+    padding-inline: 0;
+    border-left: 0;
+  }
+}

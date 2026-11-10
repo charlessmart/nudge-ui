@@ -11,23 +11,23 @@ const panelOpen = (inspectorHost: Locator) => inspectorHost.evaluate((host) => h
 test("renders the landing page in the top document for crawlers", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Nudge is a design panel for your codebase" })).toBeVisible();
   expect(new URL(page.url()).searchParams.getAll("nudge-ui")).toEqual([]);
   await expect(page.locator("html")).not.toHaveAttribute("data-nudge-ui-editor", "");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://nudgeui.com/");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
   await expect(page.locator("#nudge-ui-root")).toBeEmpty();
 
-  const hero = page.locator("section.landing-hero");
+  const hero = page.locator("section#top");
   await expect(hero.getByRole("button", { name: "Try it here" })).toBeVisible();
   await expect(hero.getByRole("link", { name: "Add to Chrome" })).toHaveCount(0);
-  await expect(hero.getByRole("link", { name: "Install" })).toHaveAttribute("href", "#install");
+  await expect(page.getByRole("navigation", { name: "Page" }).getByRole("link", { name: "Install" })).toHaveAttribute("href", "#install");
 
   const install = page.locator("section#install");
   await expect(install.getByRole("link", { name: "Add to Chrome" })).toBeVisible();
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
-  await install.getByRole("button", { name: "Copy install prompt" }).click();
-  await expect(install.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
+  await install.getByRole("button", { name: "Copy setup prompt" }).click();
+  await expect(install.getByRole("button", { name: "Setup prompt copied" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
 });
 
@@ -68,14 +68,14 @@ test("loads the inspector only when a visitor opens Nudge", async ({ page }) => 
   await page.goto("/", { waitUntil: "networkidle" });
   expect(inspectorRequests).toEqual([]);
 
-  await page.locator("section.landing-hero").getByRole("button", { name: "Try it here" }).click();
+  await page.locator("section#top").getByRole("button", { name: "Try it here" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.getAll("nudge-ui")).toContain("editor");
   await expect.poll(() => inspectorRequests.length).toBeGreaterThan(0);
 });
 
 test("opens the restricted demo in the shared iframe editor from Try it here", async ({ page }) => {
   await page.goto("/");
-  await page.locator("section.landing-hero").getByRole("button", { name: "Try it here" }).click();
+  await page.locator("section#top").getByRole("button", { name: "Try it here" }).click();
 
   await expect.poll(() => new URL(page.url()).searchParams.getAll("nudge-ui")).toContain("editor");
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
@@ -96,8 +96,8 @@ test("opens the restricted demo in the shared iframe editor from Try it here", a
   await expect(versionOneFrame).toBeHidden();
   await expect(versionTwoFrame).toBeHidden();
   const app = appFrame.contentFrame();
-  await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
-  await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nudge is a design panel for your codebase" })).toHaveCount(0);
+  await expect(app.getByRole("heading", { name: "Nudge is a design panel for your codebase" })).toBeVisible();
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const sources = await frames.evaluateAll((elements) => elements.map((element) => (
     (element as HTMLIFrameElement).src
@@ -153,7 +153,7 @@ test("opens a refreshed editor collapsed until the page asks for the panel", asy
   await expect(inspectorHost.locator('[data-test="show-inspector"]')).toBeVisible();
 
   const app = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]").first().contentFrame();
-  await app.locator("section#demo").getByRole("button", { name: "Open Nudge" }).click();
+  await app.locator("section#top").getByRole("button", { name: "Try it here" }).click();
   await expect.poll(() => panelOpen(inspectorHost)).toBe("true");
   expect(new URL(page.url()).searchParams.getAll("nudge-ui")).toEqual(["editor"]);
 });
@@ -202,13 +202,13 @@ test("keeps the final landing card after refreshing a focused historical version
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {
-  await page.goto("/?state=one&__nudge_ui_direct=1#demo");
+  await page.goto("/?state=one&__nudge_ui_direct=1#features");
 
-  await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nudge is a design panel for your codebase" })).toBeVisible();
   await expect(page.locator("#nudge-ui-root")).toBeEmpty();
   await expect(page.locator("iframe[data-nudge-ui-canvas-renderer]")).toHaveCount(0);
 
-  await page.locator("section#demo").getByRole("button", { name: "Open Nudge" }).click();
+  await page.locator("section#top").getByRole("button", { name: "Try it here" }).click();
 
   await expect.poll(() => {
     const url = new URL(page.url());
@@ -218,7 +218,7 @@ test("opens the editor from an explicit direct application view", async ({ page 
       state: url.searchParams.get("state"),
       hash: url.hash,
     };
-  }).toEqual({ direct: null, editor: "editor", state: "one", hash: "#demo" });
+  }).toEqual({ direct: null, editor: "editor", state: "one", hash: "#features" });
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
   await expect.poll(() => panelOpen(page.locator("#nudge-ui-root"))).toBe("true");
 });

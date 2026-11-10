@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import { nudgeUi } from "nudge-ui/vite";
 
+// The sidebar names the published package version, read from its manifest so a release needs no landing edit.
+const { version: nudgeUiVersion } = JSON.parse(readFileSync(new URL("../packages/nudge-ui/package.json", import.meta.url), "utf8")) as { version: string };
+
 export default defineConfig(({ command }) => ({
+  define: { __NUDGE_UI_VERSION__: JSON.stringify(nudgeUiVersion) },
   // SAFETY: nudgeUi returns a Vite plugin, which Vite's PluginOption union accepts, so the cast only widens to the union member.
   plugins: [react(), nudgeUi({
     demo: true,

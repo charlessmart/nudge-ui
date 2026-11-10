@@ -43,17 +43,24 @@ function intersects(rect: DOMRect, frame: LayerFrame): boolean {
   return rect.width > 0.5 && rect.height > 0.5 && rect.right > 0 && rect.bottom > 0 && rect.left < frame.width && rect.top < frame.height;
 }
 
+// The landing page's own background, so the design layer reads as the page with its structure showing through.
+const PAGE_BACKGROUND = "#f7f7f7";
+
 function drawBackground(ctx: CanvasRenderingContext2D, frame: LayerFrame): void {
-  ctx.fillStyle = "#f6f7f8";
+  ctx.fillStyle = PAGE_BACKGROUND;
   ctx.fillRect(0, 0, frame.width, frame.height);
 }
 
+const GUIDE_COLOR = "rgba(0, 0, 0, 0.16)";
+const GUIDE_COLOR_FAINT = "rgba(0, 0, 0, 0.1)";
+
 function drawGuides(ctx: CanvasRenderingContext2D, root: HTMLElement, frame: LayerFrame): void {
-  const column = root.querySelector(".landing-hero-content");
+  const column = root.querySelector(".lp-hero-content");
   if (!column) return;
   const rect = relativeRect(column.getBoundingClientRect(), frame.origin);
   ctx.save();
-  ctx.strokeStyle = "rgba(255, 38, 0, 0.55)";
+  // The page's own construction guides (.lp's dashed lines): the same grey, width and 4px dash.
+  ctx.strokeStyle = GUIDE_COLOR;
   ctx.setLineDash([4, 4]);
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -63,7 +70,7 @@ function drawGuides(ctx: CanvasRenderingContext2D, root: HTMLElement, frame: Lay
   }
   ctx.stroke();
   ctx.setLineDash([2, 6]);
-  ctx.strokeStyle = "rgba(255, 38, 0, 0.35)";
+  ctx.strokeStyle = GUIDE_COLOR_FAINT;
   ctx.beginPath();
   const center = Math.round(rect.left + rect.width / 2) + 0.5;
   ctx.moveTo(center, 0);
@@ -72,53 +79,76 @@ function drawGuides(ctx: CanvasRenderingContext2D, root: HTMLElement, frame: Lay
   ctx.restore();
 }
 
+const RULER_SIZE = 20;
+const RULER_FONT = '500 9px system-ui, -apple-system, "Segoe UI", sans-serif';
+
+/**
+ * Draws a ruler number with tabular figures. Canvas 2D cannot switch on the `tnum` feature, so each digit is centred
+ * in a cell as wide as the widest digit, which is what tabular figures do.
+ */
+function drawTabularNumber(ctx: CanvasRenderingContext2D, value: number, x: number, y: number): void {
+  const cell = Math.max(...Array.from("0123456789", (digit) => ctx.measureText(digit).width));
+  const text = String(value);
+  for (let index = 0; index < text.length; index++) {
+    const char = text.charAt(index);
+    ctx.fillText(char, x + index * cell + (cell - ctx.measureText(char).width) / 2, y);
+  }
+}
+
+/**
+ * Rulers along the top and left edges, in page pixels: a short tick every 25, a longer one every 50, and a labelled
+ * tick every 100.
+ */
 function drawRulers(ctx: CanvasRenderingContext2D, frame: LayerFrame): void {
-  const thickness = 20;
+  const size = RULER_SIZE;
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
-  ctx.fillRect(0, 0, frame.width, thickness);
-  ctx.fillRect(0, 0, thickness, frame.height);
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.14)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+  ctx.fillRect(0, 0, frame.width, size);
+  ctx.fillRect(0, 0, size, frame.height);
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.08)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, thickness + 0.5);
-  ctx.lineTo(frame.width, thickness + 0.5);
-  ctx.moveTo(thickness + 0.5, 0);
-  ctx.lineTo(thickness + 0.5, frame.height);
+  ctx.moveTo(size, size - 0.5);
+  ctx.lineTo(frame.width, size - 0.5);
+  ctx.moveTo(size - 0.5, size);
+  ctx.lineTo(size - 0.5, frame.height);
   ctx.stroke();
 
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.32)";
-  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-  ctx.font = `500 9px ${MONO}`;
-  ctx.textBaseline = "top";
+  const tickLength = (position: number) => (position % 100 === 0 ? 8 : position % 50 === 0 ? 5 : 3);
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
+  ctx.font = RULER_FONT;
+  ctx.textBaseline = "middle";
   ctx.beginPath();
-  for (let x = thickness; x < frame.width; x += 10) {
-    const position = x - thickness;
-    const length = position % 100 === 0 ? thickness : position % 50 === 0 ? 8 : 4;
-    ctx.moveTo(x + 0.5, thickness);
-    ctx.lineTo(x + 0.5, thickness - length);
-    if (position % 100 === 0) ctx.fillText(String(position), x + 3, 3);
+  for (let x = Math.ceil(size / 25) * 25; x < frame.width; x += 25) {
+    const tick = tickLength(x);
+    ctx.moveTo(x + 0.5, size);
+    ctx.lineTo(x + 0.5, size - tick);
+    if (x % 100 === 0) drawTabularNumber(ctx, x, x + 4, size / 2 - 1);
   }
-  for (let y = thickness; y < frame.height; y += 10) {
-    const position = y - thickness;
-    const length = position % 100 === 0 ? thickness : position % 50 === 0 ? 8 : 4;
-    ctx.moveTo(thickness, y + 0.5);
-    ctx.lineTo(thickness - length, y + 0.5);
-    if (position % 100 === 0 && position > 0) {
+  ctx.stroke();
+
+  ctx.beginPath();
+  for (let y = Math.ceil(size / 25) * 25; y < frame.height; y += 25) {
+    const tick = tickLength(y);
+    ctx.moveTo(size, y + 0.5);
+    ctx.lineTo(size - tick, y + 0.5);
+    if (y % 100 === 0) {
       ctx.save();
-      ctx.translate(3, y - 3);
+      ctx.translate(size / 2 - 1, y - 4);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillText(String(position), 0, 0);
+      drawTabularNumber(ctx, y, 0, 0);
       ctx.restore();
     }
   }
   ctx.stroke();
+
   ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, thickness, thickness);
+  ctx.fillRect(0, 0, size - 1, size - 1);
   ctx.restore();
 }
 
-const LABELLED = [".landing-hero-demo-board", "h1", ".landing-hero-intro", ".landing-install-actions", ".landing-hero-demo-panel", ".landing-hero-demo-search"];
+const LABELLED = ["h1", ".lp-hero-intro", ".lp-hero-actions", ".lp-demo"];
 
 function elementLabel(element: Element, rect: DOMRect): string {
   const tag = element.tagName.toLowerCase();
@@ -127,18 +157,25 @@ function elementLabel(element: Element, rect: DOMRect): string {
   return `${tag}${id}${firstClass}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
+// Labels sit centred this far above their element, and keep this far inside the frame and clear of the rulers.
+const LABEL_GAP = 8;
+const LABEL_HEIGHT = 16;
+const LABEL_EDGE_MARGIN = 4;
+
+/** Centres the label above the element, where the hero's stacked blocks leave room for it, kept inside the layer. */
+function drawLabel(ctx: CanvasRenderingContext2D, text: string, rect: DOMRect, frame: LayerFrame): void {
   ctx.save();
   ctx.font = `500 10px ${MONO}`;
-  const width = ctx.measureText(text).width + 10;
-  const top = Math.max(0, y - 18);
+  const width = Math.ceil(ctx.measureText(text).width + 10);
+  const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, LABEL_EDGE_MARGIN), frame.width - width - LABEL_EDGE_MARGIN);
+  const top = Math.max(rect.top - LABEL_GAP - LABEL_HEIGHT, RULER_SIZE + LABEL_EDGE_MARGIN);
   ctx.fillStyle = `rgb(${ACCENT})`;
   ctx.beginPath();
-  ctx.roundRect(Math.round(x), Math.round(top), Math.ceil(width), 16, 3);
+  ctx.roundRect(Math.round(left), Math.round(top), width, LABEL_HEIGHT, 3);
   ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, Math.round(x) + 5, Math.round(top) + 8.5);
+  ctx.fillText(text, Math.round(left) + 5, Math.round(top) + LABEL_HEIGHT / 2 + 0.5);
   ctx.restore();
 }
 
@@ -148,7 +185,7 @@ export function paintDesignLayer(root: HTMLElement, frame: LayerFrame): HTMLCanv
   drawGuides(ctx, root, frame);
   // Padding reads as a soft accent fill, the same wash as the text runs below.
   const paddingFill = `rgba(${ACCENT}, 0.1)`;
-  const labels: Array<{ text: string; x: number; y: number }> = [];
+  const labels: Array<{ text: string; rect: DOMRect }> = [];
 
   const elements = [root, ...Array.from(root.querySelectorAll("*"))];
   for (const element of elements) {
@@ -187,7 +224,7 @@ export function paintDesignLayer(root: HTMLElement, frame: LayerFrame): HTMLCanv
     ctx.stroke();
 
     if (LABELLED.some((selector) => element.matches(selector))) {
-      labels.push({ text: elementLabel(element, rect), x: rect.left, y: rect.top });
+      labels.push({ text: elementLabel(element, rect), rect });
     }
   }
 
@@ -209,7 +246,7 @@ export function paintDesignLayer(root: HTMLElement, frame: LayerFrame): HTMLCanv
     }
   }
 
-  for (const label of labels) drawLabel(ctx, label.text, label.x, label.y);
+  for (const label of labels) drawLabel(ctx, label.text, label.rect, frame);
   drawRulers(ctx, frame);
   return canvas;
 }
@@ -372,7 +409,7 @@ export function paintCodeLayer(root: HTMLElement, frame: LayerFrame): HTMLCanvas
 
   // Centre column: the hero section itself, with the demo grid collapsed to
   // its component so the heading's JSX sits under the heading.
-  const content = root.querySelector(".landing-hero-content");
+  const content = root.querySelector(".lp-hero-content");
   const centreLines: Line[] = [...fileHeader("src/App.tsx", "Hero")];
   centreLines.push({ indent: 2, tokens: [{ text: "<", kind: "punct" }, { text: "section", kind: "tag" }, ...attributeTokens(root), { text: ">", kind: "punct" }] });
   centreLines.push({ indent: 3, tokens: [{ text: "<", kind: "punct" }, { text: "HeroDemoGrid", kind: "component" }, { text: " />", kind: "punct" }] });
