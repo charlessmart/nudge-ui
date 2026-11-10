@@ -39,7 +39,7 @@ describe("nextSheetPaths", () => {
   it("places the stub route in the App Router directory and the definition under .nudge", () => {
     const root = project({ "src/app/layout.tsx": LAYOUT });
     const paths = nextSheetPaths(root)!;
-    expect(paths.page).toBe(join(root, "src/app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.tsx"));
+    expect(paths.page).toBe(join(root, "src/app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.jsx"));
     expect(paths.definition).toBe(join(root, ".nudge/next/component-sheet.ts"));
   });
 
@@ -50,9 +50,9 @@ describe("nextSheetPaths", () => {
 
 describe("withSheetPageExtension", () => {
   it("appends the development-only extension to Next's defaults or the project's list", () => {
-    expect(withSheetPageExtension(undefined)).toEqual(["tsx", "ts", "jsx", "js", "nudge.tsx"]);
-    expect(withSheetPageExtension(["page.tsx", "mdx"])).toEqual(["page.tsx", "mdx", "nudge.tsx"]);
-    expect(withSheetPageExtension(["tsx", "nudge.tsx"])).toEqual(["tsx", "nudge.tsx"]);
+    expect(withSheetPageExtension(undefined)).toEqual(["tsx", "ts", "jsx", "js", "nudge.jsx"]);
+    expect(withSheetPageExtension(["page.tsx", "mdx"])).toEqual(["page.tsx", "mdx", "nudge.jsx"]);
+    expect(withSheetPageExtension(["tsx", "nudge.jsx"])).toEqual(["tsx", "nudge.jsx"]);
   });
 });
 
@@ -87,10 +87,36 @@ describe("sheet route", () => {
 
     const authored = project({
       "app/layout.tsx": LAYOUT,
-      "app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.tsx": "export default function Mine() { return null; }\n",
+      "app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.jsx": "export default function Mine() { return null; }\n",
     });
     removeSheetRoute(authored);
-    expect(existsSync(join(authored, "app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.tsx"))).toBe(true);
+    expect(existsSync(join(authored, "app/%5F%5Fnudge_ui%5F%5F/components/page.nudge.jsx"))).toBe(true);
+  });
+
+  // A .tsx file under app/ makes Next demand TypeScript in a JavaScript project, so the stub is .jsx and replaces any
+  // stub left under the earlier .tsx name.
+  it("writes a JavaScript stub and replaces the earlier TypeScript one", () => {
+    const root = project({ "app/layout.jsx": LAYOUT });
+    const paths = nextSheetPaths(root)!;
+    const legacy = join(dirname(paths.page), "page.nudge.tsx");
+    mkdirSync(dirname(legacy), { recursive: true });
+    writeFileSync(legacy, createSheetPageSource(paths));
+
+    writeSheetRoute(paths, reactComponentFramework);
+    expect(paths.page.endsWith("page.nudge.jsx")).toBe(true);
+    expect(existsSync(paths.page)).toBe(true);
+    expect(existsSync(legacy)).toBe(false);
+  });
+
+  it("removes a route folder that holds only the earlier TypeScript stub", () => {
+    const root = project({ "app/layout.jsx": LAYOUT });
+    const paths = nextSheetPaths(root)!;
+    const legacy = join(dirname(paths.page), "page.nudge.tsx");
+    mkdirSync(dirname(legacy), { recursive: true });
+    writeFileSync(legacy, createSheetPageSource(paths));
+
+    removeSheetRoute(root);
+    expect(existsSync(paths.routeFolder)).toBe(false);
   });
 });
 

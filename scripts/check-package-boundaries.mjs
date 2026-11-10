@@ -16,6 +16,12 @@ const KNOWN_EXCEPTIONS = [
   },
 ];
 
+// Shared code that lives beside the hosts for every host to compose. Hosts may import it; its own non-test sources
+// may not import a host, so it cannot become a back door between them.
+const SHARED_DIRECTORIES = new Map([
+  ["componentFramework", "ADR-0050: the UI framework adapter and contract catalog every host composes."],
+]);
+
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
 const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "build", ".next", "test-results"]);
 
@@ -32,7 +38,10 @@ function listSourceFiles(dir, files = []) {
   return files;
 }
 
-const hosts = readdirSync(hostsDir).filter((entry) => statSync(join(hostsDir, entry)).isDirectory());
+const directories = readdirSync(hostsDir).filter((entry) => statSync(join(hostsDir, entry)).isDirectory());
+const hosts = directories.filter((entry) => !SHARED_DIRECTORIES.has(entry));
+const sharedDirectories = directories.filter((entry) => SHARED_DIRECTORIES.has(entry));
+const TEST_FILE = /\.test\.[cm]?tsx?$/;
 
 function owningHost(file, specifier) {
   // Published subpaths are how a host addresses another host from the outside.
@@ -56,6 +65,17 @@ for (const host of hosts) {
       if (owner && owner !== host) {
         edges.push({ from: host, to: owner, where: file.slice(repoRoot.length), detail: specifier });
       }
+    }
+  }
+}
+
+for (const shared of sharedDirectories) {
+  for (const file of listSourceFiles(join(hostsDir, shared))) {
+    if (TEST_FILE.test(file)) continue;
+    const contents = readFileSync(file, "utf8");
+    for (const [, specifier] of contents.matchAll(IMPORT_PATTERN)) {
+      const owner = owningHost(file, specifier);
+      if (owner) edges.push({ from: shared, to: owner, where: file.slice(repoRoot.length), detail: specifier });
     }
   }
 }

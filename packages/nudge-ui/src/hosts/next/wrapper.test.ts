@@ -336,8 +336,8 @@ describe("withNudgeUi — development output shape", () => {
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const config = resolveForDevelopment({ pageExtensions: ["tsx", "mdx"] } as NudgeUiNextConfig);
 
-    expect(config.pageExtensions).toEqual(["tsx", "mdx", "nudge.tsx"]);
-    const stub = join(root, "app", "%5F%5Fnudge_ui%5F%5F", "components", "page.nudge.tsx");
+    expect(config.pageExtensions).toEqual(["tsx", "mdx", "nudge.jsx"]);
+    const stub = join(root, "app", "%5F%5Fnudge_ui%5F%5F", "components", "page.nudge.jsx");
     expect(existsSync(stub)).toBe(true);
     expect(readFileSync(join(root, "app", "%5F%5Fnudge_ui%5F%5F", ".gitignore"), "utf8")).toBe("*\n");
 
