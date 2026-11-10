@@ -439,6 +439,15 @@ describe("structuralGestures", () => {
     expect(root.firstElementChild).toBe(first);
   });
 
+  it("nudges grid items left and right", () => {
+    const { first, root, second } = fixture();
+    root.style.display = "grid";
+    expect(nudgeElement(first, "ArrowRight")).not.toBeNull();
+    expect(root.firstElementChild).toBe(second);
+    expect(nudgeElement(first, "ArrowLeft")).not.toBeNull();
+    expect(root.firstElementChild).toBe(first);
+  });
+
   it("never moves or deletes the page target", () => {
     const { root, first } = fixture();
     const page = resolveSelectionFromElement(document.body)!;

@@ -21,9 +21,15 @@
   --fg-line: rgba(0, 0, 0, 0.08);
   --fg-block: rgba(0, 0, 0, 0.05);
   --fg-hairline: rgba(0, 0, 0, 0.07);
+  /* Page and panel edges: a 1px unblurred shadow, not a border, so the surface keeps its full size. */
+  --fg-edge: 0 0 0 1px var(--fg-hairline);
   --fg-surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 14px 32px -10px rgba(0, 0, 0, 0.12);
   --fg-popup-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.1);
   --fg-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  /* Each title sits this far in from its cell's edges, and each illustration starts from the same line. */
+  --fg-inset: 24px;
+  /* Every illustration's mockup starts this far below the top of its frame, so their top edges line up across a row. */
+  --fg-art-top: 18px;
 
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -34,7 +40,6 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding-inline: 28px;
   opacity: 0;
   filter: blur(6px);
   transform: translateY(16px);
@@ -45,12 +50,14 @@
   transition-delay: calc(var(--fg-index, 0) * 80ms);
 }
 
+/* The left column has no divider to inset from, so its titles sit on the section's own left edge, in line with the
+   heading above. Its illustrations start 1px in, beside the column's dashed guide rather than over it. */
 .fg-item:nth-child(3n + 1) {
-  padding-left: 0;
+  --fg-inset: 1px;
 }
 
-.fg-item:nth-child(3n) {
-  padding-right: 0;
+.fg-item:nth-child(3n + 1) .fg-title {
+  padding-inline-start: 0;
 }
 
 .fg-item:not(:nth-child(3n + 1)) {
@@ -65,6 +72,7 @@
 
 .fg-title {
   margin: 20px 0 0;
+  padding-inline: var(--fg-inset);
   color: var(--fg-ink);
   font-size: 15px;
   font-weight: 500;
@@ -77,15 +85,19 @@
 .fg-art {
   position: relative;
   height: 220px;
+  --fg-fade-start: 0%;
+  --fg-fade-end: 10%;
+
   overflow: hidden;
-  /* Fades out on all four sides, faster at the top and slowest toward the copy below. */
+  /* Fades out faster at the top and slowest toward the copy below. Sideways it fades only where an illustration runs
+     off its cell; an edge aligned to the inset stays crisp. */
   -webkit-mask-image:
     linear-gradient(to bottom, transparent 0, #000 10%, #000 64%, transparent 100%),
-    linear-gradient(to right, transparent 0, #000 10%, #000 90%, transparent 100%);
+    linear-gradient(to right, transparent 0, #000 var(--fg-fade-start), #000 calc(100% - var(--fg-fade-end)), transparent 100%);
   -webkit-mask-composite: source-in;
   mask-image:
     linear-gradient(to bottom, transparent 0, #000 10%, #000 64%, transparent 100%),
-    linear-gradient(to right, transparent 0, #000 10%, #000 90%, transparent 100%);
+    linear-gradient(to right, transparent 0, #000 var(--fg-fade-start), #000 calc(100% - var(--fg-fade-end)), transparent 100%);
   mask-composite: intersect;
   font-family: var(--font-family, Inter, system-ui, sans-serif);
   user-select: none;
@@ -95,10 +107,10 @@
 .fg-page {
   position: absolute;
   padding: 16px;
-  border: 1px solid var(--fg-hairline);
+  border: 0 solid;
   border-radius: 10px;
   background: #fff;
-  box-shadow: var(--fg-surface-shadow);
+  box-shadow: var(--fg-edge), var(--fg-surface-shadow);
 }
 
 .fg-line {
@@ -143,10 +155,10 @@
 .fg-panel {
   position: absolute;
   padding: 10px;
-  border: 1px solid var(--fg-hairline);
+  border: 0 solid;
   border-radius: 10px;
   background: #fff;
-  box-shadow: var(--fg-surface-shadow);
+  box-shadow: var(--fg-edge), var(--fg-surface-shadow);
 }
 
 .fg-panel-heading {
@@ -164,11 +176,16 @@
 
 /* ---- Edit text in place ------------------------------------------------------------------------------------ */
 
+/* The page runs off to the right but fades out well before the cell's edge. */
+.fg-art--text {
+  --fg-fade-end: 40%;
+}
+
 .fg-art--text .fg-page {
-  top: 18px;
-  right: -12%;
+  top: var(--fg-art-top);
+  right: 0;
   bottom: -20px;
-  left: 8%;
+  left: var(--fg-inset);
   padding: 18px 20px;
 }
 
@@ -222,32 +239,16 @@
 
 /* ---- Use your tokens --------------------------------------------------------------------------------------- */
 
-.fg-tokens-page {
-  top: 30px;
-  bottom: -20px;
-  left: 0;
-  width: 54%;
-}
-
-.fg-tokens-button {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 5px 9px;
-  border: 1px solid #e00400;
-  border-radius: 6px;
-  background: var(--fg-red-face);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.25);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 500;
-  outline: 1.5px solid var(--fg-select);
-  outline-offset: 3px;
+/* The panel sits between the insets, with its token dropdown's left edge on the title's line below. */
+.fg-art--tokens {
+  --fg-fade-end: 0%;
 }
 
 .fg-tokens-panel {
-  top: 14px;
-  right: 0;
-  width: 60%;
+  top: var(--fg-art-top);
+  right: var(--fg-inset);
+  /* Less the panel's own 10px padding, so the dropdown inside it lands on the inset. */
+  left: calc(var(--fg-inset) - 10px);
 }
 
 .fg-field {
@@ -312,11 +313,15 @@
 
 /* ---- Drag padding and gaps --------------------------------------------------------------------------------- */
 
+.fg-art--spacing {
+  --fg-fade-end: 0%;
+}
+
 .fg-art--spacing .fg-page {
-  top: 16px;
-  right: 9%;
+  top: var(--fg-art-top);
+  right: var(--fg-inset);
   bottom: -20px;
-  left: 9%;
+  left: var(--fg-inset);
   padding: 18px;
 }
 
@@ -418,10 +423,10 @@
 /* ---- Leave a comment for your agent ----------------------------------------------------------------------- */
 
 .fg-comment-page {
-  top: 18px;
+  top: var(--fg-art-top);
   right: 16%;
   bottom: -20px;
-  left: 4%;
+  left: var(--fg-inset);
 }
 
 .fg-comment-target {
@@ -530,10 +535,10 @@
 /* ---- Sketch an idea ---------------------------------------------------------------------------------------- */
 
 .fg-sketch-page {
-  top: 14px;
+  top: var(--fg-art-top);
   right: -6%;
   bottom: -20px;
-  left: 8%;
+  left: var(--fg-inset);
   padding: 14px;
 }
 
@@ -623,7 +628,7 @@
 
 .fg-sketch-tools {
   position: absolute;
-  top: 26px;
+  top: calc(var(--fg-art-top) + 12px);
   right: 14%;
   display: flex;
   align-items: center;
@@ -661,20 +666,28 @@
 
 /* ---- Compare & iterate on a canvas ------------------------------------------------------------------------- */
 
-.fg-art--canvas {
-  background-image: radial-gradient(rgba(0, 0, 0, 0.12) 0.9px, transparent 1.2px);
-  background-size: 12px 12px;
-  background-position: 6px 6px;
+/* A faint square grid, like the canvas board behind Nudge's frames, fading into the page toward every edge. It has
+   its own layer so the fade reaches only the grid, not the frames on top. */
+.fg-art--canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 30%, transparent 100%);
 }
 
 .fg-canvas-frames {
   position: absolute;
-  top: 22px;
-  left: 50%;
+  top: var(--fg-art-top);
+  left: var(--fg-inset);
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  transform: translateX(-50%);
 }
 
 .fg-canvas-card {
@@ -744,8 +757,8 @@
 /* Nudge's floating canvas toolbar, with the pointer tool active in brand red. */
 .fg-toolbar {
   position: absolute;
-  top: 150px;
-  left: 50%;
+  top: calc(var(--fg-art-top) + 128px);
+  left: var(--fg-inset);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -754,7 +767,6 @@
   background: #fff;
   box-shadow: var(--fg-popup-shadow);
   color: #5c5c5c;
-  transform: translateX(-50%);
 }
 
 .fg-tool {
@@ -845,19 +857,24 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .fg-item,
-  .fg-item:nth-child(3n + 1),
-  .fg-item:nth-child(3n) {
-    padding-inline: 24px;
+  .fg-item:nth-child(n) {
+    --fg-inset: 24px;
     border-left: 0;
   }
 
   .fg-item:nth-child(2n + 1) {
-    padding-left: 0;
+    --fg-inset: 1px;
+  }
+
+  .fg-item:nth-child(2n + 1) .fg-title {
+    padding-inline-start: 0;
+  }
+
+  .fg-item:nth-child(2n) .fg-title {
+    padding-inline-start: var(--fg-inset);
   }
 
   .fg-item:nth-child(2n) {
-    padding-right: 0;
     border-left: 1px solid var(--lp-divider, rgba(0, 0, 0, 0.08));
   }
 }
@@ -868,9 +885,9 @@
     row-gap: 56px;
   }
 
-  .fg-item,
+  /* One column has no dividers to inset from, so titles and illustrations meet the page's own edge. */
   .fg-item:nth-child(n) {
-    padding-inline: 0;
+    --fg-inset: 0px;
     border-left: 0;
   }
 }

@@ -151,6 +151,11 @@ function isFlexRow(parent: HTMLElement): boolean {
   return flowOf(parent).axis === "x";
 }
 
+function isGrid(parent: HTMLElement): boolean {
+  const display = parent.ownerDocument.defaultView?.getComputedStyle(layoutParent(parent)).display;
+  return display === "grid" || display === "inline-grid";
+}
+
 function startOf(rect: Box, axis: Axis): number {
   return axis === "x" ? rect.left : rect.top;
 }
@@ -355,11 +360,11 @@ export function moveElement(node: HTMLElement, destination: DropLocation): Struc
   return change;
 }
 
-/** Reorder only same-parent siblings; horizontal movement needs a flex row. */
+/** Reorder only same-parent siblings; horizontal movement needs a flex row or a grid. */
 export function nudgeElement(node: HTMLElement, key: StructuralNudgeKey): StructuralMove | null {
   const parent = node.parentElement;
   if (!parent || !node.isConnected) return null;
-  if ((key === "ArrowLeft" || key === "ArrowRight") && !isFlexRow(parent)) return null;
+  if ((key === "ArrowLeft" || key === "ArrowRight") && !isFlexRow(parent) && !isGrid(parent)) return null;
   const moveEarlier = key === "ArrowUp" || key === "ArrowLeft";
   const sibling = moveEarlier ? node.previousElementSibling : node.nextElementSibling;
   if (!sibling) return null;

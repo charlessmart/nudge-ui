@@ -85,10 +85,10 @@ test("opens the restricted demo in the shared iframe editor from Try it here", a
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await expect(workspace).toHaveAttribute("data-presentation", "focus");
   await expect.poll(() => panelOpen(inspectorHost)).toBe("true");
-  await expect(inspectorHost.getByRole("button", { name: "Use app normally", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(inspectorHost.getByRole("button", { name: "Select", exact: true })).toHaveAttribute("aria-pressed", "true");
 
   const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
-  await expect(frames).toHaveCount(3);
+  await expect(frames).toHaveCount(6);
   const appFrame = frames.first();
   const versionOneFrame = frames.nth(1);
   const versionTwoFrame = frames.nth(2);
@@ -104,6 +104,7 @@ test("opens the restricted demo in the shared iframe editor from Try it here", a
   )));
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "1")).toHaveLength(1);
   expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "2")).toHaveLength(1);
+  expect(sources.map((source) => new URL(source).searchParams.get("landing-layout")).filter(Boolean)).toEqual(["split", "sidebar", "blueprint"]);
 
   await showCanvas(inspectorHost);
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
@@ -164,11 +165,11 @@ test("does not undo the seeded landing versions", async ({ page }) => {
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   await inspectorHost.locator('[data-test="show-inspector"]').click();
   const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
-  await expect(frames).toHaveCount(3);
+  await expect(frames).toHaveCount(6);
 
   await page.locator("html").press("ControlOrMeta+z");
 
-  await expect(frames).toHaveCount(3);
+  await expect(frames).toHaveCount(6);
   expect(new URL(page.url()).searchParams.get("landing-version")).toBeNull();
   await expect(frames.first()).toBeVisible();
 });
@@ -198,7 +199,7 @@ test("keeps the final landing card after refreshing a focused historical version
   await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
 
   const restoredLabels = await restoredHost.locator("[data-card-id]").evaluateAll((cards) => cards.map((card) => card.getAttribute("aria-label")));
-  expect(restoredLabels.sort()).toEqual(["Frame: Final", "Frame: V1", "Frame: V2"]);
+  expect(restoredLabels.sort()).toEqual(["Frame: Blueprint", "Frame: Final", "Frame: Sidebar", "Frame: Split", "Frame: V1", "Frame: V2"]);
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {

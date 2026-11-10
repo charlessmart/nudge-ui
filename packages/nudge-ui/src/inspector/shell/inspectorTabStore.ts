@@ -2,19 +2,9 @@ import { useSyncExternalStore } from "react";
 
 export type InspectorTab = "pages" | "components" | "styles" | "tokens";
 
-const STORAGE_KEY = "nudge-ui:inspector-tab";
-const TABS: readonly InspectorTab[] = ["pages", "components", "styles", "tokens"];
 const listeners = new Set<() => void>();
-let tab = readStoredTab();
-
-function readStoredTab(): InspectorTab {
-  try {
-    const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
-    return TABS.find((candidate) => candidate === stored) ?? "styles";
-  } catch {
-    return "styles";
-  }
-}
+// The panel always opens on Styles; a switch to another tab lasts until the page reloads.
+let tab: InspectorTab = "styles";
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -28,11 +18,6 @@ export function getInspectorTab(): InspectorTab {
 export function setInspectorTab(value: InspectorTab): void {
   if (tab === value) return;
   tab = value;
-  try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, value);
-  } catch {
-    // The tab still switches for this session when storage is unavailable.
-  }
   listeners.forEach((listener) => listener());
 }
 

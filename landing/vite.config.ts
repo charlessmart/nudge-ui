@@ -11,8 +11,14 @@ export default defineConfig(({ command }) => ({
   // SAFETY: nudgeUi returns a Vite plugin, which Vite's PluginOption union accepts, so the cast only widens to the union member.
   plugins: [react(), nudgeUi({
     demo: true,
-    demoPages: ["/?landing-version=1", "/?landing-version=2", "/"],
-    demoCardLabels: ["V1", "V2", "Final"],
+    demoPages: [
+      "/?landing-version=1",
+      "/?landing-version=2",
+      "/?landing-layout=split",
+      "/?landing-layout=sidebar",
+      "/?landing-layout=blueprint",
+    ],
+    demoCardLabels: ["V1", "V2", "Split", "Sidebar", "Blueprint", "Final"],
     // Sketch falls back to clipboard without an agent; iterations write filesystem artifacts, so they stay dev-only.
     features: { canvasIterations: command === "serve", sketch: true },
     projectId: "nudge-ui-landing-demo",

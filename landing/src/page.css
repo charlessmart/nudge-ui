@@ -15,6 +15,7 @@ body:has(.lp) {
      centres on the page once there is room for the rail beside it, and otherwise sits just past the rail. */
   --lp-content-left: max(calc(var(--lp-gutter) + var(--lp-rail)), calc((100cqw - var(--lp-content-max)) / 2));
   --lp-guide: rgba(0, 0, 0, 0.16);
+  --lp-guide-line: repeating-linear-gradient(to bottom, var(--lp-guide) 0 4px, transparent 4px 8px);
   --lp-divider: rgba(0, 0, 0, 0.08);
   --lp-text: #242424;
   --lp-text-body: #333;
@@ -49,37 +50,11 @@ body:has(.lp) {
   margin: 0;
 }
 
-/* Dashed construction guides: the rail's left edge here, the content column's two edges on .lp-main. */
-.lp::before,
-.lp-main::before,
-.lp-main::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: repeating-linear-gradient(to bottom, var(--lp-guide) 0 4px, transparent 4px 8px);
-  pointer-events: none;
-}
-
-.lp::before {
-  left: calc(var(--lp-gutter) - 1px);
-}
-
 /* Inside Nudge's frame the page keeps the column against the rail, so it reads at the narrower frame width. */
 .lp[data-framed] {
   --lp-content-left: calc(var(--lp-gutter) + var(--lp-rail));
 
   grid-template-columns: calc(var(--lp-gutter) + var(--lp-rail)) minmax(0, var(--lp-content-max)) minmax(var(--lp-gutter), 1fr);
-}
-
-.lp-main::before {
-  left: -1px;
-}
-
-.lp-main::after {
-  right: -1px;
 }
 
 /* ---- Rail ------------------------------------------------------------------------------------------------- */
@@ -94,7 +69,19 @@ body:has(.lp) {
   width: var(--lp-rail);
   height: 100vh;
   margin-left: var(--lp-gutter);
-  padding-top: 38px;
+  padding-top: 56px;
+}
+
+/* The rail's dashed guide belongs to the rail, so it stays put beside the section links as the page scrolls. */
+.lp-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 1px;
+  background: var(--lp-guide-line);
+  pointer-events: none;
 }
 
 .lp-logo {
@@ -109,7 +96,7 @@ body:has(.lp) {
 }
 
 .lp-nav {
-  margin-top: 34px;
+  margin-top: 80px;
 }
 
 .lp-nav ul {
@@ -155,6 +142,12 @@ body:has(.lp) {
   white-space: nowrap;
   cursor: pointer;
   transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+/* A leading icon sits a touch tighter to its label than the button's gap. */
+.lp .lp-button-icon {
+  flex: none;
+  margin-inline-start: -2px;
 }
 
 .lp .lp-button:focus-visible {
@@ -204,6 +197,10 @@ body:has(.lp) {
   position: relative;
   grid-column: 2;
   min-width: 0;
+  /* The content column's dashed edges, painted as its background so they scroll with the page. */
+  background:
+    var(--lp-guide-line) 0 0 / 1px 100% no-repeat,
+    var(--lp-guide-line) 100% 0 / 1px 100% no-repeat;
 }
 
 .lp-hand {
@@ -214,9 +211,9 @@ body:has(.lp) {
 .lp-hero {
   position: relative;
   isolation: isolate;
-  /* Puts the h1's cap height level with the first rail link's (rail padding 38 + logo 22 + nav gap 34, plus the
-     difference between the two text sizes' cap offsets), so the headline lines up with Overview. */
-  padding-top: 99px;
+  /* Sits the h1 near the first rail link (rail padding 56 + logo 22 + nav gap 80, plus the difference between the two
+     text sizes' cap offsets), so the headline lines up with Overview. */
+  padding-top: 160px;
 }
 
 .lp-hero-content {
@@ -257,14 +254,16 @@ body:has(.lp) {
   font-size: 17px;
   font-weight: 500;
   white-space: nowrap;
-  transform: translateY(-7px) rotate(-2deg);
+  transform: translateY(12px) rotate(-2deg);
 }
 
+/* Flipped so the arrow curls up from below the note to the button. */
 .lp-scribble-arrow {
   flex: none;
   width: 36px;
   height: 17px;
-  margin-top: 10px;
+  margin-top: -6px;
+  transform: scaleY(-1);
 }
 
 /* The hero's WebGL layer spans the viewport, not just the column, so the reveal reaches under the rail too. */
@@ -279,7 +278,7 @@ body:has(.lp) {
 .lp-demo {
   position: relative;
   z-index: 2;
-  margin-top: 88px;
+  margin-top: 200px;
   overflow: hidden;
   border-radius: 12px;
   background: #fff;
@@ -471,8 +470,8 @@ body:has(.lp) {
 
 .lp-footer {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-start;
+  column-gap: 8px;
   margin-top: 176px;
   padding: 24px 0 40px;
   border-top: 1px solid var(--lp-divider);
@@ -504,10 +503,12 @@ body:has(.lp) {
     padding-inline: var(--lp-gutter);
   }
 
-  .lp::before,
-  .lp-main::before,
-  .lp-main::after {
+  .lp-rail::before {
     display: none;
+  }
+
+  .lp-main {
+    background: none;
   }
 
   .lp-rail {

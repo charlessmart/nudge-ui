@@ -223,7 +223,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const presentationAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
-  const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true ? "select" : "design");
+  // The demo opened from its call to action starts on Select, ready to pick an element; a refresh leaves the panel collapsed,
+  // so the visitor starts out using the app normally.
+  const [selectedTool, setInteractionTool] = useState<CanvasInteractionTool>(runtimeConfig.demo === true && !inspectorOpen ? "select" : "design");
   const temporaryAppInteraction = useTemporaryAppInteraction();
   const layoutTransitioning = useCanvasLayoutTransitioning();
   const outlinesView = useOutlinesView();
@@ -445,7 +447,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       height: board.clientHeight,
     };
     const inFocus = pageSurface || presentation === "focus";
-    const primaryCard = activateIframeWorkspace(primaryUrl, viewport, {
+    // The address follows the focused frame, so a refresh on a seeded demo page restores that page's address. The demo's
+    // own frame is still the site root, and the seeded frame keeps its place and takes focus.
+    const seedingDemo = runtimeConfig.demo === true && !demoSeededRef.current;
+    const restoredDemoPage = seedingDemo
+      && (runtimeConfig.demoPages ?? []).some((route) => new URL(route, primaryUrl).href === primaryUrl);
+    const primaryCard = activateIframeWorkspace(restoredDemoPage ? new URL("/", primaryUrl).href : primaryUrl, viewport, {
       replaceActiveCard: inFocus && runtimeConfig.demo !== true,
       preserveIterationFocus: true,
       // Demos keep their seeded cards (above), but Focus still opens the visitor's frame across the whole board.
@@ -463,16 +470,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const demoCardLabels = runtimeConfig.demoCardLabels ?? [];
       const orderedDemoCards = demoCardLabels.length > 0;
       const seededCards: CanvasCardData[] = [];
+      let restoredCard: CanvasCardData | null = null;
       const demoCardWidth = primaryCard.width;
       let nextX = 0;
       for (const [index, route] of demoPages.entries()) {
-        const url = new URL(route, primaryUrl);
+        const url: URL = new URL(route, primaryUrl);
         if (url.origin !== window.location.origin) continue;
         // Seeded frames are the demo's starting state, not an edit the visitor can undo.
         const card = activateIframeWorkspace(url.href, viewport, { undoable: false });
         if (!card) continue;
         resizeCard(card.id, demoCardWidth, 900);
         seededCards.push(card);
+        if (restoredDemoPage && url.href === primaryUrl) restoredCard = card;
         if (!orderedDemoCards) {
           setCardPosition(card.id, nextX, 0);
           nextX += demoCardWidth + CARD_GAP;
@@ -495,7 +504,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         const primaryLabel = demoCardLabels[demoPages.length];
         if (primaryLabel) updateCardTitle(primaryCard.id, primaryLabel);
       }
-      focusCard(primaryCard.id);
+      focusCard((restoredCard ?? primaryCard).id);
     }
   }, [primaryUrl, cards.length, pageSurface, presentation, boardMeasured, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 

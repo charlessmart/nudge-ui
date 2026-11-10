@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
-import { IconArrowUpRight, IconBrandChrome, IconBrandNpm } from "@tabler/icons-react";
+import { IconArrowUpRight, IconBrandChrome, IconBrandNpm, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { FeatureGrid } from "./components/FeatureGrid";
 import { HeroDepthReveal } from "./hero-depth/HeroDepthReveal";
 import { LandingButton } from "./components/LandingButton";
@@ -309,7 +309,8 @@ function Rail(): ReactNode {
 
 /**
  * A hand-drawn arrow that curls back toward the button it annotates. The artwork is drawn pointing up (head top left,
- * tail bottom right), so it is turned a quarter left inside a 36 × 17 box to point at the button.
+ * tail bottom right), so it is turned a quarter left inside a 36 × 17 box to point at the button; CSS flips it
+ * vertically so it curls up from below the note.
  */
 function ScribbleArrow(): ReactNode {
   return (
@@ -332,7 +333,10 @@ function Hero(): ReactNode {
           Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
         </p>
         <div className="lp-hero-actions">
-          <button type="button" className="lp-button lp-button--primary" onClick={openNudge}>Try it here</button>
+          <button type="button" className="lp-button lp-button--primary" onClick={openNudge}>
+            <IconPlayerPlayFilled className="lp-button-icon" size={14} aria-hidden="true" />
+            Try it here
+          </button>
           <span className="lp-scribble" aria-hidden="true">
             <ScribbleArrow />
             it&apos;s live rn
@@ -349,6 +353,13 @@ function InstallOptions(): ReactNode {
   return (
     <section className="lp-section lp-install" id="install" aria-label="Install options">
       <div className="lp-install-option">
+        <IconBrandNpm className="lp-install-icon" size={20} stroke={1.5} aria-hidden="true" />
+        <h2 className="lp-install-title">npm package</h2>
+        <p className="lp-install-copy">Use your real components, share with collaborators, and iterate on the canvas more deeply.</p>
+        <CopyPromptButton label="Copy setup prompt" copiedLabel="Setup prompt copied" className="lp-button lp-button--secondary" trailingIcon />
+      </div>
+      <span className="lp-install-or lp-hand" aria-hidden="true">or</span>
+      <div className="lp-install-option">
         <IconBrandChrome className="lp-install-icon" size={20} stroke={1.5} aria-hidden="true" />
         <h2 className="lp-install-title">Chrome extension</h2>
         <p className="lp-install-copy">
@@ -360,13 +371,6 @@ function InstallOptions(): ReactNode {
           <ChromeIcon />
           Add to Chrome
         </a>
-      </div>
-      <span className="lp-install-or lp-hand" aria-hidden="true">or</span>
-      <div className="lp-install-option">
-        <IconBrandNpm className="lp-install-icon" size={20} stroke={1.5} aria-hidden="true" />
-        <h2 className="lp-install-title">npm package</h2>
-        <p className="lp-install-copy">Use your real components, share with collaborators, and iterate on the canvas more deeply.</p>
-        <CopyPromptButton label="Copy setup prompt" copiedLabel="Setup prompt copied" className="lp-button lp-button--secondary" trailingIcon />
       </div>
     </section>
   );
@@ -440,8 +444,8 @@ export function App(): ReactNode {
         <GetStarted />
         <OpenSource />
         <footer className="lp-footer">
-          <span>Nudge UI</span>
-          <a href="https://twitter.com/CharlesMSmart" target="_blank" rel="noreferrer">Made by Charles</a>
+          <span>Nudge UI -</span>
+          <a href="https://twitter.com/CharlesMSmart" target="_blank" rel="noreferrer">Made by @Charles</a>
         </footer>
       </main>
     </div>

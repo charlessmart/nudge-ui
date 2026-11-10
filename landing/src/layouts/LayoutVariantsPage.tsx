@@ -398,7 +398,8 @@ function VariantIndex(): ReactNode {
   );
 }
 
-export function LayoutVariantsPage({ slug }: { slug: string | null }): ReactNode {
+/** `switcher` is off when the page is a demo Canvas iteration, where the exploration's own navigation does not belong. */
+export function LayoutVariantsPage({ slug, switcher = true }: { slug: string | null; switcher?: boolean }): ReactNode {
   const variant = LAYOUT_VARIANTS.find((candidate) => candidate.slug === slug) ?? null;
 
   return (
@@ -413,7 +414,7 @@ export function LayoutVariantsPage({ slug }: { slug: string | null }): ReactNode
           </main>
         </>
       ) : <VariantIndex />}
-      <VariantSwitcher current={variant?.slug ?? null} />
+      {switcher ? <VariantSwitcher current={variant?.slug ?? null} /> : null}
     </div>
   );
 }

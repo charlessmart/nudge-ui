@@ -64,10 +64,6 @@ const tokens = [
 function TokensArt(): ReactNode {
   return (
     <div className="fg-art fg-art--tokens" aria-hidden="true">
-      <div className="fg-page fg-tokens-page">
-        <Lines widths={["70%", "48%"]} />
-        <span className="fg-tokens-button">Get started</span>
-      </div>
       <div className="fg-panel fg-tokens-panel">
         <span className="fg-panel-heading">Background</span>
         <span className="fg-field">
