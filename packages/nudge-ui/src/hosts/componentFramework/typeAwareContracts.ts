@@ -58,7 +58,12 @@ export function selectTypeAwareRoots(
 /** Runs a worker module that answers `ProjectContractRequest` messages; the URL is built lazily by the caller, because CommonJS bundles have no `import.meta.url`. */
 export function createWorkerRunner(workerUrl: URL): ContractRunner {
   // A bounded heap turns a runaway program into a worker error, which falls back to syntactic contracts.
-  const worker = new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: 4096 } });
+  // From source the worker is a .ts module; Node 22 runs one only with type stripping switched on, as Node 23.6+ does by default.
+  const needsTypeStripping = workerUrl.pathname.endsWith(".ts") && !(process.features as { typescript?: unknown }).typescript;
+  const worker = new Worker(workerUrl, {
+    ...(needsTypeStripping ? { execArgv: [...process.execArgv, "--experimental-strip-types"] } : {}),
+    resourceLimits: { maxOldGenerationSizeMb: 4096 },
+  });
   worker.unref();
   let nextId = 0;
   const pending = new Map<number, { resolve(contracts: ComponentContract[]): void; reject(error: Error): void }>();

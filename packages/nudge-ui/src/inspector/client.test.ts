@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { CANVAS_RENDERER_ATTR } from "./canvas/roleDetection.ts";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   resolveNudgeUiClientEntry,
   subscribeToManifestReloads,
@@ -50,6 +50,12 @@ const manifest: NudgeUiClientManifest = {
   },
 };
 
+// Without a relay unless a test installs one: Node's real BroadcastChannel would carry messages between tests, and on
+// Node 22 it cannot build jsdom's MessageEvent.
+beforeEach(() => {
+  vi.stubGlobal("BroadcastChannel", undefined);
+});
+
 afterEach(() => {
   FakeEventSource.instances = [];
   vi.unstubAllGlobals();
@@ -79,14 +85,22 @@ describe("subscribeToManifestReloads", () => {
   });
 
   it("has one stream per Canvas: the top document relays revisions to its renderers", async () => {
-    const fetch = vi.fn().mockResolvedValue(manifestResponse(1));
+    // A Response body reads once, and the top document and the renderer each fetch the manifest.
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(manifestResponse(1)));
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal("fetch", fetch);
     const channels: FakeChannel[] = [];
-    class FakeChannel extends EventTarget {
-      constructor() { super(); channels.push(this); }
+    // Calls its listeners directly: Node 22's EventTarget rejects jsdom's MessageEvent.
+    class FakeChannel {
+      readonly listeners = new Set<(event: Event) => void>();
+      constructor() { channels.push(this); }
+      addEventListener(_type: string, listener: (event: Event) => void): void { this.listeners.add(listener); }
+      removeEventListener(_type: string, listener: (event: Event) => void): void { this.listeners.delete(listener); }
       postMessage(data: unknown): void {
-        for (const channel of channels) if (channel !== this) channel.dispatchEvent(new MessageEvent("message", { data }));
+        for (const channel of channels) {
+          if (channel === this) continue;
+          for (const listener of channel.listeners) listener(new MessageEvent("message", { data }));
+        }
       }
       close(): void {}
     }
