@@ -32,7 +32,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-8);
-  max-width: min(360px, calc(100vw - var(--space-24)));
+  /* Never wraps, so it is as wide as its text; the viewport caps it where the space runs out. */
+  max-width: 100%;
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-pill);
   background: var(--surface-raised-2x);
@@ -78,11 +79,6 @@
   rotate: -8deg;
 }
 
-/* A pill like every toast; only an error with a description, which can wrap, takes the tighter radius. */
-.toast[data-tone="error"]:has(.toast__description) {
-  border-radius: var(--radius-12);
-}
-
 .toast[data-tone="error"] .toast__icon {
   color: var(--danger);
 }
@@ -91,24 +87,34 @@
   color: var(--warning);
 }
 
+/* Title and description share one line, joined by a dash. */
 .toast__content {
   display: flex;
-  flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
+  white-space: nowrap;
 }
 
 .toast__title {
-  text-wrap: balance;
+  flex: 0 0 auto;
   margin: 0;
   font-size: inherit;
   font-weight: var(--font-weight-base);
 }
 
 .toast__description {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--text-secondary);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+
+/* Spoken as nothing: the title and description are already read as two parts. */
+.toast__description::before {
+  content: "—";
+  content: "—" / "";
+  margin-right: var(--space-4);
 }
 
 /* Errors stay until dismissed; the button sits in the toast's trailing padding so the text keeps its place. */

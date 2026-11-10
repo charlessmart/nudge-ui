@@ -468,9 +468,9 @@ function ColorPicker({ color, hidden, initiallyOpen, onColorChange }: {
 
 /** These match `sketch-options-item-in` and the per-item delay in SketchToolBar.css. */
 const ITEM_COUNT = 7;
-const ITEM_BASE_DELAY_MS = 20;
-const ITEM_STAGGER_MS = 5;
-const ITEM_DURATION_MS = 150;
+const ITEM_BASE_DELAY_MS = 10;
+const ITEM_STAGGER_MS = 3;
+const ITEM_DURATION_MS = 75;
 const INTRO_SETTLE_MS = ITEM_BASE_DELAY_MS + ITEM_DURATION_MS + (ITEM_COUNT - 1) * ITEM_STAGGER_MS;
 
 function BarItem({ index, children }: {

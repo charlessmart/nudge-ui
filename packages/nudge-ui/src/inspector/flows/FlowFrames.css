@@ -4,25 +4,10 @@
   gap: var(--space-4);
 }
 
-/* Fills the Flows section until a flow exists, aligned with the section title. */
-.flows-panel__intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-8);
-  padding: var(--space-4) var(--space-8) var(--space-8);
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-}
-
-.flows-panel__intro p {
-  margin: 0;
-  line-height: 1.4;
-}
-
-/* Bleeds out by its own padding, so the icon lines up with the text above. */
-.flows-panel__intro .flows-panel__copy-prompt {
-  margin-left: calc(var(--space-12) * -1);
+/* Under the shared intro, which centres its own text. */
+.flows-panel__copy-problem {
+  margin: 0 var(--space-8) var(--space-8);
+  text-align: center;
 }
 
 .flows-panel__errors code {

@@ -98,7 +98,8 @@ export function SegmentedControl<T extends string>({
 /**
  * Publishes each label's natural width as `--label-width` on its segment, so CSS can centre the opened segment's icon
  * and label with padding that animates on the same curve as the segment's width. Labels are clipped while folded, so
- * `scrollWidth` reads the full text; webfonts can change it once they load.
+ * `scrollWidth` reads the full text; webfonts can change it once they load. A control that mounts hidden (the editor
+ * opens with its panel collapsed after a refresh) measures zero, so it measures again whenever it is resized.
  */
 function measureRevealLabels(root: HTMLElement): () => void {
   let cancelled = false;
@@ -110,7 +111,11 @@ function measureRevealLabels(root: HTMLElement): () => void {
   };
   measure();
   void root.ownerDocument.fonts?.ready.then(measure);
+  const view = root.ownerDocument.defaultView;
+  const observer = view?.ResizeObserver ? new view.ResizeObserver(measure) : null;
+  observer?.observe(root);
   return () => {
     cancelled = true;
+    observer?.disconnect();
   };
 }

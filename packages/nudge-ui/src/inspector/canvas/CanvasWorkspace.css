@@ -131,13 +131,13 @@
   pointer-events: none;
 }
 
-/* Placed at the frames' top edge, then lifted past the card header (its gap plus its height, see
+/* Placed at the frames' top edge, then lifted past the card header (its height, see
    `.canvas-card__header`) and a further gap. Sized and spaced in toolbar pixels like that header,
    so the title keeps its size and its distance from the URL bar at any zoom. Its type is the shared
    heading (see `headingRule`), added beside this stylesheet in `CanvasWorkspace.tsx`. */
 .flow-board__title {
   position: absolute;
-  transform: translateY(calc(-100% - (var(--control-height-large) + var(--space-8) * 4) * var(--canvas-toolbar-scale, 1)));
+  transform: translateY(calc(-100% - (var(--control-height-large) + var(--space-8) * 3) * var(--canvas-toolbar-scale, 1)));
   color: var(--text-primary);
   white-space: nowrap;
 }
@@ -147,8 +147,55 @@
   animation: canvas-card-slide-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Arrows run under the frames, at a toolbar-pixel weight like the card chrome, so they read at any zoom. */
+.flow-board__defs,
+.flow-board__arrow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+
+.flow-board__arrow path {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: calc(1.5px * var(--canvas-toolbar-scale, 1));
+  stroke-linejoin: miter;
+}
+
+.flow-board__arrowhead {
+  fill: var(--text-muted);
+}
+
+/* Centred on its point of the arrow and kept at toolbar size, sitting over the line it names. */
+.flow-board__label {
+  position: absolute;
+  padding: 2px 8px;
+  transform: translate(-50%, -50%) scale(var(--canvas-toolbar-scale, 1));
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Fades in once the later of its frames has slid in (see `.canvas-card.is-entering`). */
+.flow-board__edge.is-entering {
+  animation: flow-board-edge-in 240ms ease-out both;
+  animation-delay: calc(var(--canvas-card-entrance-column, 0) * 70ms + 360ms);
+}
+
+@keyframes flow-board-edge-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .flow-board__title.is-entering {
+  .flow-board__title.is-entering,
+  .flow-board__edge.is-entering {
     animation: none;
   }
 }

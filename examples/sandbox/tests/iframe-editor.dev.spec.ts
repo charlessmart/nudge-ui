@@ -1,4 +1,4 @@
-import { clickFrameAction, showCanvas } from "./canvasTransition.ts";
+import { duplicateFrame, showCanvas } from "./canvasTransition.ts";
 import { expect, test } from "@playwright/test";
 
 test("dev: opens a pure editor shell with one fitted application iframe", async ({ page }) => {
@@ -151,7 +151,7 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
 test("dev: keeps hidden comparison geometry stable until Canvas reveal completes", async ({ page }) => {
   await page.goto("/playground");
   await showCanvas(page);
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await duplicateFrame(page);
   const cards = page.locator(".canvas-card");
   await expect(cards).toHaveCount(2);
   const comparison = cards.nth(1);
@@ -203,7 +203,7 @@ test("dev: keeps hidden comparison geometry stable until Canvas reveal completes
 test("dev: selecting another card makes its exact route the reload target", async ({ page }) => {
   await page.goto("/playground");
   await showCanvas(page);
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await duplicateFrame(page);
   const frames = page.frameLocator(".canvas-card__iframe");
   await frames.nth(1).locator('a[href="/conformance"]').click();
   await expect.poll(() => frames.nth(1).locator("body").evaluate(() => location.pathname)).toBe("/conformance");

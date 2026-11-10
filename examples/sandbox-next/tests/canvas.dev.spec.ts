@@ -84,6 +84,7 @@ test("dev: duplicate keeps a comparison renderer live", async ({ page }) => {
   await openEditor(page);
   await showCanvas(page);
   await revealCardActions(page);
+  await page.locator('[data-test^="canvas-card-more-"]').first().click();
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
   await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(2);
   await expect.poll(() => page.frames().filter((frame) => frame !== page.mainFrame()
@@ -108,6 +109,7 @@ test("dev: canvas layout and edits survive an editor reload", async ({ page }) =
   await makeWidthEdit(page, frame, "314px");
   await showCanvas(page);
   await revealCardActions(page);
+  await page.locator('[data-test^="canvas-card-more-"]').first().click();
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
   await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(2);
   await page.reload({ waitUntil: "domcontentloaded" });

@@ -1,4 +1,4 @@
-import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, duplicateFrame, showCanvas, waitForCanvasTransition, waitForFrameReady } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -17,7 +17,7 @@ test("HTML iteration DOM drags work and change counts describe final prompt inte
   });
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-create-iteration-"]'));
   const iteration = cards.nth(1).locator("iframe");
-  await expect(cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
+  await waitForFrameReady(cards.nth(1));
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
@@ -119,7 +119,7 @@ test("duplicates slide right and iterations slide down with hover paused", async
   });
   await page.locator('[data-test="canvas-board"]').dispatchEvent("wheel", { deltaX: 120, deltaY: -80, bubbles: true, composed: true });
   await captureEntrance(1);
-  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.first());
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(1)).toHaveAttribute("data-test-animation-start", JSON.stringify({ interactionsPaused: true, offsetX: 200, offsetY: 0, duration: 300, opacity: "0", finalOpacity: "1" }));
   await expect(cards.nth(1)).toHaveAttribute("data-test-camera-start", expectedCameraMotion);
@@ -155,7 +155,7 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
   await page.goto("/conformance");
   await showCanvas(page);
   const cards = page.locator(".canvas-card");
-  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.first());
   await expect(cards).toHaveCount(2);
   await waitForCanvasTransition(page);
   await cards.first().focus();
@@ -166,7 +166,7 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
     const rect = card.getBoundingClientRect();
     const bar = card.querySelector<HTMLElement>(".canvas-card__bar")!;
     const button = card.querySelector<HTMLElement>('[data-test^="canvas-card-focus-"]')!;
-    const action = card.querySelector<HTMLElement>('[data-test^="canvas-card-duplicate-"]')!;
+    const action = card.querySelector<HTMLElement>('[data-test^="canvas-card-more-"]')!;
     const url = card.querySelector<HTMLElement>('[data-test^="canvas-card-url-"]')!;
     const frames = [...element.querySelectorAll<HTMLElement>(".canvas-card")].map((frame) => frame.getBoundingClientRect());
     const zoom = new DOMMatrixReadOnly(getComputedStyle(element).transform).a;
@@ -199,10 +199,10 @@ test("linked frame geometry scales with the canvas and controls retain their zoo
     const screenScale = Math.min(1, actual.zoom * 2);
     expect(actual.barHeight / screenScale).toBeCloseTo(40, 1);
     expect(actual.barWidthRatio).toBeCloseTo(1, 1);
-    expect(actual.buttonHeight / screenScale).toBeCloseTo(32, 1);
-    expect(actual.actionHeight / screenScale).toBeCloseTo(32, 1);
+    expect(actual.buttonHeight / screenScale).toBeCloseTo(24, 1);
+    expect(actual.actionHeight / screenScale).toBeCloseTo(24, 1);
     expect(actual.urlHeight / screenScale).toBeCloseTo(24, 1);
-    expect(actual.frameGap / screenScale).toBeCloseTo(8, 1);
+    expect(actual.frameGap / screenScale).toBeCloseTo(0, 1);
     expect(actual.width).toBeCloseTo(initial.width, 1);
     expect(actual.height).toBeCloseTo(initial.height, 1);
     expect(actual.gap).toBeCloseTo(initial.gap, 1);

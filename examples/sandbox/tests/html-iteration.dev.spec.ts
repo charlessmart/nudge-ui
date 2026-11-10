@@ -1,4 +1,4 @@
-import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, duplicateFrame, showCanvas, waitForCanvasTransition, waitForFrameReady } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -9,14 +9,14 @@ test("clearing iteration changes preserves the canvas until Reset canvas is used
   await page.goto("/playground");
   await showCanvas(page);
   const cards = page.locator(".canvas-card");
-  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.first());
   await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
   await expect(cards.nth(2).locator(".canvas-card__dimensions")).toContainText("Unlinked frame");
   const iteration = cards.nth(2).locator("iframe");
   const iterationUrl = await iteration.getAttribute("src");
   const heading = iteration.contentFrame().locator("h1").first();
   const original = await heading.textContent();
-  await expect(cards.nth(2).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
+  await waitForFrameReady(cards.nth(2));
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
@@ -45,7 +45,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
 
   const cards = page.locator(".canvas-card");
   await expect(cards).toHaveCount(1);
-  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.first());
   await expect(cards).toHaveCount(2);
   const duplicate = cards.nth(1);
   await expect(duplicate.locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
@@ -61,7 +61,7 @@ test("a live frame creates an additive persistent HTML iteration", async ({ page
   await expect(source.contentFrame().locator("h1").first()).toBeVisible();
   const originalHeading = await source.contentFrame().locator("h1").first().textContent();
 
-  await expect(cards.nth(2).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
+  await waitForFrameReady(cards.nth(2));
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
@@ -111,7 +111,7 @@ test("an HTML iteration retains responsive layout after capture and prompt hando
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await showCanvas(page);
-  await clickFrameAction(page, page.locator('.canvas-card').first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, page.locator('.canvas-card').first());
   const duplicate = page.locator('.canvas-card').nth(1);
   let iframe = duplicate.locator("iframe");
   await expect(iframe.contentFrame().locator("h1").first()).toBeVisible();
@@ -173,9 +173,9 @@ test("linked frames drag independently and iterations preserve their source layo
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await showCanvas(page);
   const cards = page.locator(".canvas-card");
-  await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.first());
   expect(await cards.nth(1).evaluate((element) => element.getAnimations().map((animation) => animation.effect?.getTiming().duration))).toContain(300);
-  await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-duplicate-"]'));
+  await duplicateFrame(page, cards.nth(1));
   await expect(cards).toHaveCount(3);
 
   const positions = () => cards.evaluateAll((elements) => elements.map((element) => ({
@@ -232,9 +232,9 @@ for (const modifier of ["Alt"] as const) {
     await page.goto("/playground");
     await showCanvas(page);
     const cards = page.locator(".canvas-card");
-    await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+    await duplicateFrame(page, cards.first());
     await expect(cards).toHaveCount(2);
-    await expect(cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
+    await waitForFrameReady(cards.nth(1));
     await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
       await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
     });
@@ -291,7 +291,7 @@ test("a stale iteration handoff keeps pending edits and the agent's file", async
   const cards = page.locator(".canvas-card");
   await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-create-iteration-"]'));
   const iteration = cards.nth(1).locator("iframe");
-  await expect(cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]')).toBeEnabled();
+  await waitForFrameReady(cards.nth(1));
   await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
   });
@@ -317,7 +317,7 @@ test("a stale iteration handoff keeps pending edits and the agent's file", async
     await expect(heading).toContainText("Pending browser design");
     await expect(page.locator('[data-test="changes-log"]')).toContainText("Pending browser design");
 
-    await clickFrameAction(page, cards.nth(1).locator('[data-test^="canvas-card-create-iteration-"]'));
+    await duplicateFrame(page, cards.nth(1));
     await expect(cards).toHaveCount(3);
     await expect(cards.nth(2).locator("iframe").contentFrame().locator("h1").first()).toContainText("Pending browser design");
     await page.locator('[data-test="canvas-board-content"]').evaluate(async (element) => {

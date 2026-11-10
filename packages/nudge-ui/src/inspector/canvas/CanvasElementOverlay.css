@@ -140,3 +140,29 @@
   border-radius: var(--radius-4);
   background: rgb(59 130 246 / 5%);
 }
+
+/* The tag and size label sits just below the selection, over its bottom margin band, under the spacing handles. */
+.selection-label {
+  position: fixed;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--control-height-small);
+  padding-inline: var(--space-8);
+  border-radius: var(--radius-4);
+  background: var(--accent);
+  color: var(--surface-raised-2x);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.selection-label[data-linked="true"] {
+  background: var(--linked);
+}
+
+.selection-label__size {
+  font-variant-numeric: tabular-nums;
+}

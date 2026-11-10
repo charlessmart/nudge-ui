@@ -11,6 +11,18 @@
   overflow: hidden;
 }
 
+/* Continues the URL bar's 1px border around the frame, in toolbar pixels so it stays a hairline at any zoom.
+   An overlay rather than a border, so it lines up with the bar's edges, paints above the page, and leaves the
+   frame's content box (and every measurement taken from it) unchanged. */
+.canvas-card:not(.is-focus-presentation) .canvas-card__frame::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  box-shadow: inset 0 0 0 calc(1px * var(--canvas-toolbar-scale, 1)) var(--border-subtle);
+  pointer-events: none;
+}
+
 .canvas-card.is-selected .canvas-card__frame {
   outline: 2px solid var(--frame-accent, var(--accent));
   outline-offset: -2px;
@@ -68,7 +80,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + (var(--space-8) * var(--canvas-toolbar-scale, 1)));
+  /* The URL bar is the frame's own chrome, so it sits flush on the frame's top edge. */
+  bottom: 100%;
   height: calc((var(--control-height-large) + var(--space-8)) * var(--canvas-toolbar-scale, 1));
   container-type: inline-size;
   z-index: 3;
@@ -78,15 +91,17 @@
 .canvas-card__bar {
   /* Sized in toolbar pixels, unlike the header, so its own controls can respond to the space they really have. */
   container: canvas-card-bar / inline-size;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, min(280px, 45%)) minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-8);
   width: calc(100% * var(--canvas-toolbar-inverse-scale, 1));
   height: calc(var(--control-height-large) + var(--space-8));
-  padding: calc(var(--space-4) - 1px);
+  /* The 24px controls sit 8px from the top in this 40px bar, so the sides match that inset (less the 1px border). */
+  padding: calc(var(--space-4) - 1px) calc(var(--space-8) - 1px);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-12);
+  border-bottom: 0;
+  border-radius: var(--radius-12) var(--radius-12) 0 0;
   background: var(--surface-raised-2x);
   box-shadow: none;
   transform: scale(var(--canvas-toolbar-scale, 1));
@@ -100,48 +115,44 @@
   cursor: grabbing;
 }
 
-/* Iteration frames have no bar chrome, so the actions sit flush with the frame instead of inside its inset. */
+/* Iteration frames have no bar chrome, so their actions float just above the frame instead of attaching to it. */
+.canvas-card__header[data-kind="iteration"] {
+  bottom: calc(100% + (var(--space-8) * var(--canvas-toolbar-scale, 1)));
+}
+
 .canvas-card__header[data-kind="iteration"] .canvas-card__bar {
+  /* The bar keeps its 40px height, so its 24px controls sit on its bottom edge rather than centred, or the gap above the frame doubles. */
+  align-items: flex-end;
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
 }
 
-.canvas-card__header[data-kind="iteration"] .icon-button {
+/* The title gets the controls' height, so it stays centred on them now that they sit on the bottom edge. */
+.canvas-card__header[data-kind="iteration"] .canvas-card__start {
+  height: var(--control-height-small);
+}
+
+.canvas-card__header[data-kind="iteration"] .icon-button,
+.canvas-card__header[data-kind="iteration"] .button {
   background: var(--surface-control);
 }
 
+/* History, live status and the URL lead the bar; the frame actions trail it. */
 .canvas-card__start {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  justify-self: start;
   gap: var(--space-4);
   min-width: 0;
 }
 
-.canvas-card__center {
-  position: relative;
-  min-width: 0;
-}
-
-/* History and live status sit just left of the URL, and the unlink action just right, so the URL stays centred on the frame. */
-.canvas-card__url-lead,
-.canvas-card__url-trail {
-  position: absolute;
-  top: 50%;
+.canvas-card__url-lead {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 2px;
-  transform: translateY(-50%);
-}
-
-.canvas-card__url-lead {
-  right: calc(100% + var(--space-4));
-}
-
-.canvas-card__url-trail {
-  left: calc(100% + var(--space-4));
 }
 
 .canvas-card__live {
@@ -161,24 +172,24 @@
   cursor: grabbing;
 }
 
-.canvas-card__url {
-  width: 100%;
+.text-input.canvas-card__url {
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 360px;
   min-width: 0;
   border-radius: var(--radius-6);
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+/* The URL reads as plain text in the bar and only shows its field while pointed at or edited. */
+.text-input.canvas-card__url:hover,
+.text-input.canvas-card__url:focus {
   background: var(--surface-well-2x);
 }
 
 .canvas-card__url[data-invalid="true"] {
   box-shadow: inset 0 0 0 2px var(--danger);
-}
-
-.canvas-card__url-space {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-width: 0;
-  padding-inline: var(--space-4);
 }
 
 .canvas-card__title {
@@ -199,41 +210,51 @@
 
 .canvas-card__actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  justify-self: end;
+  gap: 2px;
+}
+
+.canvas-card__actions {
   gap: var(--space-4);
-  min-width: 0;
 }
 
-.canvas-card__header[data-kind="iteration"] .canvas-card__delete {
-  background: transparent;
+.button.canvas-card__action {
+  gap: var(--space-4);
+  padding: 0 var(--space-8);
+  white-space: nowrap;
 }
 
-/* Back, forward, duplicate, delete and unlink appear while the pointer is over the frame or its header, or keyboard focus is inside it.
-   They keep their space and stay clickable, so the bar never shifts. Touch has no hover, so it always shows them. */
-.canvas-card__actions,
-.canvas-card__url-lead .icon-button,
-.canvas-card__url-trail {
-  opacity: 0;
-  transition: opacity 120ms ease;
+/* Sized to its items; the shared popup's 280px width is for editor panels. */
+.inspector-popover__popup.canvas-card__menu {
+  width: max-content;
+  min-width: 160px;
 }
 
-.canvas-card:hover .canvas-card__actions,
-.canvas-card:hover .canvas-card__url-lead .icon-button,
-.canvas-card:hover .canvas-card__url-trail,
-.canvas-card:has(:focus-visible) .canvas-card__actions,
-.canvas-card:has(:focus-visible) .canvas-card__url-lead .icon-button,
-.canvas-card:has(:focus-visible) .canvas-card__url-trail,
-.canvas-card__header[aria-busy="true"] .canvas-card__url-trail {
-  opacity: 1;
+.canvas-card__menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--control-height-small);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-4);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  outline: 0;
 }
 
-@media (hover: none) {
-  .canvas-card__actions,
-  .canvas-card__url-lead .icon-button,
-  .canvas-card__url-trail {
-    opacity: 1;
-  }
+.canvas-card__menu-item[data-highlighted] {
+  background: var(--surface-control);
+}
+
+.canvas-card__menu-item--danger {
+  color: var(--danger-text);
+}
+
+.canvas-card__menu-item[data-disabled] {
+  color: var(--text-muted-subtle);
+  cursor: default;
 }
 
 .canvas-card__iteration-error {
@@ -430,26 +451,19 @@
   background: var(--surface-raised-2x);
 }
 
-@container (min-width: 720px) {
-  .canvas-card__bar:has(.canvas-card__url:focus) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 50%)) minmax(0, 1fr);
-  }
-}
-
-@container (max-width: 620px) {
-  .canvas-card__bar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 40%) minmax(0, 1fr);
+/* Narrow frames drop the action labels first, then Back and Forward, so the URL keeps room. */
+@container canvas-card-bar (max-width: 520px) {
+  .canvas-card__action-label {
+    display: none;
   }
 
-  .icon-button.canvas-card__action-icon {
+  .button.canvas-card__action {
     width: var(--control-height-small);
-    height: var(--control-height-small);
-    border-radius: var(--radius-4);
+    padding: 0;
   }
 }
 
-/* Narrow frames keep the live mark but drop Back and Forward, which would otherwise run into the Focus button. */
-@container canvas-card-bar (max-width: 420px) {
+@container canvas-card-bar (max-width: 360px) {
   .canvas-card__url-lead .icon-button {
     display: none;
   }

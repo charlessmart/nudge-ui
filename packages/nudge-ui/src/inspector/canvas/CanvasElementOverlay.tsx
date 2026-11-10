@@ -29,6 +29,7 @@ import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../overlay/dropGuide.ts";
 import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOverlay.tsx";
+import { SelectionLabel } from "../overlay/SelectionLabel.tsx";
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
@@ -958,6 +959,15 @@ export function CanvasElementOverlay(): ReactElement | null {
         >
           {spacingValueCss(spacingBadge.value)}
         </div>
+      ) : null}
+      {!measureStateForSelectedFrame?.altKey && selectedElements.length === 1 && selected && selectedRect && selectedLocalRect && selectedFrameViewport ? (
+        <SelectionLabel
+          element={selected.domElement}
+          anchor={selectedRect}
+          size={selectedLocalRect}
+          bounds={selectedFrameViewport}
+          linked={selectionIsLinked}
+        />
       ) : null}
       <DropGuideOverlay
         guide={projectedDropGuide}

@@ -25,7 +25,7 @@ declare global {
 import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
-import { IconAdjustmentsHorizontal, IconColorSwatch, IconComponents, IconFiles, IconSettings } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconColorSwatch, IconComponents, IconFiles, IconSettings2 } from "@tabler/icons-react";
 import { Button } from "../ui/Button.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { isTextRelevant } from "../styleEditors/textRelevance.ts";
@@ -126,7 +126,7 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 /** The panel holds every view: pages, components, the selection's styles and the document's tokens. */
 const PANEL_VIEWS: readonly SegmentedControlOption<InspectorTab>[] = [
   { value: "styles", label: "Styles", icon: <IconAdjustmentsHorizontal size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-styles" },
-  { value: "pages", label: "Pages", icon: <IconFiles size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-pages" },
+  { value: "pages", label: "Elements", icon: <IconFiles size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-pages" },
   { value: "tokens", label: "Tokens", icon: <IconColorSwatch size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-tokens" },
   { value: "components", label: "Components", icon: <IconComponents size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />, testId: "panel-view-components" },
 ];
@@ -337,7 +337,7 @@ export function InspectorShell(): ReactElement {
               data-test="settings-button"
               onClick={openSettings}
             >
-              <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <IconSettings2 size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </Button>
           </Tooltip>
         </>}

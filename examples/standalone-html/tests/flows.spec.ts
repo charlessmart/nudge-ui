@@ -53,6 +53,12 @@ test("a flow shows every state of one URL side by side without touching the app 
   expect(await page.evaluate(() => localStorage.getItem("cart"))).toBeNull();
 
   await expect(page.locator('[data-test="flow-board-title"]')).toHaveText("Checkout");
+  // Each edge is a right-angled arrow carrying its label.
+  await expect(page.locator('[data-test="flow-board-edge"]')).toHaveCount(4);
+  await expect(page.locator('[data-test="flow-board-label"]')).toHaveText(["Get started", "Pay", "402", "200"]);
+  for (const d of await page.locator('[data-test="flow-board-edge"] path').evaluateAll((paths) => paths.map((path) => path.getAttribute("d") ?? ""))) {
+    expect(d).toMatch(/^M [\d. -]+( L [\d. -]+)+$/);
+  }
 
   const panel = page.locator('[data-test="flows-panel"]');
   await expect(panel.getByRole("alert")).toContainText('No visible button named "Not on this page"');
@@ -63,7 +69,7 @@ test("a flow shows every state of one URL side by side without touching the app 
 
   // Adding a flow explains that the agent maps it, and offers the prompt.
   await page.locator('[data-test="flows-add"]').click();
-  await expect(page.locator('[data-test="flows-add-menu"]')).toContainText("Ask your agent to map flows.");
+  await expect(page.locator('[data-test="flows-add-menu"]')).toContainText("Ask your agent to map screen states as flows.");
   await expect(page.locator('[data-test="flows-add-menu"] [data-test="flows-copy-prompt"]')).toBeVisible();
   await page.keyboard.press("Escape");
 

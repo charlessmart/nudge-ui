@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
-import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, duplicateFrame, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 
 test("a live sketch blocks canvas pan and zoom until it closes", async ({ page }) => {
   await openEditor(page, "/playground?nudge-ui=on");
@@ -93,7 +93,7 @@ test("undo and redo follow drawing and erasing after toolbar clicks", async ({ p
 test("the first stroke targets another frame without selecting an application element", async ({ page }) => {
   await openEditor(page, "/playground?nudge-ui=on");
   await showCanvas(page);
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await duplicateFrame(page);
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
   await page.frameLocator(".canvas-card__iframe").nth(1).locator("body").evaluate(() => { location.assign("/conformance"); });

@@ -35,11 +35,13 @@
   height: var(--icon-size-large);
 }
 
-/* The brand colour marks the one primary action wherever it appears. */
+/* The brand colour marks the one primary action wherever it appears. A warm top edge deepens to pure red,
+   inside a darker rim and below a thin top light. */
 .button--primary {
-  background: var(--brand-primary);
+  background: linear-gradient(180deg, var(--brand-primary-top) -6.25%, var(--brand-primary-bottom) 100%);
+  border: 1px solid var(--brand-primary-rim);
   color: var(--text-inverse);
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 2px 0 var(--brand-primary-highlight);
 }
 
 .button--secondary {
@@ -70,9 +72,7 @@
 }
 
 .button--primary:hover:not(:disabled) {
-  background: var(--brand-primary-hover);
-  color: var(--text-inverse);
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, var(--brand-primary-top-hover) -6.25%, var(--brand-primary-bottom-hover) 100%);
 }
 
 .button[data-active="true"] {
@@ -90,8 +90,9 @@
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
-.button--primary:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--accent), inset 0 -2px 0 rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+/* White inside the accent ring keeps the focus state visible on the red face. */
+.button--primary:focus-visible:not(:disabled) {
+  box-shadow: inset 0 0 0 2px var(--text-inverse), inset 0 0 0 4px var(--accent);
 }
 
 .button:disabled {
@@ -102,7 +103,14 @@
 /* A primary action that cannot be taken yet drops the brand colour for a light grey. */
 .button--primary:disabled {
   background: var(--surface-well-2x);
+  border-color: transparent;
   box-shadow: none;
+}
+
+/* The face darkens and the top light gives way to a recessed edge, so a press reads without relying on the scale. */
+.button--primary:active:not(:disabled) {
+  background: linear-gradient(180deg, var(--brand-primary-top-hover) -6.25%, var(--brand-primary-bottom-hover) 100%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Popup triggers stay still: a scaled trigger moves the rect the popup anchors to. */

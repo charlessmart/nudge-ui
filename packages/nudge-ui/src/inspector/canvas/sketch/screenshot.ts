@@ -34,6 +34,9 @@ const CAPTURE_STYLES = `
   outline: none !important;
   animation: none !important;
 }
+.canvas-card__frame::before {
+  display: none !important;
+}
 `;
 
 /** A rectangle of the tab in CSS pixels. */

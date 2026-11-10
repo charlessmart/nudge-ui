@@ -15,6 +15,13 @@
   /* Nudge's own brand red, for primary actions. */
   --brand-primary: #ff2600;
   --brand-primary-hover: #e62200;
+  /* The primary button's face: a warm top edge that deepens to pure red inside a darker rim, under a thin top light. */
+  --brand-primary-top: #ff4400;
+  --brand-primary-bottom: #ff0000;
+  --brand-primary-top-hover: #e63d00;
+  --brand-primary-bottom-hover: #e60000;
+  --brand-primary-rim: #e00400;
+  --brand-primary-highlight: rgba(255, 255, 255, 0.25);
   /* The low-opacity brand tint behind an active brand-coloured control. */
   --brand-surface: rgba(255, 38, 0, 0.12);
   --surface-inverse-hover: #343532;

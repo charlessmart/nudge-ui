@@ -17,13 +17,14 @@ const valid = {
       steps: [{ fill: { role: "textbox", name: "Name" }, value: "Ada" }, { click: { text: "Pay" } }, { waitFor: { role: "alert" }, timeoutMs: 100 }],
     },
   ],
-  edges: [{ from: "cart", to: "declined" }],
+  edges: [{ from: "cart", to: "declined", label: "Pay" }],
 };
 
 describe("parseFlowDefinition", () => {
   it("keeps a valid flow and defaults its edges", () => {
     const parsed = parseFlowDefinition(valid);
     expect("flow" in parsed && parsed.flow.states[1]?.steps).toHaveLength(3);
+    expect("flow" in parsed && parsed.flow.edges).toEqual([{ from: "cart", to: "declined", label: "Pay" }]);
     const withoutEdges = parseFlowDefinition({ ...valid, edges: undefined });
     expect("flow" in withoutEdges && withoutEdges.flow.edges).toEqual([]);
   });
@@ -34,6 +35,7 @@ describe("parseFlowDefinition", () => {
     ["protocol-relative route", { ...valid, states: [{ id: "a", label: "A", route: "//evil.test/" }] }, "states[0].route"],
     ["duplicate ids", { ...valid, states: [valid.states[0], valid.states[0]] }, "unique"],
     ["unknown edge", { ...valid, edges: [{ from: "cart", to: "nope" }] }, "edges[0].to"],
+    ["non-text edge label", { ...valid, edges: [{ from: "cart", to: "declined", label: 402 }] }, "edges[0].label"],
     ["unknown step", { ...valid, states: [{ id: "a", label: "A", route: "/", steps: [{ dance: {} }] }] }, "states[0].steps[0]"],
     ["empty locator", { ...valid, states: [{ id: "a", label: "A", route: "/", steps: [{ click: {} }] }] }, "states[0].steps[0].click"],
   ])("names the problem with %s", (_name, value, expected) => {

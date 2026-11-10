@@ -13,7 +13,7 @@
   padding: var(--space-8);
   border-radius: var(--radius-12);
   pointer-events: auto;
-  animation: sketch-options-bar-in 200ms ease-out backwards;
+  animation: sketch-options-bar-in 100ms ease-out backwards;
 }
 
 /* The bar's surface is a layer of its own, behind its controls. (Its `translate` makes it a stacking context, so the
@@ -50,8 +50,8 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  /* Base delay, stagger and duration match the constants in SketchToolBar.tsx; the last control lands by 200ms. */
-  animation: sketch-options-item-in 150ms ease-out calc(20ms + var(--item-index, 0) * 5ms) backwards;
+  /* Base delay, stagger and duration match the constants in SketchToolBar.tsx; the last control lands by about 100ms. */
+  animation: sketch-options-item-in 75ms ease-out calc(10ms + var(--item-index, 0) * 3ms) backwards;
 }
 
 .sketch-options[data-intro="false"] .sketch-options__item {
@@ -104,7 +104,7 @@
   border-radius: var(--radius-control) var(--radius-control) 0 0;
   background: var(--surface-well);
   opacity: 0;
-  transition: opacity 180ms ease-out;
+  transition: opacity 90ms ease-out;
 }
 
 .sketch-options[data-settled="true"] .sketch-options__illustrated[data-active="true"]::before {
@@ -120,7 +120,7 @@
   bottom: calc(var(--illustration-bleed) * -1);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.12));
   transform: translate(-50%, 0);
-  transition: transform 180ms ease-out;
+  transition: transform 90ms ease-out;
 }
 
 .sketch-options__illustration--pen {

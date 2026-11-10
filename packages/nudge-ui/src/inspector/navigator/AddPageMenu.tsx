@@ -11,6 +11,7 @@ import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { showToast } from "../ui/Toast.tsx";
+import { AgentAvatars } from "./AgentAvatars.tsx";
 
 /** Heads an add menu: one line on what the agent does, and the prompt that asks it to. */
 export function AddMenuIntro({ text, copyTestId, onCopy }: {
@@ -20,8 +21,9 @@ export function AddMenuIntro({ text, copyTestId, onCopy }: {
 }): ReactElement {
   return (
     <div className="add-menu-intro">
+      <AgentAvatars />
       <p>{text}</p>
-      <Button variant="quiet" size="compact" type="button" data-test={copyTestId} onClick={onCopy}>
+      <Button variant="secondary" type="button" data-test={copyTestId} onClick={onCopy}>
         <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
         Copy prompt
       </Button>
@@ -29,7 +31,7 @@ export function AddMenuIntro({ text, copyTestId, onCopy }: {
   );
 }
 
-/** Lists the unlinked HTML frames saved under `.nudge/artifacts`; choosing one places it on the Canvas. */
+/** Lists the unlinked HTML frames saved under `.nudge/artifacts` that are not yet on the Canvas; choosing one places it there. */
 export function AddPageMenu(): ReactElement {
   const [open, setOpen] = useState(false);
   const [artifacts, setArtifacts] = useState<HtmlArtifactMetadata[] | null>(null);
@@ -52,7 +54,7 @@ export function AddPageMenu(): ReactElement {
   }, [open]);
 
   function add(artifact: HtmlArtifactMetadata): void {
-    const card = findCardByArtifactId(artifact.id) ?? addCanvasArtifact(artifact);
+    const card = addCanvasArtifact(artifact);
     setOpen(false);
     revealCanvasCard(card.id);
   }
@@ -65,6 +67,9 @@ export function AddPageMenu(): ReactElement {
       showToast({ tone: "error", title: "Could not copy the prompt", description: "Allow clipboard access for this page, then try again." });
     }
   }
+
+  // Frames already on the canvas have nothing left to add, so they are left out.
+  const unplaced = artifacts?.filter((artifact) => !findCardByArtifactId(artifact.id)) ?? null;
 
   return (
     <BasePopover.Root open={open} onOpenChange={setOpen}>
@@ -90,17 +95,17 @@ export function AddPageMenu(): ReactElement {
           {/* Focus stays off the copy button, so opening the menu to pick a frame does not ring it. */}
           <BasePopover.Popup className="add-page-menu" aria-label="Add page" data-test="navigator-add-page-menu" initialFocus={false}>
             <AddMenuIntro
-              text="Ask your agent to draft pages."
+              text="Ask your agent to create HTML pages for design iteration"
               copyTestId="navigator-copy-agent-instructions"
               onCopy={() => void copyAgentInstructions()}
             />
-            {artifacts === null ? (
+            {unplaced === null ? (
               <p className="add-page-menu__muted" role="status">Reading unlinked frames…</p>
             ) : failed ? (
               <p className="add-page-menu__error" role="alert">Could not read .nudge/artifacts.</p>
-            ) : artifacts.length === 0 ? null : (
+            ) : unplaced.length === 0 ? null : (
               <div className="add-page-menu__list">
-                {artifacts.map((artifact) => (
+                {unplaced.map((artifact) => (
                   <button
                     key={artifact.id}
                     type="button"
@@ -115,7 +120,6 @@ export function AddPageMenu(): ReactElement {
                         {routeLabel(artifact.sourceUrl)} · {capturedLabel(artifact.capturedAt)}
                       </span>
                     </span>
-                    {findCardByArtifactId(artifact.id) ? <span className="add-page-menu__badge">On canvas</span> : null}
                   </button>
                 ))}
               </div>

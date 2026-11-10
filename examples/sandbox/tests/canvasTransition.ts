@@ -22,3 +22,17 @@ export async function clickFrameAction(page: Page, action: Locator): Promise<voi
   await page.locator(`[data-card-id="${cardId}"]`).hover();
   await action.click();
 }
+
+/** Duplicates a frame (the first by default) through its more menu. */
+export async function duplicateFrame(page: Page, card: Locator = page.locator(".canvas-card").first()): Promise<void> {
+  await waitForCanvasTransition(page);
+  await card.hover();
+  await card.locator('[data-test^="canvas-card-more-"]').click();
+  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+}
+
+/** Waits until a frame's page has loaded, which is when its Unlink or Duplicate actions become available. */
+export async function waitForFrameReady(card: Locator): Promise<void> {
+  await expect(card.locator("iframe")).toBeAttached();
+  await expect(card.locator('[data-test^="canvas-card-loading-"], [data-test^="canvas-card-error-"]')).toHaveCount(0);
+}

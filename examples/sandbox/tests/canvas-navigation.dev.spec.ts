@@ -1,4 +1,4 @@
-import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
+import { clickFrameAction, duplicateFrame, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 for (const navigation of ["document", "client-side"]) {
@@ -110,7 +110,7 @@ for (const linked of [false, true]) {
     const cards = page.locator(".canvas-card");
     const content = page.locator('[data-test="canvas-board-content"]');
     if (linked) {
-      await clickFrameAction(page, cards.first().locator('[data-test^="canvas-card-duplicate-"]'));
+      await duplicateFrame(page, cards.first());
       await expect(cards).toHaveCount(2);
       await waitForCanvasTransition(page);
     }

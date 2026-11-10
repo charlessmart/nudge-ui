@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { createElement, type ReactElement } from "react";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { CanvasCardHeader } from "./CanvasCardHeader.tsx";
 import { PROTOCOL_VERSION } from "./frameProtocol.ts";
 import { activateIframeWorkspace, getCanvasCards, hydrateCanvasStore, resizeCard, type CanvasCard as CanvasCardData, useCanvasCards } from "./canvasStore.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
@@ -636,7 +637,7 @@ describe("CanvasCard renderer handshake", () => {
     expect(resizeHandle.style.transformOrigin).toBe("right bottom");
   });
 
-  it("deletes the requested frame from its action toolbar", () => {
+  it("deletes the requested frame from its more menu", async () => {
     const removed: CanvasCardData = {
       id: "card-to-delete",
       content: { kind: "route", url: window.location.href },
@@ -646,12 +647,45 @@ describe("CanvasCard renderer handshake", () => {
     const remaining = { ...removed, id: "card-to-keep", title: "Keep this frame", x: 840 };
     hydrateCanvasStore("canvas", [removed, remaining], { x: 0, y: 0, zoom: 1 });
     renderCard(removed);
-    const control = host.querySelector<HTMLButtonElement>(`[data-test="canvas-card-delete-${removed.id}"]`);
+    const more = host.querySelector<HTMLButtonElement>(`[data-test="canvas-card-more-${removed.id}"]`);
+    if (!more) throw new Error("More frame actions control did not mount");
+    await act(async () => more.click());
+    const control = document.querySelector<HTMLElement>(`[data-test="canvas-card-delete-${removed.id}"]`);
     if (!control) throw new Error("Delete frame control did not mount");
 
-    act(() => control.click());
+    await act(async () => control.click());
 
     expect(getCanvasCards().map((card) => card.id)).toEqual(["card-to-keep"]);
+  });
+
+  it("duplicates an unlinked frame as another HTML copy from its more menu", async () => {
+    const card: CanvasCardData = {
+      id: "card-unlinked",
+      content: { kind: "iteration", artifactId: "artifact-1", sourceUrl: window.location.href },
+      title: "Unlinked frame",
+      x: 0, y: 0, width: 800, height: 600,
+    };
+    const onCreateIteration = vi.fn();
+    const onDuplicate = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCardHeader, {
+        card, label: "Unlinked frame", canRemove: true, iterationBusy: false, iterationDisabled: false, iterationError: null,
+        onDuplicate, onCreateIteration, onRemove: () => undefined, onNavigate: () => undefined, onPointerDown: () => undefined,
+      }));
+    });
+
+    // Already unlinked, so there is no Unlink action; Duplicate takes its place.
+    expect(host.querySelector(`[data-test="canvas-card-create-iteration-${card.id}"]`)).toBeNull();
+    const more = host.querySelector<HTMLButtonElement>(`[data-test="canvas-card-more-${card.id}"]`);
+    if (!more) throw new Error("More frame actions control did not mount");
+    await act(async () => more.click());
+    const duplicate = document.querySelector<HTMLElement>(`[data-test="canvas-card-duplicate-${card.id}"]`);
+    if (!duplicate) throw new Error("Duplicate control did not mount");
+    await act(async () => duplicate.click());
+
+    expect(onCreateIteration).toHaveBeenCalledTimes(1);
+    expect(onDuplicate).not.toHaveBeenCalled();
   });
 
   it("omits frame actions that have no handler", () => {

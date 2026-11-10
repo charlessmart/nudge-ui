@@ -1,4 +1,4 @@
-import { clickFrameAction, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
+import { duplicateFrame, showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 
 test("dev: clicking a same-origin link navigates the focused card", async ({ page }) => {
@@ -59,9 +59,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   await showCanvas(page);
-  const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
-  await expect(duplicateBtn).toBeAttached();
-  await clickFrameAction(page, duplicateBtn);
+  await duplicateFrame(page);
 
   await expect(board.locator(".canvas-card")).toHaveCount(2);
 
@@ -83,8 +81,7 @@ test("dev: delete key removes a comparison card and recovers the final editing s
     const win = window as unknown as Record<string, unknown>;
   });
 
-  const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
-  await clickFrameAction(page, duplicateBtn);
+  await duplicateFrame(page);
 
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(2);
@@ -103,7 +100,7 @@ test("dev: deleting the active route does not recreate it after reload", async (
   await showCanvas(page);
   await waitForCanvasTransition(page);
   await page.locator('[data-test="canvas-tool-select"]').click();
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await duplicateFrame(page);
   const cards = page.locator(".canvas-card");
   const frames = page.frameLocator(".canvas-card__iframe");
   await expect(cards).toHaveCount(2);

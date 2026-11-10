@@ -79,24 +79,16 @@
   white-space: nowrap;
 }
 
-.add-page-menu__badge {
-  flex-shrink: 0;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-4);
-  background: var(--surface-well-2x);
-  color: var(--text-muted);
-  font-size: var(--font-size-small);
-  line-height: 1.8;
-}
-
-/* Heads both add menus. The quiet button bleeds out by its padding, so its icon lines up with the text. */
+/* Heads both add menus as its own section: centred, with room around it. */
 .add-menu-intro {
   display: grid;
-  justify-items: start;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-8) 0;
-  color: var(--text-secondary);
+  justify-items: center;
+  gap: var(--space-8);
+  padding: var(--space-16) var(--space-12) var(--space-12);
+  color: var(--text-primary);
   font-size: var(--font-size-base);
+  text-align: center;
+  text-wrap: balance;
 }
 
 .add-menu-intro p {
@@ -104,8 +96,44 @@
   line-height: 1.4;
 }
 
-.add-menu-intro .button {
-  margin-left: calc(var(--space-12) * -1);
+/* Each avatar is cut away where the next one overlaps it, so the gap shows the menu behind rather than a painted ring. */
+.agent-avatars {
+  --avatar-size: 28px;
+  --avatar-overlap: 8px;
+  --avatar-gap: 2px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+.agent-avatars__avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: 50%;
+  background: var(--surface-control-hover);
+  color: #000;
+}
+
+.agent-avatars__avatar + .agent-avatars__avatar {
+  margin-left: calc(var(--avatar-overlap) * -1);
+}
+
+.agent-avatars__avatar:not(:last-child) {
+  --cut-x: calc(var(--avatar-size) * 1.5 - var(--avatar-overlap));
+  --cut-radius: calc(var(--avatar-size) / 2 + var(--avatar-gap));
+  mask-image: radial-gradient(
+    circle at var(--cut-x) 50%,
+    transparent calc(var(--cut-radius) - 0.5px),
+    #000 var(--cut-radius)
+  );
+}
+
+.agent-avatars__avatar svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* The items an agent already wrote, set off from the intro above. */

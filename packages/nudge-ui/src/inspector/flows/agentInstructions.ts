@@ -24,7 +24,7 @@ Write one ${NUDGE_FLOWS_DIRECTORY}/<flow-id>.json per flow:
         { "waitFor": { "role": "alert" } }
       ] }
   ],
-  "edges": [{ "from": "cart", "to": "declined" }]
+  "edges": [{ "from": "cart", "to": "declined", "label": "Pay" }]
 }
 
 How a state is reached, in the order to prefer:
@@ -38,6 +38,7 @@ Locators: prefer { "role", "name" }, then { "text" } or { "testId" }, and { "sel
 
 Rules:
 - ids are lowercase letters, digits and hyphens. Edge from and to must name states in the same file.
+- Give each edge a short "label" naming what moves the user on: the button or link they press, or the response that sends them there ("Pay", "402"). The Canvas draws it on the arrow between the frames.
 - Requests other than GET, HEAD and OPTIONS are blocked unless a network rule matches them, so replays cannot change real data. Mock each write. Mark a read-only POST such as a GraphQL query with passthrough. Set "allowMutations": true on a state only if I confirm it is safe.
 - Mocks run in the browser, so they cannot change data a server renders before the page arrives. Reach those states with a route or query parameter, or list what you could not reach when you report back.
 - Reads (GET, HEAD) that no rule matches go to the real server, with whatever the browser holds. Mock every read a state depends on. A seeded fake token will be refused by a real backend, and a state that asserts on text the real data does not contain fails for that reason, not because the screen is wrong.

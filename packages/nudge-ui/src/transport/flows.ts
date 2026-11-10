@@ -67,6 +67,8 @@ export interface FlowState extends FlowScenario {
 export interface FlowEdge {
   readonly from: string;
   readonly to: string;
+  /** What moves the user along the edge, such as a button name or a response status; drawn on its arrow. */
+  readonly label?: string;
 }
 
 export interface FlowDefinition {
@@ -247,7 +249,8 @@ export function parseFlowDefinition(value: unknown): { flow: FlowDefinition } | 
       const to = text(item.to, `edges[${index}].to`, 64);
       if (!ids.has(from)) fail(`edges[${index}].from`, `no state "${from}"`);
       if (!ids.has(to)) fail(`edges[${index}].to`, `no state "${to}"`);
-      return { from, to };
+      const label = optionalText(item.label, `edges[${index}].label`, 64);
+      return { from, to, ...(label ? { label } : {}) };
     });
     const viewport = value.viewport;
     if (viewport !== undefined && (!isRecord(viewport) || !(positive(viewport.width, "viewport.width") > 0) || !(positive(viewport.height, "viewport.height") > 0))) {

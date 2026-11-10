@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
-import { IconCopy, IconEye, IconEyeOff, IconPlus, IconRoute } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconPlus, IconRoute } from "@tabler/icons-react";
 import type { FlowDefinition } from "../../transport/flows.ts";
 import { flowStateOf } from "../canvas/frameContent.ts";
 import { closeFlowCards, getFlowCards, openFlowCards, useCanvasCards } from "../canvas/canvasStore.ts";
@@ -28,18 +28,7 @@ async function copyFlowPrompt(): Promise<boolean> {
   }
 }
 
-function CopyPromptButton(): ReactElement {
-  const [copyFailed, setCopyFailed] = useState(false);
-  return (
-    <>
-      <Button variant="quiet" className="flows-panel__copy-prompt" data-test="flows-copy-prompt" onClick={() => void copyFlowPrompt().then((copied) => setCopyFailed(!copied))}>
-        <IconCopy size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-        Copy prompt
-      </Button>
-      {copyFailed ? <p className="flows-panel__problem" role="alert">Could not copy the prompt.</p> : null}
-    </>
-  );
-}
+const FLOW_INTRO_TEXT = "Ask your agent to map screen states as flows.";
 
 /** Adds flows from the Flows title: the coding agent maps them, so it offers the prompt that asks it to. */
 export function AddFlowMenu(): ReactElement | null {
@@ -72,7 +61,7 @@ export function AddFlowMenu(): ReactElement | null {
       <BasePopover.Portal container={portalContainer()}>
         <BasePopover.Positioner className="add-page-menu__positioner" side="bottom" align="start" sideOffset={6}>
           <BasePopover.Popup className="add-page-menu" aria-label="Add flow" data-test="flows-add-menu">
-            <AddMenuIntro text="Ask your agent to map flows." copyTestId="flows-copy-prompt" onCopy={() => void copy()} />
+            <AddMenuIntro text={FLOW_INTRO_TEXT} copyTestId="flows-copy-prompt" onCopy={() => void copy()} />
           </BasePopover.Popup>
         </BasePopover.Positioner>
       </BasePopover.Portal>
@@ -88,6 +77,7 @@ export function FlowFramesStyle(): ReactElement {
 /** Fills the Flows section until an agent maps a flow, and explains flow files the schema refuses. */
 export function FlowsIntro(): ReactElement | null {
   const { load, flows, errors } = useFlows();
+  const [copyFailed, setCopyFailed] = useState(false);
   if (load === "unavailable") {
     return <p className="flows-panel__empty">Update Nudge and restart the dev server to use flows.</p>;
   }
@@ -102,10 +92,16 @@ export function FlowsIntro(): ReactElement | null {
       </div>
     ) : null;
   }
+  if (load !== "ready") return null;
+  // The same message as the Add flow menu, so the empty section and the menu read alike.
   return (
-    <div className="flows-panel__intro" data-test="flows-empty">
-      <p>Ask your agent to map flows to show them on the canvas.</p>
-      {load === "ready" ? <CopyPromptButton /> : null}
+    <div data-test="flows-empty">
+      <AddMenuIntro
+        text={FLOW_INTRO_TEXT}
+        copyTestId="flows-copy-prompt"
+        onCopy={() => void copyFlowPrompt().then((copied) => setCopyFailed(!copied))}
+      />
+      {copyFailed ? <p className="flows-panel__problem flows-panel__copy-problem" role="alert">Could not copy the prompt.</p> : null}
     </div>
   );
 }

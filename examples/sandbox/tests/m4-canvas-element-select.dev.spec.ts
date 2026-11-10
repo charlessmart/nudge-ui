@@ -1,4 +1,4 @@
-import { clickFrameAction } from "./canvasTransition.ts";
+import { duplicateFrame } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { getAppFrame } from "@nudge-ui/compatibility/playwright";
 
@@ -183,7 +183,7 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   await waitForIframeReady(page, 0);
   const parentUrlBefore = page.url();
 
-  await clickFrameAction(page, page.locator('[data-test^="canvas-card-duplicate-"]').first());
+  await duplicateFrame(page);
   await expect(page.locator(".canvas-card")).toHaveCount(2);
   await waitForIframeReady(page, 1);
   await page.frameLocator(".canvas-card__iframe").nth(1)

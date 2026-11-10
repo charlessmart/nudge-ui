@@ -103,6 +103,7 @@ test("dev: static comparison layout and edits survive an editor reload", async (
   await setWidth(page, frame, "314px");
   await showCanvas(page);
   await page.locator('[data-test^="canvas-card-drag-"]').first().hover();
+  await page.locator('[data-test^="canvas-card-more-"]').first().click();
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
   await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(2);
   await page.reload({ waitUntil: "domcontentloaded" });
