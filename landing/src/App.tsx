@@ -6,6 +6,7 @@ import inspectorArrowTail from "../assets/arrow-tail.svg";
 import demoPoster from "../assets/screen-1.png";
 import { FeatureBento } from "./components/FeatureBento";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
+import { HeroDepthReveal } from "./hero-depth/HeroDepthReveal";
 import { LandingButton } from "./components/LandingButton";
 import { LiveDemoFrame } from "./components/LiveDemoFrame";
 
@@ -194,7 +195,7 @@ function useShowcaseWidth(controls: ShowcaseControls): { ref: RefObject<HTMLDivE
 function useShowcaseInView(
   ref: RefObject<HTMLDivElement | null>,
   threshold: number,
-  rootMargin = "0px",
+  { rootMargin = "0px", sticky = false }: { rootMargin?: string; sticky?: boolean } = {},
 ): boolean {
   const [isInView, setIsInView] = useState(false);
 
@@ -210,12 +211,17 @@ function useShowcaseInView(
     const intersectionThreshold = clamp(threshold, 0, 1);
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry) return;
-      setIsInView(entry.isIntersecting && entry.intersectionRatio >= intersectionThreshold);
-    }, { rootMargin, threshold: [0, intersectionThreshold] });
+      const inView = entry.isIntersecting && entry.intersectionRatio >= intersectionThreshold;
+      if (sticky && !inView) return;
+      setIsInView(inView);
+      if (sticky && inView) observer.disconnect();
+    // The page's own viewport, not the top-level one: when Nudge shows the page in an iframe, the implicit root
+    // would be the editor's viewport, the frame would clip every entry, and rootMargin would never apply.
+    }, { root: document, rootMargin, threshold: [0, intersectionThreshold] });
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref, rootMargin, threshold]);
+  }, [ref, rootMargin, sticky, threshold]);
 
   return isInView;
 }
@@ -229,7 +235,8 @@ function ShowcaseVideo({
 }): ReactNode {
   const { ref, width, isFullWidth } = useShowcaseWidth(controls);
   const isInView = useShowcaseInView(ref, controls.visibilityThreshold);
-  const shouldLoadVideo = useShowcaseInView(ref, controls.visibilityThreshold, "320px 0px");
+  // Loads as the showcase nears the viewport and stays loaded; only playback follows the visibility threshold.
+  const shouldLoadVideo = useShowcaseInView(ref, 0, { rootMargin: "320px 0px", sticky: true });
   const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const loopTimeout = useRef<number | null>(null);
@@ -506,6 +513,7 @@ export function App(): ReactNode {
                 <HeroActions />
               </div>
             </div>
+            <HeroDepthReveal />
           </section>
 
           <DemoShowcase controls={showcaseControls} />

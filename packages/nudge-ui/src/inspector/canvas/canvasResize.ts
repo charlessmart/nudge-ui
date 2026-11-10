@@ -105,11 +105,21 @@ export function resizeFocusWidth(
   return (boardWidth - width) / 2 <= FOCUS_EDGE_SNAP_DISTANCE ? boardWidth : width;
 }
 
+// A Focus resize snaps to the board inside this band (see resizeFocusWidth), so a frame this close to a board width
+// can only have got there by the board moving under it, never by a deliberate resize.
+const FOCUS_SNAPPED_BAND = FOCUS_EDGE_SNAP_DISTANCE * 2;
+
+function fillsBoard(frameWidth: number, boardWidth: number): boolean {
+  return frameWidth < boardWidth + 1 && frameWidth >= boardWidth - FOCUS_SNAPPED_BAND;
+}
+
 /**
  * A frame that fills the board in Focus keeps filling it as the board resizes, such as when the inspector hides; a
- * narrower or wider frame keeps its own width. Returns the new width, or null to leave the frame as it is.
+ * narrower or wider frame keeps its own width. A frame just short of either board width also counts as filling it,
+ * so one sized while the board was mid-change (the panel opening, a scrollbar coming and going) still snaps rather
+ * than staying inset. Returns the new width, or null to leave the frame as it is.
  */
 export function followFocusBoardWidth(frameWidth: number, previousBoardWidth: number, boardWidth: number): number | null {
-  if (boardWidth === previousBoardWidth || Math.abs(frameWidth - previousBoardWidth) >= 1) return null;
-  return boardWidth;
+  if (Math.abs(frameWidth - boardWidth) < 1) return null;
+  return fillsBoard(frameWidth, previousBoardWidth) || fillsBoard(frameWidth, boardWidth) ? boardWidth : null;
 }

@@ -407,12 +407,17 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const board = boardRef.current;
     if (presentation !== "focus" || !presentationCardId || !board || typeof ResizeObserver !== "function") return;
     let boardWidth = board.clientWidth;
-    const observer = new ResizeObserver(() => {
-      const previousBoardWidth = boardWidth;
-      boardWidth = board.clientWidth;
+    const follow = (previousBoardWidth: number) => {
       const card = getCanvasCards().find((candidate) => candidate.id === presentationCardId);
       const width = card ? followFocusBoardWidth(card.width, previousBoardWidth, boardWidth) : null;
       if (card && width !== null) resizeCard(card.id, width, card.height);
+    };
+    // The frame may have been sized before the board settled (activation runs in a layout effect, this after paint).
+    follow(boardWidth);
+    const observer = new ResizeObserver(() => {
+      const previousBoardWidth = boardWidth;
+      boardWidth = board.clientWidth;
+      follow(previousBoardWidth);
     });
     observer.observe(board);
     return () => observer.disconnect();

@@ -88,4 +88,10 @@ describe("followFocusBoardWidth", () => {
     expect(followFocusBoardWidth(1440, 1000, 1300)).toBeNull();
     expect(followFocusBoardWidth(1000, 1000, 1000)).toBeNull();
   });
+
+  it("snaps a frame left just short of the board, which no Focus resize can produce", () => {
+    expect(followFocusBoardWidth(985, 1000, 1000)).toBe(1000);
+    expect(followFocusBoardWidth(985, 1000, 1300)).toBe(1300);
+    expect(followFocusBoardWidth(1000 - FOCUS_EDGE_SNAP_DISTANCE * 2 - 1, 1000, 1000)).toBeNull();
+  });
 });

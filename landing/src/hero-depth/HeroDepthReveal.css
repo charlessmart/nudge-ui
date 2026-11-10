@@ -1,0 +1,13 @@
+/* Full-bleed behind the hero's content and demo cards (z-index 1 and 2), so
+   the real DOM always paints on top; `.landing` clips the horizontal overflow. */
+.landing-hero-depth {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  height: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
