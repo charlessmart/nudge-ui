@@ -235,6 +235,7 @@ export function createVitePlugins(
   let buildOutputDirectory: string | undefined;
   let command: "serve" | "build" = "serve";
   let demoBuild = false;
+  let watchBuild = false;
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
@@ -761,6 +762,7 @@ export function createVitePlugins(
       root = config.root;
       command = config.command;
       demoBuild = options.demo === true && config.mode === "nudge-demo";
+      watchBuild = Boolean(config.build?.watch);
       buildOutputDirectory = config.build?.outDir
         ? resolve(config.root, config.build.outDir)
         : undefined;
@@ -866,6 +868,10 @@ export function createVitePlugins(
         }
       }
       framework?.warmUp();
+    },
+    // A demo build warms the type-aware checker worker too; only a dev server's close disposes it otherwise, so the build would never exit.
+    closeBundle() {
+      if (command === "build" && !watchBuild) framework?.dispose();
     },
     resolveId(id) {
       if (id === VIRTUAL_TOKENS_ID || id === RESOLVED_TOKENS_ID) return RESOLVED_TOKENS_ID;
