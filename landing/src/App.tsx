@@ -339,7 +339,7 @@ function Hero(): ReactNode {
           </button>
           <span className="lp-scribble" aria-hidden="true">
             <ScribbleArrow />
-            it&apos;s live rn
+            live on this page
           </span>
         </div>
       </div>

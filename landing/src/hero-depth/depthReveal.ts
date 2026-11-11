@@ -4,8 +4,14 @@ import { paintCodeLayer, paintDesignLayer, type LayerFrame } from "./layerTextur
 // Composites the two under-layers behind the live DOM. Reveal depth comes from
 // the fluid dye (the swirling trail) screened with a soft cursor lens; depth
 // past the first threshold shows the design layer and past the second shows
-// the code layer. The mask is snapped to a coarse block grid so the reveal
-// resolves into hard squares that pop in and out, never a soft edge.
+// the code layer.
+//
+// The boundary is not painted with a gradient. It reuses the same three-tap
+// refraction as the layer contents: the layers are bent along the contour and
+// the red, green and blue channels sample at different offsets, so the edge
+// disperses only the detail that is actually there, like light through glass.
+// The reveal mask itself is snapped to a 22px block grid for the pixel-dither
+// edge, while the refraction stays smooth and per-pixel.
 const COMPOSITE = `#version 300 es
 precision highp float;
 precision highp sampler2D;
@@ -29,6 +35,10 @@ const float DESIGN_START = 0.18;
 const float CODE_START = 0.75;
 // How far the per-block threshold jitter can nudge a cell, either way.
 const float EDGE_JITTER = 0.08;
+// Step used to measure the reveal's slope, in CSS pixels.
+const float EDGE_PROBE = 3.0;
+// Width of the refraction band on the contour, in CSS pixels.
+const float RIM_WIDTH = 28.0;
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -42,13 +52,54 @@ vec2 flowAt(vec2 uv) {
   return flow * min(1.0, 0.008 / max(length(flow), 1e-5));
 }
 
+// The cursor lens alone, sampled in CSS pixels.
+float lensAt(vec2 px) {
+  vec2 toPointer = px - uPointer * uResolution;
+  return exp(-dot(toPointer, toPointer) / (uLensRadius * uLensRadius)) * uPresence;
+}
+
+// Smooth reveal depth, used for the mask and for locating the contour.
+float depthAt(vec2 uv) {
+  float dye = clamp(texture(uDye, uv).r, 0.0, 1.0);
+  return 1.0 - (1.0 - dye) * (1.0 - lensAt(uv * uResolution));
+}
+
+// Smooth depth at this pixel, plus the reveal slope (depth per CSS pixel) and
+// its unit gradient pointing toward deeper reveal.
+float depthGradient(vec2 uv, out vec2 direction, out float slope) {
+  float center = depthAt(uv);
+  vec2 stepUv = vec2(EDGE_PROBE) / uResolution;
+  float dx = depthAt(uv + vec2(stepUv.x, 0.0)) - center;
+  float dy = depthAt(uv + vec2(0.0, stepUv.y)) - center;
+  vec2 gradient = vec2(dx, dy) / EDGE_PROBE;
+  slope = length(gradient);
+  direction = slope > 1e-5 ? gradient / slope : vec2(0.0, 1.0);
+  return center;
+}
+
+// Soft band peaked on the contour and fading out over width pixels.
+float rimAt(float distancePx, float width) {
+  float t = clamp(distancePx / width, 0.0, 1.0);
+  return (1.0 - t) * (1.0 - t);
+}
+
+// Three taps along the refraction axis: red bends least, blue most.
+vec3 chromaSample(sampler2D layer, vec2 uv, vec2 offsetPx, float spread) {
+  vec2 offset = offsetPx / uResolution;
+  return vec3(
+    texture(layer, uv + offset * (1.0 - spread)).r,
+    texture(layer, uv + offset).g,
+    texture(layer, uv + offset * (1.0 + spread)).b
+  );
+}
+
 void main() {
   vec2 uv = vUv;
   vec2 px = uv * uResolution;
 
   // One depth sample per block: every fragment in a cell reads the same value,
   // so the thresholds below can only land on cell edges and the reveal
-  // resolves into hard squares. The layers stay sampled per pixel and crisp.
+  // resolves into hard pixel cells. The layers stay sampled per pixel.
   vec2 cell = floor(px / uBlockSize);
   vec2 blockPx = (cell + 0.5) * uBlockSize;
   vec2 blockUv = blockPx / uResolution;
@@ -59,16 +110,18 @@ void main() {
   float pointerDistance = length(toPointer);
   float ringOffset = (pointerDistance - uLensRadius * 1.1) / (uLensRadius * 0.55 + 1.0);
   float ring = exp(-ringOffset * ringOffset);
-  float ripple = sin(pointerDistance * 0.085 - uTime * 9.0) * ring * uRipple;
-  // The ripple only moves the mask's edge, never the layer contents.
-  vec2 maskFlow = blockFlow + toPointer / max(pointerDistance, 1.0) * ripple * 4.0 / uResolution;
+  float ripple = sin(pointerDistance * 0.075 - uTime * 6.0) * ring * uRipple;
+  // The ripple only moves the mask's edge, never the layer contents, and stays
+  // small so the contour reads as a lens rather than a water surface.
+  vec2 maskFlow = blockFlow + toPointer / max(pointerDistance, 1.0) * ripple * 2.4 / uResolution;
 
   float dye = clamp(texture(uDye, blockUv + maskFlow * 0.3).r, 0.0, 1.0);
   float lens = exp(-dot(toPointer, toPointer) / (uLensRadius * uLensRadius)) * uPresence;
   float depth = 1.0 - (1.0 - dye) * (1.0 - lens);
 
   // Let the layers shrink into the section's bottom edge rather than clip.
-  depth *= smoothstep(0.0, 90.0, blockPx.y);
+  float bottomGate = smoothstep(0.0, 90.0, blockPx.y);
+  depth *= bottomGate;
 
   // A stable per-block nudge keeps the boundary ragged: neighbouring cells at
   // the same depth still flip in and out, so the edge reads as a dithered
@@ -77,13 +130,29 @@ void main() {
   float designMask = step(DESIGN_START + jitter, depth);
   float codeMask = step(CODE_START + jitter, depth);
 
-  // Only the mask is blocky; the content keeps a small flow drift so the code
-  // layer reads as sitting a little further down than the design layer.
-  vec2 flow = flowAt(uv);
-  vec3 design = texture(uDesign, uv + flow * 0.05).rgb;
-  vec3 code = texture(uCode, uv + flow * 0.1).rgb;
+  // Locate the contour and bend both layers along its normal. The chromatic
+  // split grows toward the rim, so the edge scatters colour exactly like the
+  // layer detail does in the middle.
+  vec2 edgeDir;
+  float edgeSlope;
+  float smoothDepth = depthGradient(uv, edgeDir, edgeSlope);
+  float designDistance = abs(smoothDepth - DESIGN_START) / max(edgeSlope, 1e-5);
+  float codeDistance = abs(smoothDepth - CODE_START) / max(edgeSlope, 1e-5);
+  float designRim = rimAt(designDistance, RIM_WIDTH);
+  float codeRim = rimAt(codeDistance, RIM_WIDTH * 0.8);
+  float rim = max(designRim, codeRim) * bottomGate;
 
-  outColor = vec4(mix(design, code, codeMask) * designMask, designMask);
+  vec2 bend = edgeDir * rim * 18.0;
+  float split = mix(0.3, 0.7, rim);
+  vec2 flow = flowAt(uv);
+  vec3 design = chromaSample(uDesign, uv + flow * 0.05, bend, split);
+  vec3 code = chromaSample(uCode, uv + flow * 0.1, bend * 1.15, split * 1.15);
+
+  vec3 content = mix(design, code, codeMask);
+  float alpha = designMask;
+  vec3 rgb = content * alpha;
+
+  outColor = vec4(rgb, alpha);
 }`;
 
 export type DepthRevealOptions = {
@@ -92,9 +161,7 @@ export type DepthRevealOptions = {
   canvas: HTMLCanvasElement;
 };
 
-// Side of one reveal block in CSS pixels. Large enough that the mask reads as
-// chunky squares rather than a smooth edge, small enough to still trace a
-// recognisable zone around the cursor.
+// Side of one reveal block in CSS pixels.
 const BLOCK_SIZE = 22;
 
 type Layers = { design: WebGLTexture; code: WebGLTexture };
@@ -107,7 +174,14 @@ export function startDepthReveal({ root, canvas }: DepthRevealOptions): () => vo
   let fluid: FluidSim;
   let composite: Program;
   try {
-    fluid = new FluidSim(gl);
+    fluid = new FluidSim(gl, {
+      // A calmer solver: the reveal should track the cursor like a lens, not
+      // trail and swirl like liquid. Less curl and quicker velocity decay kill
+      // the vortices; the dye life stays long enough to keep the splash open.
+      curl: 4,
+      velocityDissipation: 0.91,
+      dyeDissipation: 0.95,
+    });
     composite = compileProgram(gl, FULLSCREEN_VERTEX, COMPOSITE);
   } catch (error) {
     console.warn("[hero-depth] disabled:", error);
@@ -148,7 +222,6 @@ export function startDepthReveal({ root, canvas }: DepthRevealOptions): () => vo
   const LENS_WINDOW_MS = 160;
   const lens = { energy: 0, radius: 0, velocity: 0, frameX: 0, frameY: 0, trail: [] as Array<{ time: number; distance: number }> };
   const maxLensRadius = () => Math.min(170, Math.max(110, cssWidth * 0.1));
-
   function createTexture(source: HTMLCanvasElement): WebGLTexture {
     const texture = gl!.createTexture();
     if (!texture) throw new Error("Could not create texture");
@@ -249,14 +322,14 @@ export function startDepthReveal({ root, canvas }: DepthRevealOptions): () => vo
     const distance = Math.hypot(dx, dy);
     if (pointer.inside && distance > 0.5 && distance < 400) {
       const speed = distance / Math.max(dt, 1 / 240);
-      const force = fluid.config.simScale * 0.35 / Math.max(dt, 1 / 240);
-      const amount = Math.min(0.42, 0.1 + speed / 6000);
+      const force = fluid.config.simScale * 0.28 / Math.max(dt, 1 / 240);
+      const amount = Math.min(0.4, 0.09 + speed / 6500);
       fluid.splat(
         [pointer.x / cssWidth, 1 - pointer.y / cssHeight],
         [pointer.prevX / cssWidth, 1 - pointer.prevY / cssHeight],
         [dx * force, -dy * force],
         amount,
-        (38 + Math.min(speed / 45, 42)) / cssHeight,
+        (37 + Math.min(speed / 48, 38)) / cssHeight,
       );
     }
     pointer.prevX = pointer.x;
@@ -278,8 +351,10 @@ export function startDepthReveal({ root, canvas }: DepthRevealOptions): () => vo
     lens.energy = 1 - Math.exp(-recentTravel / 200);
 
     const target = Math.min(maxLensRadius(), recentTravel * 0.75);
-    const stiffness = 150;
-    const damping = 16;
+    // Nearly critical damping: the lens opens and closes smoothly instead of
+    // wobbling like a water surface.
+    const stiffness = 140;
+    const damping = 22;
     lens.velocity += ((target - lens.radius) * stiffness - lens.velocity * damping) * step;
     lens.radius = Math.max(0, lens.radius + lens.velocity * step);
   }
