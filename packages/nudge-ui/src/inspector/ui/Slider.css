@@ -83,10 +83,10 @@
   box-sizing: border-box;
   width: var(--slider-thumb-width);
   height: calc(var(--slider-height) - var(--slider-inset) * 2);
-  border: 2px solid #fff;
+  border: 2px solid var(--always-white);
   border-radius: var(--slider-thumb-radius);
-  background: var(--thumb-color, #fff);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  background: var(--thumb-color, var(--always-white));
+  box-shadow: var(--shadow-thumb);
   pointer-events: none;
   /* Placed and centered through `translate`, which applies outside `scale`; a centering `transform` would be scaled with the thumb and shift it. */
   translate: calc(var(--slider-position) * 100cqi - 50% + var(--stretch-end, 0px) - var(--stretch-start, 0px)) -50%;

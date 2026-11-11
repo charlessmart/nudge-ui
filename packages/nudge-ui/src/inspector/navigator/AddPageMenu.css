@@ -114,7 +114,7 @@
   height: var(--avatar-size);
   border-radius: 50%;
   background: var(--surface-control-hover);
-  color: #000;
+  color: var(--text-primary);
 }
 
 .agent-avatars__avatar + .agent-avatars__avatar {

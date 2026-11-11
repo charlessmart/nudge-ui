@@ -18,8 +18,11 @@
   /* The primary button's face: a warm top edge that deepens to pure red inside a darker rim, under a thin top light. */
   --brand-primary-top: #ff4400;
   --brand-primary-bottom: #ff0000;
-  --brand-primary-top-hover: #e63d00;
-  --brand-primary-bottom-hover: #e60000;
+  --brand-primary-top-hover: #f24100;
+  --brand-primary-bottom-hover: #f20000;
+  /* A press darkens further than hover, so the click still reads as a distinct step. */
+  --brand-primary-top-active: #e63d00;
+  --brand-primary-bottom-active: #e60000;
   --brand-primary-rim: #e00400;
   --brand-primary-highlight: rgba(255, 255, 255, 0.25);
   /* The low-opacity brand tint behind an active brand-coloured control. */
@@ -49,6 +52,24 @@
   --danger-text: #bd3636;
   --danger-surface: rgba(223, 75, 75, 0.2);
   --success: #2e7d52;
+  /* White that stays white in any theme: rims that separate a thumb or swatch from whatever colour sits under it. */
+  --always-white: #fff;
+
+  /* Drawn over the user's page, so kept apart from the panel palette: one hue per box-model part, plus drag guides. */
+  --measure-padding: #3b82f6;
+  --measure-padding-fill: rgb(59 130 246 / 14%);
+  --measure-gap: #ec4899;
+  --measure-gap-fill: rgb(236 72 153 / 14%);
+  --measure-margin: #ef4444;
+  --measure-margin-fill: rgb(239 68 68 / 14%);
+  /* Held-Option distance rulers and their label chips. */
+  --measure-ruler: #ef4444;
+  --guide-alignment: rgb(59 130 246 / 46%);
+  --guide-drop: #3b82f6;
+  --guide-drop-strong: #2563eb;
+  --guide-drop-glow: rgb(37 99 235 / 72%);
+  --guide-drop-target: rgb(59 130 246 / 72%);
+  --guide-drop-target-fill: rgb(59 130 246 / 5%);
 
   --space-0: 0;
   --space-4: 4px;
@@ -75,6 +96,15 @@
   --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.10);
   --shadow-control-outline: 0 0 0 0.5px rgba(0, 0, 0, 0.25);
   --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), var(--shadow-control-outline);
+  /* The lift under a draggable thumb (slider, colour area, gradient stop). */
+  --shadow-thumb: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  /* The sunken look of a control while it is held down. */
+  --shadow-pressed: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  /* The dim behind a modal dialog. */
+  --surface-backdrop: rgb(0 0 0 / 20%);
+  /* A cool near-black dim for full-screen modes that take over the page; the subtle one is a light tint. */
+  --overlay-dark: rgb(8 12 20 / 52%);
+  --overlay-dark-subtle: rgb(8 12 20 / 24%);
   --z-index: 2147483647;
 
   /* One shared spring: settles in 200ms, the ceiling for interaction feedback, with a ~1.5% overshoot, subtle enough for arrivals, releases and resting states. */

@@ -65,7 +65,6 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
-  const [flashNothing, setFlashNothing] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const handoffBusy = useRef(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -84,42 +83,27 @@ export function CopyPromptButton({
   }, [copied]);
 
   useEffect(() => {
-    if (!flashNothing) return;
-    const timer = window.setTimeout(() => setFlashNothing(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [flashNothing]);
-
-  useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
   }, [runtimeConfig.projectId]);
 
   const changeCount = countPromptChanges(changes, structuralChanges) + comments.length;
   const badgeCount = changeCount;
-  const disabled = preparing;
   const nothingToCopy = !hasChanges;
+  // Nothing to copy reads as a primary action that is not available yet, not as a quieter secondary one.
+  const disabled = preparing || nothingToCopy;
 
-  const showingNothing = flashNothing && nothingToCopy;
-
-  const label = showingNothing
-    ? "Nothing to copy"
-    : preparing
-      ? "Saving unlinked frame…"
-      : copied
-        ? "Copied!"
-        : "Copy";
-
-  const icon = showingNothing
-    ? null
+  const label = preparing
+    ? "Saving unlinked frame…"
     : copied
-      ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-      : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
+      ? "Copied!"
+      : "Copy";
+
+  const icon = copied
+    ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+    : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
     if (disabled || handoffBusy.current) return;
-    if (nothingToCopy) {
-      setFlashNothing(true);
-      return;
-    }
     handoffBusy.current = true;
     setPreparing(Boolean(activeArtifactId));
     try { await handoff(); }
@@ -190,13 +174,13 @@ export function CopyPromptButton({
 
   useEffect(() => {
     function onKeydown(event: KeyboardEvent): void {
-      if (!isCopyPromptShortcut(event) || !hasChanges || disabled) return;
+      if (!isCopyPromptShortcut(event) || disabled) return;
       claimShortcutKey(event);
       void onClick();
     }
 
     function onRendererHotkey(): void {
-      if (!hasChanges || disabled) return;
+      if (disabled) return;
       void onClick();
     }
 
@@ -206,7 +190,7 @@ export function CopyPromptButton({
       window.removeEventListener("keydown", onKeydown, true);
       window.removeEventListener(COPY_PROMPT_HOTKEY_EVENT, onRendererHotkey);
     };
-  }, [disabled, hasChanges, onClick]);
+  }, [disabled, onClick]);
 
   function handleCustomInstructionsChange(value: string): void {
     setCustomInstructions(value);

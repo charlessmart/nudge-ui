@@ -290,7 +290,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  box-shadow: inset var(--shadow-outline);
 }
 
 /* The hexagon frames the trigger, so its swatch steps aside while the palette is open. */
@@ -321,7 +321,7 @@
   border-radius: 50%;
   cursor: pointer;
   translate: var(--swatch-x) var(--swatch-y);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  box-shadow: inset var(--shadow-outline);
   /* Transitions rather than keyframes, so closing before the fan-out finishes folds back from where the swatches are.
      Hover grows with `transform`, apart from the staggered `scale`, so it never waits for a swatch's turn. */
   /* Duration plus the widest stagger (PALETTE_STAGGER_MS in SketchToolBar.tsx) stays within 200ms. */
@@ -350,9 +350,9 @@
 /* The selected swatch sits above its neighbors, separated from them by a light rim. */
 .sketch-options__palette-option[data-active="true"] {
   box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    inset var(--shadow-outline),
     0 0 0 2px var(--surface-raised-2x),
-    0 2px 8px rgba(0, 0, 0, 0.2);
+    var(--shadow-popup);
 }
 
 .sketch-options__palette-option:focus-visible {

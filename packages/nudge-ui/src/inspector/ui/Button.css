@@ -41,7 +41,7 @@
   background: linear-gradient(180deg, var(--brand-primary-top) -6.25%, var(--brand-primary-bottom) 100%);
   border: 1px solid var(--brand-primary-rim);
   color: var(--text-inverse);
-  box-shadow: inset 0 2px 0 var(--brand-primary-highlight);
+  box-shadow: inset 0 1px 0 var(--brand-primary-highlight);
 }
 
 .button--secondary {
@@ -109,8 +109,8 @@
 
 /* The face darkens and the top light gives way to a recessed edge, so a press reads without relying on the scale. */
 .button--primary:active:not(:disabled) {
-  background: linear-gradient(180deg, var(--brand-primary-top-hover) -6.25%, var(--brand-primary-bottom-hover) 100%);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, var(--brand-primary-top-active) -6.25%, var(--brand-primary-bottom-active) 100%);
+  box-shadow: var(--shadow-pressed);
 }
 
 /* Popup triggers stay still: a scaled trigger moves the rect the popup anchors to. */

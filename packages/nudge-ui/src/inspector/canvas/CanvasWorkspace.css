@@ -64,8 +64,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  color: #6b7280;
-  font: 500 14px/1.4 system-ui, sans-serif;
+  color: var(--text-muted);
+  font: var(--font-weight-label) var(--font-size-large)/1.4 var(--font-family);
 }
 
 /* A link hover affordance; it must outlive the pointer crossing from the frame into it. */
@@ -170,7 +170,7 @@
 /* Centred on its point of the arrow and kept at toolbar size, sitting over the line it names. */
 .flow-board__label {
   position: absolute;
-  padding: 2px 8px;
+  padding: 2px var(--space-8);
   transform: translate(-50%, -50%) scale(var(--canvas-toolbar-scale, 1));
   border-radius: var(--radius-pill);
   background: var(--surface-panel);

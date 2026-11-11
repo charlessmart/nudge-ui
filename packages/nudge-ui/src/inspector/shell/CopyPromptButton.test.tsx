@@ -91,6 +91,23 @@ describe("CopyPromptButton handoff", () => {
     expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
   });
 
+  it("disables the primary prompt action until there is something to copy", async () => {
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    expect(button.disabled).toBe(true);
+    expect(button.classList.contains("button--primary")).toBe(true);
+
+    await act(async () => { button.click(); });
+    expect(writeText).not.toHaveBeenCalled();
+
+    act(() => replaceActiveDraft([change()]));
+    expect(button.disabled).toBe(false);
+
+    act(() => replaceActiveDraft([]));
+    expect(button.disabled).toBe(true);
+  });
+
   it("copies the prompt and confirms it on the button", async () => {
     act(() => {
       replaceActiveDraft([change()]);

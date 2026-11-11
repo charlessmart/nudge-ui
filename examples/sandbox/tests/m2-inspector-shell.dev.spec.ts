@@ -4,9 +4,9 @@ import { openEditor } from "@nudge-ui/compatibility/playwright";
 test("dev: inspector shell mounts in Shadow DOM and toggles from the keyboard", async ({ page }) => {
   await openEditor(page, "/playground");
 
-  await expect(page.locator('[data-test="copy-prompt"]')).toBeEnabled();
-  await page.locator('[data-test="copy-prompt"]').click();
-  await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Nothing to copy");
+  const copyPrompt = page.locator('[data-test="copy-prompt"]');
+  await expect(copyPrompt).toBeDisabled();
+  await expect(copyPrompt).toHaveClass(/button--primary/);
 
   const getOpen = () =>
     page.evaluate(

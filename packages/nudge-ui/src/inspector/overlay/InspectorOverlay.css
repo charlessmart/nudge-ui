@@ -8,32 +8,32 @@
 }
 
 .alignment-guide {
-  stroke: rgb(59 130 246 / 46%);
+  stroke: var(--guide-alignment);
   stroke-dasharray: 3 4;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .measurement-ruler {
-  stroke: #ef4444;
+  stroke: var(--measure-ruler);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .measurement-projection {
-  stroke: #ef4444;
+  stroke: var(--measure-ruler);
   stroke-dasharray: 4 4;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .measurement-label {
-  fill: #fff;
+  fill: var(--always-white);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: var(--font-size-base);
   font-weight: 600;
 }
 
 .measurement-label-chip {
-  fill: #ef4444;
+  fill: var(--measure-ruler);
 }

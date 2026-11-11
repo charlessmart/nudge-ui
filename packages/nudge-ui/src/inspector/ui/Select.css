@@ -113,7 +113,7 @@
 }
 
 .select__empty {
-  padding: var(--space-12) 14px;
+  padding: var(--space-12);
   color: var(--text-muted);
   font-size: var(--font-size-base);
 }
@@ -141,7 +141,7 @@
 }
 
 .select__group-label {
-  padding: 5px var(--space-8) var(--space-4);
+  padding: var(--space-4) var(--space-8);
   color: var(--text-muted);
   font-size: var(--font-size-small);
   font-weight: 700;
@@ -155,7 +155,7 @@
   gap: var(--space-8);
   min-width: 0;
   min-height: var(--control-height-large);
-  padding: var(--space-8) 9px;
+  padding: var(--space-8);
   border-radius: var(--radius-4);
   color: var(--text-primary);
   outline: 0;

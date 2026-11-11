@@ -36,23 +36,23 @@
   position: fixed;
   z-index: 1;
   pointer-events: none;
-  background: rgb(59 130 246 / 14%);
+  background: var(--measure-padding-fill);
 }
 
 .canvas-spacing-fill[data-kind="gap"] {
-  background: rgb(236 72 153 / 14%);
+  background: var(--measure-gap-fill);
 }
 
 .canvas-spacing-guide[data-kind="gap"] {
-  background: #ec4899;
+  background: var(--measure-gap);
 }
 
 .canvas-spacing-fill[data-kind="margin"] {
-  background: rgb(239 68 68 / 14%);
+  background: var(--measure-margin-fill);
 }
 
 .canvas-spacing-guide[data-kind="margin"] {
-  background: #ef4444;
+  background: var(--measure-margin);
 }
 
 .canvas-spacing-value-badge {
@@ -116,8 +116,8 @@
 .canvas-dom-drop-line {
   z-index: 2147483647;
   border-radius: var(--radius-pill);
-  background: #3b82f6;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 95%), 0 1px 5px rgb(37 99 235 / 72%);
+  background: var(--guide-drop);
+  box-shadow: 0 0 0 1px var(--always-white), 0 1px 5px var(--guide-drop-glow);
 }
 
 .canvas-dom-drop-label {
@@ -127,18 +127,18 @@
   align-items: center;
   padding: 0 6px;
   border-radius: var(--radius-4);
-  background: #2563eb;
-  color: #ffffff;
-  font: 500 11px/1 system-ui, sans-serif;
+  background: var(--guide-drop-strong);
+  color: var(--always-white);
+  font: var(--font-weight-label) var(--font-size-badge)/1 var(--font-family);
   white-space: nowrap;
 }
 
 .canvas-dom-drop-target {
   z-index: 2147483646;
   box-sizing: border-box;
-  border: 1px solid rgb(59 130 246 / 72%);
+  border: 1px solid var(--guide-drop-target);
   border-radius: var(--radius-4);
-  background: rgb(59 130 246 / 5%);
+  background: var(--guide-drop-target-fill);
 }
 
 /* The tag and size label sits just below the selection, over its bottom margin band, under the spacing handles. */

@@ -21,8 +21,8 @@
 }
 
 .copy-prompt__main .copy-prompt__change-count {
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.25);
+  background: var(--brand-primary-highlight);
+  box-shadow: inset 0 2px 4px var(--brand-primary-highlight);
   color: var(--text-inverse);
 }
 

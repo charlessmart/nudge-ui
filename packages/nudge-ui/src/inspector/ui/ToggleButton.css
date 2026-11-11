@@ -24,7 +24,7 @@
 
 .toggle-button--primary {
   background: var(--brand-primary);
-  color: #ffffff;
+  color: var(--text-inverse);
 }
 
 .toggle-button--secondary {

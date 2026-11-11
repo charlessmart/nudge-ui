@@ -278,7 +278,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-muted, #777777);
+  color: var(--text-muted);
   font-size: var(--font-size-base);
   font-weight: 500;
 }
@@ -296,7 +296,7 @@
 
 .canvas-card__error p {
   margin: 0;
-  color: var(--text-muted, #777777);
+  color: var(--text-muted);
   font-size: var(--font-size-base);
   font-weight: 500;
 }
@@ -313,7 +313,7 @@
   align-items: flex-end;
   justify-content: flex-end;
   padding: var(--space-4);
-  color: var(--text-muted, #777777);
+  color: var(--text-muted);
   opacity: 0;
   transition: opacity 150ms ease-out;
   touch-action: none;
@@ -438,7 +438,7 @@
 }
 
 .canvas-card.is-linked {
-  --frame-accent: #a855f7;
+  --frame-accent: var(--linked);
 }
 
 .canvas-card.is-linked:not(.is-focus-presentation) .canvas-card__frame {
@@ -471,19 +471,19 @@
 
 .flow-frame-status {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  left: 8px;
+  right: var(--space-8);
+  bottom: var(--space-8);
+  left: var(--space-8);
   z-index: 1;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-8);
   background: var(--surface-panel);
   color: var(--text-muted);
-  box-shadow: 0 1px 6px rgb(0 0 0 / 20%);
+  box-shadow: var(--shadow-popup);
   font-size: var(--font-size-small);
   pointer-events: none;
 }
 
 .flow-frame-status[data-tone="error"] {
-  color: #d92d20;
+  color: var(--danger-text);
 }

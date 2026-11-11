@@ -102,7 +102,11 @@
   }
 }
 
+/* The panel is the scroll container, so the controls can pin to its top edge and stay in reach while the body scrolls. */
 .panel__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
@@ -110,6 +114,8 @@
   padding-inline: var(--space-16);
   /* On the container rather than the switch, so it runs the full panel width. */
   border-bottom: 1px solid var(--border-subtle);
+  /* Opaque, so scrolled rows pass behind it instead of showing through. */
+  background: var(--surface-panel);
 }
 
 .panel__header-row {
@@ -326,7 +332,7 @@
 
 .panel__body {
   min-height: auto;
-  padding: 0 var(--space-16) 28px;
+  padding: 0 var(--space-16) var(--space-24);
   color: var(--text-secondary);
   overflow: visible;
   flex: 0 0 auto;
@@ -342,7 +348,7 @@
 /* Pages and Components run edge to edge like the panel's own rows; the panel body supplies the gutter. */
 .panel__navigator-view {
   margin-inline: calc(var(--space-16) * -1);
-  margin-bottom: -28px;
+  margin-bottom: calc(var(--space-24) * -1);
 }
 
 .panel::-webkit-scrollbar {

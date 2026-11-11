@@ -60,7 +60,7 @@
   background:
     linear-gradient(var(--stop-color), var(--stop-color)),
     repeating-conic-gradient(var(--border-strong) 0 25%, var(--surface-raised-2x) 0 50%) 50% / var(--space-8) var(--space-8);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-thumb);
   cursor: grab;
   touch-action: none;
   /* Releases settle on the shared spring. */
