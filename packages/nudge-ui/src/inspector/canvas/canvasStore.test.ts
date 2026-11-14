@@ -30,8 +30,6 @@ import {
   COMPONENT_SHEET_SIZE,
 } from "./canvasStore.ts";
 import {
-  getCanvasMode,
-  setCanvasMode,
   getBoardCamera,
   setBoardCamera,
   hasFitAllRan,
@@ -40,14 +38,12 @@ import {
   MAX_CAMERA_ZOOM,
   setCanvasPresentation,
   subscribeCanvasView,
-  type CanvasMode,
 } from "./viewStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 import { clearSessionUndoHistory, sessionTimeline } from "../workspace/timeline.ts";
 
 /** Card sizing rules are tested on the Canvas board; Focus opens new frames at the board width. */
 function resetAllCards(): void {
-  setCanvasMode("inspect");
   setCanvasPresentation("canvas");
   resetFitAllFlag();
   for (const card of getCanvasCards()) {
@@ -62,32 +58,10 @@ function resetCameraToDefault(): void {
 describe("canvasStore mode transitions", () => {
   beforeEach(resetAllCards);
 
-  it("starts in inspect mode", () => {
-    expect(getCanvasMode()).toBe("inspect");
-  });
-
-  it("setCanvasMode transitions to the requested mode", () => {
-    setCanvasMode("canvas");
-    expect(getCanvasMode()).toBe("canvas");
-    setCanvasMode("inspect");
-    expect(getCanvasMode()).toBe("inspect");
-  });
-
-  it("subscribe fires on mode change", () => {
-    const received: CanvasMode[] = [];
-    const unsub = subscribeCanvasView(() => received.push(getCanvasMode()));
-    setCanvasMode("canvas");
-    setCanvasMode("inspect");
-    expect(received).toEqual(["canvas", "inspect"]);
-    unsub();
-  });
-
   it("subscribe does not fire on no-op transitions", () => {
     let count = 0;
     const unsub = subscribeCanvasView(() => count++);
-    setCanvasMode("canvas");
     count = 0;
-    setCanvasMode("canvas");
     expect(count).toBe(0);
     unsub();
   });
@@ -149,14 +123,11 @@ describe("canvasStore card operations", () => {
   });
 
   it("removeCanvasCard keeps the iframe workspace active when the last card is removed", () => {
-    setCanvasMode("canvas");
     addCanvasCard("http://localhost:5173/about", "About");
     const cards = getCanvasCards();
-    expect(getCanvasMode()).toBe("canvas");
     for (const card of cards) {
       removeCanvasCard(card.id);
     }
-    expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toEqual([]);
   });
 
@@ -230,7 +201,7 @@ describe("iframe workspace startup", () => {
 
   it("focuses a restored target without changing its size or camera", () => {
     const target = new URL("/playground", window.location.href).href;
-    hydrateCanvasStore("inspect", [{
+    hydrateCanvasStore([{
       id: "card-42",
       content: { kind: "route", url: target },
       title: "Application title",
@@ -242,7 +213,6 @@ describe("iframe workspace startup", () => {
 
     activateIframeWorkspace(target, { width: 1200, height: 800 });
 
-    expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()[0]).toMatchObject({ width: 713, height: 509 });
     expect(getBoardCamera()).toEqual({ x: -91, y: 37, zoom: 0.75 });
     expect(getFocusedCardId()).toBe("card-42");
@@ -260,7 +230,7 @@ describe("iframe workspace startup", () => {
 
   it("applies an explicit entry fragment to a restored route without duplicating it", () => {
     const target = new URL("/playground#before", window.location.href).href;
-    hydrateCanvasStore("canvas", [{
+    hydrateCanvasStore([{
       id: "card-42", content: { kind: "route", url: target }, title: null,
       x: 0, y: 0, width: 713, height: 509,
     }], { x: 0, y: 0, zoom: 1 });
@@ -278,7 +248,7 @@ describe("iframe workspace startup", () => {
   it("keeps the restored focused duplicate when routes normalize to the same URL", () => {
     const first = new URL("/playground#first", window.location.href).href;
     const focused = new URL("/playground#focused", window.location.href).href;
-    hydrateCanvasStore("canvas", [
+    hydrateCanvasStore([
       { id: "card-41", content: { kind: "route", url: first }, title: null, x: 0, y: 0, width: 600, height: 400 },
       { id: "card-42", content: { kind: "route", url: focused }, title: null, x: 640, y: 0, width: 600, height: 400 },
     ], { x: 0, y: 0, zoom: 1 }, "card-42");
@@ -777,7 +747,7 @@ describe("canvasStore card selection", () => {
   it("hydrateCanvasStore clears selection", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     selectCard(card.id);
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     expect(getSelectedCardId()).toBeNull();
   });
 });
@@ -826,7 +796,7 @@ describe("independent linked live frames", () => {
     const dropped = addCanvasIteration(source.id, "550e8400-e29b-41d4-a716-446655440001", { x: -100, y: 150 })!;
     expect(dropped).toMatchObject({ x: -100, y: 150 });
     expect(getCanvasCards().slice(0, 2)).toEqual(before);
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   });
 
   it("adds a saved iteration at its captured size and reuses the frame already showing it", () => {

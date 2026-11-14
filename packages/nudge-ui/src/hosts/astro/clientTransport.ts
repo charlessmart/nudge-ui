@@ -1,25 +1,12 @@
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
-import { handleFlowsRequest } from "../../project/flows.ts";
+import { createReservedRoutes } from "../../project/routes.ts";
 import {
   createNudgeUiClientManifest,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "../../inspector/clientManifest.ts";
 import type { Plugin, ViteDevServer } from "vite";
-import type { IncomingMessage } from "node:http";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
-import { createAstroClientAssetHandler } from "./clientAsset.ts";
-
-import {
-  NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_EDITOR_PATH,
-  NUDGE_UI_MANIFEST_PATH,
-  createNudgeUiEditorDocument,
-  isNudgeUiEditorDocumentRequest,
-} from "../../transport/index.ts";
 import { automationManifestFields } from "../environment.ts";
-
-const serveClient = createAstroClientAssetHandler();
 
 interface TokenModule {
   readonly nudgeUiProjectId: string;
@@ -36,50 +23,21 @@ interface ComponentModule {
 export function createAstroClientTransportPlugin(): Plugin {
   return {
     name: "nudge-ui-astro-client-transport",
-    // Installed before the shared Vite plugin so Astro's own manifest handler answers /__nudge_ui__/manifest.
+    // Installed before the shared Vite plugin so Astro's own manifest answers /__nudge_ui__/manifest.
     enforce: "pre",
     apply: "serve",
     configureServer(server) {
+      const reservedRoutes = createReservedRoutes({
+        root: () => server.config.root,
+        manifest: () => createManifest(server),
+      });
       server.middlewares.use((request, response, next) => {
-        void handleHtmlArtifactRequest(request, response, server.config.root)
-          .then((handled) => handled || handleFlowsRequest(request, response, server.config.root))
-          .then((handled) => { if (!handled) handleClientRequest(server, request, response, next); }).catch(next);
+        void reservedRoutes(request, response)
+          .then((handled) => { if (!handled) next(); })
+          .catch(next);
       });
     },
   };
-
-  function handleClientRequest(server: ViteDevServer, request: IncomingMessage, response: import("node:http").ServerResponse, next: (error?: unknown) => void): void {
-        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
-          if (request.method !== "GET" && request.method !== "HEAD") {
-            response.statusCode = 405;
-            response.setHeader("Allow", "GET, HEAD");
-            response.end();
-            return;
-          }
-          response.statusCode = 200;
-          response.setHeader("Content-Type", "text/html; charset=utf-8");
-          response.setHeader("Cache-Control", "no-store");
-          response.end(request.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
-          return;
-        }
-        if (pathname === NUDGE_UI_CLIENT_PATH) {
-          void serveClient(request, response).catch(next);
-          return;
-        }
-        if (pathname === NUDGE_UI_MANIFEST_PATH) {
-          void createManifest(server)
-            .then((manifest) => {
-              response.statusCode = 200;
-              response.setHeader("Content-Type", "application/json; charset=utf-8");
-              response.setHeader("Cache-Control", "no-store");
-              response.end(JSON.stringify(manifest));
-            })
-            .catch(next);
-          return;
-        }
-        next();
-  }
 }
 
 async function createManifest(server: ViteDevServer): Promise<NudgeUiClientManifest> {

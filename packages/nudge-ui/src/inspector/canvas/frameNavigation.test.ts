@@ -5,7 +5,7 @@ import { resetDrafts } from "../drafts/store.ts";
 import { clearSessionUndoHistory } from "../workspace/timeline.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 
-beforeEach(() => { hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 }); resetDrafts(); clearSessionUndoHistory(); });
+beforeEach(() => { hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 }); resetDrafts(); clearSessionUndoHistory(); });
 
 it("does not mistake an HTML iteration for a live route", () => {
   const source = addCanvasCard(new URL("/", window.location.origin).href);
@@ -16,7 +16,7 @@ it("does not mistake an HTML iteration for a live route", () => {
 it("preserves restored iteration focus at startup and targets live frames for explicit navigation", () => {
   const live = addCanvasCard(new URL("/", window.location.origin).href);
   const iteration = addCanvasIteration(live.id, "iteration-id")!;
-  hydrateCanvasStore("canvas", getCanvasCards(), { x: 0, y: 0, zoom: 1 }, iteration.id);
+  hydrateCanvasStore(getCanvasCards(), { x: 0, y: 0, zoom: 1 }, iteration.id);
   expect(activateIframeWorkspace(new URL("/", window.location.origin).href, { width: 800, height: 600 }, { preserveIterationFocus: true })?.id).toBe(iteration.id);
   expect(activateIframeWorkspace(new URL("/", window.location.origin).href, { width: 800, height: 600 })?.id).toBe(live.id);
   updateCardUrl(iteration.id, new URL("/another", window.location.origin).href);

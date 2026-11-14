@@ -18,7 +18,7 @@ function makeConfig(tokenGeneration: string): NudgeUiRuntimeConfig {
     framework: "React",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [{ name: "--space-1", value: "4px", source: "theme.css:1" }],
     tokenDiagnostics: [],
@@ -73,7 +73,7 @@ describe("Nudge UI runtime configuration", () => {
       module: "theme.css",
       exportName: "brand",
     }];
-    const capabilities = { canvas: true, componentSemantics: false };
+    const capabilities = { componentSemantics: false };
     const componentContracts: ComponentContract[] = [{
       componentId: "ui/Button",
       name: "Button",
@@ -130,10 +130,10 @@ describe("Nudge UI runtime configuration", () => {
 
     tokenCatalog[0]!.declarations[0]!.value = "#654321";
     componentContracts[0]!.props[0]!.options[0] = "xl";
-    capabilities.canvas = false;
+    capabilities.componentSemantics = true;
     expect(snapshot.tokenCatalog[0]?.declarations[0]?.value).toBe("#123456");
     expect(snapshot.componentContracts[0]?.props[0]?.options[0]).toBe("sm");
-    expect(snapshot.capabilities.canvas).toBe(true);
+    expect(snapshot.capabilities.componentSemantics).toBe(false);
   });
 
   it("replaces the snapshot and notifies subscribers for host refreshes", () => {
@@ -157,14 +157,14 @@ describe("Nudge UI runtime configuration", () => {
 
     configureNudgeUiRuntime({
       ...input,
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { componentSemantics: false },
     });
 
     const snapshot = getNudgeUiRuntimeConfig();
-    expect(snapshot.capabilities).toEqual({ canvas: false, componentSemantics: false });
+    expect(snapshot.capabilities).toEqual({ componentSemantics: false });
     expect(Object.isFrozen(snapshot.capabilities)).toBe(true);
     expect(() => {
-      (snapshot.capabilities as { canvas: boolean }).canvas = true;
+      (snapshot.capabilities as { componentSemantics: boolean }).componentSemantics = true;
     }).toThrow();
   });
 
@@ -233,7 +233,7 @@ describe("runtime configuration validation and defaults", () => {
       projectId: "astro-fixture",
       host: "astro",
       framework: "Astro",
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { componentSemantics: false },
     };
 
     configureNudgeUiRuntime(input);
@@ -250,7 +250,6 @@ describe("runtime configuration validation and defaults", () => {
     configureNudgeUiRuntime({
       ...makeConfig("generation-capabilities"),
       capabilities: {
-        canvas: false,
         componentSemantics: true,
         sourceCoordinates: {
           exactCidPrefixes: ["astro:"],
@@ -284,7 +283,7 @@ describe("runtime configuration validation and defaults", () => {
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({
       ...makeConfig("generation-invalid-pattern"),
-      capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "([" },
+      capabilities: { componentSemantics: false, scopingSelectorPattern: "([" },
     });
 
     expect(getScopingSelectorPattern()).toBeNull();
@@ -295,7 +294,6 @@ describe("runtime configuration validation and defaults", () => {
     const invalidPolicy = {
       ...makeConfig("generation-invalid-policy"),
       capabilities: {
-        canvas: false,
         componentSemantics: false,
         sourceCoordinates: { exactCidPrefixes: [7] },
       },
@@ -304,7 +302,7 @@ describe("runtime configuration validation and defaults", () => {
 
     const invalidPattern = {
       ...makeConfig("generation-invalid-pattern-2"),
-      capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "" },
+      capabilities: { componentSemantics: false, scopingSelectorPattern: "" },
     } as unknown as NudgeUiRuntimeConfig;
     expect(() => configureNudgeUiRuntime(invalidPattern)).toThrow(TypeError);
   });
@@ -343,7 +341,7 @@ describe("runtime configuration validation and defaults", () => {
       framework: "HTML",
       stylingSystem: "",
       stylingDialects: [],
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { componentSemantics: false },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],
@@ -361,8 +359,8 @@ describe("runtime configuration validation and defaults", () => {
 
     expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-types"),
-      capabilities: { canvas: "yes" },
-    } as unknown as NudgeUiRuntimeConfig)).toThrow(/"canvas" must be a boolean/);
+      capabilities: { componentSemantics: "yes" },
+    } as unknown as NudgeUiRuntimeConfig)).toThrow(/"componentSemantics" must be a boolean/);
 
     expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-feature-types"),

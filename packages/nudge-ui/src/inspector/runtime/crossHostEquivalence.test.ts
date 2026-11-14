@@ -26,7 +26,7 @@ function fixtureFor(host: Host): NudgeUiRuntimeConfig {
     framework: "React",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: false, componentSemantics: false },
+    capabilities: { componentSemantics: false },
     tokenCatalog: [],
     tokens: [{ name: "--shared-token", value: "4px", source: "shared.css:1" }],
     tokenDiagnostics: [],

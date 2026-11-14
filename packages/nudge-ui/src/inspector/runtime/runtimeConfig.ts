@@ -23,7 +23,6 @@ export interface SourceCoordinatePolicy {
 }
 
 export interface NudgeUiRuntimeCapabilities {
-  readonly canvas: boolean;
   readonly componentSemantics: boolean;
   /** Precision policy for prompt source coordinates; every source site is exact when omitted. */
   readonly sourceCoordinates?: SourceCoordinatePolicy;
@@ -97,7 +96,7 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<NudgeUiRuntimeConfig>({
   framework: "React",
   stylingSystem: "CSS custom properties",
   stylingDialects: [],
-  capabilities: { canvas: true, componentSemantics: true },
+  capabilities: { componentSemantics: true },
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -241,14 +240,13 @@ function normalizeSourceCoordinatePolicy(
 }
 
 function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
-  if (input === undefined) return { canvas: false, componentSemantics: false };
+  if (input === undefined) return { componentSemantics: false };
   if (!isPlainRecord(input)) {
     throw new TypeError(
       'Nudge UI runtime configuration field "capabilities" must be an object.',
     );
   }
   return {
-    canvas: optionalBoolean(input, "canvas"),
     componentSemantics: optionalBoolean(input, "componentSemantics"),
     sourceCoordinates: normalizeSourceCoordinatePolicy(input),
     scopingSelectorPattern: optionalNonEmptyString(input, "scopingSelectorPattern"),

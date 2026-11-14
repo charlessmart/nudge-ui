@@ -16,9 +16,6 @@ function fixtureEnvironment(): Plugin {
     resolveId(source, importer) {
       if (source === "virtual:workbench-styles") return "\0virtual:workbench-styles";
       if (importer?.startsWith(inspector) && source.endsWith("/portalContainer.ts")) return portal;
-      if (importer?.startsWith(inspector) && source.endsWith("/draftPreview.ts")) {
-        return fileURLToPath(new URL("./src/fixtureDraftPreview.ts", import.meta.url));
-      }
       return null;
     },
     load(id) {

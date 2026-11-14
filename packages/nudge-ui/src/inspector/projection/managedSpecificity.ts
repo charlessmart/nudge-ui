@@ -115,16 +115,7 @@ function boostSelector(doc: Document, selector: string, properties: readonly str
   return boosted.every((branch, index) => branch === branches[index]) ? null : boosted.join(", ");
 }
 
-export function withCompetingSpecificity(doc: Document, rules: readonly StyleRule[]): StyleRule[] {
-  if (rules.length === 0) return [];
-  const collected = collectRules(doc).rules;
-  return rules.map((rule) => {
-    const selector = boostSelector(doc, rule.selector, Object.keys(rule.declarations), collected);
-    return selector ? { ...rule, selector } : rule;
-  });
-}
-
-/** Canvas renderers receive serialized CSS, so they raise the inserted sheet's selectors in place. */
+/** The renderer receives serialized CSS, so it raises the inserted sheet's selectors in place. */
 export function boostManagedStylesheet(doc: Document, sheet: CSSStyleSheet): void {
   const view = doc.defaultView;
   if (!view) return;

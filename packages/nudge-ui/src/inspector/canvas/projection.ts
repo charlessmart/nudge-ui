@@ -3,7 +3,6 @@ import { draftIdForCard, getDraftChanges, getActiveDraftChanges } from "../draft
 import type { DraftContents } from "../drafts/model.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasCards } from "./canvasStore.ts";
-import { getCanvasMode } from "./viewStore.ts";
 import type { ReplaceStylesMessage } from "./frameProtocol.ts";
 import { connectFrame } from "./frameConnection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
@@ -437,6 +436,5 @@ function notifyFrameRegistryListeners(): void {
 }
 
 export function projectToAllReadyCards(): void {
-  if (getCanvasMode() !== "canvas") return;
   for (const [id, iframe] of frameRegistry) sendProjectionToCard({ id }, iframe);
 }

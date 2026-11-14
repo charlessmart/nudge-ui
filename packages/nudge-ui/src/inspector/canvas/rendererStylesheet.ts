@@ -11,7 +11,6 @@ import {
 import { isComponentOverrideList } from "./frameProtocol.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
-import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import { isRenderedInstanceOverride } from "../changes/editModel.ts";
 import {
   applyRenderedInstanceProjection,
@@ -36,37 +35,8 @@ import {
   type SerializedManagedStyles,
   type DraftProjectionPlan,
 } from "../projection/draftProjection.ts";
-import { adoptStylesheet, allowsStyleElements, getAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
-import { boostManagedStylesheet } from "../projection/managedSpecificity.ts";
+import { writeManagedStylesheet } from "../projection/managedStylesheet.ts";
 import { applyRuntimeIdentityClaims, isRuntimeIdentityClaim } from "../runtime/runtimeIdentityClaims.ts";
-
-const SHEET_ID = "nudge-ui-styles";
-
-let adoptedCss: string | null = null;
-
-function replaceRendererCss(css: string): void {
-  if (!allowsStyleElements(document)) {
-    // Structural and text projections resend unchanged CSS; rewriting it would discard cached resolutions.
-    const adopted = getAdoptedStylesheet(document, SHEET_ID);
-    if (adopted && adoptedCss === css && document.adoptedStyleSheets.includes(adopted)) return;
-    const sheet = adoptStylesheet(document, SHEET_ID, css);
-    if (sheet) boostManagedStylesheet(document, sheet);
-    adoptedCss = css;
-    notifyBrowserStylesheetChange(document);
-    return;
-  }
-  let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (sheet?.textContent === css) return;
-  if (!sheet) {
-    sheet = document.createElement("style");
-    sheet.id = SHEET_ID;
-    sheet.setAttribute("data-nudge-ui", "managed");
-    document.head.appendChild(sheet);
-  }
-  sheet.textContent = css;
-  if (sheet.sheet) boostManagedStylesheet(document, sheet.sheet);
-  notifyBrowserStylesheetChange(document);
-}
 
 const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedManagedStyles> = {
   applyRuntimeIdentities: (claims) => {
@@ -83,9 +53,14 @@ const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedMan
   },
   applyComponents: replaceComponentOverrideProjection,
   applyManagedStyles: (styles) => {
-    replaceRendererCss(styles.css);
+    writeManagedStylesheet(document, styles.css);
   },
 };
+
+/** Applies a plan to this renderer's document. Message handling adds revision checks and reports around it. */
+export function applyRendererProjection(plan: DraftProjectionPlan<SerializedManagedStyles>): void {
+  applyDraftProjection(rendererDocumentProjectionAdapter, plan);
+}
 
 function projectionFromReplaceStylesMessage(
   msg: ReplaceStylesMessage,
@@ -307,10 +282,7 @@ export function handleReplaceStyles(
 
   if (msg.revision <= lastAppliedRevision) return false;
 
-  applyDraftProjection(
-    rendererDocumentProjectionAdapter,
-    projectionFromReplaceStylesMessage(msg),
-  );
+  applyRendererProjection(projectionFromReplaceStylesMessage(msg));
   lastStructuralReportRevision = msg.revision;
   lastRenderedInstanceReportRevision = msg.revision;
   lastTextProjectionReportRevision = msg.revision;

@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { configureInspectorStorage } from "@inspector/runtime/inspectorStorage.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "@inspector/runtime/runtimeConfig.ts";
 import { componentContracts } from "virtual:nudge-ui-components";
+import { installFixtureDraftPreview } from "./fixtureDraftPreview.ts";
 import { Workbench } from "./Workbench.tsx";
 import "virtual:workbench-styles";
 import "./workbench.css";
@@ -14,6 +15,7 @@ configureInspectorStorage({
   removeItem: (key) => { storage.delete(key); },
 });
 configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), projectId: "inspector-workbench-fixtures", componentContracts });
+installFixtureDraftPreview();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Workbench root is missing.");

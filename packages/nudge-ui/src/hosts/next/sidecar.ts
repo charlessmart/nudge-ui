@@ -1,7 +1,5 @@
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
-import { handleFlowsRequest } from "../../project/flows.ts";
+import { createReloadStream, createReservedRoutes } from "../../project/routes.ts";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -13,7 +11,6 @@ import {
 import type { ComponentContract } from "../../compiler/index.ts";
 import { createComponentCatalog } from "../componentFramework/catalog.ts";
 import { reactComponentFramework } from "../componentFramework/react.ts";
-import { handleLibraryVisibilityRequest } from "../../project/libraryVisibility.ts";
 import { nextSheetPaths, writeSheetDefinition } from "./componentSheet.ts";
 import {
   createProjectFileWatcher,
@@ -21,19 +18,10 @@ import {
 } from "../../project/files.ts";
 import { stylingSystemLabel } from "../../css/dialects/index.ts";
 import { createProjectTokenSnapshot } from "../../project/tokens.ts";
-import {
-  NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_MANIFEST_PATH,
-  NUDGE_UI_RELOAD_PATH,
-  NUDGE_UI_ROUTE_PREFIX,
-  createNudgeUiEditorDocument,
-  isNudgeUiEditorDocumentRequest,
-} from "../../transport/index.ts";
+import { NUDGE_UI_ROUTE_PREFIX } from "../../transport/index.ts";
 import { automationManifestFields } from "../environment.ts";
 
 const STATE_DIR_SEGMENT = ".next";
-const packageRequire = createRequire(import.meta.url);
-let inspectorClientPath: string | undefined;
 
 export interface SidecarHandle {
   port: number;
@@ -178,7 +166,7 @@ export async function ensureSidecar(
 
   const starting = (async () => {
     let generation = 0;
-    const streams = new Set<ServerResponse>();
+    const reload = createReloadStream(() => generation);
 
     const framework = reactComponentFramework;
     const catalog = createComponentCatalog(framework, {
@@ -214,9 +202,7 @@ export async function ensureSidecar(
         }
       }
       generation += 1;
-      for (const stream of streams) {
-        stream.write(`data: ${JSON.stringify({ revision: generation })}\n\n`);
-      }
+      reload.publish();
     };
     const scheduleFlush = (): void => {
       if (!contractsTimer) contractsTimer = setTimeout(flushContracts, 120);
@@ -268,12 +254,19 @@ export async function ensureSidecar(
       scheduleFlush();
     };
 
+    const reservedRoutes = createReservedRoutes({
+      root: () => fsRoot,
+      manifest: () => ({ ...manifest, revision: generation, ...automationManifestFields() }),
+      library: () => sheetPaths !== null,
+      reload,
+    });
     const server: Server = createServer((req, res) => {
-      void handleHtmlArtifactRequest(req, res, fsRoot)
-        .then((handled) => handled || handleFlowsRequest(req, res, fsRoot))
-        .then((handled) => handled || (sheetPaths !== null && handleLibraryVisibilityRequest(req, res, fsRoot)))
-        .then((handled) => {
-        if (!handled) respond(req, res, () => manifest, () => generation, streams, receiveContracts);
+      if (receiveContractPosting(req, res, receiveContracts)) return;
+      void reservedRoutes(req, res).then((handled) => {
+        if (!handled) res.writeHead(404).end();
+      }).catch(() => {
+        if (res.headersSent) res.destroy();
+        else res.writeHead(500).end();
       });
     });
 
@@ -384,7 +377,7 @@ export async function ensureSidecar(
       port,
       publishRevision(revision: number): void {
         generation = revision;
-        for (const stream of streams) stream.write(`data: ${JSON.stringify({ revision })}\n\n`);
+        reload.publish();
       },
       close(): Promise<void> {
         // Idempotent: the singleton can be closed twice (tests, shutdown race) without throwing.
@@ -392,8 +385,7 @@ export async function ensureSidecar(
           state.starting = undefined;
           return Promise.resolve();
         }
-        for (const stream of streams) stream.end();
-        streams.clear();
+        reload.close();
         void Promise.all(watchers.map((watcher) => watcher.close().catch(() => {})));
         if (contractsTimer) clearTimeout(contractsTimer);
         catalog.dispose();
@@ -417,96 +409,32 @@ export async function ensureSidecar(
   return starting;
 }
 
-function respond(
+/** The loader's contract postings; false when the request is something else. */
+function receiveContractPosting(
   req: IncomingMessage,
   res: ServerResponse,
-  currentManifest: () => NudgeUiManifest,
-  currentGeneration: () => number,
-  streams: Set<ServerResponse>,
   receiveContracts: (file: string, contracts: unknown[]) => void,
-): void {
-  const requestUrl = req.url ?? "";
-  const url = requestUrl.split("?")[0];
-
-  if (url === `${NUDGE_UI_ROUTE_PREFIX}contracts` && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 5 * 1024 * 1024) req.destroy();
-    });
-    req.on("end", () => {
-      try {
-        // SAFETY: The JSON.parse result is validated by the typeof/Array.isArray guards below before use.
-        const parsed = JSON.parse(body) as { file?: string; contracts?: unknown[] };
-        if (typeof parsed.file !== "string" || !Array.isArray(parsed.contracts)) {
-          res.writeHead(400).end();
-          return;
-        }
-        receiveContracts(parsed.file, parsed.contracts);
-        res.writeHead(204).end();
-      } catch {
-        res.writeHead(400).end();
-      }
-    });
-    return;
-  }
-
-  if (isNudgeUiEditorDocumentRequest(requestUrl, req.method, req.headers)) {
-    res.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-    });
-    res.end(req.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
-    return;
-  }
-
-  if (req.method !== "GET") {
-    res.writeHead(405).end();
-    return;
-  }
-
-  if (url === NUDGE_UI_MANIFEST_PATH) {
-    const body = `${JSON.stringify({
-      ...currentManifest(),
-      revision: currentGeneration(),
-      ...automationManifestFields(),
-    })}\n`;
-    res.writeHead(200, {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    });
-    res.end(body);
-    return;
-  }
-
-  if (url === NUDGE_UI_CLIENT_PATH) {
+): boolean {
+  const url = (req.url ?? "").split("?")[0];
+  if (url !== `${NUDGE_UI_ROUTE_PREFIX}contracts` || req.method !== "POST") return false;
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+    if (body.length > 5 * 1024 * 1024) req.destroy();
+  });
+  req.on("end", () => {
     try {
-      inspectorClientPath ??= packageRequire.resolve("nudge-ui/internal/client");
-      const body = readFileSync(inspectorClientPath);
-      res.writeHead(200, {
-        "content-type": "text/javascript; charset=utf-8",
-        "cache-control": "no-cache",
-      });
-      res.end(body);
+      // SAFETY: The JSON.parse result is validated by the typeof/Array.isArray guards below before use.
+      const parsed = JSON.parse(body) as { file?: string; contracts?: unknown[] };
+      if (typeof parsed.file !== "string" || !Array.isArray(parsed.contracts)) {
+        res.writeHead(400).end();
+        return;
+      }
+      receiveContracts(parsed.file, parsed.contracts);
+      res.writeHead(204).end();
     } catch {
-      res.writeHead(503).end("Nudge UI client has not been built.");
+      res.writeHead(400).end();
     }
-    return;
-  }
-
-  if (url === NUDGE_UI_RELOAD_PATH) {
-    res.writeHead(200, {
-      "content-type": "text/event-stream",
-      "cache-control": "no-store",
-      connection: "keep-alive",
-    });
-    res.write(": nudge-ui reload stream\n\n");
-    streams.add(res);
-    res.on("close", () => streams.delete(res));
-    // Send the current revision first so late subscribers do not miss a change.
-    res.write(`data: ${JSON.stringify({ revision: currentGeneration() })}\n\n`);
-    return;
-  }
-
-  res.writeHead(404).end();
+  });
+  return true;
 }

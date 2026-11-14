@@ -3,7 +3,6 @@ import { InspectorShell } from "./InspectorShell.tsx";
 import { CanvasWorkspace } from "../canvas/CanvasWorkspace.tsx";
 import { CanvasElementOverlay } from "../canvas/CanvasElementOverlay.tsx";
 import { isPageSurface } from "../canvas/pageSurface.ts";
-import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { readNudgeUiEditorTarget } from "../../transport/editor.ts";
 import { TooltipGroup } from "../ui/Tooltip.tsx";
 import { ToastRegion } from "../ui/Toast.tsx";
@@ -11,8 +10,6 @@ import { ToastRegion } from "../ui/Toast.tsx";
 import { CommentsOverlay } from "../comments/CommentsOverlay.tsx";
 
 export function AppShell(): ReactElement {
-  const config = useNudgeUiRuntimeConfig();
-  const canvasEnabled = config.capabilities.canvas;
   const primaryUrl = typeof window === "undefined"
     ? null
     : isPageSurface()
@@ -20,9 +17,9 @@ export function AppShell(): ReactElement {
       : readNudgeUiEditorTarget(window.location.href);
   return (
     <TooltipGroup>
-      {canvasEnabled ? <CanvasWorkspace primaryUrl={primaryUrl} /> : null}
-      {canvasEnabled ? <CanvasElementOverlay /> : null}
-      {canvasEnabled ? <CommentsOverlay /> : null}
+      <CanvasWorkspace primaryUrl={primaryUrl} />
+      <CanvasElementOverlay />
+      <CommentsOverlay />
       <InspectorShell />
       <ToastRegion />
     </TooltipGroup>

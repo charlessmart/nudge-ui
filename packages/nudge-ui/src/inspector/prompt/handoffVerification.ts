@@ -25,16 +25,12 @@ import {
   resolveTextProjectionTarget,
   resolveTextProjectionTextNode,
 } from "../projection/textProjection.ts";
-import {
-  applyHostDraftProjection,
-  compileDraftProjection,
-} from "../projection/draftProjection.ts";
+import type { DraftProjectionSource } from "../projection/draftProjection.ts";
 import {
   isCanvasProjectionRevisionCurrent,
   restoreCanonicalFrameProjection,
   projectDraftToDocument,
 } from "../canvas/projection.ts";
-import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 export interface HandoffOwner {
   readonly draftId: string;
@@ -225,16 +221,8 @@ export async function verifyAndReconcileHandoff(
   doc: Document | null = handoffDocument(snapshot.owner),
 ): Promise<number> {
   if (!doc || !documentBelongsToHandoff(doc, snapshot.owner)) return 0;
-  const applyProjection = async (
-    snapshot: Parameters<typeof compileDraftProjection>[0],
-  ): Promise<number | "host" | null> => {
-    if (doc === document && !isEditorShellDocument(doc)) {
-      applyHostDraftProjection(compileDraftProjection(snapshot));
-      return "host";
-    }
-    if (doc === document) return null;
-    return projectDraftToDocument(doc, snapshot);
-  };
+  const applyProjection = (snapshot: DraftProjectionSource): Promise<number | null> =>
+    projectDraftToDocument(doc, snapshot);
   const sentByKey = new Map(
     snapshot.changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
   );
@@ -265,8 +253,7 @@ export async function verifyAndReconcileHandoff(
     if (previewRevision === null) return 0;
     await afterBrowserPaint(doc);
     if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
-    if (typeof previewRevision === "number"
-      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
+    if (!isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
     const verified = verifiedChangeKeys(eligible, doc);
     const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, doc);
     // Recheck byte identity before reconciling; a user edit can land while the two-frame window is open.
@@ -284,21 +271,18 @@ export async function verifyAndReconcileHandoff(
         (id) => currentStructuralById.get(id) === sentStructural.get(id),
       ),
     );
-    if (typeof previewRevision === "number"
-      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
+    if (!isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
     if (!documentBelongsToHandoff(doc, snapshot.owner)) return 0;
     return reconcileDraftChanges(snapshot.owner.draftId, stillVerified, stillVerifiedStructural);
   } finally {
-    // If reconciliation could not write (read-only Canvas lease), restore the untouched set; a Canvas restore settles on the renderer's acknowledgement.
-    if (doc === document) await applyProjection(getActiveDraftChanges());
-    else await restoreCanonicalFrameProjection(doc);
+    // If reconciliation could not write (read-only Canvas lease), restore the untouched set; the restore settles on the renderer's acknowledgement.
+    await restoreCanonicalFrameProjection(doc);
   }
 }
 
 export function documentBelongsToHandoff(doc: Document, owner: HandoffOwner): boolean {
   if (owner.target.kind === "application"
     && targetKey(applicationTarget(doc.location.href)) !== targetKey(owner.target)) return false;
-  if (doc === document) return owner.target.kind === "application" && !isEditorShellDocument(doc);
   const id = getCanvasCardIdForDocument(doc);
   return !!id && draftIdForCard(id) === owner.draftId;
 }
@@ -309,7 +293,7 @@ function handoffDocument(owner: HandoffOwner): Document | null {
     const doc = frame.contentDocument;
     if (doc && documentBelongsToHandoff(doc, owner)) return doc;
   }
-  return owner.target.kind === "application" && !isEditorShellDocument() ? document : null;
+  return null;
 }
 
 

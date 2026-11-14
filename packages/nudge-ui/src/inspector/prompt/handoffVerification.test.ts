@@ -4,6 +4,7 @@ import { appendChange, clearActiveDraft, getChangesList, resetDrafts } from "../
 import type { ChangeRecord, ElementChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { attachLoopbackFrame } from "../__stubs__/loopbackRenderer.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   applyStructuralProjection,
@@ -66,6 +67,8 @@ function addItem(text: string): HTMLElement {
   return el;
 }
 
+let detachFrame: () => void = () => undefined;
+
 describe("handoff verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
@@ -80,24 +83,16 @@ describe("handoff verification", () => {
       callback(0);
       return 1;
     });
+    detachFrame = attachLoopbackFrame();
   });
 
   afterEach(() => {
+    detachFrame();
     document.documentElement.removeAttribute("data-nudge-ui-editor");
     clearActiveDraft();
     resetStructuralDeleteProjection();
     window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
-  });
-
-  it("does not project application edits into the controller shell", () => {
-    document.documentElement.setAttribute("data-nudge-ui-editor", "");
-    const change = styleChange("color", "rgb(255, 0, 0)");
-    appendChange(change);
-
-    expect(document.getElementById("nudge-ui-styles")).toBeNull();
-    expect(verifiedChangeKeys([change])).toEqual(new Set());
-    document.documentElement.removeAttribute("data-nudge-ui-editor");
   });
 
   it("removes only the sent record that the refreshed source now renders", async () => {
@@ -228,6 +223,9 @@ describe("handoff verification", () => {
 
   it("reconciles a nested delete when the surrounding rendered view is unchanged", async () => {
     window.history.replaceState({}, "", "/authored");
+    // The frame attached in setup shows the previous URL.
+    detachFrame();
+    detachFrame = attachLoopbackFrame();
     const parent = document.createElement("section");
     parent.dataset.cid = "Card";
     parent.dataset.src = "src/Card.tsx:4:1";

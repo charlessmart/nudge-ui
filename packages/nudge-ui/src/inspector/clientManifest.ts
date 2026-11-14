@@ -22,7 +22,6 @@ export interface NudgeUiClientManifest<Runtime extends NudgeUiRuntimeConfig = Nu
   readonly reload?: {
     readonly endpoint: string;
     readonly strategy: "refresh-manifest" | "reload-document";
-    readonly events?: readonly string[];
   };
   /** Set by `NUDGE_UI=1`: automated browsers open the editor instead of the plain app. */
   readonly inspectAutomatedBrowsers?: true;
@@ -95,7 +94,6 @@ interface CandidateDocumentOptions {
 interface CandidateReloadOptions {
   readonly endpoint?: unknown;
   readonly strategy?: unknown;
-  readonly events?: unknown;
 }
 
 function isDocumentOptions(
@@ -120,15 +118,9 @@ function isReloadOptions(
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   // SAFETY: the object check above makes reading optional candidate fields safe.
   const candidate = value as CandidateReloadOptions;
-  if (typeof candidate.endpoint !== "string"
-    || !candidate.endpoint.startsWith("/__nudge_ui__/")
-    || (candidate.strategy !== "refresh-manifest" && candidate.strategy !== "reload-document")) {
-    return false;
-  }
-  return candidate.events === undefined
-    || (Array.isArray(candidate.events)
-      && candidate.events.length > 0
-      && candidate.events.every((event) => typeof event === "string" && event.trim().length > 0));
+  return typeof candidate.endpoint === "string"
+    && candidate.endpoint.startsWith("/__nudge_ui__/")
+    && (candidate.strategy === "refresh-manifest" || candidate.strategy === "reload-document");
 }
 
 function isRecord(

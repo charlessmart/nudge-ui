@@ -1,5 +1,4 @@
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
-import { handleFlowsRequest } from "../../project/flows.ts";
+import { createReloadStream, createReservedRoutes } from "../../project/routes.ts";
 import { createHash } from "node:crypto";
 import {
   createServer,
@@ -15,16 +14,10 @@ import {
 } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { createRequire } from "node:module";
 import { instrumentSourceHtml } from "../../html/identity.ts";
 import { injectStandaloneBootstrap } from "./html/bootstrap.ts";
-import { createNudgeUiEditorDocument, isNudgeUiEditorDocumentRequest } from "../../transport/editor.ts";
 import {
   createStandaloneRuntimeManifest,
-  NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_EDITOR_PATH,
-  NUDGE_UI_MANIFEST_PATH,
-  NUDGE_UI_RELOAD_PATH,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
 import { isReservedNudgeUiRoute } from "../../transport/index.ts";
@@ -40,7 +33,6 @@ import {
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const DEFAULT_PORT = 4173;
-const packageRequire = createRequire(import.meta.url);
 
 export interface StandaloneServerOptions {
   /** The explicit directory whose files may be served. */
@@ -98,39 +90,24 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   });
   // Prevents an unhandled rejection when a server is created but never started.
   void initialTokens.catch(() => undefined);
-  const reloadClients = new Set<ServerResponse>();
+  const reload = createReloadStream(() => revision);
   let fileWatcher: ProjectFileWatcher | null = null;
   let changeQueue = Promise.resolve();
 
   const getManifest = (): StandaloneRuntimeManifest => manifest;
-  const closeReloadClients = (): void => {
-    for (const client of reloadClients) {
-      client.end();
-    }
-    reloadClients.clear();
-  };
-  const notifyReload = (): void => {
-    const payload = `event: reload\ndata: ${JSON.stringify({ revision })}\n\n`;
-    for (const client of [...reloadClients]) {
-      if (client.destroyed) {
-        reloadClients.delete(client);
-        continue;
-      }
-      try {
-        client.write(payload);
-      } catch {
-        reloadClients.delete(client);
-        client.destroy();
-      }
-    }
-  };
+  const reservedRoutes = createReservedRoutes({
+    root: () => rootDirectory,
+    manifest: getManifest,
+    reload,
+    ...(clientPath === undefined ? {} : { clientPath }),
+  });
   const processSettledChanges = (_changes: readonly ProjectFileChange[]): void => {
     changeQueue = changeQueue.then(async () => {
       // fs.watch can omit a filename, so CSS changes cannot be identified by extension: rebuild once per settled batch to keep the manifest coherent before reload.
       const tokens = await createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" });
       manifest = createStandaloneRuntimeManifest(projectId, tokens, revision + 1);
       revision += 1;
-      notifyReload();
+      reload.publish();
     }).catch((error: unknown) => {
       // A failed rebuild must not terminate the server, but a skipped reload must stay visible.
       console.warn(
@@ -144,9 +121,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       request,
       response,
       rootDirectory,
-      clientPath,
-      getManifest,
-      reloadClients,
+      reservedRoutes,
     }).catch(() => {
       if (response.headersSent) {
         response.destroy();
@@ -215,7 +190,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       const pendingStart = startPromise;
       const closeWatcher = fileWatcher?.close() ?? Promise.resolve();
       fileWatcher = null;
-      closeReloadClients();
+      reload.close();
       const closing = closeWatcher
         .then(() => pendingStart?.catch(() => undefined))
         .then(() => changeQueue)
@@ -389,13 +364,10 @@ async function handleRequest(input: {
   request: IncomingMessage;
   response: ServerResponse;
   rootDirectory: string;
-  clientPath?: string;
-  getManifest: () => StandaloneRuntimeManifest;
-  reloadClients: Set<ServerResponse>;
+  reservedRoutes: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 }): Promise<void> {
   const { request, response } = input;
-  if (await handleHtmlArtifactRequest(request, response, input.rootDirectory)) return;
-  if (await handleFlowsRequest(request, response, input.rootDirectory)) return;
+  if (await input.reservedRoutes(request, response)) return;
   if (request.method !== "GET" && request.method !== "HEAD") {
     sendText(response, 405, "Method Not Allowed", { Allow: "GET, HEAD" });
     return;
@@ -407,16 +379,9 @@ async function handleRequest(input: {
     return;
   }
 
+  // Every reserved route that exists was answered above.
   if (isReservedNudgeUiRoute(decodedPath)) {
-    await handleNudgeUiRoute(input, decodedPath);
-    return;
-  }
-
-  if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
-    const body = request.method === "HEAD"
-      ? Buffer.alloc(0)
-      : Buffer.from(createNudgeUiEditorDocument(), "utf8");
-    sendBody(response, 200, body, "text/html; charset=utf-8", { "Cache-Control": "no-store" });
+    sendText(response, 404, "Not Found");
     return;
   }
 
@@ -470,68 +435,6 @@ function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
 
 const strictUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
-async function handleNudgeUiRoute(
-  input: {
-    request: IncomingMessage;
-    response: ServerResponse;
-    clientPath?: string;
-    getManifest: () => StandaloneRuntimeManifest;
-    reloadClients: Set<ServerResponse>;
-  },
-  pathname: string,
-): Promise<void> {
-  if (pathname === NUDGE_UI_MANIFEST_PATH) {
-    const body = Buffer.from(JSON.stringify(input.getManifest()), "utf8");
-    sendBody(input.response, 200, body, "application/json; charset=utf-8", {
-      "Cache-Control": "no-store",
-    });
-    return;
-  }
-  if (pathname === NUDGE_UI_EDITOR_PATH) {
-    const body = input.request.method === "HEAD"
-      ? Buffer.alloc(0)
-      : Buffer.from(createNudgeUiEditorDocument(), "utf8");
-    sendBody(input.response, 200, body, "text/html; charset=utf-8", {
-      "Cache-Control": "no-store",
-    });
-    return;
-  }
-  if (pathname === NUDGE_UI_CLIENT_PATH) {
-    try {
-      const body = await readFileFromDescriptor(input.clientPath ?? resolveDefaultClientPath());
-      sendBody(input.response, 200, body, "text/javascript; charset=utf-8", {
-        "Cache-Control": "no-cache",
-      });
-    } catch {
-      sendText(input.response, 503, "Nudge UI client has not been built.");
-    }
-    return;
-  }
-  if (pathname === NUDGE_UI_RELOAD_PATH) {
-    if (input.request.method === "HEAD") {
-      sendBody(input.response, 200, Buffer.alloc(0), "text/event-stream; charset=utf-8", {
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      });
-      return;
-    }
-    input.response.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
-    input.response.write(
-      `event: ready\ndata: ${JSON.stringify({ revision: input.getManifest().revision })}\n\n`,
-    );
-    input.reloadClients.add(input.response);
-    input.request.on("close", () => input.reloadClients.delete(input.response));
-    input.response.on("close", () => input.reloadClients.delete(input.response));
-    return;
-  }
-  sendText(input.response, 404, "Not Found");
-}
-
 const READ_ONLY_NOFOLLOW_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW;
 
 async function readProjectFile(filePath: string): Promise<Buffer> {
@@ -564,10 +467,6 @@ async function readFileFromDescriptor(
   } finally {
     await fileHandle.close();
   }
-}
-
-function resolveDefaultClientPath(): string {
-  return packageRequire.resolve("nudge-ui/internal/client");
 }
 
 function readAddress(server: Server, host: string): StandaloneServerAddress {

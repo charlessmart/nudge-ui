@@ -1,7 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "../../css/model/index.ts";
 import type { EditCapability, ResolvedProperty, TokenOrigin } from "../../css/model/index.ts";
 import type { TokenCatalogRow } from "../tokens/catalog.ts";
-import { applyRules, verifyPreview } from "../projection/managedStylesheet.ts";
+import { removeManagedSheet, rulesToCssText, verifyPreview, writeManagedStylesheet } from "../projection/managedStylesheet.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { projectInspectorValues, type InspectorProjection, type ProjectionAxis, type ProjectionGroup, type ProjectionSide, type ProjectionState } from "../spacing/projection.ts";
 import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
@@ -95,7 +95,7 @@ export function runConformanceFixture(
 
   let preview: PreviewResult | null = null;
   if (fixture.expected.preview) {
-    applyRules([{ selector: fixture.selected, declarations: { [fixture.expected.preview.property]: fixture.expected.preview.value } }]);
+    writeManagedStylesheet(doc, rulesToCssText([{ selector: fixture.selected, declarations: { [fixture.expected.preview.property]: fixture.expected.preview.value } }]));
     preview = verifyPreview(selected, fixture.expected.preview.property, fixture.expected.preview.value);
   }
 
@@ -110,7 +110,7 @@ export function runConformanceFixture(
       inspection.dispose();
       style.remove();
       mount.remove();
-      if (doc.getElementById("nudge-ui-styles")) doc.getElementById("nudge-ui-styles")?.remove();
+      removeManagedSheet(doc);
     },
   };
 }

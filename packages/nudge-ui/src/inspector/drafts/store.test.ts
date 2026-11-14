@@ -47,7 +47,7 @@ function edit(cardId: string, rawValue: string): void {
 beforeEach(() => {
   localStorage.clear();
   resetDrafts();
-  hydrateCanvasStore("canvas", [page("home", "/"), page("linked", "/"), page("about", "/about"), iteration("iteration")], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([page("home", "/"), page("linked", "/"), page("about", "/about"), iteration("iteration")], { x: 0, y: 0, zoom: 1 });
   loadDrafts("project");
 });
 

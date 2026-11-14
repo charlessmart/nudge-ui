@@ -29,7 +29,7 @@ beforeEach(() => {
   document.documentElement.setAttribute("data-nudge-ui-editor", "");
   configureNudgeUiRuntime({ ...initial, demo: true });
   resetDrafts();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
 });
 afterEach(() => {
   controller?.dispose(); controller = undefined;

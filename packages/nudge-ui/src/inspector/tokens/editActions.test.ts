@@ -13,13 +13,19 @@ import {
 } from "./editActions.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import { setActiveStyleState } from "../shell/styleState.ts";
-import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { rulesToCssText } from "../projection/managedStylesheet.ts";
+import { getPendingRules as pendingRulesForSheetText } from "../drafts/store.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { installStaticHtmlRuntimeIdentity } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { deserializeChange, serializeChange } from "../changes/codecs.ts";
 import { unlinkElement } from "../selection/editScope.ts";
 import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
 import { PAGE_TARGET_CID } from "../selection/pageTarget.ts";
+
+/** The CSS the active draft previews in a frame. */
+function getManagedSheetText(): string {
+  return rulesToCssText(pendingRulesForSheetText());
+}
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");

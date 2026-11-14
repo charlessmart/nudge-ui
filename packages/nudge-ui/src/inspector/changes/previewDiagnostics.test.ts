@@ -5,7 +5,6 @@ import { changeKey } from "./model.ts";
 import {
   beginPreviewAttempt,
   clearPreviewDiagnostics,
-  getHostPreviewDocument,
   getPreviewDiagnostic,
   getPreviewDiagnosticRevision,
   invalidatePreviewDocumentSession,
@@ -13,8 +12,17 @@ import {
   resetPreviewDiagnostics,
   startPreviewDocumentSession,
   subscribePreviewDiagnostics,
+  getAnyPreviewDiagnostic,
 } from "./previewDiagnostics.ts";
 import { appendChanges, getActiveDraftChanges, resetDrafts, undo } from "../drafts/store.ts";
+
+const TEST_FRAME = { logicalDocument: "test-frame", sessionId: "test-session" };
+
+/** A started preview document, standing in for a frame. */
+function testFrameDocument(): typeof TEST_FRAME {
+  startPreviewDocumentSession(TEST_FRAME);
+  return TEST_FRAME;
+}
 
 const change: ElementChangeRecord = {
   cid: "Button",
@@ -42,13 +50,13 @@ describe("preview diagnostics", () => {
   });
 
   it("stores a result with the active revision, document session, and attempt", () => {
-    const document = getHostPreviewDocument();
+    const document = testFrameDocument();
     const attempt = beginPreviewAttempt(document)!;
 
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(true);
-    expect(getPreviewDiagnostic(changeKey(change))).toMatchObject({
+    expect(getAnyPreviewDiagnostic(changeKey(change))).toMatchObject({
       changeKey: changeKey(change),
-      logicalDocument: "host",
+      logicalDocument: document.logicalDocument,
       sessionId: document.sessionId,
       draftRevision: 0,
       attempt: 1,
@@ -57,29 +65,29 @@ describe("preview diagnostics", () => {
   });
 
   it("rejects a late result after a newer attempt starts", () => {
-    const document = getHostPreviewDocument();
+    const document = testFrameDocument();
     const first = beginPreviewAttempt(document)!;
     const second = beginPreviewAttempt(document)!;
 
-    expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
+    expect(getAnyPreviewDiagnostic(changeKey(change))).toBeUndefined();
     expect(publishPreviewDiagnostic(first, changeKey(change), result)).toBe(false);
     expect(publishPreviewDiagnostic(second, changeKey(change), result)).toBe(true);
-    expect(getPreviewDiagnostic(changeKey(change))?.attempt).toBe(2);
+    expect(getAnyPreviewDiagnostic(changeKey(change))?.attempt).toBe(2);
   });
 
   it("preserves diagnostics across workspace revisions until explicitly cleared", () => {
-    const document = getHostPreviewDocument();
+    const document = testFrameDocument();
     const attempt = beginPreviewAttempt(document)!;
     publishPreviewDiagnostic(attempt, changeKey(change), result);
 
     appendChanges([change]);
 
     // New commits must not delete earlier diagnostics; the revision stamp rejects late publishes per key.
-    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
+    expect(getAnyPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(false);
 
     clearPreviewDiagnostics();
-    expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
+    expect(getAnyPreviewDiagnostic(changeKey(change))).toBeUndefined();
   });
 
   it("keeps both diagnostics when two changes commit in sequence", () => {
@@ -90,27 +98,27 @@ describe("preview diagnostics", () => {
       oldRawValue: "white",
     };
     expect(appendChanges([change])).toBe("applied");
-    const firstAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    const firstAttempt = beginPreviewAttempt(testFrameDocument())!;
     expect(publishPreviewDiagnostic(firstAttempt, changeKey(change), result)).toBe(true);
 
     expect(appendChanges([secondChange])).toBe("applied");
-    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
-    const secondAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    expect(getAnyPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
+    const secondAttempt = beginPreviewAttempt(testFrameDocument())!;
     const secondResult = { ...result, requestedValue: "blue", computedValue: "blue" };
     expect(publishPreviewDiagnostic(secondAttempt, changeKey(secondChange), secondResult)).toBe(true);
-    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
-    expect(getPreviewDiagnostic(changeKey(secondChange))?.result).toMatchObject(secondResult);
+    expect(getAnyPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
+    expect(getAnyPreviewDiagnostic(changeKey(secondChange))?.result).toMatchObject(secondResult);
   });
 
   it("does not notify when reading a diagnostic", () => {
-    const document = getHostPreviewDocument();
+    const document = testFrameDocument();
     const attempt = beginPreviewAttempt(document)!;
     publishPreviewDiagnostic(attempt, changeKey(change), result);
     const listener = vi.fn();
     subscribePreviewDiagnostics(listener);
     listener.mockClear();
 
-    expect(getPreviewDiagnostic(changeKey(change))).toBeDefined();
+    expect(getAnyPreviewDiagnostic(changeKey(change))).toBeDefined();
     expect(getPreviewDiagnosticRevision()).toBeGreaterThan(0);
     expect(listener).not.toHaveBeenCalled();
   });
@@ -118,7 +126,7 @@ describe("preview diagnostics", () => {
   it("publishes diagnostics without changing canonical state or history", () => {
     expect(appendChanges([change])).toBe("applied");
     const before = getActiveDraftChanges();
-    const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    const attempt = beginPreviewAttempt(testFrameDocument())!;
 
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(true);
     expect(getActiveDraftChanges()).toEqual(before);

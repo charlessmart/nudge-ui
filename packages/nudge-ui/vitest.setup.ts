@@ -5,3 +5,9 @@ if (typeof Element !== "undefined") {
     return selectors === ":modal" ? false : matches.call(this, selectors);
   };
 }
+
+// Unit tests have no frame to preview a draft in, so the active draft is applied to the test document directly.
+if (typeof document !== "undefined") {
+  const { installLoopbackRenderer } = await import("./src/inspector/__stubs__/loopbackRenderer.ts");
+  installLoopbackRenderer();
+}

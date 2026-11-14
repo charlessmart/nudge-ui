@@ -11,6 +11,7 @@ import { getComments, saveComment, type ElementComment } from "../comments/store
 import { captureRenderedInstance } from "../projection/renderedInstance.ts";
 import { copyHandoff, prepareHandoff } from "../workspace/handoff.ts";
 import { clearSentItems } from "../workspace/sentItems.ts";
+import { attachLoopbackFrame } from "../__stubs__/loopbackRenderer.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
 const edit: ElementChangeRecord = {
@@ -25,7 +26,7 @@ beforeEach(() => {
   runtime = getNudgeUiRuntimeConfig();
   configureNudgeUiRuntime({ ...runtime, demo: true });
   resetDrafts(); clearClipboardHandoff();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   localStorage.clear();
   document.documentElement.removeAttribute("data-nudge-ui-editor");
   document.head.innerHTML = '<style>[data-cid="Heading"] { color: rgb(255, 0, 0); }</style>';
@@ -36,6 +37,7 @@ afterEach(() => { configureNudgeUiRuntime(runtime); stop?.(); stop=undefined; re
 it("reconciles the sent draft after switching to an independent draft with identical intent", async () => {
   const original = activateIframeWorkspace(window.location.href, {width:800,height:600})!;
   loadDrafts("completion-switch", {persistent:false});
+  stop = attachLoopbackFrame();
   activateDraftForCard(original.id);
   appendChanges([edit]);
   const handoff = { owner: captureHandoffOwner(), changes: [edit], structuralChanges: [] };

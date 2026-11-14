@@ -32,7 +32,7 @@ export function createStandaloneRuntimeManifest(
       stylingSystem: stylingSystemLabel(tokenSnapshot.stylingDialects),
       stylingDialects: tokenSnapshot.stylingDialects,
       // Canvas shares the Vite host's controller/renderer runtime (ADR-0012).
-      capabilities: { canvas: true, componentSemantics: false },
+      capabilities: { componentSemantics: false },
       tokenCatalog: tokenSnapshot.tokenCatalog,
       tokens: tokenSnapshot.tokens,
       tokenDiagnostics: tokenSnapshot.tokenDiagnostics,
@@ -46,7 +46,6 @@ export function createStandaloneRuntimeManifest(
     reload: {
       endpoint: NUDGE_UI_RELOAD_PATH,
       strategy: "reload-document",
-      events: ["ready", "reload"],
     },
     ...automationManifestFields(),
   });

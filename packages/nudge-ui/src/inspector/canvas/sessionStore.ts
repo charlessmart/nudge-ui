@@ -10,15 +10,12 @@ import {
   removeCanvasCard,
 } from "./canvasStore.ts";
 import {
-  getCanvasMode,
   getCanvasPresentation,
   type CanvasPresentation,
   getBoardCamera,
   setBoardCamera,
   type CanvasCamera,
-  type CanvasMode,
 } from "./viewStore.ts";
-import { applyRules } from "../projection/managedStylesheet.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
@@ -82,9 +79,7 @@ export interface SerializableCard {
 export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
   projectId: string;
-  mode: CanvasMode;
   presentation: CanvasPresentation;
-  inspectUrl: string;
   cards: SerializableCard[];
   camera: { x: number; y: number; zoom: number };
   focusedCardId?: string | null;
@@ -98,14 +93,11 @@ export interface HydrationResult {
 function buildSession(): DurableSession {
   const cards = getCanvasCards();
   const camera = getBoardCamera();
-  const mode = getCanvasMode();
 
   return {
     schemaVersion: SCHEMA_VERSION,
     projectId: projectId(),
-    mode,
     presentation: getCanvasPresentation(),
-    inspectUrl: window.location.href,
     cards: cards.map((c) => ({
       id: c.id,
       content: c.content.kind === "route"
@@ -182,18 +174,6 @@ export function hydrateSession(): HydrationResult {
     safeDiscard();
     return { restored: false };
   }
-
-  if (typeof s.mode !== "string" || (s.mode !== "inspect" && s.mode !== "canvas")) {
-    safeDiscard();
-    return { restored: false };
-  }
-
-  if (!isSameOriginUrl(s.inspectUrl)) {
-    safeDiscard();
-    return { restored: false };
-  }
-
-  const inspectRouteChanged = s.mode === "inspect" && s.inspectUrl !== window.location.href;
 
   const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
   if (!cards) {
@@ -275,15 +255,12 @@ export function hydrateSession(): HydrationResult {
   }
 
   hydrateCanvasStore(
-    s.mode as CanvasMode,
     serializableCards,
     camera,
     focusedCardId,
     presentation,
   );
   hydrateClipboardHandoff(clipboardHandoff);
-  // A changed URL means the user navigated while Inspect was active: keep the edits but adopt the new route.
-  if (inspectRouteChanged) persistSessionUnchecked();
   return { restored: true };
 }
 
@@ -330,7 +307,6 @@ export function clearSession(): void {
   }
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
-  applyRules([]);
   autoSaveDirty = false;
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);

@@ -1,6 +1,4 @@
-import { handleHtmlArtifactRequest } from "../../project/artifacts.ts";
-import { handleFlowsRequest } from "../../project/flows.ts";
-import { handleLibraryVisibilityRequest } from "../../project/libraryVisibility.ts";
+import { createReservedRoutes } from "../../project/routes.ts";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
@@ -33,10 +31,7 @@ import {
 import { findSheetWrapperFile, isSheetWrapperFile } from "../componentFramework/sheet.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
-  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
-  createNudgeUiEditorDocument,
-  isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
@@ -119,8 +114,6 @@ const RESOLVED_INSPECTOR_ID = "\0" + VIRTUAL_INSPECTOR_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
 const CLIENT_PATH = NUDGE_UI_CLIENT_PATH;
 const MANIFEST_PATH = NUDGE_UI_MANIFEST_PATH;
-const packageRequire = createRequire(import.meta.url);
-let inspectorClientPath: string | undefined;
 
 const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
 const DEBUG_MOUNT_DIV = `<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>`;
@@ -137,11 +130,6 @@ export function extractViteModuleCss(code: string): string | null {
   } catch {
     return null;
   }
-}
-
-function readInspectorClient(): Buffer {
-  inspectorClientPath ??= packageRequire.resolve("nudge-ui/internal/client");
-  return readFileSync(inspectorClientPath);
 }
 
 
@@ -631,7 +619,7 @@ export function createVitePlugins(
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
       ...(options.features === undefined ? {} : { features: options.features }),
-      capabilities: { canvas: true, componentSemantics: framework !== null },
+      capabilities: { componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
         declarations: definition.declarations.map((declaration) => ({ ...declaration })),
@@ -780,24 +768,20 @@ export function createVitePlugins(
       server.watcher?.on("add", refreshSheets);
       server.watcher?.on("unlink", refreshSheets);
       server.httpServer?.once("close", () => framework?.dispose());
+      const reservedRoutes = createReservedRoutes({
+        root: () => root ?? process.cwd(),
+        manifest: buildClientManifest,
+        transformHtml: (url, html) => server.transformIndexHtml(url, html),
+        library: componentSheetEnabled,
+      });
       server.middlewares?.use(async (request, response, next) => {
-        if (await handleHtmlArtifactRequest(
-          request, response, root ?? process.cwd(),
-          (html) => server.transformIndexHtml(request.url ?? "/", html),
-        )) return;
-        if (await handleFlowsRequest(request, response, root ?? process.cwd())) return;
-        if (componentSheetEnabled() && await handleLibraryVisibilityRequest(request, response, root ?? process.cwd())) return;
-        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
-          ? request.method !== "GET"
-          : pathname === NUDGE_UI_EDITOR_PATH
-            && request.method !== "GET"
-            && request.method !== "HEAD";
-        if (invalidReservedMethod) {
-          response.statusCode = 405;
-          response.end();
+        try {
+          if (await reservedRoutes(request, response)) return;
+        } catch (error) {
+          next(error);
           return;
         }
+        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if (
           componentSheetEnabled()
           && isComponentSheetRequest(pathname)
@@ -810,39 +794,6 @@ export function createVitePlugins(
             request.url ?? pathname,
             createComponentSheetDocument(new URL(request.url ?? pathname, "http://nudge.local").searchParams.get("component")),
           ));
-          return;
-        }
-        if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
-          response.statusCode = 200;
-          response.setHeader("Content-Type", "text/html; charset=utf-8");
-          response.setHeader("Cache-Control", "no-store");
-          response.end(request.method === "HEAD" ? undefined : await server.transformIndexHtml(
-            request.url ?? NUDGE_UI_EDITOR_PATH,
-            createNudgeUiEditorDocument(),
-          ));
-          return;
-        }
-        if (pathname === CLIENT_PATH) {
-          try {
-            response.statusCode = 200;
-            response.setHeader("Content-Type", "text/javascript; charset=utf-8");
-            response.setHeader("Cache-Control", "no-cache");
-            response.end(readInspectorClient());
-          } catch {
-            response.statusCode = 503;
-            response.end("Nudge UI client has not been built.");
-          }
-          return;
-        }
-        if (pathname === MANIFEST_PATH) {
-          try {
-            response.statusCode = 200;
-            response.setHeader("Content-Type", "application/json; charset=utf-8");
-            response.setHeader("Cache-Control", "no-store");
-            response.end(JSON.stringify(await buildClientManifest()));
-          } catch (error) {
-            next(error);
-          }
           return;
         }
         next();
@@ -924,7 +875,7 @@ export function createVitePlugins(
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
             `    features: ${JSON.stringify(options.features ?? {})},`,
-            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
+            `    capabilities: { componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',

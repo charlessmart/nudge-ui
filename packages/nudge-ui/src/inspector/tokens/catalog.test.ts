@@ -25,7 +25,6 @@ function configureAstroHost(): void {
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
     capabilities: {
-      canvas: false,
       componentSemantics: true,
       scopingSelectorPattern: "\\[data-astro-cid-[^\\]]*\\]|\\.astro-[a-zA-Z0-9_-]+",
     },
@@ -44,7 +43,7 @@ function configureDefaultHost(): void {
     framework: "React",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

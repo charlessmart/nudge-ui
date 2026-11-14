@@ -1,25 +1,14 @@
-import { applyRules, rulesToCssText, type StyleRule } from "./managedStylesheet.ts";
-import {
-  applyRenderedInstanceProjection,
-  collectRenderedInstanceOverrides,
-} from "./renderedInstance.ts";
+import { rulesToCssText, type StyleRule } from "./managedStylesheet.ts";
+import { collectRenderedInstanceOverrides } from "./renderedInstance.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
-import {
-  applyStructuralProjection,
-  type StructuralChange,
-} from "./structuralProjection.ts";
-import {
-  applyTextContentProjection,
-  collectTextContentChanges,
-} from "./textProjection.ts";
-import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
+import type { StructuralChange } from "./structuralProjection.ts";
+import { collectTextContentChanges } from "./textProjection.ts";
 import { componentChangeToOverride } from "../componentSemantics/changeModel.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import { isComponentChange, type TextContentChangeRecord } from "../changes/types.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
 import type { DraftContents } from "../drafts/model.ts";
 import {
-  applyRuntimeIdentityClaims,
   collectRuntimeIdentityClaims,
   type RuntimeIdentityClaim,
 } from "../runtime/runtimeIdentityClaims.ts";
@@ -90,29 +79,4 @@ export function applyDraftProjection<ManagedStyles>(
   adapter.applyText(plan.textContentChanges);
   adapter.applyComponents(plan.componentOverrides);
   adapter.applyManagedStyles(plan.managedStyles);
-}
-
-const hostDocumentProjectionAdapter: DocumentProjectionAdapter<CompiledManagedStyles> = {
-  applyRuntimeIdentities: (claims) => {
-    applyRuntimeIdentityClaims(document, claims);
-  },
-  applyStructural: (changes) => {
-    applyStructuralProjection(document, changes);
-  },
-  applyRenderedInstances: (overrides) => {
-    applyRenderedInstanceProjection(document, overrides);
-  },
-  applyText: (changes) => {
-    applyTextContentProjection(document, changes);
-  },
-  applyComponents: replaceComponentOverrideProjection,
-  applyManagedStyles: (styles) => {
-    applyRules([...styles.rules]);
-  },
-};
-
-export function applyHostDraftProjection(
-  plan: DraftProjectionPlan<CompiledManagedStyles>,
-): void {
-  applyDraftProjection(hostDocumentProjectionAdapter, plan);
 }

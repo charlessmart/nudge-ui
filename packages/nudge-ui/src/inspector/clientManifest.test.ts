@@ -9,7 +9,7 @@ const validManifest = {
     host: "astro",
     framework: "Astro",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas: false, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],
@@ -27,7 +27,6 @@ describe("parseNudgeUiClientManifest", () => {
       reload: {
         endpoint: "/__nudge_ui__/reload",
         strategy: "reload-document",
-        events: ["ready", "reload"],
       },
     })).not.toBeNull();
   });
@@ -49,14 +48,6 @@ describe("parseNudgeUiClientManifest", () => {
       ...validManifest,
       document: { runtimeIdentity: "react" },
     })).toBeNull();
-    expect(parseNudgeUiClientManifest({
-      ...validManifest,
-      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [] },
-    })).toBeNull();
-    expect(parseNudgeUiClientManifest({
-      ...validManifest,
-      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [""] },
-    })).toBeNull();
   });
 
   it("returns a normalized immutable runtime", () => {
@@ -71,7 +62,7 @@ describe("parseNudgeUiClientManifest", () => {
     });
     expect(manifest?.runtime).toMatchObject({
       stylingSystem: "",
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { componentSemantics: false },
       tokens: [],
     });
     expect(Object.isFrozen(manifest?.runtime)).toBe(true);

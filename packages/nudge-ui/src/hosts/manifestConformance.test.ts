@@ -42,7 +42,6 @@ describe("client manifest conformance", () => {
   it.each(HOSTS)("$name declares plain-data runtime capabilities", ({ build }) => {
     const { runtime } = build();
     expect(runtime.projectId.length).toBeGreaterThan(0);
-    expect(typeof runtime.capabilities.canvas).toBe("boolean");
     expect(typeof runtime.capabilities.componentSemantics).toBe("boolean");
   });
 
@@ -51,10 +50,6 @@ describe("client manifest conformance", () => {
     if (!reload) return;
     expect(reload.endpoint.startsWith(NUDGE_UI_ROUTE_PREFIX)).toBe(true);
     expect(["refresh-manifest", "reload-document"]).toContain(reload.strategy);
-    // A document reload only completes when the host announces the events that settle a save; refresh-manifest hosts rebuild the manifest instead.
-    if (reload.strategy === "reload-document") {
-      expect(reload.events?.length ?? 0).toBeGreaterThan(0);
-    }
   });
 
   it("round-trips through the untrusted parser", () => {

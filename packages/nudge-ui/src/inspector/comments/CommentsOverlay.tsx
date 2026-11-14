@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { IconAlertTriangle, IconCheck, IconTrash } from "@tabler/icons-react";
-import { useCanvasMode } from "../canvas/viewStore.ts";
 import { getRegisteredFrames } from "../canvas/projection.ts";
 import { subscribeCanvasRendererMessages } from "../canvas/rendererMessageRouter.ts";
 import { measureFrameViewport, toViewportPoint } from "../canvas/frameConnection.ts";
@@ -88,7 +87,6 @@ function editorBoundary(): { x: number; y: number; width: number; height: number
 }
 
 export function CommentsOverlay(): ReactElement | null {
-  const mode = useCanvasMode();
   const comments = useComments();
   const commentActive = useCommentToolActive();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -328,7 +326,6 @@ export function CommentsOverlay(): ReactElement | null {
     }
   }
 
-  if (mode !== "canvas") return null;
   return <>
     <InspectorStyle css={styles} />
     {comments.flatMap((comment) => [...anchors].filter(([key]) => key.startsWith(`${comment.id}:`)).map(([key, anchor]) => (

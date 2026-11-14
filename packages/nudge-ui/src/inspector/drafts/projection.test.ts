@@ -19,7 +19,7 @@ function text(id: string): TextContentChangeRecord {
 beforeEach(() => {
   document.documentElement.setAttribute("data-nudge-ui-editor", "");
   resetDrafts(); resetProjectionRevision(); resetTextProjectionState();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
 });
 afterEach(() => {
   document.documentElement.removeAttribute("data-nudge-ui-editor");

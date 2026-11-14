@@ -210,7 +210,7 @@ describe("nudgeUi client transport", () => {
   it("rejects non-GET requests to reserved client routes", async () => {
     type Middleware = (
       request: { url: string; method: string },
-      response: { statusCode: number; end(): void },
+      response: { statusCode: number; setHeader(name: string, value: string | number): void; end(): void },
       next: () => void,
     ) => Promise<void>;
     let middleware: Middleware | undefined;
@@ -223,12 +223,13 @@ describe("nudgeUi client transport", () => {
       middlewares: { use: (handler: Middleware) => { middleware = handler; } },
       watcher: { on: () => undefined },
     });
-    const response = { statusCode: 0, end: vi.fn() };
+    const response = { statusCode: 0, setHeader: vi.fn(), end: vi.fn() };
     const next = vi.fn();
 
     await middleware!({ url: "/__nudge_ui__/manifest", method: "POST" }, response, next);
 
     expect(response.statusCode).toBe(405);
+    expect(response.setHeader).toHaveBeenCalledWith("Allow", "GET, HEAD");
     expect(response.end).toHaveBeenCalledOnce();
     expect(next).not.toHaveBeenCalled();
   });
@@ -284,7 +285,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
     expect(code).toContain('demoCardLabels: ["V1","Final"]');
     expect(code).toContain('features: {"canvasIterations":false}');
-    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
+    expect(code).toContain("capabilities: { componentSemantics: true }");
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();
   });
 });

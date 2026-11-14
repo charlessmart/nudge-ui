@@ -9,7 +9,6 @@ import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { appendChange, clearActiveDraft, getChangesList } from "../drafts/store.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
 import { addCanvasCard, getCanvasCards, removeCanvasCard } from "../canvas/canvasStore.ts";
-import { setCanvasMode } from "../canvas/viewStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
@@ -252,6 +251,8 @@ describe("InspectorShell", () => {
   it("resets canvas frames from the bottom of the settings menu", () => {
     addCanvasCard(window.location.href);
     act(() => { mountInspector(host); });
+    const cards = getCanvasCards();
+    const cardCount = cards.length;
     const shadow = host.shadowRoot!;
     act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-button"]')!.click(); });
     const button = shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-canvas"]')!;
@@ -259,13 +260,14 @@ describe("InspectorShell", () => {
     expect(button.parentElement?.lastElementChild).toBe(button);
     act(() => { button.click(); });
     // Reset can't be undone, so the first click only asks.
-    expect(getCanvasCards()).toHaveLength(1);
+    expect(getCanvasCards()).toHaveLength(cardCount);
     act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-cancel"]')!.click(); });
     expect(shadow.querySelector('[data-test="settings-reset-confirm"]')).toBeNull();
-    expect(getCanvasCards()).toHaveLength(1);
+    expect(getCanvasCards()).toHaveLength(cardCount);
     act(() => { button.click(); });
     act(() => { shadow.querySelector<HTMLButtonElement>('[data-test="settings-reset-confirm-button"]')!.click(); });
-    expect(getCanvasCards()).toEqual([]);
+    // The workspace opens a fresh frame for the page once the old ones are gone.
+    expect(getCanvasCards().filter((card) => cards.some((old) => old.id === card.id))).toEqual([]);
   });
 
   it("clears persisted comments when comments are the only pending changes", () => {
@@ -326,7 +328,6 @@ describe("InspectorShell", () => {
   });
 
   it("keeps the iframe workspace active without a page-mode switch", () => {
-    setCanvasMode("canvas");
     act(() => {
       mountInspector(host);
     });
@@ -346,27 +347,6 @@ describe("InspectorShell", () => {
     // Hiding the inspector panel keeps the floating Canvas toolbar available.
     expect(shadow.querySelector('[data-test="show-inspector"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="canvas-toolbar"]')).not.toBeNull();
-  });
-
-  it("omits Canvas entry points when the host disables the capability", () => {
-    const previousConfig = getNudgeUiRuntimeConfig();
-    try {
-      configureNudgeUiRuntime({
-        ...previousConfig,
-        host: "static-html",
-        framework: "HTML",
-        capabilities: { canvas: false, componentSemantics: false },
-      });
-      act(() => {
-        mountInspector(host);
-      });
-
-      const shadow = host.shadowRoot!;
-      expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
-        expect(shadow.querySelector('[data-test="canvas-workspace"]')).toBeNull();
-    } finally {
-      configureNudgeUiRuntime(previousConfig);
-    }
   });
 
 

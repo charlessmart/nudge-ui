@@ -329,7 +329,7 @@ describe("projection", () => {
   });
 
   it("settles a canonical restore only after the renderer acknowledges it", async () => {
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
     const card = activateIframeWorkspace(window.location.href, { width: 800, height: 600 })!;
     const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);
@@ -350,7 +350,7 @@ describe("projection", () => {
     expect(settled).toBe(true);
     expect(isCanvasCanonicalProjectionRevisionCurrent(iframe.contentDocument, sentRevision)).toBe(true);
     unregisterCardFrame(card.id);
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   });
 
   it("rejects a temporary verification projection superseded by a canonical edit", async () => {

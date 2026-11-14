@@ -9,6 +9,7 @@ import {
 } from "../drafts/store.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { attachLoopbackFrame } from "../__stubs__/loopbackRenderer.ts";
 import {
   clearClipboardHandoff,
   getClipboardHandoffSnapshot,
@@ -34,6 +35,8 @@ function styleChange(rawValue = "rgb(255, 0, 0)"): ElementChangeRecord {
   };
 }
 
+let detachFrame: () => void = () => undefined;
+
 describe("clipboard prompt handoff", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
@@ -47,9 +50,11 @@ describe("clipboard prompt handoff", () => {
       callback(0);
       return 1;
     });
+    detachFrame = attachLoopbackFrame();
   });
 
   afterEach(() => {
+    detachFrame();
     clearClipboardHandoff();
     clearActiveDraft();
     vi.unstubAllGlobals();

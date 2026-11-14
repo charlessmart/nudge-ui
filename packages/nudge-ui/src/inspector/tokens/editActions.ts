@@ -149,7 +149,6 @@ export function swapTokens(
   const scopePlan = planBatchEditScopes(elements);
   if (!scopePlan) return [];
   const records: ElementChangeRecord[] = [];
-  const verificationTargets = new Map<string, HTMLElement | null>();
   for (const el of elements) {
     for (const change of changes) {
       const cid = elementCid(el);
@@ -175,10 +174,9 @@ export function swapTokens(
         ...variantFields(el, scopePlan.get(el)),
       };
       records.push(record);
-      verificationTargets.set(changeKey(record), el);
     }
   }
-  appendChanges(records, { verificationTargets });
+  appendChanges(records);
   return records;
 }
 
@@ -200,17 +198,15 @@ function commitElementStyles(edits: readonly ElementStyleEdit[]): ElementChangeR
   const elements = [...new Set(edits.map(({ element }) => element))];
   const scopePlan = planBatchEditScopes(elements);
   if (!scopePlan) return [];
-  const records: Array<{ record: ElementChangeRecord; element: HTMLElement }> = [];
+  const records: ElementChangeRecord[] = [];
   for (const { element, declarations } of edits) {
     for (const declaration of declarations) {
       const record = buildStyleRecord(element, scopePlan, declaration);
-      if (record) records.push({ record, element });
+      if (record) records.push(record);
     }
   }
-  const verificationTargets = new Map<string, HTMLElement | null>();
-  for (const { record, element } of records) verificationTargets.set(changeKey(record), element);
-  appendChanges(records.map(({ record }) => record), { verificationTargets });
-  return records.map(({ record }) => record);
+  appendChanges(records);
+  return records;
 }
 
 export function setStyle(target: EditTarget, property: string, value: string, metadata?: StyleEditMetadata): ElementChangeRecord | null {

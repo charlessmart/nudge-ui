@@ -34,9 +34,7 @@ import {
   getSelectedCardId,
 } from "./canvasStore.ts";
 import {
-  getCanvasMode,
   getBoardCamera,
-  setCanvasMode,
   setCanvasPresentation,
   getCanvasPresentation,
   setBoardCamera,
@@ -89,7 +87,6 @@ function resetAllState(): void {
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
-  setCanvasMode("inspect");
   for (const card of getCanvasCards()) {
     removeCanvasCardStore(card.id);
   }
@@ -111,7 +108,7 @@ describe("sessionStore persistence", () => {
     const original = addCanvasCard(localUrl("/first"));
     const copy = duplicateCard(original.id)!;
     persistSession();
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
     expect(hydrateSession().restored).toBe(true);
     const restored = getCanvasCards();
     expect(restored.map((card) => card.id)).toEqual([original.id, copy.id]);
@@ -128,7 +125,7 @@ describe("sessionStore persistence", () => {
     session.cards[1].x = 850;
     session.cards[1].y = 650;
     localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
 
     expect(hydrateSession().restored).toBe(true);
     expect(getCanvasCards()).toMatchObject([
@@ -170,7 +167,7 @@ describe("sessionStore persistence", () => {
         projectId: standaloneProjectId,
         host: "static-html",
         framework: "HTML",
-        capabilities: { canvas: false, componentSemantics: false },
+        capabilities: { componentSemantics: false },
       });
       appendChange(makeElementChange());
 
@@ -195,7 +192,7 @@ describe("sessionStore persistence", () => {
         projectId: nextProjectId,
         host: "nextjs-react",
         framework: "React",
-        capabilities: { canvas: false, componentSemantics: false },
+        capabilities: { componentSemantics: false },
       });
       appendChange(makeElementChange());
 
@@ -221,7 +218,6 @@ describe("sessionStore persistence", () => {
 
 
   it("serializes card and camera state", () => {
-    setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
     resizeCard(card.id, 731, 509, { x: 24, y: 36 });
     focusCard(card.id);
@@ -230,7 +226,6 @@ describe("sessionStore persistence", () => {
 
     const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
-    expect(parsed.mode).toBe("canvas");
     expect(parsed.cards).toHaveLength(1);
     expect(parsed.cards[0].content.url).toBe(localUrl("/about"));
     expect(parsed.cards[0].title).toBe("About");
@@ -241,15 +236,6 @@ describe("sessionStore persistence", () => {
     expect(parsed.focusedCardId).toBe(card.id);
   });
 
-  it("persists inspect mode state", () => {
-    setCanvasMode("inspect");
-    persistSession();
-
-    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
-    const parsed = JSON.parse(raw!);
-    expect(parsed.mode).toBe("inspect");
-    expect(parsed.inspectUrl).toBe(window.location.href);
-  });
 });
 
 describe("sessionStore hydration", () => {
@@ -269,7 +255,7 @@ describe("sessionStore hydration", () => {
     persistSession();
     resetDrafts();
     clearActiveDraft();
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
 
     expect(hydrateSession()).toEqual({ restored: true });
     expect(getChangesList()).toEqual([]);
@@ -286,7 +272,7 @@ describe("sessionStore hydration", () => {
     expect(sheet.x).toBeLessThan(0);
     expect(openComponentSheet({ componentId: "src/Button.tsx:Button", name: "Button" }).id).toBe(sheet.id);
     persistSession();
-    hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
 
     expect(hydrateSession().restored).toBe(true);
     expect(getCanvasCards().find((card) => card.id === sheet.id)?.content)
@@ -355,20 +341,17 @@ describe("sessionStore hydration", () => {
 
 
   it("hydrates canvas mode, cards, and camera", () => {
-    setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
     resizeCard(card.id, 731, 509, { x: 24, y: 36 });
     focusCard(card.id);
     setBoardCamera({ x: 50, y: 100, zoom: 1.5 });
     persistSession();
 
-    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
     const result = hydrateSession();
     expect(result.restored).toBe(true);
-    expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toHaveLength(1);
     expect(contentSourceUrl(getCanvasCards()[0]!.content)).toBe(localUrl("/about"));
     expect(getCanvasCards()[0]).toMatchObject({ x: 24, y: 36, width: 731, height: 509 });
@@ -378,16 +361,6 @@ describe("sessionStore hydration", () => {
     expect(camera.x).toBe(50);
     expect(camera.y).toBe(100);
     expect(camera.zoom).toBe(1.5);
-  });
-
-  it("hydrates inspect mode correctly", () => {
-    setCanvasMode("inspect");
-    persistSession();
-
-    setCanvasMode("canvas");
-    const result = hydrateSession();
-    expect(result.restored).toBe(true);
-    expect(getCanvasMode()).toBe("inspect");
   });
 
   it("returns no restoration when no session exists", () => {
@@ -406,7 +379,6 @@ describe("sessionStore hydration", () => {
     const session = JSON.stringify({
       schemaVersion,
       projectId: nudgeUiProjectId,
-      mode: "inspect",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
     });
@@ -441,20 +413,6 @@ describe("sessionStore hydration", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
       projectId: "wrong-project",
-      mode: "inspect",
-      cards: [],
-      camera: { x: 0, y: 0, zoom: 1 },
-    });
-    localStorage.setItem(storageKey(nudgeUiProjectId), session);
-    const result = hydrateSession();
-    expect(result.restored).toBe(false);
-  });
-
-  it("returns no restoration for unknown mode", () => {
-    const session = JSON.stringify({
-      schemaVersion: SCHEMA_VERSION,
-      projectId: nudgeUiProjectId,
-      mode: "unknown",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
     });
@@ -467,7 +425,6 @@ describe("sessionStore hydration", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
       projectId: nudgeUiProjectId,
-      mode: "canvas",
       cards: [{ id: 123, url: null }],
       camera: { x: 0, y: 0, zoom: 1 },
     });
@@ -485,7 +442,6 @@ describe("sessionStore hydration", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
       projectId: nudgeUiProjectId,
-      mode: "inspect",
       cards: [],
       camera: { x: "not-a-number", y: 0, zoom: 1 },
     });
@@ -495,11 +451,9 @@ describe("sessionStore hydration", () => {
   });
 
   it("hydrates cards with null titles", () => {
-    setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/page"));
     persistSession();
 
-    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
 
     const result = hydrateSession();
@@ -610,7 +564,6 @@ describe("sessionStore clear session", () => {
   });
 
   it("clears all canvas cards", () => {
-    setCanvasMode("canvas");
     addCanvasCard(localUrl("/about"));
     expect(getCanvasCards().length).toBeGreaterThan(0);
 
@@ -736,13 +689,11 @@ describe("sessionStore round trip", () => {
 
 
   it("full round-trip preserves canvas state", () => {
-    setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/page1"), "Page 1");
     addCanvasCard(localUrl("/page2"), "Page 2");
     setBoardCamera({ x: 42, y: 7, zoom: 0.5 });
     persistSession();
 
-    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
@@ -750,7 +701,6 @@ describe("sessionStore round trip", () => {
 
     const cards = getCanvasCards();
     expect(cards).toHaveLength(2);
-    expect(getCanvasMode()).toBe("canvas");
     const camera = getBoardCamera();
     expect(camera.x).toBe(42);
     expect(camera.y).toBe(7);
@@ -799,7 +749,7 @@ it("restores the canvas presentation and preserves the camera when returning fro
   const camera = { x: 320, y: -80, zoom: 0.7 };
   setBoardCamera(camera);
   persistSession();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   expect(hydrateSession().restored).toBe(true);
   expect(getCanvasPresentation()).toBe("canvas");
   setCanvasPresentation("focus");

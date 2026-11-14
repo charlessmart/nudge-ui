@@ -37,18 +37,6 @@ function runConfigSetup(
 }
 
 describe("nudgeUiAstro", () => {
-  it("advertises iframe renderer support", () => {
-    const runtime = createAstroRuntimeConfig({
-      projectId: "site",
-      tokenCatalog: [],
-      tokens: [],
-      tokenDiagnostics: [],
-      tokenGeneration: "astro-test",
-      componentContracts: [],
-    });
-
-    expect(runtime.capabilities.canvas).toBe(true);
-  });
 
   it("registers the shared vite plugin, context plugin, bootstrap, and middleware in dev", () => {
     const integration = nudgeUiAstro({ projectId: "site" });

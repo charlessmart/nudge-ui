@@ -173,7 +173,6 @@ async function collectDocumentTokens(doc: Document): Promise<DocumentTokens> {
 
 const NO_TOKENS: DocumentTokens = { tokenCatalog: [], tokens: [], tokenDiagnostics: [], tokenGeneration: "" };
 
-/** `canvas` stays on because the page surface reuses the Canvas renderer and overlays; the page is the only card. */
 function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
   return {
     projectId: `page:${location.origin}`,
@@ -181,7 +180,7 @@ function runtimeConfig(tokens: DocumentTokens): NudgeUiRuntimeConfig {
     framework: "HTML",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: false },
+    capabilities: { componentSemantics: false },
     features: { canvasIterations: false },
     componentContracts: [],
     ...tokens,

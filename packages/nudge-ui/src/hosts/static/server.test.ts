@@ -163,7 +163,7 @@ describe("createStandaloneServer", () => {
         host: string;
         framework: string;
         stylingSystem: string;
-        capabilities: { canvas: boolean; componentSemantics: boolean };
+        capabilities: { componentSemantics: boolean };
         tokenCatalog: unknown[];
         tokens: unknown[];
         tokenDiagnostics: unknown[];
@@ -179,7 +179,6 @@ describe("createStandaloneServer", () => {
       reload: {
         endpoint: NUDGE_UI_RELOAD_PATH,
         strategy: "reload-document",
-        events: ["ready", "reload"],
       },
     });
     expect(manifest.runtime).toMatchObject({
@@ -187,7 +186,7 @@ describe("createStandaloneServer", () => {
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
-      capabilities: { canvas: true, componentSemantics: false },
+      capabilities: { componentSemantics: false },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],
@@ -391,12 +390,12 @@ describe("createStandaloneServer", () => {
     const address = await runningServer.start();
     const streamResponse = await fetch(address.url + NUDGE_UI_RELOAD_PATH.slice(1));
     const reader = streamResponse.body!.getReader();
-    await readSseEvent(reader, "ready");
+    await readSseRevision(reader, 0);
 
     await writeFile(cssPath, ":root { --tone: blue; }");
     await writeFile(cssPath, ":root { --tone: green; }");
 
-    const reloadEvent = await readSseEvent(reader, "reload");
+    const reloadEvent = await readSseRevision(reader, 1);
     const manifestResponse = await fetch(address.url + NUDGE_UI_MANIFEST_PATH.slice(1));
     const manifest = await manifestResponse.json() as {
       revision: number;
@@ -445,14 +444,15 @@ async function createFixture(): Promise<string> {
   return root;
 }
 
-async function readSseEvent(
+async function readSseRevision(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  eventName: string,
+  revision: number,
 ): Promise<string> {
+  const eventName = `revision ${revision}`;
   const decoder = new TextDecoder();
   let received = "";
   const deadline = Date.now() + 3_000;
-  while (!received.includes(`event: ${eventName}\n`)) {
+  while (!received.includes(`data: {"revision":${revision}}\n`)) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error(`Timed out waiting for ${eventName} event.`);
     const result = await readWithTimeout(reader, eventName, remaining);

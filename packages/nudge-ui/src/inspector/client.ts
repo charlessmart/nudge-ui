@@ -141,12 +141,10 @@ export function subscribeToManifestReloads(
     relay?.addEventListener("message", handleRevision);
     return;
   }
-  for (const eventName of manifest.reload.events ?? ["message"]) {
-    source.addEventListener(eventName, (event) => {
-      relay?.postMessage((event as MessageEvent).data);
-      handleRevision(event);
-    });
-  }
+  source.addEventListener("message", (event) => {
+    relay?.postMessage(event.data);
+    handleRevision(event);
+  });
 }
 
 function prepareRuntime(

@@ -1,15 +1,12 @@
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import {
-  applyStructuralProjection,
   canContainElement as canContainStructuralElement,
   createStructuralDelete,
   createStructuralMove,
   getStructuralMoveLegality,
-  getStructuralChanges,
   type StructuralDelete,
   type StructuralMove,
 } from "../projection/structuralProjection.ts";
-import { isEditorShellDocument } from "../runtime/editorShell.ts";
 import { isPageTarget } from "../selection/pageTarget.ts";
 import { resolveSelectionTarget } from "../selection/selectionTarget.ts";
 
@@ -347,17 +344,10 @@ export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: n
   return getDropAttemptAtPoint(doc, dragged, x, y).drop;
 }
 
-function projectInlineHost(node: HTMLElement): void {
-  if (node.ownerDocument !== document || isEditorShellDocument(document)) return;
-  applyStructuralProjection(document, getStructuralChanges());
-}
-
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {
   if (isPageTarget(node)) return null;
   if (!getStructuralMoveLegality(node, destination).valid) return null;
-  const change = createStructuralMove(node, destination);
-  if (change) projectInlineHost(node);
-  return change;
+  return createStructuralMove(node, destination);
 }
 
 /** Reorder only same-parent siblings; horizontal movement needs a flex row or a grid. */
@@ -375,7 +365,5 @@ export function nudgeElement(node: HTMLElement, key: StructuralNudgeKey): Struct
 export function deleteElement(selected: SelectedElement): StructuralDelete | null {
   const node = selected.domElement;
   if (isPageTarget(node) || !node.parentElement || !node.isConnected) return null;
-  const change = createStructuralDelete(node);
-  if (change) projectInlineHost(node);
-  return change;
+  return createStructuralDelete(node);
 }

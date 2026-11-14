@@ -2,19 +2,11 @@ import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StyleRuleContext } from "../changes/editModel.ts";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
-import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { adoptStylesheet, allowsStyleElements, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
-import { withCompetingSpecificity } from "./managedSpecificity.ts";
+import { adoptStylesheet, allowsStyleElements, getAdoptedStylesheet, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
+import { boostManagedStylesheet } from "./managedSpecificity.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 export type { StyleRuleContext } from "../changes/editModel.ts";
-
-declare global {
-  interface Window {
-    __nudgeUiGetManagedSheetText?: () => string;
-  }
-}
-
 
 export interface StyleRule {
   selector: string;
@@ -33,67 +25,32 @@ export interface PreviewResult {
 
 const SHEET_ID = "nudge-ui-styles";
 
-let managedHeadGuardDocument: Document | null = null;
-let managedHeadGuard: MutationObserver | null = null;
-let failedRehydrationCssText: string | null = null;
+const adoptedCss = new WeakMap<Document, string>();
 
-function installManagedHeadGuard(doc: Document): void {
-  const Observer = doc.defaultView?.MutationObserver;
-  if (!Observer || !doc.head || managedHeadGuardDocument === doc) return;
-  managedHeadGuard?.disconnect();
-  managedHeadGuardDocument = doc;
-  managedHeadGuard = new Observer(() => {
-    const managed = doc.getElementById(SHEET_ID);
-    if (managed && doc.head.lastElementChild !== managed) {
-      doc.head.appendChild(managed);
-      // SAFETY: managed was created via createElement("style"), so it is an HTMLStyleElement.
-      rehydrateManagedSheet(doc, managed as HTMLStyleElement);
-    }
-  });
-  managedHeadGuard.observe(doc.head, { childList: true });
-}
-
-export function ensureManagedSheet(): void {
-  const doc = document;
+/** The one writer of the managed stylesheet. The renderer calls it with the CSS of the draft it was sent. */
+export function writeManagedStylesheet(doc: Document, css: string): void {
   if (!allowsStyleElements(doc)) {
-    // Adopted sheets already cascade after every document stylesheet.
-    adoptStylesheet(doc, SHEET_ID, rulesToCssText(managedRules));
-    exposeManagedSheetText(doc);
+    // Structural and text projections resend unchanged CSS; rewriting it would discard cached resolutions.
+    const adopted = getAdoptedStylesheet(doc, SHEET_ID);
+    if (adopted && adoptedCss.get(doc) === css && doc.adoptedStyleSheets.includes(adopted)) return;
+    const sheet = adoptStylesheet(doc, SHEET_ID, css);
+    if (sheet) boostManagedStylesheet(doc, sheet);
+    adoptedCss.set(doc, css);
+    notifyBrowserStylesheetChange(doc);
     return;
   }
-  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
+  // SAFETY: the element with this ID is only ever created below, as a style element.
   let el = doc.getElementById(SHEET_ID) as HTMLStyleElement | null;
+  if (el?.textContent === css) return;
   if (!el) {
     el = doc.createElement("style");
     el.id = SHEET_ID;
     el.setAttribute("data-nudge-ui", "managed");
     doc.head.appendChild(el);
   }
-  let sheet = el.sheet;
-  if (!sheet) {
-    // Recreate the element when the browser rejects the sheet so clear/revert can still recover.
-    el.remove();
-    el = doc.createElement("style");
-    el.id = SHEET_ID;
-    el.setAttribute("data-nudge-ui", "managed");
-    doc.head.appendChild(el);
-    sheet = el.sheet;
-  }
-  if (!sheet) {
-    throw new Error("nudge-ui managed stylesheet could not be initialised");
-  }
-  if (doc.head.lastElementChild !== el) {
-    doc.head.appendChild(el);
-    rehydrateManagedSheet(doc, el);
-  }
-  installManagedHeadGuard(doc);
-  exposeManagedSheetText(doc);
-}
-
-function exposeManagedSheetText(doc: Document): void {
-  if (isNudgeUiDev() && doc.defaultView) {
-    doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
-  }
+  el.textContent = css;
+  if (el.sheet) boostManagedStylesheet(doc, el.sheet);
+  notifyBrowserStylesheetChange(doc);
 }
 
 function buildDeclarationsBody(declarations: Record<string, string>): string {
@@ -124,81 +81,6 @@ export function rulesToCssText(rules: StyleRule[]): string {
     if (text) lines.push(text);
   }
   return lines.join("\n");
-}
-
-/** Retained so a framework can rehydrate a moved style node. */
-let managedRules: StyleRule[] = [];
-
-export function getManagedSheetText(): string {
-  return rulesToCssText(managedRules);
-}
-
-/** Some browsers replace the CSSStyleSheet when the style element is reattached, so rewrite the canonical text. */
-function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
-  const sheet = el.sheet;
-  if (!sheet) return;
-
-  const rules = managedRules;
-  const cssText = rulesToCssText(rules);
-  if (sheet.cssRules.length === rules.length) {
-    failedRehydrationCssText = null;
-    return;
-  }
-  if (failedRehydrationCssText === cssText) return;
-
-  el.textContent = cssText;
-  if (!el.sheet) {
-    failedRehydrationCssText = cssText;
-    return;
-  }
-  failedRehydrationCssText = el.sheet.cssRules.length === rules.length ? null : cssText;
-  notifyBrowserStylesheetChange(doc);
-}
-
-function rebuildSheetText(rules: StyleRule[]): void {
-  const desired = rules.map((rule) => ({
-    ...rule,
-    declarations: { ...rule.declarations },
-  }));
-  const cssText = rulesToCssText(desired);
-  if (!allowsStyleElements(document)) {
-    const rulesChanged = rulesToCssText(managedRules) !== cssText;
-    managedRules = desired;
-    if (!rulesChanged) return;
-    adoptStylesheet(document, SHEET_ID, cssText);
-    notifyBrowserStylesheetChange(document);
-    return;
-  }
-  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
-  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (!el) return;
-  const rulesChanged = rulesToCssText(managedRules) !== cssText;
-  const shouldRetryDroppedRules = el.sheet !== null
-    && el.sheet.cssRules.length !== desired.length
-    && failedRehydrationCssText !== cssText;
-  managedRules = desired;
-  if (!rulesChanged && el.textContent === cssText && !shouldRetryDroppedRules) return;
-
-  el.textContent = cssText;
-  failedRehydrationCssText = el.sheet && el.sheet.cssRules.length !== desired.length
-    ? cssText
-    : null;
-  notifyBrowserStylesheetChange(document);
-}
-
-/** Serialized rules stay authoritative to avoid stale CSSStyleRule references when a framework reparses style nodes. */
-export function applyRules(rules: StyleRule[]): void {
-  ensureManagedSheet();
-  const desired: StyleRule[] = [];
-  const desiredIds = new Set<string>();
-  for (const rule of withCompetingSpecificity(document, rules)) {
-    const id = buildRuleText(rule);
-    if (!id) continue;
-    if (desiredIds.has(id)) continue;
-    desiredIds.add(id);
-    desired.push(rule);
-  }
-  rebuildSheetText(desired);
 }
 
 function commaListIncludes(value: string, property: string): boolean {
@@ -257,11 +139,9 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   return { requestedValue, computedValue, status: "conflict", reason };
 }
 
-export function removeManagedSheet(): void {
-  const el = document.getElementById(SHEET_ID);
-  if (el) el.remove();
-  releaseAdoptedStylesheet(document, SHEET_ID);
-  managedRules = [];
-  failedRehydrationCssText = null;
-  notifyBrowserStylesheetChange(document);
+export function removeManagedSheet(doc: Document = document): void {
+  doc.getElementById(SHEET_ID)?.remove();
+  releaseAdoptedStylesheet(doc, SHEET_ID);
+  adoptedCss.delete(doc);
+  notifyBrowserStylesheetChange(doc);
 }

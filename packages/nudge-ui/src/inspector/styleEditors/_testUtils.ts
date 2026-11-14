@@ -3,10 +3,16 @@ import type { Root } from "react-dom/client";
 import { act } from "react";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
-import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { rulesToCssText } from "../projection/managedStylesheet.ts";
+import { getPendingRules as pendingRulesForSheetText } from "../drafts/store.ts";
 import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
 import { publishInspectionSnapshot } from "../inspection/inspectionSnapshot.ts";
 import { getActiveStyleState } from "../shell/styleState.ts";
+
+/** The CSS the active draft previews in a frame. */
+function getManagedSheetText(): string {
+  return rulesToCssText(pendingRulesForSheetText());
+}
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

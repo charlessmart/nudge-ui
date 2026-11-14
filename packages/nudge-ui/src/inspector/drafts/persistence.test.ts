@@ -95,7 +95,7 @@ function reloadDraft(): void {
 }
 beforeEach(() => {
   resetDrafts(); clearActiveDraft(); localStorage.clear(); document.body.replaceChildren();
-  hydrateCanvasStore("canvas", [{ id: "record-card", content: { kind: "route", url: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 }], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([{ id: "record-card", content: { kind: "route", url: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 }], { x: 0, y: 0, zoom: 1 });
   openDraft();
 });
 afterEach(() => { resetDrafts(); clearActiveDraft(); document.body.replaceChildren(); });

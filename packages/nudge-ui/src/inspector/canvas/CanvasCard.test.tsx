@@ -30,7 +30,7 @@ describe("CanvasCard renderer handshake", () => {
       framework: "React",
       stylingSystem: "CSS custom properties",
       stylingDialects: [],
-      capabilities: { canvas: true, componentSemantics: true },
+      capabilities: { componentSemantics: true },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],
@@ -54,7 +54,7 @@ describe("CanvasCard renderer handshake", () => {
       });
       root = null;
     }
-    hydrateCanvasStore("inspect", [], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
     host.remove();
   });
 
@@ -196,7 +196,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 1440.4,
       height: 899.6,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     root = createRoot(host);
     act(() => {
       root!.render(createElement(StoreBackedCard));
@@ -224,7 +224,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 1440,
       height: 900,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     root = createRoot(host);
     act(() => {
       root!.render(createElement(StoreBackedCard));
@@ -254,7 +254,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     root = createRoot(host);
     act(() => {
       root!.render(createElement(StoreBackedCard));
@@ -355,7 +355,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
     const dragSurface = host.querySelector(
@@ -383,7 +383,7 @@ describe("CanvasCard renderer handshake", () => {
       x: 40, y: 60, width: 800, height: 600,
     };
     const linked = { ...source, id: "linked-copy", x: 900 };
-    hydrateCanvasStore("canvas", [source, linked], { x: 0, y: 0, zoom: 0.5 });
+    hydrateCanvasStore([source, linked], { x: 0, y: 0, zoom: 0.5 });
     renderCard(source);
     const label = host.querySelector<HTMLElement>(`[data-test="canvas-card-drag-${source.id}"]`)!;
     Object.defineProperty(label, "setPointerCapture", { value: () => {} });
@@ -421,7 +421,7 @@ describe("CanvasCard renderer handshake", () => {
       { direction: "bottom-left", key: "ArrowLeft", expected: { x: 80, width: 820, y: 80, height: 600 } },
       { direction: "left", key: "ArrowLeft", expected: { x: 80, width: 820, y: 80, height: 600 } },
     ];
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     root = createRoot(host);
     act(() => {
       root!.render(createElement(StoreBackedCard));
@@ -432,7 +432,7 @@ describe("CanvasCard renderer handshake", () => {
     try {
       for (const resizeCase of cases) {
         act(() => {
-          hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+          hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
         });
         const resizeHandle = host.querySelector(
           `[data-resize-direction="${resizeCase.direction}"]`,
@@ -463,7 +463,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
     const resizeHandle = host.querySelector(
@@ -497,7 +497,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
     const resizeHandle = host.querySelector(
@@ -525,7 +525,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
     const resizeHandle = host.querySelector(
@@ -553,7 +553,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 600,
       height: 400,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 0.5 });
     root = createRoot(host);
     act(() => {
       root!.render(createElement(CanvasCard, { card, presentation: "focus" }));
@@ -594,7 +594,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 1 });
     renderCard(card);
 
     const resizeHandle = host.querySelector(
@@ -624,7 +624,7 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    hydrateCanvasStore([card], { x: 0, y: 0, zoom: 0.5 });
     renderCard(card);
 
     const cardElement = host.querySelector<HTMLElement>(`[data-card-id="${card.id}"]`);
@@ -645,7 +645,7 @@ describe("CanvasCard renderer handshake", () => {
       x: 0, y: 0, width: 800, height: 600,
     };
     const remaining = { ...removed, id: "card-to-keep", title: "Keep this frame", x: 840 };
-    hydrateCanvasStore("canvas", [removed, remaining], { x: 0, y: 0, zoom: 1 });
+    hydrateCanvasStore([removed, remaining], { x: 0, y: 0, zoom: 1 });
     renderCard(removed);
     const more = host.querySelector<HTMLButtonElement>(`[data-test="canvas-card-more-${removed.id}"]`);
     if (!more) throw new Error("More frame actions control did not mount");

@@ -19,7 +19,7 @@ function makeConfig(projectId: string): NudgeUiRuntimeConfig {
     framework: "HTML",
     stylingSystem: "",
     stylingDialects: [],
-    capabilities: { canvas: false, componentSemantics: false },
+    capabilities: { componentSemantics: false },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

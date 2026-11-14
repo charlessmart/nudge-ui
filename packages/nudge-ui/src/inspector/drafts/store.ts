@@ -3,7 +3,8 @@ import { useSyncExternalStore } from "react";
 import { getCanvasCards, selectCard, focusCanvasCards, activateIframeWorkspace } from "../canvas/canvasStore.ts";
 import { contentEditTarget, type FrameContent } from "../canvas/frameContent.ts";
 import { canWriteWorkspace } from "../canvas/workspaceLease.ts";
-import { createDraftPreview } from "../changes/draftPreview.ts";
+import { clearPreviewDiagnostics } from "../changes/previewDiagnostics.ts";
+import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { StructuralChange } from "../changes/structuralTypes.ts";
@@ -12,8 +13,6 @@ import type { StyleRule } from "../projection/managedStylesheet.ts";
 import { sessionTimeline, type HistoryCompanion } from "../workspace/timeline.ts";
 import { createDraftStore, type CommitResult, type DraftChangesSnapshot } from "./draftStore.ts";
 import { targetFromKey, targetKey, type Draft, type DraftContents, type DraftSnapshot } from "./model.ts";
-
-const preview = createDraftPreview(() => drafts.getActive());
 
 const drafts = createDraftStore({
   canWrite: () => canWriteWorkspace(),
@@ -24,7 +23,13 @@ const drafts = createDraftStore({
     remove: (key) => inspectorStorage()?.removeItem(key),
   },
   revealDraft: (draftId, cardId) => revealDraft(draftId, cardId),
-  project: (snapshot, event) => preview.project(snapshot, event),
+  onProjectionEvent: (event) => {
+    if (event.kind === "reconcile") pruneStructuralProjectionReports(event.structuralIds);
+    if (event.kind === "reset") {
+      clearPreviewDiagnostics();
+      clearStructuralProjectionReports();
+    }
+  },
 });
 
 const contentDrafts = new WeakMap<FrameContent, string>();
@@ -86,13 +91,8 @@ export function getPendingRules(): StyleRule[] {
   return buildManagedStyleRules(activeChanges());
 }
 
-export interface AppendChangesOptions {
-  /** The rendered target captured for each change key at commit time. */
-  verificationTargets?: ReadonlyMap<string, HTMLElement | null>;
-}
-
-export function appendChanges(incoming: readonly ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
-  return drafts.commitChanges(incoming, options.verificationTargets);
+export function appendChanges(incoming: readonly ChangeRecord[]): CommitResult {
+  return drafts.commitChanges(incoming);
 }
 
 export function appendChange(change: ChangeRecord): CommitResult {

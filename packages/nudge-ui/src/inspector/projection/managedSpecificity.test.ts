@@ -1,8 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { applyRules, getManagedSheetText, removeManagedSheet } from "./managedStylesheet.ts";
+import { removeManagedSheet, rulesToCssText, writeManagedStylesheet, type StyleRule } from "./managedStylesheet.ts";
 import { boostManagedStylesheet } from "./managedSpecificity.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+
+function applyRules(rules: StyleRule[]): void {
+  writeManagedStylesheet(document, rulesToCssText(rules));
+}
+
+function getManagedSheetText(): string {
+  const sheet = (document.getElementById("nudge-ui-styles") as HTMLStyleElement | null)?.sheet;
+  // jsdom serializes rules without the spaces `rulesToCssText` writes.
+  return sheet ? Array.from(sheet.cssRules, (rule) => rule.cssText.replace(/\{/g, "{ ").replace(/\}/g, " }")).join("\n") : "";
+}
 
 const TARGET = '[data-cid="Button"][data-src="src/App.tsx:1:1"]';
 const BOOST = ":not([data-nudge-ui-boost])";

@@ -11,7 +11,6 @@ import { getPageFrame } from "../canvas/pageSurface.ts";
 import { connectFrame } from "../canvas/frameConnection.ts";
 import { PROTOCOL_VERSION } from "../canvas/frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame } from "../canvas/projection.ts";
-import { setCanvasMode } from "../canvas/viewStore.ts";
 import { reconcileComments } from "./verification.ts";
 
 vi.mock("./verification.ts", async (importOriginal) => ({
@@ -29,7 +28,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.mocked(reconcileComments).mockReset().mockResolvedValue(0);
   clearComments();
-  setCanvasMode("canvas");
   setCommentToolActive(true);
   Object.defineProperties(document.documentElement, {
     clientWidth: { configurable: true, value: 800 },
@@ -45,7 +43,6 @@ afterEach(() => {
   unregisterCardFrame("comment-card");
   clearComments();
   setCommentToolActive(false);
-  setCanvasMode("inspect");
   Reflect.deleteProperty(document.documentElement, "clientWidth");
   Reflect.deleteProperty(document.documentElement, "clientHeight");
   document.body.replaceChildren();

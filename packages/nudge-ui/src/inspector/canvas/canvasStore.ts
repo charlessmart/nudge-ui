@@ -12,10 +12,8 @@ import {
   getCanvasPresentation,
   placeBoardCamera,
   restoreCanvasView,
-  setCanvasMode,
   setCanvasPresentation,
   type CanvasCamera,
-  type CanvasMode,
   type CanvasPresentation,
 } from "./viewStore.ts";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
@@ -224,7 +222,6 @@ export function activateIframeWorkspace(
   if (!normalized || normalized.origin !== window.location.origin) return null;
   const targetHref = new URL(url).href;
 
-  setCanvasMode("canvas");
   const active = cards.find((card) => card.id === (selectedCardId ?? focusedCardId));
   if (options.preserveIterationFocus && active?.content.kind === "iteration") {
     const sourceRoute = normalizeUrl(active.content.sourceUrl);
@@ -314,7 +311,6 @@ export function openComponentSheet(contract: { componentId: string; name: string
   const previous = cards.find((card) => card.id === (selectedCardId ?? focusedCardId));
   const companion = previous?.content.kind === "route" ? previous : cards.find((card) => card.content.kind === "route");
   const existing = cards.find((card) => card.content.kind === "component" && card.content.componentId === contract.componentId);
-  setCanvasMode("canvas");
   let card = existing;
   if (!card && getCanvasPresentation() === "focus") {
     // Focus view shows one frame, so browsing components routes a sheet already open to the next one instead of adding a frame per component.
@@ -572,7 +568,6 @@ export function beginCardGeometryChange(id: string): () => void {
 }
 
 export function hydrateCanvasStore(
-  newMode: CanvasMode,
   newCards: CanvasCard[],
   newCamera: CanvasCamera,
   restoredFocusedCardId: string | null = null,
@@ -598,7 +593,7 @@ export function hydrateCanvasStore(
     }
     cardIdCounter = Math.max(cardIdCounter, maxNum);
   }
-  restoreCanvasView({ mode: newMode, presentation: restoredPresentation, camera: newCamera });
+  restoreCanvasView({ presentation: restoredPresentation, camera: newCamera });
   notify();
 }
 
@@ -698,7 +693,6 @@ export function getCardEntrance(cardId: string): number | undefined {
 
 /** Lays a flow out below everything on the board as one undo step, or reveals it if it is already open. */
 export function openFlowCards(flow: FlowDefinition, focusStateId?: string): void {
-  setCanvasMode("canvas");
   setCanvasPresentation("canvas");
   let opened = getFlowCards(flow.id);
   if (opened.length === 0) {

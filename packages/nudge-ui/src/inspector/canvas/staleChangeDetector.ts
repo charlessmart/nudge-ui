@@ -11,7 +11,6 @@ import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
   clearPreviewDiagnostics,
-  getHostPreviewDocument,
   notifyPreviewDiagnostics,
   publishPreviewDiagnostic,
   type PreviewAttempt,
@@ -21,7 +20,6 @@ import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { getCanvasCards } from "./canvasStore.ts";
-import { getCanvasMode } from "./viewStore.ts";
 import type { TokenDefinition } from "../../css/model/index.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
@@ -106,7 +104,7 @@ function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
 }
 
 function getPreviewDocuments(): PreviewDocument[] {
-  const documents = getCanvasMode() === "canvas" ? [] : [getHostPreviewDocument()];
+  const documents: PreviewDocument[] = [];
   const frames = getRegisteredFrames();
   for (const card of getCanvasCards()) {
     if (draftIdForCard(card.id) && draftIdForCard(card.id) !== getActiveDraftChanges().draftId) continue;
@@ -129,20 +127,6 @@ function gatherMatchEvidence(
   changes: PreviewableChangeRecord[],
 ): Map<number, PreviewDocument[]> {
   const evidence = new Map<number, PreviewDocument[]>();
-  if (getCanvasMode() !== "canvas") {
-    const hostDocument = getHostPreviewDocument();
-    for (let i = 0; i < changes.length; i++) {
-      const change = changes[i]!;
-      if (isTokenChange(change)) continue;
-
-      if (checkSelectorInDocument(document, change.selector)) {
-        const routes = evidence.get(i) ?? [];
-        routes.push(hostDocument);
-        evidence.set(i, routes);
-      }
-    }
-  }
-
   const frames = getRegisteredFrames();
   const cards = getCanvasCards();
   for (const card of cards) {
@@ -180,7 +164,7 @@ function applyStaleResults(
       continue;
     }
     const routes = evidence.get(i);
-    // Publish target-missing only when no live document matches; a Canvas-only match is verified, not a host conflict.
+    // Publish target-missing only when no live document matches.
     if (!routes || routes.length === 0) {
       for (const attempt of attempts.values()) {
         publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(getRequestedValue(change)));

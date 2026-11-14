@@ -38,7 +38,6 @@ function configureAstroHost(): void {
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
     capabilities: {
-      canvas: false,
       componentSemantics: true,
       sourceCoordinates: {
         exactCidPrefixes: ["astro:"],
@@ -60,7 +59,7 @@ function configureDefaultHost(): void {
     framework: "React",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

@@ -33,7 +33,7 @@ const structuralDelete: StructuralDelete = {
   },
 };
 
-function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams["project"]) {
+function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams["onProjectionEvent"]) {
   const lease = { writable: true };
   const timeline = createTimeline();
   const projections: DraftProjectionEvent["kind"][] = [];
@@ -47,9 +47,9 @@ function setup(storage = new Map<string, string>(), onProject?: DraftStoreSeams[
       remove: (key) => { storage.delete(key); },
     },
     revealDraft: (draftId, cardId) => { reveals.push([draftId, cardId]); },
-    project: (snapshot, event) => {
+    onProjectionEvent: (event) => {
       projections.push(event.kind);
-      onProject?.(snapshot, event);
+      onProject?.(event);
     },
   });
   return { store, storage, lease, timeline, projections, reveals };
@@ -202,7 +202,7 @@ describe("write gating", () => {
 describe("draft projection", () => {
   it("projects after subscribers observe the new snapshot", () => {
     const order: string[] = [];
-    const { store } = setup(undefined, (snapshot) => { order.push(`project:${snapshot.revision}`); });
+    const { store } = setup(undefined, () => { order.push(`project:${store.getActive().revision}`); });
     store.subscribeActive(() => { order.push(`notify:${store.getActive().revision}`); });
 
     store.commitChanges([styleChange("color", "red")]);

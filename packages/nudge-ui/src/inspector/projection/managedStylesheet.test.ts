@@ -1,44 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText, removeManagedSheet } from "./managedStylesheet.ts";
+import { escapeAttrValue, rulesToCssText, verifyPreview, removeManagedSheet, writeManagedStylesheet } from "./managedStylesheet.ts";
 import { disposeBrowserCssInspection, getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
-describe("ensureManagedSheet", () => {
-  afterEach(() => {
-    removeManagedSheet();
-    disposeBrowserCssInspection(document);
-  });
+function applyRules(rules: StyleRule[]): void {
+  writeManagedStylesheet(document, rulesToCssText(rules));
+}
 
-  it("injects a single <style id='nudge-ui-styles'> into document.head", () => {
-    expect(document.getElementById(SHEET_ID)).toBeNull();
-    ensureManagedSheet();
-    const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-    expect(el).not.toBeNull();
-    expect(el!.tagName).toBe("STYLE");
-    expect(el!.getAttribute("id")).toBe(SHEET_ID);
-    expect(el!.sheet).not.toBeNull();
-  });
-
-  it("is idempotent — calling twice returns the same sheet", () => {
-    ensureManagedSheet();
-    const firstSheet = (document.getElementById(SHEET_ID) as HTMLStyleElement).sheet;
-    ensureManagedSheet();
-    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).sheet).toBe(firstSheet);
-    expect(document.querySelectorAll(`#${SHEET_ID}`).length).toBe(1);
-  });
-
-  it("reuses the existing sheet across calls even after external removal+re-add", () => {
-    ensureManagedSheet();
-    const firstSheet = (document.getElementById(SHEET_ID) as HTMLStyleElement).sheet;
-    document.getElementById(SHEET_ID)?.remove();
-    ensureManagedSheet();
-    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).sheet).not.toBe(firstSheet);
-    expect(document.querySelectorAll(`#${SHEET_ID}`).length).toBe(1);
-  });
-});
+function getManagedSheetText(): string {
+  const sheet = (document.getElementById("nudge-ui-styles") as HTMLStyleElement | null)?.sheet;
+  // jsdom serializes rules without the spaces `rulesToCssText` writes.
+  return sheet ? Array.from(sheet.cssRules, (rule) => rule.cssText.replace(/\{/g, "{ ").replace(/\}/g, " }")).join("\n") : "";
+}
 
 describe("applyRules", () => {
   afterEach(() => {
@@ -233,17 +209,6 @@ describe("applyRules", () => {
       const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
       expect(Array.from(sheet.sheet!.cssRules).map((rule) => (rule as CSSStyleRule).selectorText))
         .toEqual([".b", ".a"]);
-    });
-
-    it("reappends the managed sheet to stay last in <head> when a later style element is added", async () => {
-      applyRules([{ selector: ".a", declarations: { color: "red" } }]);
-      const later = document.createElement("style");
-      later.id = "author-style-after";
-      document.head.appendChild(later);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
-      expect(el).not.toBeNull();
-      expect(document.head.lastElementChild).toBe(el);
     });
 
     it("rehydrates live CSSOM rules after reappending the managed sheet", async () => {

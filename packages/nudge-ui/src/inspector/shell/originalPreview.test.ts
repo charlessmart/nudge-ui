@@ -6,7 +6,9 @@ import {
   getChangesList,
 } from "../drafts/store.ts";
 import { changeKey } from "../changes/model.ts";
-import { getPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
+import {
+  getAnyPreviewDiagnostic,
+} from "../changes/previewDiagnostics.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
 import {
   isOriginalPreviewActive,
@@ -97,24 +99,4 @@ describe("originalPreview", () => {
     expect(sheetText()).toContain("red");
   });
 
-  it("re-verifies after release when a flush ran during the hold", async () => {
-    const btn = document.createElement("button");
-    btn.setAttribute("data-cid", "Button");
-    btn.setAttribute("data-src", "src/Button.tsx:1:1");
-    document.body.appendChild(btn);
-    try {
-      expect(appendChange(makeTokenRecord())).toBe("applied");
-      const key = changeKey(getChangesList()[0]!);
-      setOriginalPreviewActive(true);
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      // The mid-hold flush retains its targets without publishing.
-      expect(getPreviewDiagnostic(key)).toBeUndefined();
-      setOriginalPreviewActive(false);
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      expect(getPreviewDiagnostic(key)?.result.status).toBe("applied");
-    } finally {
-      btn.remove();
-    }
-  });
 });

@@ -47,7 +47,7 @@ const runtime = getNudgeUiRuntimeConfig();
 beforeEach(() => {
   configureNudgeUiRuntime({ ...runtime, projectId: "session-test", demo: true });
   resetDrafts();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   localStorage.clear();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
   controller = startWorkspaceController();

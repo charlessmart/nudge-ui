@@ -37,7 +37,7 @@ const manifest: NudgeUiClientManifest = {
     framework: "React",
     stylingSystem: "CSS custom properties",
     stylingDialects: [],
-    capabilities: { canvas: true, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],
@@ -173,7 +173,7 @@ describe("subscribeToManifestReloads", () => {
         ...manifest.runtime,
         host: "static-html",
         framework: "HTML",
-        capabilities: { canvas: true, componentSemantics: false },
+        capabilities: { componentSemantics: false },
       },
       document: { runtimeIdentity: "static-html" },
     };

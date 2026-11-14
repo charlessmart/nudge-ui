@@ -29,7 +29,6 @@ export function createAstroRuntimeConfig(
     stylingSystem: stylingSystemLabel(stylingDialects),
     stylingDialects,
     capabilities: {
-      canvas: true,
       componentSemantics: true,
       sourceCoordinates: ASTRO_SOURCE_COORDINATES,
       scopingSelectorPattern: ASTRO_SCOPING_SELECTOR_PATTERN,

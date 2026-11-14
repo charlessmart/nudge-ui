@@ -49,7 +49,6 @@ import { canvasFrameHost } from "./canvasFrame.ts";
 import { useCanvasLayoutAnimation } from "./useCanvasLayoutAnimation.ts";
 import { getCanvasChromeScaleVariables } from "./resizeHandleScale.ts";
 import { followFocusBoardWidth } from "./canvasResize.ts";
-import { useCanvasMode } from "./viewStore.ts";
 import { getActiveDraftChanges, getChangesList, getDraftChanges, subscribeActiveDraftChanges, subscribeDrafts } from "../drafts/store.ts";
 import { COMPONENTS_DRAFT_ID } from "./componentProjection.ts";
 import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
@@ -180,7 +179,6 @@ export interface CanvasWorkspaceProps {
 }
 
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
-  const mode = useCanvasMode();
   const pageSurface = isPageSurface();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const inspectorSession = useInspectorSession();
@@ -730,7 +728,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (mode === "canvas" && event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableEvent(event)) setTemporaryAppInteraction(true);
+      if (event.code === APP_INTERACTION_KEY && !event.repeat && !isEditableEvent(event)) setTemporaryAppInteraction(true);
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.code === APP_INTERACTION_KEY) setTemporaryAppInteraction(false);
@@ -752,10 +750,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       document.removeEventListener("visibilitychange", onVisibility);
       setTemporaryAppInteraction(false);
     };
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
-    if (mode !== "canvas") return;
     function onKeyDown(event: KeyboardEvent): void {
       if (isEditableEvent(event)) return;
       // Not consumed: Escape still deselects after the debug tools are put away.
@@ -773,7 +770,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleToolShortcut, leaveViewTool, mode, sketchActive, sketchAvailable]);
+  }, [handleToolShortcut, leaveViewTool, sketchActive, sketchAvailable]);
 
   /** Commits the camera at once and eases the board there, so the store always holds where the camera is heading. */
   const easeBoardCamera = useCallback((next: CanvasCamera) => {
@@ -818,7 +815,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [easeBoardCamera, presentation, sketchActive]);
 
   useEffect(() => {
-    if (mode !== "canvas" || pageSurface) return;
+    if (pageSurface) return;
     function onKeyDown(event: KeyboardEvent): void {
       const direction = canvasZoomStepForEvent(event);
       if (direction === null) return;
@@ -829,7 +826,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [handleZoomStep, mode, pageSurface]);
+  }, [handleZoomStep, pageSurface]);
 
   const zoomToActualSize = useCallback(() => {
     const board = boardRef.current;
@@ -908,7 +905,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const { identity } = frame;
       if (msg.type === "renderer-hello") return;
       if (msg.type === "app-interaction-modifier") {
-        if (mode === "canvas") setTemporaryAppInteraction(msg.held === true);
+        setTemporaryAppInteraction(msg.held === true);
         return;
       }
       if (msg.type === "link-preview") {
@@ -1056,10 +1053,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.document();
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, handleZoomStep, interactionTool, leaveViewTool, linksOpenInCards, mode, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, wheelZoomFromFocus, zoomAtPointer]);
+  }, [appInteractive, dismissLinkPreview, endPanning, handleToolShortcut, handleZoomStep, interactionTool, leaveViewTool, linksOpenInCards, panCanvasByWheel, inspectorOpen, movePanning, presentation, rendererCursor, rendererInteractionsEnabled, scheduleLinkPreviewDismiss, selectedTool, sketchActive, sketchAvailable, startPanning, updateSpaceHeld, wheelZoomFromFocus, zoomAtPointer]);
 
   useEffect(() => {
-    if (mode === "canvas" && !hasFitAllRan()) {
+    if (!hasFitAllRan()) {
       if (!fitAllScheduledRef.current) {
         fitAllScheduledRef.current = true;
         requestAnimationFrame(() => {
@@ -1068,11 +1065,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         });
       }
     }
-  }, [mode, cards.length, inspectorOpen, fitCanvasToBoard]);
+  }, [cards.length, inspectorOpen, fitCanvasToBoard]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (mode !== "canvas" || presentation !== "canvas" || sketchActive) return;
+      if (presentation !== "canvas" || sketchActive) return;
       // Normal mode leaves Delete to the app; Space still pans the board.
       if (!appInteractive && (e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
         if (e.defaultPrevented || getSelectedElements().length > 0 || getCanvasCards().length < 2) return;
@@ -1107,7 +1104,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [appInteractive, mode, presentation, sketchActive, updateSpaceHeld]);
+  }, [appInteractive, presentation, sketchActive, updateSpaceHeld]);
 
   const handleBoardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (presentation !== "canvas" || sketchActive || spaceHeldRef.current || panningRef.current) return;
@@ -1147,7 +1144,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   // Focus scrolls the page natively; only a Cmd/Ctrl-wheel takes it out to the Canvas, as it zooms the Canvas anywhere.
   useEffect(() => {
-    if (mode !== "canvas" || presentation !== "focus" || pageSurface) return;
+    if (presentation !== "focus" || pageSurface) return;
     function handleFocusWheel(e: WheelEvent): void {
       if (!(e.ctrlKey || e.metaKey) || sketchActive) return;
       e.preventDefault();
@@ -1156,10 +1153,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     }
     window.addEventListener("wheel", handleFocusWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleFocusWheel, { capture: true });
-  }, [mode, pageSurface, presentation, sketchActive, wheelZoomFromFocus]);
+  }, [pageSurface, presentation, sketchActive, wheelZoomFromFocus]);
 
   useEffect(() => {
-    if (mode !== "canvas" || presentation !== "canvas") return;
+    if (presentation !== "canvas") return;
 
     function handleGlobalWheel(e: WheelEvent): void {
       const zoom = e.ctrlKey || e.metaKey;
@@ -1182,12 +1179,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [mode, presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
+  }, [presentation, sketchActive, panCanvasByWheel, zoomAtPointer]);
 
   // Swipes that start over the toolbar or panels never reach the wheel handler, and the browser
   // latches a gesture to where it began, so only the root can stop them navigating back.
   useEffect(() => {
-    if (mode !== "canvas" || presentation !== "canvas") return;
+    if (presentation !== "canvas") return;
     const rootStyle = document.documentElement.style;
     const value = rootStyle.getPropertyValue("overscroll-behavior-x");
     const priority = rootStyle.getPropertyPriority("overscroll-behavior-x");
@@ -1196,7 +1193,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       if (value) rootStyle.setProperty("overscroll-behavior-x", value, priority);
       else rootStyle.removeProperty("overscroll-behavior-x");
     };
-  }, [mode, presentation]);
+  }, [presentation]);
 
   // Every page card would share the one page renderer, so extra restored cards stay unmounted.
   const renderCard = (card: CanvasCardData) => pageSurface ? (
@@ -1215,7 +1212,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     />
   );
 
-  if (mode !== "canvas") return null;
 
   const linkPreviewViewport = linkPreview && linkPreview.frame.iframe.isConnected
     ? toViewportRect(linkPreview.frame.viewport(), linkPreview.rect)

@@ -14,10 +14,18 @@ import {
 import { changeKey } from "../changes/model.ts";
 import {
   beginPreviewAttempt,
-  getHostPreviewDocument,
   publishPreviewDiagnostic,
   resetPreviewDiagnostics,
+  startPreviewDocumentSession,
 } from "../changes/previewDiagnostics.ts";
+
+const TEST_FRAME = { logicalDocument: "test-frame", sessionId: "test-session" };
+
+/** A started preview document, standing in for a frame. */
+function testFrameDocument(): typeof TEST_FRAME {
+  startPreviewDocumentSession(TEST_FRAME);
+  return TEST_FRAME;
+}
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -205,7 +213,7 @@ describe("ChangesMenu", () => {
       source: { file: "src/Button.tsx", line: 1, component: "Button" },
     } as const;
     appendChange(change);
-    const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    const attempt = beginPreviewAttempt(testFrameDocument())!;
     publishPreviewDiagnostic(attempt, changeKey(change), {
       status: "applied",
       requestedValue: "red",

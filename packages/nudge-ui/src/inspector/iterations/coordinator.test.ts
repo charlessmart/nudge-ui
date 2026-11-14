@@ -51,7 +51,7 @@ function gate() {
 
 beforeEach(() => {
   resetDrafts(); localStorage.clear();
-  hydrateCanvasStore("canvas", [
+  hydrateCanvasStore([
     { id: "original", content: { kind: "route", url: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 },
     { id: "iteration", content: { kind: "iteration", artifactId: "artifact", sourceUrl: window.location.href }, title: null, x: 0, y: 0, width: 100, height: 100 },
   ], { x: 0, y: 0, zoom: 1 });

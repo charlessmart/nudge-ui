@@ -36,7 +36,6 @@ import { installInspectionBridge } from "./inspection/bridge.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
-import { setCanvasMode } from "./canvas/viewStore.ts";
 import { consumeDemoOpenPanelIntent, markDocumentNoindex } from "./demoEditor.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
@@ -124,22 +123,16 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
     rendererBootstrapHandle = null;
     // Only the configured demo runtime may open the shared dev gate; the bundle mode name alone must not.
     setNudgeUiHostDevFlag(true);
-    if (runtimeConfig.capabilities.canvas && isCanvasRenderer()) {
+    if (isCanvasRenderer()) {
       rendererBootstrapHandle = bootstrapRenderer() ?? null;
       return;
     }
     // The public demo shares the iframe editor without the write lease or persistence.
-    setCanvasMode("canvas");
     workspaceController?.dispose();
     workspaceController = startWorkspaceController();
     markDocumentNoindex();
     mountInspector(inspectorHost, { open: consumeDemoOpenPanelIntent() });
     return;
-  }
-
-  if (!runtimeConfig.capabilities.canvas) {
-    // Clear a stale in-memory Canvas mode when the runtime does not expose Canvas.
-    setCanvasMode("inspect");
   }
 
   rendererBootstrapHandle?.teardown();
@@ -148,7 +141,7 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
   removeInspectionBridge?.();
   removeInspectionBridge = installInspectionBridge();
 
-  if (getNudgeUiRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
+  if (isCanvasRenderer()) {
     rendererBootstrapHandle = bootstrapRenderer() ?? null;
     return;
   }
@@ -206,13 +199,8 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
       startStaleDetection(restored);
     }
   }
-  if (getNudgeUiRuntimeConfig().capabilities.canvas) {
-    // Hydration runs first so switching to Canvas mode cannot discard cards, camera, or edits.
-    setCanvasMode("canvas");
-  }
-
   mountInspector(inspectorHost);
-  if (getNudgeUiRuntimeConfig().capabilities.canvas && isPageSurface()) {
+  if (isPageSurface()) {
     rendererBootstrapHandle = bootstrapRenderer() ?? null;
   }
 }

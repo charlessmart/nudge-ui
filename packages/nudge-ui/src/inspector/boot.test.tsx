@@ -27,7 +27,7 @@ let host: HTMLDivElement;
 beforeEach(() => {
   releaseLease();
   localStorage.clear();
-  configureNudgeUiRuntime({ ...initialConfig, projectId, capabilities: { ...initialConfig.capabilities, canvas: false } });
+  configureNudgeUiRuntime({ ...initialConfig, projectId });
   setNudgeUiHostDevFlag(true);
   host = document.createElement("div");
   document.body.append(host);

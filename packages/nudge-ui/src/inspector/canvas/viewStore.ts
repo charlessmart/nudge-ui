@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-export type CanvasMode = "inspect" | "canvas";
 export type CanvasPresentation = "focus" | "canvas";
 
 export interface CanvasCamera {
@@ -14,7 +13,6 @@ export const MAX_CAMERA_ZOOM = 3;
 export const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
 
 /** Frames, groups, and selection live in the canvas store. */
-let mode: CanvasMode = "inspect";
 let presentation: CanvasPresentation = "focus";
 let presentationTransitioning = false;
 let presentationTransitionTimer: number | null = null;
@@ -36,14 +34,6 @@ export function subscribeCanvasView(listener: () => void): () => void {
 
 function clampZoom(zoom: number): number {
   return Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, zoom));
-}
-
-export function getCanvasMode(): CanvasMode { return mode; }
-
-export function setCanvasMode(next: CanvasMode): void {
-  if (mode === next) return;
-  mode = next;
-  notify();
 }
 
 export function getCanvasPresentation(): CanvasPresentation { return presentation; }
@@ -108,16 +98,11 @@ export function hasFitAllRan(): boolean { return cameraPlaced; }
 
 export function resetFitAllFlag(): void { cameraPlaced = false; }
 
-export function restoreCanvasView(next: { mode: CanvasMode; presentation: CanvasPresentation; camera: CanvasCamera }): void {
-  mode = next.mode;
+export function restoreCanvasView(next: { presentation: CanvasPresentation; camera: CanvasCamera }): void {
   presentation = next.presentation;
   camera = { ...next.camera };
   cameraPlaced = true;
   notify();
-}
-
-export function useCanvasMode(): CanvasMode {
-  return useSyncExternalStore(subscribeCanvasView, getCanvasMode, getCanvasMode);
 }
 
 export function useCanvasPresentation(): CanvasPresentation {

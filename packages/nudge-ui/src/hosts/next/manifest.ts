@@ -52,7 +52,7 @@ export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
     stylingSystem: stylingSystemLabel([]),
     stylingDialects: [],
     // Canvas shares the Vite host's controller/renderer runtime (ADR-0006).
-    capabilities: { canvas: true, componentSemantics: true },
+    capabilities: { componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

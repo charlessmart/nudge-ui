@@ -19,12 +19,7 @@ export interface PreviewDiagnostic extends PreviewAttempt {
   readonly result: PreviewResult;
 }
 
-const HOST_DOCUMENT: PreviewDocument = {
-  logicalDocument: "host",
-  sessionId: "host-document",
-};
-
-let activeSessions = new Map<string, string>([[HOST_DOCUMENT.logicalDocument, HOST_DOCUMENT.sessionId]]);
+let activeSessions = new Map<string, string>();
 let attemptsBySession = new Map<string, number>();
 let diagnostics = new Map<string, PreviewDiagnostic>();
 let diagnosticRevision = 0;
@@ -48,10 +43,6 @@ function sameResult(left: PreviewResult, right: PreviewResult): boolean {
 function notify(): void {
   diagnosticRevision += 1;
   for (const listener of listeners) listener();
-}
-
-export function getHostPreviewDocument(): PreviewDocument {
-  return { ...HOST_DOCUMENT, draftId: getActiveDraftChanges().draftId };
 }
 
 export function startPreviewDocumentSession(document: PreviewDocument): void {
@@ -147,7 +138,7 @@ export function notifyPreviewDiagnostics(): void {
 
 export function getPreviewDiagnostic(
   changeKey: string,
-  logicalDocument = HOST_DOCUMENT.logicalDocument,
+  logicalDocument: string,
   draftId = getActiveDraftChanges().draftId,
 ): PreviewDiagnostic | undefined {
   // Pure getter: it runs on the React render path, so side effects here would clear state mid-render.
@@ -158,10 +149,7 @@ export function getPreviewDiagnostic(
 
 /** Also reads non-host documents so Canvas-only conflicts are not write-only. */
 export function getAnyPreviewDiagnostic(changeKey: string): PreviewDiagnostic | undefined {
-  const host = getPreviewDiagnostic(changeKey, HOST_DOCUMENT.logicalDocument);
-  if (host) return host;
   for (const logicalDocument of activeSessions.keys()) {
-    if (logicalDocument === HOST_DOCUMENT.logicalDocument) continue;
     const diagnostic = getPreviewDiagnostic(changeKey, logicalDocument);
     if (diagnostic) return diagnostic;
   }
@@ -179,7 +167,7 @@ export function getPreviewDiagnosticRevision(): number {
 
 /** Test and teardown reset; it does not alter canonical workspace state. */
 export function resetPreviewDiagnostics(): void {
-  activeSessions = new Map([[HOST_DOCUMENT.logicalDocument, HOST_DOCUMENT.sessionId]]);
+  activeSessions = new Map();
   attemptsBySession = new Map();
   diagnostics = new Map();
   notify();

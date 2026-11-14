@@ -26,7 +26,7 @@ beforeEach(() => {
   configureNudgeUiRuntime({ ...initialConfig, projectId: "controller-restart" });
   enableWriteGuard();
   acquireLease();
-  hydrateCanvasStore("canvas", [], { x: 0, y: 0, zoom: 1 });
+  hydrateCanvasStore([], { x: 0, y: 0, zoom: 1 });
   activateIframeWorkspace(window.location.href, { width: 800, height: 600 });
 });
 

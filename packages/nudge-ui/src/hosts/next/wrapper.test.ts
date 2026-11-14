@@ -424,7 +424,7 @@ describe("manifest builder", () => {
     const manifest = buildManifest({ root: "/x" });
 
     // Canvas shares the Vite host's runtime; component props cover client components only.
-    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true });
+    expect(manifest.runtime.capabilities).toEqual({ componentSemantics: true });
     expect(manifest.runtime.tokenCatalog).toEqual([]);
     expect(manifest.runtime.componentContracts).toEqual([]);
     expect(manifest.runtime.framework).toBe("React");

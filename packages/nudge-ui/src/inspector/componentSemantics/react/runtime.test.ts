@@ -11,11 +11,10 @@ import {
   type ReactElement,
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { getManagedSheetText } from "../../projection/managedStylesheet.ts";
+import { applyRendererProjection } from "../../canvas/rendererStylesheet.ts";
 import { makeComponentChange } from "../../changes/_testUtils.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../../changes/types.ts";
 import {
-  applyHostDraftProjection,
   compileDraftProjection,
 } from "../../projection/draftProjection.ts";
 import {
@@ -30,7 +29,7 @@ import {
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 function applyTestDraftProjection(changes: readonly ChangeRecord[]): void {
-  applyHostDraftProjection(compileDraftProjection({
+  applyRendererProjection(compileDraftProjection({
     revision: 1,
     changes,
     structuralChanges: [],
@@ -266,7 +265,7 @@ describe("React component runtime adapter", () => {
 
     expect(renderCount).toBe(afterSemanticProjection);
     expect(host.querySelector("button")?.getAttribute("data-variant")).toBe("secondary");
-    expect(getManagedSheetText()).toContain("color: red;");
+    expect(document.getElementById("nudge-ui-styles")?.textContent).toContain("color: red;");
   });
 
   it("rerenders semantic boundaries when overrides are added, changed, or removed", () => {

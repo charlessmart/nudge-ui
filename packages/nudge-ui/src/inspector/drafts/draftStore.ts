@@ -30,9 +30,9 @@ export interface DraftChangesSnapshot extends DraftContents {
 /** A canonical write result. `blocked` means the lease or a save lock refused the write. */
 export type CommitResult = "applied" | "unchanged" | "blocked";
 
-/** Why the active draft's preview must be rebuilt. */
+/** What happened to the active draft, for the diagnostics that depend on it. */
 export type DraftProjectionEvent =
-  | { readonly kind: "edit"; readonly verificationTargets?: ReadonlyMap<string, HTMLElement | null> }
+  | { readonly kind: "edit" }
   | { readonly kind: "reconcile"; readonly structuralIds: ReadonlySet<string> }
   | { readonly kind: "switch" }
   /** The active draft was cleared; every earlier preview diagnostic is void. */
@@ -55,8 +55,8 @@ export interface DraftStoreSeams {
   readonly storage: DraftStorage;
   /** Brings a draft's owning frame back when history replays an edit. */
   revealDraft(draftId: string, cardId?: string): void;
-  /** Rebuilds the active draft's preview. Called after subscribers see the new snapshot. */
-  project(snapshot: DraftChangesSnapshot, event: DraftProjectionEvent): void;
+  /** Called after subscribers see the new snapshot. Frames project the draft themselves, from those subscriptions. */
+  onProjectionEvent(event: DraftProjectionEvent): void;
 }
 
 export interface DraftStore {
@@ -75,7 +75,7 @@ export interface DraftStore {
   /** Makes a draft active; `cardId` is the frame history replay should reveal for it. */
   activate(id: string, cardId?: string): void;
 
-  commitChanges(incoming: readonly ChangeRecord[], verificationTargets?: ReadonlyMap<string, HTMLElement | null>): CommitResult;
+  commitChanges(incoming: readonly ChangeRecord[]): CommitResult;
   revertChange(change: ChangeRecord): boolean;
   discardChanges(target: DraftDiscardTarget): boolean;
   commitStructuralChange(change: StructuralChange): boolean;
@@ -216,7 +216,7 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     if (pendingProjection) {
       const event = pendingProjection;
       pendingProjection = null;
-      seams.project(getActive(), event);
+      seams.onProjectionEvent(event);
     }
   }
 
@@ -416,12 +416,12 @@ export function createDraftStore(seams: DraftStoreSeams): DraftStore {
     },
     activate,
 
-    commitChanges(incoming, verificationTargets) {
+    commitChanges(incoming) {
       if (incoming.length === 0) return "unchanged";
       const contents = draftState().contents;
       const changes = incoming.reduce((current, change) => mergeChange(current, change), [...contents.changes]);
       if (sameEffectiveChanges([...contents.changes], changes)) return "unchanged";
-      return commitActive({ ...contents, changes }, { kind: "edit", verificationTargets }) ? "applied" : "blocked";
+      return commitActive({ ...contents, changes }, { kind: "edit" }) ? "applied" : "blocked";
     },
     revertChange(change) {
       const contents = draftState().contents;

@@ -202,7 +202,6 @@ function teardownRenderer(owner: RendererBootstrapOwner): void {
 }
 
 export function bootstrapRenderer(resources: RendererBootstrapResources = {}): RendererBootstrapHandle | undefined {
-  if (!getNudgeUiRuntimeConfig().capabilities.canvas) return;
   if (!isNudgeUiDev()) return;
   if (activeRendererBootstrap) return activeRendererBootstrap.handle;
 
