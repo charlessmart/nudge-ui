@@ -1,4 +1,5 @@
 import { isShadowRootInDocument } from "../runtime/domRealm.ts";
+import { canTagRuntimeSubtree } from "../runtime/staticHtmlRuntimeIdentity.ts";
 
 function isInsideInspector(el: HTMLElement): boolean {
   if (el.id === "nudge-ui-root") return true;
@@ -69,6 +70,27 @@ export function hasTrackedChildren(el: HTMLElement): boolean {
     return false;
   };
   return visit(el);
+}
+
+/** Any element child the tree could list, whether or not it has identity yet. */
+function hasElementChildren(el: HTMLElement): boolean {
+  const view = el.ownerDocument.defaultView;
+  const constructor = view?.HTMLElement ?? null;
+  const svgConstructor = view?.SVGElement ?? null;
+  if (!constructor && !svgConstructor) return false;
+  for (const child of el.children) {
+    if (isTrackableChild(child, constructor, svgConstructor)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a row shows a disclosure control. Built apps answer from identity alone; a live page tags lazily,
+ * so there an untagged child still earns one, and opening the row gives that child its identity.
+ */
+export function hasExpandableChildren(el: HTMLElement): boolean {
+  if (hasTrackedChildren(el)) return true;
+  return canTagRuntimeSubtree(el) && hasElementChildren(el);
 }
 
 /** Nearest tracked ancestors, fewer when children also fill the menu. */

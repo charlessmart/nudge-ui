@@ -2,11 +2,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { parseDataSrc } from "../selection/resolveSelection.ts";
 import {
+  canTagRuntimeSubtree,
   installLazyRuntimeIdentity,
   installStaticHtmlRuntimeIdentity,
   runtimeDomPath,
   isRuntimeCreatedElement,
   isRuntimeGeneratedSource,
+  tagRuntimeChildren,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./staticHtmlRuntimeIdentity.ts";
 
@@ -135,6 +137,40 @@ describe("lazy runtime identity", () => {
 
     expect(document.getElementById("icon")!.hasAttribute("data-cid")).toBe(true);
     expect(document.getElementById("path")!.hasAttribute("data-cid")).toBe(false);
+  });
+
+  it("tags the children of a subtree a surface reveals, one level per request", () => {
+    document.body.innerHTML = "<main id=\"main\"><section><p>copy</p></section></main>";
+    dispose = installLazyRuntimeIdentity();
+    const main = document.getElementById("main")!;
+    const section = main.firstElementChild!;
+
+    tagRuntimeChildren(main);
+    expect(section.hasAttribute("data-cid")).toBe(true);
+    expect(section.firstElementChild!.hasAttribute("data-cid")).toBe(false);
+
+    tagRuntimeChildren(section);
+    expect(section.firstElementChild!.hasAttribute("data-cid")).toBe(true);
+  });
+
+  it("leaves a page alone when no lazy installer owns it", () => {
+    document.body.innerHTML = "<main id=\"main\"><section></section></main>";
+    const main = document.getElementById("main")!;
+
+    expect(canTagRuntimeSubtree(main)).toBe(false);
+    tagRuntimeChildren(main);
+    expect(document.querySelector("section")!.hasAttribute("data-cid")).toBe(false);
+  });
+
+  it("stops offering on-demand identity once the installer is disposed", () => {
+    document.body.innerHTML = "<main id=\"main\"></main>";
+    dispose = installLazyRuntimeIdentity();
+    const main = document.getElementById("main")!;
+    expect(canTagRuntimeSubtree(main)).toBe(true);
+
+    dispose();
+    dispose = null;
+    expect(canTagRuntimeSubtree(main)).toBe(false);
   });
 });
 

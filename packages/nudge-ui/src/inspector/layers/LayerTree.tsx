@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { useHierarchy, useSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
-import { computeTrackedChildren, hasTrackedChildren, type TrackedChildren } from "../selection/hierarchy.ts";
+import { computeTrackedChildren, hasExpandableChildren, type TrackedChildren } from "../selection/hierarchy.ts";
+import { tagRuntimeChildren } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { LAYER_INDENT, LayerRow } from "./LayerRow.tsx";
@@ -54,8 +55,10 @@ export function LayerTree({ doc }: { readonly doc: Document | null }): ReactElem
   useEffect(() => {
     // Selecting on the page reveals the selection here, without closing anything the person opened.
     if (hierarchy.length < 2) return;
+    const ancestors = hierarchy.slice(1);
+    // A live page tags lazily, so open ancestors with their children identified; this shows the selection's siblings.
+    for (const element of ancestors) tagRuntimeChildren(element);
     setOpened((current) => {
-      const ancestors = hierarchy.slice(1);
       if (ancestors.every((element) => current.has(element))) return current;
       return new Set([...current, ...ancestors]);
     });
@@ -81,17 +84,21 @@ export function LayerTree({ doc }: { readonly doc: Document | null }): ReactElem
   const body = doc?.body;
   if (!body) return <p className="navigator__empty">Open a page to see its layers.</p>;
 
-  const toggle = (element: HTMLElement): void => setOpened((current) => {
-    const next = new Set(current);
-    if (!next.delete(element)) next.add(element);
-    return next;
-  });
+  const toggle = (element: HTMLElement): void => {
+    // Identity comes before the row opens, so the children are listable on the render the open triggers.
+    if (!opened.has(element)) tagRuntimeChildren(element);
+    setOpened((current) => {
+      const next = new Set(current);
+      if (!next.delete(element)) next.add(element);
+      return next;
+    });
+  };
 
   const renderLevel = (list: TrackedChildren, depth: number, path: string): ReactElement[] => [
     ...list.elements.flatMap((element, index) => {
       const key = `${path}/${index}`;
       const open = opened.has(element);
-      const expandable = hasTrackedChildren(element);
+      const expandable = hasExpandableChildren(element);
       const current = element === selected?.domElement;
       return [
         <LayerRow

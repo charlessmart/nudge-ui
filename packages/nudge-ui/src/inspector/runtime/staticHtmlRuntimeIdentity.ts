@@ -143,18 +143,36 @@ export function installStaticHtmlRuntimeIdentity(doc: Document = document): () =
 const LAZY_IDENTITY_EVENTS = ["pointerover", "pointerdown", "mousedown", "click", "dblclick"] as const;
 const LAZY_DESCENDANT_DEPTH = 2;
 
+type IdentityAllocator = (element: Element) => void;
+
+/** Documents whose identity is lazy, so a surface that reveals a subtree can tag it on demand. */
+const lazyAllocators = new WeakMap<Document, IdentityAllocator>();
+
+/** Whether `element`'s document tags elements lazily; untagged children there can gain identity. */
+export function canTagRuntimeSubtree(element: Element): boolean {
+  return lazyAllocators.has(element.ownerDocument);
+}
+
+/** Tags children of `root` down to `depth` levels. Idempotent, so revealing the same subtree twice costs only lookups. */
+export function tagRuntimeChildren(root: Element, depth = 1): void {
+  const ensureIdentity = lazyAllocators.get(root.ownerDocument);
+  if (!ensureIdentity) return;
+  tagDescendants(ensureIdentity, root, depth);
+}
+
+function tagDescendants(ensureIdentity: IdentityAllocator, element: Element, depth: number): void {
+  if (depth === 0) return;
+  for (const child of Array.from(element.children)) {
+    ensureIdentity(child);
+    tagDescendants(ensureIdentity, child, depth - 1);
+  }
+}
+
 /** Install before the inspector so its capture listeners run first. */
 export function installLazyRuntimeIdentity(doc: Document = document): () => void {
   // Per-install scope keeps fresh identities distinct from saved ones, which `runtimeIdentityClaims` re-attaches by evidence.
   const ensureIdentity = createIdentityAllocator(doc, `${Math.random().toString(36).slice(2, 8)}-`);
-
-  function tagDescendants(element: Element, depth: number): void {
-    if (depth === 0) return;
-    for (const child of Array.from(element.children)) {
-      ensureIdentity(child);
-      tagDescendants(child, depth - 1);
-    }
-  }
+  lazyAllocators.set(doc, ensureIdentity);
 
   function onPointer(event: Event): void {
     const target = event.target;
@@ -167,13 +185,14 @@ export function installLazyRuntimeIdentity(doc: Document = document): () => void
       if (current.hasAttribute("data-cid") && current !== eligible) break;
       ensureIdentity(current);
     }
-    tagDescendants(eligible, LAZY_DESCENDANT_DEPTH);
-    if (eligible.parentElement) tagDescendants(eligible.parentElement, 1);
+    tagDescendants(ensureIdentity, eligible, LAZY_DESCENDANT_DEPTH);
+    if (eligible.parentElement) tagDescendants(ensureIdentity, eligible.parentElement, 1);
   }
 
   for (const type of LAZY_IDENTITY_EVENTS) doc.addEventListener(type, onPointer, true);
   return () => {
     for (const type of LAZY_IDENTITY_EVENTS) doc.removeEventListener(type, onPointer, true);
+    if (lazyAllocators.get(doc) === ensureIdentity) lazyAllocators.delete(doc);
   };
 }
 

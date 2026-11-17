@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { installLazyRuntimeIdentity } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { LayerTree } from "./LayerTree.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -72,5 +73,42 @@ describe("LayerTree", () => {
     act(() => expander().click());
     expect(expander().getAttribute("aria-expanded")).toBe("true");
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists an untagged child of a lazily identified page once its layer opens", () => {
+    page.body.innerHTML = `
+      <section data-cid="Section" data-src="page.tsx:1:1">
+        <div class="copy"><h3>iPad</h3></div>
+      </section>`;
+    const stop = installLazyRuntimeIdentity(page);
+    try {
+      render();
+      const expanders = (): HTMLButtonElement[] =>
+        Array.from(host.querySelectorAll<HTMLButtonElement>('[data-test="layer-tree-expander"]'));
+      expect(host.textContent).not.toContain("div.copy");
+      expect(expanders()).toHaveLength(1);
+
+      act(() => expanders()[0]!.click());
+      expect(host.textContent).toContain("div.copy");
+
+      // The new row earns its own control, even though its child still has no identity.
+      expect(expanders()).toHaveLength(2);
+      act(() => expanders()[1]!.click());
+      expect(host.textContent).toContain("h3");
+    } finally {
+      stop();
+    }
+  });
+
+  it("offers no control for children a build-time identified page never tagged", () => {
+    page.body.innerHTML = `
+      <section data-cid="Section" data-src="page.tsx:1:1">
+        <div class="copy">iPad</div>
+      </section>`;
+    render();
+
+    expect(host.textContent).toContain("section");
+    expect(host.textContent).not.toContain("div.copy");
+    expect(host.querySelector('[data-test="layer-tree-expander"]')).toBeNull();
   });
 });
