@@ -9,9 +9,13 @@ import {
   isTextContentChange,
   isTokenChange,
   type ChangeRecord,
+  type ElementChangeRecord,
   type PreviewableChangeRecord,
 } from "../changes/types.ts";
+import type { TokenEntry } from "../../css/model/index.ts";
 import { verifyPreview } from "../projection/managedStylesheet.ts";
+import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { resolveMovedRenderedInstance } from "../projection/renderedInstance.ts";
 import { relocateSourceSite, sourceSiteSelector } from "../selection/sourceSite.ts";
 import { boundRuntimeEvidence, normalizeRuntimeTag } from "../runtime/staticHtmlRuntimeIdentity.ts";
@@ -109,13 +113,49 @@ function styleTargets(change: PreviewableChangeRecord, doc: Document): HTMLEleme
   return site ? queryTargets(doc, sourceSiteSelector(site.cid, site.src)) : [];
 }
 
+/**
+ * What the element painted before the edit: recorded when it was made or, for a swap, which records no value,
+ * the old token read inside the element, so the element's own definition of the token applies.
+ */
+function paintedBeforeEdit(change: ElementChangeRecord, target: HTMLElement, oldToken: TokenEntry): string {
+  if (change.oldRawValue) return change.oldRawValue.trim();
+  const probe = target.ownerDocument.createElement("span");
+  probe.setAttribute("data-nudge-ui", "value-probe");
+  probe.style.setProperty(change.property, tokenReference(oldToken), "important");
+  probe.style.setProperty("position", "fixed", "important");
+  probe.style.setProperty("visibility", "hidden", "important");
+  target.appendChild(probe);
+  const painted = getElementComputedStyle(probe).getPropertyValue(change.property).trim();
+  probe.remove();
+  return painted;
+}
+
+/**
+ * A token edit whose value paints exactly what the page painted before, such as a detach or a swap between equal tokens,
+ * looks applied before anyone touches the source. Only then does the authored value decide: a detach is done once the
+ * old token is gone, by a raw value or another token, and a link once the new token is written.
+ * An unreadable declaration keeps the change unresolved.
+ */
+function authoredTokenAgrees(change: PreviewableChangeRecord, target: HTMLElement): boolean {
+  if (isTokenChange(change) || !change.oldToken) return true;
+  const painted = getElementComputedStyle(target).getPropertyValue(change.property).trim();
+  if (painted !== paintedBeforeEdit(change, target, change.oldToken)) return true;
+  const row = getBrowserCssInspection(target.ownerDocument).inspect(target, { cascade: "authored", state: "base" }).properties
+    .find((candidate) => candidate.property === change.property || candidate.sourceProperty === change.property);
+  if (!row || row.evidence.inaccessibleStylesheet) return false;
+  const written = row.tokenName;
+  if (change.newToken) return written === change.newToken.name || written === change.newToken.cssName;
+  return written !== change.oldToken.name && written !== change.oldToken.cssName;
+}
+
 function verifyStyle(change: PreviewableChangeRecord, doc: Document): boolean {
   if (!isTokenChange(change) && (change.state ?? "base") !== "base") return false;
   const targets = styleTargets(change, doc);
   const requested = requestedStyleValue(change);
   return requested.length > 0
     && targets.length > 0
-    && targets.every((target) => verifyPreview(target, change.property, requested).status === "applied");
+    && targets.every((target) => verifyPreview(target, change.property, requested).status === "applied"
+      && authoredTokenAgrees(change, target));
 }
 
 function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc: Document): boolean {

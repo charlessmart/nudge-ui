@@ -110,6 +110,76 @@ describe("handoff verification", () => {
     expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
   });
 
+  describe("token edits that paint what the page already painted", () => {
+    const SPACE_4 = { name: "--space-4", value: "16px", source: "tokens.css:4" };
+    const SPACE_ALT = { name: "--space-alt", value: "16px", source: "tokens.css:5" };
+
+    function tokenEdit(oldToken: typeof SPACE_4, newToken: typeof SPACE_4 | null): ElementChangeRecord {
+      // A detach records what the element painted; a swap records no value.
+      const { oldRawValue: _unrecorded, ...swap } = { ...styleChange("padding-top", `var(${newToken?.name})`), oldToken, newToken };
+      return newToken ? swap : { ...styleChange("padding-top", "16px"), oldToken, newToken, oldRawValue: "16px" };
+    }
+
+    async function verifyAgainst(authored: string, change: ElementChangeRecord): Promise<number> {
+      // Every value paints 16px, so the painted value alone cannot tell the edit from the original.
+      vi.spyOn(window, "getComputedStyle").mockImplementation(() => ({
+        getPropertyValue: (property: string) => property === "padding-top" ? "16px" : "",
+      }) as CSSStyleDeclaration);
+      appendChange(change);
+      const handoff = snapshot(getChangesList());
+      const style = document.createElement("style");
+      style.textContent = `:root { --space-4: 16px; --space-alt: 16px; } [data-cid="Card"] { padding-top: ${authored}; }`;
+      document.head.prepend(style);
+      try {
+        return await verifyAndReconcileHandoff(handoff);
+      } finally {
+        vi.mocked(window.getComputedStyle).mockRestore();
+      }
+    }
+
+    it("keeps a detach while the source still uses the token", async () => {
+      await expect(verifyAgainst("var(--space-4)", tokenEdit(SPACE_4, null))).resolves.toBe(0);
+      expect(getChangesList()).toHaveLength(1);
+    });
+
+    it("resolves a detach the source wrote as a raw value", async () => {
+      await expect(verifyAgainst("16px", tokenEdit(SPACE_4, null))).resolves.toBe(1);
+    });
+
+    it("resolves a detach the source wrote with a different token", async () => {
+      await expect(verifyAgainst("var(--space-alt)", tokenEdit(SPACE_4, null))).resolves.toBe(1);
+    });
+
+    it("keeps a detach while the source still uses a token the element itself overrides", async () => {
+      // `.card { --space-4: 20px }`: the element paints 20px from the token, where the document's own token is 16px.
+      vi.spyOn(window, "getComputedStyle").mockImplementation((element) => ({
+        getPropertyValue: (property: string) => {
+          if (property !== "padding-top") return "";
+          const inline = (element as HTMLElement).style.getPropertyValue("padding-top");
+          if (inline && !inline.startsWith("var(")) return inline;
+          return element.closest('[data-cid="Card"]') ? "20px" : "16px";
+        },
+      }) as CSSStyleDeclaration);
+      appendChange({ ...styleChange("padding-top", "20px"), oldToken: SPACE_4, oldRawValue: "20px" });
+      const handoff = snapshot(getChangesList());
+      const style = document.createElement("style");
+      style.textContent = '[data-cid="Card"] { --space-4: 20px; padding-top: var(--space-4); }';
+      document.head.prepend(style);
+      try {
+        await expect(verifyAndReconcileHandoff(handoff)).resolves.toBe(0);
+      } finally {
+        vi.mocked(window.getComputedStyle).mockRestore();
+      }
+      expect(getChangesList()).toHaveLength(1);
+    });
+
+    it("keeps a swap between equal tokens until the source names the new one", async () => {
+      await expect(verifyAgainst("var(--space-4)", tokenEdit(SPACE_4, SPACE_ALT))).resolves.toBe(0);
+      clearActiveDraft();
+      await expect(verifyAgainst("var(--space-alt)", tokenEdit(SPACE_4, SPACE_ALT))).resolves.toBe(1);
+    });
+  });
+
   it("retains a sent change if the page navigates during verification", async () => {
     const sent = styleChange("color", "rgb(255, 0, 0)");
     appendChange(sent);
