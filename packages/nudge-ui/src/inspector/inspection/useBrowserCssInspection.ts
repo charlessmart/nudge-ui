@@ -10,6 +10,10 @@ import type {
 } from "./browserCssInspection.ts";
 import { getBrowserCssInspection } from "./browserCssInspectionRegistry.ts";
 import { countInspectionWork } from "./performanceDiagnostics.ts";
+import { overlayDraftEdits } from "./draftOverlay.ts";
+import { getActiveDraftChanges, subscribeActiveDraftChanges } from "../drafts/store.ts";
+import { isOriginalPreviewActive, subscribeOriginalPreview } from "../shell/originalPreview.ts";
+import type { ChangeRecord } from "../changes/types.ts";
 
 const SELECTION_DEBOUNCE_MS = 8;
 const EMPTY_SELECTION: readonly SelectedElement[] = [];
@@ -53,6 +57,17 @@ function normalizeSelection(
   return [selected];
 }
 
+function withDraftEdits(
+  snapshot: InspectionSnapshot,
+  element: HTMLElement,
+  state: InteractionState,
+  changes: readonly ChangeRecord[],
+): InspectionSnapshot {
+  if (changes.length === 0) return snapshot;
+  const properties = overlayDraftEdits(element, snapshot.properties, changes, state, snapshot.availableTokens);
+  return properties === snapshot.properties ? snapshot : { ...snapshot, properties: [...properties] };
+}
+
 function inspectView(
   session: BrowserCssInspection,
   selected: readonly SelectedElement[],
@@ -60,10 +75,20 @@ function inspectView(
   includeDocumentTokens: boolean,
 ): ScopedInspectionView {
   const result = session.refresh?.(selected.map((element) => element.domElement), state);
-  const elements = result?.elements ?? selected.map((element) =>
-    session.inspect(element.domElement, { state, cascade: "authored" }));
-  const stableProperties = result?.stableProperties ?? (selected[0] && state === "base"
-    ? session.inspect(selected[0].domElement, { cascade: "stable" }).properties : []);
+  // Fields show what the draft asks for; the page is the fallback for everything it does not record. Peeking at the original shows the page alone.
+  const changes: readonly ChangeRecord[] = isOriginalPreviewActive() ? [] : getActiveDraftChanges().changes;
+  const elements = (result?.elements ?? selected.map((element) =>
+    session.inspect(element.domElement, { state, cascade: "authored" })))
+    .map((snapshot, index) => withDraftEdits(snapshot, selected[index]!.domElement, state, changes));
+  const stableProperties = selected[0] && state === "base"
+    ? overlayDraftEdits(
+      selected[0].domElement,
+      result?.stableProperties ?? session.inspect(selected[0].domElement, { cascade: "stable" }).properties,
+      changes,
+      "base",
+      elements[0]?.availableTokens ?? [],
+    )
+    : [];
   elements.forEach((snapshot, index) => publishInspectionSnapshot(selected[index]!.domElement, snapshot));
   return {
     selection: selected, state, session,
@@ -168,6 +193,9 @@ export function useBrowserCssInspection(
   }, [includeDocumentTokens, selectedElements, state, session]);
 
   useEffect(() => session.subscribe(scheduleRevisionInspection), [session]);
+  // A draft can change without the page changing, as when an edit repeats what the page already paints.
+  useEffect(() => subscribeActiveDraftChanges(scheduleRevisionInspection), []);
+  useEffect(() => subscribeOriginalPreview(scheduleRevisionInspection), []);
 
   // Warm during idle so the first selection does not pay the stylesheet walk; the walk is idempotent per stylesheet revision.
   const prewarmedSessionRef = useRef<BrowserCssInspection | null>(null);
