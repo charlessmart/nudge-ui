@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { LayoutSection } from "./LayoutSection.tsx";
-import { resetPendingRules } from "../tokens/editActions.ts";
+import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import {
   addFromLayoutOptions,
@@ -437,6 +437,40 @@ describe("SpacingField", () => {
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
     expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+  });
+
+  it("records detaching a grouped token whose value the sides already paint", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "16px",
+      "padding-right": "16px",
+      "padding-bottom": "16px",
+      "padding-left": "16px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    const linkedRow = (property: string): ResolvedProperty => ({
+      property,
+      tokenName: "--space-4",
+      declaredValue: "var(--space-4)",
+      authored: "var(--space-4)",
+      resolvedValue: "16px",
+      confidence: "exact",
+      evidence: { reason: "linked spacing fixture" },
+    });
+    handle = mount(createElement(LayoutSection, {
+      element: selected,
+      tokenRows: ["padding-top", "padding-right", "padding-bottom", "padding-left"].map(linkedRow),
+    }));
+
+    const vertical = handle.host.querySelector('[data-test="token-field"][data-property="padding-vertical"]') as HTMLElement;
+    act(() => (vertical.querySelector('[data-test="delink-btn"]') as HTMLButtonElement).click());
+
+    const records = getChangeRecords();
+    expect(records.map((record) => record.property).sort()).toEqual(["padding-bottom", "padding-top"]);
+    for (const record of records) expect(record).toMatchObject({ rawValue: "16px", oldToken: { name: "--space-4" } });
   });
 
   it("keeps functional spacing expressions authored in the grouped raw field", () => {

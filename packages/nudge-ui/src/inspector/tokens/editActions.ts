@@ -185,6 +185,11 @@ export interface StyleDeclaration {
   value: string;
   /** Optional baseline captured before a transient preview changed the DOM. */
   oldRawValue?: string;
+  /**
+   * The token the authored value referenced before this write. Detaching paints the token's own value,
+   * so without it the edit equals the computed baseline and the draft drops it as no change.
+   */
+  oldToken?: TokenEntry | null;
   metadata?: StyleEditMetadata;
 }
 
@@ -213,6 +218,17 @@ export function setStyle(target: EditTarget, property: string, value: string, me
   return setStyles(target, [{ property, value, metadata }])[0] ?? null;
 }
 
+/** Writes a raw value in place of a token, recording the token as the baseline it replaces. */
+export function detachToken(
+  target: EditTarget,
+  property: string,
+  value: string,
+  oldToken: TokenEntry,
+  metadata?: StyleEditMetadata,
+): ElementChangeRecord | null {
+  return setStyles(target, [{ property, value, oldToken, metadata }])[0] ?? null;
+}
+
 export function setStyles(
   target: EditTarget,
   declarations: readonly StyleDeclaration[],
@@ -236,7 +252,7 @@ export function setElementStyles(edits: readonly ElementStyleEdit[]): ElementCha
 function buildStyleRecord(
   el: HTMLElement,
   scopePlan: ReadonlyMap<HTMLElement, BatchScopeFields>,
-  { property, value, oldRawValue, metadata }: StyleDeclaration,
+  { property, value, oldRawValue, oldToken = null, metadata }: StyleDeclaration,
 ): ElementChangeRecord | null {
   const cid = elementCid(el);
   const { selector, state } = stateFields(el);
@@ -250,7 +266,7 @@ function buildStyleRecord(
     selector,
     property,
     ...metadata,
-    oldToken: null,
+    oldToken,
     newToken: null,
     rawValue: value,
     oldRawValue: (oldRawValue ?? getStateStyleValue(el, property)) || undefined,

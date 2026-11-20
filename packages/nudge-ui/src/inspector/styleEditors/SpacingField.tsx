@@ -348,6 +348,11 @@ function PairedTokenField({
     : null;
   const blockedBy = inlineBlockedBy(selection?.domElements ?? [el], ...sideProperties);
 
+  // Writing a raw value from a linked pair leaves this token; naming it keeps a detach from reading as no change.
+  const linkedToken = activeTokenName
+    ? currentToken ?? { name: activeTokenName, value: row.resolvedValue, source: "runtime" }
+    : null;
+
   function commitAxisValue(value: string): void {
     const pair = splitAxisValue(value);
     const records = setStyles(
@@ -355,6 +360,7 @@ function PairedTokenField({
       sideProperties.map((property, index) => ({
         property,
         value: pair?.[index] ?? value,
+        oldToken: linkedToken,
       })),
     );
     if (records.some(Boolean)) onAfterEdit?.();

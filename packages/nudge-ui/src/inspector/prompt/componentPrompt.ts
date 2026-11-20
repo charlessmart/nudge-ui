@@ -87,6 +87,9 @@ function changeClause(rec: ElementChangeRecord): string {
   if (rec.newToken && rec.oldToken) {
     return `${state}make the ${name} use the ${rec.newToken.name} token instead of ${rec.oldToken.name}`;
   }
+  if (rec.oldToken && rec.rawValue !== undefined) {
+    return `${state}make the ${name} ${rec.rawValue} instead of the ${rec.oldToken.name} token`;
+  }
   if (rec.newToken || rec.rawValue !== undefined) {
     // Adapter token names are not always custom-property names, so emit the literal the stylesheet wrote.
     const after = rec.newToken ? tokenReference(rec.newToken) : rec.rawValue;

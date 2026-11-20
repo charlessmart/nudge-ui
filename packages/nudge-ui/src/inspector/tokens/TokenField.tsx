@@ -10,8 +10,7 @@ import {
 } from "../../css/value-semantics/index.ts";
 import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "../../css/model/index.ts";
 import type { TokenSemanticSlot } from "../../css/value-semantics/index.ts";
-import { promoteToToken, swapToken } from "./editActions.ts";
-import { setStyle } from "./editActions.ts";
+import { detachToken, promoteToToken, setStyle, swapToken } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
 import { firstCssListItem, formatCssNumber, parseCssNumber } from "../styleEditors/cssValue.ts";
 import { deriveActiveTokenName, isExpressionRow } from "../styleEditors/fieldValue.ts";
@@ -1012,6 +1011,13 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     style.background = resolvedValue;
     resolvedValue = style.backgroundColor || resolvedValue;
   }
+  // A raw write from a linked field leaves this token; a catalog miss still names it so the edit is not read as no change.
+  const linkedToken = activeTokenName
+    ? currentToken ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
+    : null;
+  const writeRaw = (value: string) => linkedToken
+    ? detachToken(editTarget ?? el, property, value, linkedToken, effectiveMetadata)
+    : setStyle(editTarget ?? el, property, value, effectiveMetadata);
 
   return (
     <TokenValueField
@@ -1043,7 +1049,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       }}
       onCommitRaw={(value) => {
         if (interceptRaw?.(value)) return;
-        if (setStyle(editTarget ?? el, property, value, effectiveMetadata)) onAfterEdit?.();
+        if (writeRaw(value)) onAfterEdit?.();
       }}
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
@@ -1073,8 +1079,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         return true;
       }}
       onUnlink={(value) => {
-        setStyle(editTarget ?? el, property, value, effectiveMetadata);
-        onAfterEdit?.();
+        if (writeRaw(value)) onAfterEdit?.();
       }}
       onPreviewValue={property === "font-family" && !disabled && !blockedBy ? (value) => {
         // Stops only this field's preview; another field may own the active one.

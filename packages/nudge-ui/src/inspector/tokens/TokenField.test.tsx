@@ -779,6 +779,26 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
   });
 
+  it("records a detach whose raw value paints exactly what the token did", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement).click();
+    });
+
+    // The page already paints 16px, so only the recorded token tells this apart from no change.
+    const records = getChangeRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ property: "font-size", rawValue: "16px", oldToken: FONT_SIZE, newToken: null });
+    expect(sheetText()).toContain("font-size: 16px");
+  });
+
   it("detaches with Backspace while the token menu search is empty", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

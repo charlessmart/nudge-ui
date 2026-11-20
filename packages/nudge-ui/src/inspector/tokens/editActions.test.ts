@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   swapToken,
+  detachToken,
   promoteToToken,
   setStyle,
   setStyles,
@@ -229,6 +230,51 @@ describe("promoteToToken", () => {
     expect(recs).toHaveLength(1);
     expect("oldToken" in recs[0]! ? recs[0]!.oldToken : undefined).toBeNull();
     expect(recs[0]!.property).toBe("cursor");
+  });
+});
+
+describe("detachToken", () => {
+  let style: HTMLStyleElement;
+  beforeEach(() => {
+    resetPendingRules();
+    document.body.innerHTML = "";
+    style = document.createElement("style");
+    // The token's own value is what the page paints, as it is for any detach.
+    style.textContent = "button { padding-top: 8px; }";
+    document.head.appendChild(style);
+  });
+  afterEach(() => {
+    resetPendingRules();
+    style.remove();
+    document.body.innerHTML = "";
+  });
+
+  it("keeps a detach that paints the token's own value, which a plain write drops as no change", () => {
+    const btn = makeButton();
+    expect(setStyle(btn, "padding-top", "8px")).not.toBeNull();
+    expect(getChangeRecords()).toHaveLength(0);
+
+    detachToken(btn, "padding-top", "8px", SPACE_2);
+    const records = getChangeRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ oldToken: SPACE_2, newToken: null, rawValue: "8px" });
+    expect(getManagedSheetText()).toContain("padding-top: 8px;");
+  });
+
+  it("asks for the raw value in place of the token", () => {
+    const btn = makeButton();
+    const record = detachToken(btn, "padding-top", "8px", SPACE_2)!;
+    expect(generatePrompt([record])).toContain("- Change padding-top from the --space-2 token to 8px.");
+  });
+
+  it("keeps the token baseline when a later edit on the same property merges in", () => {
+    const btn = makeButton();
+    detachToken(btn, "padding-top", "8px", SPACE_2);
+    setStyle(btn, "padding-top", "12px");
+    setStyle(btn, "padding-top", "8px");
+    const records = getChangeRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ oldToken: SPACE_2, rawValue: "8px" });
   });
 });
 

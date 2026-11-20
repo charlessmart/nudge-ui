@@ -246,6 +246,8 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   let change: string;
   if (rec.newToken && rec.oldToken) {
     change = `change ${rec.property} from the ${rec.oldToken.name} token to the ${rec.newToken.name} token`;
+  } else if (rec.oldToken && rec.rawValue !== undefined) {
+    change = `change ${rec.property} from the ${rec.oldToken.name} token to ${rec.rawValue}`;
   } else if (rec.newToken || rec.rawValue !== undefined) {
     // Adapter token names are not always custom-property names, so emit the literal the stylesheet wrote.
     const after = rec.newToken ? tokenReference(rec.newToken) : rec.rawValue;
