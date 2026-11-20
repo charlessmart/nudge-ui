@@ -4,6 +4,7 @@ import type { StyleRuleContext } from "../changes/editModel.ts";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { adoptStylesheet, allowsStyleElements, getAdoptedStylesheet, releaseAdoptedStylesheet } from "../runtime/ownedStylesheets.ts";
 import { boostManagedStylesheet } from "./managedSpecificity.ts";
+import { invalidateOwnedStyleResolution } from "../tokens/resolution/cssomCollector.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 export type { StyleRuleContext } from "../changes/editModel.ts";
@@ -27,8 +28,104 @@ const SHEET_ID = "nudge-ui-styles";
 
 const adoptedCss = new WeakMap<Document, string>();
 
+function managedSheet(doc: Document): CSSStyleSheet | null {
+  // SAFETY: the element with this ID is only ever created by writeManagedStylesheet, as a style element.
+  return (doc.getElementById(SHEET_ID) as HTMLStyleElement | null)?.sheet ?? getAdoptedStylesheet(doc, SHEET_ID);
+}
+
+const PAGE_STYLESHEET = "style, link[rel~='stylesheet']";
+
+function isPageStylesheet(node: Node): boolean {
+  if (node.nodeType !== node.ELEMENT_NODE) return false;
+  const element = node as Element;
+  return element.matches(PAGE_STYLESHEET) && !element.hasAttribute("data-nudge-ui");
+}
+
+/** A framework can insert a stylesheet inside a wrapper, so an added subtree counts when any stylesheet is in it. */
+function bringsPageStylesheet(node: Node): boolean {
+  if (node.nodeType !== node.ELEMENT_NODE) return false;
+  return isPageStylesheet(node) || Array.from((node as Element).querySelectorAll(PAGE_STYLESHEET)).some(isPageStylesheet);
+}
+
+function changesPageCss(record: MutationRecord): boolean {
+  if (record.type === "characterData") return record.target.parentNode !== null && isPageStylesheet(record.target.parentNode);
+  if (record.type === "attributes") return isPageStylesheet(record.target);
+  return isPageStylesheet(record.target) || Array.from(record.addedNodes).some(bringsPageStylesheet);
+}
+
+/**
+ * Selectors are raised only to tie the page's strongest rule, and a tie goes to the later stylesheet, so the managed
+ * style element follows every page stylesheet. Moving it re-parses it, so its selectors must be raised again.
+ * Adopted sheets already cascade after every stylesheet in the document.
+ */
+function keepManagedSheetLast(doc: Document): boolean {
+  const managed = doc.getElementById(SHEET_ID);
+  if (!managed) return false;
+  const last = Array.from(doc.querySelectorAll(PAGE_STYLESHEET)).filter(isPageStylesheet).at(-1);
+  if (!last || !(managed.compareDocumentPosition(last) & managed.DOCUMENT_POSITION_FOLLOWING)) return false;
+  last.after(managed);
+  return true;
+}
+
+const pageCssGuards = new WeakMap<Document, () => void>();
+
+/**
+ * Page CSS that arrives after an edit, such as a lazily loaded chunk, can land after the managed sheet or outrank the
+ * boost the edit was written with. Once per frame after the page inserts, rewrites, or finishes loading a stylesheet,
+ * the managed sheet moves back to the end and is raised again. Rules a library adds with `insertRule`, as Emotion and
+ * styled-components do in production, make no mutation and fire no load, so they are only seen at the next projection.
+ */
+function guardAgainstLaterPageCss(doc: Document): void {
+  if (pageCssGuards.has(doc)) return;
+  const view = doc.defaultView;
+  const Observer = view?.MutationObserver;
+  if (!view || !Observer || !doc.documentElement) return;
+  let scheduled = false;
+  const settle = (): void => {
+    scheduled = false;
+    // A loaded sheet or one inside an inserted wrapper changes the rules without a mutation the collector counts.
+    invalidateOwnedStyleResolution(doc);
+    const moved = keepManagedSheetLast(doc);
+    const sheet = managedSheet(doc);
+    const boosted = sheet ? boostManagedStylesheet(doc, sheet) : false;
+    if (moved || boosted) notifyBrowserStylesheetChange(doc);
+  };
+  const schedule = (): void => {
+    if (scheduled) return;
+    scheduled = true;
+    if (view.requestAnimationFrame) view.requestAnimationFrame(settle);
+    else queueMicrotask(settle);
+  };
+  const observer = new Observer((records) => {
+    if (records.some(changesPageCss)) schedule();
+  });
+  observer.observe(doc.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["href", "media", "disabled", "rel"],
+  });
+  // Load does not bubble, so it is caught on the way down; a link is inserted before its rules arrive.
+  const onLoad = (event: Event): void => {
+    if (event.target instanceof view.Node && isPageStylesheet(event.target)) schedule();
+  };
+  doc.addEventListener("load", onLoad, true);
+  pageCssGuards.set(doc, () => {
+    observer.disconnect();
+    doc.removeEventListener("load", onLoad, true);
+  });
+}
+
+function releasePageCssGuard(doc: Document): void {
+  pageCssGuards.get(doc)?.();
+  pageCssGuards.delete(doc);
+}
+
 /** The one writer of the managed stylesheet. The renderer calls it with the CSS of the draft it was sent. */
 export function writeManagedStylesheet(doc: Document, css: string): void {
+  if (css) guardAgainstLaterPageCss(doc);
+  else releasePageCssGuard(doc);
   if (!allowsStyleElements(doc)) {
     // Structural and text projections resend unchanged CSS; rewriting it would discard cached resolutions.
     const adopted = getAdoptedStylesheet(doc, SHEET_ID);
@@ -49,6 +146,7 @@ export function writeManagedStylesheet(doc: Document, css: string): void {
     doc.head.appendChild(el);
   }
   el.textContent = css;
+  keepManagedSheetLast(doc);
   if (el.sheet) boostManagedStylesheet(doc, el.sheet);
   notifyBrowserStylesheetChange(doc);
 }
@@ -140,6 +238,7 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
 }
 
 export function removeManagedSheet(doc: Document = document): void {
+  releasePageCssGuard(doc);
   doc.getElementById(SHEET_ID)?.remove();
   releaseAdoptedStylesheet(doc, SHEET_ID);
   adoptedCss.delete(doc);

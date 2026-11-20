@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { removeManagedSheet, rulesToCssText, writeManagedStylesheet, type StyleRule } from "./managedStylesheet.ts";
 import { boostManagedStylesheet } from "./managedSpecificity.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { collectRules, disposeDocumentResolution } from "../tokens/resolution/cssomCollector.ts";
 
 function applyRules(rules: StyleRule[]): void {
   writeManagedStylesheet(document, rulesToCssText(rules));
@@ -40,6 +41,79 @@ describe("managed rule specificity", () => {
     siteCss(".button, .landing a.button { box-shadow: inset 0 0 0 1px red; }");
     applyRules([{ selector: TARGET, declarations: { "box-shadow": "0 0 0 1px red" } }]);
     expect(getManagedSheetText()).toBe(`${TARGET}${BOOST} { box-shadow: 0 0 0 1px red; }`);
+  });
+
+  describe("page CSS that arrives after an edit", () => {
+    function lateCss(css: string, parent: Element = document.head): HTMLStyleElement {
+      const style = document.createElement("style");
+      style.setAttribute("data-test", "site");
+      style.textContent = css;
+      parent.appendChild(style);
+      return style;
+    }
+
+    function managedSheetFollowsPageCss(): boolean {
+      const managed = document.getElementById("nudge-ui-styles");
+      const sheets = Array.from(document.querySelectorAll('[data-test="site"]'));
+      return managed !== null && sheets.every((sheet) => sheet.compareDocumentPosition(managed) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+
+    const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 50));
+
+    it("moves the managed sheet after it, so a tie still goes to the edit", async () => {
+      applyRules([{ selector: TARGET, declarations: { color: "blue" } }]);
+      lateCss('[data-cid="Button"][data-src] { color: red; }');
+      await nextFrame();
+
+      expect(managedSheetFollowsPageCss()).toBe(true);
+      expect(getManagedSheetText()).toBe(`${TARGET} { color: blue; }`);
+      expect(getComputedStyle(document.getElementById("cta")!).color).toBe("rgb(0, 0, 255)");
+    });
+
+    it("raises the sheet again when the late rule outranks it", async () => {
+      applyRules([{ selector: TARGET, declarations: { color: "blue" } }]);
+      lateCss(".landing a.button.button { color: red; }");
+      await nextFrame();
+
+      expect(getManagedSheetText()).toBe(`${TARGET}${BOOST}${BOOST} { color: blue; }`);
+    });
+
+    it("sees a stylesheet inserted inside a wrapper", async () => {
+      applyRules([{ selector: TARGET, declarations: { color: "blue" } }]);
+      const wrapper = document.createElement("div");
+      wrapper.setAttribute("data-test", "site");
+      wrapper.innerHTML = "<style>.landing a.button.button { color: red; }</style>";
+      document.body.appendChild(wrapper);
+      await nextFrame();
+
+      expect(getManagedSheetText()).toBe(`${TARGET}${BOOST}${BOOST} { color: blue; }`);
+    });
+
+    it("raises the sheet when a stylesheet's rules arrive after it was inserted", async () => {
+      applyRules([{ selector: TARGET, declarations: { color: "blue" } }]);
+      const pending = lateCss("");
+      await nextFrame();
+      expect(getManagedSheetText()).toBe(`${TARGET} { color: blue; }`);
+      // The inspector reads the page's rules while the link is still loading.
+      collectRules(document);
+
+      // A link's rules land when it loads, with no mutation; inserting into the empty sheet stands in for that.
+      pending.sheet!.insertRule(".landing a.button.button { color: red; }");
+      pending.dispatchEvent(new Event("load"));
+      await nextFrame();
+
+      expect(getManagedSheetText()).toBe(`${TARGET}${BOOST}${BOOST} { color: blue; }`);
+    });
+
+    it("keeps watching after the inspection session is disposed", async () => {
+      applyRules([{ selector: TARGET, declarations: { color: "blue" } }]);
+      disposeBrowserCssInspection(document);
+      disposeDocumentResolution(document);
+      lateCss(".landing a.button.button { color: red; }");
+      await nextFrame();
+
+      expect(getManagedSheetText()).toBe(`${TARGET}${BOOST}${BOOST} { color: blue; }`);
+    });
   });
 
   it("leaves the selector alone when it already wins or the property differs", () => {

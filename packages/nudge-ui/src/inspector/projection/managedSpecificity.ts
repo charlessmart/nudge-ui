@@ -115,16 +115,23 @@ function boostSelector(doc: Document, selector: string, properties: readonly str
   return boosted.every((branch, index) => branch === branches[index]) ? null : boosted.join(", ");
 }
 
-/** The renderer receives serialized CSS, so it raises the inserted sheet's selectors in place. */
-export function boostManagedStylesheet(doc: Document, sheet: CSSStyleSheet): void {
+/**
+ * The renderer receives serialized CSS, so it raises the inserted sheet's selectors in place. Boosts only ever grow,
+ * so raising an already-raised sheet again after the page's CSS changes is safe. Returns whether any selector changed.
+ */
+export function boostManagedStylesheet(doc: Document, sheet: CSSStyleSheet): boolean {
   const view = doc.defaultView;
-  if (!view) return;
+  if (!view) return false;
   const collected = collectRules(doc).rules;
+  let changed = false;
   const visit = (list: CSSRuleList): void => {
     for (const rule of Array.from(list)) {
       if (rule instanceof view.CSSStyleRule) {
         const selector = boostSelector(doc, rule.selectorText, declarationsFromCssom(rule.style).map(({ property }) => property), collected);
-        if (selector) rule.selectorText = selector;
+        if (selector && selector !== rule.selectorText) {
+          rule.selectorText = selector;
+          changed = true;
+        }
       } else if ("cssRules" in rule) {
         // SAFETY: grouping rules (@media, @supports, @container, @layer) expose their children as cssRules.
         visit((rule as CSSGroupingRule).cssRules);
@@ -132,4 +139,5 @@ export function boostManagedStylesheet(doc: Document, sheet: CSSStyleSheet): voi
     }
   };
   visit(sheet.cssRules);
+  return changed;
 }
