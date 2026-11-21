@@ -27,7 +27,7 @@ import { INSPECTION_SHORTCUTS, type CanvasInteractionTool } from "./keyboardShor
 
 export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
-export const CANVAS_ZOOM_LEVELS = [0.25, 0.5, 0.9, 1, 1.5, 2, 3] as const;
+export const CANVAS_ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.9, 1, 1.5, 2, 3] as const;
 
 export function closestCanvasZoomLevel(zoom: number): number {
   let closest: number = CANVAS_ZOOM_LEVELS[0];

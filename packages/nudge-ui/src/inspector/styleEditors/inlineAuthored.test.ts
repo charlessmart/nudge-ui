@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { inlineAuthoredValue } from "./inlineAuthored.ts";
+import { inlineAuthoredValue, inlineStyleSource } from "./inlineAuthored.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { beginLayoutPreview, endLayoutPreview } from "./layoutPreviewState.ts";
 
 describe("inline authored values", () => {
@@ -82,5 +83,56 @@ describe("inline authored values", () => {
 
     endLayoutPreview(subject, "row-gap");
     expect(inlineAuthoredValue(subject, "row-gap")).toBe("gap: 12px");
+  });
+
+  describe("with style provenance", () => {
+    const defaultConfig = getNudgeUiRuntimeConfig();
+
+    afterEach(() => {
+      configureNudgeUiRuntime(defaultConfig);
+    });
+
+    function inlineElement(provenance: object): HTMLElement {
+      const subject = document.createElement("div");
+      subject.style.setProperty("padding-left", "4px");
+      subject.style.setProperty("color", "red");
+      subject.style.setProperty("height", "67px");
+      subject.setAttribute("data-cstyle", JSON.stringify(provenance));
+      document.body.appendChild(subject);
+      return subject;
+    }
+
+    it("leaves values written in source editable and reports where they live", () => {
+      const subject = inlineElement({
+        props: { "padding-inline": ["literal", "4", "paddingHorizontal"], color: ["expression", "colors.text", "color"] },
+        opaque: [],
+      });
+
+      expect(inlineAuthoredValue(subject, "padding-left")).toBeNull();
+      expect(inlineStyleSource(subject, "padding-left")).toEqual({ kind: "literal", property: "paddingHorizontal", source: "4" });
+      expect(inlineStyleSource(subject, "color")).toEqual({ kind: "expression", property: "color", source: "colors.text" });
+    });
+
+    it("blocks values the source does not write", () => {
+      const subject = inlineElement({ props: { color: ["expression", "colors.text", "color"] }, opaque: [] });
+
+      expect(inlineAuthoredValue(subject, "height")).toBe("height: 67px");
+      expect(inlineStyleSource(subject, "height")).toBeNull();
+    });
+
+    it("attributes unknown properties to an opaque style", () => {
+      const subject = inlineElement({ props: {}, opaque: ["sizeStyle"] });
+
+      expect(inlineAuthoredValue(subject, "height")).toBeNull();
+      expect(inlineStyleSource(subject, "height")).toEqual({ kind: "opaque", source: "sizeStyle" });
+    });
+
+    it("keeps every inline value blocked on hosts without provenance", () => {
+      configureNudgeUiRuntime({ ...defaultConfig, host: "static-html", framework: "HTML" });
+      const subject = inlineElement({ props: { color: ["literal", "\"red\"", "color"] }, opaque: [] });
+
+      expect(inlineAuthoredValue(subject, "color")).toBe("color: red");
+      expect(inlineStyleSource(subject, "color")).toBeNull();
+    });
   });
 });

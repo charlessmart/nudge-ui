@@ -11,7 +11,7 @@ describe("getCanvasResizeHandleScale", () => {
   it("keeps the resize hit target at a stable screen size across board zoom", () => {
     const screenScale = (zoom: number): number => zoom * getCanvasResizeHandleScale(zoom);
 
-    expect(screenScale(MIN_CAMERA_ZOOM)).toBeCloseTo(0.5);
+    expect(screenScale(MIN_CAMERA_ZOOM)).toBeCloseTo(0.2);
     expect(0.75 * getCanvasResizeHandleScale(0.75)).toBeCloseTo(1);
     expect(2 * getCanvasResizeHandleScale(2)).toBeCloseTo(1);
     expect(screenScale(MAX_CAMERA_ZOOM)).toBeCloseTo(1);

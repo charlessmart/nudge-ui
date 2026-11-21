@@ -50,6 +50,7 @@ import { cancelSketchInteraction, isSketchInteractionActive } from "./canvas/ske
 import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
 import { inspectorStorage } from "./runtime/inspectorStorage.ts";
 import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts";
+import { registerPaintedValueProbeRoot } from "./tokens/resolution/paintedValueProbe.ts";
 
 let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
@@ -253,6 +254,7 @@ export function mountInspector(host: HTMLElement, options: { readonly open?: boo
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown, true));
     inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup, true));
     inspectorSession.registerCleanup(isolateTypingKeys(shadow));
+    inspectorSession.registerCleanup(registerPaintedValueProbeRoot(document, shadow));
     // A page inspected in place can cancel wheel events on its document; the inspector still scrolls.
     if (isPageSurface()) inspectorSession.registerCleanup(isolateInspectorWheel(shadow));
     inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ frame, message }) => {

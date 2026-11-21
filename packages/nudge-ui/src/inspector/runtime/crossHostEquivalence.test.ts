@@ -10,13 +10,14 @@ import { storageKey } from "../canvas/sessionStore.ts";
 
 type Host = NudgeUiRuntimeConfig["host"];
 
-const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro"];
+const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro", "expo"];
 
 const PROJECT_IDS = {
   "vite-react": "fixture-project",
   "static-html": "static-html:standalone-fixture",
   "nextjs-react": "nextjs:9f2ab4c1",
   astro: "astro-fixture",
+  expo: "expo:5c01d2e8",
 } satisfies Record<Host, string>;
 
 function fixtureFor(host: Host): NudgeUiRuntimeConfig {
@@ -59,7 +60,8 @@ describe("cross-host runtime equivalence", () => {
       configureNudgeUiRuntime(fixtureFor(host));
       return getNudgeUiRuntimeConfig();
     });
-    const [vite, staticHtml, nextjs, astro] = snapshots as [
+    const [vite, staticHtml, nextjs, astro, expo] = snapshots as [
+      NudgeUiRuntimeConfig,
       NudgeUiRuntimeConfig,
       NudgeUiRuntimeConfig,
       NudgeUiRuntimeConfig,
@@ -71,6 +73,7 @@ describe("cross-host runtime equivalence", () => {
     expect(stripIdentity(staticHtml)).toBe(stripIdentity(vite));
     expect(stripIdentity(nextjs)).toBe(stripIdentity(vite));
     expect(stripIdentity(astro)).toBe(stripIdentity(vite));
+    expect(stripIdentity(expo)).toBe(stripIdentity(vite));
   });
 
   it("namespaces durable storage per host without collisions", () => {

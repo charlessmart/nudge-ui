@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { Popover as BasePopover } from "@base-ui/react/popover";
-import { IconEye, IconEyeOff, IconPlus, IconRoute } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight, IconEye, IconEyeOff, IconPlus, IconRoute } from "@tabler/icons-react";
 import type { FlowDefinition } from "../../transport/flows.ts";
 import { flowStateOf } from "../canvas/frameContent.ts";
 import { closeFlowCards, getFlowCards, openFlowCards, useCanvasCards } from "../canvas/canvasStore.ts";
@@ -13,6 +13,7 @@ import { showToast } from "../ui/Toast.tsx";
 import { Tooltip } from "../ui/Tooltip.tsx";
 import { portalContainer } from "../ui/portalContainer.ts";
 import { AddMenuIntro } from "../navigator/AddPageMenu.tsx";
+import { toggleCollapsed, useCollapseState } from "../navigator/collapseStore.ts";
 import { flowAgentInstructions } from "./agentInstructions.ts";
 import { flowNotes } from "./flowNotes.ts";
 import { flowStatusFor, useFlows } from "./flowsStore.ts";
@@ -110,6 +111,7 @@ export function FlowsIntro(): ReactElement | null {
 export function FlowGroups({ activeCardId }: { readonly activeCardId: string | null }): ReactElement | null {
   const { flows, status, replaying } = useFlows();
   const cards = useCanvasCards();
+  const isCollapsed = useCollapseState();
   if (flows.length === 0) return null;
 
   function open(flow: FlowDefinition, stateId?: string): void {
@@ -124,13 +126,27 @@ export function FlowGroups({ activeCardId }: { readonly activeCardId: string | n
       <ul className="flows-panel__groups">
         {flows.map((flow) => {
           const isOpen = cards.length > 0 && getFlowCards(flow.id).length > 0;
+          // Flows start folded, except the one holding the selected frame's state.
+          const collapsedByDefault = activeState?.flowId !== flow.id;
+          const expanded = !isCollapsed(`flow:${flow.id}`, collapsedByDefault);
+          const statesId = `flows-panel-states-${flow.id}`;
           return (
             <li key={flow.id} className="flows-panel__flow" data-test="flows-flow" data-flow-id={flow.id}>
               <div className="flows-panel__header">
-                <div className="flows-panel__title">
+                <button
+                  type="button"
+                  className="flows-panel__title"
+                  data-test="flows-expander"
+                  aria-expanded={expanded}
+                  aria-controls={statesId}
+                  onClick={() => toggleCollapsed(`flow:${flow.id}`, collapsedByDefault)}
+                >
+                  <span className="flows-panel__chevron">
+                    {expanded ? <IconChevronDown size={12} aria-hidden="true" /> : <IconChevronRight size={12} aria-hidden="true" />}
+                  </span>
                   <IconRoute className="navigator__item-icon" size={14} stroke={1.8} aria-hidden="true" />
                   <span className="flows-panel__label">{flow.title}</span>
-                </div>
+                </button>
                 <Button
                   variant="quiet"
                   size="compact"
@@ -147,7 +163,7 @@ export function FlowGroups({ activeCardId }: { readonly activeCardId: string | n
                   {isOpen ? "Hide" : "Show"}
                 </Button>
               </div>
-              <ul className="flows-panel__states">
+              <ul id={statesId} className="flows-panel__states" hidden={!expanded}>
                 {flow.states.map((state) => {
                   const result = flowStatusFor(status, flow.id, state.id);
                   const running = replaying.has(`${flow.id}/${state.id}`);

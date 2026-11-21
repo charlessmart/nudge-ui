@@ -9,6 +9,7 @@ import {
 } from "./resolution/cssomCollector.ts";
 import { createRuleMatcher, getAvailableInteractionStates, isStateBranch, matchRuleForElement, prewarmRuleMatching, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
+import { contextFreePaintedValue } from "./resolution/paintedValueProbe.ts";
 import type {
   AtRuleCandidate,
   AtRuleContext,
@@ -80,7 +81,7 @@ function rememberProbeResults(): void {
 
 /**
  * Whether each declared `var(--token)` paints as the given value in its element's context.
- * Every probe is appended before any is read: each read restyles the page, and a probe per declaration cost a whole-document recalculation apiece on large sites.
+ * Values that compute the same anywhere are normalized outside the page. The rest need a probe beside the element, and every such probe is appended before any is read: each read restyles the page, and a probe per declaration cost a whole-document recalculation apiece on large sites.
  */
 function candidatesMatchPainted(checks: readonly PaintedCheck[]): boolean[] {
   rememberProbeResults();
@@ -98,6 +99,13 @@ function candidatesMatchPainted(checks: readonly PaintedCheck[]): boolean[] {
   for (const [el, byKey] of requests) {
     const doc = el.ownerDocument;
     for (const row of byKey.values()) {
+      const contextFree = contextFreePaintedValue(el, row.property, row.declaredValue);
+      if (contextFree !== null) {
+        const results = probeResults.get(el) ?? new Map<string, string>();
+        results.set(probeKey(row), contextFree);
+        probeResults.set(el, results);
+        continue;
+      }
       const probe = doc.createElement(el.tagName.toLowerCase());
       probe.setAttribute("data-nudge-ui", "attribution-probe");
       probe.style.setProperty(row.property, row.declaredValue, "important");

@@ -30,6 +30,15 @@ export interface SourceElementEvidence {
   elementId?: string | null;
 }
 
+/** Where an inline style value is written in source (ADR-0053). */
+export interface InlineStyleSource {
+  kind: "literal" | "expression" | "opaque";
+  /** The authored key, such as `paddingHorizontal`; absent when the value comes from an opaque style. */
+  property?: string;
+  /** The value's source text, or the opaque style's. */
+  source: string;
+}
+
 export interface ElementChangeRecord {
   kind?: "element";
   cid: string;
@@ -42,6 +51,8 @@ export interface ElementChangeRecord {
   sourceProperty?: string;
   /** Best-effort CSSOM serialization; not an exact source-text quote. */
   sourceAuthoredValue?: string;
+  /** Set when the element writes the property inline; its preview needs `!important` to win. */
+  inlineSource?: InlineStyleSource;
   oldToken: TokenEntry | null;
   newToken: TokenEntry | null;
   rawValue?: string;

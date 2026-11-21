@@ -64,8 +64,9 @@ newer version. This repository requires Node.js 22.12 or later and pnpm 10.
 ### Manual install
 
 For manual installation, install `nudge-ui` as a development dependency and
-use the host subpath: `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, or
-`nudge-ui/static`. 
+use the host subpath: `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`,
+`nudge-ui/expo` (Expo web), or `nudge-ui/static`. The initializer does not detect
+Expo yet, so Expo projects install manually. 
 See the [package README](packages/nudge-ui/README.md#manual-installation) for configuration examples and supported versions.
 
 ## Hand off to a coding agent

@@ -16,6 +16,8 @@ import {
 import { relativePath, stripModuleExtension } from "./sourcePaths.ts";
 import type { ComponentInvocationMeta } from "./componentContractTypes.ts";
 import { IDENTITY_ATTRIBUTES } from "./identityAttributes.ts";
+import { compiledStyleSheetNames, styleProvenance } from "./styleProvenance.ts";
+import { STYLE_PROVENANCE_ATTRIBUTE } from "./styleProvenanceFormat.ts";
 
 export type { ComponentInstrumentationOptions } from "./componentInstrumentation.ts";
 
@@ -29,6 +31,12 @@ export interface InjectResult {
 export interface InjectIdentityOptions extends ComponentInstrumentationOptions {
   instrumentComponents?: boolean;
   componentRuntimeModule?: string;
+  /**
+   * Modules whose exports render platform elements, such as `react-native`. Their elements are host elements, not
+   * component callsites, and carry identity in a `dataSet` prop, which react-native-web writes out as `data-*`
+   * attributes while dropping `data-*` props.
+   */
+  primitiveModules?: readonly string[];
 }
 
 export const DEFAULT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
@@ -78,9 +86,9 @@ function hasAttr(attrs: Node[], attrName: string): boolean {
   );
 }
 
-function resolveCid(openingName: Node, scopeStack: string[]): string {
+function resolveCid(openingName: Node, scopeStack: string[], primitive = false): string {
   const name = jsxMemberName(openingName);
-  if (name && isComponentName(name)) return name;
+  if (name && isComponentName(name) && !primitive) return name;
   for (let i = scopeStack.length - 1; i >= 0; i--) {
     const scope = scopeStack[i];
     if (scope && isComponentName(scope)) return scope;
@@ -201,12 +209,65 @@ function authoredChildrenKind(children: Node[]): "literal" | "expression" | "spr
   return kind;
 }
 
+/** True when the element's root binding is imported from a module that renders platform elements. */
+function isPrimitiveElement(
+  componentName: string | null,
+  options: InjectIdentityOptions,
+  policy: ComponentInstrumentationPolicy,
+): boolean {
+  if (!componentName || !options.primitiveModules?.length) return false;
+  const binding = policy.bindings.get(componentName.split(".")[0] ?? "");
+  return binding !== undefined && options.primitiveModules.includes(binding.source);
+}
+
+function findAttr(attrs: Node[], attrName: string): Node | undefined {
+  return attrs.find(
+    (a) =>
+      a.type === "JSXAttribute"
+      && (a.name as { type?: string } | undefined)?.type === "JSXIdentifier"
+      && (a.name as { name?: string }).name === attrName,
+  );
+}
+
+/** Writes identity into `dataSet`, merging under an authored one so the author's keys win. */
+function injectPrimitiveIdentity(
+  ms: MagicString,
+  nameEnd: number,
+  attrs: Node[],
+  entries: ReadonlyArray<readonly [string, string]>,
+): boolean {
+  if (entries.length === 0) return false;
+  const fields = entries.map(([key, value]) => `${key}:${JSON.stringify(value)}`).join(",");
+  const authored = findAttr(attrs, "dataSet");
+  if (!authored) {
+    ms.appendRight(nameEnd, ` dataSet={{${fields}}}`);
+    return true;
+  }
+  const value = authored.value as Node | null | undefined;
+  const expression = value?.type === "JSXExpressionContainer" ? value.expression as Node | undefined : undefined;
+  if (!expression || expression.type === "JSXEmptyExpression") return false;
+  const start = expression.start as number | undefined;
+  const end = expression.end as number | undefined;
+  if (typeof start !== "number" || typeof end !== "number") return false;
+  ms.appendLeft(start, `{${fields},...(`);
+  ms.appendRight(end, ")}");
+  return true;
+}
+
 interface WalkState {
   changed: boolean;
   instrumentedComponents: boolean;
   componentPolicy: ComponentInstrumentationPolicy;
   /** Callsites left unwrapped, registered so the runtime can still name them. */
   registeredCallsites: ComponentInvocationMeta[];
+  code: string;
+  /** Bindings to `StyleSheet.create` results, whose members compile to classes rather than inline styles. */
+  compiledStyleSheets: ReadonlySet<string>;
+}
+
+function serialisedStyleProvenance(attrs: Node[], state: WalkState): string | null {
+  const provenance = styleProvenance(attrs, state.code, state.compiledStyleSheets);
+  return provenance ? JSON.stringify(provenance) : null;
 }
 
 function componentIdFor(
@@ -237,7 +298,9 @@ function walkChildren(
 ): void {
   const opening = node.type === "JSXElement" ? node.openingElement as Node : node;
   const componentName = opening.type === "JSXOpeningElement" ? elementName(opening.name) : null;
-  const customElement = componentName !== null && (isComponentName(componentName) || componentName.includes("."));
+  const customElement = componentName !== null
+    && (isComponentName(componentName) || componentName.includes("."))
+    && !isPrimitiveElement(componentName, options, state.componentPolicy);
   for (const key of Object.keys(node)) {
     if (SKIP_KEYS.has(key)) continue;
     const value = node[key];
@@ -301,6 +364,7 @@ function walk(
     if (
       componentName
       && !isReactFragment(componentName, state.componentPolicy)
+      && !isPrimitiveElement(componentName, options, state.componentPolicy)
       && (isComponentName(componentName) || componentName.includes("."))
       && typeof line === "number"
       && typeof column === "number"
@@ -349,7 +413,19 @@ function walk(
       (typeArguments?.end as number | undefined) ??
       (nameNode.end as number | undefined) ??
       null;
-    if (typeof end === "number") {
+    if (typeof end === "number" && isPrimitiveElement(elementName(nameNode), options, state.componentPolicy)) {
+      const loc = nameNode.loc as { start?: { line?: number; column?: number } } | undefined;
+      const line = loc?.start?.line;
+      const col = loc?.start?.column;
+      const cprops = buildCprops(attrs);
+      const entries: Array<readonly [string, string]> = [["cid", resolveCid(nameNode, scopeStack, true)]];
+      // Babel columns are 0-indexed; emit 1-indexed to match __source.
+      if (typeof line === "number" && typeof col === "number") entries.push(["src", `${relPath}:${line}:${col + 1}`]);
+      if (cprops) entries.push(["cprops", cprops]);
+      const cstyle = serialisedStyleProvenance(attrs, state);
+      if (cstyle) entries.push(["cstyle", cstyle]);
+      if (injectPrimitiveIdentity(ms, end, attrs, entries)) state.changed = true;
+    } else if (typeof end === "number") {
       if (!hasAttr(attrs, "data-cid")) {
         const cid = resolveCid(nameNode, scopeStack);
         ms.appendRight(end, ` data-cid="${cid}"`);
@@ -371,6 +447,15 @@ function walk(
         const cprops = buildCprops(attrs);
         if (cprops) {
           ms.appendRight(end, ` data-cprops="${escapeJsxAttribute(cprops)}"`);
+          state.changed = true;
+        }
+      }
+      // Only host elements write `style` to the DOM; a component's `style` prop may go anywhere.
+      const hostName = elementName(nameNode);
+      if (hostName && !isComponentName(hostName) && !hostName.includes(".") && !hasAttr(attrs, STYLE_PROVENANCE_ATTRIBUTE)) {
+        const cstyle = serialisedStyleProvenance(attrs, state);
+        if (cstyle) {
+          ms.appendRight(end, ` ${STYLE_PROVENANCE_ATTRIBUTE}="${escapeJsxAttribute(cstyle)}"`);
           state.changed = true;
         }
       }
@@ -419,6 +504,8 @@ export function injectIdentity(
     instrumentedComponents: false,
     componentPolicy: createComponentInstrumentationPolicy(ast, options),
     registeredCallsites: [],
+    code,
+    compiledStyleSheets: compiledStyleSheetNames(ast),
   };
   walk(ast, null, [], ms, relPath, options, state, true);
   if (!state.changed) return null;

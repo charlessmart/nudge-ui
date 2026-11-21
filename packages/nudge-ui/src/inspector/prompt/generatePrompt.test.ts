@@ -643,6 +643,35 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("(:0");
   });
 
+  it("asks a React Native project for styles rather than CSS", () => {
+    const change = rec({ cid: "RideCard", file: "components/RideCard.tsx", line: 12, property: "padding-top", rawValue: "12px" });
+    const native = generatePrompt([change], { framework: "React Native", stylingSystem: "CSS custom properties" }, [], "", []);
+    const web = generatePrompt([change], { framework: "React", stylingSystem: "CSS custom properties" }, [], "", []);
+
+    expect(native).toContain("write them as React Native styles");
+    expect(native).toContain("`paddingTop: 12`");
+    expect(web).not.toContain("React Native");
+  });
+
+  it("says where an inline style value lives in source", () => {
+    const literal = generatePrompt([rec({
+      cid: "Row", file: "Row.tsx", property: "padding-left", rawValue: "8px", oldRawValue: "4px",
+      inlineSource: { kind: "literal", property: "paddingHorizontal", source: "4" },
+    })]);
+    const expression = generatePrompt([rec({
+      cid: "Row", file: "Row.tsx", property: "color", rawValue: "red",
+      inlineSource: { kind: "expression", property: "color", source: "colors.text" },
+    })]);
+    const opaque = generatePrompt([rec({
+      cid: "Row", file: "Row.tsx", property: "width", rawValue: "40px",
+      inlineSource: { kind: "opaque", source: "sizeStyle" },
+    })]);
+
+    expect(literal).toContain("written on the element's style prop as `paddingHorizontal: 4`; change it there.");
+    expect(expression).toContain("`color: colors.text`. Decide whether to change what `colors.text` holds");
+    expect(opaque).toContain("through `sizeStyle`. Trace where it is set before changing it.");
+  });
+
   it("preserves hover intent for legacy runtime edits without element evidence", () => {
     const out = generatePrompt([rec({
       cid: "nudge-ui-runtime-9", file: "nudge-ui:unknown:9", line: 0,

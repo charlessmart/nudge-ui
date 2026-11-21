@@ -534,13 +534,24 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onPointerDown = (event: PointerEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
+    // A replay's pointer events belong to the application. Without this, holding space over the
+    // canvas turns every replayed click into a pan, and the step never reaches its target.
+    if ((window as { __nudgeUiFlowReplaying?: boolean }).__nudgeUiFlowReplaying === true) return;
     if (!spacePans || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     panning = true;
     event.preventDefault();
     const target = event.target;
-    if (target instanceof HTMLElement) target.setPointerCapture?.(event.pointerId);
+    if (target instanceof HTMLElement) {
+      // A replayed pointerdown (a flow step) has no active pointer to capture, so the browser
+      // throws. Panning still starts; only the capture is skipped.
+      try {
+        target.setPointerCapture?.(event.pointerId);
+      } catch {
+        /* No active pointer: a synthetic event from the flow replay. */
+      }
+    }
     const message: PanStartMessage = {
       type: "pan-start",
       protocolVersion: PROTOCOL_VERSION,

@@ -11,9 +11,10 @@ export type NudgeUiRuntimeHost =
   | "vite-react"
   | "static-html"
   | "nextjs-react"
-  | "astro";
+  | "astro"
+  | "expo";
 
-export type NudgeUiRuntimeFramework = "React" | "HTML" | "Astro";
+export type NudgeUiRuntimeFramework = "React" | "React Native" | "HTML" | "Astro";
 
 export interface SourceCoordinatePolicy {
   /** Cid prefixes whose `data-src` line:column point at authored source. */
@@ -109,9 +110,11 @@ const RUNTIME_HOSTS: readonly NudgeUiRuntimeHost[] = [
   "static-html",
   "nextjs-react",
   "astro",
+  "expo",
 ];
 const RUNTIME_FRAMEWORKS: readonly NudgeUiRuntimeFramework[] = [
   "React",
+  "React Native",
   "HTML",
   "Astro",
 ];

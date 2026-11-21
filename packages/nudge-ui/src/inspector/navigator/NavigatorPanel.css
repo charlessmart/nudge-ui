@@ -15,6 +15,16 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.navigator__section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.navigator__section-body[hidden] {
+  display: none;
+}
+
 /* Deep or long layer names scroll inside the tree, so the Pages section and headers above stay put.
    Every row takes the widest row's width, so hover and selection fills line up while scrolled. */
 .navigator__section--layers .layer-tree {
@@ -43,6 +53,61 @@
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-label);
   letter-spacing: -0.02em;
+}
+
+/* The title folds its section. Its chevron hangs in the gutter to the left, so the title keeps the rows' edge. */
+.navigator__section-toggle {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.navigator__section-toggle:focus-visible {
+  outline: 0;
+}
+
+.navigator__section-chevron {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 3px);
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.navigator__section-toggle[aria-expanded="false"] .navigator__section-chevron {
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.navigator__section-header:hover .navigator__section-chevron,
+.navigator__section-toggle:focus-visible .navigator__section-chevron {
+  opacity: 1;
+}
+
+.navigator__section-toggle:hover .navigator__section-chevron,
+.navigator__section-toggle:focus-visible .navigator__section-chevron {
+  color: var(--text-primary);
+}
+
+@media (hover: none) {
+  .navigator__section-chevron {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigator__section-chevron {
+    transition: none;
+  }
 }
 
 .navigator__list {

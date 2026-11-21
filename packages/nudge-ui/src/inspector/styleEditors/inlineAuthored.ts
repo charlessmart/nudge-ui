@@ -1,7 +1,10 @@
 import type { StringListRecord } from "./stringRecord.ts";
 import { isLayoutPreview } from "./layoutPreviewState.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { parseStyleProvenance, STYLE_PROVENANCE_ATTRIBUTE } from "../../compiler/styleProvenanceFormat.ts";
+import type { InlineStyleSource } from "../changes/types.ts";
 
-// A `style`-attribute shorthand authors the keyed longhand; managed previews lose the cascade to inline styles.
+// A `style`-attribute shorthand authors the keyed longhand. Inline values with a known source preview with `!important` (ADR-0053).
 const SHORTHAND_SOURCES: StringListRecord = {
   "font-family": ["font"],
   "font-style": ["font"],
@@ -76,18 +79,56 @@ const LINKED_LONGHANDS: StringListRecord = {
   "border-radius": ["border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"],
 };
 
-/** Non-null means the field must present as blocked: previews cannot beat inline styles in the cascade. */
-export function inlineAuthoredValue(el: HTMLElement, property: string): string | null {
-  if (isLayoutPreview(el, property)) return null;
+interface InlineDeclaration {
+  property: string;
+  value: string;
+}
+
+/** The inline declaration that sets the property, through a shorthand or a linked longhand when needed. */
+function inlineDeclaration(el: HTMLElement, property: string): InlineDeclaration | null {
   for (const source of [property, ...(SHORTHAND_SOURCES[property] ?? [])]) {
     const value = el.style.getPropertyValue(source).trim();
-    if (value) return `${source}: ${value}`;
+    if (value) return { property: source, value };
   }
   for (const longhand of LINKED_LONGHANDS[property] ?? []) {
-    const value = inlineAuthoredValue(el, longhand);
-    if (value) return value;
+    const declaration = inlineDeclaration(el, longhand);
+    if (declaration) return declaration;
   }
   return null;
+}
+
+/** Every CSS name whose authored entry could write the property. */
+function provenanceKeys(property: string): string[] {
+  const keys = [property, ...(SHORTHAND_SOURCES[property] ?? [])];
+  for (const longhand of LINKED_LONGHANDS[property] ?? []) keys.push(...provenanceKeys(longhand));
+  return [...new Set(keys)];
+}
+
+/** Hosts whose compiler records `style` prop provenance (ADR-0053); elsewhere inline values stay blocked. */
+export function recordsInlineStyleProvenance(): boolean {
+  const { framework } = getNudgeUiRuntimeConfig();
+  return framework === "React" || framework === "React Native";
+}
+
+/** Where an editable inline value is written in source; null when the property is not inline or has no source. */
+export function inlineStyleSource(el: HTMLElement, property: string): InlineStyleSource | null {
+  if (isLayoutPreview(el, property) || !inlineDeclaration(el, property)) return null;
+  if (!recordsInlineStyleProvenance()) return null;
+  const provenance = parseStyleProvenance(el.getAttribute(STYLE_PROVENANCE_ATTRIBUTE));
+  if (!provenance) return null;
+  for (const key of provenanceKeys(property)) {
+    const entry = provenance.props[key];
+    if (entry) return { kind: entry[0], property: entry[2], source: entry[1] };
+  }
+  return provenance.opaque.length > 0 ? { kind: "opaque", source: provenance.opaque.join(", ") } : null;
+}
+
+/** Non-null means the field must present as blocked: the inline value has no source an edit could change. */
+export function inlineAuthoredValue(el: HTMLElement, property: string): string | null {
+  if (isLayoutPreview(el, property)) return null;
+  const declaration = inlineDeclaration(el, property);
+  if (!declaration || inlineStyleSource(el, property)) return null;
+  return `${declaration.property}: ${declaration.value}`;
 }
 
 export function inlineBlockedBy(elements: readonly HTMLElement[], ...properties: readonly string[]): string | null {

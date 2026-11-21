@@ -1,5 +1,5 @@
-import { useSyncExternalStore, type ReactElement } from "react";
-import { IconArtboard, IconComponents, IconFile } from "@tabler/icons-react";
+import { useId, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
+import { IconArtboard, IconChevronDown, IconComponents, IconFile } from "@tabler/icons-react";
 import {
   focusCard,
   getCanvasCardLabel,
@@ -18,6 +18,7 @@ import { LayerTree } from "../layers/LayerTree.tsx";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { AddPageMenu } from "./AddPageMenu.tsx";
+import { toggleCollapsed, useCollapsed } from "./collapseStore.ts";
 
 /** Live pages, iterations and component sheets; flow states are listed under their flow instead. */
 function isStandaloneFrame(card: CanvasCard): boolean {
@@ -25,6 +26,44 @@ function isStandaloneFrame(card: CanvasCard): boolean {
 }
 
 const FRAME_ICONS = { route: IconFile, iteration: IconArtboard, component: IconComponents } as const;
+
+interface CollapsibleSectionProps {
+  readonly id: "flows" | "pages" | "layers";
+  readonly title: string;
+  readonly className: string;
+  readonly actions?: ReactNode;
+  readonly children: ReactNode;
+  readonly "data-test"?: string;
+}
+
+/** A navigator section whose title folds it away. The chevron sits in the left gutter and shows on hover, so titles keep their edge. */
+function CollapsibleSection({ id, title, className, actions, children, "data-test": dataTest }: CollapsibleSectionProps): ReactElement {
+  const collapsed = useCollapsed(`section:${id}`);
+  const bodyId = useId();
+  return (
+    <section className={`navigator__section ${className}`} data-test={dataTest} data-collapsed={collapsed ? "true" : undefined}>
+      <header className="navigator__section-header">
+        <h3 className="navigator__section-title">
+          <button
+            type="button"
+            className="navigator__section-toggle"
+            data-test={`navigator-section-toggle-${id}`}
+            aria-expanded={!collapsed}
+            aria-controls={bodyId}
+            onClick={() => toggleCollapsed(`section:${id}`)}
+          >
+            <IconChevronDown className="navigator__section-chevron" size={10} stroke={2} aria-hidden="true" />
+            {title}
+          </button>
+        </h3>
+        {actions}
+      </header>
+      <div id={bodyId} className="navigator__section-body" hidden={collapsed}>
+        {children}
+      </div>
+    </section>
+  );
+}
 
 /** The flows an agent mapped, every other frame on the Canvas, then the active frame's layers. A page inspected in place has only its layers. */
 export function FramesView(): ReactElement {
@@ -48,22 +87,14 @@ export function FramesView(): ReactElement {
   return (
     <div className="navigator__frames-view">
       {!pageSurface && flowsEnabled ? (
-        <section className="navigator__section navigator__section--flows" data-test="navigator-flows">
+        <CollapsibleSection id="flows" title="Flows" className="navigator__section--flows" data-test="navigator-flows" actions={<AddFlowMenu />}>
           <FlowFramesStyle />
-          <header className="navigator__section-header">
-            <h3 className="navigator__section-title">Flows</h3>
-            <AddFlowMenu />
-          </header>
           <FlowsIntro />
           <FlowGroups activeCardId={activeCardId ?? null} />
-        </section>
+        </CollapsibleSection>
       ) : null}
       {!pageSurface ? (
-        <section className="navigator__section navigator__section--frames">
-          <header className="navigator__section-header">
-            <h3 className="navigator__section-title">Pages</h3>
-            <AddPageMenu />
-          </header>
+        <CollapsibleSection id="pages" title="Pages" className="navigator__section--frames" actions={<AddPageMenu />}>
           <ul className="navigator__list" data-test="navigator-frames">
             {frames.map((card) => {
               const Icon = FRAME_ICONS[card.content.kind];
@@ -85,14 +116,11 @@ export function FramesView(): ReactElement {
               );
             })}
           </ul>
-        </section>
+        </CollapsibleSection>
       ) : null}
-      <section className="navigator__section navigator__section--layers">
-        <header className="navigator__section-header">
-          <h3 className="navigator__section-title">Layers</h3>
-        </header>
+      <CollapsibleSection id="layers" title="Layers" className="navigator__section--layers">
         <LayerTree doc={getActiveCanvasDocument()} />
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

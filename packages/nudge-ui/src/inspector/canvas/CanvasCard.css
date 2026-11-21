@@ -106,6 +106,8 @@
   box-shadow: none;
   transform: scale(var(--canvas-toolbar-scale, 1));
   transform-origin: left top;
+  /* Every zoom tick resizes every bar. Bars outside the viewport skip restyling and laying out their controls, which is most of them once a board holds many frames. */
+  content-visibility: auto;
   cursor: grab;
   user-select: none;
   touch-action: none;

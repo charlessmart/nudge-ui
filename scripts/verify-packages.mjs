@@ -87,6 +87,7 @@ function verifyPackage(packageRoot) {
       "./vite",
       "./next",
       "./astro",
+      "./expo",
       "./static",
       "./testing",
       "./virtual-design-tokens",
@@ -110,6 +111,10 @@ function verifyPackage(packageRoot) {
       const path = `package/dist/hosts/next/loaders/${loader}`;
       assert(entries.includes(path), `nudge-ui is missing ${path}.`);
     }
+    assert(
+      entries.includes("package/dist/hosts/expo/babel-transformer.cjs"),
+      "nudge-ui is missing its Expo Metro transformer.",
+    );
     assert(
       !entries.some((entry) => entry.endsWith("/css-inline-loader.cjs")),
       "nudge-ui must not publish the obsolete CSS query loader.",

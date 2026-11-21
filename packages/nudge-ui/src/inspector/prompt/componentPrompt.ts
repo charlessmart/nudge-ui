@@ -1,4 +1,5 @@
 import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
+import { inlineSourceNote } from "./inlineSourceNote.ts";
 import { isElementChange, type ChangeRecord, type ElementChangeRecord } from "../changes/types.ts";
 import type { ElementComment } from "../comments/store.ts";
 import { variantScopeKey, type VariantScope } from "../componentSemantics/variantMarkers.ts";
@@ -105,6 +106,8 @@ function codeNotes(rec: ElementChangeRecord): string[] {
   if (rec.sourceProperty && rec.sourceProperty !== rec.property) {
     notes.push(`The code writes this as ${rec.sourceProperty}${rec.sourceAuthoredValue ? `: ${rec.sourceAuthoredValue}` : ""}.`);
   }
+  const inline = inlineSourceNote(rec);
+  if (inline) notes.push(inline);
   if (rec.newToken) {
     const dialect = stylingDialect(rec.newToken.adapter);
     const after = dialect?.sourceForm?.(rec.newToken, rec.property);

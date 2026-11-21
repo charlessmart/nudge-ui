@@ -8,7 +8,7 @@ export interface CanvasCamera {
   zoom: number;
 }
 
-export const MIN_CAMERA_ZOOM = 0.25;
+export const MIN_CAMERA_ZOOM = 0.1;
 export const MAX_CAMERA_ZOOM = 3;
 export const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
 

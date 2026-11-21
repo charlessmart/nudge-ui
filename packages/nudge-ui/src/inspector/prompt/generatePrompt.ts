@@ -1,4 +1,5 @@
 import { describeVariantScope, variantScopeKey } from "../componentSemantics/variantMarkers.ts";
+import { inlineSourceNote } from "./inlineSourceNote.ts";
 import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/types.ts";
 import type {
   ChangeRecord,
@@ -187,6 +188,14 @@ function refPromptKey(ref: RenderedInstanceRef): string {
 }
 
 /** Plain paragraphs, not a document: the prompt is read in a text box and spoken in the user's voice. */
+const REACT_NATIVE_FRAMEWORK = "React Native";
+
+/** The inspector reads react-native-web's CSS output; the source is React Native styles, which have no cascade or units. */
+const REACT_NATIVE_STYLE_NOTE = "This is a React Native app, inspected on the web through react-native-web. The values "
+  + "above are the CSS it rendered: please write them as React Native styles on the element's `style` prop or its "
+  + "`StyleSheet` entry (camelCase keys, unitless numbers for pixel values, such as `paddingTop: 12`), not as CSS, "
+  + "and keep them valid on iOS and Android.";
+
 function renderPrompt(blocks: string[], customInstructions: string): string {
   const instructions = customInstructions.trim();
   return [PROMPT_INTRO, ...blocks, ...(instructions ? [instructions] : [])].join("\n\n");
@@ -279,8 +288,13 @@ function dialectSourceLine(rec: ElementChangeRecord): string | null {
   return `  In ${dialect.label} this is the ${after} utility${before && before !== after ? `, in place of ${before}` : ""}.`;
 }
 
+function inlineSourceLine(rec: ElementChangeRecord): string | null {
+  const note = inlineSourceNote(rec);
+  return note ? `  ${note}` : null;
+}
+
 function elementChangeLines(rec: ElementChangeRecord): string[] {
-  return [elementChangeLine(rec), sourceIntentLine(rec), dialectSourceLine(rec)]
+  return [elementChangeLine(rec), sourceIntentLine(rec), inlineSourceLine(rec), dialectSourceLine(rec)]
     .filter((line): line is string => line !== null);
 }
 
@@ -644,6 +658,7 @@ export function generatePrompt(
   }
 
   for (const group of groups.values()) blocks.push(renderGroup(group));
+  if (frameworkHints?.framework === REACT_NATIVE_FRAMEWORK && elementGroups.length > 0) blocks.push(REACT_NATIVE_STYLE_NOTE);
 
   return renderPrompt(blocks, customInstructions);
 }

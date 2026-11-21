@@ -23,7 +23,8 @@ connect a coding agent. Start your app with its usual development command and
 open the local URL to use the editor.
 
 Requires Node.js 20 or later. Your framework or build tool may require a newer
-version. Supported host versions are Vite 5+, Next.js 15.3–16.x, and Astro 5+;
+version. Supported host versions are Vite 5+, Next.js 15.3–16.x, Astro 5+, and
+Expo web bundled with Metro (its CommonJS `metro.config.js` needs Node.js 20.19+);
 React integrations support React 18 and 19. Framework peer dependencies are
 optional, so you only need the tools your app uses.
 
@@ -130,6 +131,23 @@ export default defineConfig({
 `withNudgeUi(defineConfig(...))` from `nudge-ui/astro` is also supported and is
 the form used by the initializer.
 
+### Expo (web)
+
+Wrap the Metro config in `metro.config.js`, then run `npx expo start --web`:
+
+```js
+const { getDefaultConfig } = require("expo/metro-config");
+const { withNudgeUi } = require("nudge-ui/expo");
+
+module.exports = withNudgeUi(getDefaultConfig(__dirname));
+```
+
+Nudge inspects the web build that react-native-web renders. iOS and Android
+bundles and `expo export` builds are left untouched. The prompt asks the agent
+for React Native styles rather than CSS. Use `sourceRoots` for authored workspace
+directories outside the app root, and `primitiveModules` to list other libraries
+whose components forward `dataSet` to a `View`.
+
 ### Static HTML
 
 Serve a directory of HTML, CSS, and assets:
@@ -159,8 +177,8 @@ development server with `NUDGE_UI=1`.
 
 ## Package entry points
 
-Use `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, or `nudge-ui/static` for
-host integration. `nudge-ui/testing` provides consumer test fixtures, and
+Use `nudge-ui/vite`, `nudge-ui/next`, `nudge-ui/astro`, `nudge-ui/expo`, or
+`nudge-ui/static` for host integration. `nudge-ui/testing` provides consumer test fixtures, and
 `nudge-ui/virtual-design-tokens` provides ambient types for the token transport
 module. Imports under `nudge-ui/internal/*` are implementation details and may
 change without notice.

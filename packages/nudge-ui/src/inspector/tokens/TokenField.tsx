@@ -120,6 +120,7 @@ export interface TokenFieldProps {
   interceptRaw?: (value: string) => boolean;
 }
 
+const NO_ENTRIES: TokenEntry[] = [];
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
 
 function colorFacts(value: string): ColorValueFacts {
@@ -377,24 +378,26 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showOpacity = isColor && !activeTokenHasEmbeddedAlpha
     && authoredColor.opacityEditable
     && (Boolean(activeTokenName) || attributionTokens.length === 0 || Boolean(opacity));
+  // Only an open list shows tokens. A panel mounts dozens of fields per selection, and classifying every token for each closed one cost more than the rest of the render on pages with hundreds of tokens.
+  const listEntries = listOpen ? entries : NO_ENTRIES;
   // Classification costs up to three CSS.supports calls per token, so it runs once per entries change.
   const groupByTokenName = useMemo(() => {
     const groups = new Map<string, string>();
-    for (const entry of entries) groups.set(entry.name, tokenGroup(entry));
+    for (const entry of listEntries) groups.set(entry.name, tokenGroup(entry));
     return groups;
-  }, [entries]);
+  }, [listEntries]);
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
-      ? entries.filter((entry) => allowedTokenNames.has(entry.name))
+      ? listEntries.filter((entry) => allowedTokenNames.has(entry.name))
       : selectTokens({
         element: domElement,
         property,
         slot: semanticSlot,
-        entries,
+        entries: listEntries,
         currentToken: activeTokenName,
       }).candidates.map(({ entry }) => entry);
     return candidates.filter((entry) => entry.name !== property);
-  }, [activeTokenName, allowedTokenNames, domElement, entries, property, semanticSlot]);
+  }, [activeTokenName, allowedTokenNames, domElement, listEntries, property, semanticSlot]);
   const filteredTokens = useMemo(() => {
     const target = rawValue.toLowerCase();
     return relevantTokens.filter((entry) => !target

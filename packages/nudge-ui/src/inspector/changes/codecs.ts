@@ -52,6 +52,7 @@ export interface SerializableElementChange {
   property: string;
   sourceProperty?: string;
   sourceAuthoredValue?: string;
+  inlineSource?: NonNullable<ElementChangeRecord["inlineSource"]>;
   oldToken: SerializableTokenRef | null;
   newToken: SerializableTokenRef | null;
   rawValue?: string;
@@ -124,7 +125,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
   if (!isRecord(value)
     || !hasOnlyKeys(value, [
       "kind", "cid", "file", "line", "column", "selector", "property",
-      "sourceProperty", "sourceAuthoredValue", "oldToken", "newToken", "rawValue",
+      "sourceProperty", "sourceAuthoredValue", "inlineSource", "oldToken", "newToken", "rawValue",
       "oldRawValue", "source", "runtimeEvidence", "sourceEvidence", "scope", "sourceInstanceCount", "instanceOverride", "state", "preservedStates", "variantScope",
     ])
     || (value.kind !== undefined && value.kind !== "element")
@@ -139,6 +140,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || !isTokenRefValue(value.newToken)
     || (value.sourceProperty !== undefined && typeof value.sourceProperty !== "string")
     || (value.sourceAuthoredValue !== undefined && typeof value.sourceAuthoredValue !== "string")
+    || (value.inlineSource !== undefined && !isInlineStyleSourceValue(value.inlineSource))
     || (value.rawValue !== undefined && typeof value.rawValue !== "string")
     || (value.oldRawValue !== undefined && typeof value.oldRawValue !== "string")
     || (value.runtimeEvidence !== undefined && !isRuntimeElementEvidenceValue(value.runtimeEvidence))
@@ -225,6 +227,7 @@ export function serializeElementChange(change: ElementChangeRecord): Serializabl
     property: change.property,
     sourceProperty: change.sourceProperty,
     sourceAuthoredValue: change.sourceAuthoredValue,
+    inlineSource: change.inlineSource ? { ...change.inlineSource } : undefined,
     oldToken: serializeTokenRef(change.oldToken),
     newToken: serializeTokenRef(change.newToken),
     rawValue: change.rawValue,
@@ -319,6 +322,7 @@ export function deserializeElementChange(serialized: SerializableElementChange):
     property: serialized.property,
     sourceProperty: serialized.sourceProperty,
     sourceAuthoredValue: serialized.sourceAuthoredValue,
+    ...(serialized.inlineSource ? { inlineSource: { ...serialized.inlineSource } } : {}),
     oldToken: deserializeTokenRef(serialized.oldToken),
     newToken: deserializeTokenRef(serialized.newToken),
     rawValue: serialized.rawValue,
@@ -476,6 +480,14 @@ function isRuntimeElementEvidenceValue(value: unknown): value is NonNullable<Ele
     && (typeof value.ariaLabel === "string" || value.ariaLabel === null)
     && (value.domPath === undefined || typeof value.domPath === "string" || value.domPath === null)
     && (value.elementId === undefined || typeof value.elementId === "string" || value.elementId === null);
+}
+
+function isInlineStyleSourceValue(value: unknown): value is NonNullable<ElementChangeRecord["inlineSource"]> {
+  return isRecord(value)
+    && hasOnlyKeys(value, ["kind", "property", "source"])
+    && (value.kind === "literal" || value.kind === "expression" || value.kind === "opaque")
+    && (value.property === undefined || typeof value.property === "string")
+    && typeof value.source === "string";
 }
 
 function isSourceElementEvidenceValue(value: unknown): value is NonNullable<ElementChangeRecord["sourceEvidence"]> {

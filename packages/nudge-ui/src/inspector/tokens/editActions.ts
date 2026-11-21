@@ -18,6 +18,7 @@ import {
 import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 import { changeKey } from "../changes/model.ts";
 import { isPageTarget, PAGE_TARGET_CID } from "../selection/pageTarget.ts";
+import { inlineStyleSource } from "../styleEditors/inlineAuthored.ts";
 
 function elementCid(el: HTMLElement): string {
   return isPageTarget(el) ? PAGE_TARGET_CID : el.getAttribute("data-cid") ?? "";
@@ -117,6 +118,12 @@ function preservedStateFields(
   return preservedStates.length > 0 ? { preservedStates } : {};
 }
 
+/** An edit to a value the element writes inline records where that value lives, so it previews and is handed off as such. */
+function inlineSourceFields(el: HTMLElement, property: string): Pick<ElementChangeRecord, "inlineSource"> {
+  const inlineSource = isPageTarget(el) ? null : inlineStyleSource(el, property);
+  return inlineSource ? { inlineSource } : {};
+}
+
 function stateFields(el: HTMLElement) {
   const state = getActiveStyleState();
   const selector = selectorForElement(el);
@@ -163,6 +170,7 @@ export function swapTokens(
         selector,
         property: change.property,
         ...change.metadata,
+        ...inlineSourceFields(el, change.property),
         oldToken: change.oldToken,
         newToken: change.newToken,
         source: { file: source.file, line: source.line, component: cid },
@@ -266,6 +274,7 @@ function buildStyleRecord(
     selector,
     property,
     ...metadata,
+    ...inlineSourceFields(el, property),
     oldToken,
     newToken: null,
     rawValue: value,

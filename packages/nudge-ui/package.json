@@ -36,6 +36,11 @@
       "import": "./dist/hosts/astro/index.js",
       "default": "./dist/hosts/astro/index.js"
     },
+    "./expo": {
+      "types": "./dist/hosts/expo/index.d.ts",
+      "import": "./dist/hosts/expo/index.js",
+      "default": "./dist/hosts/expo/index.js"
+    },
     "./static": {
       "types": "./dist/hosts/static/index.d.ts",
       "import": "./dist/hosts/static/index.js",
@@ -96,7 +101,7 @@
   },
   "scripts": {
     "dev:client": "node scripts/watch-inspector-client.mjs",
-    "build": "node ../../scripts/build-package.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-static-cli.mjs",
+    "build": "node ../../scripts/build-package.mjs && node scripts/build-inspector-client.mjs && node scripts/build-next-loaders.mjs && node scripts/build-expo-transformer.mjs && node scripts/build-static-cli.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run --config vitest.unit.config.ts",

@@ -200,6 +200,73 @@ describe("bootstrapRenderer teardown", () => {
     }));
   });
 
+  it("leaves the app's clicks alone while a flow replay is running", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRendererForTest();
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: true, panScroll: false, spacePan: true, ...identity },
+    }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", cancelable: true }));
+
+    const capture = vi.fn(() => {
+      throw new Error("No active pointer with the given id is found.");
+    });
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, writable: true, value: capture });
+    try {
+      (window as unknown as { __nudgeUiFlowReplaying?: boolean }).__nudgeUiFlowReplaying = true;
+      expect(() => document.body.dispatchEvent(new MouseEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 4,
+        clientY: 5,
+      }))).not.toThrow();
+      expect(messages(postMessage).filter((message) => message.type === "pan-start")).toHaveLength(0);
+      expect(capture).not.toHaveBeenCalled();
+    } finally {
+      delete (window as unknown as { __nudgeUiFlowReplaying?: boolean }).__nudgeUiFlowReplaying;
+      delete (HTMLElement.prototype as unknown as { setPointerCapture?: unknown }).setPointerCapture;
+    }
+  });
+
+  it("keeps a pan going when the browser refuses the pointer capture", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRendererForTest();
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: true, panScroll: false, spacePan: true, ...identity },
+    }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", cancelable: true }));
+
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error("No active pointer with the given id is found.");
+      },
+    });
+    try {
+      expect(() => document.body.dispatchEvent(new MouseEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 10,
+        clientY: 20,
+      }))).not.toThrow();
+      expect(messages(postMessage)).toContainEqual(expect.objectContaining({
+        type: "pan-start",
+        point: { x: 10, y: 20 },
+      }));
+    } finally {
+      delete (HTMLElement.prototype as unknown as { setPointerCapture?: unknown }).setPointerCapture;
+    }
+  });
+
   it("cancels a pending pan frame and removes pan listeners", () => {
     const scheduled: FrameRequestCallback[] = [];
     const originalRequestAnimationFrame = window.requestAnimationFrame;

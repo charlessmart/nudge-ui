@@ -28,10 +28,16 @@
   list-style: none;
 }
 
-/* A flow heads its states: icon and title on the same edge as page rows, then its show/hide toggle. */
+/* A flow heads its states like a layer heads its children: a disclosure chevron, its icon and title, then its show/hide toggle. */
 .flows-panel__header {
   display: flex;
   align-items: center;
+  border-radius: var(--radius-8);
+}
+
+.flows-panel__header:hover,
+.flows-panel__header:focus-within {
+  background: var(--surface-well);
 }
 
 /* Show or Hide appears with the pointer or keyboard focus, so a list of flows reads as titles. */
@@ -50,15 +56,45 @@
   }
 }
 
+/* The icon lands where a top-level layer's does, one chevron column in from the page rows. */
 .flows-panel__title {
+  appearance: none;
   display: flex;
   flex: 1;
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
   min-height: var(--control-height-large);
-  padding: 0 var(--space-8);
+  padding: 0 var(--space-8) 0 var(--space-4);
+  border: 0;
+  background: transparent;
   color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flows-panel__title:focus-visible {
+  outline: 0;
+}
+
+.flows-panel__chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  margin-right: calc(-1 * var(--space-4));
+  color: var(--text-muted);
+}
+
+.flows-panel__title:hover .flows-panel__chevron,
+.flows-panel__title:focus-visible .flows-panel__chevron {
+  color: var(--text-primary);
+}
+
+.flows-panel__states[hidden] {
+  display: none;
 }
 
 .flows-panel__state {
@@ -68,7 +104,7 @@
   gap: var(--space-8);
   width: 100%;
   min-height: var(--control-height-large);
-  padding: 0 var(--space-8) 0 calc(var(--space-8) * 2 + 14px);
+  padding: 0 var(--space-8) 0 calc(var(--space-8) * 2 + 16px + 14px);
   border: 0;
   border-radius: var(--radius-4);
   background: transparent;
@@ -123,7 +159,7 @@
 
 .flows-panel__states .flows-panel__problem,
 .flows-panel__states .flows-panel__blocked {
-  margin-left: calc(var(--space-8) * 2 + 14px);
+  margin-left: calc(var(--space-8) * 2 + 16px + 14px);
 }
 
 .flows-panel__problem { color: var(--danger-text); }

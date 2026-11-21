@@ -355,6 +355,23 @@ describe("runtime HTML evidence", () => {
     });
   });
 
+  it("records an inline value's source and previews it with !important", () => {
+    const row = makeButton("Row", "src/Row.tsx:3:5");
+    row.style.setProperty("padding-left", "4px");
+    row.setAttribute("data-cstyle", JSON.stringify({
+      props: { "padding-inline": ["literal", "4", "paddingHorizontal"] },
+      opaque: [],
+    }));
+
+    const record = setStyle(row, "padding-left", "12px");
+    const plain = setStyle(row, "margin-top", "2px");
+
+    expect(record?.inlineSource).toEqual({ kind: "literal", property: "paddingHorizontal", source: "4" });
+    expect(plain?.inlineSource).toBeUndefined();
+    expect(getManagedSheetText()).toContain("padding-left: 12px !important");
+    expect(getManagedSheetText()).toMatch(/margin-top: 2px;/);
+  });
+
   it("uses unannotated-source evidence when authored markup has no usable data-src", () => {
     // Degraded Astro identity: no source annotation, so prompts must treat the location as unknown.
     const heading = document.createElement("h1");

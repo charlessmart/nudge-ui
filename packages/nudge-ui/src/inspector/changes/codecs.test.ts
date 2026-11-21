@@ -225,4 +225,13 @@ describe("change codecs", () => {
     expect(isSerializableChange({ ...serialized, variantScope: { componentName: "Button", props: { n: 1 } } })).toBe(false);
     expect(isSerializableChange({ ...serialized, scope: "rendered-instance" })).toBe(false);
   });
+
+  it("round-trips an inline style source and rejects a malformed one", () => {
+    const inlineSource = { kind: "expression", property: "color", source: "colors.text" } as const;
+    const serialized = serializeChange({ ...makeElementChange(), inlineSource });
+    expect(isSerializableChange(JSON.parse(JSON.stringify(serialized)))).toBe(true);
+    expect(deserializeChange(serialized!)).toMatchObject({ inlineSource });
+    expect(isSerializableChange({ ...serialized, inlineSource: { kind: "runtime", source: "x" } })).toBe(false);
+    expect(isSerializableChange({ ...serialized, inlineSource: { kind: "literal", source: "4", extra: 1 } })).toBe(false);
+  });
 });

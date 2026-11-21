@@ -55,3 +55,5 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0049: The landing page owns the top document](./0049-landing-page-owns-the-top-document.md) (supersedes ADR-0027's iframe-editor landing demo)
 - [ADR-0050: Component framework adapters, and component sheets on Next.js](./0050-component-framework-adapters.md) (supersedes ADR-0045's and ADR-0046's Vite-only sheets and library routes, and ADR-0034's note that Next.js does not inject the renderer capture)
 - [ADR-0051: Readable HTML artifact folders, without a baseline capture](./0051-readable-html-artifact-folders.md) (supersedes ADR-0030's UUID artifact IDs and its `baseline.html` file)
+- [ADR-0052: Expo web host Adapter](./0052-expo-web-host-adapter.md)
+- [ADR-0053: Editable inline styles with source provenance](./0053-editable-inline-styles.md) (supersedes ADR-0036's rule that managed declarations are never `!important` and that inline-style conflicts remain reported conflicts)

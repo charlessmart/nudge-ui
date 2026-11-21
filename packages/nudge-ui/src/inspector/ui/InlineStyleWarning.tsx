@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { cx } from "./classNames.ts";
 import { Tooltip } from "./Tooltip.tsx";
+import { recordsInlineStyleProvenance } from "../styleEditors/inlineAuthored.ts";
 
 export interface InlineStyleWarningProps {
   blockedBy: string | null;
@@ -15,7 +16,9 @@ export function inlineStyleWarningContent(blockedBy: string | null): ReactElemen
   return (
     <div className="at-rule-tooltip__rules">
       <div className="at-rule-tooltip__rule at-rule-tooltip__rule--active">
-        This is set as inline style. Can&apos;t be edited here.
+        {recordsInlineStyleProvenance()
+          ? "Set at runtime, not in this element's source."
+          : "This is set as inline style. Can't be edited here."}
       </div>
     </div>
   );

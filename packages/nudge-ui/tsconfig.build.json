@@ -10,6 +10,7 @@
     "src/**/*.spec.tsx",
     "src/**/_testUtils.ts",
     "src/**/__stubs__/**",
-    "src/hosts/next/loader-plugin.cts"
+    "src/hosts/next/loader-plugin.cts",
+    "src/hosts/expo/babel-transformer.cts"
   ]
 }

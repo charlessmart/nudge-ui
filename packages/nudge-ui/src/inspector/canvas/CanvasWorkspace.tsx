@@ -28,6 +28,7 @@ import {
   setBoardViewportProvider,
 } from "./canvasStore.ts";
 import {
+  MIN_CAMERA_ZOOM,
   setBoardCamera,
   getBoardCamera,
   getCanvasPresentation,
@@ -459,7 +460,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (primaryCard && cards.length === 0 && runtimeConfig.demo !== true) {
       setBoardCamera({
         x: 40, y: 120,
-        zoom: Math.max(0.25, Math.min(0.9, (viewport.width - 80) / primaryCard.width, (viewport.height - 160) / primaryCard.height)),
+        zoom: Math.max(MIN_CAMERA_ZOOM, Math.min(0.9, (viewport.width - 80) / primaryCard.width, (viewport.height - 160) / primaryCard.height)),
       });
     }
     if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {

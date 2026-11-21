@@ -42,7 +42,7 @@ export function commentFingerprint(element: HTMLElement): string {
   for (const node of [clone, ...clone.querySelectorAll("*")]) {
     for (const attribute of [...node.attributes]) {
       if (attribute.name.startsWith("data-nudge") || attribute.name.startsWith("data-projection")
-        || ["data-cid", "data-src", "data-cprops", "data-renderer-id"].includes(attribute.name)) node.removeAttribute(attribute.name);
+        || ["data-cid", "data-src", "data-cprops", "data-cstyle", "data-renderer-id"].includes(attribute.name)) node.removeAttribute(attribute.name);
     }
     if (node instanceof element.ownerDocument.defaultView!.HTMLElement) {
       node.style.removeProperty("cursor");

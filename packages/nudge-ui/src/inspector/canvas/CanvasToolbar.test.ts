@@ -15,7 +15,8 @@ describe("canvas toolbar zoom presets", () => {
     expect(adjacentCanvasZoomLevel(1, 1)).toBe(1.5);
     expect(adjacentCanvasZoomLevel(0.7, 1)).toBe(0.9);
     expect(adjacentCanvasZoomLevel(0.7, -1)).toBe(0.5);
-    expect(adjacentCanvasZoomLevel(0.25, -1)).toBeNull();
+    expect(adjacentCanvasZoomLevel(0.25, -1)).toBe(0.1);
+    expect(adjacentCanvasZoomLevel(0.1, -1)).toBeNull();
     expect(adjacentCanvasZoomLevel(3, 1)).toBeNull();
   });
 

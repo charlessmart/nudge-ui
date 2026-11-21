@@ -22,7 +22,9 @@ function requestedStyleValue(change: PreviewableChangeRecord): string {
 
 function projectedStyleValue(change: PreviewableChangeRecord): string {
   const value = requestedStyleValue(change);
-  return isTokenChange(change) && change.important && !/!\s*important\s*$/i.test(value)
+  // Specificity cannot beat a `style` attribute, so an edit to an inline value needs `!important` (ADR-0053).
+  const important = isTokenChange(change) ? change.important : change.inlineSource !== undefined;
+  return important && value && !/!\s*important\s*$/i.test(value)
     ? `${value} !important`
     : value;
 }
