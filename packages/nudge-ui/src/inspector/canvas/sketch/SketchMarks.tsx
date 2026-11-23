@@ -4,8 +4,10 @@ import { SketchSvgLayer } from "../../sketch/freehand.tsx";
 import { useSketchViewport } from "../../sketch/useSketchViewport.ts";
 import { useScrollTransform } from "../../sketch/useScrollTransform.ts";
 import type { SketchStroke } from "../../sketch/model.ts";
-import { getSketchMarks, showsPassiveMarks, useSketchMarksVersion } from "./marksStore.ts";
+import { getSketchMarks, showsPassiveMarks, sketchMarksMovable, useSketchMarksVersion } from "./marksStore.ts";
+import { MovableMarks } from "./MovableMarks.tsx";
 import { useSketchMarksKey } from "./sketchFrames.ts";
+import { useBoardCamera } from "../viewStore.ts";
 
 export interface SketchMarksProps {
   readonly cardId: string;
@@ -17,21 +19,24 @@ export interface SketchMarksProps {
   readonly placement: "card" | "page";
 }
 
-/** A frame's marks while the sketch tool is not drawing on it. It never takes a click, so the page stays usable. */
+/** A frame's marks while the sketch tool is not drawing on it. Only the marks themselves take a click, with the Select tool. */
 export function SketchMarks({ cardId, host, placement }: SketchMarksProps): ReactElement | null {
   useSketchMarksVersion();
   const key = useSketchMarksKey(host, cardId);
   const strokes = key && showsPassiveMarks(key) ? getSketchMarks(key).strokes : [];
-  if (!host || strokes.length === 0) return null;
-  return <FrameMarks host={host} strokes={strokes} placement={placement} />;
+  if (!host || !key || strokes.length === 0) return null;
+  return <FrameMarks markKey={key} host={host} strokes={strokes} placement={placement} />;
 }
 
-function FrameMarks({ host, strokes, placement }: {
+function FrameMarks({ markKey, host, strokes, placement }: {
+  readonly markKey: string;
   readonly host: HTMLElement;
   readonly strokes: readonly SketchStroke[];
   readonly placement: SketchMarksProps["placement"];
 }): ReactElement {
-  const { viewport } = useSketchViewport(host, true);
+  // Board zoom rescales the frame without resizing it.
+  const zoom = useBoardCamera().zoom;
+  const { viewport } = useSketchViewport(host, true, String(zoom));
   const group = useRef<SVGGElement>(null);
   useScrollTransform(host, group);
   return (
@@ -50,6 +55,9 @@ function FrameMarks({ host, strokes, placement }: {
         {/* Scrolled with the frame, so marks stay on the content they were drawn over. */}
         <g ref={group}>
           <SketchSvgLayer strokes={strokes} />
+          {sketchMarksMovable() ? (
+            <MovableMarks markKey={markKey} host={host} strokes={strokes} viewport={viewport} />
+          ) : null}
         </g>
       </svg>
     </div>

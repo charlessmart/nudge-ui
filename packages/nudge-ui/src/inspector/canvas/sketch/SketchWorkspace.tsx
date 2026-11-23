@@ -7,12 +7,13 @@ import { setSelectedElement } from "../../selection/selectionStore.ts";
 import { selectCard } from "../canvasStore.ts";
 import { activateDraftForCard } from "../../drafts/store.ts";
 import { useInspectorOpen } from "../../shell/openStore.ts";
-import { isEditableEvent } from "../../shell/shortcuts.ts";
 import { portalContainer } from "../../ui/portalContainer.ts";
 import { useBoardCamera, useTemporaryAppInteraction } from "../viewStore.ts";
 import { SketchToolBar } from "./SketchToolBar.tsx";
 import { cancelSketchInteraction, openSketchInteraction, sketchOpenedByKeyboard, useSketchInteractionActive } from "./interaction.ts";
 import { clearAllSketchMarks, hasSketchMarks, setSketchEditingKey, useSketchMarks } from "./marksStore.ts";
+import { useMarkSelection } from "./MovableMarks.tsx";
+import { sketchHistoryActionForEvent } from "./sketchShortcuts.ts";
 import { SketchMarks } from "./SketchMarks.tsx";
 import { useSketchMarksKey } from "./sketchFrames.ts";
 import { takeSketchScreenshot } from "./screenshot.ts";
@@ -75,6 +76,8 @@ export function SketchWorkspace({ hostElement }: SketchWorkspaceProps): ReactEle
     setTextEdit(null);
   }, [active]);
 
+  useMarkSelection();
+
   // The surface draws the frame it is editing; every other frame keeps its marks in the passive layer.
   useEffect(() => {
     setSketchEditingKey(active ? marksKey : null);
@@ -85,14 +88,11 @@ export function SketchWorkspace({ hostElement }: SketchWorkspaceProps): ReactEle
   useEffect(() => {
     if (!active) return;
     function onKeyDown(event: KeyboardEvent): void {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || isEditableEvent(event)) return;
-      const key = event.key.toLowerCase();
-      const isRedo = (key === "z" && event.shiftKey) || (key === "y" && !event.shiftKey);
-      const isUndo = key === "z" && !event.shiftKey;
-      if (!isRedo && !isUndo) return;
+      const action = sketchHistoryActionForEvent(event);
+      if (!action) return;
       event.preventDefault();
       event.stopPropagation();
-      if (isRedo) marks.redo();
+      if (action === "redo") marks.redo();
       else marks.undo();
     }
     window.addEventListener("keydown", onKeyDown, true);

@@ -3,7 +3,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import { getSketchViewport, type SketchViewport } from "./viewport.ts";
+import { getSketchViewport, openPointFromEvent, sketchUnit, viewportRegion, type SketchViewport } from "./viewport.ts";
 import {
   SKETCH_LIMITS,
   SKETCH_RECTANGLE_STROKE_WIDTH,
@@ -22,7 +22,6 @@ import {
   strokeFrame,
   transformStrokeWithHandle,
   type FrameHandle,
-  type SketchRegion,
 } from "./selectionFrame.ts";
 import { isSketchShapeTool, type SketchDrawingTool } from "./drawingTools.ts";
 import type { SketchTextEdit } from "./SketchTextEditor.tsx";
@@ -75,17 +74,6 @@ function clamp(value: number, maximum: number): number {
   return Math.max(0, Math.min(maximum, value));
 }
 
-/** Page coordinates under the pointer, not limited to the viewport. */
-function openPointFromEvent(
-  event: { readonly clientX: number; readonly clientY: number },
-  viewport: SketchViewport,
-): SketchPoint {
-  return {
-    x: ((event.clientX - viewport.offsetX) / Math.max(1, viewport.displayWidth)) * viewport.width + viewport.scrollX,
-    y: ((event.clientY - viewport.offsetY) / Math.max(1, viewport.displayHeight)) * viewport.height + viewport.scrollY,
-  };
-}
-
 function pointFromEvent(
   event: ReactPointerEvent<SVGSVGElement>,
   viewport: SketchViewport,
@@ -94,16 +82,6 @@ function pointFromEvent(
   return {
     x: clamp(point.x - viewport.scrollX, viewport.width) + viewport.scrollX,
     y: clamp(point.y - viewport.scrollY, viewport.height) + viewport.scrollY,
-  };
-}
-
-/** Strokes live in page coordinates, so the drawable area moves with the scroll position. */
-function viewportRegion(viewport: SketchViewport): SketchRegion {
-  return {
-    minX: viewport.scrollX,
-    minY: viewport.scrollY,
-    maxX: viewport.scrollX + viewport.width,
-    maxY: viewport.scrollY + viewport.height,
   };
 }
 
@@ -140,7 +118,7 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
 
   const strokes = history.strokes;
   const selected = tool === "eraser" || textEdit ? null : strokes.find((stroke) => stroke.id === selectedId) ?? null;
-  const unit = viewport.width / Math.max(1, viewport.displayWidth);
+  const unit = sketchUnit(viewport);
   const frameHandle = activeHandle ?? hoverHandle;
 
   useEffect(() => {
@@ -166,7 +144,7 @@ export function useSketchGestures(options: SketchGestureOptions): SketchGestures
   }
 
   function eraseAlong(start: SketchPoint, end: SketchPoint, drawingViewport: SketchViewport): void {
-    const radius = ERASER_RADIUS_PX * (drawingViewport.width / Math.max(1, drawingViewport.displayWidth));
+    const radius = ERASER_RADIUS_PX * sketchUnit(drawingViewport);
     const gesture = eraseGesture.current;
     eraseStrokes(findErasedSketchStrokeIds(start, end, strokes, radius), gesture);
   }

@@ -205,16 +205,16 @@ test("P, E, R, O, L and T pick the pen, eraser, rectangle, circle, arrow and tex
   await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveCount(0);
 });
 
-test("Escape abandons the text being typed without closing the sketch", async ({ page }) => {
+test("Escape puts the text being typed down without closing the sketch", async ({ page }) => {
   const middle = await openSketch(page);
   await page.locator('[data-test="sketch-tool-text"]').click();
   await page.mouse.click(middle.x, middle.y);
   await expect(page.locator(EDITOR)).toBeFocused();
-  await page.keyboard.type("Never mind");
+  await page.keyboard.type("Half typed");
   await page.keyboard.press("Escape");
 
   await expect(page.locator(EDITOR)).toHaveCount(0);
-  await expect(page.locator(TEXT)).toHaveCount(0);
+  await expect(page.locator(TEXT)).toHaveText("Half typed");
   await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(1);
   await expect(page.locator('[data-test="sketch-screenshot"]')).toBeEnabled();
 });
@@ -264,5 +264,14 @@ test("double-clicking a text layer edits it and undo restores the old words", as
   await expect(layer).toHaveText("First and second");
   await expect(page.locator(TEXT)).toHaveCount(1);
   await page.keyboard.press("ControlOrMeta+z");
+  await expect(layer).toHaveText("First");
+
+  // Escape on an emptied note keeps its old words rather than deleting it.
+  await page.mouse.dblclick(target.x, target.y);
+  await expect(editor).toHaveValue("First");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Escape");
+  await expect(editor).toHaveCount(0);
   await expect(layer).toHaveText("First");
 });

@@ -108,6 +108,16 @@ export function sketchStrokePath(stroke: Pick<SketchStroke, "kind" | "points" | 
   return getSvgPathFromStroke(sketchStrokeOutline(stroke, scaleX, scaleY));
 }
 
+/**
+ * The line a mark is picked up by: a freehand stroke's centre line rather than its filled outline, and a box or circle
+ * by its outline only, so a click inside a drawn box still reaches the page under it. Text is picked up by its note.
+ */
+export function sketchHitPath(stroke: Pick<SketchStroke, "kind" | "points" | "width" | "rotation">): string {
+  if (stroke.kind === "text") return "";
+  if (stroke.kind === "freehand") return linePath(stroke.points, 1, 1);
+  return sketchStrokePath(stroke);
+}
+
 /** The note's lift off the page, as a pair of soft shadows that keep pointing down however the note is turned. */
 function NoteShadow({ id }: { readonly id: string }): ReactElement {
   return (

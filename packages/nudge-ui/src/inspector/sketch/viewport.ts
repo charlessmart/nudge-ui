@@ -1,3 +1,6 @@
+import type { SketchPoint } from "./model.ts";
+import type { SketchRegion } from "./selectionFrame.ts";
+
 export interface SketchViewport {
   readonly width: number;
   readonly height: number;
@@ -44,6 +47,32 @@ export function getSketchScrollPosition(targetWindow: Window): SketchScrollPosit
       targetDocument.documentElement?.scrollTop ?? 0,
       targetDocument.body?.scrollTop ?? 0,
     ),
+  };
+}
+
+/** Drawing units per screen pixel, so handles and reach keep their on-screen size at any zoom. */
+export function sketchUnit(viewport: SketchViewport): number {
+  return viewport.width / Math.max(1, viewport.displayWidth);
+}
+
+/** Page coordinates under the pointer, not limited to the viewport. */
+export function openPointFromEvent(
+  event: { readonly clientX: number; readonly clientY: number },
+  viewport: SketchViewport,
+): SketchPoint {
+  return {
+    x: ((event.clientX - viewport.offsetX) / Math.max(1, viewport.displayWidth)) * viewport.width + viewport.scrollX,
+    y: ((event.clientY - viewport.offsetY) / Math.max(1, viewport.displayHeight)) * viewport.height + viewport.scrollY,
+  };
+}
+
+/** Strokes live in page coordinates, so the drawable area moves with the scroll position. */
+export function viewportRegion(viewport: SketchViewport): SketchRegion {
+  return {
+    minX: viewport.scrollX,
+    minY: viewport.scrollY,
+    maxX: viewport.scrollX + viewport.width,
+    maxY: viewport.scrollY + viewport.height,
   };
 }
 

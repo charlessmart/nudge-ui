@@ -35,6 +35,11 @@ export function shapePoints(tool: SketchShapeTool, start: SketchPoint, end: Sket
   return tool === "arrow" ? [{ ...start }, { ...end }] : rectanglePoints(start, end);
 }
 
+/** How far from a stroke's line, in drawing units, a press still picks the stroke. */
+export function sketchHitTolerance(stroke: Pick<SketchStroke, "width">): number {
+  return Math.max(10, stroke.width / 2 + 6);
+}
+
 /** The topmost stroke under the point, or null. */
 export function findSketchElementAt(
   point: SketchPoint,
@@ -42,7 +47,7 @@ export function findSketchElementAt(
 ): string | null {
   for (let index = strokes.length - 1; index >= 0; index -= 1) {
     const stroke = strokes[index]!;
-    const tolerance = Math.max(10, stroke.width / 2 + 6);
+    const tolerance = sketchHitTolerance(stroke);
     // Rectangles, circles and text are hit anywhere in their (possibly rotated) box, not only along its outline.
     const solid = stroke.kind === "rectangle" || stroke.kind === "ellipse" || stroke.kind === "text";
     if ((solid && pointInStrokeBox(stroke, point, tolerance))

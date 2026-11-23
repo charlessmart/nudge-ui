@@ -15,6 +15,7 @@ import { SketchSvgLayer } from "./freehand.tsx";
 import { SketchTextEditor, type SketchTextEdit } from "./SketchTextEditor.tsx";
 import { isSketchShapeTool, type SketchDrawingTool } from "./drawingTools.ts";
 import { useSketchViewport } from "./useSketchViewport.ts";
+import { sketchUnit } from "./viewport.ts";
 import { useScrollTransform } from "./useScrollTransform.ts";
 import { useSketchGestures } from "./useSketchGestures.ts";
 import { forwardSketchWheel } from "./forwardWheel.ts";
@@ -78,7 +79,7 @@ export function SketchSurface({
     selectTarget,
     svgRef,
   });
-  const unit = viewport.width / Math.max(1, viewport.displayWidth);
+  const unit = sketchUnit(viewport);
   const [popup, setPopup] = useState<HTMLElement | null>(null);
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
@@ -197,7 +198,6 @@ export function SketchSurface({
                 viewport={viewport}
                 unit={unit}
                 onCommit={(value) => gestures.commitText(textEdit, value)}
-                onCancel={() => setTextEdit(null)}
               />
             ) : null}
           </div>

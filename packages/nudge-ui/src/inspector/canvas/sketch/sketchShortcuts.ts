@@ -18,3 +18,10 @@ export function sketchToolForEvent(event: KeyboardEvent): SketchDrawingTool | nu
   if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableEvent(event)) return null;
   return SKETCH_TOOL_CODES[event.code] ?? null;
 }
+
+export function sketchHistoryActionForEvent(event: KeyboardEvent): "undo" | "redo" | null {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || isEditableEvent(event)) return null;
+  const key = event.key.toLowerCase();
+  if (key === "z") return event.shiftKey ? "redo" : "undo";
+  return key === "y" && !event.shiftKey ? "redo" : null;
+}

@@ -22,7 +22,17 @@ let editingKey: string | null = null;
 let capturing = false;
 /** Clearing is undoable per frame; a gesture of its own keeps it from merging with an eraser drag. */
 let clearGesture = -1;
+let movable = false;
+let selectedMark: SelectedSketchMark | null = null;
+/** Far from the sketch surface's gestures (counting up from 1) and clearing's (down from -1), so undo steps never merge. */
+const MARK_GESTURE_BASE = 1_000_000_000;
+let markGesture = MARK_GESTURE_BASE;
 const listeners = new Set<() => void>();
+
+export interface SelectedSketchMark {
+  readonly key: string;
+  readonly id: string;
+}
 
 function notify(): void {
   version += 1;
@@ -90,8 +100,59 @@ export function setSketchMarksCapturing(next: boolean): void {
   notify();
 }
 
+export function sketchMarksMovable(): boolean {
+  return movable;
+}
+
+/** Set while the Select tool is active and the sketch tool is closed; turning it off puts any picked-up mark down. */
+export function setSketchMarksMovable(next: boolean): void {
+  if (movable === next) return;
+  movable = next;
+  if (!next) selectedMark = null;
+  notify();
+}
+
+export function useSelectedSketchMark(): SelectedSketchMark | null {
+  useSketchMarksVersion();
+  return selectedMark;
+}
+
+export function selectSketchMark(next: SelectedSketchMark | null): void {
+  if (selectedMark?.key === next?.key && selectedMark?.id === next?.id) return;
+  selectedMark = next;
+  notify();
+}
+
+/** A new undo step for one Select-tool edit; every update in a drag passes the same number. */
+export function nextMarkGesture(): number {
+  markGesture += 1;
+  return markGesture;
+}
+
+export function transformSketchMark(key: string, stroke: SketchStroke, gesture: number): void {
+  update(key, (history) => transformSketchStroke(history, stroke, gesture));
+}
+
+export function undoSketchMarks(key: string): void {
+  update(key, undoSketchEdit);
+}
+
+export function redoSketchMarks(key: string): void {
+  update(key, redoSketchEdit);
+}
+
+/** The mark stays picked up, so undo brings it back with its frame. */
+export function deleteSelectedSketchMark(): boolean {
+  const mark = selectedMark;
+  if (!mark) return false;
+  const before = getSketchMarks(mark.key);
+  update(mark.key, (history) => eraseSketchStrokes(history, [mark.id], nextMarkGesture()));
+  return getSketchMarks(mark.key) !== before;
+}
+
 /** Clears every frame's marks. Each frame can bring its own back with undo. */
 export function clearAllSketchMarks(): void {
+  selectedMark = null;
   clearGesture -= 1;
   let changed = false;
   for (const [key, history] of marks) {
@@ -107,6 +168,7 @@ export function resetSketchMarks(): void {
   marks.clear();
   editingKey = null;
   capturing = false;
+  selectedMark = null;
   notify();
 }
 
@@ -129,13 +191,13 @@ export function useSketchMarks(key: string | null): SketchMarksControls {
     if (key) update(key, (history) => eraseSketchStrokes(history, ids, gesture));
   }, [key]);
   const transformStroke = useCallback((stroke: SketchStroke, gesture: number) => {
-    if (key) update(key, (history) => transformSketchStroke(history, stroke, gesture));
+    if (key) transformSketchMark(key, stroke, gesture);
   }, [key]);
   const undo = useCallback(() => {
-    if (key) update(key, undoSketchEdit);
+    if (key) undoSketchMarks(key);
   }, [key]);
   const redo = useCallback(() => {
-    if (key) update(key, redoSketchEdit);
+    if (key) redoSketchMarks(key);
   }, [key]);
   return { history: getSketchMarks(key), addStroke, eraseStrokes, transformStroke, undo, redo };
 }

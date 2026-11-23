@@ -29,14 +29,14 @@ export interface SketchTextEditorProps {
   readonly viewport: SketchViewport;
   /** Drawing units per screen pixel. */
   readonly unit: number;
+  /** An empty note is dropped by the caller. */
   readonly onCommit: (text: string) => void;
-  readonly onCancel: () => void;
 }
 
 /** Room for the caret after the last glyph, in drawing units. */
 const CARET_ROOM_EM = 0.1;
 
-export function SketchTextEditor({ edit, viewport, unit, onCommit, onCancel }: SketchTextEditorProps): ReactElement {
+export function SketchTextEditor({ edit, viewport, unit, onCommit }: SketchTextEditorProps): ReactElement {
   const [text, setText] = useState(edit.initialText);
   const input = useRef<HTMLTextAreaElement>(null);
   // Blur follows Enter and Escape, so only the first way out of the editor counts.
@@ -52,24 +52,23 @@ export function SketchTextEditor({ edit, viewport, unit, onCommit, onCancel }: S
     element.setSelectionRange(element.value.length, element.value.length);
   }, []);
 
-  function finish(commit: boolean): void {
+  function finish(value = text): void {
     if (finished.current) return;
     finished.current = true;
-    if (commit) onCommit(text);
-    else onCancel();
+    onCommit(value);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === "Escape") {
-      // The sketch itself closes on Escape; here it only abandons this edit.
+      // The sketch itself closes on Escape.
       event.preventDefault();
       event.stopPropagation();
-      finish(false);
+      finish(edit.replacing && text.trim() === "" ? edit.initialText : text);
       return;
     }
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      finish(true);
+      finish();
     }
   }
 
@@ -99,7 +98,7 @@ export function SketchTextEditor({ edit, viewport, unit, onCommit, onCancel }: S
       }}
       onChange={(event) => setText(event.target.value)}
       onKeyDown={onKeyDown}
-      onBlur={() => finish(true)}
+      onBlur={() => finish()}
     />
   );
 }

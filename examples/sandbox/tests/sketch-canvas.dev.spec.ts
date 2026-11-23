@@ -138,3 +138,41 @@ test("the first stroke targets another frame without selecting an application el
   await expect(page.locator('[data-test="sketch-marks"]')).toHaveCount(0);
   await expect(page.locator('[data-test="sketch-clear"]')).toBeDisabled();
 });
+
+test("the Select tool picks up a mark to move it while other presses reach the page", async ({ page }) => {
+  await openEditor(page, "/playground?nudge-ui=on");
+  await showCanvas(page);
+  await waitForCanvasTransition(page);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0);
+  await page.locator('[data-test="canvas-tool-sketch"]').click();
+  await expect(page.locator('[data-test="sketch-tool-options"]')).toHaveAttribute("data-settled", "true");
+  const bounds = await page.locator(".sketch__live-canvas").boundingBox();
+  if (!bounds) throw new Error("The sketch canvas is missing");
+  const start = { x: bounds.x + bounds.width / 2 - 40, y: bounds.y + bounds.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 80, start.y, { steps: 8 });
+  await page.mouse.up();
+
+  await page.locator('[data-test="canvas-tool-design"]').click();
+  await expect(page.locator('[data-test="sketch-live-editor"]')).toHaveCount(0);
+  const mark = page.locator('[data-test="sketch-marks"] [data-test="sketch-svg-layer"] path');
+  await expect(mark).toHaveCount(1);
+  const before = await mark.getAttribute("d");
+
+  // Pressing the line picks the mark up; dragging moves it, without selecting the element under it.
+  await page.mouse.move(start.x + 40, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 40, start.y + 60, { steps: 6 });
+  await page.mouse.up();
+  await expect(mark).not.toHaveAttribute("d", before!);
+  await expect(page.locator('[data-test="sketch-marks"] [data-test="sketch-selection-frame"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="selection"]')).toHaveCount(0);
+
+  // Delete removes the picked-up mark, and undo brings it back still picked up.
+  await page.keyboard.press("Delete");
+  await expect(page.locator('[data-test="sketch-marks"]')).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(mark).toHaveCount(1);
+  await expect(page.locator('[data-test="sketch-marks"] [data-test="sketch-selection-frame"]')).toHaveCount(1);
+});

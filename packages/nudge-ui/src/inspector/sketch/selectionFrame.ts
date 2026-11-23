@@ -9,8 +9,9 @@ import {
 /** Handle sizes are in screen pixels; callers pass `unit` (drawing units per screen pixel) to convert. */
 export const FRAME_HANDLE_SIZE_PX = 8;
 export const FRAME_ROTATE_OFFSET_PX = 24;
-const FRAME_HANDLE_HIT_PX = 8;
-const FRAME_EDGE_HIT_PX = 5;
+export const FRAME_HANDLE_HIT_PX = 8;
+export const FRAME_ROTATE_HIT_PX = FRAME_HANDLE_HIT_PX * 0.75;
+export const FRAME_EDGE_HIT_PX = 5;
 /** Gap between a stroke's outer edge and its frame, in drawing units. */
 const FRAME_GAP = 3;
 const MIN_RESIZED_EXTENT = 8;
@@ -38,7 +39,7 @@ export interface SelectionFrame {
   readonly padding: number;
 }
 
-const FRAME_CORNERS = ["nw", "ne", "se", "sw"] as const satisfies readonly FrameCorner[];
+export const FRAME_CORNERS = ["nw", "ne", "se", "sw"] as const satisfies readonly FrameCorner[];
 
 const CORNER_SIGNS = {
   nw: { x: -1, y: -1 },
@@ -157,7 +158,7 @@ export function hitTestFrame(frame: SelectionFrame, point: SketchPoint, unit: nu
 
   const half = halfExtent(frame);
   const topCenter = toWorld(frame, { x: 0, y: -half.y });
-  if (distanceToSegment(point, topCenter, frameRotateHandle(frame, unit)) <= handleReach * 0.75) return "rotate";
+  if (distanceToSegment(point, topCenter, frameRotateHandle(frame, unit)) <= FRAME_ROTATE_HIT_PX * unit) return "rotate";
 
   const local = toLocal(frame, point);
   const dx = Math.abs(local.x);

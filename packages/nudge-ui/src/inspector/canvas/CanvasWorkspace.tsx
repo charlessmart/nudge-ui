@@ -107,6 +107,7 @@ import sketchToolBarStyles from "./sketch/SketchToolBar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketch } from "./sketch/SketchWorkspace.tsx";
 import { cancelSketchInteraction, useSketchInteractionActive } from "./sketch/interaction.ts";
+import { setSketchMarksMovable } from "./sketch/marksStore.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { createCommentCursor, DESIGN_SELECT_CURSOR, PAN_CURSOR } from "../ui/customCursors.ts";
 import { addLinkedFrame, createIteration as createWorkspaceIteration, removeFrame } from "../workspace/commands.ts";
@@ -260,6 +261,11 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     linksOpenInCards,
     commentToolActive,
   } = toolEffects;
+  const marksMovable = interactionTool === "design" && !sketchActive;
+  useEffect(() => {
+    setSketchMarksMovable(marksMovable);
+  }, [marksMovable]);
+  useEffect(() => () => setSketchMarksMovable(false), []);
   const boardCursor = toolEffects.boardCursor === "grabbing"
     ? "grabbing"
     : toolEffects.boardCursor === "pan"
