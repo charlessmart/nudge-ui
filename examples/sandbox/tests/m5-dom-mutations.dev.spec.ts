@@ -28,6 +28,50 @@ async function reloadCanvasCard(page: import("@playwright/test").Page): Promise<
   )?.__beforeReload)).toBeUndefined();
 }
 
+/** A drag lifts its element and reflows the page around an invisible slot; that empty space is the drop cue. */
+function dropIndicator(page: import("@playwright/test").Page): import("@playwright/test").Locator {
+  return page.locator('[data-test="canvas-dom-drop-slot"], [data-test="canvas-dom-drop-line"]');
+}
+
+/**
+ * Lifting the source and opening the slot both move the page under the pointer, so aim again at where the target now
+ * is, as a person would, until the aim point holds still.
+ */
+async function aimAt(
+  page: import("@playwright/test").Page,
+  aim: () => Promise<{ x: number; y: number }>,
+): Promise<void> {
+  let previous: { x: number; y: number } | null = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const point = await aim();
+    if (previous && Math.abs(point.x - previous.x) < 1 && Math.abs(point.y - previous.y) < 1) return;
+    await page.mouse.move(point.x, point.y, { steps: 3 });
+    // The renderer reports a move on its own next frame and the controller reflows the slot on receipt, so wait for
+    // frames in every document; a release before then commits the slot still on screen.
+    await nextFrames(page);
+    previous = point;
+  }
+  throw new Error("The drop target kept moving under the pointer");
+}
+
+async function nextFrames(page: import("@playwright/test").Page): Promise<void> {
+  const twoFrames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  await Promise.all(page.frames().map((frame) => frame.evaluate(twoFrames).catch(() => undefined)));
+  await page.evaluate(twoFrames);
+}
+
+async function moveToward(
+  page: import("@playwright/test").Page,
+  target: import("@playwright/test").Locator,
+  point: (box: { x: number; y: number; width: number; height: number }) => { x: number; y: number },
+): Promise<void> {
+  await aimAt(page, async () => {
+    const box = await target.boundingBox();
+    if (!box) throw new Error("Expected a visible drop target");
+    return point(box);
+  });
+}
+
 async function dragBefore(
   page: import("@playwright/test").Page,
   source: import("@playwright/test").Locator,
@@ -52,21 +96,19 @@ async function dragBefore(
   });
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(
-    layout.isFlexRow
-      ? (afterTarget === layout.isRowReverse ? destinationBox.x + 4 : destinationBox.x + destinationBox.width - 4)
-      : destinationBox.x + destinationBox.width / 2,
-    layout.isFlexRow
-      ? destinationBox.y + destinationBox.height / 2
-      : (afterTarget ? destinationBox.y + destinationBox.height - 4 : destinationBox.y + 4),
-    { steps: 3 },
-  );
+  await moveToward(page, destination, (box) => ({
+    x: layout.isFlexRow
+      ? (afterTarget === layout.isRowReverse ? box.x + 4 : box.x + box.width - 4)
+      : box.x + box.width / 2,
+    y: layout.isFlexRow
+      ? box.y + box.height / 2
+      : (afterTarget ? box.y + box.height - 4 : box.y + 4),
+  }));
   await expect(dropLine).toBeVisible();
-  const dropLineBox = await dropLine.boundingBox();
-  if (!dropLineBox) throw new Error("Expected visible drop indicator");
-  if (layout.isFlexRow) expect(dropLineBox.height).toBeGreaterThan(dropLineBox.width);
   if (dropTarget) await expect(dropTarget).toBeVisible();
   await page.mouse.up();
+  // The slot is a copy of the element, so wait for the drop to commit before reading the page.
+  await expect(dropLine).toHaveCount(0);
 }
 
 async function dragIntoContainer(
@@ -82,13 +124,11 @@ async function dragIntoContainer(
   if (!sourceBox || !destinationBox) throw new Error("Expected visible drag targets");
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(
-    destinationBox.x + destinationBox.width / 2,
-    destinationBox.y + destinationBox.height / 2,
-    { steps: 3 },
-  );
+  await moveToward(page, destination, (box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 }));
   await expect(dropLine).toBeVisible();
   await page.mouse.up();
+  // The slot is a copy of the element, so wait for the drop to commit before reading the page.
+  await expect(dropLine).toHaveCount(0);
 }
 
 async function dragIntoFlexGap(
@@ -115,16 +155,26 @@ async function dragIntoFlexGap(
     source.boundingBox(), leftItem.boundingBox(), rightItem.boundingBox(),
   ]);
   if (!sourceBox || !leftBox || !rightBox) throw new Error("Expected visible flex items");
-  const gapCentre = (leftBox.x + leftBox.width + rightBox.x) / 2;
-  const gapY = leftBox.y + leftBox.height / 2;
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(gapCentre, gapY, { steps: 3 });
+  // Aim at the gap as it is now: lifting the source and opening the slot both move the neighbours.
+  await aimAt(page, async () => {
+    const [left, right] = await Promise.all([leftItem.boundingBox(), rightItem.boundingBox()]);
+    if (!left || !right) throw new Error("Expected visible flex items");
+    return {
+      x: right.x > left.x + left.width ? (left.x + left.width + right.x) / 2 : left.x + left.width - 2,
+      y: left.y + left.height / 2,
+    };
+  });
   await expect(dropLine).toBeVisible();
-  const lineBox = await dropLine.boundingBox();
-  if (!lineBox) throw new Error("Expected visible gap indicator");
-  expect(Math.abs(lineBox.x + lineBox.width / 2 - gapCentre)).toBeLessThan(6);
+  const [slotBox, leftAfter, rightAfter] = await Promise.all([dropLine.boundingBox(), leftItem.boundingBox(), rightItem.boundingBox()]);
+  if (!slotBox || !leftAfter || !rightAfter) throw new Error("Expected a visible slot between the neighbours");
+  // The neighbours reflow apart and the slot sits between them.
+  expect(slotBox.x).toBeGreaterThanOrEqual(leftAfter.x + leftAfter.width - 1);
+  expect(slotBox.x + slotBox.width).toBeLessThanOrEqual(rightAfter.x + 1);
   await page.mouse.up();
+  // The slot is a copy of the element, so wait for the drop to commit before reading the page.
+  await expect(dropLine).toHaveCount(0);
 }
 
 test("dev: editing surface drags a tracked element with an insertion guide and records the DOM move", async ({ page }) => {
@@ -142,7 +192,7 @@ test("dev: editing surface drags a tracked element with an insertion guide and r
     page,
     source,
     destination,
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
     page.locator('[data-test="canvas-dom-drop-target"]'),
   );
 
@@ -158,7 +208,7 @@ test("dev: editing surface moves an element across containers, preserves destina
   const destination = appLocator(page, '[data-test="structural-destination"]');
 
   await expect(source).toHaveCSS("color", "rgb(67, 56, 202)");
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragBefore(page, source, anchor, dropIndicator(page));
   await expect(source).toHaveCSS("color", "rgb(180, 83, 9)");
   await expect(destination).toContainText("Move this card");
 
@@ -183,7 +233,7 @@ test("dev: a Canvas-originated cross-container move projects back to editing sur
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.locator('[data-test="structural-move-target"]');
   const anchor = frame.locator('[data-test="structural-anchor"]');
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragBefore(page, source, anchor, dropIndicator(page));
 
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
   await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
@@ -195,7 +245,7 @@ test("dev: a cross-container move can append into an empty grid", async ({ page 
   const source = appLocator(page, '[data-test="structural-move-target"]');
   const destination = appLocator(page, '[data-test="structural-empty-grid"]');
 
-  await dragIntoContainer(page, source, destination, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragIntoContainer(page, source, destination, dropIndicator(page));
   await expect(destination.locator('[data-test="structural-move-target"]')).toHaveCount(1);
   await expect(source).toHaveCSS("color", "rgb(22, 101, 52)");
 
@@ -213,7 +263,7 @@ test("dev: a cross-container move can place an item after an anchor in a row-rev
     (element as HTMLElement).style.flexDirection = "row-reverse";
   });
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'), undefined, true);
+  await dragBefore(page, source, anchor, dropIndicator(page), undefined, true);
   const cards = destination.locator(".structural-move-card");
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toHaveClass(/structural-move-card--anchor/);
@@ -227,7 +277,7 @@ test("dev: cross-container moves support undo, redo, revert, and clear", async (
   const sourceContainer = appLocator(page, '[data-test="structural-source"]');
   const destination = appLocator(page, '[data-test="structural-destination"]');
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragBefore(page, source, anchor, dropIndicator(page));
   await expect(destination).toContainText("Move this card");
   await page.keyboard.press("Control+z");
   await expect(sourceContainer).toContainText("Move this card");
@@ -239,7 +289,7 @@ test("dev: cross-container moves support undo, redo, revert, and clear", async (
   await expect(sourceContainer).toContainText("Move this card");
   await expect(destination).not.toContainText("Move this card");
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragBefore(page, source, anchor, dropIndicator(page));
   await expect(destination).toContainText("Move this card");
   await expect(page.locator('[data-test="changes-toggle"]')).toBeVisible();
   await page.reload();
@@ -261,7 +311,7 @@ test("dev: a cross-container snapshot reaches every ready Canvas card", async ({
     page,
     edited.locator('[data-test="structural-move-target"]'),
     edited.locator('[data-test="structural-anchor"]'),
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
   );
 
   await expect(edited.locator('[data-test="structural-destination"]')).toContainText("Move this card");
@@ -272,7 +322,7 @@ test("dev: an application snap-back reports a cross-container preview override w
   await page.goto("/playground");
   const source = appLocator(page, '[data-test="structural-move-target"]');
   const anchor = appLocator(page, '[data-test="structural-anchor"]');
-  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await dragBefore(page, source, anchor, dropIndicator(page));
   await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
 
   await (await getAppFrame(page)).evaluate(() => {
@@ -291,14 +341,14 @@ test("dev: an application snap-back reports a cross-container preview override w
   await expect(appLocator(page, '[data-test="structural-source"]')).toContainText("Move this card");
 });
 
-test("dev: editing surface centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
+test("dev: editing surface opens the drop slot between neighbours in a space-between flex gap", async ({ page }) => {
   await page.goto("/playground");
   await dragIntoFlexGap(
     page,
     appLocator(page, '[data-test="flex-child-a"]'),
     appLocator(page, '[data-test="flex-child-b"]'),
     appLocator(page, '[data-test="flex-child-c"]'),
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
   );
   await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
@@ -459,7 +509,7 @@ test("dev: editing surface DOM moves survive switching to Canvas", async ({ page
     page,
     appLocator(page, '[data-test="flex-child-a"]'),
     appLocator(page, '[data-test="flex-child-c"]'),
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
     page.locator('[data-test="canvas-dom-drop-target"]'),
   );
 
@@ -525,7 +575,7 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
     page,
     source,
     destination,
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
     page.locator('[data-test="canvas-dom-drop-target"]'),
   );
 
@@ -563,7 +613,7 @@ test("dev: Canvas selected outline follows a position-only flex-column nudge", a
   }).toBe(true);
 });
 
-test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
+test("dev: Canvas opens the drop slot between neighbours in a space-between flex gap", async ({ page }) => {
   await page.goto("/playground");
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await dragIntoFlexGap(
@@ -571,7 +621,7 @@ test("dev: Canvas centres a flex-row insertion guide in a space-between gap", as
     frame.locator('[data-test="flex-child-a"]'),
     frame.locator('[data-test="flex-child-b"]'),
     frame.locator('[data-test="flex-child-c"]'),
-    page.locator('[data-test="canvas-dom-drop-line"]'),
+    dropIndicator(page),
   );
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });

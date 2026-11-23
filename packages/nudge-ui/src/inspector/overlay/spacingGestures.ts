@@ -1,5 +1,5 @@
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
-import type { Rect } from "./overlayGeometry.ts";
+import { toPixels, type Rect } from "./overlayGeometry.ts";
 
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export type SpacingKind = "padding" | "margin" | "gap";
@@ -79,8 +79,7 @@ function boxEdges(element: HTMLElement): BoxEdges {
 
 // Computed style is px; an authored rem/% is intentionally rewritten as px on commit.
 function numberValue(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  return Math.max(0, toPixels(value));
 }
 
 interface BoxModel {

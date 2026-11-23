@@ -15,6 +15,19 @@ Run from your application's root directory:
 npm create nudge-ui@latest
 ```
 
+## Framework support
+
+Vite with React and static HTML get the most testing. Next.js and Astro work but
+have had less testing, and Expo is the newest.
+
+| Framework | Subpath | Setup | Status |
+| --- | --- | --- | --- |
+| Vite + React | `nudge-ui/vite` | Detected | 🟢 Beta. Tested the most. |
+| Static HTML | `nudge-ui/static` | Detected | 🟢 Beta. Tested the most. |
+| Next.js | `nudge-ui/next` | Detected | 🟡 Alpha. Works, but has seen fewer edge cases. |
+| Astro | `nudge-ui/astro` | Detected | 🟡 Alpha. Works, but has seen fewer edge cases. |
+| Expo (web) | `nudge-ui/expo` | Manual | 🧪 Pre-alpha. Expect rough edges. |
+
 ## Usage
 
 | Shortcut | Action |

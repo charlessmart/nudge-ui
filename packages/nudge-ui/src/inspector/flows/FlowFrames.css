@@ -20,8 +20,10 @@
   gap: var(--space-4);
 }
 
+/* A zero-minimum column lets long flow and state titles ellipsize instead of widening the panel. */
 .flows-panel ul {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1px;
   margin: 0;
   padding: 0;

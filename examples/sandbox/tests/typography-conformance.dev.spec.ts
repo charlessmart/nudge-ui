@@ -32,7 +32,7 @@ test("dev: typography conformance gallery exposes CSSOM-declared values", async 
   await appLocator(page, '[data-test="typography-case-type-direct-literals"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue("0.875rem");
-  await expect(page.locator('[data-test="font-style-field"]')).toContainText("650");
+  await expect(page.locator('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]')).toHaveValue("650");
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]')).toHaveValue("1.45");
   await expect(page.locator('[data-test="token-field"][data-property="letter-spacing"] [data-test="raw-input"]')).toHaveValue("-0.0125em");
   await expect(page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]')).toHaveValue('"Aster Display"');
@@ -45,7 +45,8 @@ test("dev: font shorthand omissions reset earlier longhands", async ({ page }) =
   await shorthand.click();
   await waitForEditors(page);
 
-  await expect(page.locator('[data-test="font-style-field"]')).toContainText("Regular");
+  await expect(page.locator('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]')).toHaveValue("normal");
+  await expect(page.locator('[data-test="font-style-italic"]')).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]'))
     .toHaveValue("normal");
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]'))

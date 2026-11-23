@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { dropTargetRect, type DropLocation } from "./structuralGestures.ts";
-import { hostComponentName } from "../componentSemantics/react/fibers.ts";
 
 export type DropGuideOwner = "inspect" | "canvas";
 
@@ -18,13 +17,8 @@ export interface DropGuide {
   orientation: DropLocation["orientation"];
   line: DropGuideRect;
   target: DropGuideRect;
-  /** Names the container the drop lands in, so a drop at an unexpected level is visible before release. */
-  label: string;
-}
-
-/** The component that renders the drop parent when React can name it, otherwise its tag. */
-export function dropTargetLabel(parent: HTMLElement): string {
-  return `Into ${hostComponentName(parent) ?? parent.localName}`;
+  /** The box the dropped element would fill, when a drag preview reflows the page around it; it replaces the line. */
+  slot?: DropGuideRect;
 }
 
 let currentGuide: DropGuide | null = null;
@@ -50,21 +44,24 @@ function sameRect(left: DropGuideRect, right: DropGuideRect): boolean {
     && left.height === right.height;
 }
 
-export function showDropGuide(owner: DropGuideOwner, document: Document, drop: DropLocation): void {
+export function showDropGuide(owner: DropGuideOwner, document: Document, drop: DropLocation, slot?: DropGuideRect | null): void {
   const target = dropTargetRect(drop.parent);
+  const slotBox = slot && (slot.width > 0 || slot.height > 0)
+    ? { left: slot.left, top: slot.top, width: slot.width, height: slot.height }
+    : undefined;
   const nextGuide: DropGuide = {
     owner,
     document,
     orientation: drop.orientation,
     line: { left: drop.left, top: drop.top, width: drop.width, height: drop.height },
     target: { left: target.left, top: target.top, width: target.width, height: target.height },
-    label: dropTargetLabel(drop.parent),
+    ...(slotBox ? { slot: slotBox } : {}),
   };
   if (currentGuide?.owner === owner
     && currentGuide.document === document
     && sameRect(currentGuide.line, nextGuide.line)
     && sameRect(currentGuide.target, nextGuide.target)
-    && currentGuide.label === nextGuide.label) return;
+    && (currentGuide.slot && nextGuide.slot ? sameRect(currentGuide.slot, nextGuide.slot) : currentGuide.slot === nextGuide.slot)) return;
   currentGuide = nextGuide;
   notify();
 }

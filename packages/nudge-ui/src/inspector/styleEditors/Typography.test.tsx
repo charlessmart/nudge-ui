@@ -7,7 +7,6 @@ import {
   makeMixedStyleSelection,
   makeSelected,
   mount,
-  setSelectValue,
   setInputValue,
   mockComputedStyle,
   restoreComputedStyle,
@@ -59,64 +58,95 @@ describe("Typography", () => {
     expect(sheetText()).toContain("font-size: 18px;");
   });
 
-  it("writes font style presets as font-style and font-weight", () => {
+  it("writes a variable font weight through the raw input", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({
-      "font-size": "16px",
-      "font-weight": "400",
-      "font-style": "normal",
-      "line-height": "1.5",
-      "letter-spacing": "0px",
-    });
+    mockComputedStyle({ "font-weight": "400", "font-style": "normal" });
     handle = mount(createElement(Typography, { element: selected }));
-    const select = handle.host.querySelector('[data-test="font-style-field"]') as HTMLElement;
-    setSelectValue(select, "700-italic");
-    expect(sheetText()).toContain("font-style: italic;");
-    expect(sheetText()).toContain("font-weight: 700;");
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("400");
+    setInputValue(raw, "650");
+    expect(sheetText()).toContain("font-weight: 650;");
+    expect(sheetText()).not.toContain("font-style");
   });
 
-  it("keeps separate source metadata for font style and weight", () => {
+  it("toggles italic as font-style only, keeping its source metadata", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({
-      "font-weight": "400",
-      "font-style": "normal",
-    });
+    mockComputedStyle({ "font-weight": "400", "font-style": "normal" });
     handle = mount(createElement(Typography, {
       element: selected,
-      tokenRows: [
-        {
-          property: "font-style",
-          tokenName: null,
-          declaredValue: "normal",
-          authored: "normal",
-          sourceProperty: "font-style",
-          resolvedValue: "normal",
-          confidence: "exact",
-          evidence: { reason: "style fixture" },
-        },
-        {
-          property: "font-weight",
-          tokenName: null,
-          declaredValue: "var(--weight-body)",
-          authored: "var(--weight-body)",
-          sourceProperty: "font-weight",
-          resolvedValue: "400",
-          confidence: "exact",
-          evidence: { reason: "weight fixture" },
-        },
-      ],
+      tokenRows: [{
+        property: "font-style",
+        tokenName: null,
+        declaredValue: "normal",
+        authored: "normal",
+        sourceProperty: "font-style",
+        resolvedValue: "normal",
+        confidence: "exact",
+        evidence: { reason: "style fixture" },
+      }],
     }));
+    const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
 
-    setSelectValue(handle.host.querySelector('[data-test="font-style-field"]') as HTMLElement, "700-italic");
+    act(() => toggle.click());
 
-    expect(getChangeRecords().find((record) => record.property === "font-style")).toMatchObject({
+    expect(sheetText()).toContain("font-style: italic;");
+    expect(sheetText()).not.toContain("font-weight");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(getChangeRecords().at(-1)).toMatchObject({ sourceProperty: "font-style", sourceAuthoredValue: "normal" });
+  });
+
+  it("marks a mixed italic selection and makes every element italic from it", () => {
+    const style = document.createElement("style");
+    style.textContent = ".slanted { font-style: italic; }";
+    document.head.append(style);
+    const first = makeSelected("Heading", "src/Heading.tsx:1:1");
+    const second = makeSelected("Heading", "src/Heading.tsx:2:1");
+    second.el.classList.add("slanted");
+    const selection = {
+      ...makeMixedStyleSelection(first.selected, "font-style"),
+      elements: [first.selected, second.selected],
+      domElements: [first.el, second.el],
+      target: [first.el, second.el],
+    };
+    try {
+      handle = mount(createElement(Typography, { element: first.selected, selection }));
+      const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
+      expect(handle.host.querySelector('[data-test="typography-mixed-font-style"]')?.textContent).toBe("Mixed");
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+
+      act(() => toggle.click());
+      expect(sheetText()).toContain("font-style: italic;");
+      // The element that was already italic needs no change.
+      expect(getChangeRecords()).toHaveLength(1);
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      expect(handle.host.querySelector('[data-test="typography-mixed-font-style"]')).toBeNull();
+    } finally {
+      style.remove();
+    }
+  });
+
+  it("follows a font-style change made elsewhere, such as an undo", () => {
+    const { selected } = makeSelected();
+    const row = (value: string) => ({
+      property: "font-style",
+      tokenName: null,
+      declaredValue: value,
+      authored: value,
       sourceProperty: "font-style",
-      sourceAuthoredValue: "normal",
+      resolvedValue: value,
+      confidence: "exact" as const,
+      evidence: { reason: "style fixture" },
     });
-    expect(getChangeRecords().find((record) => record.property === "font-weight")).toMatchObject({
-      sourceProperty: "font-weight",
-      sourceAuthoredValue: "var(--weight-body)",
-    });
+    mockComputedStyle({ "font-style": "italic" });
+    handle = mount(createElement(Typography, { element: selected, tokenRows: [row("italic")] }));
+    const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+    restoreComputedStyle();
+    mockComputedStyle({ "font-style": "normal" });
+    act(() => handle.root.render(createElement(Typography, { element: selected, tokenRows: [row("normal")] })));
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("writes line-height via the raw input", () => {

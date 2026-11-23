@@ -70,3 +70,21 @@ export function releaseAdoptedStylesheet(root: StyleRoot, key: string): void {
   adoptedSheets.get(root)?.delete(key);
   root.adoptedStyleSheets = root.adoptedStyleSheets.filter((candidate) => candidate !== sheet);
 }
+
+/**
+ * Installs the inspector's own `cssText` under `key`: a `<style id="key">` where the page allows one, or an adopted
+ * sheet under a strict `style-src`. A style element already in the document under that id is left alone, and so is
+ * not removed by the returned cleanup.
+ */
+export function installOwnedStylesheet(doc: Document, key: string, cssText: string): () => void {
+  if (!allowsStyleElements(doc)) {
+    adoptStylesheet(doc, key, cssText);
+    return () => releaseAdoptedStylesheet(doc, key);
+  }
+  if (doc.getElementById(key)) return () => undefined;
+  const style = doc.createElement("style");
+  style.id = key;
+  style.textContent = cssText;
+  (doc.head ?? doc.documentElement).append(style);
+  return () => style.remove();
+}

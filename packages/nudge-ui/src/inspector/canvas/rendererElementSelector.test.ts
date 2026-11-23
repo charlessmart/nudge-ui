@@ -323,6 +323,7 @@ describe("renderer hover scheduling", () => {
     const unrelated = trackedElement("unrelated-target");
     postMessage.mockClear();
     document.dispatchEvent(new MouseEvent("mousemove", {
+      buttons: 1,
       bubbles: true,
       cancelable: true,
       clientX: 100,
@@ -334,6 +335,7 @@ describe("renderer hover scheduling", () => {
     expect(scheduled).toHaveLength(0);
     expect(hoverMessages(postMessage)).toHaveLength(0);
     document.dispatchEvent(new MouseEvent("mousemove", {
+      buttons: 1,
       bubbles: true,
       cancelable: true,
       clientX: 100,
@@ -498,6 +500,7 @@ describe("renderer hover scheduling", () => {
       clientY: 20,
     }));
     document.dispatchEvent(new MouseEvent("mousemove", {
+      buttons: 1,
       bubbles: true,
       cancelable: true,
       clientX: 100,
@@ -542,12 +545,64 @@ describe("renderer hover scheduling", () => {
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
 
     element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 100, clientY: 20 }));
-    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, clientX: 100, clientY: 32 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { buttons: 1, bubbles: true, cancelable: true, clientX: 100, clientY: 32 }));
     sendInteractionState({ open: true, interactionsEnabled: true });
 
     const messages = postMessage.mock.calls.map(([message]) => message);
     expect(messages).toEqual(expect.arrayContaining([expect.objectContaining({ type: "element-drag-start" })]));
     expect(messages).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "element-drag-end" })]));
+  });
+
+  it("cancels a drag whose mouseup it never saw", () => {
+    const element = trackedElement("missed-release-target");
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+    sendInteractionState({ open: true, interactionsEnabled: true });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 100, clientY: 20 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { buttons: 1, bubbles: true, cancelable: true, clientX: 100, clientY: 32 }));
+    // The button came up outside this document, so the next move arrives with no button held.
+    document.dispatchEvent(new MouseEvent("mousemove", { buttons: 0, bubbles: true, cancelable: true, clientX: 140, clientY: 60 }));
+
+    expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "element-drag-end", cancelled: true, point: { x: 100, y: 32 } }),
+    ]));
+  });
+
+  it("starts a resize only from the selection's drawn handles, sized for the card zoom", () => {
+    const element = trackedElement("resize-target");
+    element.style.display = "block";
+    element.setAttribute("data-renderer-id", "r1");
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10, top: 10, width: 200, height: 100, right: 210, bottom: 110, x: 10, y: 10,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+    sendInteractionState({ open: true, interactionsEnabled: true });
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      // A card zoomed to 200%: the 8px screen handle is 4 of the frame's px.
+      data: {
+        type: "resize-target",
+        target: { elementId: "r1", cid: "resize-target", src: "src/resize-target.tsx:1:1" },
+        handleSize: 4,
+        protocolVersion: PROTOCOL_VERSION,
+        ...identity,
+      },
+    }));
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    const dragFrom = (x: number, y: number): unknown => {
+      postMessage.mockClear();
+      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: x, clientY: y }));
+      document.dispatchEvent(new MouseEvent("mousemove", { buttons: 1, bubbles: true, cancelable: true, clientX: x + 20, clientY: y }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0, clientX: x + 20, clientY: y }));
+      return postMessage.mock.calls.map(([message]) => message).find((message) => (message as { type?: string }).type === "element-drag-start");
+    };
+
+    expect(dragFrom(211, 60)).toMatchObject({ resize: "right" });
+    // Past the zoomed handle's reach, and along the edge away from it, the press moves the element instead.
+    expect(dragFrom(215, 60)).toMatchObject({ resize: null });
+    expect(dragFrom(209, 20)).toMatchObject({ resize: null });
   });
 
   it("forwards double-click text intent to the controller", () => {
@@ -804,6 +859,25 @@ describe("renderer Select tool", () => {
     expect(onApplicationClick).toHaveBeenCalledOnce();
   });
 
+  it("stops links and images starting the browser's own drag in the Design tool", () => {
+    const link = trackedElement("link");
+    const editorHost = trackedElement("inline-editor");
+    editorHost.setAttribute("data-inline-editor", "true");
+
+    const designDrag = new Event("dragstart", { bubbles: true, cancelable: true });
+    link.dispatchEvent(designDrag);
+    expect(designDrag.defaultPrevented).toBe(true);
+
+    const editorDrag = new Event("dragstart", { bubbles: true, cancelable: true });
+    editorHost.dispatchEvent(editorDrag);
+    expect(editorDrag.defaultPrevented).toBe(false);
+
+    sendInteractionState({ open: true, interactionsEnabled: false });
+    const interactDrag = new Event("dragstart", { bubbles: true, cancelable: true });
+    link.dispatchEvent(interactDrag);
+    expect(interactDrag.defaultPrevented).toBe(false);
+  });
+
   it("keeps press gestures from opening application widgets in the Design tool", () => {
     const trigger = trackedElement("menu-trigger");
     const openMenu = vi.fn();
@@ -890,6 +964,7 @@ describe("renderer selector lifecycle", () => {
       clientY: 20,
     }));
     document.dispatchEvent(new MouseEvent("mousemove", {
+      buttons: 1,
       bubbles: true,
       cancelable: true,
       clientX: 100,
@@ -922,6 +997,7 @@ describe("renderer selector lifecycle", () => {
     button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
     button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
     document.dispatchEvent(new MouseEvent("mousemove", {
+      buttons: 1,
       bubbles: true,
       clientX: 20,
       clientY: 20,

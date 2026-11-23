@@ -104,11 +104,33 @@ function layoutParent(element: HTMLElement): HTMLElement {
   return current;
 }
 
+/** Marks the inspector's own stand-ins for a dragged element: the slot that previews the reflow and the copy under the pointer. */
+export const DRAG_ARTIFACT_ATTR = "data-nudge-ui";
+export const DRAG_ARTIFACT_ROLE = { placeholder: "drag-placeholder", ghost: "drag-ghost" } as const;
+const DRAG_ARTIFACT_ROLES: ReadonlySet<string> = new Set(Object.values(DRAG_ARTIFACT_ROLE));
+
+/** A drag preview's stand-in, which is never a drop anchor or a laid-out sibling. */
+export function isDragArtifact(node: Node | null): boolean {
+  // SAFETY: nodeType 1 is ELEMENT_NODE; instanceof would miss elements from another frame's realm.
+  return node?.nodeType === 1 && DRAG_ARTIFACT_ROLES.has((node as Element).getAttribute(DRAG_ARTIFACT_ATTR) ?? "");
+}
+
+/** The first node from `node` on that is neither the dragged element nor a stand-in for it. */
+function skipDragStandIns(node: Node | null, dragged: HTMLElement): Node | null {
+  let anchor = node;
+  // Only elements are skipped, and an element's next sibling element is the slot after it.
+  while (anchor && anchor.nodeType === 1 && (anchor === dragged || isDragArtifact(anchor))) {
+    // SAFETY: nodeType 1 was checked in the loop condition, so the node is an Element.
+    anchor = (anchor as Element).nextElementSibling;
+  }
+  return anchor;
+}
+
 /** Boxes laid out directly by `container`, looking through display: contents wrappers to their children. */
 function layoutItems(container: HTMLElement): FlexItem[] {
   const HTMLElementConstructor = container.ownerDocument.defaultView!.HTMLElement;
   return Array.from(container.children).flatMap((child): FlexItem[] => {
-    if (!(child instanceof HTMLElementConstructor)) return [];
+    if (!(child instanceof HTMLElementConstructor) || isDragArtifact(child)) return [];
     return isDisplayContents(child) ? layoutItems(child) : [{ element: child, rect: child.getBoundingClientRect() }];
   });
 }
@@ -196,6 +218,12 @@ function flexLineNearest(lines: readonly FlexLine[], y: number): FlexLine | null
   return nearest;
 }
 
+function lastLaidOutChild(parent: HTMLElement): Element | null {
+  let child = parent.lastElementChild;
+  while (child && isDragArtifact(child)) child = child.previousElementSibling;
+  return child;
+}
+
 /** `centre` places the guide along the parent's axis, such as the middle of a gap; `span` limits a vertical guide to one line of a wrapped row instead of the whole container. */
 function lineFor(
   parent: HTMLElement,
@@ -208,7 +236,7 @@ function lineFor(
   const parentRect = axis === "x" ? layoutParent(parent).getBoundingClientRect() : dropTargetRect(parent);
   // SAFETY: before.nodeType === 1 was checked above, so it is an HTMLElement.
   const beforeElement = before?.nodeType === 1 ? before as HTMLElement : null;
-  const reference = beforeElement ?? parent.lastElementChild;
+  const reference = beforeElement ?? lastLaidOutChild(parent);
   const referenceRect = reference?.getBoundingClientRect();
   const parentRight = rightOf(parentRect);
   const parentBottom = bottomOf(parentRect);
@@ -251,8 +279,8 @@ function attemptAt(
   centre?: number,
   span?: Pick<FlexLine, "top" | "bottom">,
 ): DropAttempt {
-  // The dragged element still occupies its slot, so an insertion before it means the slot after it.
-  const anchor = before === dragged ? dragged.nextElementSibling : before;
+  // The dragged element keeps its slot in the DOM, so an insertion before it means the slot after it; a preview's stand-in is never an anchor.
+  const anchor = skipDragStandIns(before, dragged);
   const check = checkDrop(dragged, parent, anchor);
   if (!check.ok) return { drop: null, rejection: check.rejection };
   return { drop: { parent, before: anchor, ...lineFor(parent, anchor, centre, span) }, rejection: null };
@@ -338,10 +366,6 @@ export function getDropAttemptAtPoint(doc: Document, dragged: HTMLElement, x: nu
   }
   const beside = besideAtPoint(hovered, dragged, x, y);
   return beside.drop || beside.rejection ? beside : { drop: null, rejection };
-}
-
-export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number): DropLocation | null {
-  return getDropAttemptAtPoint(doc, dragged, x, y).drop;
 }
 
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {

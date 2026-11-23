@@ -19,7 +19,8 @@ import {
   type Rect,
 } from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
-import { deleteElement, getDropAttemptAtPoint, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { deleteElement, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { startDragPreview, type DragPreview } from "../overlay/dragPreview.ts";
 import { shake } from "../ui/shake.ts";
 import { showToast } from "../ui/Toast.tsx";
 import { changeKey } from "../changes/model.ts";
@@ -35,7 +36,14 @@ import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
 import { useFrameExploded } from "./frameViewState.ts";
 import { findCanvasCardIdByDocument, findCanvasFrameByDocument, getRegisteredFrames } from "./projection.ts";
-import { connectFrame, measureFrameViewport, toViewportPoint, toViewportRect, type FrameViewport } from "./frameConnection.ts";
+import {
+  connectFrame,
+  measureFrameViewport,
+  toViewportPoint,
+  toViewportRect,
+  type ControllerMessageBody,
+  type FrameViewport,
+} from "./frameConnection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { getEditScope, sourceSiteSelector } from "../selection/editScope.ts";
@@ -59,6 +67,20 @@ import {
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
 import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
+import {
+  isResizable,
+  isResizeHandle,
+  planResize,
+  RESIZE_HANDLE_SIZE,
+  renderedResizeValues,
+  resizeCommitDeclarations,
+  resizePreviewDeclarations,
+  resizePreviewProperties,
+  resizeValuesForDrag,
+  visibleResizeHandles,
+  type ResizePlan,
+  type ResizeSize,
+} from "../overlay/resizeGestures.ts";
 import { InspectorStyle } from "../ui/InspectorStyle.tsx";
 
 interface ElementIdentity {
@@ -88,6 +110,13 @@ interface FrameMeasureState {
 interface CanvasDragState {
   iframe: CanvasFrame;
   element: HTMLElement;
+  /** Lifts the element out of the page and reflows it around the drop while the pointer moves. */
+  preview: DragPreview;
+}
+
+function endElementDrag(ref: { current: CanvasDragState | null }): void {
+  ref.current?.preview.dispose();
+  ref.current = null;
 }
 
 interface CanvasSpacingDragState {
@@ -107,6 +136,114 @@ interface CanvasSpacingBadgeState {
   value: number;
   /** Shift is snapping to 8px steps: the badge rides the snapped handle instead of the raw pointer. */
   snapping: boolean;
+}
+
+interface ResizeTarget {
+  iframe: CanvasFrame;
+  element: { elementId: string; cid: string; src: string };
+  /** The drawn handle's side in the frame's px. */
+  handleSize: number;
+}
+
+function resizeTargetMessage(target: ResizeTarget | null): Extract<ControllerMessageBody, { type: "resize-target" }> {
+  return target
+    ? { type: "resize-target", target: target.element, handleSize: target.handleSize }
+    : { type: "resize-target", target: null };
+}
+
+/** Only the frames whose target changes hear about it, rather than every card in the workspace. */
+function postResizeTarget(iframe: CanvasFrame, target: ResizeTarget | null): void {
+  for (const [cardId, candidate] of getRegisteredFrames()) {
+    if (candidate === iframe) connectFrame(cardId, iframe).post(resizeTargetMessage(target));
+  }
+}
+
+interface CanvasResizeDragState {
+  iframe: CanvasFrame;
+  element: HTMLElement;
+  plan: ResizePlan;
+  start: { x: number; y: number };
+  requested: ResizeSize;
+  /** Inline values the preview overwrote, per property, so a cancel restores the page's own declarations. */
+  originals: Map<string, { value: string; priority: string }>;
+}
+
+function startResizeDrag(
+  iframe: CanvasFrame,
+  element: HTMLElement,
+  plan: ResizePlan,
+  start: { x: number; y: number },
+): CanvasResizeDragState {
+  const originals = new Map<string, { value: string; priority: string }>();
+  for (const property of resizePreviewProperties(plan)) {
+    originals.set(property, {
+      value: element.style.getPropertyValue(property),
+      priority: element.style.getPropertyPriority(property),
+    });
+  }
+  return { iframe, element, plan, start, requested: { width: null, height: null }, originals };
+}
+
+function applyResizePreview(drag: CanvasResizeDragState, size: ResizeSize): void {
+  drag.requested = size;
+  for (const { property, value } of resizePreviewDeclarations(drag.plan, size)) {
+    beginLayoutPreview(drag.element, property);
+    drag.element.style.setProperty(property, value);
+  }
+}
+
+function restoreResizeProperty(drag: CanvasResizeDragState, property: string): void {
+  const original = drag.originals.get(property);
+  if (original?.value) {
+    drag.element.style.setProperty(property, original.value, original.priority);
+  } else {
+    drag.element.style.removeProperty(property);
+  }
+  endLayoutPreview(drag.element, property);
+}
+
+function restoreResizePreview(drag: CanvasResizeDragState): void {
+  for (const property of drag.originals.keys()) restoreResizeProperty(drag, property);
+}
+
+function clearResizeDrag(ref: { current: CanvasResizeDragState | null }): void {
+  const drag = ref.current;
+  ref.current = null;
+  if (drag) restoreResizePreview(drag);
+}
+
+/** Commits the size the element renders; the committed properties stay inline until the projected rule lands. */
+function commitResizeDrag(drag: CanvasResizeDragState, pending: PendingSpacingCommit[]): void {
+  const rendered = renderedResizeValues(drag.plan, drag.requested);
+  const declarations = resizeCommitDeclarations(drag.plan, rendered);
+  if (declarations.length === 0) {
+    restoreResizePreview(drag);
+    return;
+  }
+  applyResizePreview(drag, rendered);
+  const committed = new Map(declarations.map((declaration) => [declaration.property, declaration.value]));
+  for (const property of drag.originals.keys()) {
+    if (!committed.has(property)) restoreResizeProperty(drag, property);
+  }
+  const records = setStyles(drag.element, declarations);
+  if (records.length === 0) {
+    restoreResizePreview(drag);
+    showToast({ tone: "error", title: "Couldn't resize this element", description: "Try the resize again." });
+    return;
+  }
+  const keys = records.map((record) => changeKey(record));
+  for (const [property, committedValue] of committed) {
+    const original = drag.originals.get(property);
+    pushPendingSpacingCommit(pending, {
+      iframe: drag.iframe,
+      element: drag.element,
+      property,
+      committedValue,
+      keys,
+      originalInlineValue: original?.value ?? "",
+      originalInlinePriority: original?.priority ?? "",
+    });
+  }
 }
 
 /** A committed drag's preview inline, held until the renderer applies the projected rule so the value never flashes. */
@@ -180,7 +317,7 @@ function projectGuideToCanvas(guide: DropGuide | null): ViewportDropGuide | null
       height: guide.orientation === "vertical",
     }),
     target: toViewportRect(viewport, guide.target),
-    label: guide.label,
+    ...(guide.slot ? { slot: toViewportRect(viewport, guide.slot) } : {}),
   };
 }
 
@@ -414,7 +551,12 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${camera.zoom}:${cardGeometryKey}`;
   const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
+  /** The dragged element leaves the layout while it moves, so its selection chrome waits for the drop. */
+  const [elementDragging, setElementDragging] = useState(false);
   const spacingDragRef = useRef<CanvasSpacingDragState | null>(null);
+  const resizeDragRef = useRef<CanvasResizeDragState | null>(null);
+  /** The element whose handles the renderers hit-test, re-sent when a renderer (re)connects. */
+  const resizeTargetRef = useRef<ResizeTarget | null>(null);
   const pendingSpacingCommitsRef = useRef<PendingSpacingCommit[]>([]);
   const [spacingDragBadge, setSpacingDragBadge] = useState<CanvasSpacingBadgeState | null>(null);
   /** Counts 8px snap steps in the current drag; it keys the handle so each step replays its settle. */
@@ -424,7 +566,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectedDropGuide = projectGuideToCanvas(dropGuide);
 
   const selectedInCanvas = selectedFrame !== null;
-  const selectedRects = selectedInCanvas
+  const selectedRects = selectedInCanvas && !elementDragging
     ? selectedElements.map((candidate) => {
       const frame = findCanvasFrameByDocument(candidate.domElement.ownerDocument);
       return frame === selectedFrame ? toRect(candidate.domElement.getBoundingClientRect()) : null;
@@ -544,6 +686,36 @@ export function CanvasElementOverlay(): ReactElement | null {
     return elementId ? { elementId } : null;
   }, [selected?.domElement]);
 
+  const resizeTargetElement = selectedInCanvas && selectedElements.length === 1 && selected && !elementDragging
+    && isResizable(selected.domElement)
+    ? selected.domElement
+    : null;
+  const resizeTargetId = resizeTargetElement ? selectedIdentity?.elementId ?? null : null;
+  // The handles keep their screen size at any card zoom, so the renderer hit-tests them in its own, scaled px.
+  const resizeHandleSize = selectedFrameViewport && selectedFrameViewport.scale > 0
+    ? Math.round((RESIZE_HANDLE_SIZE / selectedFrameViewport.scale) * 1000) / 1000
+    : RESIZE_HANDLE_SIZE;
+  useEffect(() => {
+    const previous = resizeTargetRef.current;
+    const next: ResizeTarget | null = resizeTargetElement && resizeTargetId && selectedFrame
+      ? {
+        iframe: selectedFrame,
+        element: {
+          elementId: resizeTargetId,
+          cid: resizeTargetElement.getAttribute("data-cid") ?? "",
+          src: resizeTargetElement.getAttribute("data-src") ?? "",
+        },
+        handleSize: resizeHandleSize,
+      }
+      : null;
+    resizeTargetRef.current = next;
+    // A resize whose element is no longer the selection (picked elsewhere mid-drag) ends here, so a late release
+    // commits nothing.
+    if (resizeDragRef.current && resizeDragRef.current.element !== resizeTargetElement) clearResizeDrag(resizeDragRef);
+    if (previous && previous.iframe !== next?.iframe) postResizeTarget(previous.iframe, null);
+    if (next) postResizeTarget(next.iframe, next);
+  }, [resizeTargetId, resizeTargetElement, selectedFrame, resizeHandleSize]);
+
   // Undo/redo/revert/clear remove the record synchronously; restore the authored declaration before the next replace-styles lands.
   useEffect(() => {
     return subscribeActiveDraftChanges(() => {
@@ -627,6 +799,8 @@ export function CanvasElementOverlay(): ReactElement | null {
     const unsubscribe = subscribeCanvasRendererMessages(({ frame, message: data }) => {
       if (data.type === "renderer-hello" || data.type === "frame-ready") {
         frame.post({ type: "measure-modifier", altKey: measureAltKeyRef.current });
+        const target = resizeTargetRef.current;
+        frame.post(resizeTargetMessage(target?.iframe === frame.iframe ? target : null));
       }
       if (data.type === "renderer-hello") return;
 
@@ -712,9 +886,11 @@ export function CanvasElementOverlay(): ReactElement | null {
             clickCount: data.clickCount ?? 0,
           });
       } else if (data.type === "element-deselect") {
+        clearResizeDrag(resizeDragRef);
         clearSpacingDrag(spacingDragRef);
         setSpacingDragBadge(null);
-        dragRef.current = null;
+        endElementDrag(dragRef);
+        setElementDragging(false);
         clearDropGuide("canvas");
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
@@ -725,9 +901,21 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         const element = frame.element(msg);
         if (!element) return;
+        clearResizeDrag(resizeDragRef);
         clearSpacingDrag(spacingDragRef);
-        dragRef.current = null;
+        endElementDrag(dragRef);
+        setElementDragging(false);
         const startPoint = msg.startPoint ?? msg.point;
+        if (msg.resize !== undefined && msg.resize !== null) {
+          // A stale handle (the selection moved on in the layer tree) starts nothing rather than a move.
+          if (typeof msg.resize !== "string" || !isResizeHandle(msg.resize)
+            || singleSelectedRendererElement(element) !== element || !isResizable(element)) return;
+          const drag = startResizeDrag(frame.iframe, element, planResize(element, msg.resize), startPoint);
+          resizeDragRef.current = drag;
+          setHover(null);
+          applyResizePreview(drag, resizeValuesForDrag(drag.plan, drag.start, msg.point, msg.shiftKey === true));
+          return;
+        }
         const frameDocument = frame.document();
         const spacing = msg.spacing
           ? getSpacingAffordanceForDescriptor(element, msg.spacing)
@@ -754,10 +942,18 @@ export function CanvasElementOverlay(): ReactElement | null {
           moveSpacingDrag(drag, msg.point, msg.shiftKey === true);
           return;
         }
-        dragRef.current = { iframe: frame.iframe, element };
         selectGestureElement(element);
+        dragRef.current = { iframe: frame.iframe, element, preview: startDragPreview(element, startPoint) };
+        setElementDragging(true);
+        // The hovered box was the element's own, and the page reflows under it as soon as the element lifts.
+        setHover(null);
         updateDropGuide(msg.point);
       } else if (data.type === "element-drag-move") {
+        const resize = resizeDragRef.current;
+        if (resize && resize.iframe === frame.iframe) {
+          applyResizePreview(resize, resizeValuesForDrag(resize.plan, resize.start, data.point, data.shiftKey === true));
+          return;
+        }
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === frame.iframe) {
           moveSpacingDrag(spacing, data.point, data.shiftKey === true);
@@ -766,6 +962,17 @@ export function CanvasElementOverlay(): ReactElement | null {
         updateDropGuide(data.point);
       } else if (data.type === "element-drag-end") {
         const msg = data;
+        const resize = resizeDragRef.current;
+        if (resize && resize.iframe === frame.iframe) {
+          resizeDragRef.current = null;
+          if (msg.cancelled) {
+            restoreResizePreview(resize);
+          } else {
+            applyResizePreview(resize, resizeValuesForDrag(resize.plan, resize.start, msg.point, msg.shiftKey === true));
+            commitResizeDrag(resize, pendingSpacingCommitsRef.current);
+          }
+          return;
+        }
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === frame.iframe) {
           finishSpacingDrag(spacing, msg.point, msg.shiftKey === true, msg.cancelled === true);
@@ -774,7 +981,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         const current = dragRef.current;
         const frameDocument = frame.document();
         if (!msg.cancelled && current && current.iframe === frame.iframe && frameDocument) {
-          const { drop, rejection } = getDropAttemptAtPoint(frameDocument, current.element, msg.point.x, msg.point.y);
+          // The release commits the drop the preview last showed, measured with the page reflowed around it.
+          const { drop, rejection } = current.preview.finish();
           if (drop && !moveElement(current.element, drop)) {
             showToast({ tone: "error", title: "Couldn't move this element", description: "Try dropping it again." });
           } else if (rejection) {
@@ -784,7 +992,8 @@ export function CanvasElementOverlay(): ReactElement | null {
           }
           selectGestureElement(current.element);
         }
-        dragRef.current = null;
+        endElementDrag(dragRef);
+        setElementDragging(false);
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
         const element = singleSelectedRendererElement(frame.element(data));
@@ -813,18 +1022,19 @@ export function CanvasElementOverlay(): ReactElement | null {
         const current = dragRef.current;
         const frameDocument = frame.document();
         if (!current || current.iframe !== frame.iframe || !frameDocument) return;
-        const drop = getDropLocationAtPoint(frameDocument, current.element, point.x, point.y);
+        const { drop } = current.preview.update(point);
         if (!drop) {
           clearDropGuide("canvas");
           return;
         }
-        showDropGuide("canvas", frameDocument, drop);
+        showDropGuide("canvas", frameDocument, drop, current.preview.slotRect());
       }
     });
     return () => {
       unsubscribe();
+      clearResizeDrag(resizeDragRef);
       clearSpacingDrag(spacingDragRef);
-      dragRef.current = null;
+      endElementDrag(dragRef);
       pendingSpacingCommitsRef.current = [];
       clearDropGuide("canvas");
     };
@@ -947,7 +1157,17 @@ export function CanvasElementOverlay(): ReactElement | null {
           data-selected-src={element.src}
           style={overlayStyle(rect)}
           aria-hidden="true"
-        />
+        >
+          {resizeTargetElement === element.domElement ? visibleResizeHandles(rect, RESIZE_HANDLE_SIZE).map((handle) => (
+            <span
+              key={handle}
+              className="selection-resize-handle"
+              data-handle={handle}
+              data-test="selection-resize-handle"
+              style={{ width: RESIZE_HANDLE_SIZE, height: RESIZE_HANDLE_SIZE }}
+            />
+          )) : null}
+        </div>
       ))}
       {projectedSpacingBadge && spacingBadge ? (
         <div
@@ -975,8 +1195,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         lineTestId="canvas-dom-drop-line"
         targetClassName="canvas-dom-drop-target"
         targetTestId="canvas-dom-drop-target"
-        labelClassName="canvas-dom-drop-label"
-        labelTestId="canvas-dom-drop-label"
+        slotClassName="canvas-dom-drop-slot"
+        slotTestId="canvas-dom-drop-slot"
       />
     </>
   );

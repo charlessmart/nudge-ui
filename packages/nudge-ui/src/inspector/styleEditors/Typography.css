@@ -6,15 +6,24 @@
   min-width: 0;
 }
 
-.typography__field-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
+.typography__weight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  color: var(--text-muted);
+  gap: var(--space-8);
 }
 
-.typography__field > .select {
-  flex: 1 1 auto;
+/* Holds the at-rule badge, which sits on the toggle's corner as it does on every other field. */
+.typography__style-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.typography__style-toggle > .typography__mixed {
+  color: var(--text-muted);
+  font-size: var(--font-size-badge);
 }
 
 .typography__metrics {

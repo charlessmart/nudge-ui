@@ -5,7 +5,8 @@ export interface ViewportDropGuide {
   orientation: "horizontal" | "vertical";
   line: DropGuideRect;
   target?: DropGuideRect;
-  label?: string;
+  /** Where the dropped element would sit; shown in place of the line when present. */
+  slot?: DropGuideRect;
 }
 
 interface DropGuideOverlayProps {
@@ -14,11 +15,9 @@ interface DropGuideOverlayProps {
   lineTestId: string;
   targetClassName?: string;
   targetTestId?: string;
-  labelClassName?: string;
-  labelTestId?: string;
+  slotClassName?: string;
+  slotTestId?: string;
 }
-
-const LABEL_HEIGHT = 20;
 
 function fixedRect(rect: DropGuideRect): CSSProperties {
   return {
@@ -37,8 +36,8 @@ export function DropGuideOverlay({
   lineTestId,
   targetClassName,
   targetTestId,
-  labelClassName,
-  labelTestId,
+  slotClassName,
+  slotTestId,
 }: DropGuideOverlayProps): ReactElement | null {
   if (!guide) return null;
   return (
@@ -46,30 +45,17 @@ export function DropGuideOverlay({
       {guide.target && targetClassName && targetTestId ? (
         <div className={targetClassName} data-test={targetTestId} style={fixedRect(guide.target)} aria-hidden="true" />
       ) : null}
-      {guide.target && guide.label && labelClassName && labelTestId ? (
+      {guide.slot && slotClassName && slotTestId ? (
+        <div className={slotClassName} data-test={slotTestId} style={fixedRect(guide.slot)} aria-hidden="true" />
+      ) : (
         <div
-          className={labelClassName}
-          data-test={labelTestId}
-          style={{
-            position: "fixed",
-            left: guide.target.left,
-            // Above the target, or inside its top edge when the target touches the top of the viewport.
-            top: guide.target.top >= LABEL_HEIGHT + 2 ? guide.target.top - LABEL_HEIGHT - 2 : guide.target.top + 2,
-            height: LABEL_HEIGHT,
-            pointerEvents: "none",
-          }}
+          className={lineClassName}
+          data-test={lineTestId}
+          data-orientation={guide.orientation}
+          style={fixedRect(guide.line)}
           aria-hidden="true"
-        >
-          {guide.label}
-        </div>
-      ) : null}
-      <div
-        className={lineClassName}
-        data-test={lineTestId}
-        data-orientation={guide.orientation}
-        style={fixedRect(guide.line)}
-        aria-hidden="true"
-      />
+        />
+      )}
     </>
   );
 }

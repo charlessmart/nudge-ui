@@ -22,6 +22,7 @@ import { readBorderWidths, readMargins } from "../overlay/overlayGeometry.ts";
 import { installInteractionStyles } from "../overlay/interactionStyles.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
+import { findRendererElement } from "./frameConnection.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isEditableEvent, isInspectorToggleShortcut, isCopyPromptShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
@@ -34,6 +35,7 @@ import {
   keepsNativeInteraction,
 } from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
+import { getResizeHandleAtPoint, RESIZE_HANDLE_SIZE, resizeCursor, type ResizeHandle } from "../overlay/resizeGestures.ts";
 import {
   getElementSpacingAtPoint,
   getElementSpacingHandleAtPoint,
@@ -145,7 +147,11 @@ export function installRendererElementSelector(
   let scrolling = false;
   let scrollSettleTimer: number | null = null;
   let activeHoverElement: HTMLElement | null = null;
-  let suppressHoverDuringSpacingDrag = false;
+  /** A spacing or resize handle drag owns the pointer, so hovering reports nothing until it ends. */
+  let suppressHoverDuringHandleDrag = false;
+  /** The controller's single selection, which carries resize handles, and their drawn size in this document's px. */
+  let resizeTarget: HTMLElement | null = null;
+  let resizeHandleSize = RESIZE_HANDLE_SIZE;
   let lastHoverPoint: {
     x: number;
     y: number;
@@ -264,7 +270,7 @@ export function installRendererElementSelector(
     appliedRootCursor = null;
   }
 
-  function setSpacingCursor(elements: readonly HTMLElement[], cursor: "ew-resize" | "ns-resize"): void {
+  function setSpacingCursor(elements: readonly HTMLElement[], cursor: string): void {
     const unchanged = spacingCursor !== null
       && spacingCursor.targets.length === elements.length
       && spacingCursor.targets.every((target, index) => target.element === elements[index]);
@@ -297,6 +303,15 @@ export function installRendererElementSelector(
     const identity = getRendererIdentity();
     if (!identity) return;
 
+    // The selection's resize handles straddle its outline, so the pointer may be over its parent; they win over spacing.
+    const resizeHandle = !commentMode && !clear && pending.point ? resizeHandleAtPoint(pending.point.x, pending.point.y) : null;
+    if (resizeHandle && resizeTarget && pending.point) {
+      setHandleCursor(resizeTarget, resizeCursor(resizeHandle), pending.point);
+      activeHoverElement = resizeTarget;
+      sendToParent(hoverMessageFor(resizeTarget, pending.point, null, null, identity));
+      return;
+    }
+
     // Only the handle hit starts a drag and changes the cursor; the area-wide match is purely visual.
     const elementSpacing = !commentMode && !clear && pending.point
       ? getElementSpacingAtPoint(document, pending.element, pending.point.x, pending.point.y)
@@ -305,46 +320,60 @@ export function installRendererElementSelector(
     const element = elementSpacing?.handle?.element ?? elementSpacing?.area?.element ?? pending.element;
     const spacing = elementSpacing?.handle?.element === element ? elementSpacing.handle : null;
     const hoverSpacing = elementSpacing?.area?.element === element ? elementSpacing.area : null;
-    const cid = element.getAttribute("data-cid")!;
-    const selector = buildSelector(element);
-    const src = element.getAttribute("data-src") ?? "";
-    const rect = clear ? null : element.getBoundingClientRect();
-    if (spacing) {
-      // A margin lies on its parent, so the pointer is over that element, not the margin's owner. Tracked elements each carry their own cursor rule, so the element under the pointer needs the resize cursor too.
-      const underPointer = pending.point ? document.elementFromPoint?.(pending.point.x, pending.point.y) : null;
-      setSpacingCursor(
-        underPointer instanceof HTMLElement && underPointer !== spacing.element ? [spacing.element, underPointer] : [spacing.element],
-        spacing.cursor,
-      );
+    if (spacing && pending.point) {
+      setHandleCursor(spacing.element, spacing.cursor, pending.point);
     } else {
       clearSpacingCursor();
     }
     activeHoverElement = clear ? null : element;
+    sendToParent(hoverMessageFor(
+      element,
+      pending.point,
+      spacing ? toSpacingDescriptor(spacing) : null,
+      hoverSpacing ? toSpacingDescriptor(hoverSpacing) : null,
+      identity,
+      clear,
+    ));
+  }
 
-    const msg: ElementHoverMessage = {
+  /**
+   * A handle can lie over another element (a margin on its parent, a resize handle past the outline). Tracked elements
+   * each carry their own cursor rule, so the element under the pointer needs the handle's cursor too.
+   */
+  function setHandleCursor(owner: HTMLElement, cursor: string, point: { x: number; y: number }): void {
+    const underPointer = document.elementFromPoint?.(point.x, point.y);
+    setSpacingCursor(underPointer instanceof HTMLElement && underPointer !== owner ? [owner, underPointer] : [owner], cursor);
+  }
+
+  function hoverMessageFor(
+    element: HTMLElement,
+    point: { x: number; y: number } | null,
+    spacing: SpacingDescriptor | null,
+    hoverSpacing: SpacingDescriptor | null,
+    identity: NonNullable<ReturnType<typeof getRendererIdentity>>,
+    clear = false,
+  ): ElementHoverMessage {
+    const rect = clear ? null : element.getBoundingClientRect();
+    return {
       type: "element-hover",
       protocolVersion: PROTOCOL_VERSION,
-      cid,
-      selector,
-      src,
+      cid: element.getAttribute("data-cid")!,
+      selector: buildSelector(element),
+      src: element.getAttribute("data-src") ?? "",
       elementId: cidIndex.elementId(element),
-      rect: rect
-        ? {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-        }
-        : null,
+      rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
       margins: rect ? readMargins(element) : null,
       borders: rect ? readBorderWidths(element) : null,
-      point: pending.point,
-      spacing: spacing ? toSpacingDescriptor(spacing) : null,
-      hoverSpacing: hoverSpacing ? toSpacingDescriptor(hoverSpacing) : null,
+      point,
+      spacing,
+      hoverSpacing,
       ...identity,
     };
+  }
 
-    sendToParent(msg);
+  function resizeHandleAtPoint(x: number, y: number): ResizeHandle | null {
+    if (resizeTarget && !resizeTarget.isConnected) resizeTarget = null;
+    return resizeTarget ? getResizeHandleAtPoint(resizeTarget, x, y, resizeHandleSize) : null;
   }
 
   const hoverUpdate = createFrameThrottle((pending: {
@@ -352,7 +381,7 @@ export function installRendererElementSelector(
     clear: boolean;
     point: { x: number; y: number } | null;
   }) => {
-    if (disposed || scrolling || suppressHoverDuringSpacingDrag) return;
+    if (disposed || scrolling || suppressHoverDuringHandleDrag) return;
     reportHover(pending);
   });
 
@@ -367,7 +396,7 @@ export function installRendererElementSelector(
   function resumeHoverAfterScroll(): void {
     scrollSettleTimer = null;
     scrolling = false;
-    if (disposed || interactionsSuspended || suppressHoverDuringSpacingDrag || !lastHoverPoint) return;
+    if (disposed || interactionsSuspended || suppressHoverDuringHandleDrag || !lastHoverPoint) return;
     const target = document.elementFromPoint?.(lastHoverPoint.x, lastHoverPoint.y);
     const element = resolveSelectionTarget(target, lastHoverPoint.mode);
     if (!element) return;
@@ -413,7 +442,7 @@ export function installRendererElementSelector(
       if (interactionsSuspended) return;
       updateMeasureState(event.altKey, true);
       // Like mousemove, a pressed pointer reports drag moves, not hovers.
-      if (suppressHoverDuringSpacingDrag || pendingDrag) return;
+      if (suppressHoverDuringHandleDrag || pendingDrag) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
@@ -432,6 +461,7 @@ export function installRendererElementSelector(
     element: HTMLElement;
     point: { x: number; y: number };
     spacing: SpacingDescriptor | null;
+    resize: ResizeHandle | null;
   } | null = null;
   let dragging = false;
   // The browser clicks the common ancestor after a drag; that click must not reselect the ancestor.
@@ -461,6 +491,18 @@ export function installRendererElementSelector(
       || message.cardId !== identity.cardId) return;
     if (message.type === "measure-modifier" && typeof message.altKey === "boolean") {
       updateMeasureState(message.altKey, measurePointerOverPage);
+      return;
+    }
+    if (message.type === "resize-target") {
+      const target = message.target;
+      resizeTarget = typeof target === "object" && target !== null
+        && "elementId" in target && typeof target.elementId === "string"
+        && "cid" in target && typeof target.cid === "string"
+        && "src" in target && typeof target.src === "string"
+        ? findRendererElement(document, { elementId: target.elementId, cid: target.cid, src: target.src })
+        : null;
+      const size = message.handleSize;
+      resizeHandleSize = typeof size === "number" && Number.isFinite(size) && size > 0 ? size : RESIZE_HANDLE_SIZE;
       return;
     }
     if (message.type === "pan-modifier" && typeof message.spaceHeld === "boolean") {
@@ -538,18 +580,29 @@ export function installRendererElementSelector(
     sendDragEnd(lastDragPoint, true);
     pendingDrag = null;
     dragging = false;
-    suppressHoverDuringSpacingDrag = false;
+    suppressHoverDuringHandleDrag = false;
   }
 
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
     if (interactionsSuspended) return;
     if (event.button !== 0 || commentMode || keepsNativeInteraction(event.target)) return;
+    // A resize handle can sit just outside the selection, over an element (or page) that is not a selection target.
+    const resize = resizeHandleAtPoint(event.clientX, event.clientY);
+    if (resize && resizeTarget) {
+      suppressHoverDuringHandleDrag = true;
+      hoverUpdate.cancel();
+      lastHoverPoint = null;
+      lastSelected = resizeTarget;
+      pendingDrag = { element: resizeTarget, point: { x: event.clientX, y: event.clientY }, spacing: null, resize };
+      lastDragPoint = { x: event.clientX, y: event.clientY };
+      return;
+    }
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
     const spacingAffordance = getElementSpacingHandleAtPoint(document, element, event.clientX, event.clientY);
     const spacing = spacingAffordance ? toSpacingDescriptor(spacingAffordance) : null;
     if (spacing) {
-      suppressHoverDuringSpacingDrag = true;
+      suppressHoverDuringHandleDrag = true;
       hoverUpdate.cancel();
       lastHoverPoint = null;
     }
@@ -579,6 +632,7 @@ export function installRendererElementSelector(
       element: owner,
       point: { x: event.clientX, y: event.clientY },
       spacing,
+      resize: null,
     };
     lastDragPoint = { x: event.clientX, y: event.clientY };
   }, true);
@@ -589,6 +643,13 @@ export function installRendererElementSelector(
       blockApplicationGesture(event);
     }, true);
   }
+
+  // Links, images and `draggable` elements start the browser's own drag-and-drop (the URL chip under the cursor),
+  // which takes over the pointer so the inspector's element drag stops receiving `mousemove`.
+  trackListener<DragEvent>(document, "dragstart", (event: DragEvent) => {
+    if (interactionsSuspended || !acceptsClick(event) || keepsNativeInteraction(event.target)) return;
+    event.preventDefault();
+  }, true);
 
   trackListener<MouseEvent>(document, "mousemove", (event: MouseEvent) => {
     if (!pendingDrag) {
@@ -611,6 +672,12 @@ export function installRendererElementSelector(
       }
       return;
     }
+    // The primary button is up, so its mouseup went elsewhere (another window, a browser-owned drag): end the gesture
+    // as cancelled instead of leaving a preview applied until the next drag.
+    if ((event.buttons & 1) === 0) {
+      cancelActiveDrag();
+      return;
+    }
     if (!dragging && Math.hypot(event.clientX - pendingDrag.point.x, event.clientY - pendingDrag.point.y) < 6) return;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -625,6 +692,7 @@ export function installRendererElementSelector(
         elementId: cidIndex.elementId(pendingDrag.element), point,
         startPoint: pendingDrag.point,
         spacing: pendingDrag.spacing,
+        resize: pendingDrag.resize,
         shiftKey: event.shiftKey,
         ...identity,
       };
@@ -636,7 +704,8 @@ export function installRendererElementSelector(
 
   function finishDrag(event: MouseEvent): void {
     dragMoveUpdate.cancel();
-    if (dragging) {
+    // Pressing a resize handle without moving keeps the selection, rather than clicking whatever lies under it.
+    if (dragging || pendingDrag?.resize) {
       suppressClickAfterDrag = true;
       window.setTimeout(() => { suppressClickAfterDrag = false; }, 0);
       event.preventDefault();
@@ -646,7 +715,7 @@ export function installRendererElementSelector(
     }
     pendingDrag = null;
     dragging = false;
-    suppressHoverDuringSpacingDrag = false;
+    suppressHoverDuringHandleDrag = false;
   }
   trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
@@ -887,7 +956,7 @@ export function installRendererElementSelector(
     activeHoverElement = null;
     lastHoverPoint = null;
     scrolling = false;
-    suppressHoverDuringSpacingDrag = false;
+    suppressHoverDuringHandleDrag = false;
     measurePointerOverPage = false;
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");

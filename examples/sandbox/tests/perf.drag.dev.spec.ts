@@ -201,7 +201,7 @@ test("perf: editing-surface drag threshold to first visible insertion guide", as
   const runs: number[] = [];
   for (let run = 0; run < RUNS; run += 1) {
     const { source, destination } = await loadEditingSurface(page);
-    const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-line"]');
+    const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-slot"], [data-test="canvas-dom-drop-line"]');
     expect(elapsed, `editing-surface drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
     runs.push(elapsed);
   }
@@ -215,7 +215,7 @@ test("perf: editing-surface cross-container drag threshold to first visible inse
   const runs: number[] = [];
   for (let run = 0; run < RUNS; run += 1) {
     const { source, destination } = await loadStructuralEditingSurface(page);
-    const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-line"]');
+    const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-slot"], [data-test="canvas-dom-drop-line"]');
     expect(elapsed, `editing-surface cross-container drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
     runs.push(elapsed);
   }

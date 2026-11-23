@@ -1,58 +1,60 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { act, createElement, forwardRef, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { dropTargetLabel } from "./dropGuide.ts";
+import { clearDropGuide, showDropGuide, useDropGuide } from "./dropGuide.ts";
+import { DropGuideOverlay } from "./DropGuideOverlay.tsx";
+import type { DropLocation } from "./structuralGestures.ts";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
 
 afterEach(() => {
+  act(() => clearDropGuide("canvas"));
   act(() => root?.unmount());
   root = null;
   document.body.replaceChildren();
 });
 
-function render(node: ReactNode): HTMLElement {
+function CanvasGuide() {
+  return createElement(DropGuideOverlay, {
+    guide: useDropGuide("canvas"),
+    lineClassName: "line",
+    lineTestId: "line",
+    slotClassName: "slot",
+    slotTestId: "slot",
+  });
+}
+
+function render(): HTMLElement {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  act(() => root!.render(node));
+  act(() => root!.render(createElement(CanvasGuide)));
   return container;
 }
 
-// Mirrors the design system: Stack renders Box, which renders the host element, and both set a displayName.
-const Box = forwardRef<HTMLDivElement, { children?: ReactNode; testId: string }>(({ children, testId }, ref) =>
-  createElement("div", { ref, "data-test": testId }, children));
-Box.displayName = "Box";
-const Stack = forwardRef<HTMLDivElement, { children?: ReactNode }>(({ children }, ref) =>
-  createElement(Box, { ref, testId: "stack" }, children));
-Stack.displayName = "Stack";
-
-function VoicePanel(): ReactNode {
-  return createElement("section", { "data-test": "panel" }, createElement(Stack, null, createElement("p", { "data-test": "bare" }, "Text")));
+function drop(): DropLocation {
+  const parent = document.createElement("div");
+  document.body.append(parent);
+  return { parent, before: null, orientation: "vertical", left: 40, top: 0, width: 4, height: 120 };
 }
 
-describe("dropTargetLabel", () => {
-  it("names a design-system layout by its outermost displayName", () => {
-    const container = render(createElement(VoicePanel));
-    expect(dropTargetLabel(container.querySelector('[data-test="stack"]')!)).toBe("Into Stack");
+describe("drop guide", () => {
+  it("shows the reflowed slot in place of the insertion line", () => {
+    const container = render();
+    act(() => showDropGuide("canvas", document, drop(), { left: 40, top: 0, width: 80, height: 120 } as DOMRect));
+    expect(container.querySelector('[data-test="slot"]')).not.toBeNull();
+    expect(container.querySelector('[data-test="line"]')).toBeNull();
   });
 
-  it("falls back to the function name of the component whose root it is", () => {
-    const container = render(createElement(VoicePanel));
-    expect(dropTargetLabel(container.querySelector('[data-test="panel"]')!)).toBe("Into VoicePanel");
-  });
-
-  it("uses the tag for an element no component renders as its root", () => {
-    const container = render(createElement(VoicePanel));
-    expect(dropTargetLabel(container.querySelector('[data-test="bare"]')!)).toBe("Into p");
-  });
-
-  it("uses the tag outside React", () => {
-    const element = document.createElement("ul");
-    document.body.append(element);
-    expect(dropTargetLabel(element)).toBe("Into ul");
+  it("falls back to the line when the slot has no box, as for an empty element", () => {
+    const container = render();
+    act(() => showDropGuide("canvas", document, drop(), { left: 40, top: 0, width: 0, height: 0 } as DOMRect));
+    const line = container.querySelector<HTMLElement>('[data-test="line"]');
+    expect(container.querySelector('[data-test="slot"]')).toBeNull();
+    expect(line?.dataset.orientation).toBe("vertical");
+    expect([line?.style.left, line?.style.width]).toEqual(["40px", "4px"]);
   });
 });

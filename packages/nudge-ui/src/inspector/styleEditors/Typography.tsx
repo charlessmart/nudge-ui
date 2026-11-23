@@ -20,13 +20,13 @@ import { isExpressionRow } from "./fieldValue.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
-import { Select } from "../ui/Select.tsx";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
-import { setStyle, setStyles } from "../tokens/editActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { InlineStyleBlockedTooltip, InlineStyleWarning } from "../ui/InlineStyleWarning.tsx";
+import { InlineStyleBlockedTooltip } from "../ui/InlineStyleWarning.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 import { inlineBlockedBy } from "./inlineAuthored.ts";
@@ -63,13 +63,24 @@ export function Typography(props: TypographyProps): ReactElement {
           entries={allEntries}
         />
 
-        <FontStyleField
-          element={el}
-          elements={targetElements}
-          editTarget={target}
-          fontStyleRow={findTokenRow(tokenRows, "font-style")}
-          fontWeightRow={findTokenRow(tokenRows, "font-weight")}
-        />
+        <div className="typography__weight" data-test="typography-weight">
+          <TypographyTokenField
+            property="font-weight"
+            label="Font weight"
+            icon={<IconTypography size={"var(--icon-size-small)"} stroke={1.45} aria-hidden="true" />}
+            tokenRow={findTokenRow(tokenRows, "font-weight")}
+            selection={selection}
+            domElement={el}
+            editTarget={target}
+            entries={allEntries}
+            suggestions={FONT_WEIGHT_SUGGESTIONS}
+          />
+          <ItalicToggle
+            elements={targetElements}
+            editTarget={target}
+            fontStyleRow={findTokenRow(tokenRows, "font-style")}
+          />
+        </div>
 
         <div className="typography__metrics" data-test="typography-metrics">
           <TypographyTokenField
@@ -146,11 +157,12 @@ interface TypographyTokenFieldProps {
   domElement: HTMLElement;
   editTarget: EditTarget;
   entries: TokenEntry[];
+  suggestions?: ReadonlyArray<string>;
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries } = props;
-  const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
+  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries, suggestions } = props;
+  const metric = property === "font-size" || property === "line-height" || property === "letter-spacing" || property === "font-weight";
   const selectedProperty = selection && selection.elements.length > 1
     ? selection.getProperty(property)
     : null;
@@ -167,6 +179,7 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
         domElement={domElement}
         editTarget={editTarget}
         entries={entries}
+        suggestions={suggestions}
         editMetadata={metadataFor(tokenRow)}
         leading={icon}
         trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
@@ -176,109 +189,59 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
   );
 }
 
-interface FontStyleOption {
-  value: string;
-  label: string;
-  weight: string;
-  style: string;
-}
+const FONT_WEIGHT_SUGGESTIONS = ["100", "200", "300", "400", "500", "600", "700", "800", "900"];
 
-const FONT_STYLE_OPTIONS: FontStyleOption[] = [
-  { value: "300-normal", label: "Light", weight: "300", style: "normal" },
-  { value: "400-normal", label: "Regular", weight: "400", style: "normal" },
-  { value: "500-normal", label: "Medium", weight: "500", style: "normal" },
-  { value: "600-normal", label: "Semibold", weight: "600", style: "normal" },
-  { value: "700-normal", label: "Bold", weight: "700", style: "normal" },
-  { value: "400-italic", label: "Italic", weight: "400", style: "italic" },
-  { value: "700-italic", label: "Bold Italic", weight: "700", style: "italic" },
-  { value: "400-oblique", label: "Oblique", weight: "400", style: "oblique" },
-];
-
-interface FontStyleFieldProps {
-  element: HTMLElement;
+interface ItalicToggleProps {
   elements: readonly HTMLElement[];
   editTarget: EditTarget;
   fontStyleRow: ResolvedProperty | null;
-  fontWeightRow: ResolvedProperty | null;
 }
 
-function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeightRow }: FontStyleFieldProps): ReactElement {
-  const fontStyleAtRules = useFieldAtRules("font-style");
-  const fontWeightAtRules = useFieldAtRules("font-weight");
-  const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules
-    ?? fontWeightRow?.atRuleCandidates ?? fontWeightRow?.atRules
-    ?? (fontStyleAtRules.length > 0 ? fontStyleAtRules : fontWeightAtRules);
-  const blockedBy = inlineBlockedBy(elements, "font-style", "font-weight");
-  const readValue = () => readFontStyle(element);
-  const values = elements.map(readFontStyle);
-  const isMixed = values.some((value) => value.weight !== values[0]?.weight || value.style !== values[0]?.style);
-  const [current, setCurrent] = useState(readValue);
+function ItalicToggle({ elements, editTarget, fontStyleRow }: ItalicToggleProps): ReactElement {
+  const fieldAtRules = useFieldAtRules("font-style");
+  const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules ?? fieldAtRules;
+  const blockedBy = inlineBlockedBy(elements, "font-style");
+  const readSlants = () => elements.map((target) => isSlanted(getStateStyleValue(target, "font-style", "normal")));
+  const slants = readSlants();
+  const isMixed = slants.some((slanted) => slanted !== slants[0]);
+  const [italic, setItalic] = useState(() => slants.every(Boolean));
 
+  // The row is resolved again whenever a change lands (an undo, another field writing `font-style`), and a new
+  // interaction state remounts the editor, so re-reading on a new row keeps the toggle on what the page shows.
   useEffect(() => {
-    setCurrent(readValue());
-  }, [element, elements]);
+    setItalic(readSlants().every(Boolean));
+  }, [elements, fontStyleRow]);
 
-  const currentOption = FONT_STYLE_OPTIONS.find((option) => option.value === `${current.weight}-${current.style}`);
-  const currentKey = currentOption?.value ?? `${current.weight}-${current.style}`;
-  const currentLabel = isMixed ? "Mixed" : currentOption?.label ?? formatCustomFontStyle(current.weight, current.style);
-  const options = isMixed
-    ? [{ value: "mixed", label: "Mixed", disabled: true }, ...FONT_STYLE_OPTIONS]
-    : currentOption
-      ? FONT_STYLE_OPTIONS
-      : [...FONT_STYLE_OPTIONS, { value: currentKey, label: currentLabel, ...current }];
-
-  function handleChange(value: string): void {
+  function handleChange(pressed: boolean): void {
     if (blockedBy) return;
-    const option = options.find((candidate) => candidate.value === value);
-    if (!option || option.value === "mixed" || !("weight" in option) || !("style" in option)) return;
-    setCurrent({ weight: option.weight, style: option.style });
-    setStyles(editTarget, [
-      { property: "font-style", value: option.style, metadata: metadataFor(fontStyleRow ?? fontWeightRow) },
-      { property: "font-weight", value: option.weight, metadata: metadataFor(fontWeightRow ?? fontStyleRow) },
-    ]);
+    setItalic(pressed);
+    setStyle(editTarget, "font-style", pressed ? "italic" : "normal", metadataFor(fontStyleRow));
   }
 
   return (
-    <ControlSurface
-      className="typography__field typography__field--font-style"
-      data-test="typography-field"
-      data-property="font-style"
-      aria-label="Font style"
-    >
-      <span className="typography__field-icon" aria-hidden="true">
-        <IconTypography size={"var(--icon-size-small)"} stroke={1.45} />
-      </span>
-      <Select
-        appearance="embedded"
-        value={isMixed ? "mixed" : currentKey}
-        options={options.map(({ value, label }) => ({ value, label }))}
-        onValueChange={handleChange}
-        disabled={blockedBy !== null}
-        data-test="font-style-field"
-      />
+    <div className="typography__style-toggle">
+      {isMixed ? <span className="typography__mixed" data-test="typography-mixed-font-style">Mixed</span> : null}
+      <InlineStyleBlockedTooltip blockedBy={blockedBy}>
+        <ToggleButton
+          variant="quiet"
+          label="Italic"
+          data-test="font-style-italic"
+          data-property="font-style"
+          data-mixed={isMixed ? "true" : undefined}
+          pressed={italic && !isMixed}
+          disabled={blockedBy !== null}
+          onPressedChange={handleChange}
+        >
+          <IconItalic size={"var(--icon-size-small)"} stroke={1.5} aria-hidden="true" />
+        </ToggleButton>
+      </InlineStyleBlockedTooltip>
       <AtRuleIndicator atRules={atRules} />
-      <InlineStyleWarning blockedBy={blockedBy} />
-    </ControlSurface>
+    </div>
   );
 }
 
-function readFontStyle(element: HTMLElement) {
-  return {
-    weight: normalizeFontWeight(getStateStyleValue(element, "font-weight", "400") || "400"),
-    style: getStateStyleValue(element, "font-style", "normal") || "normal",
-  };
-}
-
-function normalizeFontWeight(value: string): string {
-  if (value === "normal") return "400";
-  if (value === "bold") return "700";
-  return value;
-}
-
-function formatCustomFontStyle(weight: string, style: string): string {
-  const italic = style === "italic" || style.startsWith("oblique");
-  const weightLabel = weight === "400" ? "Regular" : weight;
-  return italic ? `${weightLabel} ${style}` : weightLabel;
+function isSlanted(style: string): boolean {
+  return style === "italic" || style.startsWith("oblique");
 }
 
 interface AlignmentOption {

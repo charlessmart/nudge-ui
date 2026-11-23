@@ -104,6 +104,27 @@
   outline-color: var(--linked);
 }
 
+/*
+ * The right, bottom and bottom-right handles: the edges a size change moves. Their size is set inline from
+ * RESIZE_HANDLE_SIZE, which the renderer's hit test shares, so the drawn square and the grabbable one stay together.
+ */
+.selection-resize-handle {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--accent);
+  background: var(--surface-raised-2x);
+  pointer-events: none;
+  translate: -50% -50%;
+}
+
+.canvas-selected-outline[data-linked="true"] .selection-resize-handle {
+  border-color: var(--linked);
+}
+
+.selection-resize-handle[data-handle="right"] { left: 100%; top: 50%; }
+.selection-resize-handle[data-handle="bottom"] { left: 50%; top: 100%; }
+.selection-resize-handle[data-handle="bottom-right"] { left: 100%; top: 100%; }
+
 .canvas-linked-outline {
   position: fixed;
   pointer-events: none;
@@ -120,17 +141,12 @@
   box-shadow: 0 0 0 1px var(--always-white), 0 1px 5px var(--guide-drop-glow);
 }
 
-.canvas-dom-drop-label {
-  z-index: 2147483647;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  border-radius: var(--radius-4);
-  background: var(--guide-drop-strong);
-  color: var(--always-white);
-  font: var(--font-weight-label) var(--font-size-badge)/1 var(--font-family);
-  white-space: nowrap;
+/*
+ * The slot a dragged element would fill. The page has already reflowed around it, so the empty space is the cue and
+ * this box paints nothing; it stays mounted (and measurable) so the drop line keeps yielding to it.
+ */
+.canvas-dom-drop-slot {
+  pointer-events: none;
 }
 
 .canvas-dom-drop-target {

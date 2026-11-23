@@ -145,7 +145,7 @@ export function FlowGroups({ activeCardId }: { readonly activeCardId: string | n
                     {expanded ? <IconChevronDown size={12} aria-hidden="true" /> : <IconChevronRight size={12} aria-hidden="true" />}
                   </span>
                   <IconRoute className="navigator__item-icon" size={14} stroke={1.8} aria-hidden="true" />
-                  <span className="flows-panel__label">{flow.title}</span>
+                  <span className="flows-panel__label" title={flow.title}>{flow.title}</span>
                 </button>
                 <Button
                   variant="quiet"
@@ -180,7 +180,7 @@ export function FlowGroups({ activeCardId }: { readonly activeCardId: string | n
                         onClick={() => open(flow, state.id)}
                       >
                         <span className="flows-panel__dot" data-tone={tone} />
-                        <span className="flows-panel__label">{state.label}</span>
+                        <span className="flows-panel__label" title={state.label}>{state.label}</span>
                         {state.tag ? <span className="flows-panel__tag">{state.tag}</span> : null}
                       </button>
                       {result && !result.ok && !running ? <p className="flows-panel__problem" role="alert">{result.message}</p> : null}

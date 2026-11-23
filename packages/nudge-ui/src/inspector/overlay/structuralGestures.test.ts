@@ -5,7 +5,6 @@ import {
   deleteElement,
   dropTargetRect,
   getDropAttemptAtPoint,
-  getDropLocationAtPoint,
   moveElement,
   nudgeElement,
   type DropLocation,
@@ -13,6 +12,11 @@ import {
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { clearActiveDraft } from "../drafts/store.ts";
 import { getStructuralChangeDiagnostics, getStructuralChanges, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
+
+/** The drop a release at the point would make, ignoring why there is none. */
+function dropAtPoint(doc: Document, dragged: HTMLElement, x: number, y: number) {
+  return getDropAttemptAtPoint(doc, dragged, x, y).drop;
+}
 
 function fixture() {
   const root = document.createElement("div");
@@ -75,7 +79,7 @@ describe("structuralGestures", () => {
     document.body.append(destination);
     Object.defineProperty(destination, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
 
-    const drop = withElementFromPoint(destination, () => getDropLocationAtPoint(document, first, 100, 150));
+    const drop = withElementFromPoint(destination, () => dropAtPoint(document, first, 100, 150));
     expect(drop).toMatchObject({ parent: destination, before: null });
     const change = moveElement(first, drop!);
 
@@ -90,7 +94,7 @@ describe("structuralGestures", () => {
   it("accepts a drop after an element when whitespace follows it", () => {
     const { root, first, second } = fixture();
     Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
-    const drop = withElementFromPoint(second, () => getDropLocationAtPoint(document, first, 100, 195));
+    const drop = withElementFromPoint(second, () => dropAtPoint(document, first, 100, 195));
 
     expect(drop).toMatchObject({ parent: root, before: null });
     expect(moveElement(first, drop!)).not.toBeNull();
@@ -103,8 +107,8 @@ describe("structuralGestures", () => {
     Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
     try {
-      expect(getDropLocationAtPoint(document, first, 40, 105)).toBeNull();
-      expect(getDropLocationAtPoint(document, first, 40, 195)).toMatchObject({ parent: root, before: null });
+      expect(dropAtPoint(document, first, 40, 105)).toBeNull();
+      expect(dropAtPoint(document, first, 40, 195)).toMatchObject({ parent: root, before: null });
     } finally {
       if (original) Object.defineProperty(document, "elementFromPoint", original);
       else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
@@ -120,7 +124,7 @@ describe("structuralGestures", () => {
     const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
     try {
-      expect(getDropLocationAtPoint(document, first, 260, 60)).toMatchObject({ parent: root, before: null, orientation: "vertical", left: 280, width: 4 });
+      expect(dropAtPoint(document, first, 260, 60)).toMatchObject({ parent: root, before: null, orientation: "vertical", left: 280, width: 4 });
     } finally {
       if (original) Object.defineProperty(document, "elementFromPoint", original);
       else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
@@ -168,21 +172,21 @@ describe("structuralGestures", () => {
 
     it("drops beside a hovered child using the outer block layout", () => {
       const { wrapper, c, dragged } = contentsFixture("column");
-      expect(withElementFromPoint(c, () => getDropLocationAtPoint(document, dragged, 50, 125))).toMatchObject({
+      expect(withElementFromPoint(c, () => dropAtPoint(document, dragged, 50, 125))).toMatchObject({
         parent: wrapper, before: c, orientation: "horizontal", top: 120,
       });
     });
 
     it("snaps to a gap between its children in an outer flex row", () => {
       const { root, wrapper, c, dragged } = contentsFixture("row");
-      expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 215, 25))).toMatchObject({
+      expect(withElementFromPoint(root, () => dropAtPoint(document, dragged, 215, 25))).toMatchObject({
         parent: wrapper, before: c, orientation: "vertical", left: 215,
       });
     });
 
     it("draws a vertical guide beside a hovered child in an outer flex row", () => {
       const { wrapper, b, c, dragged } = contentsFixture("row");
-      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 190, 25))).toMatchObject({
+      expect(withElementFromPoint(b, () => dropAtPoint(document, dragged, 190, 25))).toMatchObject({
         parent: wrapper, before: c, orientation: "vertical",
       });
     });
@@ -220,28 +224,28 @@ describe("structuralGestures", () => {
 
     it("snaps to the gap on the line under the cursor", () => {
       const { root, dragged, d } = wrappedFixture();
-      expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 105, 85))).toMatchObject({
+      expect(withElementFromPoint(root, () => dropAtPoint(document, dragged, 105, 85))).toMatchObject({
         parent: root, before: d, orientation: "vertical", left: 105, top: 60, height: 50,
       });
     });
 
     it("places a drop past the end of a line after that line's last item", () => {
       const { root, dragged, c } = wrappedFixture();
-      expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 250, 25))).toMatchObject({
+      expect(withElementFromPoint(root, () => dropAtPoint(document, dragged, 250, 25))).toMatchObject({
         parent: root, before: c, left: 210, top: 0, height: 50,
       });
     });
 
     it("draws the guide beside a hovered line-end item rather than at the next line's start", () => {
       const { root, dragged, b, c } = wrappedFixture();
-      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 195, 25))).toMatchObject({
+      expect(withElementFromPoint(b, () => dropAtPoint(document, dragged, 195, 25))).toMatchObject({
         parent: root, before: c, left: 210, top: 0, height: 50,
       });
     });
 
     it("drops into a hovered item when the pointer is away from its edges", () => {
       const { dragged, b } = wrappedFixture();
-      expect(withElementFromPoint(b, () => getDropLocationAtPoint(document, dragged, 160, 25))).toMatchObject({
+      expect(withElementFromPoint(b, () => dropAtPoint(document, dragged, 160, 25))).toMatchObject({
         parent: b, before: null,
       });
     });
@@ -293,28 +297,28 @@ describe("structuralGestures", () => {
 
     it("inserts into the Stack between children when the pointer is over its row gap", () => {
       const { outer, form, create } = voiceModalFixture();
-      expect(withElementFromPoint(outer, () => getDropLocationAtPoint(document, create, 400, 66))).toMatchObject({
+      expect(withElementFromPoint(outer, () => dropAtPoint(document, create, 400, 66))).toMatchObject({
         parent: outer, before: form, orientation: "horizontal", top: 66,
       });
     });
 
     it("drops beside a hovered Stack child instead of beside the shell's main pane", () => {
       const { outer, previews, create } = voiceModalFixture();
-      expect(withElementFromPoint(previews, () => getDropLocationAtPoint(document, create, 400, 300))).toMatchObject({
+      expect(withElementFromPoint(previews, () => dropAtPoint(document, create, 400, 300))).toMatchObject({
         parent: outer, before: previews, orientation: "horizontal", top: 296,
       });
     });
 
     it("reorders within the hovered field's own Stack", () => {
       const { form, name, create } = voiceModalFixture();
-      expect(withElementFromPoint(name, () => getDropLocationAtPoint(document, create, 400, 80))).toMatchObject({
+      expect(withElementFromPoint(name, () => dropAtPoint(document, create, 400, 80))).toMatchObject({
         parent: form, before: name,
       });
     });
 
     it("drops beside a button in its own wrapper rather than inside it", () => {
       const { backBox, back, create } = voiceModalFixture();
-      expect(withElementFromPoint(back, () => getDropLocationAtPoint(document, create, 250, 20))).toMatchObject({
+      expect(withElementFromPoint(back, () => dropAtPoint(document, create, 250, 20))).toMatchObject({
         parent: backBox, before: back,
       });
     });
@@ -326,7 +330,7 @@ describe("structuralGestures", () => {
         [outer, 400, 66], [outer, 400, 286], [form, 400, 142], [previews, 400, 316], [name, 400, 130], [description, 400, 150],
       ];
       for (const [element, x, y] of probes) {
-        expect(withElementFromPoint(element, () => getDropLocationAtPoint(document, create, x, y))?.parent).not.toBe(shell);
+        expect(withElementFromPoint(element, () => dropAtPoint(document, create, x, y))?.parent).not.toBe(shell);
       }
     });
   });
@@ -348,9 +352,9 @@ describe("structuralGestures", () => {
     document.body.append(holder);
 
     // Above `second`, the visual top, is the end of the DOM order.
-    expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 100, 27))).toMatchObject({ parent: root, before: null });
+    expect(withElementFromPoint(root, () => dropAtPoint(document, dragged, 100, 27))).toMatchObject({ parent: root, before: null });
     // In the gap, between them visually, is between them in the DOM.
-    expect(withElementFromPoint(root, () => getDropLocationAtPoint(document, dragged, 100, 95))).toMatchObject({
+    expect(withElementFromPoint(root, () => dropAtPoint(document, dragged, 100, 95))).toMatchObject({
       parent: root, before: second, top: 95,
     });
   });
@@ -369,7 +373,7 @@ describe("structuralGestures", () => {
     Object.defineProperty(input, "getBoundingClientRect", { value: () => ({ left: 8, top: 120, width: 184, height: 30, right: 192, bottom: 150 }) as DOMRect });
 
     // The field's top padding is inside its box but within its edge band.
-    expect(withElementFromPoint(field, () => getDropLocationAtPoint(document, second, 100, 104))).toMatchObject({
+    expect(withElementFromPoint(field, () => dropAtPoint(document, second, 100, 104))).toMatchObject({
       parent: root, before: field,
     });
     expect(first.nextElementSibling).toBe(field);
@@ -414,7 +418,7 @@ describe("structuralGestures", () => {
       Object.defineProperty(element, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
     }
 
-    expect(withElementFromPoint(body, () => getDropLocationAtPoint(document, first, 100, 150))).toMatchObject({ parent: body, before: null });
+    expect(withElementFromPoint(body, () => dropAtPoint(document, first, 100, 150))).toMatchObject({ parent: body, before: null });
   });
 
   it("drops relative to the nearest HTML ancestor of an SVG target", () => {
@@ -425,7 +429,7 @@ describe("structuralGestures", () => {
     second.append(icon);
     Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
 
-    expect(withElementFromPoint(path, () => getDropLocationAtPoint(document, first, 40, 195))).toMatchObject({ parent: root, before: null });
+    expect(withElementFromPoint(path, () => dropAtPoint(document, first, 40, 195))).toMatchObject({ parent: root, before: null });
   });
 
   it("nudges only valid sibling directions into canonical moves", () => {

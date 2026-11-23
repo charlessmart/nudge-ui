@@ -5,6 +5,7 @@ import { isComponentFramework, type ComponentOverride } from "../componentSemant
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
+import type { ResizeHandle } from "../overlay/resizeGestures.ts";
 import type { RendererCursor } from "../ui/customCursors.ts";
 import type { DebugViewState } from "./debugView.ts";
 
@@ -183,6 +184,8 @@ export interface ElementDragStartMessage extends RendererMessage {
   spacing?: SpacingDescriptor | null;
   /** True while Shift is held; spacing drags use this to snap by 8px steps. */
   shiftKey?: boolean;
+  /** The selected element's resize handle captured at pointer-down, if this is a resize drag. */
+  resize?: ResizeHandle | null;
 }
 
 export interface ElementDragMoveMessage extends RendererMessage {
@@ -256,6 +259,15 @@ export interface PanEndMessage extends RendererMessage {
 export interface PanModifierMessage extends RendererMessage {
   type: "pan-modifier";
   spaceHeld: boolean;
+}
+
+/** Names the single selected element, whose resize handles the renderer hit-tests; null when none can be resized. */
+export interface ResizeTargetMessage extends RendererMessage {
+  type: "resize-target";
+  /** Resolved like any other renderer element reference, so a stale or ambiguous id names nothing. */
+  target: { elementId: string; cid: string; src: string } | null;
+  /** The drawn handle's side in the frame's CSS px, which follows the card zoom so hits match what is on screen. */
+  handleSize?: number;
 }
 
 /** Keeps iframe measurement state synchronized when focus is in the parent. */
@@ -369,6 +381,7 @@ export type ControllerToRendererMessage =
   | LinkPreviewStateMessage
   | PanModifierMessage
   | MeasureModifierMessage
+  | ResizeTargetMessage
   | BoardGestureStateMessage
   | InspectorInteractionStateMessage
   | DebugViewStateMessage
@@ -535,6 +548,7 @@ export type FrameProtocolMessage =
   | PanEndMessage
   | PanModifierMessage
   | MeasureModifierMessage
+  | ResizeTargetMessage
   | BoardGestureStateMessage
   | ZoomMessage
   | ZoomStepMessage

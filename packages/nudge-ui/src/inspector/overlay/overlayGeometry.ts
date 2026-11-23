@@ -50,7 +50,7 @@ export function toRect(domRect: DOMRect): Rect {
   };
 }
 
-function toPixels(value: string): number {
+export function toPixels(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
