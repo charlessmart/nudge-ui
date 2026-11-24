@@ -5,6 +5,8 @@ export interface WorkspaceLease {
   projectId: string;
   acquiredAt: number;
   lastHeartbeat: number;
+  /** Whether the owning document is visible and focused; a new tab only claims an idle owner's lease. */
+  ownerActive?: boolean;
 }
 
 const LEASE_KEY_PREFIX = "nudge-ui:";
@@ -34,6 +36,7 @@ export function readLeaseRaw(): WorkspaceLease | null {
       projectId?: unknown;
       acquiredAt?: unknown;
       lastHeartbeat?: unknown;
+      ownerActive?: unknown;
     };
     if (
       typeof l.ownerId !== "string" ||
@@ -48,6 +51,7 @@ export function readLeaseRaw(): WorkspaceLease | null {
       projectId: l.projectId,
       acquiredAt: l.acquiredAt,
       lastHeartbeat: l.lastHeartbeat,
+      ownerActive: l.ownerActive === true,
     };
   } catch {
     return null;
@@ -71,6 +75,11 @@ function deleteLease(): void {
 
 export function isLeaseExpired(lease: WorkspaceLease, now: number = Date.now()): boolean {
   return now - lease.lastHeartbeat > LEASE_EXPIRY_MS;
+}
+
+/** The person is looking at and can type into this document. */
+export function isDocumentActive(): boolean {
+  return document.visibilityState === "visible" && document.hasFocus();
 }
 
 let currentOwnerId: string | null = null;
@@ -99,8 +108,12 @@ function startHeartbeat(): void {
       return;
     }
     existing.lastHeartbeat = Date.now();
+    existing.ownerActive = isDocumentActive();
     writeLease(existing);
   }, HEARTBEAT_INTERVAL_MS);
+  window.addEventListener("focus", scheduleActivityReport);
+  window.addEventListener("blur", scheduleActivityReport);
+  document.addEventListener("visibilitychange", scheduleActivityReport);
 }
 
 function stopHeartbeat(): void {
@@ -108,6 +121,24 @@ function stopHeartbeat(): void {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
+  window.removeEventListener("focus", scheduleActivityReport);
+  window.removeEventListener("blur", scheduleActivityReport);
+  document.removeEventListener("visibilitychange", scheduleActivityReport);
+}
+
+// Deferred so focus moving into one of this page's iframes still reads as active.
+function scheduleActivityReport(): void {
+  setTimeout(reportActivity, 0);
+}
+
+function reportActivity(): void {
+  if (!currentOwnerId || !ownsLease) return;
+  const existing = readLeaseRaw();
+  if (!existing || existing.ownerId !== currentOwnerId) return;
+  const active = isDocumentActive();
+  if (existing.ownerActive === active) return;
+  existing.ownerActive = active;
+  writeLease(existing);
 }
 
 function loseOwnership(): void {
@@ -122,6 +153,7 @@ function createLease(): WorkspaceLease {
     projectId: getNudgeUiRuntimeConfig().projectId,
     acquiredAt: Date.now(),
     lastHeartbeat: Date.now(),
+    ownerActive: isDocumentActive(),
   };
 }
 
@@ -146,7 +178,8 @@ export function acquireLease(): boolean {
   currentOwnerId = generateOwnerId();
   const existing = readLeaseRaw();
 
-  if (existing && !isLeaseExpired(existing)) {
+  // A live lease passes to this tab only when its owner is idle and the person is here.
+  if (existing && !isLeaseExpired(existing) && (existing.ownerActive || !isDocumentActive())) {
     return false;
   }
 
@@ -170,6 +203,32 @@ export function requestTakeover(): boolean {
   window.addEventListener("storage", handleStorageEvent);
   notifyOwnershipListeners();
   return true;
+}
+
+/**
+ * Takes over the lease the next time the person comes to, or interacts with, this document.
+ * Only intent signals count, so two documents that both report focus cannot trade it back and forth.
+ */
+export function watchForTakeover(onTakeover: () => void): () => void {
+  const take = () => {
+    stop();
+    if (!ownsLease) requestTakeover();
+    onTakeover();
+  };
+  const takeWhenActive = () => {
+    if (isDocumentActive()) take();
+  };
+  function stop(): void {
+    window.removeEventListener("focus", take);
+    document.removeEventListener("visibilitychange", takeWhenActive);
+    window.removeEventListener("pointerdown", take, true);
+    window.removeEventListener("keydown", take, true);
+  }
+  window.addEventListener("focus", take);
+  document.addEventListener("visibilitychange", takeWhenActive);
+  window.addEventListener("pointerdown", take, true);
+  window.addEventListener("keydown", take, true);
+  return stop;
 }
 
 /** Enable lease checks for state-changing controller actions in this document. */

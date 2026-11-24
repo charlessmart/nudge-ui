@@ -57,3 +57,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0051: Readable HTML artifact folders, without a baseline capture](./0051-readable-html-artifact-folders.md) (supersedes ADR-0030's UUID artifact IDs and its `baseline.html` file)
 - [ADR-0052: Expo web host Adapter](./0052-expo-web-host-adapter.md)
 - [ADR-0053: Editable inline styles with source provenance](./0053-editable-inline-styles.md) (supersedes ADR-0036's rule that managed declarations are never `!important` and that inline-style conflicts remain reported conflicts)
+- [ADR-0054: The tab in use owns the workspace](./0054-the-tab-in-use-owns-the-workspace.md)

@@ -50,9 +50,10 @@ export function appLocator(page: Page, selector: string): Locator {
 /** Takes over a restored editor session when a previous browser page still owns it. */
 export async function ensureEditorOwnership(page: Page): Promise<void> {
   const workspace = page.locator('[data-test="canvas-workspace"]');
-  const takeover = page.getByRole("button", { name: "Take over here" });
-  await expect.poll(async () => (await workspace.count()) + (await takeover.count())).toBeGreaterThan(0);
-  if (await takeover.isVisible()) await takeover.click();
+  const inactive = page.locator('[data-nudge-workspace="inactive"]');
+  await expect.poll(async () => (await workspace.count()) + (await inactive.count())).toBeGreaterThan(0);
+  // An inactive tab takes the workspace back when it gains focus.
+  if (await inactive.count()) await page.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
   await expect(workspace).toBeVisible();
 }
 

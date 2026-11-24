@@ -150,15 +150,16 @@ test("comments survive taking ownership back after another tab adds a note", asy
 
   const second = await context.newPage();
   await second.goto(page.url());
-  await second.locator('[data-test="takeover-here"]').click();
-  await expect(page.locator('[data-test="locked-workspace-notice"]')).toBeVisible();
+  await expect(second.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
+  await second.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
+  await expect(page.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
   await second.locator('[data-test="canvas-tool-comment"]').click();
   await second.frameLocator(".canvas-card__iframe").first().locator("#hero-title").click();
   await second.locator('[data-test="comment-input"]').fill("Second tab note");
   await second.locator('[data-test="comment-confirm"]').click();
   await expect(second.locator('[data-test="comment-pin"]')).toHaveCount(2);
 
-  await page.locator('[data-test="takeover-here"]').click();
+  await page.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
   await expect(page.locator('[data-test="comment-pin"]')).toHaveCount(2);
   await page.locator('[data-test="copy-prompt"]').click();
   const prompt = await page.evaluate(() => navigator.clipboard.readText());

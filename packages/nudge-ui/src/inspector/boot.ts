@@ -28,9 +28,10 @@ import {
   hasWriteLease,
   releaseLease,
   subscribeOwnership,
+  watchForTakeover,
 } from "./canvas/workspaceLease.ts";
 import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
-import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
+import { StorageErrorNotice } from "./canvas/StorageErrorNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
 import { releaseDocumentProjection, getStructuralChanges } from "./projection/structuralProjection.ts";
@@ -53,7 +54,7 @@ import { disposeRuntimeIdentityClaims } from "./runtime/runtimeIdentityClaims.ts
 import { registerPaintedValueProbeRoot } from "./tokens/resolution/paintedValueProbe.ts";
 
 let reactRoot: Root | null = null;
-let lockedRoot: Root | null = null;
+let noticeRoot: Root | null = null;
 /** Rendered by every mount until the next bootstrap; replaced so tests and embedders can supply a lighter shell. */
 let inspectorShell: InspectorShell = AppShell;
 const workspace = createWorkspace();
@@ -61,6 +62,8 @@ let inspectorSession: InspectorSession | null = null;
 let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
 let workspaceController: ReturnType<typeof startWorkspaceController> | null = null;
 let unsubscribeOwnership: (() => void) | null = null;
+let stopTakeoverWatch: (() => void) | null = null;
+let inactiveHost: HTMLElement | null = null;
 let removeInspectionBridge: (() => void) | null = null;
 let controllerStartId = 0;
 
@@ -150,7 +153,7 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
   enableWriteGuard();
   const leaseGranted = acquireLease();
   if (!leaseGranted) {
-    mountLockedNotice(inspectorHost);
+    deactivateWorkspace(inspectorHost);
     return;
   }
 
@@ -159,8 +162,10 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement, shell: InspectorShe
 
 async function startController(inspectorHost: HTMLElement): Promise<void> {
   const startId = ++controllerStartId;
+  stopTakeoverWatch?.();
+  stopTakeoverWatch = null;
   if (!hasWriteLease()) {
-    mountLockedNotice(inspectorHost);
+    deactivateWorkspace(inspectorHost);
     return;
   }
 
@@ -171,23 +176,21 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
   } catch {
     if (startId !== controllerStartId) return;
     releaseLease();
-    mountLockedNotice(inspectorHost, true);
+    mountStorageErrorNotice(inspectorHost);
     return;
   }
   if (startId !== controllerStartId) return;
   if (!hasWriteLease()) {
-    mountLockedNotice(inspectorHost);
+    deactivateWorkspace(inspectorHost);
     return;
   }
 
-  if (lockedRoot) {
-    lockedRoot.unmount();
-    lockedRoot = null;
-  }
+  unmountNotice();
+  clearInactiveMarker();
 
   unsubscribeOwnership?.();
   unsubscribeOwnership = subscribeOwnership((hasLease) => {
-    if (!hasLease) { workspaceController?.dispose(); workspaceController = null; mountLockedNotice(inspectorHost); }
+    if (!hasLease) deactivateWorkspace(inspectorHost);
   });
 
   workspaceController?.dispose();
@@ -206,7 +209,52 @@ async function startController(inspectorHost: HTMLElement): Promise<void> {
   }
 }
 
-function mountLockedNotice(host: HTMLElement, storageError = false): void {
+/** Marks the host while another tab owns the workspace, so tests and embedders can tell it from not-yet-booted. */
+const INACTIVE_DATASET_KEY = "nudgeWorkspace";
+
+function clearInactiveMarker(): void {
+  if (inactiveHost) delete inactiveHost.dataset[INACTIVE_DATASET_KEY];
+  inactiveHost = null;
+}
+
+function unmountNotice(): void {
+  noticeRoot?.unmount();
+  noticeRoot = null;
+}
+
+/**
+ * Another tab owns the workspace: hide the inspector and hand ownership back the next
+ * time the person comes to this tab. Takeover re-reads storage, so nothing is overwritten.
+ */
+function deactivateWorkspace(host: HTMLElement): void {
+  workspaceController?.dispose();
+  workspaceController = null;
+  teardownWorkspaceSurface();
+  unmountNotice();
+  host.dataset[INACTIVE_DATASET_KEY] = "inactive";
+  inactiveHost = host;
+  stopTakeoverWatch?.();
+  stopTakeoverWatch = watchForTakeover(() => {
+    stopTakeoverWatch = null;
+    void startController(host);
+  });
+}
+
+function mountStorageErrorNotice(host: HTMLElement): void {
+  teardownWorkspaceSurface();
+  clearInactiveMarker();
+  stopTakeoverWatch?.();
+  stopTakeoverWatch = null;
+  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  if (!noticeRoot) {
+    noticeRoot = createRoot(shadow);
+  }
+  noticeRoot.render(createElement(StorageErrorNotice, {
+    onRetry: () => startController(host),
+  }));
+}
+
+function teardownWorkspaceSurface(): void {
   controllerStartId += 1;
   // The page-surface renderer holds the Inspection tool's speed and views; with no toolbar left, they must not linger.
   rendererBootstrapHandle?.teardown();
@@ -229,24 +277,12 @@ function mountLockedNotice(host: HTMLElement, storageError = false): void {
     unsubscribeOwnership?.();
     unsubscribeOwnership = null;
   }
-
-  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-  if (!lockedRoot) {
-    lockedRoot = createRoot(shadow);
-  }
-  lockedRoot.render(createElement(LockedWorkspaceNotice, {
-    onTakeover: () => startController(host),
-    storageError,
-  }));
 }
 
 export function mountInspector(host: HTMLElement, options: { readonly open?: boolean } = {}): void {
   const demo = isDemoRuntime();
   if (!demo && !hasWriteLease()) return;
-  if (lockedRoot) {
-    lockedRoot.unmount();
-    lockedRoot = null;
-  }
+  unmountNotice();
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
@@ -280,10 +316,10 @@ export function unmountInspector(): void {
   workspaceController = null;
   unsubscribeOwnership?.();
   unsubscribeOwnership = null;
-  if (lockedRoot) {
-    lockedRoot.unmount();
-    lockedRoot = null;
-  }
+  stopTakeoverWatch?.();
+  stopTakeoverWatch = null;
+  unmountNotice();
+  clearInactiveMarker();
   cancelStaleDetection();
   cancelInlineTextEdit();
   cancelSketchInteraction();

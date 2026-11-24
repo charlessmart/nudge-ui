@@ -3,12 +3,17 @@ import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { expandSpacing, setInput, waitForInspector } from "./inspector.ts";
 
-async function waitForLockedNotice(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator('[data-test="locked-workspace-notice"]')).toBeVisible();
+async function waitForInactive(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
+}
+
+/** A tab takes the workspace back when the person comes to it. */
+async function focusTab(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
 }
 
 test.describe("Canvas workspace lease — single ownership", () => {
-  test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
+  test("dev: a second tab opened while the first is in use stays quiet", async ({ page, context }) => {
     await page.goto("/playground");
     await showCanvas(page);
     await waitForCanvasTransition(page);
@@ -19,23 +24,16 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
     const page2 = await context.newPage();
     await page2.goto("/playground");
-    await waitForLockedNotice(page2);
+    await waitForInactive(page2);
 
-    const lockedNotice = page2.locator('[data-test="locked-workspace-notice"]');
-    await expect(lockedNotice).toBeVisible();
-    const noticeText = await lockedNotice.textContent();
-    expect(noticeText).toContain("Nudge is open in another tab");
-    expect(noticeText).not.toContain("Nudge UI writes are disabled");
-    expect(noticeText).not.toContain("Active workspace");
-    await expect(lockedNotice.locator(".locked-notice__detail")).toHaveCount(0);
-
-    const takeoverBtn = page2.locator('[data-test="takeover-here"]');
-    await expect(takeoverBtn).toBeVisible();
+    await expect(page2.locator('[data-test="inspect-tab"]')).toHaveCount(0);
+    await expect(page2.getByText("Nudge is open in another tab")).toHaveCount(0);
+    await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
 
     await page2.close();
   });
 
-  test("dev: takeover transfers ownership and old tab loses authority", async ({ page, context }) => {
+  test("dev: focusing a tab transfers ownership and the old tab steps aside", async ({ page, context }) => {
     await page.goto("/playground");
     await showCanvas(page);
     await waitForCanvasTransition(page);
@@ -44,19 +42,23 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
     const page2 = await context.newPage();
     await page2.goto("/playground");
-    await waitForLockedNotice(page2);
+    await waitForInactive(page2);
 
-    await page2.locator('[data-test="takeover-here"]').click();
+    await focusTab(page2);
 
     // Takeover is an in-place handoff: the second tab becomes editable without a reload.
     await waitForInspector(page2);
-    await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
+    await expect(page2.locator('[data-nudge-workspace="inactive"]')).toHaveCount(0);
     if (await page2.locator('[data-test="canvas-workspace"]').getAttribute("data-presentation") === "focus") await showCanvas(page2);
     await waitForCanvasTransition(page2);
     await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save a change", exact: true }).click();
     await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
-    await waitForLockedNotice(page);
+    await waitForInactive(page);
     await expect(page.locator('[data-test="inspect-tab"]')).not.toBeVisible();
+
+    await focusTab(page);
+    await waitForInspector(page);
+    await waitForInactive(page2);
 
     await page2.close();
   });

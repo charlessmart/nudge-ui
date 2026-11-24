@@ -1,4 +1,4 @@
-.locked-notice {
+.storage-error-notice {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
@@ -19,7 +19,7 @@
   pointer-events: auto;
 }
 
-.locked-notice__message {
+.storage-error-notice__message {
   font-size: var(--font-size-large);
   text-align: center;
   font-weight: 650;

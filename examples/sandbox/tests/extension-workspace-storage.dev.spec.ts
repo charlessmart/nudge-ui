@@ -69,12 +69,12 @@ test("extension takeover locks the previous owner before reading saved state", a
     await readGate;
   });
   await openInspector(second);
-  await expect(second.locator('[data-test="takeover-here"]')).toBeVisible();
+  await expect(second.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
   holdNextRead = true;
-  await second.locator('[data-test="takeover-here"]').click();
+  await second.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
   await readStarted;
   try {
-    await expect(page.locator('[data-test="takeover-here"]')).toBeVisible();
+    await expect(page.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
     await expect(second.locator('[data-test="canvas-tool-comment"]')).toHaveCount(0);
   } finally {
     finishRead();
@@ -91,7 +91,7 @@ test("extension remount preserves notes saved by another owner", async ({ page, 
   const second = await context.newPage();
   await installExtensionStorage(second, stored);
   await openInspector(second);
-  await expect(second.locator('[data-test="takeover-here"]')).toBeVisible();
+  await expect(second.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
   await toggle(page);
   await toggle(second);
   await toggle(second);

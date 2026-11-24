@@ -10,12 +10,28 @@ import {
   isLeaseExpired,
   readLeaseRaw,
   subscribeOwnership,
+  watchForTakeover,
 } from "./workspaceLease.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 
 const STORAGE_KEY = `nudge-ui:${nudgeUiProjectId}:lease`;
 
+function otherOwner(ownerActive: boolean): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    ownerId: "other-tab-id",
+    projectId: nudgeUiProjectId,
+    acquiredAt: Date.now(),
+    lastHeartbeat: Date.now(),
+    ownerActive,
+  }));
+}
+
+function setDocumentActive(active: boolean): void {
+  vi.spyOn(document, "hasFocus").mockReturnValue(active);
+}
+
 function clearAllState(): void {
+  vi.restoreAllMocks();
   releaseLease();
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -41,26 +57,34 @@ describe("workspaceLease", () => {
       expect(raw!.ownerId).toBe(getOwnerId());
     });
 
+    it("returns false when the person is using the tab that holds a live lease", () => {
+      setDocumentActive(true);
+      otherOwner(true);
 
-
-    it("returns false when another live lease exists", () => {
-      acquireLease();
-
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ownerId: "other-tab-id",
-          projectId: nudgeUiProjectId,
-          acquiredAt: Date.now(),
-          lastHeartbeat: Date.now(),
-        }),
-      );
-
-      releaseLease();
-
-      const result = acquireLease();
-      expect(result).toBe(false);
+      expect(acquireLease()).toBe(false);
       expect(hasWriteLease()).toBe(false);
+    });
+
+    it("takes an idle owner's live lease when the person is in this tab", () => {
+      setDocumentActive(true);
+      otherOwner(false);
+
+      expect(acquireLease()).toBe(true);
+      expect(readLeaseRaw()!.ownerId).toBe(getOwnerId());
+    });
+
+    it("leaves an idle owner's live lease alone when this tab opened in the background", () => {
+      setDocumentActive(false);
+      otherOwner(false);
+
+      expect(acquireLease()).toBe(false);
+      expect(readLeaseRaw()!.ownerId).toBe("other-tab-id");
+    });
+
+    it("records whether the owning tab is in use", () => {
+      setDocumentActive(true);
+      acquireLease();
+      expect(readLeaseRaw()!.ownerActive).toBe(true);
     });
 
     it("acquires an expired lease", () => {
@@ -153,6 +177,53 @@ describe("workspaceLease", () => {
 
       const raw = readLeaseRaw();
       expect(raw!.ownerId).not.toBe("old-owner");
+    });
+  });
+
+  describe("watchForTakeover", () => {
+    it.each([
+      ["focus", () => window.dispatchEvent(new FocusEvent("focus"))],
+      ["pointerdown", () => window.dispatchEvent(new Event("pointerdown"))],
+      ["keydown", () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }))],
+    ])("takes over once on %s", (_signal, dispatch) => {
+      setDocumentActive(false);
+      otherOwner(true);
+      acquireLease();
+      let takeovers = 0;
+      watchForTakeover(() => { takeovers += 1; });
+
+      dispatch();
+      dispatch();
+
+      expect(takeovers).toBe(1);
+      expect(hasWriteLease()).toBe(true);
+    });
+
+    it("takes over when the tab becomes visible with focus, not when it only becomes visible", () => {
+      const focused = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+      otherOwner(true);
+      let takeovers = 0;
+      watchForTakeover(() => { takeovers += 1; });
+
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(takeovers).toBe(0);
+      focused.mockReturnValue(true);
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(takeovers).toBe(1);
+      expect(hasWriteLease()).toBe(true);
+    });
+
+    it("stops watching when cancelled", () => {
+      otherOwner(true);
+      let takeovers = 0;
+      const stop = watchForTakeover(() => { takeovers += 1; });
+      stop();
+
+      window.dispatchEvent(new FocusEvent("focus"));
+
+      expect(takeovers).toBe(0);
+      expect(readLeaseRaw()!.ownerId).toBe("other-tab-id");
     });
   });
 

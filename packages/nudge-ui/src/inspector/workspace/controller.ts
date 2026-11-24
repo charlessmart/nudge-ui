@@ -80,7 +80,15 @@ export function startWorkspaceController() {
     flushAutoSave();
     if (!event.persisted) releaseDetachedIterations();
   };
-  if (persistent) window.addEventListener("beforeunload", beforeunload);
+  // Another tab takes over as soon as the person switches to it, so save before they get there.
+  const leaving = () => {
+    if (document.visibilityState === "hidden" || !document.hasFocus()) flushAutoSave();
+  };
+  if (persistent) {
+    window.addEventListener("beforeunload", beforeunload);
+    window.addEventListener("blur", leaving);
+    document.addEventListener("visibilitychange", leaving);
+  }
   window.addEventListener("pagehide", pagehide);
   return {
     restored: result.restored,
@@ -91,6 +99,8 @@ export function startWorkspaceController() {
       stopDrafts();
       stopClipboard();
       window.removeEventListener("beforeunload", beforeunload);
+      window.removeEventListener("blur", leaving);
+      document.removeEventListener("visibilitychange", leaving);
       window.removeEventListener("pagehide", pagehide);
       setCanvasHistoryActivator(() => undefined);
       setFrameLifecycle(null);

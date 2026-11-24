@@ -1,4 +1,4 @@
-/** Extension-only panel docking; sets nudge-ui's `--panel-*` variables and targets its `.panel`, `.panel__resize`, `.panel__header-row`, `.panel__restore`, `.locked-notice`, and collapse button. */
+/** Extension-only panel docking; sets nudge-ui's `--panel-*` variables and targets its `.panel`, `.panel__resize`, `.panel__header-row`, `.panel__restore`, `.storage-error-notice`, and collapse button. */
 import { INSPECTOR_ROOT_ID, PANEL_SIDE_WRITE_EVENT, type PanelSide } from "./protocol.ts";
 
 const SIDE_ATTRIBUTE = "data-nudge-panel-side";
@@ -28,7 +28,7 @@ ${LEFT} .panel { inset: var(--panel-inset) auto var(--panel-inset) var(--panel-i
 ${LEFT} .panel__resize { right: auto; left: calc(var(--panel-inset) + min(var(--panel-width), 100vw - 2 * var(--panel-inset)) - var(--space-4)); }
 ${LEFT} [data-test="collapse-inspector"] svg { transform: scaleX(-1); }
 ${LEFT} .panel__restore,
-${LEFT} .locked-notice { right: auto; left: max(12px, env(safe-area-inset-left)); }
+${LEFT} .storage-error-notice { right: auto; left: max(12px, env(safe-area-inset-left)); }
 
 ${DOCKED} ${DRAG_HANDLE_SELECTOR} { cursor: grab; }
 ${DOCKED} ${DRAG_HANDLE_SELECTOR} :is(${INTERACTIVE_SELECTOR}) { cursor: default; }

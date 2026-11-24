@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { bootstrapNudgeUi, unmountInspector, type InspectorShell } from "./boot.ts";
 import { hasWriteLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { getComments, saveComment, type ElementComment } from "./comments/store.ts";
@@ -34,6 +34,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   act(() => unmountInspector());
   host.remove();
   releaseLease();
@@ -43,10 +44,14 @@ afterEach(() => {
   configureNudgeUiRuntime(initialConfig);
 });
 
-function otherOwner(): void {
+function otherOwner(ownerActive = true): void {
   localStorage.setItem(leaseKey, JSON.stringify({
-    ownerId: "other-tab", projectId, acquiredAt: Date.now(), lastHeartbeat: Date.now(),
+    ownerId: "other-tab", projectId, acquiredAt: Date.now(), lastHeartbeat: Date.now(), ownerActive,
   }));
+}
+
+function inspectorReady(): boolean {
+  return host.shadowRoot?.querySelector('[data-test="inspector-ready"]') != null;
 }
 
 function comment(id: string): ElementComment {
@@ -97,15 +102,43 @@ it("holds ownership during takeover refresh and waits to mount until it finishes
   }));
   otherOwner();
   await act(async () => bootstrap(host));
-  const takeover = host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="takeover-here"]')!;
+  expect(host.dataset.nudgeWorkspace).toBe("inactive");
+  expect(host.shadowRoot?.textContent ?? "").toBe("");
 
-  act(() => takeover.click());
+  act(() => { window.dispatchEvent(new FocusEvent("focus")); });
   expect(hasWriteLease()).toBe(true);
-  expect(host.shadowRoot!.querySelector('[data-test="inspector-ready"]')).toBeNull();
+  expect(inspectorReady()).toBe(false);
   await act(async () => finishRead({ [commentsKey]: JSON.stringify([saved]) }));
 
   expect(getComments()).toEqual([saved]);
   expect(host.shadowRoot!.querySelector('[data-test="inspector-ready"]')).not.toBeNull();
+  expect(host.dataset.nudgeWorkspace).toBeUndefined();
+});
+
+it("takes an idle owner's workspace on load when the person is in this tab", async () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  otherOwner(false);
+
+  await act(async () => bootstrap(host));
+
+  expect(hasWriteLease()).toBe(true);
+  expect(inspectorReady()).toBe(true);
+});
+
+it("hides the inspector when another tab takes over and takes it back on the next interaction", async () => {
+  await act(async () => bootstrap(host));
+  expect(inspectorReady()).toBe(true);
+
+  otherOwner();
+  act(() => { window.dispatchEvent(new StorageEvent("storage", { key: leaseKey, newValue: localStorage.getItem(leaseKey) })); });
+  expect(hasWriteLease()).toBe(false);
+  expect(inspectorReady()).toBe(false);
+  expect(host.dataset.nudgeWorkspace).toBe("inactive");
+
+  await act(async () => { window.dispatchEvent(new Event("pointerdown")); });
+
+  expect(hasWriteLease()).toBe(true);
+  expect(inspectorReady()).toBe(true);
 });
 
 it("does not hydrate after another tab takes ownership during refresh", async () => {
@@ -118,8 +151,8 @@ it("does not hydrate after another tab takes ownership during refresh", async ()
   await act(async () => finishRead({}));
 
   expect(hasWriteLease()).toBe(false);
-  expect(host.shadowRoot!.querySelector('[data-test="inspector-ready"]')).toBeNull();
-  expect(host.shadowRoot!.querySelector('[data-test="takeover-here"]')).not.toBeNull();
+  expect(inspectorReady()).toBe(false);
+  expect(host.dataset.nudgeWorkspace).toBe("inactive");
 });
 
 it("does not mount after being closed while storage is loading", async () => {
@@ -144,10 +177,12 @@ it("releases ownership and offers retry without mounting after a storage failure
   await act(async () => bootstrap(host));
 
   expect(hasWriteLease()).toBe(false);
-  expect(host.shadowRoot!.textContent).toContain("Can’t load saved changes. Try again.");
-  expect(host.shadowRoot!.querySelector('[data-test="inspector-ready"]')).toBeNull();
+  expect(host.shadowRoot!.textContent).toContain("Can’t load saved changes");
+  expect(inspectorReady()).toBe(false);
+  window.dispatchEvent(new FocusEvent("focus"));
+  expect(hasWriteLease()).toBe(false);
   unavailable = false;
-  await act(async () => host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="takeover-here"]')!.click());
+  await act(async () => host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="storage-error-retry"]')!.click());
 
   expect(hasWriteLease()).toBe(true);
   expect(host.shadowRoot!.querySelector('[data-test="inspector-ready"]')).not.toBeNull();

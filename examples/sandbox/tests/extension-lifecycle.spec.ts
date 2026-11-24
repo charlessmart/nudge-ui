@@ -517,7 +517,7 @@ test("takeover preserves notes saved after the locked tab opened", async ({
   const second = await extension.context.newPage();
   await second.goto(extension.origin + "/second");
   await extension.toggle(second);
-  await expect(second.locator('[data-test="takeover-here"]')).toBeVisible();
+  await expect(second.locator('[data-nudge-workspace="inactive"]')).toBeAttached();
 
   await first.locator('[data-test="canvas-tool-comment"]').click();
   await first.locator("#heading").click();
@@ -527,7 +527,7 @@ test("takeover preserves notes saved after the locked tab opened", async ({
     .poll(async () => JSON.stringify(await extension.savedState()))
     .toContain("First tab note");
 
-  await second.locator('[data-test="takeover-here"]').click();
+  await second.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
   await expect(
     second.locator('[data-test="canvas-tool-comment"]'),
   ).toBeVisible();

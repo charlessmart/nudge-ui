@@ -123,11 +123,12 @@ test("dev: canvas layout and edits survive an editor reload", async ({ page }) =
   await expect(restoredFrame.locator(".hero-card h2")).toHaveCSS("width", "314px");
 });
 
-test("dev: a second editor cannot take the active workspace lease", async ({ page, context }) => {
+test("dev: a second editor waits quietly while the first is in use", async ({ page, context }) => {
   await openEditor(page);
   const second = await context.newPage();
   await second.goto("/second");
   await expect(second).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
-  await expect(second.locator('[data-test="locked-workspace-notice"]')).toBeVisible({ timeout: 30_000 });
+  await expect(second.locator('[data-nudge-workspace="inactive"]')).toBeAttached({ timeout: 30_000 });
+  await expect(second.locator('[data-test="canvas-workspace"]')).toHaveCount(0);
   await second.close();
 });
