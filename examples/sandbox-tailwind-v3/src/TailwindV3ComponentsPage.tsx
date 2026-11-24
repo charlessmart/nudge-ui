@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import "./showroom.css";
+import "../../shared/showroom.css";
 import { CategorySection, exId, ExampleCard } from "./examples-shared";
 
 interface V3ButtonProps {

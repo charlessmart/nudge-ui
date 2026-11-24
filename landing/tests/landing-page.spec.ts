@@ -52,7 +52,7 @@ test("advertises the sitemap to crawlers", async ({ request }) => {
 });
 
 test("keeps design explorations out of the index", async ({ page }) => {
-  await page.goto("/hero");
+  await page.goto("/layouts");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 });

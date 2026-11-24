@@ -29,6 +29,23 @@ function rec(
   };
 }
 
+/** A structural reference: an element's source site plus the rendered evidence that finds it. */
+function site(cid: string, src: string, text: string | null, occurrence = 0, props: string | null = null) {
+  return { sourceSite: { cid, src }, locator: { kind: "evidence" as const, occurrence, props, text } };
+}
+
+/** A literal text edit on the element authored at `src` (`file:line:column`). */
+function textChange(id: string, cid: string, src: string, before: string, after: string): TextContentChangeRecord {
+  const [file = "", line, column] = src.split(":");
+  return {
+    kind: "text-content", id,
+    target: { sourceSite: { cid, src }, occurrence: 0, props: null, ariaLabel: null, beforeText: before },
+    source: { file, line: Number(line), column: Number(column), component: cid },
+    selector: `[data-cid="${cid}"][data-src*="${src}"]`,
+    before, after, authoredAs: "literal",
+  };
+}
+
 /** Mirrors the Astro host Adapter's declared runtime policy (astroRuntimeConfig.ts). */
 function configureAstroHost(): void {
   configureNudgeUiRuntime({
@@ -165,22 +182,7 @@ describe("generatePrompt", () => {
   });
 
   it("keeps rendered text with quotes, backticks, and newlines on one line", () => {
-    const change: TextContentChangeRecord = {
-      kind: "text-content",
-      id: "text-escape",
-      target: {
-        sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" },
-        occurrence: 0,
-        props: null,
-        ariaLabel: null,
-        beforeText: "before `tick`\nnext",
-      },
-      source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
-      selector: '[data-cid="Copy"][data-src*="src/Copy.tsx:8:3"]',
-      before: "before `tick`\nnext",
-      after: 'after "quote" ~~~\nnext',
-      authoredAs: "literal",
-    };
+    const change = textChange("text-escape", "Copy", "src/Copy.tsx:8:3", "before `tick`\nnext", 'after "quote" ~~~\nnext');
     const out = generatePrompt([change]);
 
     expect(out).toContain('- Change the text from "before `tick`\\nnext" to "after \\"quote\\" ~~~\\nnext".');
@@ -192,33 +194,16 @@ describe("generatePrompt", () => {
       {
         id: "delete-1",
         kind: "delete",
-        target: {
-          sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
-          locator: { kind: "evidence", occurrence: 2, props: '{"label":"Three"}', text: "Repeated 3" },
-        },
+        target: site("RepeatedItem", "src/App.tsx:12:5", "Repeated 3", 2, '{"label":"Three"}'),
       },
       {
         id: "move-1",
         kind: "move",
-        target: {
-          sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
-          locator: { kind: "evidence", occurrence: 2, props: null, text: "Docs" },
-        },
-        source: {
-          parent: {
-            sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
-            locator: { kind: "evidence", occurrence: 0, props: null, text: "Home Docs Blog" },
-          },
-        },
+        target: site("NavItem", "src/Nav.tsx:8:3", "Docs", 2),
+        source: { parent: site("Navigation", "src/Nav.tsx:4:1", "Home Docs Blog") },
         destination: {
-          parent: {
-            sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
-            locator: { kind: "evidence", occurrence: 0, props: null, text: "Home Docs Blog" },
-          },
-          before: {
-            sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
-            locator: { kind: "evidence", occurrence: 1, props: null, text: "Blog" },
-          },
+          parent: site("Navigation", "src/Nav.tsx:4:1", "Home Docs Blog"),
+          before: site("NavItem", "src/Nav.tsx:8:3", "Blog", 1),
         },
         presentation: { sourceParentTag: "nav", destinationParentTag: "nav", fromIndex: 3, toIndex: 2 },
       },
@@ -239,25 +224,11 @@ describe("generatePrompt", () => {
     const structural: StructuralChange[] = [{
       id: "move-cross",
       kind: "move",
-      target: {
-        sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
-        locator: { kind: "evidence", occurrence: 0, props: null, text: "Docs" },
-      },
-      source: {
-        parent: {
-          sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
-          locator: { kind: "evidence", occurrence: 0, props: null, text: "Home Docs" },
-        },
-      },
+      target: site("NavItem", "src/Nav.tsx:8:3", "Docs"),
+      source: { parent: site("Navigation", "src/Nav.tsx:4:1", "Home Docs") },
       destination: {
-        parent: {
-          sourceSite: { cid: "FooterLinks", src: "src/Footer.tsx:9:3" },
-          locator: { kind: "evidence", occurrence: 0, props: null, text: "Blog" },
-        },
-        before: {
-          sourceSite: { cid: "FooterItem", src: "src/Footer.tsx:10:5" },
-          locator: { kind: "evidence", occurrence: 0, props: null, text: "Blog" },
-        },
+        parent: site("FooterLinks", "src/Footer.tsx:9:3", "Blog"),
+        before: site("FooterItem", "src/Footer.tsx:10:5", "Blog"),
       },
       presentation: { sourceParentTag: "nav", destinationParentTag: "aside", fromIndex: 1, toIndex: 1 },
     }];
@@ -271,21 +242,10 @@ describe("generatePrompt", () => {
     const structural: StructuralChange[] = [{
       id: "move-into-stack",
       kind: "move",
-      target: {
-        sourceSite: { cid: "Page", src: "src/Page.tsx:30:5" },
-        locator: { kind: "evidence", occurrence: 0, props: null, text: "Note" },
-      },
-      source: {
-        parent: {
-          sourceSite: { cid: "Page", src: "src/Page.tsx:28:3" },
-          locator: { kind: "evidence", occurrence: 0, props: null, text: "Note" },
-        },
-      },
+      target: site("Page", "src/Page.tsx:30:5", "Note"),
+      source: { parent: site("Page", "src/Page.tsx:28:3", "Note") },
       destination: {
-        parent: {
-          sourceSite: { cid: "Stack", src: "src/ui/Stack.tsx:8:10" },
-          locator: { kind: "evidence", occurrence: 1, props: null, text: "Title" },
-        },
+        parent: site("Stack", "src/ui/Stack.tsx:8:10", "Title", 1),
         before: null,
         childrenOf: { callsiteId: "src/Page.tsx:12:5", componentName: "Stack" },
       },
@@ -298,14 +258,8 @@ describe("generatePrompt", () => {
   });
 
   it("exports only the final destination for each moved element", () => {
-    const target = {
-      sourceSite: { cid: "App", src: "src/App.tsx:157:14" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Column two" },
-    };
-    const parent = {
-      sourceSite: { cid: "App", src: "src/App.tsx:150:12" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: "className:grid", text: "Grid" },
-    };
+    const target = site("App", "src/App.tsx:157:14", "Column two");
+    const parent = site("App", "src/App.tsx:150:12", "Grid", 0, "className:grid");
     const structural: StructuralChange[] = [
       {
         id: "move-1",
@@ -314,10 +268,7 @@ describe("generatePrompt", () => {
         source: { parent },
         destination: {
           parent,
-          before: {
-            sourceSite: { cid: "App", src: "src/App.tsx:156:14" },
-            locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
-          },
+          before: site("App", "src/App.tsx:156:14", null, 0, "className:divider"),
         },
         presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 2, toIndex: 1 },
       },
@@ -328,10 +279,7 @@ describe("generatePrompt", () => {
         source: { parent },
         destination: {
           parent,
-          before: {
-            sourceSite: { cid: "App", src: "src/App.tsx:162:14" },
-            locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
-          },
+          before: site("App", "src/App.tsx:162:14", null, 0, "className:divider"),
         },
         presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 1, toIndex: 3 },
       },
@@ -342,10 +290,7 @@ describe("generatePrompt", () => {
         source: { parent },
         destination: {
           parent,
-          before: {
-            sourceSite: { cid: "App", src: "src/App.tsx:151:14" },
-            locator: { kind: "evidence", occurrence: 0, props: "className:column", text: "Column one" },
-          },
+          before: site("App", "src/App.tsx:151:14", "Column one", 0, "className:column"),
         },
         presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 3, toIndex: 0 },
       },
@@ -364,14 +309,8 @@ describe("generatePrompt", () => {
   });
 
   it("omits a single-target move sequence that returns to its starting position", () => {
-    const target = {
-      sourceSite: { cid: "App", src: "src/App.tsx:153:16" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Heading" },
-    };
-    const parent = {
-      sourceSite: { cid: "App", src: "src/App.tsx:151:14" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: "className:column", text: "Column" },
-    };
+    const target = site("App", "src/App.tsx:153:16", "Heading");
+    const parent = site("App", "src/App.tsx:151:14", "Column", 0, "className:column");
     const structural: StructuralChange[] = [
       {
         id: "move-heading-to-end",
@@ -388,10 +327,7 @@ describe("generatePrompt", () => {
         source: { parent },
         destination: {
           parent,
-          before: {
-            sourceSite: { cid: "App", src: "src/App.tsx:154:16" },
-            locator: { kind: "evidence", occurrence: 0, props: null, text: "Body" },
-          },
+          before: site("App", "src/App.tsx:154:16", "Body"),
         },
         presentation: { sourceParentTag: "article", destinationParentTag: "article", fromIndex: 2, toIndex: 1 },
       },
@@ -413,18 +349,9 @@ describe("generatePrompt", () => {
   });
 
   it("omits a cross-container sequence only when it returns to the initial parent position", () => {
-    const target = {
-      sourceSite: { cid: "Item", src: "src/App.tsx:20:5" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Docs" },
-    };
-    const source = {
-      sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Home Docs" },
-    };
-    const middle = {
-      sourceSite: { cid: "FooterLinks", src: "src/Footer.tsx:9:3" },
-      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Blog" },
-    };
+    const target = site("Item", "src/App.tsx:20:5", "Docs");
+    const source = site("Navigation", "src/Nav.tsx:4:1", "Home Docs");
+    const middle = site("FooterLinks", "src/Footer.tsx:9:3", "Blog");
     const structural: StructuralChange[] = [
       {
         id: "move-out",
@@ -444,10 +371,7 @@ describe("generatePrompt", () => {
             ...source,
             locator: { ...source.locator, text: "Home" },
           },
-          before: {
-            sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
-            locator: { kind: "evidence", occurrence: 0, props: null, text: "Docs" },
-          },
+          before: site("NavItem", "src/Nav.tsx:8:3", "Docs"),
         },
         presentation: { sourceParentTag: "aside", destinationParentTag: "nav", fromIndex: 0, toIndex: 1 },
       },
@@ -559,22 +483,7 @@ describe("generatePrompt", () => {
 
   it("renders text changes on JSX elements at line precision inside an Astro document", () => {
     configureAstroHost();
-    const change: TextContentChangeRecord = {
-      kind: "text-content",
-      id: "text-astro-island",
-      target: {
-        sourceSite: { cid: "Counter", src: "src/components/Counter.tsx:14:9" },
-        occurrence: 0,
-        props: null,
-        ariaLabel: null,
-        beforeText: "Count",
-      },
-      source: { file: "src/components/Counter.tsx", line: 14, column: 9, component: "Counter" },
-      selector: '[data-cid="Counter"][data-src*="src/components/Counter.tsx:14:9"]',
-      before: "Count",
-      after: "Counter",
-      authoredAs: "literal",
-    };
+    const change = textChange("text-astro-island", "Counter", "src/components/Counter.tsx:14:9", "Count", "Counter");
     const out = generatePrompt([change], {
       framework: "Astro",
       stylingSystem: "CSS custom properties",
@@ -744,10 +653,7 @@ describe("generatePrompt", () => {
     const structural: StructuralChange[] = [{
       id: "delete-html",
       kind: "delete",
-      target: {
-        sourceSite: { cid: "html:item", src: "index.html:12:5" },
-        locator: { kind: "evidence", occurrence: 0, props: null, text: "Item" },
-      },
+      target: site("html:item", "index.html:12:5", "Item"),
     }];
 
     const out = generatePrompt(

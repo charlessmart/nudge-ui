@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import "./showroom.css";
+import "../../shared/showroom.css";
 import "./sprinkles-components.css";
 import { sprinkles } from "./sprinkles.css.ts";
 import { themeClass } from "./theme.css.ts";

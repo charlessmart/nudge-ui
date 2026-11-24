@@ -1,4 +1,4 @@
-import "./showroom.css";
+import "../../shared/showroom.css";
 import { sprinkles } from "./sprinkles.css.ts";
 import { themeClass } from "./theme.css.ts";
 import { exId, ExampleCard, CategorySection } from "./examples-shared";

@@ -1,12 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
-
-async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
-  await expect.poll(async () => page.evaluate(() => Boolean(
-    document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
-  ))).toBe(true);
-}
+import { waitForEditors } from "./inspector.ts";
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {

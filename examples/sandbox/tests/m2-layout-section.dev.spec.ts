@@ -1,21 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
-
-async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-        return !!sr?.querySelector('[data-test="style-editors"]');
-      });
-    }, { timeout: 5000 })
-    .toBe(true);
-}
-
-async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
+import { waitForEditors } from "./inspector.ts";
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
   await page.locator(`[data-test="${testId}"]`).click();
@@ -188,7 +174,7 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   await expect
     .poll(async () => {
-      const s = await sheetText(page);
+      const s = await managedSheetText(page);
       return s.includes("flex-direction: column");
     }, { timeout: 5000 })
     .toBe(true);
@@ -227,7 +213,7 @@ test("dev: layout options offer flex child fields when selecting a child of a fl
   await flexBasisInput.fill("auto");
   await flexBasisInput.blur();
   await expect
-    .poll(async () => (await sheetText(page)).includes("flex-basis: auto"), { timeout: 5000 })
+    .poll(async () => (await managedSheetText(page)).includes("flex-basis: auto"), { timeout: 5000 })
     .toBe(true);
 
   const flexGrowInput = page.locator('[data-test="layout-combo-input-flex-grow"]');
@@ -239,7 +225,7 @@ test("dev: layout options offer flex child fields when selecting a child of a fl
     .toBe("2");
 
   await expect
-    .poll(async () => (await sheetText(page)).includes("flex-grow: 2"), { timeout: 5000 })
+    .poll(async () => (await managedSheetText(page)).includes("flex-grow: 2"), { timeout: 5000 })
     .toBe(true);
 });
 
@@ -271,7 +257,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await setInput(page, "top", "auto");
 
   await expect
-    .poll(async () => (await sheetText(page)).includes("top: auto"), { timeout: 5000 })
+    .poll(async () => (await managedSheetText(page)).includes("top: auto"), { timeout: 5000 })
     .toBe(true);
 
   await expect
@@ -293,13 +279,13 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await setInput(page, "left", "50%");
 
   await expect
-    .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
+    .poll(async () => (await managedSheetText(page)).includes("left: 50%"), { timeout: 5000 })
     .toBe(true);
 
   await revertChange(page, "left");
 
   await expect
-    .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
+    .poll(async () => (await managedSheetText(page)).includes("left: 50%"), { timeout: 5000 })
     .toBe(false);
   await expect
     .poll(async () => computedPropOn(page, "positioned-box", "left"), { timeout: 5000 })
@@ -326,7 +312,7 @@ test("dev: layout size controls edit dimensions and lock the aspect ratio", asyn
   await lock.click();
   await expect(lock).toHaveAttribute("aria-pressed", "false");
   await expect.poll(async () => computedPropOn(page, "sizing-box", "aspect-ratio"), { timeout: 5000 }).toBe("auto");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: auto");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("aspect-ratio: auto");
 
   await lock.click();
   await expect(lock).toHaveAttribute("aria-pressed", "true");
@@ -334,9 +320,9 @@ test("dev: layout size controls edit dimensions and lock the aspect ratio", asyn
 
   await expect.poll(async () => computedPropOn(page, "sizing-box", "width"), { timeout: 5000 }).toBe("240px");
   await expect.poll(async () => computedPropOn(page, "sizing-box", "max-height"), { timeout: 5000 }).toMatch(/px$/);
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("max-height: 40vh");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("width: 240px");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toMatch(/aspect-ratio: \d+ \/ \d+/);
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("max-height: 40vh");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("width: 240px");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toMatch(/aspect-ratio: \d+ \/ \d+/);
 });
 
 test("dev: absolute position exposes grouped and individual inset values", async ({ page }) => {
@@ -384,9 +370,9 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await picker.click();
   await expect(page.locator('[data-test="layout-grid-picker-popover"]')).toBeVisible();
   await page.locator('[data-test="layout-grid-cell-3-2"]').click();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-columns: repeat\(3, minmax\(0(?:px)?, 1fr\)\)/);
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-rows: repeat\(2, minmax\(0(?:px)?, 1fr\)\)/);
 
   await page.locator('[data-test="layout-options"]').click();
@@ -398,7 +384,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await columns.fill("repeat(4, minmax(0, 1fr))");
   await columns.blur();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-columns: repeat\(4, minmax\(0(?:px)?, 1fr\)\)/);
   await page.keyboard.press("Escape");
 
@@ -415,11 +401,11 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await startInput.fill("1");
   await startInput.blur();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("grid-column-start: 1;");
 
   await page.locator('[data-test="layout-grid-child-align-h-center"]').click();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("justify-self: center;");
   await expect.poll(async () => computedPropOn(page, "grid-child-span", "justify-self"), { timeout: 5000 })
     .toContain("center");
@@ -433,7 +419,7 @@ test("dev: Grid is selectable from the layout mode control", async ({ page }) =>
 
   await page.locator('[data-test="layout-mode-grid"]').click();
   await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("display: grid");
   await expect.poll(async () => computedPropOn(page, "grid-switch-target", "display"), { timeout: 5000 })
     .toBe("grid");

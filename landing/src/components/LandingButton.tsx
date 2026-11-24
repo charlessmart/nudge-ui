@@ -1,6 +1,6 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
-type LandingButtonVariant = "primary" | "secondary" | "tertiary";
+type LandingButtonVariant = "primary" | "secondary";
 
 type LandingButtonProps =
   | (ButtonHTMLAttributes<HTMLButtonElement> & { variant?: LandingButtonVariant; href?: undefined })

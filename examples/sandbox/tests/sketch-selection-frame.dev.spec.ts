@@ -2,11 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
 import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
-
-interface Point {
-  readonly x: number;
-  readonly y: number;
-}
+import { box, center, drag, type Point } from "./sketchGeometry.ts";
 
 const MARK = '.sketch__live-canvas [data-test="sketch-svg-layer"] path';
 const FRAME = '[data-test="sketch-selection-frame"]';
@@ -21,33 +17,6 @@ async function openRectangleSketch(page: Page): Promise<Point> {
   await page.locator('[data-test="sketch-tool-shape"]').click();
   const canvas = await box(page.locator(".sketch__live-canvas"));
   return { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 };
-}
-
-interface Box {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-/** Geometry only: Playwright's own bounding box adds an SVG shape's stroke width. */
-function box(locator: Locator): Promise<Box> {
-  return locator.evaluate((element) => {
-    const { x, y, width, height } = element.getBoundingClientRect();
-    return { x, y, width, height };
-  });
-}
-
-async function center(locator: Locator): Promise<Point> {
-  const bounds = await box(locator);
-  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
-}
-
-async function drag(page: Page, from: Point, to: Point): Promise<void> {
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
-  await page.mouse.move(to.x, to.y, { steps: 6 });
-  await page.mouse.up();
 }
 
 test("a drawn rectangle shows a frame that moves, resizes and rotates it", async ({ page }) => {

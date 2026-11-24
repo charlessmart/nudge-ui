@@ -2,7 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App, OPEN_NUDGE_EVENT } from "./App";
 import { LandingVersionPage } from "./LandingVersionPage";
-import { HeroVariantsPage } from "./hero/HeroVariantsPage";
 import { LayoutVariantsPage } from "./layouts/LayoutVariantsPage";
 import "./styles.css";
 
@@ -17,21 +16,18 @@ const editorDocument = (import.meta.env.DEV || landingDemoBuild)
   && params.get("__nudge_ui_direct") !== "1"
   && params.getAll("nudge-ui").includes("editor");
 const landingVersion = params.get("landing-version");
-const heroRoute = window.location.pathname.match(/^\/hero(?:\/([a-z0-9-]+))?\/?$/);
 const layoutsRoute = window.location.pathname.match(/^\/layouts(?:\/([a-z0-9-]+))?\/?$/);
 // The demo Canvas seeds layout iterations by query, like `landing-version`, so they load from the root document on any host.
 const layoutQuery = params.get("landing-layout");
 const layoutSlug = layoutsRoute ? layoutsRoute[1] ?? null : layoutQuery;
-const page = heroRoute
-  ? <HeroVariantsPage slug={heroRoute[1] ?? null} />
-  : layoutsRoute || layoutQuery
-    ? <LayoutVariantsPage slug={layoutSlug} switcher={!layoutQuery} />
-    : landingVersion === "1" || landingVersion === "2"
-      ? <LandingVersionPage version={landingVersion} />
-      : <App />;
+const page = layoutsRoute || layoutQuery
+  ? <LayoutVariantsPage slug={layoutSlug} switcher={!layoutQuery} />
+  : landingVersion === "1" || landingVersion === "2"
+    ? <LandingVersionPage version={landingVersion} />
+    : <App />;
 
 // Design explorations are not content: keep them out of the index and off the home page's canonical.
-if (heroRoute || layoutsRoute || layoutQuery) {
+if (layoutsRoute || layoutQuery) {
   document.querySelector('link[rel="canonical"]')?.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";

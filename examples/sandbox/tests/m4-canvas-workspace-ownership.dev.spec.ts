@@ -1,50 +1,10 @@
 import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-
-async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
-}
+import { expandSpacing, setInput, waitForInspector } from "./inspector.ts";
 
 async function waitForLockedNotice(page: import("@playwright/test").Page): Promise<void> {
   await expect(page.locator('[data-test="locked-workspace-notice"]')).toBeVisible();
-}
-
-async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
-
-async function setInput(
-  page: import("@playwright/test").Page,
-  property: string,
-  value: string,
-): Promise<void> {
-  await page.evaluate(
-    ({ p, v }) => {
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      const raw = sr?.querySelector(
-        `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
-      ) as HTMLInputElement | null;
-      if (!raw) return;
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )!.set!;
-      raw.focus();
-      setter.call(raw, v);
-      raw.dispatchEvent(new Event("change", { bubbles: true }));
-      raw.blur();
-    },
-    { p: property, v: value },
-  );
-}
-
-async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
-  const spacing = page.locator('[data-test="spacing-padding"]');
-  const add = spacing.locator('[data-test="add-value"]');
-  if (await add.count()) await add.click();
-  await spacing.locator('[data-test="individual-sides"]').click();
-  await expect(spacing).toHaveAttribute("data-expanded", "true");
 }
 
 test.describe("Canvas workspace lease — single ownership", () => {
@@ -147,7 +107,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
     await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
+    await expect.poll(() => managedSheetText(page)).toContain("padding-top: 48px;");
 
     // Sessions auto-save on change.
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("nudge-ui-drafts:")))).toBe(true);
@@ -221,14 +181,14 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Wait for the stale-detection timeout.
     await page.waitForTimeout(7000);
 
-    const sheet = await managedSheetContent(page);
+    const sheet = await managedSheetText(page);
     // Stale does not mean deleted: the rule still applies.
     expect(sheet).toContain("16px");
 
     const clearBtn = page.locator('[data-test="clear-session"]');
     if (await clearBtn.isVisible().catch(() => false)) {
       await clearBtn.click();
-      await expect.poll(() => managedSheetContent(page)).not.toContain("16px");
+      await expect.poll(() => managedSheetText(page)).not.toContain("16px");
     }
   });
 });

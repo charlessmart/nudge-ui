@@ -160,13 +160,11 @@ function openNudge(): void {
 function CopyPromptButton({
   label,
   copiedLabel,
-  variant = "secondary",
   className,
   trailingIcon = false,
 }: {
   label: string;
   copiedLabel: string;
-  variant?: "secondary" | "tertiary";
   className?: string;
   trailingIcon?: boolean;
 }): ReactNode {
@@ -207,7 +205,7 @@ function CopyPromptButton({
     <div className="landing-install-copy-wrap">
       <LandingButton
         type="button"
-        variant={variant}
+        variant="secondary"
         className={`landing-install-copy${className ? ` ${className}` : ""}`}
         data-copied={copied}
         aria-describedby={tooltipId}

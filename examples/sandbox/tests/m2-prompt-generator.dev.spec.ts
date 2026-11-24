@@ -1,43 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { openEditor } from "@nudge-ui/compatibility/playwright";
-
-async function waitForRow(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-        return !!sr?.querySelector('[data-test="style-editors"] [data-test="token-field"]');
-      });
-    }, { timeout: 5000 })
-    .toBe(true);
-}
-
-async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-        return !!sr?.querySelector('[data-test="style-editors"]');
-      });
-    }, { timeout: 5000 })
-    .toBe(true);
-}
-
-async function selectBackground(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]').click();
-  await expect
-    .poll(async () => page.evaluate((token) => {
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
-        .some((item) => item.textContent?.includes(token));
-    }, value), { timeout: 5000 })
-    .toBe(true);
-  await page.evaluate((token) => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
-      .find((item) => item.textContent?.includes(token))?.click();
-  }, value);
-}
+import { changeCount, openChangesLog, revertChange, selectBackground, waitForEditors, waitForRow } from "./inspector.ts";
 
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
   const chip = page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="token-chip"]');
@@ -57,39 +20,6 @@ async function setBorderRadius(page: import("@playwright/test").Page, value: str
     raw.dispatchEvent(new Event("change", { bubbles: true }));
     raw.blur();
   }, value);
-}
-
-async function changeCount(page: import("@playwright/test").Page): Promise<number> {
-  return await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return sr?.querySelectorAll('[data-test="change-row"]').length ?? 0;
-  });
-}
-
-/** Opens the changes list from its count beside the copy button. */
-async function openChangesLog(page: import("@playwright/test").Page): Promise<void> {
-  const toggle = page.locator('[data-test="changes-toggle"]');
-  await expect(toggle).toBeEnabled();
-  if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-}
-
-async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
-  await openChangesLog(page);
-  const handle = await page.evaluateHandle((p) => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);
-    // "background" names the background-color row too.
-    const row = rows.find((r) => {
-      const property = r.getAttribute("data-property") ?? "";
-      return property === p || property.startsWith(`${p}-`);
-    });
-    return (row ?? null) as HTMLElement | null;
-  }, property);
-  // The revert button shows on its row's hover, as it does for a person.
-  const row = handle.asElement()!;
-  await row.hover();
-  await (await row.$('[data-test="change-revert"]'))!.click();
 }
 
 async function copyDisabled(page: import("@playwright/test").Page): Promise<boolean> {

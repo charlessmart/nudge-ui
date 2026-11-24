@@ -1,9 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-
-async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
+import { expandSpacing, setInput } from "./inspector.ts";
 
 async function frameManagedSheetContent(
   page: import("@playwright/test").Page,
@@ -40,39 +37,6 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
     .toBe(true);
 }
 
-async function setInput(
-  page: import("@playwright/test").Page,
-  property: string,
-  value: string,
-): Promise<void> {
-  await page.evaluate(
-    ({ p, v }) => {
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      const raw = sr?.querySelector(
-        `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
-      ) as HTMLInputElement | null;
-      if (!raw) return;
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )!.set!;
-      raw.focus();
-      setter.call(raw, v);
-      raw.dispatchEvent(new Event("change", { bubbles: true }));
-      raw.blur();
-    },
-    { p: property, v: value },
-  );
-}
-
-async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
-  const spacing = page.locator('[data-test="spacing-padding"]');
-  const add = spacing.locator('[data-test="add-value"]');
-  if (await add.count()) await add.click();
-  await spacing.locator('[data-test="individual-sides"]').click();
-  await expect(spacing).toHaveAttribute("data-expanded", "true");
-}
-
 test("dev: element edits project into canvas renderer frame", async ({ page }) => {
   await page.goto("/playground");
 
@@ -82,7 +46,7 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   await expandSpacing(page);
   await setInput(page, "padding-top", "32px");
 
-  await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+  await expect.poll(() => managedSheetText(page)).toContain("padding-top: 32px;");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   const board = page.locator('[data-test="canvas-board"]');
@@ -113,7 +77,7 @@ test("dev: canvas element edits remain on the unified editing surface", async ({
   await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
 
   await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
-  await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 37px;");
+  await expect.poll(() => managedSheetText(page)).toContain("padding-top: 37px;");
 });
 
 test("dev: repeated Canvas flex gap nudges survive projection acknowledgement and blur", async ({ page }) => {
@@ -160,7 +124,7 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await input.fill("#abcdef");
   await input.press("Enter");
 
-  await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
+  await expect.poll(() => managedSheetText(page)).toContain("--color-surface-raised: #abcdef;");
 
   await page.locator('[data-test="settings-close"]').click();
 
@@ -218,7 +182,7 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
   await expandSpacing(page);
   await setInput(page, "padding-top", "60px");
 
-  await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 60px;");
+  await expect.poll(() => managedSheetText(page)).toContain("padding-top: 60px;");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -235,7 +199,7 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
     '[data-test="change-revert"][data-property="padding-top"]',
   ).click();
 
-  await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 60px;");
+  await expect.poll(() => managedSheetText(page)).not.toContain("padding-top: 60px;");
 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 

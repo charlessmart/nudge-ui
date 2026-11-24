@@ -2,22 +2,7 @@ import { showCanvas, waitForCanvasTransition } from "./canvasTransition.ts";
 import { test, expect } from "@playwright/test";
 import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 import { managedSheetText } from "./managedSheet.ts";
-
-async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
-
-async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
-}
-
-async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
-  const spacing = page.locator('[data-test="spacing-padding"]');
-  const add = spacing.locator('[data-test="add-value"]');
-  if (await add.count()) await add.click();
-  await spacing.locator('[data-test="individual-sides"]').click();
-  await expect(spacing).toHaveAttribute("data-expanded", "true");
-}
+import { expandSpacing, waitForInspector } from "./inspector.ts";
 
 async function setInput(
   page: import("@playwright/test").Page,
@@ -58,7 +43,7 @@ test.describe("Canvas durable session", () => {
 
     await expandSpacing(page);
     await setInput(page, "padding-top", "32px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+    await expect.poll(() => managedSheetText(page)).toContain("padding-top: 32px;");
 
     // The clear action is available as soon as the first edit is committed.
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
@@ -69,7 +54,7 @@ test.describe("Canvas durable session", () => {
 
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
 
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+    await expect.poll(() => managedSheetText(page)).toContain("padding-top: 32px;");
   });
 
   test("dev: the first CSS edit can be cleared before refresh", async ({ page }) => {
@@ -81,11 +66,11 @@ test.describe("Canvas durable session", () => {
 
     await expandSpacing(page);
     await setInput(page, "padding-top", "32px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+    await expect.poll(() => managedSheetText(page)).toContain("padding-top: 32px;");
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
 
     await page.locator('[data-test="clear-session"]').click();
-    await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 32px;");
+    await expect.poll(() => managedSheetText(page)).not.toContain("padding-top: 32px;");
     await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
     await expect(page.locator('[data-test="clear-session"]')).toBeDisabled();
   });
@@ -131,7 +116,7 @@ test.describe("Canvas durable session", () => {
 
     await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
+    await expect.poll(() => managedSheetText(page)).toContain("padding-top: 48px;");
 
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -144,7 +129,7 @@ test.describe("Canvas durable session", () => {
       await clearBtn.click();
     }
 
-    await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");
+    await expect.poll(() => managedSheetText(page)).not.toContain("padding-top: 48px;");
 
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
     await expect(page.locator(".canvas-card")).toHaveCount(1);
@@ -168,13 +153,13 @@ test.describe("Canvas durable session", () => {
     await input.fill("#abcdef");
     await input.press("Enter");
 
-    await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
+    await expect.poll(() => managedSheetText(page)).toContain("--color-surface-raised: #abcdef;");
 
     await page.reload();
     await waitForInspector(page);
 
     await page.locator('[data-test=\"panel-view-tokens\"]').click();
-    await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
+    await expect.poll(() => managedSheetText(page)).toContain("--color-surface-raised: #abcdef;");
   });
 
   test("dev: one repeated rendered-item override survives refresh, Canvas switching, and frame reload", async ({ page }) => {
@@ -184,7 +169,7 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
     await appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" }).click();
     await setInput(page, "font-size", "18px");
-    await expect.poll(() => managedSheetContent(page)).toContain("font-size: 18px;");
+    await expect.poll(() => managedSheetText(page)).toContain("font-size: 18px;");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
     const fontSize = () => appLocator(page, ".repeated-item").evaluateAll((els) =>

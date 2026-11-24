@@ -3,8 +3,8 @@ import { ensureEditorOwnership } from "@nudge-ui/compatibility/playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEAF_IDS } from "../src/perf-fixture/perfFixture.ts";
+import { RECORD_MODE, checkBudget, logRow, median, type MetricResult } from "./perfMetrics.ts";
 
-const RECORD_MODE = process.env.PERF_RECORD_BASELINE === "1";
 const FIXTURE_URL = "/?perf=large";
 const POLL_TIMEOUT_MS = 30_000;
 const RUNS = 5;
@@ -15,12 +15,6 @@ const BUDGET_CLICK_MS = 100;
 const HOVER_LEAF = LEAF_IDS[0]!;
 const CLICK_LEAVES = [LEAF_IDS[1]!, LEAF_IDS[2]!] as const;
 
-interface MetricResult {
-  median: number;
-  runs: number[];
-  budget: number;
-}
-
 interface CanvasMetrics {
   hover?: MetricResult;
   click?: MetricResult;
@@ -30,25 +24,6 @@ interface CanvasMetrics {
 }
 
 const METRICS: CanvasMetrics = {};
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[mid]!;
-  return (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
-function logRow(key: string, result: MetricResult): void {
-  console.log(`perf | ${key.padEnd(14)} | median ${result.median.toFixed(1).padStart(8)}ms | budget ${result.budget}ms | runs [${result.runs.map((r) => r.toFixed(1)).join(", ")}]`);
-}
-
-function checkBudget(key: string, result: MetricResult): void {
-  if (RECORD_MODE) return;
-  expect(
-    result.median,
-    `${key}: median ${result.median.toFixed(1)}ms exceeds budget ${result.budget}ms (runs: ${result.runs.map((r) => r.toFixed(1)).join(", ")})`,
-  ).toBeLessThan(result.budget);
-}
 
 function logSummary(): void {
   console.log("perf | === canvas breakdown ===");

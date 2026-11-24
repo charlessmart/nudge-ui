@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
+import { openTokensSettings } from "./inspector.ts";
 
 async function panelOpen(page: import("@playwright/test").Page): Promise<string | null> {
   return page.evaluate(() => document
@@ -8,15 +9,6 @@ async function panelOpen(page: import("@playwright/test").Page): Promise<string 
     ?.shadowRoot
     ?.querySelector(".panel")
     ?.getAttribute("data-open") ?? null);
-}
-
-async function managedSheet(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
-
-async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('[data-test="panel-view-tokens"]').click();
-  await expect(page.locator('[data-test="document-tokens"]')).toBeVisible();
 }
 
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {
@@ -59,11 +51,11 @@ test("dev: numeric fields nudge previews immediately and visibility shortcuts pr
   await lineHeight.focus();
   await lineHeight.press("ArrowUp");
   await expect(lineHeight).toHaveValue("170%");
-  await expect.poll(() => managedSheet(page)).toContain("line-height: 170%;");
+  await expect.poll(() => managedSheetText(page)).toContain("line-height: 170%;");
 
   await lineHeight.press("Shift+ArrowDown");
   await expect(lineHeight).toHaveValue("90%");
-  await expect.poll(() => managedSheet(page)).toContain("line-height: 90%;");
+  await expect.poll(() => managedSheetText(page)).toContain("line-height: 90%;");
   await expect(page.locator('[data-test="change-row"][data-property="line-height"]')).toHaveCount(1);
 
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -76,7 +68,7 @@ test("dev: numeric fields nudge previews immediately and visibility shortcuts pr
     cancelable: true,
   })));
   expect(await panelOpen(page)).not.toBe(before);
-  await expect.poll(() => managedSheet(page)).toContain("line-height: 90%;");
+  await expect.poll(() => managedSheetText(page)).toContain("line-height: 90%;");
 
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", {
     key: "\\",

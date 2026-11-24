@@ -1,4 +1,4 @@
-import "./showroom.css";
+import "../../shared/showroom.css";
 import "./raw-components.css";
 import { SemanticAlert } from "./ui/SemanticAlert";
 import { SemanticAvatar } from "./ui/SemanticAvatar";

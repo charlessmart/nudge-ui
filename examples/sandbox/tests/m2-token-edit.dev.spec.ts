@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
+import { btnBackground, expandSpacing } from "./inspector.ts";
 
 type RowInfo = {
   property: string;
@@ -33,25 +34,6 @@ async function waitForRow(page: import("@playwright/test").Page): Promise<void> 
       return rows.some((row) => row.property === "background-color") ? rows : null;
     }, { timeout: 5000 })
     .toBeTruthy();
-}
-
-async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
-  const spacing = page.locator('[data-test="spacing-padding"]');
-  const add = spacing.locator('[data-test="add-value"]');
-  if (await add.count()) await add.click();
-  await spacing.locator('[data-test="individual-sides"]').click();
-  await expect(spacing).toHaveAttribute("data-expanded", "true");
-}
-
-async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
-
-async function btnBackground(page: import("@playwright/test").Page): Promise<string> {
-  return await (await getAppFrame(page)).evaluate(() => {
-    const btn = document.querySelector(".btn") as HTMLElement | null;
-    return btn ? getComputedStyle(btn).backgroundColor : "";
-  });
 }
 
 async function selectSuggestion(page: import("@playwright/test").Page, value: string): Promise<void> {
@@ -99,7 +81,7 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
   await selectBackground(page, "--color-surface-sunken");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("--color-surface-sunken");
 
   await expect
@@ -160,7 +142,7 @@ test("dev: selection defaults to Base and can target an authored hover state", a
   await hex.fill("13579b");
   await hex.press("Enter");
 
-  await expect.poll(() => sheetText(page), { timeout: 5000 })
+  await expect.poll(() => managedSheetText(page), { timeout: 5000 })
     .toContain(':hover { background-color: rgb(19, 87, 155); }');
   await expect(previewButton).toHaveCSS("background-color", "rgb(19, 87, 155)");
 });
@@ -191,7 +173,7 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
   await selectPromote(page, "padding-top", "--space-2");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("padding-top: var(--space-2);");
   await expect
     .poll(async () => tokenRows(page), { timeout: 5000 })
@@ -228,10 +210,10 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
   await input.press("Enter");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("padding-top: 7px;");
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .not.toContain("padding-top: var(--space-");
 });
 
@@ -246,7 +228,7 @@ test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
   await input.press("Enter");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("padding-top: 7px;");
 });
 
@@ -260,7 +242,7 @@ test("dev: Enter completes a bare font-size number with px", async ({ page }) =>
   await input.press("Enter");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("font-size: 7px;");
 });
 
@@ -279,10 +261,10 @@ test("dev: Enter applies a typed hex colour with no matching token", async ({ pa
   await input.press("Enter");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("color: rgb(19, 87, 155);");
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .not.toContain("color: var(--color-");
 });
 
@@ -294,7 +276,7 @@ test("dev: edits survive a React re-render of the host app", async ({ page }) =>
   await selectBackground(page, "--color-surface-sunken");
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("--color-surface-sunken");
 
   const appFrame = await getAppFrame(page);
@@ -309,7 +291,7 @@ test("dev: edits survive a React re-render of the host app", async ({ page }) =>
   await expect(appFrame.locator('[data-test="click-counter"]')).toHaveText(/clicks: 2/);
 
   await expect
-    .poll(async () => sheetText(page), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("--color-surface-sunken");
 
   await expect

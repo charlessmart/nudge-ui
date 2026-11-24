@@ -1,21 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
-
-async function managedSheet(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
+import { openTokensSettings } from "./inspector.ts";
 
 async function consumerBackgrounds(page: import("@playwright/test").Page): Promise<string[]> {
   return (await getAppFrame(page)).evaluate(() => [".btn", ".demo-panel"].map((selector) => {
     const element = document.querySelector(selector) as HTMLElement | null;
     return element ? getComputedStyle(element).backgroundColor : "";
   }));
-}
-
-async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('[data-test="panel-view-tokens"]').click();
-  await expect(page.locator('[data-test="document-tokens"]')).toBeVisible();
 }
 
 test("dev: Tokens settings edits only the active theme token and updates every consumer", async ({ page }) => {
@@ -36,8 +28,8 @@ test("dev: Tokens settings edits only the active theme token and updates every c
   await input.fill("#123456");
   await input.press("Enter");
 
-  await expect.poll(() => managedSheet(page)).toContain(':root[data-theme="dark"]');
-  await expect.poll(() => managedSheet(page)).toContain("--color-surface-raised: #123456;");
+  await expect.poll(() => managedSheetText(page)).toContain(':root[data-theme="dark"]');
+  await expect.poll(() => managedSheetText(page)).toContain("--color-surface-raised: #123456;");
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(18, 52, 86)", "rgb(18, 52, 86)"]);
 
   await (await getAppFrame(page)).evaluate(() => document.documentElement.removeAttribute("data-theme"));
@@ -63,7 +55,7 @@ test("dev: nested token wrappers are preserved through the catalog and managed p
   await input.fill("4rem");
   await input.press("Enter");
 
-  await expect.poll(async () => (await managedSheet(page)).replace(/\s+/g, " ")).toContain(
+  await expect.poll(async () => (await managedSheetText(page)).replace(/\s+/g, " ")).toContain(
     "@media (min-width: 1px) { @supports (display: grid) { @layer conformance { @media (min-width: 1px)",
   );
   await expect.poll(async () => (await getAppFrame(page)).evaluate(() =>

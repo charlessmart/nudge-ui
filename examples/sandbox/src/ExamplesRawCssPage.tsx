@@ -1,4 +1,4 @@
-import "./showroom.css";
+import "../../shared/showroom.css";
 import { exId, ExampleCard, CategorySection } from "./examples-shared";
 
 function CssUnitsSpacing() {

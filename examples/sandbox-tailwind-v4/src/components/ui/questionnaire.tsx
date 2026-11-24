@@ -154,41 +154,6 @@ function QuestionnaireChoiceDescription({
   )
 }
 
-function QuestionnaireInput({
-  className,
-  ...props
-}: React.ComponentProps<typeof QuestionnairePrimitive.Input>) {
-  return (
-    <div
-      data-slot="questionnaire-input-wrapper"
-      className="group/questionnaire-input relative w-full min-w-0"
-    >
-      <QuestionnairePrimitive.Input
-        data-slot="questionnaire-input"
-        className={cn(
-          "h-8 min-h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-[color,box-shadow,background-color] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 sm:min-h-0 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-          "selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground",
-          className
-        )}
-        {...props}
-      />
-    </div>
-  )
-}
-
-function QuestionnaireError({
-  className,
-  ...props
-}: React.ComponentProps<typeof QuestionnairePrimitive.Error>) {
-  return (
-    <QuestionnairePrimitive.Error
-      data-slot="questionnaire-error"
-      className={cn("mt-2 text-sm text-destructive", className)}
-      {...props}
-    />
-  )
-}
-
 function QuestionnaireActions({
   className,
   ...props
@@ -202,56 +167,6 @@ function QuestionnaireActions({
       )}
       {...props}
     />
-  )
-}
-
-function QuestionnairePrevious({
-  children,
-  className,
-  size = "default",
-  variant = "outline",
-  ...props
-}: React.ComponentProps<typeof QuestionnairePrimitive.Previous> &
-  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
-  return (
-    <QuestionnairePrimitive.Previous
-      data-slot="questionnaire-previous"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-1 row-start-1 min-h-11 justify-self-start sm:min-h-0",
-        className
-      )}
-      {...props}
-    >
-      {children ?? "Previous"}
-    </QuestionnairePrimitive.Previous>
-  )
-}
-
-function QuestionnaireSkip({
-  children,
-  className,
-  size = "default",
-  variant = "outline",
-  ...props
-}: React.ComponentProps<typeof QuestionnairePrimitive.Skip> &
-  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
-  return (
-    <QuestionnairePrimitive.Skip
-      data-slot="questionnaire-skip"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-2 row-start-1 min-h-11 justify-self-end sm:min-h-0",
-        className
-      )}
-      {...props}
-    >
-      {children ?? "Skip"}
-    </QuestionnairePrimitive.Skip>
   )
 }
 
@@ -280,31 +195,6 @@ function QuestionnaireNext({
   )
 }
 
-function QuestionnaireSubmit({
-  children,
-  className,
-  size = "default",
-  variant = "default",
-  ...props
-}: React.ComponentProps<typeof QuestionnairePrimitive.Submit> &
-  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
-  return (
-    <QuestionnairePrimitive.Submit
-      data-slot="questionnaire-submit"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-3 row-start-1 min-h-11 justify-self-end sm:min-h-0",
-        className
-      )}
-      {...props}
-    >
-      {children ?? "Submit"}
-    </QuestionnairePrimitive.Submit>
-  )
-}
-
 export {
   Questionnaire,
   QuestionnaireActions,
@@ -312,13 +202,8 @@ export {
   QuestionnaireChoiceDescription,
   QuestionnaireChoices,
   QuestionnaireDescription,
-  QuestionnaireError,
-  QuestionnaireInput,
   QuestionnaireItem,
   QuestionnaireNext,
-  QuestionnairePrevious,
   QuestionnaireProgress,
-  QuestionnaireSkip,
-  QuestionnaireSubmit,
   QuestionnaireTitle,
 }

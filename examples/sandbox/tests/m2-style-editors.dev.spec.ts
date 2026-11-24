@@ -1,34 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
-
-async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return managedSheetText(page);
-}
-
-async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-        return !!sr?.querySelector('[data-test="style-editors"]');
-      });
-    }, { timeout: 5000 })
-    .toBe(true);
-}
+import { expandSpacing, waitForEditors } from "./inspector.ts";
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
   await expect
     .poll(async () => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
     .toBe(true);
-}
-
-async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
-  const spacing = page.locator('[data-test="spacing-padding"]');
-  const add = spacing.locator('[data-test="add-value"]');
-  if (await add.count()) await add.click();
-  await spacing.locator('[data-test="individual-sides"]').click();
-  await expect(spacing).toHaveAttribute("data-expanded", "true");
 }
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
@@ -120,10 +98,10 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     .poll(async () => computedProp(page, "color"), { timeout: 5000 })
     .toContain(expectedRgb ?? expectedColor);
 
-  const sheet = await sheetText(page);
+  const sheet = await managedSheetText(page);
   await expect
     .poll(async () => {
-      const text = await sheetText(page);
+      const text = await managedSheetText(page);
       return text.includes('[data-cid="Button"]')
         && /\[data-src="src\/Button\.tsx:\d+:\d+"\]/.test(text)
         && text.includes("padding-top: 24px")
@@ -187,7 +165,7 @@ test("dev: linked border values expand into icon-labelled individual side fields
   await expect
     .poll(async () => computedProp(page, "border-top-width"), { timeout: 5000 })
     .toBe("2px");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-top-width: 2px");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("border-top-width: 2px");
 });
 
 test("dev: authored CSS border fixtures parse width, style, and color per side", async ({ page }) => {
@@ -208,7 +186,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await expect
     .poll(async () => computedFixtureProp(page, "css-border-mixed", "border-right-width"), { timeout: 5000 })
     .toBe("5px");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-right-width: 5px");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("border-right-width: 5px");
 });
 
 test("dev: main demo color fixtures expose partial opacity after CSSOM normalization", async ({ page }) => {
@@ -255,8 +233,8 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await setInput(page, "padding-horizontal", "20px");
   await expect.poll(() => computedProp(page, "padding-left"), { timeout: 5000 }).toBe("20px");
   await expect.poll(() => computedProp(page, "padding-right"), { timeout: 5000 }).toBe("20px");
-  await expect.poll(() => sheetText(page), { timeout: 5000 }).toContain("padding-left: 20px");
-  await expect.poll(() => sheetText(page), { timeout: 5000 }).toContain("padding-right: 20px");
+  await expect.poll(() => managedSheetText(page), { timeout: 5000 }).toContain("padding-left: 20px");
+  await expect.poll(() => managedSheetText(page), { timeout: 5000 }).toContain("padding-right: 20px");
 
   await spacing.locator('[data-test="individual-sides"]').click();
   await expect(spacing).toHaveAttribute("data-expanded", "true");
@@ -284,7 +262,7 @@ test("dev: linking divergent border widths applies one value and survives resele
   await expect
     .poll(async () => Promise.all(["top", "right", "bottom", "left"].map((side) => computedFixtureProp(page, "css-border-mixed", `border-${side}-width`))), { timeout: 5000 })
     .toEqual(["2px", "2px", "2px", "2px"]);
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-width: 2px");
+  await expect.poll(async () => managedSheetText(page), { timeout: 5000 }).toContain("border-width: 2px");
 
   await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
