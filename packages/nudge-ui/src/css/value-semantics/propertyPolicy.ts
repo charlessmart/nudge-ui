@@ -1,6 +1,6 @@
 import type { ColorValueFacts, EditCapability, TokenEntry } from "../model/index.ts";
 import { interpretColorValue } from "./colorSemantics.ts";
-import { isSingleVarReference } from "./cssSyntax.ts";
+import { isSingleVarReference, splitTopLevel } from "./cssSyntax.ts";
 
 declare global {
   interface Window {
@@ -187,6 +187,8 @@ export function classifyEditCapability(property: string, value: string): EditCap
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
   if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
   if (isSingleVarReference(v)) return "atomic";
+  // A font stack led by a token, `var(--font-serif), Georgia, serif`, is that token with the browser's fallbacks behind it.
+  if (p === "font-family" && isSingleVarReference(splitTopLevel(v, ",")[0] ?? "")) return "atomic";
   if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
     || (v.includes(",") && !isSingleVarReference(v))) return "composite";
   if (/\b(min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";

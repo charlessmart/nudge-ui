@@ -56,7 +56,7 @@ describe("GapField", () => {
     document.getElementById("nudge-ui-styles")?.remove();
   });
 
-  it("keeps raw gap values editable when the value is not a simple token", () => {
+  it("shows the computed gap, keeping the expression, when the value is not a simple token", () => {
     const { el } = makeSelected();
     mockComputedStyle({ "column-gap": "12px" });
     handle = mount(createElement(GapField, {
@@ -72,7 +72,8 @@ describe("GapField", () => {
 
     const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
     expect(input).toBeTruthy();
-    expect(input.value).toBe("clamp(8px, 2vw, 24px)");
+    expect(input.value).toBe("12px");
+    expect(input.closest('[data-test="token-field"]')?.getAttribute("data-expression")).toBe("clamp(8px, 2vw, 24px)");
   });
 
   it("swaps a gap token on the projected longhand", () => {

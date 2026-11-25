@@ -205,12 +205,12 @@
   line-height: 1.25;
 }
 
-/* Subheadings inside the layout options menu share the editor title's label style. */
+/* Subheadings inside the layout options menu share the editor title's style. */
 .layout__subheading {
   text-wrap: balance;
   color: var(--text-primary);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-label);
+  font-weight: var(--font-weight-title);
   line-height: 1.25;
 }
 

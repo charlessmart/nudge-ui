@@ -188,3 +188,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A label with a line under it saying what the choice does. */
+.select__item-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+}
+
+/* In the column, the label's row-filling flex would collapse its height. */
+.select__item-body > .select__item-text {
+  flex: none;
+}
+
+.select__item-description {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.select__separator {
+  height: 1px;
+  margin: var(--space-4) var(--space-8);
+  background: var(--border-subtle);
+}

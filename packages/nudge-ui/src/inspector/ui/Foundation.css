@@ -125,6 +125,8 @@
   --font-size-title: 17px;
   --font-weight-base: 400;
   --font-weight-label: 500;
+  /* Section titles (Layout, Text, the element name, Pages) sit a step above the labels inside them. */
+  --font-weight-title: 550;
 
   --control-height-small: 24px;
   --control-height-large: 32px;

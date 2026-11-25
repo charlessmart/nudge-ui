@@ -502,7 +502,7 @@
   text-wrap: balance;
   color: var(--text-primary);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-label);
+  font-weight: var(--font-weight-title);
   min-height: var(--control-height-large);
   display: flex;
   align-items: center;

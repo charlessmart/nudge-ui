@@ -34,6 +34,8 @@ export interface TooltipProps {
   closeDelay?: number;
   disableFocus?: boolean;
   disabled?: boolean;
+  /** Keeps the tooltip from opening while leaving the trigger's tree as it is; `disabled` instead renders the child alone, which remounts it when toggled. */
+  inactive?: boolean;
   stableTrigger?: boolean;
   triggerClassName?: string;
   positionerClassName?: string;
@@ -70,6 +72,7 @@ export function Tooltip({
   closeDelay,
   disableFocus = false,
   disabled = false,
+  inactive = false,
   stableTrigger = false,
   triggerClassName,
   positionerClassName,
@@ -90,7 +93,7 @@ export function Tooltip({
   const tooltipContent = content ?? defaultTooltipContent(children);
 
   return (
-    <BaseTooltip.Root disableHoverablePopup>
+    <BaseTooltip.Root disableHoverablePopup disabled={inactive}>
       <BaseTooltip.Trigger
         render={trigger}
         delay={delay}

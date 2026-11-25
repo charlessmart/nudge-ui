@@ -737,8 +737,9 @@ describe("TokenField", () => {
     expect(other.querySelector('[data-test="popover-listbox-indicator"]')).toBeNull();
   });
 
-  it("shows authored functional CSS without an inline token attribution label", () => {
+  it("shows the value functional CSS computes to, keeping the expression for its tooltip", () => {
     const { selected } = makeSelected();
+    mockComputedStyle({ width: "32px" });
     handle = mount(createElement(TokenField, {
       property: "width",
       tokenRow: {
@@ -757,9 +758,58 @@ describe("TokenField", () => {
       entries: [FONT_SIZE],
     }));
     const rawInput = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
-    expect(rawInput.value).toBe("calc(var(--space-4) * 2)");
+    expect(rawInput.value).toBe("32px");
+    expect(handle.host.querySelector('[data-test="token-field"]')?.getAttribute("data-expression")).toBe("calc(var(--space-4) * 2)");
     expect(handle.host.querySelector('[data-test="token-attribution"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+  });
+
+  it("keeps the same input when a commit replaces the expression, so a drag or nudge carries on", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ width: "32px" });
+    const row = (authored: string) => ({
+      property: "width",
+      tokenName: null,
+      declaredValue: authored,
+      authored,
+      resolvedValue: "32px",
+      computed: "32px",
+      capability: "raw" as const,
+      confidence: "probable" as const,
+      evidence: { reason: "test fixture" },
+    });
+    handle = mount(createElement(TokenField, { property: "width", tokenRow: row("calc(var(--space-4) * 2)"), domElement: selected.domElement, entries: [] }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(input.getAttribute("aria-description")).toBe("Computed from calc(var(--space-4) * 2)");
+
+    act(() => handle.root.render(createElement(TokenField, { property: "width", tokenRow: row("40px"), domElement: selected.domElement, entries: [] })));
+
+    expect(handle.host.querySelector('[data-test="raw-input"]')).toBe(input);
+    expect(input.hasAttribute("aria-description")).toBe(false);
+  });
+
+  it("keeps a color expression as written, since its swatch and opacity read the authored text", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "rgb(255, 0, 0)" });
+    handle = mount(createElement(TokenField, {
+      property: "color",
+      tokenRow: {
+        property: "color",
+        tokenName: null,
+        declaredValue: "var(--unknown-red)",
+        authored: "var(--unknown-red)",
+        resolvedValue: "var(--unknown-red)",
+        computed: "rgb(255, 0, 0)",
+        capability: "color",
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    const rawInput = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(rawInput.value).toBe("var(--unknown-red)");
+    expect(handle.host.querySelector('[data-test="token-field"]')?.hasAttribute("data-expression")).toBe(false);
   });
 
   it("returns to a raw input when a token chip is unlinked", () => {

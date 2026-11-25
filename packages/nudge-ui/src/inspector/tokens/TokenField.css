@@ -153,3 +153,13 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 1.5em auto 1em;
 }
+
+/* A value computed from an expression reads as secondary until it is edited; hovering shows the expression. */
+.token-field--expression .text-input:not(:focus) {
+  color: var(--text-secondary);
+}
+
+.token-field__expression-tooltip {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}

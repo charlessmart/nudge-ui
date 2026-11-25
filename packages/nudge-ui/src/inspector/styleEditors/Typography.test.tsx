@@ -8,6 +8,7 @@ import {
   makeSelected,
   mount,
   setInputValue,
+  setSelectValue,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -63,13 +64,65 @@ describe("Typography", () => {
     mockComputedStyle({ "font-weight": "400", "font-style": "normal" });
     handle = mount(createElement(Typography, { element: selected }));
     const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]') as HTMLInputElement;
-    expect(raw.value).toBe("400");
+    expect(raw.value).toBe("Regular");
     setInputValue(raw, "650");
     expect(sheetText()).toContain("font-weight: 650;");
     expect(sheetText()).not.toContain("font-style");
+    expect(raw.value).toBe("650");
   });
 
-  it("toggles italic as font-style only, keeping its source metadata", () => {
+  it("writes a typed weight name as its number and shows the name", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-weight": "400" });
+    handle = mount(createElement(Typography, { element: selected }));
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "semi-bold");
+    expect(sheetText()).toContain("font-weight: 600;");
+    expect(raw.value).toBe("Semibold");
+  });
+
+  it("nudges a named weight by its number", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-weight": "400" });
+    handle = mount(createElement(Typography, { element: selected }));
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]') as HTMLInputElement;
+    act(() => raw.focus());
+    act(() => { raw.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })); });
+    expect(sheetText()).toContain("font-weight: 500;");
+    expect(raw.value).toBe("Medium");
+  });
+
+  it("opens the named weights from the weight field's chevron", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-weight": "400" });
+    handle = mount(createElement(Typography, { element: selected }));
+    const field = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"]')!;
+    const chevron = field.querySelector<HTMLElement>('[data-test="token-field-trailing"]')!;
+    act(() => { chevron.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 })); });
+    const items = Array.from(document.body.querySelectorAll('[data-test="raw-suggestion-item"]')).map((item) => item.textContent);
+    expect(items).toEqual(["Light", "Regular", "Medium", "Semibold", "Bold"]);
+
+    const bold = Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="raw-suggestion-item"]')).find((item) => item.textContent === "Bold")!;
+    act(() => {
+      bold.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      bold.click();
+    });
+    expect(sheetText()).toContain("font-weight: 700;");
+  });
+
+  function openTextOptions(): void {
+    act(() => (handle.host.querySelector('[data-test="typography-options"]') as HTMLButtonElement).click());
+  }
+
+  function segment(property: string, value: string): HTMLButtonElement {
+    return document.body.querySelector(`[data-test="typography-${property}-${value}"]`) as HTMLButtonElement;
+  }
+
+  function pressed(property: string, value: string): string | null {
+    return segment(property, value).getAttribute("aria-pressed");
+  }
+
+  it("sets italic from the text options as font-style only, keeping its source metadata", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "font-weight": "400", "font-style": "normal" });
     handle = mount(createElement(Typography, {
@@ -85,18 +138,18 @@ describe("Typography", () => {
         evidence: { reason: "style fixture" },
       }],
     }));
-    const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    openTextOptions();
+    expect(pressed("font-style", "normal")).toBe("true");
 
-    act(() => toggle.click());
+    act(() => segment("font-style", "italic").click());
 
     expect(sheetText()).toContain("font-style: italic;");
     expect(sheetText()).not.toContain("font-weight");
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(pressed("font-style", "italic")).toBe("true");
     expect(getChangeRecords().at(-1)).toMatchObject({ sourceProperty: "font-style", sourceAuthoredValue: "normal" });
   });
 
-  it("marks a mixed italic selection and makes every element italic from it", () => {
+  it("marks a mixed font style and makes every element italic from it", () => {
     const style = document.createElement("style");
     style.textContent = ".slanted { font-style: italic; }";
     document.head.append(style);
@@ -111,16 +164,15 @@ describe("Typography", () => {
     };
     try {
       handle = mount(createElement(Typography, { element: first.selected, selection }));
-      const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
-      expect(handle.host.querySelector('[data-test="typography-mixed-font-style"]')?.textContent).toBe("Mixed");
-      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      openTextOptions();
+      expect(document.body.querySelector('[data-test="typography-mixed-font-style"]')?.textContent).toBe("Mixed");
+      expect(pressed("font-style", "normal")).toBe("false");
+      expect(pressed("font-style", "italic")).toBe("false");
 
-      act(() => toggle.click());
+      act(() => segment("font-style", "italic").click());
       expect(sheetText()).toContain("font-style: italic;");
       // The element that was already italic needs no change.
       expect(getChangeRecords()).toHaveLength(1);
-      expect(toggle.getAttribute("aria-pressed")).toBe("true");
-      expect(handle.host.querySelector('[data-test="typography-mixed-font-style"]')).toBeNull();
     } finally {
       style.remove();
     }
@@ -140,13 +192,100 @@ describe("Typography", () => {
     });
     mockComputedStyle({ "font-style": "italic" });
     handle = mount(createElement(Typography, { element: selected, tokenRows: [row("italic")] }));
-    const toggle = handle.host.querySelector('[data-test="font-style-italic"]') as HTMLButtonElement;
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    openTextOptions();
+    expect(pressed("font-style", "italic")).toBe("true");
 
     restoreComputedStyle();
     mockComputedStyle({ "font-style": "normal" });
     act(() => handle.root.render(createElement(Typography, { element: selected, tokenRows: [row("normal")] })));
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(pressed("font-style", "normal")).toBe("true");
+  });
+
+  it("truncates to one line from the text options", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", overflow: "visible", "text-overflow": "clip", "white-space": "normal" });
+    handle = mount(createElement(Typography, { element: selected }));
+    openTextOptions();
+    const truncate = document.body.querySelector('[data-test="typography-select-truncate"]') as HTMLElement;
+    expect(truncate.querySelector(".select__value")?.textContent).toBe("None");
+
+    setSelectValue(truncate, "1");
+
+    expect(sheetText()).toContain("overflow: hidden;");
+    expect(sheetText()).toContain("text-overflow: ellipsis;");
+    expect(sheetText()).toContain("white-space: nowrap;");
+  });
+
+  it("lists each text option as a label beside its control", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "text-decoration-line": "none", "text-transform": "none", "white-space": "normal" });
+    handle = mount(createElement(Typography, { element: selected }));
+    openTextOptions();
+    const labels = Array.from(document.body.querySelectorAll('[data-test="typography-options-content"] .typography__option-label'))
+      .map((label) => label.textContent);
+    expect(labels).toEqual(["Style", "Decoration", "Case", "Vertical trim", "Wrap", "Truncate"]);
+
+    expect(pressed("text-decoration-line", "none")).toBe("true");
+    act(() => segment("text-decoration-line", "underline").click());
+    expect(sheetText()).toContain("text-decoration-line: underline;");
+    expect(pressed("text-transform", "none")).toBe("true");
+    act(() => segment("text-transform", "uppercase").click());
+    expect(sheetText()).toContain("text-transform: uppercase;");
+  });
+
+  it("balances wrapping from the wrap choices", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "text-wrap-mode": "wrap", "text-wrap-style": "auto" });
+    handle = mount(createElement(Typography, { element: selected }));
+    openTextOptions();
+    const wrap = document.body.querySelector('[data-test="typography-select-wrap"]') as HTMLElement;
+    expect(wrap.querySelector(".select__value")?.textContent).toBe("Normal");
+    act(() => {
+      wrap.focus();
+      wrap.click();
+    });
+    expect(Array.from(document.body.querySelectorAll(".select__item-description")).map((line) => line.textContent))
+      .toEqual(["No wrapping", "Default wrapping", "Avoids orphans", "Spreads text evenly"]);
+    expect(document.body.querySelectorAll(".select__separator")).toHaveLength(1);
+
+    const balance = document.body.querySelector('.select__item[data-value="balance"]') as HTMLElement;
+    act(() => {
+      balance.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      balance.click();
+    });
+
+    expect(sheetText()).toContain("text-wrap: balance;");
+  });
+
+  it("trims the text box to the cap height and baseline where the browser supports it", () => {
+    const original = globalThis.CSS;
+    globalThis.CSS = { ...original, supports: () => true } as typeof CSS;
+    try {
+      const { selected } = makeSelected();
+      mockComputedStyle({ "text-box-trim": "none" });
+      handle = mount(createElement(Typography, { element: selected }));
+      openTextOptions();
+      expect(pressed("text-box-trim", "none")).toBe("true");
+
+      act(() => segment("text-box-trim", "trim-both").click());
+
+      expect(getChangeRecords().at(-1)).toMatchObject({ property: "text-box", rawValue: "trim-both cap alphabetic" });
+    } finally {
+      globalThis.CSS = original;
+    }
+  });
+
+  it("disables vertical trim where the browser has no text-box", () => {
+    const original = globalThis.CSS;
+    globalThis.CSS = { ...original, supports: () => false } as typeof CSS;
+    try {
+      const { selected } = makeSelected();
+      handle = mount(createElement(Typography, { element: selected }));
+      openTextOptions();
+      expect(segment("text-box-trim", "trim-both").disabled).toBe(true);
+    } finally {
+      globalThis.CSS = original;
+    }
   });
 
   it("writes line-height via the raw input", () => {

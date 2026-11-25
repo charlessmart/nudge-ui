@@ -51,7 +51,7 @@
   margin: 0;
   color: var(--text-primary);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-label);
+  font-weight: var(--font-weight-title);
   letter-spacing: -0.02em;
 }
 

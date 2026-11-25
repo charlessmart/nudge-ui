@@ -13,7 +13,7 @@ import type { TokenSemanticSlot } from "../../css/value-semantics/index.ts";
 import { detachToken, promoteToToken, setStyle, swapToken } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
 import { firstCssListItem, formatCssNumber, parseCssNumber } from "../styleEditors/cssValue.ts";
-import { deriveActiveTokenName, isExpressionRow } from "../styleEditors/fieldValue.ts";
+import { deriveActiveTokenName, isComputedExpression, isExpressionRow } from "../styleEditors/fieldValue.ts";
 import {
   canNudgeCssValueByDrag,
   nudgeCssValue,
@@ -85,6 +85,17 @@ export interface TokenValueFieldProps {
   blockedBy?: string | null;
   inlineWarningDataTest?: string;
   inlineWarningTooltipDataTest?: string;
+  /** The authored expression behind a computed `committedValue`; the value reads as secondary and hovering shows the expression. */
+  expression?: string;
+  /** Shows CSS values in friendlier words and reads them back, such as `600` as `Semibold`; `committedValue` arrives already shown. */
+  displayFormat?: DisplayFormat;
+}
+
+export interface DisplayFormat {
+  /** How a CSS value reads in the field. */
+  toDisplay(css: string): string;
+  /** The CSS a shown or typed value stands for; values it does not know pass through. */
+  toCss(shown: string): string;
 }
 
 export interface TokenFieldProps {
@@ -118,6 +129,7 @@ export interface TokenFieldProps {
   inlineWarningTooltipDataTest?: string;
   /** Sees each committed raw value first; returning true means the caller handled it and nothing is written. */
   interceptRaw?: (value: string) => boolean;
+  displayFormat?: DisplayFormat;
 }
 
 const NO_ENTRIES: TokenEntry[] = [];
@@ -307,8 +319,12 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     blockedBy = null,
     inlineWarningDataTest,
     inlineWarningTooltipDataTest,
+    expression,
+    displayFormat,
   } = props;
   const fieldDisabled = disabled || blockedBy !== null;
+  const toDisplay = (css: string) => displayFormat ? displayFormat.toDisplay(css) : css;
+  const toCss = (shown: string) => displayFormat ? displayFormat.toCss(shown) : shown;
   const inheritedAtRules = useFieldAtRules(property);
   const fieldAtRules = atRules ?? inheritedAtRules;
   const controlledToken = controlledTokenName ? entries.find((entry) => entry.name === controlledTokenName) : null;
@@ -434,9 +450,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       selectedFromPopover.current = true;
       cancelOnBlur.current = false;
       rawDirtyRef.current = false;
-      const formatted = formatRawValue(rawSuggestion);
+      const formatted = formatRawValue(toCss(rawSuggestion));
       setActiveTokenName(null);
-      setRawValue(formatted);
+      setRawValue(toDisplay(formatted));
       onCommitRaw(formatted);
       return;
     }
@@ -447,24 +463,24 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function commitRawValue(value = rawValue): void {
     if (fieldDisabled) return;
     if (mixed && value.trim().toLowerCase() === "mixed") return;
-    const formatted = formatRawValue(value);
+    const formatted = formatRawValue(toCss(value));
     if (!formatted) {
       rawDirtyRef.current = false;
       setRawValue(committedValue);
       return;
     }
     rawDirtyRef.current = false;
-    setRawValue(formatted);
+    setRawValue(toDisplay(formatted));
     setActiveTokenName(null);
     onCommitRaw(formatted);
   }
 
   function handleDelink(): void {
     // Unlinking must preserve the complete authored color expression and its alpha.
-    const value = opacity ? committedValue : activeToken?.value || resolvedValue || committedValue;
+    const value = toCss(opacity ? committedValue : activeToken?.value || resolvedValue || committedValue);
     rawDirtyRef.current = false;
     setActiveTokenName(null);
-    setRawValue(value);
+    setRawValue(toDisplay(value));
     onUnlink(value);
   }
 
@@ -496,13 +512,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
       const next = property === "opacity"
         ? nudgeOpacityValue(rawValue, direction, event.shiftKey)
-        : nudgeCssValue(nudgeProperty, rawValue, direction, event.shiftKey);
+        : nudgeCssValue(nudgeProperty, toCss(rawValue), direction, event.shiftKey);
       if (next) {
         event.preventDefault();
         event.stopPropagation();
         isNavigatingSuggestions.current = false;
         rawDirtyRef.current = false;
-        setRawValue(next);
+        setRawValue(toDisplay(next));
         setActiveTokenName(null);
         onCommitRaw(next);
         return;
@@ -550,7 +566,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
     if (event.button !== 0) return;
     if (fieldDisabled || !supportsDragNudge(nudgeProperty)) return;
-    if (!canNudgeCssValueByDrag(nudgeProperty, rawValue)) return;
+    if (!canNudgeCssValueByDrag(nudgeProperty, toCss(rawValue))) return;
 
     stopDragNudge();
     dragNudgedRef.current = false;
@@ -568,8 +584,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         (offset) => dragNudgeRef.current?.pointerLock?.setCursorOffset(offset),
       ),
       deltaX: 0,
-      startValue: rawValue,
-      lastValue: rawValue,
+      startValue: toCss(rawValue),
+      lastValue: toCss(rawValue),
       shiftActive: event.shiftKey,
       shiftSnapPending: event.shiftKey,
     };
@@ -642,7 +658,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     event.stopPropagation();
     dragNudgedRef.current = true;
     rawDirtyRef.current = false;
-    setRawValue(next);
+    setRawValue(toDisplay(next));
     setActiveTokenName(null);
     drag.commit(() => onCommitRaw(next));
   }
@@ -657,7 +673,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     if (!leading) return null;
     const canDrag = !fieldDisabled
       && supportsDragNudge(nudgeProperty)
-      && canNudgeCssValueByDrag(nudgeProperty, rawValue);
+      && canNudgeCssValueByDrag(nudgeProperty, toCss(rawValue));
     const activate = onActivate && !fieldDisabled ? onActivate : undefined;
     if (!canDrag) {
       return (
@@ -769,10 +785,23 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     ? (value: string | null) => onPreviewValue(value === null ? null : previewValueFor(value))
     : undefined;
 
+  // Both forms of the field sit in the same tooltip, inactive without an expression, so neither a commit that replaces the expression
+  // (mid-drag or mid-nudge) nor linking and detaching a token remounts the field.
+  const withExpressionTooltip = (field: ReactElement): ReactElement => (
+    <Tooltip
+      content={expression ? <code className="token-field__expression-tooltip">{expression}</code> : null}
+      disableFocus
+      inactive={!expression || activeToken !== null}
+      data-test="token-field-expression-tooltip"
+    >
+      {field}
+    </Tooltip>
+  );
+
   if (activeToken) {
     const numericToken = isNumericTokenValue(activeToken.value);
     const chipValue = numericToken ? stripCssUnit(activeToken.value) : activeToken.name;
-    return (
+    return withExpressionTooltip(
       <span
         className={cx(
           "token-field",
@@ -857,17 +886,21 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0 || fontItems.length > 0);
-  return (
+  // Only the value the field opened with is computed; once typed over, the draft is the user's own.
+  const showsExpression = Boolean(expression) && !mixed && rawValue === committedValue;
+  const rawField = (
     <span
       className={cx(
         "token-field",
         "token-field--raw",
         isColor && "token-field--color",
+        showsExpression && "token-field--expression",
         blockedBy !== null && "token-field--blocked",
         className,
       )}
       data-test="token-field"
       data-property={property}
+      data-expression={showsExpression ? expression : undefined}
       aria-disabled={fieldDisabled || undefined}
       aria-label={label}
     >
@@ -879,6 +912,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         open={showPopover}
         placeholder={property}
         inputAriaLabel={label ?? formatInspectorLabel(property)}
+        inputAriaDescription={showsExpression ? `Computed from ${expression}` : undefined}
         inputRef={inputRef}
         inputAppearance="embedded"
         inputDataTest={inputDataTest}
@@ -930,6 +964,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       />
     </span>
   );
+  return withExpressionTooltip(rawField);
 }
 
 function arrowDirection(key: string): -1 | 1 | null {
@@ -965,6 +1000,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     inlineWarningDataTest,
     inlineWarningTooltipDataTest,
     interceptRaw,
+    displayFormat,
   } = props;
   const stopPreview = useRef<(() => void) | null>(null);
   const selectedProperty = selection && selection.elements.length > 1
@@ -982,7 +1018,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
     ? tokenRow.tokenName
     : null;
-  const expression = isExpressionRow(tokenRow ?? null);
+  const expressionRow = isExpressionRow(tokenRow ?? null);
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = isCalcExpression(authored);
   const activeTokenName = deriveActiveTokenName({
@@ -993,17 +1029,29 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     override: tokenBackedOpacityName,
   });
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
+  const isColor = selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color";
+  // An expression with no token chip reads as the value it computes to; the authored expression stays a hover away.
+  // Colors keep their authored text, which their swatch and opacity controls read.
+  const expressionValue = !effectiveMixed && !activeTokenName && !tokenBackedOpacityName && !isColor
+    && displayValue === undefined && selectionDisplayValue === undefined
+    && structuredBorderValue(property, tokenRow) === null
+    && isComputedExpression(authored)
+    ? authored.trim()
+    : undefined;
   // Suppress the chip for calc()-derived values so the UI shows the resolved pixel value, not the internal multiplier token.
-  const authoredOrComputed = tokenBackedOpacityName
+  const authoredOrComputed = expressionValue !== undefined
+    ? computedRaw(el, property)
+    : tokenBackedOpacityName
     ? authored
-    : expression || (!activeTokenName && !isCalcAuthored)
+    : expressionRow || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
+  const shownValue = displayValue ?? selectionDisplayValue ?? (property === "font-family" && !activeTokenName
+    ? firstCssListItem(authoredOrComputed)
+    : authoredOrComputed);
   const committedValue = effectiveMixed
     ? displayValue ?? "Mixed"
-    : displayValue ?? selectionDisplayValue ?? (property === "font-family" && !activeTokenName
-      ? firstCssListItem(authoredOrComputed)
-      : authoredOrComputed);
+    : displayFormat ? displayFormat.toDisplay(shownValue) : shownValue;
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
@@ -1033,7 +1081,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       activeTokenName={activeTokenName}
       attributionTokens={attributionTokens
         ?? (selectedProperty?.token.kind === "mixed" ? ["Mixed tokens"] : undefined)
-        ?? (expression
+        ?? (expressionRow
           ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
           : undefined)}
       opacity={tokenRow?.opacity}
@@ -1045,7 +1093,9 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       disabled={disabled}
       blockedBy={blockedBy}
       mixed={effectiveMixed}
-      isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
+      isColor={isColor}
+      expression={expressionValue}
+      displayFormat={displayFormat}
       formatRawValue={(value) => {
         if (formatRawValueProp) return formatRawValueProp(value);
         return completeCssValue(value.trim(), valuePolicyFor(property));

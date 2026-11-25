@@ -43,7 +43,7 @@
   padding: 14px 0 var(--space-8);
   color: var(--text-primary);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-label);
+  font-weight: var(--font-weight-title);
 }
 
 .token-row {

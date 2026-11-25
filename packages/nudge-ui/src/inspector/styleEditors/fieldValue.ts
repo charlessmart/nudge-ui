@@ -32,3 +32,8 @@ export function deriveActiveTokenName(input: ActiveTokenInput): string | null {
   }
   return row?.tokenName ?? null;
 }
+
+/** Whether a value is worked out from other values (a variable, `calc()`, `min()`, `max()`, `clamp()` or `env()`) rather than written as itself. */
+export function isComputedExpression(value: string): boolean {
+  return /\b(?:var|calc|min|max|clamp|env)\s*\(/i.test(value);
+}

@@ -75,6 +75,8 @@ export interface PopoverListboxProps {
   inputDataTest?: string;
   /** The input's accessible name; the placeholder is only an example and never names it. */
   inputAriaLabel?: string;
+  /** Extra detail a screen reader announces with the input, after its label. */
+  inputAriaDescription?: string;
   inputOnFocus?: FocusEventHandler<HTMLInputElement>;
   inputOnBlur?: FocusEventHandler<HTMLInputElement>;
   inputOnKeyDown?: KeyboardEventHandler<HTMLInputElement>;
@@ -110,6 +112,7 @@ export function PopoverListbox({
   inputAppearance = "default",
   inputDataTest,
   inputAriaLabel,
+  inputAriaDescription,
   inputOnFocus,
   inputOnBlur,
   inputOnKeyDown,
@@ -279,6 +282,7 @@ export function PopoverListbox({
             className={cx("text-input", inputAppearance === "embedded" && "text-input--embedded", inputClassName)}
             placeholder={placeholder}
             aria-label={inputAriaLabel}
+            aria-description={inputAriaDescription}
             data-test={inputDataTest}
             onFocus={inputOnFocus}
             onBlur={inputOnBlur}

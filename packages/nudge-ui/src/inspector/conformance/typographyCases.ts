@@ -171,4 +171,23 @@ export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
       },
     },
   },
+  {
+    // next/font and Tailwind compile `font-serif` to the font token followed by the theme's fallback stack.
+    id: "type-token-led-family-stack",
+    css: '.subject { font-family: var(--type-family-body), ui-serif, Georgia, "Times New Roman", serif; font-size: 16px; }',
+    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:8:1">A token leads the family stack.</p>',
+    selected: ".subject",
+    catalog: [TYPE_FAMILY],
+    expected: {
+      catalog: [{ name: "--type-family-body", value: "Inter, ui-sans-serif, system-ui, sans-serif" }],
+      properties: {
+        "font-family": {
+          authored: 'var(--type-family-body), ui-serif, Georgia, "Times New Roman", serif',
+          tokens: ["--type-family-body"],
+          capability: "atomic",
+        },
+        "font-size": { authored: "16px", capability: "atomic" },
+      },
+    },
+  },
 ];

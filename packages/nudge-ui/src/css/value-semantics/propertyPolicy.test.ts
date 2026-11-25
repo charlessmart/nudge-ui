@@ -57,6 +57,8 @@ describe("classifyEditCapability (edit capability classifier)", () => {
       ["width", "anchor-size(width)", "raw"],
       ["border-width", "2px 4px 6px 8px", "raw"],
       ["border-style", "solid dashed", "raw"],
+      ["font-family", 'var(--font-louize), ui-serif, Georgia, "Times New Roman", serif', "atomic"],
+      ["font-family", "Inter, var(--font-fallback), sans-serif", "composite"],
     ];
     for (const [property, authored, expected] of cases) {
       expect(classifyEditCapability(property, authored), `${property}: ${authored}`).toBe(expected);

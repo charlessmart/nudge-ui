@@ -6,30 +6,16 @@
   min-width: 0;
 }
 
-.typography__weight {
+/* The usual three columns: two fields and the column for an icon button, which every row keeps whether or not it has one. */
+.typography__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
   align-items: center;
   gap: var(--space-8);
 }
 
-/* Holds the at-rule badge, which sits on the toggle's corner as it does on every other field. */
-.typography__style-toggle {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.typography__style-toggle > .typography__mixed {
-  color: var(--text-muted);
-  font-size: var(--font-size-badge);
-}
-
-.typography__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-8);
+.typography__field--font-family {
+  grid-column: span 2;
 }
 
 .typography__field .token-field__leading svg {
@@ -39,11 +25,61 @@
 
 .typography__alignment {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--control-height-large);
+  align-items: center;
   gap: var(--space-8);
+}
+
+.typography__mixed {
+  color: var(--text-muted);
+  font-size: var(--font-size-badge);
 }
 
 .typography__alignment-field {
   position: relative;
   min-width: 0;
+}
+
+/* Text options: each setting is a row with its label on the left and its control on the right. */
+.typography__options {
+  display: flex;
+  flex-direction: column;
+  row-gap: var(--space-8);
+  min-width: 280px;
+}
+
+.typography__options > .editor__title {
+  margin-bottom: var(--space-4);
+}
+
+/* Sized to its rows: the shared 280px width would clip the widest segmented controls. Doubled class: the shared popup rule is declared later. */
+.inspector-popover__popup.typography__options-popup {
+  width: max-content;
+  max-width: calc(100vw - var(--space-24));
+  padding: var(--space-16);
+  padding-block-start: var(--space-12);
+}
+
+.typography__option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--control-height-large);
+}
+
+.typography__option-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.typography__option-control {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.typography__option-select {
+  position: relative;
+  width: 140px;
 }

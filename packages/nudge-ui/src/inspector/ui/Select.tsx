@@ -1,7 +1,7 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
-import { useRef, type ButtonHTMLAttributes, type ComponentProps, type ReactElement } from "react";
+import { Fragment, useRef, type ButtonHTMLAttributes, type ComponentProps, type ReactElement } from "react";
 import type { ControlAppearance } from "./ControlSurface.tsx";
 import { usePortalContainer } from "./portalContainer.ts";
 import type { PopupWidth } from "./PopoverListbox.tsx";
@@ -12,6 +12,10 @@ export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
+  /** A line under the label in the menu that says what the choice does; the trigger shows only the label. Plain selects only: a searchable one lists labels. */
+  description?: string;
+  /** Draws a divider under the option, setting it apart from the rest. Plain selects only. */
+  dividerAfter?: boolean;
 }
 
 export interface SelectGroup {
@@ -102,7 +106,12 @@ function NativeSelect({
           alignItemWithTrigger={iconOnly ? false : popupPosition?.alignItemWithTrigger ?? false}>
           <BaseSelect.Popup className={`select__popup${popupWidth === "fit" ? " select__popup--fit" : ""}`}>
             <BaseSelect.List className="select__list">
-              {options.map((option) => <SelectItem key={option.value} option={option} />)}
+              {options.map((option) => (
+                <Fragment key={option.value}>
+                  <SelectItem option={option} />
+                  {option.dividerAfter ? <BaseSelect.Separator className="select__separator" /> : null}
+                </Fragment>
+              ))}
               {groups.map((group) => (
                 <BaseSelect.Group className="select__group" key={group.label}>
                   <BaseSelect.GroupLabel className="select__group-label">
@@ -244,9 +253,18 @@ function SelectItem({ option }: { option: SelectOption }): ReactElement {
       disabled={option.disabled}
       data-value={option.value}
     >
-      <BaseSelect.ItemText className="select__item-text">
-        {option.label}
-      </BaseSelect.ItemText>
+      {option.description ? (
+        <span className="select__item-body">
+          <BaseSelect.ItemText className="select__item-text">
+            {option.label}
+          </BaseSelect.ItemText>
+          <span className="select__item-description">{option.description}</span>
+        </span>
+      ) : (
+        <BaseSelect.ItemText className="select__item-text">
+          {option.label}
+        </BaseSelect.ItemText>
+      )}
       <BaseSelect.ItemIndicator className="select__item-indicator">
         <IconCheck size={15} stroke={2.4} aria-hidden="true" />
       </BaseSelect.ItemIndicator>
